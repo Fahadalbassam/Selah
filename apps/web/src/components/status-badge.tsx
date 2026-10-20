@@ -13,6 +13,7 @@ const TONE: Record<ActionStatus, string> = {
   awaiting_review: "bg-warning/15 text-foreground",
   revision_requested: "bg-destructive/10 text-destructive",
   verified_complete: "bg-success/15 text-success",
+  closed: "bg-muted text-muted-foreground",
 };
 
 export function StatusBadge({ status }: { status: ActionStatus }) {

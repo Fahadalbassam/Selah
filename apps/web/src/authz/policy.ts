@@ -68,6 +68,18 @@ export const POLICY = {
   "action.release": { ...STAFF }, // draft -> assigned
   "action.work": { ...DO_WORK }, // start, block, unblock, submit, rework
   "action.review": { ...STAFF }, // accept or request revision
+  // End without verification (partially implemented, risk accepted, not
+  // applicable, superseded) or reopen. Risk acceptance also needs a named
+  // client person's signed statement (risk.accept).
+  "action.close": { ...STAFF },
+  "action.reopen": { ...STAFF },
+  "risk.accept": { client_admin: "any", client_manager: "any" },
+  // The evidence list: what the firm needs to see to verify an action.
+  "evidence_request.read": { ...READ_WORK },
+  "evidence_request.manage": { ...STAFF },
+  // The firm's private notes on an action.
+  "action_note.read": { ...STAFF },
+  "action_note.create": { ...STAFF },
 
   "progress_update.read": { ...READ_WORK },
   "progress_update.create": { ...DO_WORK },
@@ -101,6 +113,10 @@ export const POLICY = {
   "report.write": { ...STAFF },
   "report.share": { ...STAFF },
   "activity.read": { ...READ_WORK },
+  // Implementation metrics of a project (computed, never typed in), and the
+  // admin's view of the team's load. No per-person scores or rankings.
+  "metrics.read": { ...ALL_BUT_OWNER },
+  "team_metrics.read": { firm_admin: "any" },
 
   // AI assistant. Whether client users get it is an open decision in the
   // spec; until it is made, only firm staff do. To enable client managers,

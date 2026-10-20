@@ -38,7 +38,8 @@
     "blocked": "متعثر",
     "awaiting_review": "بانتظار المراجعة",
     "revision_requested": "مطلوب تعديل",
-    "verified_complete": "مكتمل ومُتحقق منه"
+    "verified_complete": "مكتمل ومُتحقق منه",
+    "closed": "مغلق"
   },
   "visibility": {
     "shared": "مشترك مع العميل",
