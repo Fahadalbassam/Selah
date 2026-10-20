@@ -1,4 +1,5 @@
-// Synthetic demo data (never real client data). Usage: npm run db:seed
+// Sample data for local development (fictional people and companies, never
+// real client data). Usage: npm run db:seed
 // One consulting firm, two client orgs, one user per role, an internal
 // project and client projects with actions in every state. All users share
 // the password in SEED_PASSWORD. Refuses to run in production.
@@ -41,25 +42,25 @@ const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISO
 
 const [firm] = await db
   .insert(s.organizations)
-  .values({ kind: "firm", name: "Demo Consulting Firm", nameAr: "شركة الاستشارات التجريبية" })
+  .values({ kind: "firm", name: "Mizan Advisory", nameAr: "ميزان للاستشارات" })
   .returning();
 const [nukhba] = await db
   .insert(s.organizations)
-  .values({ kind: "client", name: "Al-Nukhba Holding (synthetic)", nameAr: "شركة النخبة القابضة (تجريبية)" })
+  .values({ kind: "client", name: "Al-Nukhba Holding", nameAr: "شركة النخبة القابضة" })
   .returning();
 const [rawdah] = await db
   .insert(s.organizations)
-  .values({ kind: "client", name: "Rawdah Foundation (synthetic)", nameAr: "مؤسسة الروضة (تجريبية)" })
+  .values({ kind: "client", name: "Rawdah Foundation", nameAr: "مؤسسة الروضة" })
   .returning();
 
 const u = {
-  admin: await person("admin@firm.test", "سارة العتيبي"),
-  consultant: await person("consultant@firm.test", "خالد الشمري"),
-  consultant2: await person("consultant2@firm.test", "نورة القحطاني"),
-  nukhbaAdmin: await person("admin@nukhba.test", "فهد الدوسري"),
-  nukhbaManager: await person("manager@nukhba.test", "ريم الحربي"),
-  nukhbaOwner: await person("owner@nukhba.test", "عبدالله المطيري"),
-  rawdahManager: await person("manager@rawdah.test", "هند الزهراني"),
+  admin: await person("sara@mizan.example", "سارة العتيبي"),
+  consultant: await person("khalid@mizan.example", "خالد الشمري"),
+  consultant2: await person("noura@mizan.example", "نورة القحطاني"),
+  nukhbaAdmin: await person("fahd@nukhba.example", "فهد الدوسري"),
+  nukhbaManager: await person("reem@nukhba.example", "ريم الحربي"),
+  nukhbaOwner: await person("abdullah@nukhba.example", "عبدالله المطيري"),
+  rawdahManager: await person("hind@rawdah.example", "هند الزهراني"),
 };
 
 await db.insert(s.orgMemberships).values([
@@ -200,7 +201,7 @@ await db.insert(s.documents).values([
     storageKey: crypto.randomUUID(),
     contentType: "application/pdf",
     sizeBytes: 1024,
-    sha256: "synthetic",
+    sha256: "0".repeat(64),
   },
   {
     ...scope,
@@ -213,9 +214,9 @@ await db.insert(s.documents).values([
     storageKey: crypto.randomUUID(),
     contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     sizeBytes: 2048,
-    sha256: "synthetic",
+    sha256: "0".repeat(64),
   },
 ]);
 
 await pool.end();
-console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. admin@firm.test, consultant@firm.test, manager@nukhba.test, owner@nukhba.test");
+console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. sara@mizan.example (firm admin), khalid@mizan.example (consultant), reem@nukhba.example (client manager)");

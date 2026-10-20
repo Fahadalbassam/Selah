@@ -16,10 +16,10 @@ Results are test results on the executed cases, not a guarantee of security.
 | V1 Encoding and injection | Parameterized SQL through Drizzle; React escaping; the assistant's answer is rendered as plain text | Done |
 | V5 File handling | Private bucket (`scripts/storage-init.ts`), random storage keys, one-minute signed download links issued only after `authorize()`, every download audited | Upload endpoint, type and size allowlist, malware scan not yet built |
 | V3 Web frontend | Security headers and CSP in `next.config.ts` (frame-ancestors none, nosniff, HSTS, no-referrer leaks) | CSP still allows inline scripts; move to nonces |
-| V14 Data protection | Visibility labels; app role cannot read passwords, sessions or the audit log; synthetic seed data only | Done |
+| V14 Data protection | Visibility labels; app role cannot read passwords, sessions or the audit log; sample seed data only | Done |
 | V16 Logging and errors | `audit_log` (insert-only for the app, append-only trigger): status changes, downloads, AI queries and every denial are logged with actor and reason, never document text; generic error bodies | Sign-in events not yet copied into `audit_log` |
 | V13 Configuration | Secrets only in `.env` (ignored by Git), validated at start (`src/env.ts`); `npm audit` in CI; ports bound to 127.0.0.1 | Done |
-| V12 Secure communication | HTTPS for the deployed demo through a reverse proxy on the team's Linux server | Not yet set up |
+| V12 Secure communication | HTTPS for the deployed site through a reverse proxy on the team's Linux server | Not yet set up |
 
 ## Database roles
 
@@ -46,4 +46,4 @@ Results are test results on the executed cases, not a guarantee of security.
 
 ## Known gaps before real data
 
-Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The demo runs on the team's Linux server; backups, HTTPS and a malware scanner still need to be set up there.
+Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; backups, HTTPS and a malware scanner still need to be set up there.

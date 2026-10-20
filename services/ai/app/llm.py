@@ -1,6 +1,6 @@
 """Model adapters. Everything goes through the LLM protocol, so swapping
 Ollama for a hosted API is one new class and a config change. A hosted API
-sends text to an outside company: use it with synthetic data only unless
+sends text to an outside company: use it with sample data only unless
 firm approves."""
 
 from typing import Any, Protocol

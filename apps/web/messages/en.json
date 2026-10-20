@@ -1,5 +1,8 @@
 {
-  "app": { "name": "Selah", "tagline": "Consulting implementation follow-up" },
+  "app": {
+    "name": "Selah",
+    "tagline": "Consulting implementation follow-up"
+  },
   "nav": {
     "workspace": "Workspace",
     "overview": "Overview",
@@ -15,7 +18,12 @@
     "organization": "Organization",
     "team": "Team"
   },
-  "header": { "language": "العربية", "theme": "Toggle theme", "signOut": "Sign out", "account": "Account" },
+  "header": {
+    "language": "العربية",
+    "theme": "Toggle theme",
+    "signOut": "Sign out",
+    "account": "Account"
+  },
   "role": {
     "firm_admin": "Firm admin",
     "consultant": "Consultant",
@@ -38,7 +46,10 @@
     "client_private": "Client only",
     "user_private": "Only me"
   },
-  "kind": { "internal": "Internal", "client": "Client" },
+  "kind": {
+    "internal": "Internal",
+    "client": "Client"
+  },
   "dashboard": {
     "title": "Overview",
     "inProgress": "In progress",
@@ -63,7 +74,8 @@
     "due": "Due",
     "status": "Status",
     "overdue": "Overdue",
-    "unassigned": "Unassigned"
+    "unassigned": "Unassigned",
+    "client": "Client"
   },
   "projects": {
     "title": "Projects",
@@ -89,7 +101,12 @@
     "changed": "moved {from} to {to}",
     "internalBanner": "Internal project: no client can see it."
   },
-  "priority": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "critical": "Critical"
+  },
   "clients": {
     "title": "Clients",
     "subtitle": "Clients assigned to you. Consultants only see their own clients.",
@@ -98,9 +115,25 @@
     "none": "None",
     "empty": "No clients are assigned to you."
   },
-  "team": { "title": "Team", "name": "Name", "email": "Email", "role": "Role", "projects": "Projects", "empty": "You can't view the team list." },
-  "actionsPage": { "title": "Actions", "mine": "Actions assigned to you", "all": "All actions you can see", "empty": "No actions." },
-  "reviewPage": { "title": "Review queue", "subtitle": "Evidence clients submitted, waiting for your decision", "empty": "Nothing is waiting for review." },
+  "team": {
+    "title": "Team",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "projects": "Projects",
+    "empty": "You can't view the team list."
+  },
+  "actionsPage": {
+    "title": "Actions",
+    "mine": "Actions assigned to you",
+    "all": "All actions you can see",
+    "empty": "No actions."
+  },
+  "reviewPage": {
+    "title": "Review queue",
+    "subtitle": "Evidence clients submitted, waiting for your decision",
+    "empty": "Nothing is waiting for review."
+  },
   "assistant": {
     "title": "Assistant",
     "subtitle": "Answers only from material you are allowed to see, with sources.",
@@ -123,5 +156,68 @@
     "error": "Wrong email or password.",
     "noAccess": "Your account isn't linked to an active organization."
   },
-  "notFound": { "title": "Not found", "body": "This page doesn't exist or you don't have access to it.", "back": "Back to overview" }
+  "notFound": {
+    "title": "Not found",
+    "body": "This page doesn't exist or you don't have access to it.",
+    "back": "Back to overview"
+  },
+  "action": {
+    "back": "Back to actions",
+    "owner": "Owner",
+    "due": "Due",
+    "recommendation": "Recommendation",
+    "requiredEvidence": "Evidence the consultant expects",
+    "blocked": "Blocked: {reason}",
+    "nextStep": "Next step",
+    "noMoves": "Nothing for you to do on this action right now.",
+    "history": "History",
+    "noHistory": "No updates, evidence or reviews yet.",
+    "move": {
+      "assigned": "Release to owner",
+      "in_progress": "Start work",
+      "blocked": "Mark as blocked",
+      "awaiting_review": "Submit for review",
+      "verified_complete": "Accept and verify",
+      "revision_requested": "Request revision"
+    },
+    "resume": "Resume work",
+    "reasonLabel": "Reason",
+    "reasonRequired": "A reason is required.",
+    "blockHint": "Explain what is blocking this action. The consultant will see it.",
+    "reviseHint": "Tell the owner what is missing. They will see this reason.",
+    "acceptHint": "Accepting marks this action as verified complete. It cannot be undone; a correction needs a new action.",
+    "evidenceTitle": "Submit evidence",
+    "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word, Excel, PowerPoint, images, text. Up to 20 MB.",
+    "file": "File",
+    "note": "Note for the reviewer (optional)",
+    "sendForReview": "Send for review now",
+    "upload": "Upload",
+    "uploadOnly": "Attach evidence",
+    "addUpdate": "Add a progress note",
+    "updatePlaceholder": "What changed since the last update?",
+    "post": "Post note",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "saving": "Saving…",
+    "errors": {
+      "generic": "That didn't work. Reload the page and try again.",
+      "conflict": "Someone else changed this action. Reload to see the latest.",
+      "type": "This file type isn't allowed, or the file doesn't match its extension.",
+      "too_large": "The file is larger than 20 MB.",
+      "empty": "The file is empty.",
+      "needEvidence": "Attach evidence before sending for review."
+    },
+    "entry": {
+      "update": "posted an update",
+      "evidence": "submitted evidence",
+      "accept": "accepted the evidence",
+      "revise": "requested a revision",
+      "reject": "rejected the evidence"
+    },
+    "download": "Download",
+    "awaitingNote": "Waiting for the consultant's decision.",
+    "verifiedNote": "Verified by the firm.",
+    "firmReviewer": "The consultant",
+    "someone": "Someone"
+  }
 }

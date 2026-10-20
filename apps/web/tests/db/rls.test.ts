@@ -219,6 +219,11 @@ describe("hierarchy: client assignments", () => {
     expect(await count(U.overseer, "organizations", "id = $1", [ACME])).toBe(0);
   });
 
+  it("client users see the consultants assigned to their organization, and no others", async () => {
+    expect(await count(U.betaManager, "\"user\"", "id = $1", [U.overseer])).toBe(1);
+    expect(await count(U.acmeOwner, "\"user\"", "id = $1", [U.overseer])).toBe(0);
+  });
+
   it("a consultant not assigned to Beta never sees it", async () => {
     expect(await count(U.consultant, "organizations", "id = $1", [BETA])).toBe(0);
     expect(await count(U.consultant, "projects", "id = $1", [BETA_PROJ])).toBe(0);
