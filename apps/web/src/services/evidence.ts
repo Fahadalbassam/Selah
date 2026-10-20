@@ -6,7 +6,8 @@ import { assertAllowed, type Principal } from "@/authz";
 import { checkUpload } from "@/lib/upload-rules";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { loadAction, transitionAction } from "./actions";
-import { audit } from "./audit";
+import { audit, auditDetached } from "./audit";
+import { scanUpload } from "./scan";
 import { putObject } from "./storage";
 
 export interface EvidenceInput {
@@ -20,7 +21,7 @@ const OPEN_FOR_EVIDENCE = new Set(["in_progress", "revision_requested"]);
 
 /**
  * Attach evidence to an action. The file is checked (type, bytes, size),
- * stored under a random key, and recorded as a document visible to the
+ * scanned for malware, stored under a random key, and recorded as a document visible to the
  * client and the firm ("shared"), so the reviewing consultant can open it.
  * The database rows are written first: if storing the file fails, the
  * transaction rolls back and nothing points at a missing file.
@@ -36,6 +37,14 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
   const bytes = new Uint8Array(await input.file.arrayBuffer());
   const check = checkUpload(input.file.name, input.file.type, bytes.byteLength, bytes.subarray(0, 512));
   if (!check.ok) throw new BadRequestError(`file rejected: ${check.reason}`);
+
+  // Scan before anything is stored: an infected file never reaches the bucket.
+  const scan = await scanUpload(bytes).catch(async (err: unknown) => {
+    if (err instanceof BadRequestError) {
+      await auditDetached({ actorId: principal.userId, orgId: principal.orgId, action: "evidence.submit", resourceType: "action", resourceId: actionId, outcome: "deny", reason: "infected" });
+    }
+    throw err;
+  });
 
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const storageKey = randomUUID();
@@ -54,6 +63,8 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
       contentType: check.contentType,
       sizeBytes: bytes.byteLength,
       sha256,
+      scanStatus: "clean",
+      scannedAt: scan.scanned ? new Date() : null,
     })
     .returning({ id: documents.id });
   const [submission] = await tx
@@ -83,7 +94,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
     resourceType: "action",
     resourceId: actionId,
     outcome: "allow",
-    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength },
+    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength, scanned: scan.scanned },
   });
 
   if (input.submitForReview) {

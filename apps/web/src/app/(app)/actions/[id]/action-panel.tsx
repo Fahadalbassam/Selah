@@ -36,9 +36,11 @@ async function send(url: string, init: RequestInit): Promise<Result> {
   if (res.ok) return { ok: true };
   const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
   if (res.status === 409) return { ok: false, error: "conflict" };
+  if (res.status === 503) return { ok: false, error: "scanner" };
   const m = body.message ?? "";
   if (m.includes("too large")) return { ok: false, error: "too_large" };
   if (m.includes("rejected: empty")) return { ok: false, error: "empty" };
+  if (m.includes("rejected: infected")) return { ok: false, error: "infected" };
   if (m.includes("rejected")) return { ok: false, error: "type" };
   if (m.includes("submit evidence")) return { ok: false, error: "needEvidence" };
   return { ok: false, error: "generic" };

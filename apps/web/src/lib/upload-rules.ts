@@ -4,11 +4,11 @@
  *
  * A file passes only if its extension, its declared type and its first bytes
  * agree. The declared type alone is chosen by the browser and can be forged.
+ * Legacy .doc/.xls are not accepted: they are the usual carriers of macros.
  */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 const ZIP = [0x50, 0x4b, 0x03, 0x04];
-const OLE = [0xd0, 0xcf, 0x11, 0xe0];
 
 interface FileKind {
   ext: string;
@@ -21,8 +21,6 @@ const KINDS: FileKind[] = [
   { ext: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", magic: ZIP },
   { ext: "xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", magic: ZIP },
   { ext: "pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", magic: ZIP },
-  { ext: "doc", mime: "application/msword", magic: OLE },
-  { ext: "xls", mime: "application/vnd.ms-excel", magic: OLE },
   { ext: "png", mime: "image/png", magic: [0x89, 0x50, 0x4e, 0x47] },
   { ext: "jpg", mime: "image/jpeg", magic: [0xff, 0xd8, 0xff] },
   { ext: "jpeg", mime: "image/jpeg", magic: [0xff, 0xd8, 0xff] },
@@ -41,7 +39,9 @@ export function cleanFileName(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? "";
   const cleaned = base
     .normalize("NFC")
-    .replace(/[\u0000-\u001f\u007f"<>|:*?]/g, "")
+    // Control characters, characters that break headers or paths, and
+    // bidirectional overrides (they can make "evil.exe.pdf" read as another name).
+    .replace(/[\u0000-\u001f\u007f"<>|:*?\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(-150);

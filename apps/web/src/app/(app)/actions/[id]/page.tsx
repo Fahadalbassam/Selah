@@ -76,7 +76,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                             <span className="text-xs text-muted-foreground tabular-nums">
                               {fileSize(e.evidence.sizeBytes)}
                             </span>
-                            {e.evidence.canDownload ? <DownloadButton documentId={e.evidence.documentId} label={t("download")} /> : null}
+                            {e.evidence.canDownload ? <DownloadButton documentId={e.evidence.documentId} label={t("download")} unavailable={t("errors.unavailable")} /> : null}
                             {e.evidence.note ? <p className="w-full text-sm text-muted-foreground">{e.evidence.note}</p> : null}
                           </div>
                         ) : null}

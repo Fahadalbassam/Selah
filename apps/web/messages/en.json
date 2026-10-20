@@ -187,7 +187,7 @@
     "reviseHint": "Tell the owner what is missing. They will see this reason.",
     "acceptHint": "Accepting marks this action as verified complete. It cannot be undone; a correction needs a new action.",
     "evidenceTitle": "Submit evidence",
-    "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word, Excel, PowerPoint, images, text. Up to 20 MB.",
+    "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images and text, up to 20 MB. Files are scanned for viruses.",
     "file": "File",
     "note": "Note for the reviewer (optional)",
     "sendForReview": "Send for review now",
@@ -205,7 +205,10 @@
       "type": "This file type isn't allowed, or the file doesn't match its extension.",
       "too_large": "The file is larger than 20 MB.",
       "empty": "The file is empty.",
-      "needEvidence": "Attach evidence before sending for review."
+      "needEvidence": "Attach evidence before sending for review.",
+      "infected": "The file was flagged by the virus scanner and was not stored.",
+      "scanner": "The virus scanner is unavailable, so uploads are paused. Try again shortly.",
+      "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner."
     },
     "entry": {
       "update": "posted an update",

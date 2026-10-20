@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { authorize, canTransition, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
 import { loadAction } from "./actions";
+import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
 // Read services for the pages. Rows come back already filtered by RLS; each
@@ -120,7 +121,7 @@ export async function listActions(tx: Tx, principal: Principal, filter: { projec
   }));
 }
 
-export function isOverdue(row: Pick<ActionRow, "status" | "dueDate">, today = new Date().toISOString().slice(0, 10)) {
+export function isOverdue(row: Pick<ActionRow, "status" | "dueDate">, today = firmToday()) {
   return row.dueDate !== null && row.dueDate < today && (OPEN_STATUSES as readonly string[]).includes(row.status);
 }
 
