@@ -25,31 +25,39 @@ import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from 
  *
  * tests/route-guard.test.ts fails the build if a route skips this wrapper.
  */
-export interface Context<P, B> {
+export interface Context<P, B, R = undefined> {
   principal: Principal;
   tx: Tx;
   params: P;
   body: B;
   /** Files from a multipart form (only when the route sets `form`). */
   files: Map<string, File>;
+  /** What `prepare` returned. */
+  prepared: R;
   ip: string | null;
 }
 
-interface Options<P extends z.ZodType, B extends z.ZodType> {
+interface Options<P extends z.ZodType, B extends z.ZodType, R> {
   params?: P;
   /** JSON body schema. */
   body?: B;
   /** Multipart form instead of JSON: `body` then validates the text fields. */
   form?: { maxBytes: number };
+  /**
+   * Slow work on the input (e.g. a virus scan) that must not hold a database
+   * connection. Runs after the session and input checks, before the
+   * transaction opens; it must not read data or make access decisions.
+   */
+  prepare?: (input: { userId: string; params: z.infer<P>; body: z.infer<B>; files: Map<string, File> }) => Promise<R>;
 }
 
-type Handler<P, B> = (ctx: Context<P, B>) => Promise<unknown>;
+type Handler<P, B, R> = (ctx: Context<P, B, R>) => Promise<unknown>;
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined>(
-  options: Options<P, B>,
-  handler: Handler<z.infer<P>, z.infer<B>>,
+export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined, R = undefined>(
+  options: Options<P, B, R>,
+  handler: Handler<z.infer<P>, z.infer<B>, R>,
 ) {
   return async (req: NextRequest, segment: { params: Promise<Record<string, string | string[]>> }) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -80,10 +88,14 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       }
       const body = options.body ? parse(options.body, raw) : undefined;
 
+      const prepared = options.prepare
+        ? await options.prepare({ userId: uid, params: params as z.infer<P>, body: body as z.infer<B>, files })
+        : undefined;
+
       const result = await asUser(uid, async (tx) => {
         const principal = await loadPrincipal(tx, uid);
         if (!principal) throw new NoMembershipError();
-        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, ip });
+        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, prepared: prepared as R, ip });
       });
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {

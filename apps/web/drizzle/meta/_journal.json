@@ -43,6 +43,20 @@
       "when": 1792531817813,
       "tag": "0005_evidence_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792532318887,
+      "tag": "0006_scan_skipped",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792532319873,
+      "tag": "0007_review_integrity",
+      "breakpoints": true
     }
   ]
 }

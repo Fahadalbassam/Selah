@@ -83,12 +83,15 @@ npm run lint && npm run typecheck
 DATABASE_OWNER_URL=$TEST_DATABASE_OWNER_URL npm run db:migrate
 npm run test:db
 
+# Upload scanning against a real ClamAV (docker compose up clamav -d):
+CLAMD_HOST=localhost npm run test:scan
+
 cd ../../services/ai
 python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
 ```
 
-CI runs all three on every pull request.
+CI runs all of these on every pull request. ClamAV needs at least 3 GiB of free RAM on the host (4 GiB preferred).
 
 ## The rules that keep data separate
 

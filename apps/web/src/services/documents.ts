@@ -5,6 +5,7 @@ import { documentShares, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
 import { ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { downloadable } from "./scan";
 import { DOWNLOAD_TTL_SECONDS, signedDownloadUrl } from "./storage";
 
 async function loadDocument(tx: Tx, id: string) {
@@ -42,7 +43,7 @@ export async function createDownloadLink(tx: Tx, principal: Principal, id: strin
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.download", loaded.resource);
   // Fail closed: only files the scanner cleared can leave the bucket.
-  if (loaded.doc.scanStatus !== "clean") throw new ConflictError("this file has not been cleared for download");
+  if (!downloadable(loaded.doc.scanStatus)) throw new ConflictError("this file has not been cleared for download");
 
   const url = await signedDownloadUrl(loaded.doc.storageKey, loaded.doc.title);
   await audit(tx, {

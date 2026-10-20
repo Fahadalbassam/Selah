@@ -302,6 +302,16 @@ describe("internal project work", () => {
     expect(canTransition(principal("firm_admin"), action, "awaiting_review", "verified_complete").allowed).toBe(true);
   });
 
+  it("whoever submitted evidence in this round cannot review it either", () => {
+    const admin = principal("firm_admin");
+    expect(canTransition(colleague, action, "awaiting_review", "verified_complete", [colleague.userId])).toEqual({
+      allowed: false,
+      reason: "workflow:self-review",
+    });
+    expect(canTransition(admin, action, "awaiting_review", "revision_requested", [admin.userId]).allowed).toBe(false);
+    expect(canTransition(admin, action, "awaiting_review", "verified_complete", [colleague.userId]).allowed).toBe(true);
+  });
+
   it("on client projects consultants still never do the client's work", () => {
     const clientAction = acmeRecord("action", { projectKind: "client", assignees: [me.userId] }) as Resource & { type: "action" };
     const c = principal("consultant", [ACME_PROJ_1]);

@@ -35,10 +35,20 @@ services:
     volumes: [storage-data:/data]
     ports: ["127.0.0.1:9000:9000"]
 
-  # Virus scanner for uploads. The web app refuses uploads while it is down.
-  # Needs about 1.5 GB of RAM once its signatures are loaded.
+  # Virus scanner for uploads; the web app refuses uploads while it is down.
+  # clamd holds the signature database in memory:
+  # give the host at least 3 GiB free for it (4 GiB preferred), because a
+  # signature reload briefly doubles that. Limits sit above the 20 MB upload
+  # cap so nothing is waved through for being "too big to scan".
   clamav:
     image: clamav/clamav:1.5.4
+    environment:
+      CLAMD_CONF_StreamMaxLength: 25M
+      CLAMD_CONF_MaxFileSize: 25M
+      CLAMD_CONF_MaxScanSize: 100M
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+      CLAMD_CONF_AlertOLE2Macros: "yes"
     volumes: [clamav-db:/var/lib/clamav]
     ports: ["127.0.0.1:3310:3310"]
     healthcheck:

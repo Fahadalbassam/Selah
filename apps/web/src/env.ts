@@ -18,9 +18,9 @@ const schema = z.object({
   S3_BUCKET: z.string().min(1),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
-  // ClamAV daemon for upload scanning (host:port). Without it, uploads stay
-  // "pending" and cannot be downloaded, unless SCAN_REQUIRED is "false"
-  // (local development only: files are then marked clean unscanned).
+  // ClamAV daemon for upload scanning (host:port). Without it, uploads are
+  // refused, unless SCAN_REQUIRED is "false" (local development only: files
+  // are then stored as "skipped" and refused for download once it is "true").
   CLAMD_HOST: z.string().optional(),
   CLAMD_PORT: z.coerce.number().int().default(3310),
   SCAN_REQUIRED: z.enum(["true", "false"]).default("true"),
@@ -33,6 +33,13 @@ export type Env = z.infer<typeof schema>;
 let cached: Env | undefined;
 
 export function env(): Env {
-  cached ??= schema.parse(process.env);
+  if (!cached) {
+    const parsed = schema.parse(process.env);
+    // Uploads must never be stored unscanned in production.
+    if (parsed.NODE_ENV === "production" && parsed.SCAN_REQUIRED === "false") {
+      throw new Error("SCAN_REQUIRED=false is not allowed in production");
+    }
+    cached = parsed;
+  }
   return cached;
 }

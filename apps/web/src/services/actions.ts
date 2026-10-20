@@ -45,6 +45,21 @@ export async function loadAction(tx: Tx, id: string) {
   return { action: row.action, resource };
 }
 
+/** Who submitted evidence since the action's last review (the round under review). */
+export async function roundSubmitters(tx: Tx, actionId: string): Promise<string[]> {
+  const [previous] = await tx
+    .select({ at: reviews.createdAt })
+    .from(reviews)
+    .where(eq(reviews.actionId, actionId))
+    .orderBy(desc(reviews.createdAt))
+    .limit(1);
+  const rows = await tx
+    .selectDistinct({ userId: evidenceSubmissions.submittedBy })
+    .from(evidenceSubmissions)
+    .where(and(eq(evidenceSubmissions.actionId, actionId), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined));
+  return rows.map((r) => r.userId);
+}
+
 /** Load an action the user may read. Unknown and forbidden look the same (404). */
 export async function getAction(tx: Tx, principal: Principal, id: string) {
   const loaded = await loadAction(tx, id);
@@ -71,7 +86,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   assertAllowed(principal, "action.read", resource);
 
   const from = action.status;
-  const decision = canTransition(principal, resource, from, input.to);
+  const decision = canTransition(principal, resource, from, input.to, await roundSubmitters(tx, id));
   if (!decision.allowed) {
     throw new ForbiddenError(transitionPermission(from, input.to) ?? "action.work", resource, decision.reason);
   }
