@@ -30,12 +30,17 @@ export interface Context<P, B> {
   tx: Tx;
   params: P;
   body: B;
+  /** Files from a multipart form (only when the route sets `form`). */
+  files: Map<string, File>;
   ip: string | null;
 }
 
 interface Options<P extends z.ZodType, B extends z.ZodType> {
   params?: P;
+  /** JSON body schema. */
   body?: B;
+  /** Multipart form instead of JSON: `body` then validates the text fields. */
+  form?: { maxBytes: number };
 }
 
 type Handler<P, B> = (ctx: Context<P, B>) => Promise<unknown>;
@@ -60,12 +65,25 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const uid = userId;
 
       const params = parse(options.params, await segment.params);
-      const body = options.body ? parse(options.body, await readJson(req)) : undefined;
+      const files = new Map<string, File>();
+      let raw: unknown;
+      if (options.form) {
+        const form = await readForm(req, options.form.maxBytes);
+        const fields: Record<string, string> = {};
+        for (const [key, value] of form) {
+          if (typeof value === "string") fields[key] = value;
+          else files.set(key, value);
+        }
+        raw = fields;
+      } else if (options.body) {
+        raw = await readJson(req);
+      }
+      const body = options.body ? parse(options.body, raw) : undefined;
 
       const result = await asUser(uid, async (tx) => {
         const principal = await loadPrincipal(tx, uid);
         if (!principal) throw new NoMembershipError();
-        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, ip });
+        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, ip });
       });
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {
@@ -89,6 +107,18 @@ async function readJson(req: NextRequest): Promise<unknown> {
     return await req.json();
   } catch {
     throw new BadRequestError("invalid JSON");
+  }
+}
+
+async function readForm(req: NextRequest, maxBytes: number): Promise<FormData> {
+  if (!req.headers.get("content-type")?.startsWith("multipart/form-data")) throw new BadRequestError("expected a form");
+  // Refuse oversized requests before reading them. Room is left for the form's own overhead.
+  const length = Number(req.headers.get("content-length") ?? NaN);
+  if (!Number.isFinite(length) || length > maxBytes + 64 * 1024) throw new BadRequestError("file too large");
+  try {
+    return await req.formData();
+  } catch {
+    throw new BadRequestError("invalid form");
   }
 }
 

@@ -94,6 +94,10 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
       WHERE em.user_id = target AND app_can_see_project(em.project_id)
     )
     OR (app_org_kind() = 'firm' AND app_can_see_org(app_user_org(target)))
+    -- Client users can see the consultants assigned to their organization.
+    OR (app_org_kind() = 'client' AND EXISTS (
+      SELECT 1 FROM client_assignments ca WHERE ca.user_id = target AND ca.client_org_id = app_org()
+    ))
 $$;
 --> statement-breakpoint
 -- Visibility labels. owner is the row's creator (used for user_private).

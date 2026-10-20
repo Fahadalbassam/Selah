@@ -1,10 +1,10 @@
 # Selah · صِلَة
 
-AI-assisted governance and consulting implementation platform. A Computer Science graduation project: a platform consulting firms use to run their own work and their clients' implementation follow-up.
+Selah is a platform for consulting firms. A firm runs its own internal projects in it with its staff, and follows its clients through implementation: from recommendation to owner, action, evidence, review and sign-off.
 
 Selah connects consulting outputs (recommendations, policies, structures) to owners, actions, evidence, consultant review and follow-up, with an Arabic-first assistant that answers only from material the asking user is allowed to see.
 
-> **Status:** backend skeleton (step 3) plus the frontend shell (step 4). Everything here is a team proposal, not a supervisor decision. Use synthetic data only.
+> **Status:** in active development. Use sample data only until hosting and data handling are approved for real client data.
 
 ## Who sees what
 
@@ -47,7 +47,7 @@ docker compose up --build
 
 The first start downloads the local AI models (a few GB). Then open http://localhost:3000.
 
-To create the synthetic demo users (one per role, password from `SEED_PASSWORD`), run `npm run db:seed` from `apps/web` as described below. Sign in as `admin@firm.test`, `consultant@firm.test`, `consultant2@firm.test`, `admin@nukhba.test`, `manager@nukhba.test`, `owner@nukhba.test` or `manager@rawdah.test`.
+To create sample users (one per role, password from `SEED_PASSWORD`), run `npm run db:seed` from `apps/web` as described below. Sign in as `sara@mizan.example` (firm admin), `khalid@mizan.example` or `noura@mizan.example` (consultants), `fahd@nukhba.example` (client admin), `reem@nukhba.example` (client manager), `abdullah@nukhba.example` (action owner) or `hind@rawdah.example` (client manager of a second client).
 
 ### AI provider
 

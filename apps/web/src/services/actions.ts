@@ -14,7 +14,7 @@ import {
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
-async function loadAction(tx: Tx, id: string) {
+export async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
     .select({ action: actions, firmOrgId: projects.firmOrgId })
     .from(actions)

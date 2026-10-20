@@ -83,8 +83,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-10 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
           <SidebarTrigger className="-ms-1" />
           <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
-          <span className="text-sm font-semibold">{tApp("name")}</span>
-          <span className="hidden text-sm text-muted-foreground sm:inline">· {tApp("tagline")}</span>
+          <span className="text-sm text-muted-foreground">{tApp("tagline")}</span>
         </header>
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
       </SidebarInset>

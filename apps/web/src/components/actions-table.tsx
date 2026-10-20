@@ -39,7 +39,9 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
           {rows.map((r) => (
             <TableRow key={r.id}>
               <TableCell className="max-w-72">
-                <div className="truncate font-medium">{r.title}</div>
+                <Link href={`/actions/${r.id}`} className="block truncate font-medium hover:underline">
+                  {r.title}
+                </Link>
                 <div className="truncate text-xs text-muted-foreground">{r.recommendationTitle}</div>
               </TableCell>
               {showProject ? (

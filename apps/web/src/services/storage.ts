@@ -1,5 +1,5 @@
 import "server-only";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/env";
 
@@ -39,4 +39,17 @@ export async function signedDownloadUrl(storageKey: string, fileName: string): P
     ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
   });
   return getSignedUrl(s3Public(), command, { expiresIn: DOWNLOAD_TTL_SECONDS });
+}
+
+/** Store a file under a random key. The key never contains the user's file name. */
+export async function putObject(storageKey: string, body: Uint8Array, contentType: string, sha256Hex: string): Promise<void> {
+  await s3().send(
+    new PutObjectCommand({
+      Bucket: env().S3_BUCKET,
+      Key: storageKey,
+      Body: body,
+      ContentType: contentType,
+      ChecksumSHA256: Buffer.from(sha256Hex, "hex").toString("base64"),
+    }),
+  );
 }

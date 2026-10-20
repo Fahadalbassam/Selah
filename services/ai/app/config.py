@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Chat model provider. "ollama" runs locally (a GTX 1050 fits small
     # models such as qwen3:4b). "openai_compat" calls any hosted API that
-    # speaks the OpenAI chat-completions format; use it with synthetic data
+    # speaks the OpenAI chat-completions format; use it with sample data
     # only unless the firm approves sending documents to that provider.
     llm_provider: Literal["ollama", "openai_compat"] = "ollama"
     llm_model: str = "qwen3:4b"

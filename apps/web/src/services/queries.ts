@@ -6,14 +6,18 @@ import {
   activityEvents,
   clientAssignments,
   documents,
+  evidenceSubmissions,
   orgMemberships,
   organizations,
+  progressUpdates,
   projectMembers,
   projects,
   recommendations,
+  reviews,
   user,
 } from "@/db/schema";
-import { authorize, type Permission, type Principal, type Resource } from "@/authz";
+import { authorize, canTransition, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
+import { loadAction } from "./actions";
 import { NotFoundError } from "@/server/errors";
 
 // Read services for the pages. Rows come back already filtered by RLS; each
@@ -290,3 +294,121 @@ export async function listTeam(tx: Tx, principal: Principal) {
     .where(inArray(projectMembers.userId, rows.map((r) => r.id).concat(principal.userId)));
   return rows.map((r) => ({ ...r, projectCount: memberships.filter((m) => m.userId === r.id).length }));
 }
+
+/**
+ * One action with its history, and what this user may do next. The allowed
+ * moves come from canTransition(), the same check the API runs, so the page
+ * never offers a button the server would refuse.
+ */
+export async function getActionDetail(tx: Tx, principal: Principal, id: string) {
+  const loaded = await loadAction(tx, id);
+  if (!loaded || !authorize(principal, "action.read", loaded.resource).allowed) throw new NotFoundError("action");
+  const { action, resource } = loaded;
+
+  const [context] = await tx
+    .select({
+      projectTitle: projects.title,
+      projectKind: projects.kind,
+      orgName: organizations.name,
+      orgNameAr: organizations.nameAr,
+      recommendationTitle: recommendations.title,
+      requiredEvidence: recommendations.requiredEvidence,
+    })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .innerJoin(recommendations, eq(recommendations.id, action.recommendationId))
+    .where(eq(projects.id, action.projectId))
+    .limit(1);
+  const [owner] = action.ownerUserId
+    ? await tx.select({ name: user.name }).from(user).where(eq(user.id, action.ownerUserId)).limit(1)
+    : [];
+
+  const updates = authorize(principal, "progress_update.read", resource).allowed
+    ? await tx
+        .select({ id: progressUpdates.id, body: progressUpdates.body, createdAt: progressUpdates.createdAt, authorName: user.name })
+        .from(progressUpdates)
+        .leftJoin(user, eq(user.id, progressUpdates.authorId))
+        .where(eq(progressUpdates.actionId, id))
+    : [];
+
+  const evidenceRows = authorize(principal, "evidence.read", resource).allowed
+    ? await tx
+        .select({
+          id: evidenceSubmissions.id,
+          note: evidenceSubmissions.note,
+          submittedAt: evidenceSubmissions.submittedAt,
+          submitterName: user.name,
+          documentId: documents.id,
+          documentTitle: documents.title,
+          sizeBytes: documents.sizeBytes,
+          visibility: documents.visibility,
+          uploadedBy: documents.uploadedBy,
+          ownerOrgId: documents.ownerOrgId,
+        })
+        .from(evidenceSubmissions)
+        .leftJoin(user, eq(user.id, evidenceSubmissions.submittedBy))
+        .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+        .where(eq(evidenceSubmissions.actionId, id))
+    : [];
+  const evidence = evidenceRows.map(({ visibility, uploadedBy, ownerOrgId, ...e }) => ({
+    ...e,
+    canDownload: authorize(principal, "document.download", {
+      type: "document",
+      id: e.documentId,
+      orgId: action.orgId,
+      firmOrgId: resource.firmOrgId,
+      projectId: action.projectId,
+      visibility,
+      createdBy: uploadedBy,
+      ownerOrgId,
+    }).allowed,
+  }));
+
+  const reviewRows = authorize(principal, "review.read", resource).allowed
+    ? await tx
+        .select({ id: reviews.id, outcome: reviews.outcome, reason: reviews.reason, createdAt: reviews.createdAt, reviewerName: user.name })
+        .from(reviews)
+        .leftJoin(user, eq(user.id, reviews.reviewerId))
+        .where(eq(reviews.actionId, id))
+    : [];
+
+  type Entry =
+    | { kind: "update"; at: Date; who: string | null; body: string }
+    | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
+    | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null };
+  const timeline: Entry[] = [
+    ...updates.map((u) => ({ kind: "update" as const, at: u.createdAt, who: u.authorName, body: u.body })),
+    ...evidence.map((e) => ({ kind: "evidence" as const, at: e.submittedAt, who: e.submitterName, evidence: e })),
+    ...reviewRows.map((r) => ({ kind: "review" as const, at: r.createdAt, who: r.reviewerName, outcome: r.outcome, reason: r.reason })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  const from = action.status as ActionStatus;
+  const moves = Object.keys(TRANSITIONS)
+    .filter((k) => k.startsWith(`${from}>`))
+    .map((k) => k.split(">")[1] as ActionStatus)
+    .filter((to) => canTransition(principal, resource, from, to).allowed);
+
+  return {
+    action: {
+      id: action.id,
+      title: action.title,
+      description: action.description,
+      status: from,
+      dueDate: action.dueDate,
+      blockedReason: action.blockedReason,
+      projectId: action.projectId,
+      ownerName: owner?.name ?? null,
+      overdue: isOverdue({ status: from, dueDate: action.dueDate }),
+    },
+    context: context!,
+    timeline,
+    moves,
+    can: {
+      addUpdate: authorize(principal, "progress_update.create", resource).allowed && from !== "verified_complete",
+      submitEvidence:
+        authorize(principal, "evidence.submit", resource).allowed && (from === "in_progress" || from === "revision_requested"),
+    },
+  };
+}
+
+export type ActionDetail = Awaited<ReturnType<typeof getActionDetail>>;

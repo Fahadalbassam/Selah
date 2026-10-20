@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
+import { BrandMark, BrandWordmark } from "@/components/brand";
 import { NavUser, type NavUserProps } from "@/components/nav-user";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -77,18 +78,23 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, ...props
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
+        <Link
+          href="/"
+          className="flex h-10 items-center px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          <BrandWordmark label={appName} className="h-7 group-data-[collapsible=icon]:hidden" />
+          <BrandMark label={appName} className="hidden size-7 group-data-[collapsible=icon]:block" />
+        </Link>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
-                  {appName.slice(0, 1)}
-                </div>
-                <div className="grid flex-1 text-start text-sm leading-tight">
-                  <span className="truncate font-semibold">{orgName}</span>
-                  <span className="truncate text-xs text-muted-foreground">{roleLabel}</span>
-                </div>
-              </Link>
+            <SidebarMenuButton size="lg" tooltip={orgName} className="cursor-default hover:bg-transparent active:bg-transparent">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg border bg-background text-muted-foreground">
+                <Building2 className="size-4" />
+              </div>
+              <div className="grid flex-1 text-start text-sm leading-tight">
+                <span className="truncate font-semibold">{orgName}</span>
+                <span className="truncate text-xs text-muted-foreground">{roleLabel}</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
