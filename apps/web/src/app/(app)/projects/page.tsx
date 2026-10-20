@@ -1,7 +1,9 @@
-import { Building2, Lock } from "lucide-react";
+import { Building2, Lock, Plus } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
+import { FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -15,12 +17,32 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     firm: principal.orgKind === "firm",
   }));
   const shown = kind === "internal" || kind === "client" ? projects.filter((p) => p.kind === kind) : projects;
-  const [t, tKind] = await Promise.all([getTranslations("projects"), getTranslations("kind")]);
+  const [t, tKind, tS] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing")]);
   const ar = (await getLocale()) === "ar";
 
   return (
     <>
-      <PageHeader title={t("title")} description={t("subtitle")} />
+      <PageHeader title={t("title")} description={t("subtitle")}>
+        {firm ? (
+          <FormDialog
+            trigger={
+              <Button variant={kind === "internal" ? "default" : "outline"}>
+                <Plus />
+                {tS("newInternal")}
+              </Button>
+            }
+            title={tS("newInternal")}
+            description={tS("newInternalHint")}
+            endpoint="/api/projects/internal"
+            fields={[
+              { name: "title", label: tS("title"), required: true },
+              { name: "description", label: tS("description"), type: "textarea" },
+            ]}
+            submitLabel={tS("create")}
+            redirectTo="/projects/:id"
+          />
+        ) : null}
+      </PageHeader>
       {firm ? <p className="text-xs text-muted-foreground">{t("internalNote")}</p> : null}
       {shown.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>

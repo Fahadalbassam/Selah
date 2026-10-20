@@ -32,6 +32,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
@@ -153,10 +154,44 @@ export const clientAssignments = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // One lead consultant per client. The lead staffs the client's team and
+    // decides join requests together with the firm admin.
+    isLead: boolean("is_lead").notNull().default(false),
     assignedBy: uuid("assigned_by").references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.clientOrgId, t.userId] }), index("client_assignments_user_idx").on(t.userId)],
+  (t) => [
+    primaryKey({ columns: [t.clientOrgId, t.userId] }),
+    index("client_assignments_user_idx").on(t.userId),
+    uniqueIndex("client_assignments_one_lead").on(t.clientOrgId).where(sql`${t.isLead}`),
+  ],
+);
+
+export const joinRequestStatus = pgEnum("join_request_status", ["pending", "approved", "declined", "withdrawn"]);
+
+// A consultant asking to be assigned to a client. Decided by the firm admin
+// or that client's lead; approving creates the assignment.
+export const joinRequests = pgTable(
+  "join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientOrgId: uuid("client_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    status: joinRequestStatus("status").notNull().default("pending"),
+    decidedBy: uuid("decided_by").references(() => user.id),
+    decisionNote: text("decision_note"),
+    decidedAt: ts("decided_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("join_requests_client_idx").on(t.clientOrgId),
+    uniqueIndex("join_requests_one_pending").on(t.clientOrgId, t.userId).where(sql`${t.status} = 'pending'`),
+  ],
 );
 
 // Explicit project membership (firm staff on internal projects, consultants
@@ -170,6 +205,8 @@ export const projectMembers = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // The lead of an internal project manages its members.
+    isLead: boolean("is_lead").notNull().default(false),
     addedBy: uuid("added_by").references(() => user.id),
     createdAt: createdAt(),
   },

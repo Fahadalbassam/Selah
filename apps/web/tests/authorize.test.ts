@@ -231,3 +231,88 @@ describe("internal projects", () => {
     }
   });
 });
+
+describe("staffing: admins, client leads and join requests", () => {
+  const assignment = (client: string): Resource => ({
+    type: "client_assignment",
+    orgId: client,
+    firmOrgId: FIRM,
+    projectId: null,
+    clientOrgId: client,
+  });
+  const joinRequest = (client: string): Resource => ({
+    type: "join_request",
+    orgId: FIRM,
+    firmOrgId: FIRM,
+    projectId: null,
+    clientOrgId: client,
+  });
+
+  it("only the firm admin adds clients and names a lead", () => {
+    const org = { type: "organization", orgId: FIRM, firmOrgId: FIRM, projectId: null } as Resource;
+    expect(authorize(principal("firm_admin"), "organization.create", org).allowed).toBe(true);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "organization.create", org).allowed).toBe(false);
+    expect(authorize(principal("firm_admin"), "client_assignment.set_lead", assignment(ACME)).allowed).toBe(true);
+    expect(
+      authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "client_assignment.set_lead", assignment(ACME)).allowed,
+    ).toBe(false);
+  });
+
+  it("a lead staffs their own client and no other", () => {
+    const lead = principal("consultant", [], undefined, [BETA], { clients: [ACME] });
+    expect(authorize(lead, "client_assignment.manage", assignment(ACME)).allowed).toBe(true);
+    expect(authorize(lead, "client_assignment.manage", assignment(BETA)).allowed).toBe(false);
+    expect(authorize(principal("consultant", [], undefined, [ACME]), "client_assignment.manage", assignment(ACME)).allowed).toBe(false);
+  });
+
+  it("a lead or the admin decides join requests; a plain consultant cannot", () => {
+    expect(authorize(principal("firm_admin"), "join_request.decide", joinRequest(ACME)).allowed).toBe(true);
+    expect(
+      authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "join_request.decide", joinRequest(ACME)).allowed,
+    ).toBe(true);
+    expect(
+      authorize(principal("consultant", [], undefined, [], { clients: [BETA] }), "join_request.decide", joinRequest(ACME)).allowed,
+    ).toBe(false);
+  });
+
+  it("any consultant may ask to join a client they are not on; client users may not", () => {
+    expect(authorize(principal("consultant"), "join_request.create", joinRequest(ACME)).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "join_request.create", joinRequest(ACME)).allowed).toBe(false);
+    expect(authorize(principal("consultant"), "client_directory.read", { type: "client_directory", orgId: FIRM, firmOrgId: FIRM, projectId: null }).allowed).toBe(true);
+  });
+});
+
+describe("internal project work", () => {
+  const INTERNAL = "00000000-0000-4000-8000-0000000000f2";
+  const me = principal("consultant", [INTERNAL]);
+  const colleague = principal("consultant", [INTERNAL]);
+  const action = { type: "action", orgId: FIRM, firmOrgId: FIRM, projectId: INTERNAL, projectKind: "internal", assignees: [me.userId] } as Resource & {
+    type: "action";
+  };
+
+  it("the owning consultant works the action; a colleague does not", () => {
+    expect(canTransition(me, action, "assigned", "in_progress").allowed).toBe(true);
+    expect(authorize(me, "evidence.submit", action).allowed).toBe(true);
+    expect(canTransition(colleague, action, "assigned", "in_progress").allowed).toBe(false);
+  });
+
+  it("nobody verifies their own work; a colleague or the admin does", () => {
+    expect(canTransition(me, action, "awaiting_review", "verified_complete")).toEqual({ allowed: false, reason: "workflow:self-review" });
+    expect(canTransition(colleague, action, "awaiting_review", "verified_complete").allowed).toBe(true);
+    expect(canTransition(principal("firm_admin"), action, "awaiting_review", "verified_complete").allowed).toBe(true);
+  });
+
+  it("on client projects consultants still never do the client's work", () => {
+    const clientAction = acmeRecord("action", { projectKind: "client", assignees: [me.userId] }) as Resource & { type: "action" };
+    const c = principal("consultant", [ACME_PROJ_1]);
+    expect(canTransition(c, { ...clientAction, assignees: [c.userId] }, "assigned", "in_progress").allowed).toBe(false);
+  });
+
+  it("a member creates internal projects; the lead manages its members", () => {
+    const project = { type: "project", orgId: FIRM, firmOrgId: FIRM, projectId: INTERNAL, projectKind: "internal" } as Resource;
+    expect(authorize(me, "project.create_internal", { ...project, projectId: null }).allowed).toBe(true);
+    const lead = principal("consultant", [INTERNAL], undefined, [], { projects: [INTERNAL] });
+    expect(authorize(lead, "project.manage_members", project).allowed).toBe(true);
+    expect(authorize(me, "project.manage_members", project).allowed).toBe(false);
+  });
+});

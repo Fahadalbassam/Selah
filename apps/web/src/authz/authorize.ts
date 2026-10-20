@@ -21,7 +21,7 @@ export function authorize(principal: Principal, permission: Permission, resource
   const org = checkOrganization(principal, resource);
   if (!org.allowed) return org;
 
-  const scope = grantFor(permission, principal.role);
+  const scope = grantFor(permission, principal.role, resource.projectKind);
   if (!scope) return deny(`role:${principal.role} lacks ${permission}`);
 
   const membership = checkMembership(principal, resource);
@@ -94,6 +94,8 @@ function scopeCovers(scope: Scope, p: Principal, r: Resource): boolean {
       return r.createdBy === p.userId || (r.sharedWith?.includes(p.userId) ?? false);
     case "owner_org":
       return r.ownerOrgId === p.orgId;
+    case "lead":
+      return p.leadClientIds.has(r.clientOrgId ?? r.orgId) || (r.projectId !== null && p.leadProjectIds.has(r.projectId));
   }
 }
 

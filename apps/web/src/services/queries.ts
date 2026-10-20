@@ -262,7 +262,7 @@ export async function listClients(tx: Tx, principal: Principal) {
   const ids = allowed.map((o) => o.id);
   const assigned = ids.length
     ? await tx
-        .select({ clientOrgId: clientAssignments.clientOrgId, name: user.name })
+        .select({ clientOrgId: clientAssignments.clientOrgId, name: user.name, isLead: clientAssignments.isLead })
         .from(clientAssignments)
         .innerJoin(user, eq(user.id, clientAssignments.userId))
         .where(inArray(clientAssignments.clientOrgId, ids))
@@ -272,7 +272,8 @@ export async function listClients(tx: Tx, principal: Principal) {
     : [];
   return allowed.map((o) => ({
     ...o,
-    consultants: assigned.filter((a) => a.clientOrgId === o.id).map((a) => a.name),
+    lead: assigned.find((a) => a.clientOrgId === o.id && a.isLead)?.name ?? null,
+    consultants: assigned.filter((a) => a.clientOrgId === o.id && !a.isLead).map((a) => a.name),
     projectCount: projectRows.filter((p) => p.orgId === o.id).length,
   }));
 }

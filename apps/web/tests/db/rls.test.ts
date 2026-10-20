@@ -27,7 +27,7 @@ const U = {
   acmeManager: id(4),
   acmeOwner: id(5),
   betaManager: id(6),
-  overseer: id(7), // consultant assigned to Beta, member of no project
+  overseer: id(7), // lead consultant of Beta, member of no project
 };
 const INTERNAL = id(501);
 const REC_INTERNAL = id(104);
@@ -80,7 +80,7 @@ beforeAll(async () => {
       ($3,'client',$5,$6,'Beta strategy','active'), ($7,'internal',$6,$6,'Firm methodology','active')`,
     [ACME_PROJ_1, ACME_PROJ_2, BETA_PROJ, ACME, BETA, FIRM, INTERNAL],
   );
-  await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1, $2)`, [BETA, U.overseer]);
+  await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1, $2, true)`, [BETA, U.overseer]);
   await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1, $2)`, [INTERNAL, U.consultant]);
   await q(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'Internal method',$4)`, [
     REC_INTERNAL,
@@ -375,5 +375,156 @@ describe("scenario 8: AI index", () => {
       );
       expect(rows).toEqual([]);
     });
+  });
+});
+
+describe("staffing: leads, join requests and the client directory", () => {
+  const assign = (c: PoolClient, client: string, user: string, lead = false) =>
+    c.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,$3)`, [client, user, lead]);
+
+  it("a client's lead adds consultants to that client only, and cannot make a new lead", async () => {
+    await as(U.overseer, async (c) => {
+      await assign(c, BETA, U.consultant);
+      await c.query("SAVEPOINT s");
+      await expect(assign(c, ACME, U.consultant)).rejects.toThrow(/row-level security/);
+      await c.query("ROLLBACK TO SAVEPOINT s");
+      await expect(c.query(`UPDATE client_assignments SET is_lead = true WHERE user_id = $1 RETURNING 1`, [U.consultant])).resolves.toMatchObject({
+        rowCount: 0,
+      });
+    });
+  });
+
+  it("only consultants can be assigned to a client", async () => {
+    await expect(as(U.lead, (c) => assign(c, BETA, U.lead))).rejects.toThrow(/only consultants/);
+  });
+
+  it("a consultant asks to join; only the admin or that client's lead decides, once", async () => {
+    await as(U.consultant, async (c) => {
+      await c.query(`INSERT INTO join_requests (client_org_id, user_id, reason) VALUES ($1,$2,'I know the sector')`, [BETA, U.consultant]);
+      await expect(c.query(`UPDATE join_requests SET status = 'approved', decided_by = $1`, [U.consultant])).rejects.toThrow(
+        /row-level security/,
+      );
+    });
+    await as(U.consultant, (c) =>
+      c.query(`INSERT INTO join_requests (client_org_id, user_id, reason) VALUES ($1,$2,'x')`, [BETA, U.consultant]),
+    );
+    const c = await owner.connect();
+    try {
+      await c.query(`INSERT INTO join_requests (client_org_id, user_id, reason) VALUES ($1,$2,'please')`, [BETA, U.consultant]);
+    } finally {
+      c.release();
+    }
+    await as(U.overseer, async (c) => {
+      const r = await c.query(`UPDATE join_requests SET status = 'approved', decided_by = $1 WHERE user_id = $2 RETURNING decided_at`, [
+        U.overseer,
+        U.consultant,
+      ]);
+      expect(r.rowCount).toBe(1);
+      expect(r.rows[0].decided_at).not.toBeNull();
+    });
+    await expect(
+      owner.query(`UPDATE join_requests SET status = 'declined' WHERE user_id = $1 AND status = 'pending'`, [U.consultant]),
+    ).resolves.toMatchObject({ rowCount: 1 });
+    await expect(owner.query(`UPDATE join_requests SET status = 'approved' WHERE user_id = $1`, [U.consultant])).rejects.toThrow(
+      /already decided/,
+    );
+    await owner.query(`DELETE FROM join_requests`);
+  });
+
+  it("a consultant cannot ask to join a client they are already on", async () => {
+    await expect(
+      as(U.overseer, (c) => c.query(`INSERT INTO join_requests (client_org_id, user_id, reason) VALUES ($1,$2,'x')`, [BETA, U.overseer])),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("the directory lists client names to firm staff and to nobody else", async () => {
+    const names = await as(U.consultant, async (c) => (await c.query(`SELECT name FROM app_client_directory()`)).rows.map((r) => r.name));
+    expect(names).toEqual(["Acme", "Beta"]);
+    expect(await as(U.acmeAdmin, async (c) => (await c.query(`SELECT * FROM app_client_directory()`)).rowCount)).toBe(0);
+  });
+});
+
+describe("internal projects: creation and work", () => {
+  const NEW_PROJ = id(601);
+  const REC_NEW = id(602);
+  const ACTION_NEW = id(603);
+
+  it("a consultant creates an internal project and becomes its lead; clients cannot", async () => {
+    await as(U.consultant, async (c) => {
+      await c.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, created_by) VALUES ($1,'internal',$2,$2,'New method',$3)`, [
+        NEW_PROJ,
+        FIRM,
+        U.consultant,
+      ]);
+      await c.query(`INSERT INTO project_members (project_id, user_id, is_lead) VALUES ($1,$2,true)`, [NEW_PROJ, U.consultant]);
+      await c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [NEW_PROJ, U.overseer]);
+      await c.query("SAVEPOINT s");
+      await expect(
+        c.query(`INSERT INTO projects (kind, org_id, firm_org_id, title, created_by) VALUES ('client',$1,$2,'x',$3)`, [ACME, FIRM, U.consultant]),
+      ).rejects.toThrow(/row-level security/);
+    });
+    await expect(
+      as(U.acmeAdmin, (c) =>
+        c.query(`INSERT INTO projects (kind, org_id, firm_org_id, title, created_by) VALUES ('internal',$1,$1,'x',$2)`, [FIRM, U.acmeAdmin]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("nobody else can claim another person's new project", async () => {
+    await as(U.consultant, async (c) => {
+      await c.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, created_by) VALUES ($1,'internal',$2,$2,'Mine',$3)`, [
+        NEW_PROJ,
+        FIRM,
+        U.consultant,
+      ]);
+      await c.query("SELECT set_config('selah.user_id', $1, true)", [U.overseer]);
+      await expect(
+        c.query(`INSERT INTO project_members (project_id, user_id, is_lead) VALUES ($1,$2,true)`, [NEW_PROJ, U.overseer]),
+      ).rejects.toThrow(/row-level security/);
+    });
+  });
+
+  it("the owner submits evidence on an internal action but cannot review it; a colleague can", async () => {
+    await owner.query(
+      `INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'Templates',$4)`,
+      [REC_NEW, INTERNAL, FIRM, U.lead],
+    );
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Draft template',$5,'in_progress',$6)`,
+      [ACTION_NEW, INTERNAL, FIRM, REC_NEW, U.consultant, U.lead],
+    );
+    try {
+      await as(U.consultant, async (c) => {
+        await c.query(
+          `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256)
+           VALUES ($1,$2,$3,$3,$4,'evidence','submitted','t.pdf','shared','k-internal','application/pdf',1,'x')`,
+          [id(604), INTERNAL, FIRM, U.consultant],
+        );
+        await c.query(
+          `INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`,
+          [INTERNAL, FIRM, ACTION_NEW, id(604), U.consultant],
+        );
+        await expect(
+          c.query(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`, [
+            INTERNAL,
+            FIRM,
+            ACTION_NEW,
+            U.consultant,
+          ]),
+        ).rejects.toThrow(/row-level security/);
+      });
+      await as(U.lead, (c) =>
+        c.query(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`, [
+          INTERNAL,
+          FIRM,
+          ACTION_NEW,
+          U.lead,
+        ]),
+      );
+    } finally {
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [ACTION_NEW]);
+      await owner.query(`DELETE FROM recommendations WHERE id = $1`, [REC_NEW]);
+    }
   });
 });

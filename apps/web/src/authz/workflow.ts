@@ -43,5 +43,9 @@ export function canTransition(
 ): Decision {
   const permission = transitionPermission(from, to);
   if (!permission) return { allowed: false, reason: `workflow:${from}>${to}` };
+  // Separation of duties: nobody verifies their own work.
+  if (permission === "action.review" && action.assignees?.includes(principal.userId)) {
+    return { allowed: false, reason: "workflow:self-review" };
+  }
   return authorize(principal, permission, action);
 }

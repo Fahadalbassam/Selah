@@ -9,7 +9,13 @@ export const ACME_PROJ_2 = "00000000-0000-4000-8000-0000000000e2";
 export const BETA_PROJ = "00000000-0000-4000-8000-0000000000e3";
 
 let n = 0;
-export function principal(role: Role, projects: string[] = [], orgId?: string, assignedClients: string[] = []): Principal {
+export function principal(
+  role: Role,
+  projects: string[] = [],
+  orgId?: string,
+  assignedClients: string[] = [],
+  lead: { clients?: string[]; projects?: string[] } = {},
+): Principal {
   const firm = role === "firm_admin" || role === "consultant";
   return {
     userId: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
@@ -17,7 +23,9 @@ export function principal(role: Role, projects: string[] = [], orgId?: string, a
     orgKind: firm ? "firm" : "client",
     role,
     projectIds: new Set(projects),
-    assignedClientIds: new Set(assignedClients),
+    assignedClientIds: new Set([...assignedClients, ...(lead.clients ?? [])]),
+    leadClientIds: new Set(lead.clients ?? []),
+    leadProjectIds: new Set(lead.projects ?? []),
   };
 }
 

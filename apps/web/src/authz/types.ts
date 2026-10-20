@@ -18,6 +18,10 @@ export interface Principal {
   projectIds: ReadonlySet<string>;
   /** Consultants only: client orgs they oversee. They see all of those clients' projects. */
   assignedClientIds: ReadonlySet<string>;
+  /** Consultants only: client orgs where they are the lead consultant. */
+  leadClientIds: ReadonlySet<string>;
+  /** Projects (internal) the user leads. */
+  leadProjectIds: ReadonlySet<string>;
 }
 
 export type ResourceType =
@@ -36,7 +40,10 @@ export type ResourceType =
   | "follow_up"
   | "report"
   | "activity"
-  | "ai_conversation";
+  | "ai_conversation"
+  | "client_assignment"
+  | "client_directory"
+  | "join_request";
 
 /**
  * The attributes of a record that the check needs. Services load these from
@@ -64,6 +71,10 @@ export interface Resource {
   sharedWith?: readonly string[];
   /** Which org controls the record (documents: who may change its labels and AI flag). */
   ownerOrgId?: string;
+  /** Kind of the record's project. Internal projects have their own work rules. */
+  projectKind?: "internal" | "client";
+  /** Staffing records (assignments, join requests): the client they are about. */
+  clientOrgId?: string;
 }
 
 export interface Decision {
