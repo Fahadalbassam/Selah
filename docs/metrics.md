@@ -19,7 +19,7 @@ Rules: `apps/web/drizzle/0013_metrics_rules.sql`. Tests: `apps/web/tests/db/metr
 | `median_days_awaiting_review` | Median days the actions now waiting for review have been waiting. |
 | `deadline_slips` | Approved deadline change requests. |
 | `revision_rate` | % of reviews that asked for a revision. |
-| `stale_actions` | Open actions with no status change, progress update or evidence in 14 days. |
+| `stale_actions` | Open actions with no change, progress update or evidence in 14 days. Any change to the action counts, including reassigning its owner. |
 
 `implemented_pct` (see [data-model.md](data-model.md)) completes the set: verified ÷ released actions that still apply.
 
@@ -41,9 +41,9 @@ API: `GET /api/team/metrics` (last 90 days).
 The client's own strategic measures, entered by hand. They need the supervisor's approval before they are used, so they stay off until the firm admin sets `firm_settings.client_kpis_enabled`. While off, the tables read as empty and refuse writes. There is no API for them yet.
 
 - `strategic_objectives`: grouped by balanced-scorecard perspective (financial, customer, internal process, learning and growth).
-- `kpis`: unit, direction, baseline, target, start and target dates, monthly or quarterly, owned by a client person staffed on the project, and green and amber thresholds (percent of the way from baseline to target).
-- `kpi_readings`: the owner (or the firm) reports a value for one of the KPI's periods, optionally with a scanned evidence file. The firm verifies or rejects it once. A correction is a new reading that replaces the old one. Readings are never deleted.
+- `kpis`: unit, direction, baseline, target, start and target dates (periods start on the 1st), monthly or quarterly, owned by a client person staffed on the project, and green and amber thresholds.
+- `kpi_readings`: the owner (or the firm) reports a value for one of the KPI's periods that has started, optionally with a scanned evidence file. The firm verifies or rejects it once, and never by the person who reported it. A correction is a new reading that replaces the old one. Readings are never deleted.
 - `recommendation_kpis`: a recommendation is *intended to move* a KPI. It is a stated intent, never a claim of cause.
-- `app_kpi_periods(kpi, as_of)`: every period up to the date, with its current reading and status (reported, verified, rejected, or, with no reading, **due** until the period end plus `kpi_grace_days`, then **not_reported**, never zero), plus progress and the green, amber or red band.
+- `app_kpi_periods(kpi, as_of)`: every period up to the date, with its current reading and status (reported, verified, rejected, or, with no reading, **due** until the period end plus `kpi_grace_days`, then **not_reported**, never zero). Each period also shows progress (how far the value is from baseline to target) and expected progress (the share of the time from start to target date passed by the period's end). The band compares the two: green at `green_threshold` % of expected or better, amber at `amber_threshold` %, otherwise red. So a year-long KPI that is on its trajectory shows green from the first period.
 
 Not built, by design: automatic KPI pulls from client systems, consultant rankings.
