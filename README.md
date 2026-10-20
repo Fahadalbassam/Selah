@@ -58,7 +58,7 @@ The AI service talks to the model through one interface (`services/ai/app/llm.py
 Run only the backing services in Docker and the app with hot reload:
 
 ```sh
-docker compose up db storage ollama ollama-pull ai -d
+docker compose up db storage clamav ollama ollama-pull ai -d
 cd apps/web
 cp .env.example .env.local  # fill in, using the passwords from the root .env
 npm install

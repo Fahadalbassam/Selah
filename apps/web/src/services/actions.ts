@@ -1,7 +1,17 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, activityEvents, projects, evidenceSubmissions, notifications, reviews } from "@/db/schema";
+import {
+  actions,
+  activityEvents,
+  clientAssignments,
+  documents,
+  evidenceSubmissions,
+  notifications,
+  projectMembers,
+  projects,
+  reviews,
+} from "@/db/schema";
 import {
   assertAllowed,
   canTransition,
@@ -95,17 +105,29 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
 
   if (input.to === "verified_complete" || input.to === "revision_requested") {
     if (input.to === "revision_requested" && !input.reason) throw new BadRequestError("a revision request needs a reason");
-    const [evidence] = await tx
-      .select({ id: evidenceSubmissions.id })
-      .from(evidenceSubmissions)
-      .where(eq(evidenceSubmissions.actionId, id))
-      .orderBy(desc(evidenceSubmissions.submittedAt))
+    // Record exactly what was reviewed: every submission since the previous
+    // review, with each file's hash (stored files never change).
+    const [previous] = await tx
+      .select({ at: reviews.createdAt })
+      .from(reviews)
+      .where(eq(reviews.actionId, id))
+      .orderBy(desc(reviews.createdAt))
       .limit(1);
+    const seen = await tx
+      .select({ id: evidenceSubmissions.id, sha256: documents.sha256 })
+      .from(evidenceSubmissions)
+      .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+      .where(
+        and(eq(evidenceSubmissions.actionId, id), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined),
+      )
+      .orderBy(asc(evidenceSubmissions.submittedAt));
     await tx.insert(reviews).values({
       projectId: action.projectId,
       orgId: action.orgId,
       actionId: id,
-      evidenceSubmissionId: evidence?.id,
+      evidenceSubmissionId: seen.at(-1)?.id,
+      evidenceSubmissionIds: seen.map((e) => e.id),
+      evidenceSha256: seen.map((e) => e.sha256),
       reviewerId: principal.userId,
       outcome: input.to === "verified_complete" ? "accept" : "revise",
       reason: input.reason,
@@ -138,6 +160,27 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
       entityType: "action",
       entityId: id,
     });
+  }
+
+  // Work waiting for review goes to the people who review it: the client's
+  // consultants, or the leads of an internal project.
+  if (input.to === "awaiting_review") {
+    const reviewers =
+      resource.projectKind === "internal"
+        ? await tx
+            .select({ userId: projectMembers.userId })
+            .from(projectMembers)
+            .where(and(eq(projectMembers.projectId, action.projectId), eq(projectMembers.isLead, true)))
+        : await tx
+            .select({ userId: clientAssignments.userId })
+            .from(clientAssignments)
+            .where(eq(clientAssignments.clientOrgId, action.orgId));
+    const to = reviewers.map((r) => r.userId).filter((u) => u !== principal.userId && u !== action.ownerUserId);
+    if (to.length) {
+      await tx.insert(notifications).values(
+        to.map((userId) => ({ userId, kind: "action.awaiting_review", entityType: "action", entityId: id })),
+      );
+    }
   }
 
   await audit(tx, {

@@ -68,6 +68,8 @@ export const actionStatus = pgEnum("action_status", [
 export const reviewOutcome = pgEnum("review_outcome", ["accept", "revise", "reject"]);
 export const documentPurpose = pgEnum("document_purpose", ["deliverable", "client_document", "evidence"]);
 export const documentState = pgEnum("document_state", ["draft", "submitted", "archived"]);
+// Virus scan result. Only "clean" files can be downloaded (fail closed).
+export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected", "error"]);
 export const requestStatus = pgEnum("request_status", ["pending", "approved", "rejected"]);
 export const followUpStatus = pgEnum("follow_up_status", ["open", "done"]);
 export const chunkSource = pgEnum("chunk_source", [
@@ -363,6 +365,8 @@ export const documents = pgTable(
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     sha256: text("sha256").notNull(),
+    scanStatus: scanStatus("scan_status").notNull().default("pending"),
+    scannedAt: ts("scanned_at"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -420,6 +424,10 @@ export const reviews = pgTable(
       .notNull()
       .references(() => actions.id, { onDelete: "cascade" }),
     evidenceSubmissionId: uuid("evidence_submission_id").references(() => evidenceSubmissions.id),
+    // Exactly what the reviewer saw: every submission since the previous
+    // review, and the SHA-256 of each file at review time.
+    evidenceSubmissionIds: uuid("evidence_submission_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    evidenceSha256: text("evidence_sha256").array().notNull().default(sql`'{}'::text[]`),
     reviewerId: uuid("reviewer_id")
       .notNull()
       .references(() => user.id),

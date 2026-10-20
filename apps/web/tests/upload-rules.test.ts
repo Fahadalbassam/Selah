@@ -36,6 +36,17 @@ describe("upload rules", () => {
     expect(checkUpload("notes.txt", "text/plain", 10, new Uint8Array([0x68, 0x00, 0x69])).ok).toBe(false);
   });
 
+  it("rejects legacy Office formats that carry macros", () => {
+    const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]);
+    expect(checkUpload("budget.xls", "application/vnd.ms-excel", 100, ole).ok).toBe(false);
+    expect(checkUpload("memo.doc", "application/msword", 100, ole).ok).toBe(false);
+  });
+
+  it("removes bidirectional overrides that disguise the real extension", () => {
+    expect(cleanFileName("invoice\u202Efdp.exe")).toBe("invoicefdp.exe");
+    expect(checkUpload("report\u202Eexe.pdf", "application/pdf", 100, pdf)).toMatchObject({ ok: true, fileName: "reportexe.pdf" });
+  });
+
   it("strips paths and characters that break headers", () => {
     expect(cleanFileName('..\\..\\evil"name<>.pdf')).toBe("evilname.pdf");
     expect(cleanFileName("/etc/passwd")).toBe("passwd");

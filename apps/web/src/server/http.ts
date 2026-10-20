@@ -8,7 +8,7 @@ import { asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { auditDetached } from "@/services/audit";
 import { loadPrincipal } from "@/services/principal";
-import { BadRequestError, ConflictError, NotFoundError } from "./errors";
+import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "./errors";
 
 /**
  * The only way to write an API route. Every handler built with route():
@@ -147,6 +147,7 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof NoMembershipError) return json({ error: "forbidden" }, 403);
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
+  if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
   console.error(`[api] ${req.method} ${req.nextUrl.pathname} failed`, err);
   return json({ error: "internal_error" }, 500);
 }

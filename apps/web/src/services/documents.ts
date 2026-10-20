@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { documentShares, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
-import { NotFoundError } from "@/server/errors";
+import { ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { DOWNLOAD_TTL_SECONDS, signedDownloadUrl } from "./storage";
 
@@ -41,6 +41,8 @@ export async function createDownloadLink(tx: Tx, principal: Principal, id: strin
   const loaded = await loadDocument(tx, id);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.download", loaded.resource);
+  // Fail closed: only files the scanner cleared can leave the bucket.
+  if (loaded.doc.scanStatus !== "clean") throw new ConflictError("this file has not been cleared for download");
 
   const url = await signedDownloadUrl(loaded.doc.storageKey, loaded.doc.title);
   await audit(tx, {

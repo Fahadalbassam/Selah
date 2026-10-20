@@ -108,7 +108,7 @@ beforeAll(async () => {
     q(
       `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
          ai_indexable, storage_key, content_type, size_bytes, sha256)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'doc',$8,true,$9,'application/pdf',1,'x')`,
+       VALUES ($1,$2,$3,$4,$5,$6::document_purpose,$7,'doc',$8,$6::document_purpose <> 'evidence',$9,'application/pdf',1,'x')`,
       [docId, eng, org, ownerOrg, by, purpose, state, vis, `key-${docId}`],
     );
   await doc(DOC_SHARED, ACME_PROJ_1, ACME, FIRM, U.consultant, "deliverable", "submitted", "shared");
@@ -526,5 +526,48 @@ describe("internal projects: creation and work", () => {
       await owner.query(`DELETE FROM actions WHERE id = $1`, [ACTION_NEW]);
       await owner.query(`DELETE FROM recommendations WHERE id = $1`, [REC_NEW]);
     }
+  });
+});
+
+describe("evidence integrity", () => {
+  it("a stored file cannot be swapped, and evidence cannot be deleted, even by the schema owner", async () => {
+    const c = await owner.connect();
+    try {
+      await c.query("BEGIN");
+      await expect(c.query(`UPDATE documents SET sha256 = 'other' WHERE id = $1`, [DOC_DRAFT_EVIDENCE])).rejects.toThrow(/cannot change/);
+      await c.query("ROLLBACK");
+      await c.query("BEGIN");
+      await expect(c.query(`DELETE FROM documents WHERE id = $1`, [DOC_DRAFT_EVIDENCE])).rejects.toThrow(/cannot be deleted/);
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
+  });
+
+  it("a scan result is written once", async () => {
+    const c = await owner.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`UPDATE documents SET scan_status = 'infected' WHERE id = $1`, [DOC_DRAFT_EVIDENCE]);
+      await expect(c.query(`UPDATE documents SET scan_status = 'clean' WHERE id = $1`, [DOC_DRAFT_EVIDENCE])).rejects.toThrow(/final/);
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
+  });
+
+  it("unverified evidence never enters the AI index, whoever asks", async () => {
+    await expect(
+      as(U.acmeOwner, (c) => c.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [DOC_DRAFT_EVIDENCE])),
+    ).rejects.toThrow(/only after the firm verified/);
+    await expect(
+      as(U.lead, (c) =>
+        c.query(
+          `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, ai_indexable, storage_key, content_type, size_bytes, sha256)
+           VALUES ($1,$2,$2,$3,'evidence','submitted','x',true,'k-ai','application/pdf',1,'x')`,
+          [ACME_PROJ_1, ACME, U.lead],
+        ),
+      ),
+    ).rejects.toThrow(/only after the firm verified/);
   });
 });

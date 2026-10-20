@@ -35,6 +35,18 @@ services:
     volumes: [storage-data:/data]
     ports: ["127.0.0.1:9000:9000"]
 
+  # Virus scanner for uploads. The web app refuses uploads while it is down.
+  # Needs about 1.5 GB of RAM once its signatures are loaded.
+  clamav:
+    image: clamav/clamav:1.5.4
+    volumes: [clamav-db:/var/lib/clamav]
+    ports: ["127.0.0.1:3310:3310"]
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+
   ollama:
     image: ollama/ollama:0.40.6
     volumes: [ollama-models:/root/.ollama]
@@ -93,7 +105,9 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       AI_SERVICE_URL: http://ai:8000
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      CLAMD_HOST: clamav
     depends_on:
+      clamav: { condition: service_healthy }
       setup: { condition: service_completed_successfully }
       ai: { condition: service_started }
     ports: ["127.0.0.1:3000:3000"]
@@ -102,3 +116,4 @@ volumes:
   db-data:
   storage-data:
   ollama-models:
+  clamav-db:

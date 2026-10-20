@@ -203,6 +203,7 @@ await db.insert(s.documents).values([
     contentType: "application/pdf",
     sizeBytes: 1024,
     sha256: "0".repeat(64),
+    scanStatus: "clean",
   },
   {
     ...scope,
@@ -216,6 +217,7 @@ await db.insert(s.documents).values([
     contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     sizeBytes: 2048,
     sha256: "0".repeat(64),
+    scanStatus: "clean",
   },
 ]);
 
