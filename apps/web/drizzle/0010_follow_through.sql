@@ -49,6 +49,8 @@ CREATE TABLE "risk_acceptances" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "actions" ADD COLUMN "awaiting_review_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "actions" ADD COLUMN "reopened_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "actions" ADD COLUMN "closure_outcome" "closure_outcome";--> statement-breakpoint
 ALTER TABLE "actions" ADD COLUMN "closure_note" text;--> statement-breakpoint
 ALTER TABLE "actions" ADD COLUMN "closed_by" uuid;--> statement-breakpoint

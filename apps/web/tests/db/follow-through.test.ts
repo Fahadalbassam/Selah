@@ -25,6 +25,7 @@ const U = {
   cadmin: id(15),
   cmgr: id(16), // client manager staffed on the project
   cowner: id(17), // action owner staffed on the project
+  former: id(18), // action owner who has left (inactive), still staffed
 };
 const PROJ = id(21);
 const PROJ_STATS = id(22);
@@ -78,8 +79,8 @@ const statusOf = async (aid: string) => (await owner.query(`SELECT * FROM action
 async function submitEvidence(aid: string, requestId: string | null) {
   const doc = next();
   await owner.query(
-    `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256)
-     VALUES ($1,$2,$3,$3,$4,'evidence','submitted','e.pdf','shared',$5,'application/pdf',1,'x')`,
+    `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+     VALUES ($1,$2,$3,$3,$4,'evidence','submitted','e.pdf','shared',$5,'application/pdf',1,'x','clean')`,
     [doc, PROJ, ACME, U.cowner, `k-${doc}`],
   );
   const sub = next();
@@ -104,6 +105,7 @@ beforeAll(async () => {
       ($5,$9,'client_admin'), ($6,$9,'client_manager'), ($7,$9,'action_owner')`,
     [U.admin, U.lead, U.cons, U.outsider, U.cadmin, U.cmgr, U.cowner, FIRM, ACME],
   );
+  await q(`INSERT INTO org_memberships (user_id, org_id, role, active) VALUES ($1,$2,'action_owner',false)`, [U.former, ACME]);
   await q(
     `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state) VALUES
       ($1,'client',$3,$4,'Acme governance','active'), ($2,'client',$3,$4,'Acme statistics','active')`,
@@ -121,6 +123,7 @@ beforeAll(async () => {
     U.cowner,
     PROJ_STATS,
   ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($3,$4)`, [PROJ, U.former, PROJ_STATS, U.cowner]);
   await q(`INSERT INTO watches (user_id, client_org_id) VALUES ($1,$2)`, [U.admin, ACME]);
   await q(
     `INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$4,'Board charter',$5), ($6,$3,$4,'Statistics',$5)`,
@@ -262,6 +265,72 @@ describe("closing and reopening", () => {
     expect([row.status, row.closure_outcome, row.closed_by, row.closed_at]).toEqual(["in_progress", null, null, null]);
   });
 
+  it("after a reopen, verifying needs a new accept review", async () => {
+    const aid = await action({ status: "awaiting_review" });
+    const accept = () =>
+      owner.query(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`, [
+        PROJ,
+        ACME,
+        aid,
+        U.cons,
+      ]);
+    const verify = `UPDATE actions SET status = 'verified_complete' WHERE id = $1`;
+    await accept();
+    await run(U.cons, verify, [aid]);
+    await run(U.cons, `UPDATE actions SET status = 'in_progress' WHERE id = $1`, [aid]);
+    await run(U.cowner, `UPDATE actions SET status = 'awaiting_review' WHERE id = $1`, [aid]);
+    await expect(attempt(U.cons, verify, [aid])).rejects.toThrow(/accept review of this round/);
+    await accept();
+    await run(U.cons, verify, [aid]);
+  });
+
+  it("after a reopen, an old risk acceptance no longer counts, nor one from someone who left", async () => {
+    const aid = await action();
+    const sign = (by: string) =>
+      run(
+        by,
+        `INSERT INTO risk_acceptances (project_id, org_id, action_id, accepted_by, statement) VALUES ($1,$2,$3,$4,'Accepted')`,
+        [PROJ, ACME, aid, by],
+      );
+    const close = `UPDATE actions SET status = 'closed', closure_outcome = 'risk_accepted' WHERE id = $1`;
+    await sign(U.cmgr);
+    await run(U.cons, close, [aid]);
+    await run(U.cons, `UPDATE actions SET status = 'in_progress' WHERE id = $1`, [aid]);
+    await expect(attempt(U.cons, close, [aid])).rejects.toThrow(/signed statement/);
+    await sign(U.cadmin);
+    await owner.query(`UPDATE org_memberships SET active = false WHERE user_id = $1`, [U.cadmin]);
+    try {
+      await expect(attempt(U.cons, close, [aid])).rejects.toThrow(/signed statement/);
+    } finally {
+      await owner.query(`UPDATE org_memberships SET active = true WHERE user_id = $1`, [U.cadmin]);
+    }
+    await run(U.cons, close, [aid]);
+  });
+
+  it("clients cannot touch the columns the rules depend on", async () => {
+    const aid = await action();
+    for (const set of ["awaiting_review_at = now()", "reopened_at = now()", "closure_note = 'done'"]) {
+      await expect(attempt(U.cmgr, `UPDATE actions SET ${set} WHERE id = $1`, [aid]), set).rejects.toThrow(/only move/);
+    }
+  });
+
+  it("the owner is an active member of the project team", async () => {
+    const aid = await action();
+    const owner_ = `UPDATE actions SET owner_user_id = $2 WHERE id = $1`;
+    for (const u of [U.outsider, U.former, U.lead]) {
+      await expect(attempt(U.cmgr, owner_, [aid, u]), u).rejects.toThrow(/active member of the project team/);
+    }
+    await expect(attempt(U.cons, owner_, [aid, U.outsider])).rejects.toThrow(/active member/);
+    await attempt(U.cmgr, owner_, [aid, U.cmgr]);
+  });
+
+  it("only drafts are deleted", async () => {
+    const released = await action();
+    const draft = await action({ status: "draft" });
+    expect((await attempt(U.cons, `DELETE FROM actions WHERE id = $1`, [released])).rowCount).toBe(0);
+    expect((await attempt(U.cons, `DELETE FROM actions WHERE id = $1`, [draft])).rowCount).toBe(1);
+  });
+
   it("a closed action cannot jump to verified", async () => {
     const aid = await action();
     await run(U.cons, `UPDATE actions SET status = 'closed', closure_outcome = 'not_applicable' WHERE id = $1`, [aid]);
@@ -339,6 +408,27 @@ describe("evidence lists", () => {
     await run(U.cons, verify, [aid]);
   });
 
+  it("a waiver says why, and only a scanned file answers an item", async () => {
+    const aid = await action();
+    await ask(aid);
+    const [item] = await requestsOf(aid);
+    await expect(attempt(U.cons, `UPDATE evidence_requests SET status = 'waived' WHERE id = $1`, [item.id])).rejects.toThrow(
+      /waiver_explained/,
+    );
+    const doc = next();
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$3,$4,'evidence','submitted','e.pdf','shared',$5,'application/pdf',1,'x','pending')`,
+      [doc, PROJ, ACME, U.cowner, `k-${doc}`],
+    );
+    await expect(
+      owner.query(
+        `INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by, evidence_request_id) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [PROJ, ACME, aid, doc, U.cowner, item.id],
+      ),
+    ).rejects.toThrow(/virus scan/);
+  });
+
   it("a rejected item can be asked again, and an accepted one cannot be undone", async () => {
     const aid = await action();
     await ask(aid);
@@ -349,6 +439,11 @@ describe("evidence lists", () => {
     await submitEvidence(aid, item.id);
     await run(U.cons, `UPDATE evidence_requests SET status = 'rejected' WHERE id = $1`, [item.id]);
     await run(U.cons, `UPDATE evidence_requests SET status = 'open' WHERE id = $1`, [item.id]);
+    // Nobody answered the item again yet, so it cannot be accepted.
+    await expect(attempt(U.cons, `UPDATE evidence_requests SET status = 'accepted' WHERE id = $1`, [item.id])).rejects.toThrow(
+      /invalid evidence request change/,
+    );
+    await submitEvidence(aid, item.id);
     await run(U.cons, `UPDATE evidence_requests SET status = 'accepted' WHERE id = $1`, [item.id]);
     for (const status of ["open", "rejected", "waived"]) {
       await expect(attempt(U.cons, `UPDATE evidence_requests SET status = $2 WHERE id = $1`, [item.id, status])).rejects.toThrow(
@@ -390,7 +485,7 @@ describe("deadline change requests", () => {
     run(
       by,
       `INSERT INTO deadline_change_requests (id, project_id, org_id, action_id, requested_by, proposed_due_date, reason, status)
-       VALUES ($1,$2,$3,$4,$5,'2027-02-01','Board meets in January',$6)`,
+       VALUES ($1,$2,$3,$4,$5,'2099-02-01','Board meets in January',$6)`,
       [next(), PROJ, ACME, aid, by, status],
     );
   const requestsOf = async (aid: string) =>
@@ -405,12 +500,12 @@ describe("deadline change requests", () => {
       (await attempt(U.cmgr, `UPDATE deadline_change_requests SET status = 'approved' WHERE id = $1`, [req.id])).rowCount,
     ).toBe(0);
     await expect(
-      attempt(U.cons, `UPDATE deadline_change_requests SET proposed_due_date = '2028-01-01', status = 'approved' WHERE id = $1`, [
+      attempt(U.cons, `UPDATE deadline_change_requests SET proposed_due_date = '2099-03-01', status = 'approved' WHERE id = $1`, [
         req.id,
       ]),
     ).rejects.toThrow(/only the decision/);
     await run(U.cons, `UPDATE deadline_change_requests SET status = 'approved' WHERE id = $1`, [req.id]);
-    expect((await statusOf(aid)).due_date).toEqual(new Date("2027-02-01T00:00:00"));
+    expect((await statusOf(aid)).due_date).toEqual(new Date("2099-02-01T00:00:00"));
     expect((await requestsOf(aid))[0].decided_by).toBe(U.cons);
     await expect(
       attempt(U.cons, `UPDATE deadline_change_requests SET status = 'rejected' WHERE id = $1`, [req.id]),
@@ -418,6 +513,22 @@ describe("deadline change requests", () => {
     await expect(attempt(U.cowner, `DELETE FROM deadline_change_requests WHERE id = $1`, [req.id])).rejects.toThrow(
       /permission denied/,
     );
+  });
+
+  it("only the owner, the client's managers and admins, or the firm ask, and for a real new date", async () => {
+    const aid = await action({ due: "2099-01-01" });
+    await owner.query(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [aid, U.cmgr]);
+    await expect(request(aid, U.cowner)).rejects.toThrow(/row-level security/);
+    await request(aid, U.cadmin);
+    const other = await action({ due: "2099-01-01" });
+    const ask = (date: string) =>
+      attempt(
+        U.cowner,
+        `INSERT INTO deadline_change_requests (project_id, org_id, action_id, requested_by, proposed_due_date, reason) VALUES ($1,$2,$3,$4,$5,'x')`,
+        [PROJ, ACME, other, U.cowner, date],
+      );
+    await expect(ask("2099-01-01")).rejects.toThrow(/new date/);
+    await expect(ask("2020-01-01")).rejects.toThrow(/new date/);
   });
 
   it("finished actions take no new deadline", async () => {
@@ -464,6 +575,13 @@ describe("reminders and the escalation ladder", () => {
     expect((await due([sent])).map((r) => r.level)).toEqual([1]);
   });
 
+  it("an owner who has left is skipped and the ladder starts at level 2", async () => {
+    const aid = await action({ due: "2027-03-18" });
+    await owner.query(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [aid, U.former]);
+    const [row] = await due([aid]);
+    expect([row.level, row.recipients]).toEqual([2, sorted(U.cmgr, U.lead)]);
+  });
+
   it("the daily job notifies each recipient once, however often it runs", async () => {
     const aid = await action({ due: "2027-03-15" });
     const notes = async () =>
@@ -497,7 +615,22 @@ describe("telling the firm-side team", () => {
 });
 
 describe("implementation progress", () => {
-  it("counts verified plus half of partial over what still applies, as the caller sees it", async () => {
+  it("an issued report's numbers are frozen; sharing it is the only change", async () => {
+    const rid = next();
+    await run(
+      U.cons,
+      `INSERT INTO reports (id, project_id, org_id, title, body_md, generated_by, period_start, period_end, metrics)
+       VALUES ($1,$2,$3,'October','',$4,'2026-10-01','2026-10-31','{"implementedPct": 25}')`,
+      [rid, PROJ, ACME, U.cons],
+    );
+    await expect(attempt(U.cons, `UPDATE reports SET metrics = '{"implementedPct": 90}' WHERE id = $1`, [rid])).rejects.toThrow(
+      /cannot change/,
+    );
+    await expect(attempt(U.cons, `DELETE FROM reports WHERE id = $1`, [rid])).rejects.toThrow(/cannot change/);
+    await attempt(U.cons, `UPDATE reports SET visibility = 'shared', shared_at = now() WHERE id = $1`, [rid]);
+  });
+
+  it("counts verified over what still applies, as the caller sees it", async () => {
     await action({ project: PROJ_STATS, status: "verified_complete" });
     await action({ project: PROJ_STATS, status: "closed", closure: "partially_implemented" });
     await action({ project: PROJ_STATS, status: "closed", closure: "risk_accepted" });
@@ -515,8 +648,8 @@ describe("implementation progress", () => {
       open: 1,
       overdue: 1,
     });
-    // (1 + 0.5) / (5 - 1 not applicable) = 37.5%
-    expect(Number(rows[0].implemented_pct)).toBe(37.5);
+    // 1 verified / (5 - 1 not applicable) = 25%; partial work is counted, not credited
+    expect(Number(rows[0].implemented_pct)).toBe(25);
     // Someone who cannot see the project gets nothing.
     const hidden = await attempt(U.outsider, stats, [PROJ_STATS]);
     expect(hidden.rows[0]).toMatchObject({ total: 0, implemented_pct: null });
