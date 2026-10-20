@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   clientAssignments,
@@ -11,6 +11,7 @@ import {
   projectMembers,
   projects,
   user,
+  watches,
 } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
@@ -20,7 +21,10 @@ import { audit } from "./audit";
 // Decided 2026-10-20: the firm admin adds clients and names one lead per
 // client; the lead adds or removes consultants on that client; consultants
 // see client names only and may ask to join; the admin or the lead decides.
-// Every rule here is also enforced by RLS (drizzle/0003_staffing_security.sql).
+// Being on a client's team makes a consultant eligible; the lead (or the
+// admin) then staffs them on each project, and they see only those projects.
+// Every rule here is also enforced by RLS (drizzle/0003_staffing_security.sql,
+// 0008_staffed_visibility.sql).
 
 const firmRecord = (p: Principal): Resource => ({ type: "organization", orgId: p.orgId, firmOrgId: p.orgId, projectId: null });
 
@@ -114,7 +118,18 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
     .where(eq(projects.orgId, clientOrgId))
     .orderBy(asc(projects.title));
 
-  return { client, team, candidates, requests, projects: clientProjects, can: { manage: canManage, setLead: canSetLead, decide: canDecide } };
+  const canWatch = authorize(principal, "project.watch", { ...resource, type: "organization" }).allowed;
+  const watching = canWatch ? await isWatching(tx, principal, { clientOrgId }) : false;
+
+  return {
+    client,
+    team,
+    candidates,
+    requests,
+    projects: clientProjects,
+    watching,
+    can: { manage: canManage, setLead: canSetLead, decide: canDecide, watch: canWatch },
+  };
 }
 
 async function assertConsultant(tx: Tx, principal: Principal, userId: string) {
@@ -153,6 +168,15 @@ export async function removeConsultant(tx: Tx, principal: Principal, clientOrgId
   // Removing the lead leaves the client without one: only the admin may.
   if (row.isLead) assertAllowed(principal, "client_assignment.set_lead", resource);
   await tx.delete(clientAssignments).where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, userId)));
+  // Leaving the client team also takes them off its projects.
+  await tx
+    .delete(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.userId, userId),
+        inArray(projectMembers.projectId, tx.select({ id: projects.id }).from(projects).where(eq(projects.orgId, clientOrgId))),
+      ),
+    );
   await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "client_assignment.remove", resourceType: "organization", resourceId: clientOrgId, outcome: "allow", meta: { userId } });
   return { ok: true };
 }
@@ -269,4 +293,188 @@ export async function createInternalProject(tx: Tx, principal: Principal, input:
   await tx.insert(projectMembers).values({ projectId: id, userId: principal.userId, isLead: true, addedBy: principal.userId });
   await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.create_internal", resourceType: "project", resourceId: id, outcome: "allow" });
   return { id };
+}
+
+// ------------------------------------------------------------ projects
+
+async function loadProject(tx: Tx, principal: Principal, projectId: string) {
+  const [p] = await tx
+    .select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!p) throw new NotFoundError("project");
+  const resource: Resource = {
+    type: "project",
+    id: p.id,
+    orgId: p.orgId,
+    firmOrgId: p.firmOrgId,
+    projectId: p.id,
+    projectKind: p.kind,
+    clientOrgId: p.kind === "client" ? p.orgId : undefined,
+  };
+  if (!authorize(principal, "project.read", resource).allowed) throw new NotFoundError("project");
+  return { project: p, resource };
+}
+
+/**
+ * Who works on a project, and whom this user may add: on a client project the
+ * client's team (and the admin themselves, to co-consult); on an internal
+ * project any firm colleague.
+ */
+export async function getProjectTeam(tx: Tx, principal: Principal, projectId: string) {
+  if (principal.orgKind !== "firm") return null; // the firm's staffing view
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  const members = await tx
+    .select({ userId: projectMembers.userId, isLead: projectMembers.isLead, name: user.name, email: user.email, orgId: orgMemberships.orgId })
+    .from(projectMembers)
+    .innerJoin(user, eq(user.id, projectMembers.userId))
+    .leftJoin(orgMemberships, and(eq(orgMemberships.userId, projectMembers.userId), eq(orgMemberships.active, true)))
+    .where(eq(projectMembers.projectId, projectId))
+    .orderBy(desc(projectMembers.isLead), asc(user.name));
+  const firm = members.filter((m) => m.orgId === project.firmOrgId);
+  const client = members.filter((m) => m.orgId !== project.firmOrgId);
+
+  const canManage = authorize(principal, "project.manage_members", resource).allowed;
+  const staffed = new Set(members.map((m) => m.userId));
+  let candidates: { userId: string; name: string; email: string }[] = [];
+  if (canManage) {
+    candidates =
+      project.kind === "client"
+        ? await tx
+            .select({ userId: user.id, name: user.name, email: user.email })
+            .from(clientAssignments)
+            .innerJoin(user, eq(user.id, clientAssignments.userId))
+            .where(eq(clientAssignments.clientOrgId, project.orgId))
+            .orderBy(asc(user.name))
+        : await firmColleagues(tx, principal);
+    if (project.kind === "client" && principal.role === "firm_admin" && !candidates.some((c) => c.userId === principal.userId)) {
+      const [me] = await tx.select({ userId: user.id, name: user.name, email: user.email }).from(user).where(eq(user.id, principal.userId));
+      if (me) candidates.push(me);
+    }
+    candidates = candidates.filter((c) => !staffed.has(c.userId));
+  }
+
+  // The client's lead sees the project without being staffed on it.
+  const [clientLead] =
+    project.kind === "client"
+      ? await tx
+          .select({ userId: user.id, name: user.name, email: user.email })
+          .from(clientAssignments)
+          .innerJoin(user, eq(user.id, clientAssignments.userId))
+          .where(and(eq(clientAssignments.clientOrgId, project.orgId), eq(clientAssignments.isLead, true)))
+          .limit(1)
+      : [];
+
+  const canWatch = authorize(principal, "project.watch", resource).allowed;
+  return {
+    clientLead: clientLead ?? null,
+    firm,
+    client,
+    candidates,
+    watching: canWatch ? await isWatching(tx, principal, { projectId }) : false,
+    can: { manage: canManage, watch: canWatch },
+  };
+}
+
+async function firmColleagues(tx: Tx, principal: Principal) {
+  return tx
+    .select({ userId: user.id, name: user.name, email: user.email })
+    .from(orgMemberships)
+    .innerJoin(user, eq(user.id, orgMemberships.userId))
+    .where(and(eq(orgMemberships.orgId, principal.orgId), eq(orgMemberships.active, true), inArray(orgMemberships.role, ["firm_admin", "consultant"])))
+    .orderBy(asc(user.name));
+}
+
+/** Staff a firm member on a project (the client's lead, an internal project's lead, or the admin). */
+export async function staffProject(tx: Tx, principal: Principal, projectId: string, userId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  if (principal.orgKind !== "firm") throw new NotFoundError("project");
+  assertAllowed(principal, "project.manage_members", resource);
+  if (project.kind === "client") {
+    const coConsult = principal.role === "firm_admin" && userId === principal.userId;
+    const [onTeam] = await tx
+      .select({ userId: clientAssignments.userId })
+      .from(clientAssignments)
+      .where(and(eq(clientAssignments.clientOrgId, project.orgId), eq(clientAssignments.userId, userId)))
+      .limit(1);
+    if (!onTeam && !coConsult) throw new BadRequestError("add them to the client's team first");
+  } else if (!(await firmColleagues(tx, principal)).some((c) => c.userId === userId)) {
+    throw new BadRequestError("only firm members can join an internal project");
+  }
+  const inserted = await tx
+    .insert(projectMembers)
+    .values({ projectId, userId, addedBy: principal.userId })
+    .onConflictDoNothing()
+    .returning({ userId: projectMembers.userId });
+  if (inserted.length && userId !== principal.userId) {
+    await tx.insert(notifications).values({ userId, kind: "project.staffed", entityType: "project", entityId: projectId });
+  }
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.staff", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
+  return { ok: true };
+}
+
+export async function unstaffProject(tx: Tx, principal: Principal, projectId: string, userId: string) {
+  const { resource } = await loadProject(tx, principal, projectId);
+  if (principal.orgKind !== "firm") throw new NotFoundError("project");
+  assertAllowed(principal, "project.manage_members", resource);
+  const [row] = await tx
+    .select({ isLead: projectMembers.isLead })
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+    .limit(1);
+  if (!row) throw new NotFoundError("member");
+  // An internal project keeps its lead; only the admin may remove one.
+  if (row.isLead && principal.role !== "firm_admin") throw new BadRequestError("the project lead cannot be removed");
+  await tx.delete(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.unstaff", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
+  return { ok: true };
+}
+
+// ------------------------------------------------------------ watching
+
+type WatchTarget = { projectId: string } | { clientOrgId: string };
+
+async function isWatching(tx: Tx, principal: Principal, target: WatchTarget) {
+  const [row] = await tx
+    .select({ id: watches.id })
+    .from(watches)
+    .where(
+      and(
+        eq(watches.userId, principal.userId),
+        "projectId" in target ? eq(watches.projectId, target.projectId) : eq(watches.clientOrgId, target.clientOrgId),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/** An admin follows (or stops following) a client or a project. */
+export async function setWatch(tx: Tx, principal: Principal, target: WatchTarget, on: boolean) {
+  const resource =
+    "projectId" in target
+      ? (await loadProject(tx, principal, target.projectId)).resource
+      : { ...assignmentOf(principal, target.clientOrgId), type: "organization" as const };
+  assertAllowed(principal, "project.watch", resource);
+  if (on) {
+    if (!(await isWatching(tx, principal, target))) await tx.insert(watches).values({ userId: principal.userId, ...target });
+  } else {
+    await tx
+      .delete(watches)
+      .where(
+        and(
+          eq(watches.userId, principal.userId),
+          "projectId" in target ? eq(watches.projectId, target.projectId) : eq(watches.clientOrgId, target.clientOrgId),
+        ),
+      );
+  }
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: on ? "watch.add" : "watch.remove",
+    resourceType: "projectId" in target ? "project" : "organization",
+    resourceId: "projectId" in target ? target.projectId : target.clientOrgId,
+    outcome: "allow",
+  });
+  return { watching: on };
 }

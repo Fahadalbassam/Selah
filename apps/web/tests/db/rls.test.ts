@@ -639,3 +639,73 @@ describe("review integrity", () => {
     await index(DOC_ROUND_2);
   });
 });
+
+describe("staffed-only visibility, co-consulting and watching", () => {
+  const ACT = id(801);
+  const asUser = (c: { query: (s: string, p?: unknown[]) => Promise<unknown> }, uid: string) =>
+    c.query("SELECT set_config('selah.user_id', $1, true)", [uid]);
+
+  it("a consultant on a client's team sees its projects only once the lead staffs them", async () => {
+    await as(U.lead, async (c) => {
+      await c.query(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [BETA, U.consultant]);
+      await asUser(c, U.consultant);
+      expect((await c.query(`SELECT 1 FROM organizations WHERE id = $1`, [BETA])).rowCount).toBe(1);
+      expect((await c.query(`SELECT 1 FROM projects WHERE id = $1`, [BETA_PROJ])).rowCount).toBe(0);
+      expect((await c.query(`SELECT 1 FROM recommendations WHERE id = $1`, [REC_BETA])).rowCount).toBe(0);
+
+      // The lead staffs from the client team only.
+      await asUser(c, U.overseer);
+      await c.query("SAVEPOINT s");
+      await expect(c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [BETA_PROJ, U.lead])).rejects.toThrow(
+        /row-level security/,
+      );
+      await c.query("ROLLBACK TO SAVEPOINT s");
+      await c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [BETA_PROJ, U.consultant]);
+
+      await asUser(c, U.consultant);
+      expect((await c.query(`SELECT 1 FROM projects WHERE id = $1`, [BETA_PROJ])).rowCount).toBe(1);
+      expect((await c.query(`SELECT 1 FROM recommendations WHERE id = $1`, [REC_BETA])).rowCount).toBe(1);
+      // A staffed member cannot staff others.
+      await expect(c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [BETA_PROJ, U.overseer])).rejects.toThrow(
+        /row-level security/,
+      );
+    });
+  });
+
+  it("only firm admins watch, and only for themselves", async () => {
+    await as(U.lead, (c) => c.query(`INSERT INTO watches (user_id, client_org_id) VALUES ($1,$2)`, [U.lead, BETA]));
+    await expect(
+      as(U.lead, (c) => c.query(`INSERT INTO watches (user_id, project_id) VALUES ($1,$2)`, [U.overseer, BETA_PROJ])),
+    ).rejects.toThrow(/row-level security/);
+    for (const u of [U.overseer, U.betaManager]) {
+      await expect(as(u, (c) => c.query(`INSERT INTO watches (user_id, project_id) VALUES ($1,$2)`, [u, BETA_PROJ]))).rejects.toThrow(
+        /row-level security/,
+      );
+    }
+  });
+
+  it("work for review reaches the client's lead and watching admins, and nobody else", async () => {
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Beta plan',$5,'in_progress',$6)`,
+      [ACT, BETA_PROJ, BETA, REC_BETA, U.betaManager, U.overseer],
+    );
+    await as(U.lead, async (c) => {
+      await c.query(`INSERT INTO watches (user_id, client_org_id) VALUES ($1,$2)`, [U.lead, BETA]);
+      // A client user triggers it, though they cannot see the watching admin.
+      await asUser(c, U.betaManager);
+      const sent = await c.query(`SELECT app_notify_project_team($1, 'action.awaiting_review', $2::uuid[]) AS n`, [ACT, [U.betaManager]]);
+      expect(sent.rows[0].n).toBe(2);
+      const got = async (uid: string) => {
+        await asUser(c, uid);
+        return (await c.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [ACT])).rowCount;
+      };
+      expect(await got(U.lead)).toBe(1);
+      expect(await got(U.overseer)).toBe(1);
+      expect(await got(U.consultant)).toBe(0);
+    });
+    await expect(
+      as(U.acmeOwner, (c) => c.query(`SELECT app_notify_project_team($1, 'action.awaiting_review', '{}')`, [ACT])),
+    ).rejects.toThrow(/not visible/);
+  });
+});

@@ -15,7 +15,7 @@ There are two layers. Both must allow a request.
 
 1. **Organization.** Client users reach only their own organization. Firm staff reach client records only through a project their firm runs, and a consultant only for clients assigned to them.
 2. **Role.** Does `POLICY[permission]` grant this role anything? (`src/authz/policy.ts`)
-3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant assigned to a client sees all of that client's projects. Everyone else, including consultants on internal projects, must be a project member.
+3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
 4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), or `owner_org` (who controls a document's labels and AI flag).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
 
@@ -30,10 +30,13 @@ Decided with the product owner on 2026-10-20:
 - Only the **firm admin** adds clients and names one **lead consultant** per client (`client_assignments.is_lead`).
 - The **lead** adds or removes other consultants on that client (`client_assignment.manage`, scope `lead`). Only the admin changes or removes the lead.
 - Consultants see a **directory of client names only** (`app_client_directory()`, no projects, people or files) and can **ask to join** with a reason (`join_requests`). The admin or that client's lead approves or declines; a decision is final and audited.
+- Being on a client's team makes a consultant **eligible**; the client's lead (or the admin) **staffs them on each project**, and they see only those projects (decided 2026-10-20). Leaving the client team takes them off its projects.
+- The **firm admin** sees everything. To get notifications they either **co-consult** (staff themselves on a project) or **watch** a client or project (`watches`, `project.watch`). Other admins get no notifications for work they don't follow.
+- Work sent for review notifies the project's firm audience: the client's lead, the staff on the project (an internal project's leads), and watching admins (`app_notify_project_team()`).
 - Any firm member can create an **internal project** and becomes its lead (`project_members.is_lead`).
 - On internal projects firm staff do the work themselves (`INTERNAL_POLICY` in `policy.ts`), and **nobody reviews their own action** (`workflow:self-review`, mirrored in the `reviews` insert policy).
 
-RLS for all of this is in `drizzle/0003_staffing_security.sql`.
+RLS for all of this is in `drizzle/0003_staffing_security.sql` and `drizzle/0008_staffed_visibility.sql`.
 
 The `Principal` is built from the session and the database (`services/principal.ts`), never from anything the browser sends.
 

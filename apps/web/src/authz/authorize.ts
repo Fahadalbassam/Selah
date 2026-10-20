@@ -66,19 +66,21 @@ function checkOrganization(p: Principal, r: Resource): Decision {
 }
 
 function checkMembership(p: Principal, r: Resource): Decision {
-  // A consultant oversees a client only when assigned to it.
-  const assignedClient = p.role === "consultant" && r.orgId !== p.orgId && p.assignedClientIds.has(r.orgId);
+  // A consultant is on a client's team only when assigned to it.
+  const onClientTeam = p.role === "consultant" && r.orgId !== p.orgId && p.assignedClientIds.has(r.orgId);
 
   if (r.projectId === null) {
-    if (p.role === "consultant" && r.orgId !== p.orgId && !assignedClient) return deny("assignment:client-not-assigned");
+    if (p.role === "consultant" && r.orgId !== p.orgId && !onClientTeam) return deny("assignment:client-not-assigned");
     return ok;
   }
   // The firm admin sees every project the firm runs; a client admin every
-  // project of their org. A consultant sees projects they are a member of
-  // and every project of a client assigned to them. Everyone else must be a
+  // project of their org. A consultant sees the projects they are staffed
+  // on, and the lead of a client every project of that client. Being on a
+  // client's team alone does not open its projects. Everyone else must be a
   // member.
   if (p.role === "firm_admin" || p.role === "client_admin") return ok;
-  if (p.projectIds.has(r.projectId) || assignedClient) return ok;
+  if (p.projectIds.has(r.projectId)) return ok;
+  if (p.role === "consultant" && r.orgId !== p.orgId && p.leadClientIds.has(r.orgId)) return ok;
   return deny("membership:not-member");
 }
 

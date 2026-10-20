@@ -159,6 +159,7 @@ describe("upload scanning against clamd", () => {
   it("accepts a clean PDF as scanned", async () => {
     const prepared = await prepareUpload(USER, ACTION, file(PDF, "evidence.pdf", "application/pdf"));
     expect(prepared.scanned).toBe(true);
+    expect(prepared.scanMs).toBeGreaterThanOrEqual(0);
     expect(prepared.contentType).toBe("application/pdf");
     expect(state.audits).toHaveLength(0);
   });
