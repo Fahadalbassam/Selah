@@ -17,7 +17,8 @@
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
     "job:follow-ups": "tsx scripts/follow-ups.ts",
-    "job:metrics": "tsx scripts/metrics-snapshot.ts"
+    "job:metrics": "tsx scripts/metrics-snapshot.ts",
+    "job:purge-inquiries": "tsx scripts/purge-inquiries.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1153.0",
