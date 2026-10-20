@@ -1,8 +1,8 @@
-export type Role = "firm_lead" | "consultant" | "client_admin" | "client_manager" | "action_owner";
+export type Role = "firm_admin" | "consultant" | "client_admin" | "client_manager" | "action_owner";
 export type OrgKind = "firm" | "client";
 export type Visibility = "shared" | "firm_private" | "client_private" | "user_private";
 
-export const FIRM_ROLES: readonly Role[] = ["firm_lead", "consultant"];
+export const FIRM_ROLES: readonly Role[] = ["firm_admin", "consultant"];
 export const CLIENT_ROLES: readonly Role[] = ["client_admin", "client_manager", "action_owner"];
 
 /**
@@ -14,14 +14,16 @@ export interface Principal {
   orgId: string;
   orgKind: OrgKind;
   role: Role;
-  /** Engagements the user is an explicit member of. */
-  engagementIds: ReadonlySet<string>;
+  /** Projects the user is an explicit member of. */
+  projectIds: ReadonlySet<string>;
+  /** Consultants only: client orgs they oversee. They see all of those clients' projects. */
+  assignedClientIds: ReadonlySet<string>;
 }
 
 export type ResourceType =
   | "organization"
   | "org_user"
-  | "engagement"
+  | "project"
   | "finding"
   | "recommendation"
   | "action"
@@ -44,12 +46,15 @@ export type ResourceType =
 export interface Resource {
   type: ResourceType;
   id?: string;
-  /** The client tenant the record belongs to. For an organization, its own id. */
-  clientOrgId: string;
-  /** The firm org running the engagement (engagement-scoped records). */
+  /**
+   * The org that owns the record: the client for client-project records, the
+   * firm for internal-project records. For an organization, its own id.
+   */
+  orgId: string;
+  /** The firm org running the project (project-scoped records). */
   firmOrgId?: string;
   /** Null only for organization-level records. */
-  engagementId: string | null;
+  projectId: string | null;
   visibility?: Visibility;
   /** Creator of the record (user_private and "own" scope). */
   createdBy?: string | null;

@@ -1,10 +1,17 @@
 # Selah · صِلَة
 
-AI-assisted governance and consulting implementation platform. A Computer Science graduation project built with a partner consulting firm.
+AI-assisted governance and consulting implementation platform. A Computer Science graduation project: a platform consulting firms use to run their own work and their clients' implementation follow-up.
 
 Selah connects consulting outputs (recommendations, policies, structures) to owners, actions, evidence, consultant review and follow-up, with an Arabic-first assistant that answers only from material the asking user is allowed to see.
 
-> **Status:** backend skeleton (step 3 of the plan). The user interface (step 4) is not built yet. Everything here is a team proposal, not a firm or supervisor decision. Use synthetic data only.
+> **Status:** backend skeleton (step 3) plus the frontend shell (step 4). Everything here is a team proposal, not a supervisor decision. Use synthetic data only.
+
+## Who sees what
+
+- **The firm** is the consulting company running Selah. Its staff are a firm admin and consultants.
+- **Internal projects** belong to the firm itself. Only firm staff who are members see them; clients never do.
+- **Client projects** belong to a client organization. A consultant sees a client only when the firm admin assigns them to it (`client_assignments`), and then sees all of that client's projects. Other consultants don't.
+- **Client users** (client admin, client manager, action owner) see only their own organization. Firm documents stay `firm_private` unless someone chooses to share them with the client.
 
 Design documents: the **Scope, Permissions and AI Access Spec** and the **Stack Decision Record** (shared separately). This repo implements them.
 
@@ -17,9 +24,12 @@ apps/web/            Next.js app: both portals and the API (TypeScript)
   src/services/      Business logic. Every function calls authorize() first.
   src/db/schema/     Drizzle schema (tables)
   src/auth/          Better Auth (sign-in, sessions, 2FA)
+  src/app/           Pages: (app) is the signed-in shell, (auth) is sign-in
+  src/components/    App sidebar, tables, badges; components/ui is shadcn/ui
+  messages/          Arabic and English strings (next-intl)
   drizzle/           SQL migrations, incl. 0001_security.sql (row-level security)
   tests/             Unit tests, route guard, and Postgres RLS tests (tests/db)
-services/ai/         Python FastAPI service: embeddings and cited answers via Ollama
+services/ai/         Python FastAPI service: cited answers via a swappable LLM provider
 db/init/             Creates database roles on first start
 docs/                Architecture, authorization and OWASP notes
 ```
@@ -35,9 +45,13 @@ cp .env.example .env        # then fill every value (openssl rand -base64 32)
 docker compose up --build
 ```
 
-The first start downloads the AI models (about 6 GB). Then open http://localhost:3000.
+The first start downloads the local AI models (a few GB). Then open http://localhost:3000.
 
-To create the synthetic demo users (one per role, password from `SEED_PASSWORD`), run `npm run db:seed` from `apps/web` as described below.
+To create the synthetic demo users (one per role, password from `SEED_PASSWORD`), run `npm run db:seed` from `apps/web` as described below. Sign in as `admin@firm.test`, `consultant@firm.test`, `consultant2@firm.test`, `admin@nukhba.test`, `manager@nukhba.test`, `owner@nukhba.test` or `manager@rawdah.test`.
+
+### AI provider
+
+The AI service talks to the model through one interface (`services/ai/app/llm.py`). Set `LLM_PROVIDER=ollama` (default, runs `qwen3:4b` locally, fits a 4 GB GPU such as a GTX 1050) or `LLM_PROVIDER=openai_compat` with `LLM_API_BASE`, `LLM_API_KEY` and `LLM_MODEL` to use a hosted API for answers. Embeddings always stay local (`bge-m3`), so document text is only sent to a hosted API as the passages of a question.
 
 ### Developing the web app without Docker for it
 
@@ -53,6 +67,10 @@ npm run storage:init
 npm run db:seed
 npm run dev
 ```
+
+## Frontend
+
+Built from the free official shadcn/ui blocks: `sidebar-07` (collapsible icon sidebar with the user menu at the bottom), `sidebar-03` (grouped sub-menus) and the cards and tables from `dashboard-01`. Arabic is the default and the layout flips to right-to-left; English is a toggle in the user menu, as is dark mode. Every page loads its data through `withPrincipal()` and the read services in `src/services/queries.ts`, which run each row through `authorize()`, so the UI shows exactly what the API allows.
 
 ## Tests
 
@@ -76,7 +94,7 @@ CI runs all three on every pull request.
 
 1. **One check.** Every API route, download, export, search and AI retrieval goes through `authorize()` in `apps/web/src/authz`. See [docs/authorization.md](docs/authorization.md).
 2. **Routes can't skip it.** API routes must be built with `route()`; `tests/route-guard.test.ts` fails otherwise, and ESLint stops pages from importing the database.
-3. **The database is the backstop.** Postgres row-level security enforces tenant, engagement and visibility-label isolation for the app's database role, so one missed check in app code cannot leak another client's data.
+3. **The database is the backstop.** Postgres row-level security enforces tenant, project and visibility-label isolation for the app's database role, so one missed check in app code cannot leak another client's data.
 4. **Deny by default.** A new table has no grants and a new permission has no roles until someone adds them.
 5. **AI sees only what you could open.** Retrieval filters run inside the vector query and under RLS. The AI service never gets database credentials.
 

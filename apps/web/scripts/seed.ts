@@ -1,5 +1,6 @@
 // Synthetic demo data (never real client data). Usage: npm run db:seed
-// Creates the firm org, two client orgs and one user per role, all with
+// One consulting firm, two client orgs, one user per role, an internal
+// project and client projects with actions in every state. All users share
 // the password in SEED_PASSWORD. Refuses to run in production.
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -16,83 +17,205 @@ const pool = new Pool({ connectionString: ownerUrl, max: 1 });
 const db = drizzle(pool, { schema: s });
 const ctx = await auth().$context;
 
+const already = await db.select({ id: s.organizations.id }).from(s.organizations).limit(1);
+if (already.length > 0) {
+  console.log("database already has organizations; seed skipped");
+  await pool.end();
+  process.exit(0);
+}
+
 async function person(email: string, name: string) {
   const existing = await ctx.internalAdapter.findUserByEmail(email);
   if (existing) return existing.user.id;
-  const user = await ctx.internalAdapter.createUser({ email, name, emailVerified: true }, { method: "admin" });
+  const created = await ctx.internalAdapter.createUser({ email, name, emailVerified: true }, { method: "admin" });
   await ctx.internalAdapter.linkAccount({
-    userId: user.id,
+    userId: created.id,
     providerId: "credential",
-    accountId: user.id,
+    accountId: created.id,
     password: await ctx.password.hash(password!),
   });
-  return user.id;
+  return created.id;
 }
 
-const [firm] = await db.insert(s.organizations).values({ kind: "firm", name: "Demo Consulting", nameAr: "الشركة الاستشارية" }).returning();
-const [nukhba] = await db.insert(s.organizations).values({ kind: "client", name: "Al-Nukhba Holding (synthetic)", nameAr: "شركة النخبة القابضة (بيانات تجريبية)" }).returning();
-const [rawdah] = await db.insert(s.organizations).values({ kind: "client", name: "Rawdah Foundation (synthetic)", nameAr: "مؤسسة الروضة (بيانات تجريبية)" }).returning();
+const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
-const users = {
-  lead: await person("lead@firm.test", "Lead Consultant"),
-  consultant: await person("consultant@firm.test", "Consultant"),
-  nukhbaAdmin: await person("admin@nukhba.test", "Nukhba Admin"),
-  nukhbaManager: await person("manager@nukhba.test", "Nukhba Manager"),
-  nukhbaOwner: await person("owner@nukhba.test", "Nukhba Action Owner"),
-  rawdahManager: await person("manager@rawdah.test", "Rawdah Manager"),
+const [firm] = await db
+  .insert(s.organizations)
+  .values({ kind: "firm", name: "Demo Consulting Firm", nameAr: "شركة الاستشارات التجريبية" })
+  .returning();
+const [nukhba] = await db
+  .insert(s.organizations)
+  .values({ kind: "client", name: "Al-Nukhba Holding (synthetic)", nameAr: "شركة النخبة القابضة (تجريبية)" })
+  .returning();
+const [rawdah] = await db
+  .insert(s.organizations)
+  .values({ kind: "client", name: "Rawdah Foundation (synthetic)", nameAr: "مؤسسة الروضة (تجريبية)" })
+  .returning();
+
+const u = {
+  admin: await person("admin@firm.test", "سارة العتيبي"),
+  consultant: await person("consultant@firm.test", "خالد الشمري"),
+  consultant2: await person("consultant2@firm.test", "نورة القحطاني"),
+  nukhbaAdmin: await person("admin@nukhba.test", "فهد الدوسري"),
+  nukhbaManager: await person("manager@nukhba.test", "ريم الحربي"),
+  nukhbaOwner: await person("owner@nukhba.test", "عبدالله المطيري"),
+  rawdahManager: await person("manager@rawdah.test", "هند الزهراني"),
 };
 
 await db.insert(s.orgMemberships).values([
-  { userId: users.lead, orgId: firm!.id, role: "firm_lead" },
-  { userId: users.consultant, orgId: firm!.id, role: "consultant" },
-  { userId: users.nukhbaAdmin, orgId: nukhba!.id, role: "client_admin" },
-  { userId: users.nukhbaManager, orgId: nukhba!.id, role: "client_manager" },
-  { userId: users.nukhbaOwner, orgId: nukhba!.id, role: "action_owner" },
-  { userId: users.rawdahManager, orgId: rawdah!.id, role: "client_manager" },
+  { userId: u.admin, orgId: firm!.id, role: "firm_admin" },
+  { userId: u.consultant, orgId: firm!.id, role: "consultant" },
+  { userId: u.consultant2, orgId: firm!.id, role: "consultant" },
+  { userId: u.nukhbaAdmin, orgId: nukhba!.id, role: "client_admin" },
+  { userId: u.nukhbaManager, orgId: nukhba!.id, role: "client_manager" },
+  { userId: u.nukhbaOwner, orgId: nukhba!.id, role: "action_owner" },
+  { userId: u.rawdahManager, orgId: rawdah!.id, role: "client_manager" },
 ]);
 
-const [eng] = await db
-  .insert(s.engagements)
-  .values({ clientOrgId: nukhba!.id, firmOrgId: firm!.id, title: "حوكمة مجلس الإدارة", state: "active", createdBy: users.lead })
-  .returning();
-const [rawdahEng] = await db
-  .insert(s.engagements)
-  .values({ clientOrgId: rawdah!.id, firmOrgId: firm!.id, title: "Rawdah strategy follow-up", state: "active", createdBy: users.lead })
-  .returning();
-
-await db.insert(s.engagementMembers).values([
-  { engagementId: eng!.id, userId: users.consultant, addedBy: users.lead },
-  { engagementId: eng!.id, userId: users.nukhbaManager, addedBy: users.nukhbaAdmin },
-  { engagementId: eng!.id, userId: users.nukhbaOwner, addedBy: users.nukhbaAdmin },
-  { engagementId: rawdahEng!.id, userId: users.rawdahManager, addedBy: users.lead },
+// Each consultant oversees one client.
+await db.insert(s.clientAssignments).values([
+  { clientOrgId: nukhba!.id, userId: u.consultant, assignedBy: u.admin },
+  { clientOrgId: rawdah!.id, userId: u.consultant2, assignedBy: u.admin },
 ]);
 
-const [rec] = await db
+const [board] = await db
+  .insert(s.projects)
+  .values({
+    kind: "client",
+    orgId: nukhba!.id,
+    firmOrgId: firm!.id,
+    title: "حوكمة مجلس الإدارة",
+    description: "متابعة تنفيذ توصيات تقييم الحوكمة",
+    state: "active",
+    startDate: day(-60),
+    endDate: day(90),
+    createdBy: u.admin,
+  })
+  .returning();
+const [rawdahProject] = await db
+  .insert(s.projects)
+  .values({ kind: "client", orgId: rawdah!.id, firmOrgId: firm!.id, title: "الخطة الاستراتيجية ٢٠٢٧", state: "active", createdBy: u.admin })
+  .returning();
+const [internal] = await db
+  .insert(s.projects)
+  .values({
+    kind: "internal",
+    orgId: firm!.id,
+    firmOrgId: firm!.id,
+    title: "تحديث منهجية التقييم الداخلية",
+    description: "مشروع داخلي للشركة، لا يراه العملاء",
+    state: "active",
+    createdBy: u.admin,
+  })
+  .returning();
+
+await db.insert(s.projectMembers).values([
+  { projectId: board!.id, userId: u.nukhbaManager, addedBy: u.nukhbaAdmin },
+  { projectId: board!.id, userId: u.nukhbaOwner, addedBy: u.nukhbaAdmin },
+  { projectId: rawdahProject!.id, userId: u.rawdahManager, addedBy: u.admin },
+  { projectId: internal!.id, userId: u.consultant, addedBy: u.admin },
+  { projectId: internal!.id, userId: u.consultant2, addedBy: u.admin },
+]);
+
+const scope = { projectId: board!.id, orgId: nukhba!.id };
+const [charter, committees] = await db
   .insert(s.recommendations)
-  .values({
-    engagementId: eng!.id,
-    clientOrgId: nukhba!.id,
-    title: "اعتماد ميثاق مجلس الإدارة",
-    rationale: "No written board charter exists.",
-    priority: "high",
-    requiredEvidence: "Signed board charter (PDF) and board minutes approving it",
-    createdBy: users.consultant,
-  })
+  .values([
+    {
+      ...scope,
+      title: "اعتماد ميثاق مجلس الإدارة",
+      rationale: "لا يوجد ميثاق مكتوب يحدد صلاحيات المجلس ومسؤولياته.",
+      priority: "high",
+      dueDate: day(30),
+      requiredEvidence: "الميثاق المعتمد (PDF) ومحضر اجتماع المجلس الذي أقره",
+      createdBy: u.consultant,
+    },
+    {
+      ...scope,
+      title: "تشكيل لجنة المراجعة",
+      rationale: "غياب لجنة مراجعة مستقلة.",
+      priority: "critical",
+      dueDate: day(45),
+      requiredEvidence: "قرار التشكيل وأسماء الأعضاء",
+      createdBy: u.consultant,
+    },
+  ])
   .returning();
 
-const [action] = await db
+const act = (rec: string, title: string, status: (typeof s.actionStatus.enumValues)[number], due: number, owner = u.nukhbaOwner) => ({
+  ...scope,
+  recommendationId: rec,
+  title,
+  status,
+  dueDate: day(due),
+  ownerUserId: owner,
+  createdBy: u.consultant,
+  blockedReason: status === "blocked" ? "بانتظار موافقة المستشار القانوني" : null,
+});
+const created = await db
   .insert(s.actions)
-  .values({
-    engagementId: eng!.id,
-    clientOrgId: nukhba!.id,
-    recommendationId: rec!.id,
-    title: "صياغة مسودة الميثاق",
-    ownerUserId: users.nukhbaOwner,
-    status: "assigned",
-    dueDate: "2026-12-15",
-    createdBy: users.consultant,
-  })
+  .values([
+    act(charter!.id, "صياغة مسودة الميثاق", "in_progress", 10),
+    act(charter!.id, "عرض المسودة على المجلس", "assigned", 25, u.nukhbaManager),
+    act(charter!.id, "رفع الميثاق المعتمد", "awaiting_review", 5),
+    act(committees!.id, "اختيار أعضاء اللجنة", "blocked", -3),
+    act(committees!.id, "إعداد لائحة عمل اللجنة", "revision_requested", -1),
+    act(committees!.id, "نشر قرار التشكيل", "verified_complete", -10, u.nukhbaManager),
+  ])
   .returning();
+
+// The verified action has its accept review on record.
+await db.insert(s.reviews).values({
+  ...scope,
+  actionId: created[5]!.id,
+  reviewerId: u.consultant,
+  outcome: "accept",
+  reason: "القرار موقع ومنشور.",
+});
+
+const [internalRec] = await db
+  .insert(s.recommendations)
+  .values({ projectId: internal!.id, orgId: firm!.id, title: "توحيد قوالب التقارير", priority: "medium", createdBy: u.admin })
+  .returning();
+await db.insert(s.actions).values({
+  projectId: internal!.id,
+  orgId: firm!.id,
+  recommendationId: internalRec!.id,
+  title: "إعداد قالب تقرير المتابعة",
+  status: "in_progress",
+  dueDate: day(14),
+  ownerUserId: u.consultant2,
+  createdBy: u.admin,
+});
+
+await db.insert(s.documents).values([
+  {
+    ...scope,
+    ownerOrgId: firm!.id,
+    uploadedBy: u.consultant,
+    purpose: "deliverable",
+    state: "submitted",
+    title: "تقرير تقييم الحوكمة.pdf",
+    visibility: "shared",
+    storageKey: crypto.randomUUID(),
+    contentType: "application/pdf",
+    sizeBytes: 1024,
+    sha256: "synthetic",
+  },
+  {
+    ...scope,
+    ownerOrgId: firm!.id,
+    uploadedBy: u.consultant,
+    purpose: "deliverable",
+    state: "submitted",
+    title: "ملاحظات داخلية للمستشار.docx",
+    visibility: "firm_private",
+    storageKey: crypto.randomUUID(),
+    contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    sizeBytes: 2048,
+    sha256: "synthetic",
+  },
+]);
 
 await pool.end();
-console.log(JSON.stringify({ engagementId: eng!.id, actionId: action!.id, users }, null, 2));
+console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. admin@firm.test, consultant@firm.test, manager@nukhba.test, owner@nukhba.test");
