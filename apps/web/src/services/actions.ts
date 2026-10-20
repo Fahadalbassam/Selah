@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -110,7 +110,12 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     if (closure.outcome === "superseded" && !closure.supersededBy) throw new BadRequestError("name the action that replaces this one");
     if (closure.outcome !== "superseded" && closure.supersededBy) throw new BadRequestError("only a superseded action names a successor");
     if (closure.outcome === "risk_accepted") {
-      const [signed] = await tx.select({ id: riskAcceptances.id }).from(riskAcceptances).where(eq(riskAcceptances.actionId, id)).limit(1);
+      // Signed since the last reopen; the database also checks the signer is still an admin or manager.
+      const [signed] = await tx
+        .select({ id: riskAcceptances.id })
+        .from(riskAcceptances)
+        .where(and(eq(riskAcceptances.actionId, id), action.reopenedAt ? gte(riskAcceptances.createdAt, action.reopenedAt) : undefined))
+        .limit(1);
       if (!signed) throw new BadRequestError("the client has not signed a risk acceptance for this action");
     }
     patch.closureOutcome = closure.outcome;

@@ -327,7 +327,12 @@ export const actions = pgTable(
     status: actionStatus("status").notNull().default("draft"),
     dueDate: date("due_date"),
     blockedReason: text("blocked_reason"),
-    // Set when status is "closed" (see drizzle/0010_follow_through.sql).
+    // Set by the database: when the action last entered Awaiting Review (a
+    // verification needs a review after it) and when it was last reopened
+    // (a risk acceptance must be signed after it). drizzle/0011.
+    awaitingReviewAt: ts("awaiting_review_at"),
+    reopenedAt: ts("reopened_at"),
+    // Set when status is "closed" (see drizzle/0011_follow_through_rules.sql).
     closureOutcome: closureOutcome("closure_outcome"),
     closureNote: text("closure_note"),
     closedBy: uuid("closed_by").references(() => user.id),

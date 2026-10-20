@@ -1,5 +1,5 @@
 {
-  "id": "5fca4952-5c96-4bee-ad2d-cefe67984715",
+  "id": "8b95bf4b-b86b-4dc1-b04f-6e418f96aaf0",
   "prevId": "d9c1e77d-3914-493b-a156-1dc704fb9a32",
   "version": "7",
   "dialect": "postgresql",
@@ -654,6 +654,18 @@
         "blocked_reason": {
           "name": "blocked_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "awaiting_review_at": {
+          "name": "awaiting_review_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reopened_at": {
+          "name": "reopened_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

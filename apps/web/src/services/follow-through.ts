@@ -12,6 +12,7 @@ import {
   user,
 } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
+import { firmToday } from "@/lib/dates";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
 import { audit } from "./audit";
@@ -111,7 +112,7 @@ export async function decideEvidenceRequest(
     throw new BadRequestError("say why the item was rejected or waived");
   }
   const allowed: Record<EvidenceRequestDecision, string[]> = {
-    accepted: ["open", "submitted", "rejected"],
+    accepted: ["submitted"],
     rejected: ["submitted"],
     waived: ["open", "submitted", "rejected"],
     open: ["rejected"],
@@ -202,6 +203,7 @@ export async function requestDeadlineChange(
   if (action.status === "verified_complete" || action.status === "closed") throw new BadRequestError("this action is finished");
   if (action.dueDate && isoDate(action.dueDate) === input.proposedDueDate)
     throw new BadRequestError("that is already the due date");
+  if (input.proposedDueDate < firmToday()) throw new BadRequestError("the new date is in the past");
   const [pending] = await tx
     .select({ id: deadlineChangeRequests.id })
     .from(deadlineChangeRequests)
@@ -252,7 +254,7 @@ export interface Progress {
 /** The project's numbers, computed in Postgres under the caller's row-level security. */
 export async function projectProgress(tx: Tx, principal: Principal, projectId: string, today?: string): Promise<Progress> {
   await loadProject(tx, principal, projectId);
-  const day = today ?? new Date().toISOString().slice(0, 10);
+  const day = today ?? firmToday();
   const { rows } = await tx.execute<Record<string, string | number | null>>(
     sql`select * from app_project_progress(${projectId}::uuid, ${day}::date)`,
   );
