@@ -71,6 +71,20 @@
       "when": 1792535042935,
       "tag": "0009_notify_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792536528799,
+      "tag": "0010_follow_through",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792536698113,
+      "tag": "0011_follow_through_rules",
+      "breakpoints": true
     }
   ]
 }

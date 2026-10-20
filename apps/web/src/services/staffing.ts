@@ -297,7 +297,8 @@ export async function createInternalProject(tx: Tx, principal: Principal, input:
 
 // ------------------------------------------------------------ projects
 
-async function loadProject(tx: Tx, principal: Principal, projectId: string) {
+/** Load a project the user may read. Unknown and forbidden look the same (404). */
+export async function loadProject(tx: Tx, principal: Principal, projectId: string) {
   const [p] = await tx
     .select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId })
     .from(projects)

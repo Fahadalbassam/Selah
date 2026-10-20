@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
-    "storage:init": "tsx scripts/storage-init.ts"
+    "storage:init": "tsx scripts/storage-init.ts",
+    "job:follow-ups": "tsx scripts/follow-ups.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1153.0",
