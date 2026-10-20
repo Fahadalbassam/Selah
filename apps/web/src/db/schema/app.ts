@@ -659,6 +659,9 @@ export const firmSettings = pgTable("firm_settings", {
   // An open action untouched this many days counts as stale.
   staleDays: integer("stale_days").notNull().default(14),
   // Check-ins after handover, in days.
+  // Where new inquiries are announced by email (a link only), besides the
+  // in-app notice to every firm admin.
+  intakeEmail: text("intake_email"),
   checkinDays: integer("checkin_days")
     .array()
     .notNull()
@@ -814,6 +817,173 @@ export const aiDrafts = pgTable(
     createdAt: createdAt(),
   },
   (t) => [scopedFk("ai_drafts", t), check("ai_draft_distance", sql`${t.editDistance} IS NULL OR ${t.editDistance} >= 0`)],
+);
+
+// -------------------------------------------------------------- intake
+
+// How a new client reaches the firm: a public inquiry form. Submitted only
+// through submit_inquiry() (drizzle/0017); read by firm admins and the
+// consultant qualifying it. Lost, declined, spam and withdrawn inquiries are
+// anonymised after a while (PDPL data minimisation).
+
+// The firm's services and the sectors it serves. Tables, not enums, so the
+// firm can edit the lists.
+export const serviceAreas = pgTable("service_areas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const sectors = pgTable("sectors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const employeeBand = pgEnum("employee_band", ["1-9", "10-49", "50-249", "250+"]);
+export const ownershipType = pgEnum("ownership_type", [
+  "sole",
+  "family_single_owner",
+  "family_multi_partner",
+  "llc",
+  "joint_stock",
+  "non_profit",
+  "other",
+]);
+export const inquiryUrgency = pgEnum("inquiry_urgency", ["exploring", "within_3_months", "urgent"]);
+export const heardFrom = pgEnum("heard_from", ["referral", "search", "social_media", "event", "existing_client", "other"]);
+export const inquiryStatus = pgEnum("inquiry_status", [
+  "new",
+  "triaged",
+  "discovery_scheduled",
+  "discovery_done",
+  "proposal_sent",
+  "won",
+  "lost",
+  "declined",
+  "spam",
+  "withdrawn",
+]);
+export const conflictStatus = pgEnum("conflict_status", ["not_checked", "clear", "flagged", "waived"]);
+export const discoveryMode = pgEnum("discovery_mode", ["in_person", "video", "phone"]);
+export const discoveryOutcome = pgEnum("discovery_outcome", ["proceed", "not_a_fit", "needs_followup"]);
+
+export const inquiries = pgTable(
+  "inquiries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    // Short code shown to the requester.
+    publicRef: text("public_ref").notNull().unique(),
+    // The requester's details. Nullable only so anonymisation can clear them.
+    orgName: text("org_name"),
+    orgNameAr: text("org_name_ar"),
+    crNumber: text("cr_number"),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id),
+    employeeBand: employeeBand("employee_band").notNull(),
+    ownershipType: ownershipType("ownership_type").notNull(),
+    contactName: text("contact_name"),
+    contactRole: text("contact_role"),
+    contactEmail: text("contact_email"),
+    contactPhone: text("contact_phone"),
+    preferredLanguage: text("preferred_language").notNull(),
+    message: text("message"),
+    // Mirrors the sponsor's survey: a first maturity snapshot.
+    selfCheck: jsonb("self_check").$type<Record<string, boolean>>().notNull(),
+    urgency: inquiryUrgency("urgency"),
+    heardFrom: heardFrom("heard_from"),
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    consentedAt: ts("consented_at").notNull(),
+    // HMACs with a server secret; never the raw IP or user agent.
+    ipHash: text("ip_hash"),
+    userAgentHash: text("user_agent_hash"),
+    status: inquiryStatus("status").notNull().default("new"),
+    // The consultant qualifying it.
+    ownerUserId: uuid("owner_user_id").references(() => user.id),
+    conflictStatus: conflictStatus("conflict_status").notNull().default("not_checked"),
+    conflictNote: text("conflict_note"),
+    conflictCheckedBy: uuid("conflict_checked_by").references(() => user.id),
+    conflictCheckedAt: ts("conflict_checked_at"),
+    // Set once, when a won inquiry becomes a client.
+    clientOrgId: uuid("client_org_id").references(() => organizations.id),
+    convertedBy: uuid("converted_by").references(() => user.id),
+    convertedAt: ts("converted_at"),
+    closedAt: ts("closed_at"),
+    purgeAfter: date("purge_after"),
+    anonymisedAt: ts("anonymised_at"),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("inquiries_status_idx").on(t.firmOrgId, t.status),
+    index("inquiries_ip_idx").on(t.ipHash, t.createdAt),
+    check("inquiry_language", sql`${t.preferredLanguage} IN ('ar', 'en')`),
+    check("inquiry_contact_kept", sql`${t.anonymisedAt} IS NOT NULL OR (${t.contactEmail} IS NOT NULL AND ${t.contactName} IS NOT NULL AND ${t.orgName} IS NOT NULL)`),
+  ],
+);
+
+export const inquiryServices = pgTable(
+  "inquiry_services",
+  {
+    inquiryId: uuid("inquiry_id")
+      .notNull()
+      .references(() => inquiries.id, { onDelete: "cascade" }),
+    serviceAreaId: uuid("service_area_id")
+      .notNull()
+      .references(() => serviceAreas.id),
+  },
+  (t) => [primaryKey({ columns: [t.inquiryId, t.serviceAreaId] })],
+);
+
+// The inquiry's history. Append-only.
+export const inquiryEvents = pgTable(
+  "inquiry_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    inquiryId: uuid("inquiry_id")
+      .notNull()
+      .references(() => inquiries.id, { onDelete: "cascade" }),
+    // Null for the public submit and for jobs.
+    actorId: uuid("actor_id").references(() => user.id),
+    event: text("event").notNull(),
+    fromStatus: inquiryStatus("from_status"),
+    toStatus: inquiryStatus("to_status"),
+    note: text("note"),
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: createdAt(),
+  },
+  (t) => [index("inquiry_events_inquiry_idx").on(t.inquiryId, t.createdAt)],
+);
+
+export const discoverySessions = pgTable(
+  "discovery_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    inquiryId: uuid("inquiry_id")
+      .notNull()
+      .references(() => inquiries.id, { onDelete: "cascade" }),
+    scheduledAt: ts("scheduled_at").notNull(),
+    heldAt: ts("held_at"),
+    mode: discoveryMode("mode").notNull(),
+    attendees: text("attendees"),
+    notes: text("notes"),
+    outcome: discoveryOutcome("outcome"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("discovery_sessions_inquiry_idx").on(t.inquiryId)],
 );
 
 // ------------------------------------------------- history and audit
