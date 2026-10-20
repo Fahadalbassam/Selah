@@ -6,6 +6,7 @@ import {
   activityEvents,
   deadlineChangeRequests,
   evidenceRequests,
+  metricSnapshots,
   notifications,
   reports,
   riskAcceptances,
@@ -308,4 +309,32 @@ export async function snapshotReport(
     outcome: "allow",
   });
   return { id: row!.id, metrics };
+}
+
+// -------------------------------------------- implementation metrics
+
+/** The project's live metrics (docs/metrics.md) and its monthly history. */
+export async function projectMetrics(tx: Tx, principal: Principal, projectId: string) {
+  const { resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "metrics.read", resource);
+  const { rows } = await tx.execute<Record<string, string | number | null>>(
+    sql`select * from v_project_metrics where project_id = ${projectId}::uuid`,
+  );
+  const history = await tx
+    .select({ metric: metricSnapshots.metric, value: metricSnapshots.value, asOf: metricSnapshots.asOf })
+    .from(metricSnapshots)
+    .where(eq(metricSnapshots.projectId, projectId))
+    .orderBy(asc(metricSnapshots.asOf), asc(metricSnapshots.metric));
+  const live = { ...rows[0] };
+  delete live.project_id;
+  delete live.org_id;
+  return { live, history };
+}
+
+/** The firm admin's view of the team: each colleague's load (sorted by name), and team totals. */
+export async function teamMetrics(tx: Tx, principal: Principal, since: string) {
+  assertAllowed(principal, "team_metrics.read", { type: "org_user", orgId: principal.orgId, firmOrgId: principal.orgId, projectId: null });
+  const workload = await tx.execute(sql`select * from app_team_workload()`);
+  const totals = await tx.execute(sql`select * from app_team_metrics(${since}::date)`);
+  return { workload: workload.rows, totals: totals.rows[0] };
 }
