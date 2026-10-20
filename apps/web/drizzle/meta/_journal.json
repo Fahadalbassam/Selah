@@ -5,15 +5,71 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1792519448438,
+      "when": 1792523485621,
       "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1792519449418,
+      "when": 1792523486704,
       "tag": "0001_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792530924109,
+      "tag": "0002_staffing",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792530925156,
+      "tag": "0003_staffing_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792531816822,
+      "tag": "0004_scan_and_review_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792531817813,
+      "tag": "0005_evidence_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792532318887,
+      "tag": "0006_scan_skipped",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792532319873,
+      "tag": "0007_review_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792534346039,
+      "tag": "0008_staffed_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792535042935,
+      "tag": "0009_notify_hardening",
       "breakpoints": true
     }
   ]

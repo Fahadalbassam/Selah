@@ -18,3 +18,11 @@ export class ConflictError extends Error {
     this.name = "ConflictError";
   }
 }
+
+/** A dependency (e.g. the virus scanner) is down; the request is refused rather than done unsafely. */
+export class UnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnavailableError";
+  }
+}

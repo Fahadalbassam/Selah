@@ -1,7 +1,7 @@
 import "server-only";
 import { and, cosineDistance, eq, inArray, ne, or } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { aiChunks, aiConversations, aiMessages, documents, engagements } from "@/db/schema";
+import { aiChunks, aiConversations, aiMessages, documents, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
 import { NotFoundError } from "@/server/errors";
 import { answer, embed, type Passage } from "./ai-client";
@@ -14,14 +14,14 @@ const CANNOT_CONFIRM = {
 };
 
 export interface AskInput {
-  engagementId: string;
+  projectId: string;
   question: string;
   conversationId?: string;
   language: "ar" | "en" | "auto";
 }
 
 /**
- * Answer a question from the engagement's permitted material.
+ * Answer a question from the project's permitted material.
  *
  *   1. authorize() decides the retrieval scope (same check as the rest of the app).
  *   2. The scope goes INSIDE the vector query's WHERE clause, and the query
@@ -31,14 +31,14 @@ export interface AskInput {
  *   5. No passages, or no valid citations: say so instead of guessing.
  */
 export async function ask(tx: Tx, principal: Principal, input: AskInput) {
-  const [eng] = await tx.select().from(engagements).where(eq(engagements.id, input.engagementId)).limit(1);
-  if (!eng) throw new NotFoundError("engagement");
-  const resource: Resource & { type: "engagement" } = {
-    type: "engagement",
+  const [eng] = await tx.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
+  if (!eng) throw new NotFoundError("project");
+  const resource: Resource & { type: "project" } = {
+    type: "project",
     id: eng.id,
-    clientOrgId: eng.clientOrgId,
-    maayishOrgId: eng.maayishOrgId,
-    engagementId: eng.id,
+    orgId: eng.orgId,
+    firmOrgId: eng.firmOrgId,
+    projectId: eng.id,
   };
   const scope = retrievalScope(principal, resource);
   if (!scope) throw new ForbiddenError("assistant.query", resource, "retrieval:no-scope");
@@ -85,7 +85,7 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     actorId: principal.userId,
     orgId: principal.orgId,
     action: "assistant.query",
-    resourceType: "engagement",
+    resourceType: "project",
     resourceId: eng.id,
     outcome: "allow",
     meta: { passages: passages.length, cited: citations.length, grounded },
@@ -108,8 +108,8 @@ export function retrieve(tx: Tx, scope: RetrievalScope, vector: number[]) {
     .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)))
     .where(
       and(
-        eq(aiChunks.engagementId, scope.engagementId),
-        eq(aiChunks.clientOrgId, scope.clientOrgId),
+        eq(aiChunks.projectId, scope.projectId),
+        eq(aiChunks.orgId, scope.orgId),
         inArray(aiChunks.visibility, [...scope.labels]),
         or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
         // Document chunks must still be indexable, live and the current version.
@@ -127,15 +127,15 @@ export function retrieve(tx: Tx, scope: RetrievalScope, vector: number[]) {
     .limit(TOP_K);
 }
 
-async function newConversation(tx: Tx, principal: Principal, engagementId: string) {
+async function newConversation(tx: Tx, principal: Principal, projectId: string) {
   const [row] = await tx
     .insert(aiConversations)
-    .values({ userId: principal.userId, engagementId })
+    .values({ userId: principal.userId, projectId })
     .returning({ id: aiConversations.id });
   return row!.id;
 }
 
-async function ownConversation(tx: Tx, principal: Principal, id: string, engagementId: string) {
+async function ownConversation(tx: Tx, principal: Principal, id: string, projectId: string) {
   const [row] = await tx
     .select({ id: aiConversations.id })
     .from(aiConversations)
@@ -143,7 +143,7 @@ async function ownConversation(tx: Tx, principal: Principal, id: string, engagem
       and(
         eq(aiConversations.id, id),
         eq(aiConversations.userId, principal.userId),
-        eq(aiConversations.engagementId, engagementId),
+        eq(aiConversations.projectId, projectId),
       ),
     )
     .limit(1);

@@ -16,7 +16,7 @@ export type ActionStatus =
  * check_action_transition() holds the same list of moves, so a move missing
  * here is also rejected by Postgres.
  *
- * Only action.review (Maayish staff) can leave Awaiting Review, and only that
+ * Only action.review (firm staff) can leave Awaiting Review, and only that
  * path reaches Verified Complete. A client's claim never counts as verified.
  */
 export const TRANSITIONS: Readonly<Record<string, Permission>> = {
@@ -40,8 +40,14 @@ export function canTransition(
   action: Resource & { type: "action" },
   from: ActionStatus,
   to: ActionStatus,
+  /** Who submitted evidence in the round under review. */
+  submitters: readonly string[] = [],
 ): Decision {
   const permission = transitionPermission(from, to);
   if (!permission) return { allowed: false, reason: `workflow:${from}>${to}` };
+  // Separation of duties: nobody verifies work they own or submitted.
+  if (permission === "action.review" && (action.assignees?.includes(principal.userId) || submitters.includes(principal.userId))) {
+    return { allowed: false, reason: "workflow:self-review" };
+  }
   return authorize(principal, permission, action);
 }

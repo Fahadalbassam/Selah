@@ -1,29 +1,61 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, activityEvents, engagements, evidenceSubmissions, notifications, reviews } from "@/db/schema";
-import { assertAllowed, canTransition, ForbiddenError, type ActionStatus, type Principal, type Resource } from "@/authz";
+import {
+  actions,
+  activityEvents,
+  documents,
+  evidenceSubmissions,
+  notifications,
+  projects,
+  reviews,
+} from "@/db/schema";
+import {
+  assertAllowed,
+  canTransition,
+  ForbiddenError,
+  transitionPermission,
+  type ActionStatus,
+  type Principal,
+  type Resource,
+} from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
-async function loadAction(tx: Tx, id: string) {
+export async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ action: actions, maayishOrgId: engagements.maayishOrgId })
+    .select({ action: actions, firmOrgId: projects.firmOrgId, projectKind: projects.kind })
     .from(actions)
-    .innerJoin(engagements, eq(engagements.id, actions.engagementId))
+    .innerJoin(projects, eq(projects.id, actions.projectId))
     .where(eq(actions.id, id))
     .limit(1);
   if (!row) return null;
   const resource: Resource & { type: "action" } = {
     type: "action",
     id: row.action.id,
-    clientOrgId: row.action.clientOrgId,
-    maayishOrgId: row.maayishOrgId,
-    engagementId: row.action.engagementId,
+    orgId: row.action.orgId,
+    firmOrgId: row.firmOrgId,
+    projectId: row.action.projectId,
+    projectKind: row.projectKind,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],
   };
   return { action: row.action, resource };
+}
+
+/** Who submitted evidence since the action's last review (the round under review). */
+export async function roundSubmitters(tx: Tx, actionId: string): Promise<string[]> {
+  const [previous] = await tx
+    .select({ at: reviews.createdAt })
+    .from(reviews)
+    .where(eq(reviews.actionId, actionId))
+    .orderBy(desc(reviews.createdAt))
+    .limit(1);
+  const rows = await tx
+    .selectDistinct({ userId: evidenceSubmissions.submittedBy })
+    .from(evidenceSubmissions)
+    .where(and(eq(evidenceSubmissions.actionId, actionId), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined));
+  return rows.map((r) => r.userId);
 }
 
 /** Load an action the user may read. Unknown and forbidden look the same (404). */
@@ -52,8 +84,10 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   assertAllowed(principal, "action.read", resource);
 
   const from = action.status;
-  const decision = canTransition(principal, resource, from, input.to);
-  if (!decision.allowed) throw new ForbiddenError("action.work", resource, decision.reason);
+  const decision = canTransition(principal, resource, from, input.to, await roundSubmitters(tx, id));
+  if (!decision.allowed) {
+    throw new ForbiddenError(transitionPermission(from, input.to) ?? "action.work", resource, decision.reason);
+  }
 
   const patch: Partial<typeof actions.$inferInsert> = { status: input.to };
 
@@ -84,17 +118,29 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
 
   if (input.to === "verified_complete" || input.to === "revision_requested") {
     if (input.to === "revision_requested" && !input.reason) throw new BadRequestError("a revision request needs a reason");
-    const [evidence] = await tx
-      .select({ id: evidenceSubmissions.id })
-      .from(evidenceSubmissions)
-      .where(eq(evidenceSubmissions.actionId, id))
-      .orderBy(desc(evidenceSubmissions.submittedAt))
+    // Record exactly what was reviewed: every submission since the previous
+    // review, with each file's hash (stored files never change).
+    const [previous] = await tx
+      .select({ at: reviews.createdAt })
+      .from(reviews)
+      .where(eq(reviews.actionId, id))
+      .orderBy(desc(reviews.createdAt))
       .limit(1);
+    const seen = await tx
+      .select({ id: evidenceSubmissions.id, sha256: documents.sha256 })
+      .from(evidenceSubmissions)
+      .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+      .where(
+        and(eq(evidenceSubmissions.actionId, id), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined),
+      )
+      .orderBy(asc(evidenceSubmissions.submittedAt));
     await tx.insert(reviews).values({
-      engagementId: action.engagementId,
-      clientOrgId: action.clientOrgId,
+      projectId: action.projectId,
+      orgId: action.orgId,
       actionId: id,
-      evidenceSubmissionId: evidence?.id,
+      evidenceSubmissionId: seen.at(-1)?.id,
+      evidenceSubmissionIds: seen.map((e) => e.id),
+      evidenceSha256: seen.map((e) => e.sha256),
       reviewerId: principal.userId,
       outcome: input.to === "verified_complete" ? "accept" : "revise",
       reason: input.reason,
@@ -110,8 +156,8 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   if (updated.length === 0) throw new ConflictError("the action changed; reload and try again");
 
   await tx.insert(activityEvents).values({
-    engagementId: action.engagementId,
-    clientOrgId: action.clientOrgId,
+    projectId: action.projectId,
+    orgId: action.orgId,
     actorId: principal.userId,
     entityType: "action",
     entityId: id,
@@ -127,6 +173,14 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
       entityType: "action",
       entityId: id,
     });
+  }
+
+  // Work waiting for review goes to the project's firm-side audience: the
+  // client's lead and the staff on the project (an internal project's leads),
+  // plus admins watching it (drizzle/0008_staffed_visibility.sql).
+  if (input.to === "awaiting_review") {
+    const skip = `{${action.ownerUserId ?? ""}}`; // uuid[] literal: the owner was told above
+    await tx.execute(sql`select app_notify_project_team(${id}::uuid, 'action.awaiting_review', ${skip}::uuid[])`);
   }
 
   await audit(tx, {

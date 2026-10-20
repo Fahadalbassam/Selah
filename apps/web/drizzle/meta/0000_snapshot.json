@@ -1,5 +1,5 @@
 {
-  "id": "f20ada83-7ae7-49df-a9f8-595b895c4e9b",
+  "id": "48236671-5803-4a01-81bc-cd4880c8c4f0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -486,14 +486,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -564,11 +564,11 @@
         }
       },
       "indexes": {
-        "actions_engagement_idx": {
-          "name": "actions_engagement_idx",
+        "actions_project_idx": {
+          "name": "actions_project_idx",
           "columns": [
             {
-              "expression": "engagement_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -635,17 +635,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "actions_engagement_fk": {
-          "name": "actions_engagement_fk",
+        "actions_project_fk": {
+          "name": "actions_project_fk",
           "tableFrom": "actions",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -668,14 +668,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -776,17 +776,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "activity_events_engagement_fk": {
-          "name": "activity_events_engagement_fk",
+        "activity_events_project_fk": {
+          "name": "activity_events_project_fk",
           "tableFrom": "activity_events",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -809,14 +809,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -918,11 +918,11 @@
           "method": "btree",
           "with": {}
         },
-        "ai_chunks_engagement_idx": {
-          "name": "ai_chunks_engagement_idx",
+        "ai_chunks_project_idx": {
+          "name": "ai_chunks_project_idx",
           "columns": [
             {
-              "expression": "engagement_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -966,17 +966,17 @@
         }
       },
       "foreignKeys": {
-        "ai_chunks_engagement_fk": {
-          "name": "ai_chunks_engagement_fk",
+        "ai_chunks_project_fk": {
+          "name": "ai_chunks_project_fk",
           "tableFrom": "ai_chunks",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -1005,8 +1005,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1034,12 +1034,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "ai_conversations_engagement_id_engagements_id_fk": {
-          "name": "ai_conversations_engagement_id_engagements_id_fk",
+        "ai_conversations_project_id_projects_id_fk": {
+          "name": "ai_conversations_project_id_projects_id_fk",
           "tableFrom": "ai_conversations",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -1259,6 +1259,108 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.client_assignments": {
+      "name": "client_assignments",
+      "schema": "",
+      "columns": {
+        "client_org_id": {
+          "name": "client_org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_by": {
+          "name": "assigned_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_assignments_user_idx": {
+          "name": "client_assignments_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "client_assignments_client_org_id_organizations_id_fk": {
+          "name": "client_assignments_client_org_id_organizations_id_fk",
+          "tableFrom": "client_assignments",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "client_org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "client_assignments_user_id_user_id_fk": {
+          "name": "client_assignments_user_id_user_id_fk",
+          "tableFrom": "client_assignments",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "client_assignments_assigned_by_user_id_fk": {
+          "name": "client_assignments_assigned_by_user_id_fk",
+          "tableFrom": "client_assignments",
+          "tableTo": "user",
+          "columnsFrom": [
+            "assigned_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "client_assignments_client_org_id_user_id_pk": {
+          "name": "client_assignments_client_org_id_user_id_pk",
+          "columns": [
+            "client_org_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.deadline_change_requests": {
       "name": "deadline_change_requests",
       "schema": "",
@@ -1270,14 +1372,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1375,17 +1477,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "deadline_change_requests_engagement_fk": {
-          "name": "deadline_change_requests_engagement_fk",
+        "deadline_change_requests_project_fk": {
+          "name": "deadline_change_requests_project_fk",
           "tableFrom": "deadline_change_requests",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -1494,14 +1596,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1545,7 +1647,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'shared'"
+          "default": "'firm_private'"
         },
         "ai_indexable": {
           "name": "ai_indexable",
@@ -1600,11 +1702,11 @@
         }
       },
       "indexes": {
-        "documents_engagement_idx": {
-          "name": "documents_engagement_idx",
+        "documents_project_idx": {
+          "name": "documents_project_idx",
           "columns": [
             {
-              "expression": "engagement_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1643,17 +1745,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "documents_engagement_fk": {
-          "name": "documents_engagement_fk",
+        "documents_project_fk": {
+          "name": "documents_project_fk",
           "tableFrom": "documents",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -1686,250 +1788,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.engagement_members": {
-      "name": "engagement_members",
-      "schema": "",
-      "columns": {
-        "engagement_id": {
-          "name": "engagement_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "added_by": {
-          "name": "added_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "engagement_members_user_idx": {
-          "name": "engagement_members_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "engagement_members_engagement_id_engagements_id_fk": {
-          "name": "engagement_members_engagement_id_engagements_id_fk",
-          "tableFrom": "engagement_members",
-          "tableTo": "engagements",
-          "columnsFrom": [
-            "engagement_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "engagement_members_user_id_user_id_fk": {
-          "name": "engagement_members_user_id_user_id_fk",
-          "tableFrom": "engagement_members",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "engagement_members_added_by_user_id_fk": {
-          "name": "engagement_members_added_by_user_id_fk",
-          "tableFrom": "engagement_members",
-          "tableTo": "user",
-          "columnsFrom": [
-            "added_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "engagement_members_engagement_id_user_id_pk": {
-          "name": "engagement_members_engagement_id_user_id_pk",
-          "columns": [
-            "engagement_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.engagements": {
-      "name": "engagements",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "client_org_id": {
-          "name": "client_org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "maayish_org_id": {
-          "name": "maayish_org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "state": {
-          "name": "state",
-          "type": "engagement_state",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'planned'"
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "end_date": {
-          "name": "end_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "engagements_client_org_idx": {
-          "name": "engagements_client_org_idx",
-          "columns": [
-            {
-              "expression": "client_org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "engagements_client_org_id_organizations_id_fk": {
-          "name": "engagements_client_org_id_organizations_id_fk",
-          "tableFrom": "engagements",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "client_org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "engagements_maayish_org_id_organizations_id_fk": {
-          "name": "engagements_maayish_org_id_organizations_id_fk",
-          "tableFrom": "engagements",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "maayish_org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "engagements_created_by_user_id_fk": {
-          "name": "engagements_created_by_user_id_fk",
-          "tableFrom": "engagements",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "engagements_id_client_org_uq": {
-          "name": "engagements_id_client_org_uq",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "client_org_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.evidence_submissions": {
       "name": "evidence_submissions",
       "schema": "",
@@ -1941,14 +1799,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2042,17 +1900,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "evidence_submissions_engagement_fk": {
-          "name": "evidence_submissions_engagement_fk",
+        "evidence_submissions_project_fk": {
+          "name": "evidence_submissions_project_fk",
           "tableFrom": "evidence_submissions",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2075,14 +1933,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2135,11 +1993,11 @@
         }
       },
       "indexes": {
-        "findings_engagement_idx": {
-          "name": "findings_engagement_idx",
+        "findings_project_idx": {
+          "name": "findings_project_idx",
           "columns": [
             {
-              "expression": "engagement_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2165,17 +2023,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "findings_engagement_fk": {
-          "name": "findings_engagement_fk",
+        "findings_project_fk": {
+          "name": "findings_project_fk",
           "tableFrom": "findings",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2198,14 +2056,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2324,17 +2182,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "follow_ups_engagement_fk": {
-          "name": "follow_ups_engagement_fk",
+        "follow_ups_project_fk": {
+          "name": "follow_ups_project_fk",
           "tableFrom": "follow_ups",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2357,14 +2215,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2399,7 +2257,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'maayish_private'"
+          "default": "'firm_private'"
         },
         "created_at": {
           "name": "created_at",
@@ -2424,17 +2282,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "meeting_notes_engagement_fk": {
-          "name": "meeting_notes_engagement_fk",
+        "meeting_notes_project_fk": {
+          "name": "meeting_notes_project_fk",
           "tableFrom": "meeting_notes",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2708,14 +2566,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2797,17 +2655,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "progress_updates_engagement_fk": {
-          "name": "progress_updates_engagement_fk",
+        "progress_updates_project_fk": {
+          "name": "progress_updates_project_fk",
           "tableFrom": "progress_updates",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2815,6 +2673,257 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_members": {
+      "name": "project_members",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "added_by": {
+          "name": "added_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_members_user_idx": {
+          "name": "project_members_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_members_project_id_projects_id_fk": {
+          "name": "project_members_project_id_projects_id_fk",
+          "tableFrom": "project_members",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_members_user_id_user_id_fk": {
+          "name": "project_members_user_id_user_id_fk",
+          "tableFrom": "project_members",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_members_added_by_user_id_fk": {
+          "name": "project_members_added_by_user_id_fk",
+          "tableFrom": "project_members",
+          "tableTo": "user",
+          "columnsFrom": [
+            "added_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_members_project_id_user_id_pk": {
+          "name": "project_members_project_id_user_id_pk",
+          "columns": [
+            "project_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "project_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "firm_org_id": {
+          "name": "firm_org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "project_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "projects_org_idx": {
+          "name": "projects_org_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "projects_org_id_organizations_id_fk": {
+          "name": "projects_org_id_organizations_id_fk",
+          "tableFrom": "projects",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "projects_firm_org_id_organizations_id_fk": {
+          "name": "projects_firm_org_id_organizations_id_fk",
+          "tableFrom": "projects",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "firm_org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "projects_created_by_user_id_fk": {
+          "name": "projects_created_by_user_id_fk",
+          "tableFrom": "projects",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "projects_id_org_uq": {
+          "name": "projects_id_org_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "org_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2830,14 +2939,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2916,11 +3025,11 @@
         }
       },
       "indexes": {
-        "recommendations_engagement_idx": {
-          "name": "recommendations_engagement_idx",
+        "recommendations_project_idx": {
+          "name": "recommendations_project_idx",
           "columns": [
             {
-              "expression": "engagement_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2959,17 +3068,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "recommendations_engagement_fk": {
-          "name": "recommendations_engagement_fk",
+        "recommendations_project_fk": {
+          "name": "recommendations_project_fk",
           "tableFrom": "recommendations",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -2992,14 +3101,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3022,7 +3131,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'maayish_private'"
+          "default": "'firm_private'"
         },
         "generated_by": {
           "name": "generated_by",
@@ -3059,17 +3168,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "reports_engagement_fk": {
-          "name": "reports_engagement_fk",
+        "reports_project_fk": {
+          "name": "reports_project_fk",
           "tableFrom": "reports",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -3092,14 +3201,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "engagement_id": {
-          "name": "engagement_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "client_org_id": {
-          "name": "client_org_id",
+        "org_id": {
+          "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3200,17 +3309,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "reviews_engagement_fk": {
-          "name": "reviews_engagement_fk",
+        "reviews_project_fk": {
+          "name": "reviews_project_fk",
           "tableFrom": "reviews",
-          "tableTo": "engagements",
+          "tableTo": "projects",
           "columnsFrom": [
-            "engagement_id",
-            "client_org_id"
+            "project_id",
+            "org_id"
           ],
           "columnsTo": [
             "id",
-            "client_org_id"
+            "org_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -3276,15 +3385,6 @@
         "archived"
       ]
     },
-    "public.engagement_state": {
-      "name": "engagement_state",
-      "schema": "public",
-      "values": [
-        "planned",
-        "active",
-        "closed"
-      ]
-    },
     "public.follow_up_status": {
       "name": "follow_up_status",
       "schema": "public",
@@ -3297,7 +3397,7 @@
       "name": "org_kind",
       "schema": "public",
       "values": [
-        "maayish",
+        "firm",
         "client"
       ]
     },
@@ -3317,6 +3417,23 @@
         "medium",
         "high",
         "critical"
+      ]
+    },
+    "public.project_kind": {
+      "name": "project_kind",
+      "schema": "public",
+      "values": [
+        "internal",
+        "client"
+      ]
+    },
+    "public.project_state": {
+      "name": "project_state",
+      "schema": "public",
+      "values": [
+        "planned",
+        "active",
+        "closed"
       ]
     },
     "public.request_status": {
@@ -3341,7 +3458,7 @@
       "name": "role",
       "schema": "public",
       "values": [
-        "maayish_lead",
+        "firm_admin",
         "consultant",
         "client_admin",
         "client_manager",
@@ -3353,7 +3470,7 @@
       "schema": "public",
       "values": [
         "shared",
-        "maayish_private",
+        "firm_private",
         "client_private",
         "user_private"
       ]

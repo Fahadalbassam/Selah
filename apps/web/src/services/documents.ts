@@ -1,17 +1,18 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { documentShares, documents, engagements } from "@/db/schema";
+import { documentShares, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
-import { NotFoundError } from "@/server/errors";
+import { ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { downloadable } from "./scan";
 import { DOWNLOAD_TTL_SECONDS, signedDownloadUrl } from "./storage";
 
 async function loadDocument(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ doc: documents, maayishOrgId: engagements.maayishOrgId })
+    .select({ doc: documents, firmOrgId: projects.firmOrgId })
     .from(documents)
-    .innerJoin(engagements, eq(engagements.id, documents.engagementId))
+    .innerJoin(projects, eq(projects.id, documents.projectId))
     .where(eq(documents.id, id))
     .limit(1);
   if (!row) return null;
@@ -22,9 +23,9 @@ async function loadDocument(tx: Tx, id: string) {
   const resource: Resource & { type: "document" } = {
     type: "document",
     id,
-    clientOrgId: row.doc.clientOrgId,
-    maayishOrgId: row.maayishOrgId,
-    engagementId: row.doc.engagementId,
+    orgId: row.doc.orgId,
+    firmOrgId: row.firmOrgId,
+    projectId: row.doc.projectId,
     visibility: row.doc.visibility,
     createdBy: row.doc.uploadedBy,
     sharedWith: shares.map((s) => s.userId),
@@ -41,6 +42,8 @@ export async function createDownloadLink(tx: Tx, principal: Principal, id: strin
   const loaded = await loadDocument(tx, id);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.download", loaded.resource);
+  // Fail closed: only files the scanner cleared can leave the bucket.
+  if (!downloadable(loaded.doc.scanStatus)) throw new ConflictError("this file has not been cleared for download");
 
   const url = await signedDownloadUrl(loaded.doc.storageKey, loaded.doc.title);
   await audit(tx, {
