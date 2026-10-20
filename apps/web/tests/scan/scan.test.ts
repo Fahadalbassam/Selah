@@ -41,14 +41,43 @@ const PDF = Buffer.from(
     "trailer<</Root 1 0 R>>\n%%EOF\n",
 );
 
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+/** Traditional PKWARE ("ZipCrypto") encryption, as `zip -P` writes it. */
+function zipCrypto(data: Buffer, password: string, crc: number): Buffer {
+  const keys = [0x12345678, 0x23456789, 0x34567890];
+  const update = (b: number) => {
+    keys[0] = (CRC_TABLE[(keys[0]! ^ b) & 0xff]! ^ (keys[0]! >>> 8)) >>> 0;
+    keys[1] = (Math.imul((keys[1]! + (keys[0]! & 0xff)) >>> 0, 134775813) + 1) >>> 0;
+    keys[2] = (CRC_TABLE[(keys[2]! ^ (keys[1]! >>> 24)) & 0xff]! ^ (keys[2]! >>> 8)) >>> 0;
+  };
+  for (const b of Buffer.from(password)) update(b);
+  const header = Buffer.alloc(12, 0x5a);
+  header[11] = crc >>> 24;
+  const plain = Buffer.concat([header, data]);
+  const out = Buffer.alloc(plain.length);
+  plain.forEach((b, i) => {
+    const t = (keys[2]! | 2) & 0xffff;
+    out[i] = b ^ ((Math.imul(t, t ^ 1) >>> 8) & 0xff);
+    update(b);
+  });
+  return out;
+}
+
 /** A one-entry zip archive (deflated), enough for ClamAV to unpack. */
-function zip(name: string, content: Buffer): Buffer {
-  const data = deflateRawSync(content);
-  const nameBytes = Buffer.from(name);
+function zip(name: string, content: Buffer, password?: string): Buffer {
   const crc = crc32(content);
+  const data = password ? zipCrypto(deflateRawSync(content), password, crc) : deflateRawSync(content);
+  const flags = password ? 1 : 0;
+  const nameBytes = Buffer.from(name);
   const local = Buffer.alloc(30);
   local.writeUInt32LE(0x04034b50, 0);
   local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(flags, 6);
   local.writeUInt16LE(8, 8);
   local.writeUInt32LE(crc, 14);
   local.writeUInt32LE(data.length, 18);
@@ -58,6 +87,7 @@ function zip(name: string, content: Buffer): Buffer {
   central.writeUInt32LE(0x02014b50, 0);
   central.writeUInt16LE(20, 4);
   central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(flags, 8);
   central.writeUInt16LE(8, 10);
   central.writeUInt32LE(crc, 16);
   central.writeUInt32LE(data.length, 20);
@@ -94,6 +124,9 @@ describe("upload scanning against clamd", () => {
     ["EICAR as a text file", file(EICAR, "notes.txt", "text/plain")],
     ["EICAR inside a zip named .docx", file(zip("word/document.xml", EICAR), "report.docx", DOCX)],
     ["EICAR appended to a PDF", file(Buffer.concat([PDF, EICAR]), "evidence.pdf", "application/pdf")],
+    // Harmless content, refused only because clamd runs with AlertEncrypted:
+    // this case fails if the scanner's configuration was not applied.
+    ["a password-protected .docx", file(zip("word/document.xml", Buffer.from("<w:document/>"), "secret"), "locked.docx", DOCX)],
   ];
 
   it.each(infected)("refuses %s and audits the refusal", async (_label, upload) => {
