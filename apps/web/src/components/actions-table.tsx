@@ -4,6 +4,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
+import { EmptyState } from "@/components/empty-state";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 
 export interface ActionItem {
   id: string;
@@ -21,7 +23,7 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
   const t = useTranslations("table");
   const format = useFormatter();
   if (rows.length === 0) {
-    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{empty}</p>;
+    return <EmptyState icon={<CircleCheck animateOnView />} description={empty} />;
   }
   return (
     <div className="overflow-hidden rounded-lg border bg-card">

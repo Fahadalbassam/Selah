@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { withPrincipal } from "@/server/page";
 import { listProjects } from "@/services/queries";
+import { EmptyState } from "@/components/empty-state";
+import { FileText } from "@/components/animate-ui/icons/file-text";
 
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
   const { kind } = await searchParams;
@@ -45,7 +47,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       </PageHeader>
       {firm ? <p className="text-xs text-muted-foreground">{t("internalNote")}</p> : null}
       {shown.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+        <EmptyState icon={<FileText animateOnView />} description={t("empty")} />
       ) : (
         <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((p) => {

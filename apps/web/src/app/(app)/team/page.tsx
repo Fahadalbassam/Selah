@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { withPrincipal } from "@/server/page";
 import { listTeam } from "@/services/queries";
+import { EmptyState } from "@/components/empty-state";
+import { Users } from "@/components/animate-ui/icons/users";
 
 export default async function TeamPage() {
   const team = await withPrincipal((tx, principal) => listTeam(tx, principal));
@@ -11,7 +13,7 @@ export default async function TeamPage() {
     <>
       <PageHeader title={t("title")} />
       {team.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+        <EmptyState icon={<Users animateOnView />} description={t("empty")} />
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
           <Table>
