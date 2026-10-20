@@ -9,7 +9,11 @@ export type ActionStatus =
   | "blocked"
   | "awaiting_review"
   | "revision_requested"
-  | "verified_complete";
+  | "verified_complete"
+  | "closed";
+
+/** Statuses an action is still being worked in. */
+export const OPEN_STATUSES = ["assigned", "in_progress", "blocked", "awaiting_review", "revision_requested"] as const;
 
 /**
  * Every allowed status move and the permission it needs. The database trigger
@@ -28,6 +32,10 @@ export const TRANSITIONS: Readonly<Record<string, Permission>> = {
   "revision_requested>in_progress": "action.work",
   "awaiting_review>verified_complete": "action.review",
   "awaiting_review>revision_requested": "action.review",
+  // Ending without verification (with a closure outcome), and reopening.
+  ...Object.fromEntries(OPEN_STATUSES.map((from) => [`${from}>closed`, "action.close"])),
+  "verified_complete>in_progress": "action.reopen",
+  "closed>in_progress": "action.reopen",
 };
 
 export function transitionPermission(from: ActionStatus, to: ActionStatus): Permission | undefined {
@@ -45,8 +53,8 @@ export function canTransition(
 ): Decision {
   const permission = transitionPermission(from, to);
   if (!permission) return { allowed: false, reason: `workflow:${from}>${to}` };
-  // Separation of duties: nobody verifies work they own or submitted.
-  if (permission === "action.review" && (action.assignees?.includes(principal.userId) || submitters.includes(principal.userId))) {
+  // Separation of duties: nobody verifies (or closes) work they own or submitted.
+  if ((permission === "action.review" || permission === "action.close") && (action.assignees?.includes(principal.userId) || submitters.includes(principal.userId))) {
     return { allowed: false, reason: "workflow:self-review" };
   }
   return authorize(principal, permission, action);

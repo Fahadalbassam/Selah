@@ -9,6 +9,7 @@ import {
   notifications,
   projects,
   reviews,
+  riskAcceptances,
 } from "@/db/schema";
 import {
   assertAllowed,
@@ -66,10 +67,14 @@ export async function getAction(tx: Tx, principal: Principal, id: string) {
   return loaded.action;
 }
 
+export type ClosureOutcome = "partially_implemented" | "risk_accepted" | "not_applicable" | "superseded";
+
 export interface TransitionInput {
   to: ActionStatus;
-  /** Required when blocking or requesting a revision. */
+  /** Required when blocking, requesting a revision or reopening. */
   reason?: string;
+  /** Required when closing. */
+  closure?: { outcome: ClosureOutcome; note: string; supersededBy?: string };
 }
 
 /**
@@ -96,6 +101,24 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     patch.blockedReason = input.reason;
   }
   if (from === "blocked") patch.blockedReason = null;
+
+  // Ending without verification. The database re-checks each rule
+  // (drizzle/0011_follow_through_rules.sql) and records who closed it.
+  if (input.to === "closed") {
+    const closure = input.closure;
+    if (!closure) throw new BadRequestError("closing needs an outcome and a note");
+    if (closure.outcome === "superseded" && !closure.supersededBy) throw new BadRequestError("name the action that replaces this one");
+    if (closure.outcome !== "superseded" && closure.supersededBy) throw new BadRequestError("only a superseded action names a successor");
+    if (closure.outcome === "risk_accepted") {
+      const [signed] = await tx.select({ id: riskAcceptances.id }).from(riskAcceptances).where(eq(riskAcceptances.actionId, id)).limit(1);
+      if (!signed) throw new BadRequestError("the client has not signed a risk acceptance for this action");
+    }
+    patch.closureOutcome = closure.outcome;
+    patch.closureNote = closure.note;
+    patch.supersededBy = closure.supersededBy ?? null;
+  }
+  const reopening = from === "verified_complete" || from === "closed";
+  if (reopening && !input.reason) throw new BadRequestError("reopening needs a reason");
 
   if (input.to === "awaiting_review") {
     // Submitting for review needs evidence submitted since the last review.
@@ -164,6 +187,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     event: "status_changed",
     fromState: from,
     toState: input.to,
+    meta: input.closure || reopening ? { closure: input.closure, reason: reopening ? input.reason : undefined } : undefined,
   });
 
   if (action.ownerUserId && action.ownerUserId !== principal.userId) {
@@ -190,7 +214,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     resourceType: "action",
     resourceId: id,
     outcome: "allow",
-    meta: { from, to: input.to },
+    meta: { from, to: input.to, outcome: input.closure?.outcome ?? null },
   });
 
   return { id, from, to: input.to };

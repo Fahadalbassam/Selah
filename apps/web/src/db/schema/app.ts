@@ -65,7 +65,16 @@ export const actionStatus = pgEnum("action_status", [
   "awaiting_review",
   "revision_requested",
   "verified_complete",
+  // Ended without full verification; closure_outcome says how.
+  "closed",
 ]);
+// How an action ended when it was not verified as implemented.
+export const closureOutcome = pgEnum("closure_outcome", ["partially_implemented", "risk_accepted", "not_applicable", "superseded"]);
+// Where a tracked item came from: the consultant's report, a board
+// decision taken in a meeting, or a compliance obligation.
+export const recommendationSource = pgEnum("recommendation_source", ["consultant", "board_decision", "compliance"]);
+export const evidenceRequestStatus = pgEnum("evidence_request_status", ["open", "submitted", "accepted", "rejected", "waived"]);
+export const followUpKind = pgEnum("follow_up_kind", ["due_soon", "overdue"]);
 export const reviewOutcome = pgEnum("review_outcome", ["accept", "revise", "reject"]);
 export const documentPurpose = pgEnum("document_purpose", ["deliverable", "client_document", "evidence"]);
 export const documentState = pgEnum("document_state", ["draft", "submitted", "archived"]);
@@ -139,6 +148,11 @@ export const projects = pgTable(
     state: projectState("state").notNull().default("planned"),
     startDate: date("start_date"),
     endDate: date("end_date"),
+    // Follow-up rules: remind the owner this many days before a due date, and
+    // escalate an overdue action to the next level after these many days.
+    remindDaysBefore: integer("remind_days_before").notNull().default(3),
+    escalateLevel2Days: integer("escalate_level2_days").notNull().default(7),
+    escalateLevel3Days: integer("escalate_level3_days").notNull().default(14),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -283,6 +297,10 @@ export const recommendations = pgTable(
     priority: priority("priority").notNull().default("medium"),
     dueDate: date("due_date"),
     requiredEvidence: text("required_evidence"),
+    source: recommendationSource("source").notNull().default("consultant"),
+    // For board decisions: the meeting where it was decided, and when.
+    meetingNoteId: uuid("meeting_note_id").references((): AnyPgColumn => meetingNotes.id, { onDelete: "set null" }),
+    decidedOn: date("decided_on"),
     visibility: visibility("visibility").notNull().default("shared"),
     createdBy: uuid("created_by")
       .notNull()
@@ -309,6 +327,12 @@ export const actions = pgTable(
     status: actionStatus("status").notNull().default("draft"),
     dueDate: date("due_date"),
     blockedReason: text("blocked_reason"),
+    // Set when status is "closed" (see drizzle/0010_follow_through.sql).
+    closureOutcome: closureOutcome("closure_outcome"),
+    closureNote: text("closure_note"),
+    closedBy: uuid("closed_by").references(() => user.id),
+    closedAt: ts("closed_at"),
+    supersededBy: uuid("superseded_by").references((): AnyPgColumn => actions.id),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
@@ -432,9 +456,91 @@ export const evidenceSubmissions = pgTable(
       .notNull()
       .references(() => user.id),
     note: text("note"),
+    // The item on the action's evidence list this file answers, if any.
+    evidenceRequestId: uuid("evidence_request_id").references((): AnyPgColumn => evidenceRequests.id),
     submittedAt: createdAt(),
   },
   (t) => [scopedFk("evidence_submissions", t), index("evidence_action_idx").on(t.actionId)],
+);
+
+// The evidence list for an action ("prepared by client" list): what the
+// firm needs to see before it can verify the action.
+export const evidenceRequests = pgTable(
+  "evidence_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    dueDate: date("due_date"),
+    status: evidenceRequestStatus("status").notNull().default("open"),
+    decisionNote: text("decision_note"),
+    decidedBy: uuid("decided_by").references(() => user.id),
+    decidedAt: ts("decided_at"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("evidence_requests", t), index("evidence_requests_action_idx").on(t.actionId)],
+);
+
+// A named client person accepting the risk of not implementing an action.
+// Append-only; an action closes as "risk_accepted" only with one of these.
+export const riskAcceptances = pgTable(
+  "risk_acceptances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    acceptedBy: uuid("accepted_by")
+      .notNull()
+      .references(() => user.id),
+    statement: text("statement").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("risk_acceptances", t), index("risk_acceptances_action_idx").on(t.actionId)],
+);
+
+// The firm's own notes on an action. Never visible to the client. Append-only.
+export const actionNotes = pgTable(
+  "action_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => user.id),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("action_notes", t), index("action_notes_action_idx").on(t.actionId)],
+);
+
+// One row per reminder or escalation sent, so each is sent once. A new due
+// date re-arms them (due_date is part of the key).
+export const followUpLog = pgTable(
+  "follow_up_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    kind: followUpKind("kind").notNull(),
+    level: integer("level").notNull(),
+    dueDate: date("due_date").notNull(),
+    recipients: uuid("recipients").array().notNull(),
+    sentAt: createdAt(),
+  },
+  (t) => [uniqueIndex("follow_up_log_once").on(t.actionId, t.kind, t.level, t.dueDate)],
 );
 
 // Append-only: a correction is a new review, never an edit.
@@ -514,6 +620,10 @@ export const reports = pgTable(
       .notNull()
       .references(() => user.id),
     sharedAt: ts("shared_at"),
+    // A periodic report freezes the numbers for its period.
+    periodStart: date("period_start"),
+    periodEnd: date("period_end"),
+    metrics: jsonb("metrics"),
     createdAt: createdAt(),
   },
   (t) => [scopedFk("reports", t)],

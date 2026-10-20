@@ -1,0 +1,15 @@
+// Send today's reminders and escalations. Run daily as the schema owner.
+// Usage: npm run job:follow-ups [-- YYYY-MM-DD]
+import { Pool } from "pg";
+import { runFollowUps } from "../src/jobs/follow-ups";
+
+const url = process.env.DATABASE_OWNER_URL;
+if (!url) throw new Error("DATABASE_OWNER_URL is not set");
+
+const today = process.argv[2] ?? new Date().toISOString().slice(0, 10);
+if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) throw new Error("the date must be YYYY-MM-DD");
+
+const pool = new Pool({ connectionString: url, max: 1 });
+const sent = await runFollowUps(pool, today);
+await pool.end();
+console.log(`follow-ups for ${today}: ${sent} notifications`);

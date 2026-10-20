@@ -160,8 +160,21 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
   if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
+  // A database rule refused the write (the app's own checks should have
+  // caught it first). Row-level security answers like a missing record.
+  const code = pgCode(err);
+  if (code === "42501") return json({ error: "not_found" }, 404);
+  if (code === "23514" || code === "23505") return json({ error: "conflict", message: "refused by a data rule" }, 409);
   console.error(`[api] ${req.method} ${req.nextUrl.pathname} failed`, err);
   return json({ error: "internal_error" }, 500);
+}
+
+function pgCode(err: unknown): string | undefined {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return undefined;
 }
 
 function json(body: unknown, status: number) {

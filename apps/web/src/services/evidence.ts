@@ -63,6 +63,8 @@ export async function prepareUpload(userId: string, actionId: string, file: File
 export interface EvidenceInput {
   file: PreparedUpload;
   note?: string;
+  /** The item on the action's evidence list this file answers. */
+  evidenceRequestId?: string;
   /** Also move the action to Awaiting Review in the same transaction. */
   submitForReview: boolean;
 }
@@ -115,6 +117,8 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
       documentId: doc!.id,
       submittedBy: principal.userId,
       note: input.note,
+      // The database checks the item is open on this action and marks it submitted.
+      evidenceRequestId: input.evidenceRequestId,
     })
     .returning({ id: evidenceSubmissions.id });
   await tx.insert(activityEvents).values({
