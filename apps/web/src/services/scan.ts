@@ -12,7 +12,7 @@ import { BadRequestError, UnavailableError } from "@/server/errors";
 export async function scanUpload(bytes: Uint8Array): Promise<{ scanned: boolean }> {
   const e = env();
   if (!e.CLAMD_HOST) {
-    if (e.SCAN_REQUIRED === "false") return { scanned: false };
+    if (e.SCAN_REQUIRED === "false") return { scanned: false }; // stored as "skipped"
     throw new UnavailableError("virus scanner is not configured");
   }
   let result;
@@ -24,4 +24,9 @@ export async function scanUpload(bytes: Uint8Array): Promise<{ scanned: boolean 
   }
   if (!result.clean) throw new BadRequestError(`file rejected: infected`);
   return { scanned: true };
+}
+
+/** Whether a stored file may leave the bucket. */
+export function downloadable(scanStatus: string): boolean {
+  return scanStatus === "clean" || (scanStatus === "skipped" && env().SCAN_REQUIRED === "false");
 }

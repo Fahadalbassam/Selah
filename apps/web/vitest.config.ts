@@ -10,6 +10,6 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
-    exclude: ["tests/db/**"],
+    exclude: ["tests/db/**", "tests/scan/**"],
   },
 });

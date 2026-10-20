@@ -10,8 +10,44 @@ import { audit, auditDetached } from "./audit";
 import { scanUpload } from "./scan";
 import { putObject } from "./storage";
 
+/** A checked, scanned file, ready to store. Built before any transaction opens. */
+export interface PreparedUpload {
+  bytes: Uint8Array;
+  fileName: string;
+  contentType: string;
+  sha256: string;
+  scanned: boolean;
+}
+
+/**
+ * Check and scan an upload. Runs outside the database transaction (see
+ * route()'s `prepare`), so a slow scan never holds a pooled connection.
+ * Infected files are audited here because no transaction exists yet.
+ */
+export async function prepareUpload(userId: string, actionId: string, file: File): Promise<PreparedUpload> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const check = checkUpload(file.name, file.type, bytes.byteLength, bytes.subarray(0, 512));
+  if (!check.ok) throw new BadRequestError(`file rejected: ${check.reason}`);
+
+  // Scan before anything is stored: an infected file never reaches the bucket.
+  const scan = await scanUpload(bytes).catch(async (err: unknown) => {
+    if (err instanceof BadRequestError) {
+      await auditDetached({ actorId: userId, action: "evidence.submit", resourceType: "action", resourceId: actionId, outcome: "deny", reason: "infected" });
+    }
+    throw err;
+  });
+
+  return {
+    bytes,
+    fileName: check.fileName,
+    contentType: check.contentType,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    scanned: scan.scanned,
+  };
+}
+
 export interface EvidenceInput {
-  file: File;
+  file: PreparedUpload;
   note?: string;
   /** Also move the action to Awaiting Review in the same transaction. */
   submitForReview: boolean;
@@ -20,11 +56,12 @@ export interface EvidenceInput {
 const OPEN_FOR_EVIDENCE = new Set(["in_progress", "revision_requested"]);
 
 /**
- * Attach evidence to an action. The file is checked (type, bytes, size),
- * scanned for malware, stored under a random key, and recorded as a document visible to the
- * client and the firm ("shared"), so the reviewing consultant can open it.
- * The database rows are written first: if storing the file fails, the
- * transaction rolls back and nothing points at a missing file.
+ * Attach evidence to an action. The file was already checked (type, bytes,
+ * size) and scanned for malware; here it is authorized, stored under a random
+ * key, and recorded as a document visible to the client and the firm
+ * ("shared"), so the reviewing consultant can open it. The database rows are
+ * written first: if storing the file fails, the transaction rolls back and
+ * nothing points at a missing file.
  */
 export async function submitEvidence(tx: Tx, principal: Principal, actionId: string, input: EvidenceInput) {
   const loaded = await loadAction(tx, actionId);
@@ -34,19 +71,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
   assertAllowed(principal, "evidence.submit", resource);
   if (!OPEN_FOR_EVIDENCE.has(action.status)) throw new BadRequestError("this action is not open for evidence");
 
-  const bytes = new Uint8Array(await input.file.arrayBuffer());
-  const check = checkUpload(input.file.name, input.file.type, bytes.byteLength, bytes.subarray(0, 512));
-  if (!check.ok) throw new BadRequestError(`file rejected: ${check.reason}`);
-
-  // Scan before anything is stored: an infected file never reaches the bucket.
-  const scan = await scanUpload(bytes).catch(async (err: unknown) => {
-    if (err instanceof BadRequestError) {
-      await auditDetached({ actorId: principal.userId, orgId: principal.orgId, action: "evidence.submit", resourceType: "action", resourceId: actionId, outcome: "deny", reason: "infected" });
-    }
-    throw err;
-  });
-
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const { bytes, sha256 } = input.file;
   const storageKey = randomUUID();
   const [doc] = await tx
     .insert(documents)
@@ -57,14 +82,14 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
       uploadedBy: principal.userId,
       purpose: "evidence",
       state: "submitted",
-      title: check.fileName,
+      title: input.file.fileName,
       visibility: "shared",
       storageKey,
-      contentType: check.contentType,
+      contentType: input.file.contentType,
       sizeBytes: bytes.byteLength,
       sha256,
-      scanStatus: "clean",
-      scannedAt: scan.scanned ? new Date() : null,
+      scanStatus: input.file.scanned ? "clean" : "skipped",
+      scannedAt: input.file.scanned ? new Date() : null,
     })
     .returning({ id: documents.id });
   const [submission] = await tx
@@ -94,7 +119,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
     resourceType: "action",
     resourceId: actionId,
     outcome: "allow",
-    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength, scanned: scan.scanned },
+    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength, scanned: input.file.scanned },
   });
 
   if (input.submitForReview) {
@@ -104,6 +129,6 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
     await transitionAction(tx, principal, actionId, { to: "awaiting_review" });
   }
 
-  await putObject(storageKey, bytes, check.contentType, sha256);
+  await putObject(storageKey, bytes, input.file.contentType, sha256);
   return { id: submission!.id, documentId: doc!.id };
 }

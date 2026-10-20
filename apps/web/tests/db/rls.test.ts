@@ -571,3 +571,71 @@ describe("evidence integrity", () => {
     ).rejects.toThrow(/only after the firm verified/);
   });
 });
+
+describe("review integrity", () => {
+  const REC = id(701);
+  const ACT = id(702);
+  const DOC_ROUND_1 = id(703);
+  const DOC_ROUND_2 = id(704);
+  const SUB_1 = id(705);
+  const SUB_2 = id(706);
+
+  // Rows written as the schema owner (no RLS), so each step is one statement.
+  const submit = async (doc: string, sub: string, by: string) => {
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256)
+       VALUES ($1,$2,$3,$3,$4,'evidence','submitted','e.pdf','shared',$5,'application/pdf',1,'x')`,
+      [doc, INTERNAL, FIRM, by, `k-${doc}`],
+    );
+    await owner.query(
+      `INSERT INTO evidence_submissions (id, project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [sub, INTERNAL, FIRM, ACT, doc, by],
+    );
+  };
+  const review = (by: string, outcome: string, subs: string[]) =>
+    as(by, (c) =>
+      c.query(
+        `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, evidence_submission_ids) VALUES ($1,$2,$3,$4,$5,$6::uuid[])`,
+        [INTERNAL, FIRM, ACT, by, outcome, subs],
+      ),
+    );
+  // `as` rolls back, so an allowed review is then recorded for real by the owner.
+  const reviewAndKeep = async (by: string, outcome: string, subs: string[]) => {
+    await review(by, outcome, subs);
+    await owner.query(
+      `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, evidence_submission_ids) VALUES ($1,$2,$3,$4,$5,$6::uuid[])`,
+      [INTERNAL, FIRM, ACT, by, outcome, subs],
+    );
+  };
+  const index = (doc: string) => as(U.lead, (c) => c.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [doc]));
+
+  it("submitters of the current round cannot review it, and only files a review accepted reach the index", async () => {
+    await owner.query(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'Review',$4)`, [
+      REC,
+      INTERNAL,
+      FIRM,
+      U.lead,
+    ]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Write guide',$5,'awaiting_review',$6)`,
+      [ACT, INTERNAL, FIRM, REC, U.overseer, U.lead],
+    );
+    // Evidence and reviews are append-only, so these rows stay behind.
+    // Round 1: the admin attached a file, so the admin may not review it.
+    await submit(DOC_ROUND_1, SUB_1, U.lead);
+    await expect(review(U.lead, "revise", [SUB_1])).rejects.toThrow(/row-level security/);
+    await reviewAndKeep(U.consultant, "revise", [SUB_1]);
+    // Once that round is reviewed, the admin's earlier file no longer counts.
+    await review(U.lead, "revise", []);
+
+    // Round 2: the admin submits again and is blocked again; the consultant
+    // accepts only the new file, so the round-1 file stays out of the index.
+    await submit(DOC_ROUND_2, SUB_2, U.lead);
+    await expect(review(U.lead, "accept", [SUB_2])).rejects.toThrow(/row-level security/);
+    await reviewAndKeep(U.consultant, "accept", [SUB_2]);
+
+    await expect(index(DOC_ROUND_1)).rejects.toThrow(/only after the firm verified/);
+    await index(DOC_ROUND_2);
+  });
+});

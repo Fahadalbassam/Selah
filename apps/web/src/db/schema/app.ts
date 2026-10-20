@@ -68,8 +68,10 @@ export const actionStatus = pgEnum("action_status", [
 export const reviewOutcome = pgEnum("review_outcome", ["accept", "revise", "reject"]);
 export const documentPurpose = pgEnum("document_purpose", ["deliverable", "client_document", "evidence"]);
 export const documentState = pgEnum("document_state", ["draft", "submitted", "archived"]);
-// Virus scan result. Only "clean" files can be downloaded (fail closed).
-export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected", "error"]);
+// Virus scan result. Only "clean" files can be downloaded (fail closed);
+// "skipped" (stored without a scanner, local development only) can be
+// downloaded only while SCAN_REQUIRED=false, which production refuses.
+export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected", "error", "skipped"]);
 export const requestStatus = pgEnum("request_status", ["pending", "approved", "rejected"]);
 export const followUpStatus = pgEnum("follow_up_status", ["open", "done"]);
 export const chunkSource = pgEnum("chunk_source", [

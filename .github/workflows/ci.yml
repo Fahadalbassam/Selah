@@ -52,6 +52,32 @@ jobs:
           TEST_DATABASE_OWNER_URL: postgres://selah_owner:owner-ci@localhost:5432/selah_test
           TEST_DATABASE_APP_URL: postgres://selah_app:app-ci@localhost:5432/selah_test
 
+  # Upload scanning against the same ClamAV image as docker-compose.yml. The
+  # image ships with its signatures, so clamd is up within a minute or two.
+  scan:
+    runs-on: ubuntu-latest
+    services:
+      clamav:
+        image: clamav/clamav:1.5.4
+        env:
+          CLAMD_CONF_StreamMaxLength: 25M
+          CLAMD_CONF_MaxFileSize: 25M
+          CLAMD_CONF_MaxScanSize: 100M
+          CLAMD_CONF_AlertExceedsMax: "yes"
+          CLAMD_CONF_AlertEncrypted: "yes"
+          CLAMD_CONF_AlertOLE2Macros: "yes"
+        ports: ["3310:3310"]
+        options: --health-cmd "clamdcheck.sh" --health-interval 10s --health-retries 60 --health-start-period 60s
+    env:
+      CLAMD_HOST: localhost
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci
+      - run: npm run test:scan
+
   ai:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: services/ai } }

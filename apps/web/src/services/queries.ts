@@ -17,7 +17,7 @@ import {
   user,
 } from "@/db/schema";
 import { authorize, canTransition, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
-import { loadAction } from "./actions";
+import { loadAction, roundSubmitters } from "./actions";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
@@ -385,10 +385,11 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const from = action.status as ActionStatus;
+  const submitters = from === "awaiting_review" ? await roundSubmitters(tx, id) : [];
   const moves = Object.keys(TRANSITIONS)
     .filter((k) => k.startsWith(`${from}>`))
     .map((k) => k.split(">")[1] as ActionStatus)
-    .filter((to) => canTransition(principal, resource, from, to).allowed);
+    .filter((to) => canTransition(principal, resource, from, to, submitters).allowed);
 
   return {
     action: {
