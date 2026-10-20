@@ -13,6 +13,8 @@ import { authorize } from "@/authz";
 import { withPrincipal } from "@/server/page";
 import { listClients } from "@/services/queries";
 import { clientDirectory, myPendingRequests, pendingRequestCounts } from "@/services/staffing";
+import { EmptyState } from "@/components/empty-state";
+import { Users } from "@/components/animate-ui/icons/users";
 
 export default async function ClientsPage() {
   const data = await withPrincipal(async (tx, principal) => {
@@ -57,7 +59,7 @@ export default async function ClientsPage() {
       </PageHeader>
 
       {data.clients.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{tc("empty")}</p>
+        <EmptyState icon={<Users animateOnView />} description={tc("empty")} />
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
           <Table>
