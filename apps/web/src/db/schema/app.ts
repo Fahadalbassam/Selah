@@ -1,20 +1,27 @@
 // Selah's business tables.
 //
-// Tenant rule: every row that belongs to a client engagement carries both
-// engagement_id and client_org_id. A composite foreign key to
-// engagements(id, client_org_id) makes it impossible for the two to disagree,
-// and the row-level security policies (drizzle/0001_security.sql) key on them.
+// Selah is used by one consulting firm (org kind "firm") that serves many
+// client organizations (kind "client"). Work is organised in projects:
+//   - internal projects: the firm's own work. org_id = the firm. Clients never see them.
+//   - client projects:   work for one client. org_id = that client.
+//
+// Tenant rule: every project-scoped row carries both project_id and org_id
+// (the project's owning org). A composite foreign key to projects(id, org_id)
+// makes it impossible for the two to disagree, and the row-level security
+// policies (drizzle/0001_security.sql) key on them.
 //
 // Visibility labels come from the Scope, Permissions and AI Access Spec:
-//   shared          - everyone in the engagement who passes the other checks
-//   firm_private - firm staff only
-//   client_private  - the client org only (not even the firm lead)
+//   shared          - everyone in the project who passes the other checks
+//   firm_private    - firm staff only (the default for firm files: sharing
+//                     with the client is an explicit choice)
+//   client_private  - the client org only (not even the firm admin)
 //   user_private    - only the user who created it
 import { sql, type SQL } from "drizzle-orm";
 import {
   type AnyPgColumn,
   customType,
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -26,6 +33,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
@@ -34,7 +42,7 @@ import { user } from "./auth";
 export const orgKind = pgEnum("org_kind", ["firm", "client"]);
 export const orgStatus = pgEnum("org_status", ["active", "archived"]);
 export const role = pgEnum("role", [
-  "firm_lead",
+  "firm_admin",
   "consultant",
   "client_admin",
   "client_manager",
@@ -46,7 +54,8 @@ export const visibility = pgEnum("visibility", [
   "client_private",
   "user_private",
 ]);
-export const engagementState = pgEnum("engagement_state", ["planned", "active", "closed"]);
+export const projectKind = pgEnum("project_kind", ["internal", "client"]);
+export const projectState = pgEnum("project_state", ["planned", "active", "closed"]);
 export const priority = pgEnum("priority", ["low", "medium", "high", "critical"]);
 export const actionStatus = pgEnum("action_status", [
   "draft",
@@ -60,6 +69,10 @@ export const actionStatus = pgEnum("action_status", [
 export const reviewOutcome = pgEnum("review_outcome", ["accept", "revise", "reject"]);
 export const documentPurpose = pgEnum("document_purpose", ["deliverable", "client_document", "evidence"]);
 export const documentState = pgEnum("document_state", ["draft", "submitted", "archived"]);
+// Virus scan result. Only "clean" files can be downloaded (fail closed);
+// "skipped" (stored without a scanner, local development only) can be
+// downloaded only while SCAN_REQUIRED=false, which production refuses.
+export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected", "error", "skipped"]);
 export const requestStatus = pgEnum("request_status", ["pending", "approved", "rejected"]);
 export const followUpStatus = pgEnum("follow_up_status", ["open", "done"]);
 export const chunkSource = pgEnum("chunk_source", [
@@ -109,11 +122,13 @@ export const orgMemberships = pgTable(
   (t) => [index("org_memberships_org_idx").on(t.orgId)],
 );
 
-export const engagements = pgTable(
-  "engagements",
+export const projects = pgTable(
+  "projects",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    clientOrgId: uuid("client_org_id")
+    kind: projectKind("kind").notNull(),
+    // The client for client projects; the firm itself for internal projects.
+    orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
     firmOrgId: uuid("firm_org_id")
@@ -121,44 +136,119 @@ export const engagements = pgTable(
       .references(() => organizations.id),
     title: text("title").notNull(),
     description: text("description"),
-    state: engagementState("state").notNull().default("planned"),
+    state: projectState("state").notNull().default("planned"),
     startDate: date("start_date"),
     endDate: date("end_date"),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
   (t) => [
-    unique("engagements_id_client_org_uq").on(t.id, t.clientOrgId),
-    index("engagements_client_org_idx").on(t.clientOrgId),
+    unique("projects_id_org_uq").on(t.id, t.orgId),
+    index("projects_org_idx").on(t.orgId),
   ],
 );
 
-export const engagementMembers = pgTable(
-  "engagement_members",
+// Which consultants oversee which client. An assigned consultant sees all of
+// that client's projects; consultants not assigned never see the client.
+export const clientAssignments = pgTable(
+  "client_assignments",
   {
-    engagementId: uuid("engagement_id")
+    clientOrgId: uuid("client_org_id")
       .notNull()
-      .references(() => engagements.id, { onDelete: "cascade" }),
+      .references(() => organizations.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // One lead consultant per client. The lead staffs the client's team and
+    // decides join requests together with the firm admin.
+    isLead: boolean("is_lead").notNull().default(false),
+    assignedBy: uuid("assigned_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clientOrgId, t.userId] }),
+    index("client_assignments_user_idx").on(t.userId),
+    uniqueIndex("client_assignments_one_lead").on(t.clientOrgId).where(sql`${t.isLead}`),
+  ],
+);
+
+export const joinRequestStatus = pgEnum("join_request_status", ["pending", "approved", "declined", "withdrawn"]);
+
+// A consultant asking to be assigned to a client. Decided by the firm admin
+// or that client's lead; approving creates the assignment.
+export const joinRequests = pgTable(
+  "join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientOrgId: uuid("client_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    status: joinRequestStatus("status").notNull().default("pending"),
+    decidedBy: uuid("decided_by").references(() => user.id),
+    decisionNote: text("decision_note"),
+    decidedAt: ts("decided_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("join_requests_client_idx").on(t.clientOrgId),
+    uniqueIndex("join_requests_one_pending").on(t.clientOrgId, t.userId).where(sql`${t.status} = 'pending'`),
+  ],
+);
+
+// Explicit project membership (firm staff on internal projects, consultants
+// on a single client project, client users on their projects).
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The lead of an internal project manages its members.
+    isLead: boolean("is_lead").notNull().default(false),
     addedBy: uuid("added_by").references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.engagementId, t.userId] }), index("engagement_members_user_idx").on(t.userId)],
+  (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("project_members_user_idx").on(t.userId)],
 );
 
-// Columns every engagement-scoped table shares, plus the composite FK that
-// pins client_org_id to the engagement's real client.
+// A firm admin who oversees a client or one project without being staffed on
+// it. Watchers get the same notifications as the team; other admins get none.
+export const watches = pgTable(
+  "watches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clientOrgId: uuid("client_org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("watches_one_target", sql`(${t.clientOrgId} IS NULL) <> (${t.projectId} IS NULL)`),
+    uniqueIndex("watches_client_uq").on(t.userId, t.clientOrgId).where(sql`${t.clientOrgId} IS NOT NULL`),
+    uniqueIndex("watches_project_uq").on(t.userId, t.projectId).where(sql`${t.projectId} IS NOT NULL`),
+  ],
+);
+
+// Columns every project-scoped table shares, plus the composite FK that
+// pins org_id to the project's real client.
 const scoped = () => ({
-  engagementId: uuid("engagement_id").notNull(),
-  clientOrgId: uuid("client_org_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+  orgId: uuid("org_id").notNull(),
 });
-const scopedFk = (name: string, t: { engagementId: AnyPgColumn; clientOrgId: AnyPgColumn }) =>
+const scopedFk = (name: string, t: { projectId: AnyPgColumn; orgId: AnyPgColumn }) =>
   foreignKey({
-    name: `${name}_engagement_fk`,
-    columns: [t.engagementId, t.clientOrgId],
-    foreignColumns: [engagements.id, engagements.clientOrgId],
+    name: `${name}_project_fk`,
+    columns: [t.projectId, t.orgId],
+    foreignColumns: [projects.id, projects.orgId],
   }).onDelete("cascade");
 
 // ------------------------------------------------- findings and actions
@@ -178,7 +268,7 @@ export const findings = pgTable(
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [scopedFk("findings", t), index("findings_engagement_idx").on(t.engagementId)],
+  (t) => [scopedFk("findings", t), index("findings_project_idx").on(t.projectId)],
 );
 
 export const recommendations = pgTable(
@@ -200,7 +290,7 @@ export const recommendations = pgTable(
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [scopedFk("recommendations", t), index("recommendations_engagement_idx").on(t.engagementId)],
+  (t) => [scopedFk("recommendations", t), index("recommendations_project_idx").on(t.projectId)],
 );
 
 // Status moves are checked twice: by authz/workflow.ts (who may move it) and
@@ -227,7 +317,7 @@ export const actions = pgTable(
   },
   (t) => [
     scopedFk("actions", t),
-    index("actions_engagement_idx").on(t.engagementId),
+    index("actions_project_idx").on(t.projectId),
     index("actions_owner_idx").on(t.ownerUserId),
   ],
 );
@@ -290,7 +380,7 @@ export const documents = pgTable(
     purpose: documentPurpose("purpose").notNull(),
     state: documentState("state").notNull().default("draft"),
     title: text("title").notNull(),
-    visibility: visibility("visibility").notNull().default("shared"),
+    visibility: visibility("visibility").notNull().default("firm_private"),
     aiIndexable: boolean("ai_indexable").notNull().default(false),
     version: integer("version").notNull().default(1),
     supersedesId: uuid("supersedes_id"),
@@ -298,12 +388,14 @@ export const documents = pgTable(
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     sha256: text("sha256").notNull(),
+    scanStatus: scanStatus("scan_status").notNull().default("pending"),
+    scannedAt: ts("scanned_at"),
     createdAt: createdAt(),
   },
   (t) => [
     scopedFk("documents", t),
     foreignKey({ name: "documents_supersedes_fk", columns: [t.supersedesId], foreignColumns: [t.id] }),
-    index("documents_engagement_idx").on(t.engagementId),
+    index("documents_project_idx").on(t.projectId),
   ],
 );
 
@@ -355,6 +447,10 @@ export const reviews = pgTable(
       .notNull()
       .references(() => actions.id, { onDelete: "cascade" }),
     evidenceSubmissionId: uuid("evidence_submission_id").references(() => evidenceSubmissions.id),
+    // Exactly what the reviewer saw: every submission since the previous
+    // review, and the SHA-256 of each file at review time.
+    evidenceSubmissionIds: uuid("evidence_submission_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    evidenceSha256: text("evidence_sha256").array().notNull().default(sql`'{}'::text[]`),
     reviewerId: uuid("reviewer_id")
       .notNull()
       .references(() => user.id),
@@ -404,7 +500,7 @@ export const followUps = pgTable(
   (t) => [scopedFk("follow_ups", t)],
 );
 
-// Reports start Firm-private and become shared only when a consultant
+// Reports start firm-private and become shared only when a consultant
 // shares them.
 export const reports = pgTable(
   "reports",
@@ -483,7 +579,7 @@ export const notifications = pgTable(
 // ------------------------------------------------------------------- AI
 
 // One row per indexed passage. Each chunk copies its source's tenant,
-// engagement, label and version so retrieval can filter inside the vector
+// project, label and version so retrieval can filter inside the vector
 // query (never after it). Chunks are deleted by trigger when a document's AI
 // flag is turned off or its visibility changes.
 export const aiChunks = pgTable(
@@ -507,7 +603,7 @@ export const aiChunks = pgTable(
   (t) => [
     scopedFk("ai_chunks", t),
     index("ai_chunks_source_idx").on(t.sourceType, t.sourceId),
-    index("ai_chunks_engagement_idx").on(t.engagementId),
+    index("ai_chunks_project_idx").on(t.projectId),
     index("ai_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
     index("ai_chunks_tsv_idx").using("gin", t.tsv),
   ],
@@ -518,9 +614,9 @@ export const aiConversations = pgTable("ai_conversations", {
   userId: uuid("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-  engagementId: uuid("engagement_id")
+  projectId: uuid("project_id")
     .notNull()
-    .references(() => engagements.id, { onDelete: "cascade" }),
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 });
 

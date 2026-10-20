@@ -8,7 +8,7 @@ import { asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { auditDetached } from "@/services/audit";
 import { loadPrincipal } from "@/services/principal";
-import { BadRequestError, ConflictError, NotFoundError } from "./errors";
+import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "./errors";
 
 /**
  * The only way to write an API route. Every handler built with route():
@@ -25,26 +25,39 @@ import { BadRequestError, ConflictError, NotFoundError } from "./errors";
  *
  * tests/route-guard.test.ts fails the build if a route skips this wrapper.
  */
-export interface Context<P, B> {
+export interface Context<P, B, R = undefined> {
   principal: Principal;
   tx: Tx;
   params: P;
   body: B;
+  /** Files from a multipart form (only when the route sets `form`). */
+  files: Map<string, File>;
+  /** What `prepare` returned. */
+  prepared: R;
   ip: string | null;
 }
 
-interface Options<P extends z.ZodType, B extends z.ZodType> {
+interface Options<P extends z.ZodType, B extends z.ZodType, R> {
   params?: P;
+  /** JSON body schema. */
   body?: B;
+  /** Multipart form instead of JSON: `body` then validates the text fields. */
+  form?: { maxBytes: number };
+  /**
+   * Slow work on the input (e.g. a virus scan) that must not hold a database
+   * connection. Runs after the session and input checks, before the
+   * transaction opens; it must not read data or make access decisions.
+   */
+  prepare?: (input: { userId: string; params: z.infer<P>; body: z.infer<B>; files: Map<string, File> }) => Promise<R>;
 }
 
-type Handler<P, B> = (ctx: Context<P, B>) => Promise<unknown>;
+type Handler<P, B, R> = (ctx: Context<P, B, R>) => Promise<unknown>;
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined>(
-  options: Options<P, B>,
-  handler: Handler<z.infer<P>, z.infer<B>>,
+export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined, R = undefined>(
+  options: Options<P, B, R>,
+  handler: Handler<z.infer<P>, z.infer<B>, R>,
 ) {
   return async (req: NextRequest, segment: { params: Promise<Record<string, string | string[]>> }) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -60,12 +73,29 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const uid = userId;
 
       const params = parse(options.params, await segment.params);
-      const body = options.body ? parse(options.body, await readJson(req)) : undefined;
+      const files = new Map<string, File>();
+      let raw: unknown;
+      if (options.form) {
+        const form = await readForm(req, options.form.maxBytes);
+        const fields: Record<string, string> = {};
+        for (const [key, value] of form) {
+          if (typeof value === "string") fields[key] = value;
+          else files.set(key, value);
+        }
+        raw = fields;
+      } else if (options.body) {
+        raw = await readJson(req);
+      }
+      const body = options.body ? parse(options.body, raw) : undefined;
+
+      const prepared = options.prepare
+        ? await options.prepare({ userId: uid, params: params as z.infer<P>, body: body as z.infer<B>, files })
+        : undefined;
 
       const result = await asUser(uid, async (tx) => {
         const principal = await loadPrincipal(tx, uid);
         if (!principal) throw new NoMembershipError();
-        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, ip });
+        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, prepared: prepared as R, ip });
       });
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {
@@ -89,6 +119,18 @@ async function readJson(req: NextRequest): Promise<unknown> {
     return await req.json();
   } catch {
     throw new BadRequestError("invalid JSON");
+  }
+}
+
+async function readForm(req: NextRequest, maxBytes: number): Promise<FormData> {
+  if (!req.headers.get("content-type")?.startsWith("multipart/form-data")) throw new BadRequestError("expected a form");
+  // Refuse oversized requests before reading them. Room is left for the form's own overhead.
+  const length = Number(req.headers.get("content-length") ?? NaN);
+  if (!Number.isFinite(length) || length > maxBytes + 64 * 1024) throw new BadRequestError("file too large");
+  try {
+    return await req.formData();
+  } catch {
+    throw new BadRequestError("invalid form");
   }
 }
 
@@ -117,6 +159,7 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof NoMembershipError) return json({ error: "forbidden" }, 403);
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
+  if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
   console.error(`[api] ${req.method} ${req.nextUrl.pathname} failed`, err);
   return json({ error: "internal_error" }, 500);
 }

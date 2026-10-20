@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { engagementMembers, orgMemberships, organizations } from "@/db/schema";
+import { clientAssignments, orgMemberships, organizations, projectMembers } from "@/db/schema";
 import type { Principal } from "@/authz";
 
 /**
@@ -19,15 +19,26 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
   if (!membership) return null;
 
   const rows = await tx
-    .select({ engagementId: engagementMembers.engagementId })
-    .from(engagementMembers)
-    .where(eq(engagementMembers.userId, userId));
+    .select({ projectId: projectMembers.projectId, isLead: projectMembers.isLead })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, userId));
+
+  const assignments =
+    membership.role === "consultant"
+      ? await tx
+          .select({ clientOrgId: clientAssignments.clientOrgId, isLead: clientAssignments.isLead })
+          .from(clientAssignments)
+          .where(eq(clientAssignments.userId, userId))
+      : [];
 
   return {
     userId,
     orgId: membership.orgId,
     orgKind: membership.orgKind,
     role: membership.role,
-    engagementIds: new Set(rows.map((r) => r.engagementId)),
+    projectIds: new Set(rows.map((r) => r.projectId)),
+    assignedClientIds: new Set(assignments.map((a) => a.clientOrgId)),
+    leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
+    leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
   };
 }

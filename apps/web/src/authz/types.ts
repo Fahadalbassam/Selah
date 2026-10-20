@@ -1,8 +1,8 @@
-export type Role = "firm_lead" | "consultant" | "client_admin" | "client_manager" | "action_owner";
+export type Role = "firm_admin" | "consultant" | "client_admin" | "client_manager" | "action_owner";
 export type OrgKind = "firm" | "client";
 export type Visibility = "shared" | "firm_private" | "client_private" | "user_private";
 
-export const FIRM_ROLES: readonly Role[] = ["firm_lead", "consultant"];
+export const FIRM_ROLES: readonly Role[] = ["firm_admin", "consultant"];
 export const CLIENT_ROLES: readonly Role[] = ["client_admin", "client_manager", "action_owner"];
 
 /**
@@ -14,14 +14,20 @@ export interface Principal {
   orgId: string;
   orgKind: OrgKind;
   role: Role;
-  /** Engagements the user is an explicit member of. */
-  engagementIds: ReadonlySet<string>;
+  /** Projects the user is an explicit member of. */
+  projectIds: ReadonlySet<string>;
+  /** Consultants only: client orgs they oversee. They see all of those clients' projects. */
+  assignedClientIds: ReadonlySet<string>;
+  /** Consultants only: client orgs where they are the lead consultant. */
+  leadClientIds: ReadonlySet<string>;
+  /** Projects (internal) the user leads. */
+  leadProjectIds: ReadonlySet<string>;
 }
 
 export type ResourceType =
   | "organization"
   | "org_user"
-  | "engagement"
+  | "project"
   | "finding"
   | "recommendation"
   | "action"
@@ -34,7 +40,10 @@ export type ResourceType =
   | "follow_up"
   | "report"
   | "activity"
-  | "ai_conversation";
+  | "ai_conversation"
+  | "client_assignment"
+  | "client_directory"
+  | "join_request";
 
 /**
  * The attributes of a record that the check needs. Services load these from
@@ -44,12 +53,15 @@ export type ResourceType =
 export interface Resource {
   type: ResourceType;
   id?: string;
-  /** The client tenant the record belongs to. For an organization, its own id. */
-  clientOrgId: string;
-  /** The firm org running the engagement (engagement-scoped records). */
+  /**
+   * The org that owns the record: the client for client-project records, the
+   * firm for internal-project records. For an organization, its own id.
+   */
+  orgId: string;
+  /** The firm org running the project (project-scoped records). */
   firmOrgId?: string;
   /** Null only for organization-level records. */
-  engagementId: string | null;
+  projectId: string | null;
   visibility?: Visibility;
   /** Creator of the record (user_private and "own" scope). */
   createdBy?: string | null;
@@ -59,6 +71,10 @@ export interface Resource {
   sharedWith?: readonly string[];
   /** Which org controls the record (documents: who may change its labels and AI flag). */
   ownerOrgId?: string;
+  /** Kind of the record's project. Internal projects have their own work rules. */
+  projectKind?: "internal" | "client";
+  /** Staffing records (assignments, join requests): the client they are about. */
+  clientOrgId?: string;
 }
 
 export interface Decision {

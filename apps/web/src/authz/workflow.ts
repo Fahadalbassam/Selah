@@ -40,8 +40,14 @@ export function canTransition(
   action: Resource & { type: "action" },
   from: ActionStatus,
   to: ActionStatus,
+  /** Who submitted evidence in the round under review. */
+  submitters: readonly string[] = [],
 ): Decision {
   const permission = transitionPermission(from, to);
   if (!permission) return { allowed: false, reason: `workflow:${from}>${to}` };
+  // Separation of duties: nobody verifies work they own or submitted.
+  if (permission === "action.review" && (action.assignees?.includes(principal.userId) || submitters.includes(principal.userId))) {
+    return { allowed: false, reason: "workflow:self-review" };
+  }
   return authorize(principal, permission, action);
 }
