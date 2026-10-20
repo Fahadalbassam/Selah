@@ -26,7 +26,7 @@ export default async function OverviewPage() {
   return (
     <>
       <PageHeader title={t("title")} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         {cards.map((c) => (
           <Card key={c.label} className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">

@@ -17,20 +17,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import { initials } from "@/lib/utils";
 
 export interface NavUserProps {
   name: string;
   email: string;
   otherLocale: string;
   labels: { language: string; theme: string; signOut: string };
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("");
 }
 
 export function NavUser({ name, email, otherLocale, labels }: NavUserProps) {
