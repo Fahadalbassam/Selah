@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .config import Settings, get_settings
-from .llm import LLM, OllamaLLM
+from .llm import LLM, make_llm
 from .prompt import ANSWER_SCHEMA, Answer, Passage, build_messages, check_answer
 
 app = FastAPI(title="Selah AI service", docs_url=None, redoc_url=None, openapi_url=None)
@@ -23,7 +23,7 @@ _llm: LLM | None = None
 def get_llm(settings: Annotated[Settings, Depends(get_settings)]) -> LLM:
     global _llm
     if _llm is None:
-        _llm = OllamaLLM(settings)
+        _llm = make_llm(settings)
     return _llm
 
 

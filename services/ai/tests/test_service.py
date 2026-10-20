@@ -89,3 +89,13 @@ def test_injected_text_cannot_close_its_passage_wrapper():
 def test_check_answer_dedupes_and_filters():
     raw = json.dumps({"answer": "a", "cited_ids": ["P1", "P1", "P7"], "grounded": True})
     assert check_answer(raw, PASSAGES).cited_ids == ["P1"]
+
+
+def test_provider_switch():
+    from app.llm import HostedChatLLM, OllamaLLM, make_llm
+
+    assert isinstance(make_llm(Settings(ai_service_token=TOKEN)), OllamaLLM)
+    hosted = Settings(ai_service_token=TOKEN, llm_provider="openai_compat", llm_api_base="https://api.example", llm_api_key="k")
+    assert isinstance(make_llm(hosted), HostedChatLLM)
+    with pytest.raises(ValueError):
+        make_llm(Settings(ai_service_token=TOKEN, llm_provider="openai_compat"))

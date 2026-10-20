@@ -9,17 +9,17 @@ Results are test results on the executed cases, not a guarantee of security.
 | Chapter | Where it is handled | Status |
 |---|---|---|
 | V8 Authorization | `src/authz/authorize.ts` (one check, deny by default); `drizzle/0001_security.sql` (RLS on every table); `tests/authorize.test.ts`, `tests/db/rls.test.ts` | Done for the skeleton |
-| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 5 per minute, TOTP 2FA plugin | 2FA enforcement for Maayish staff not yet switched on |
+| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 5 per minute, TOTP 2FA plugin | 2FA enforcement for firm staff not yet switched on |
 | V7 Session management | Server-side sessions in `HttpOnly`, `SameSite=Lax`, `Secure` (production) cookies with a `__Secure-` prefix; 8 h lifetime, fresh sign-in after 10 min for sensitive changes | Done |
 | V4 API | `src/server/http.ts`: Origin check on every write (CSRF), session required, ids from the URL only used to look rows up; `tests/route-guard.test.ts` | Done |
 | V2 Validation and business logic | Zod on every params/body (`route()`); status moves checked in `authz/workflow.ts` and the `check_action_transition` trigger; optimistic concurrency on status updates | Done |
-| V1 Encoding and injection | Parameterized SQL through Drizzle; React escaping; model output to be rendered as text or safe Markdown only | UI part is step 4 |
+| V1 Encoding and injection | Parameterized SQL through Drizzle; React escaping; the assistant's answer is rendered as plain text | Done |
 | V5 File handling | Private bucket (`scripts/storage-init.ts`), random storage keys, one-minute signed download links issued only after `authorize()`, every download audited | Upload endpoint, type and size allowlist, malware scan not yet built |
-| V3 Web frontend | Security headers and CSP in `next.config.ts` (frame-ancestors none, nosniff, HSTS, no-referrer leaks) | CSP still allows inline scripts; move to nonces in step 4 |
+| V3 Web frontend | Security headers and CSP in `next.config.ts` (frame-ancestors none, nosniff, HSTS, no-referrer leaks) | CSP still allows inline scripts; move to nonces |
 | V14 Data protection | Visibility labels; app role cannot read passwords, sessions or the audit log; synthetic seed data only | Done |
 | V16 Logging and errors | `audit_log` (insert-only for the app, append-only trigger): status changes, downloads, AI queries and every denial are logged with actor and reason, never document text; generic error bodies | Sign-in events not yet copied into `audit_log` |
 | V13 Configuration | Secrets only in `.env` (ignored by Git), validated at start (`src/env.ts`); `npm audit` in CI; ports bound to 127.0.0.1 | Done |
-| V12 Secure communication | HTTPS for any deployed demo (reverse proxy) | When hosting is decided |
+| V12 Secure communication | HTTPS for the deployed demo through a reverse proxy on the team's Linux server | Not yet set up |
 
 ## Database roles
 
@@ -35,15 +35,15 @@ Results are test results on the executed cases, not a guarantee of security.
 |---|---|
 | LLM01 Prompt injection | `services/ai/app/prompt.py`: retrieved text wrapped and escaped as data; model told never to follow it; model has no tools |
 | LLM02 Sensitive information disclosure | `services/assistant.ts`: permission filter inside the vector query, plus RLS on `ai_chunks`; tested in `tests/db/rls.test.ts` ("forged scope") |
-| LLM03 Supply chain | Model and image versions pinned in `docker-compose.yml` and `.env` |
+| LLM03 Supply chain | Model and image versions pinned in `docker-compose.yml` and `.env`; a hosted provider is opt-in (`LLM_PROVIDER`) and only receives the allowed passages of one question |
 | LLM04 Data and model poisoning | Only documents with the AI flag on are indexed; uploads record their uploader |
-| LLM05 Improper output handling | Answers are plain text; render as text or safe Markdown only (step 4) |
+| LLM05 Improper output handling | Answers are plain text and rendered as text |
 | LLM06 Excessive agency | No write tools; drafts need a human to save or send |
 | LLM07 System prompt leakage | No secrets or permission logic in the prompt |
-| LLM08 Vector and embedding weaknesses | Each chunk carries tenant, engagement, label and version; stale versions excluded at query time; chunks dropped by trigger on flag, label or archive changes |
+| LLM08 Vector and embedding weaknesses | Each chunk carries tenant, project, label and version; stale versions excluded at query time; chunks dropped by trigger on flag, label or archive changes |
 | LLM09 Misinformation | Answers must cite supplied passage ids; unknown ids dropped; no valid citation means "I can't confirm this" |
 | LLM10 Unbounded consumption | Question, passage count and passage size limits in the AI service; request timeouts. Per-user rate limits on the app API not yet built |
 
 ## Known gaps before real data
 
-Hosting, retention and legal obligations must be confirmed with Maayish and the supervisor before any real client data is used. Backups, HTTPS and a malware scanner come with the hosting decision.
+Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The demo runs on the team's Linux server; backups, HTTPS and a malware scanner still need to be set up there.

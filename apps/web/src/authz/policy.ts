@@ -1,9 +1,9 @@
 import type { Role } from "./types";
 
 /**
- * How far a role's grant reaches once the organization and engagement checks
+ * How far a role's grant reaches once the organization and project checks
  * have passed:
- *   any       - every record in the engagement (or org) the user can reach
+ *   any       - every record in the project (or org) the user can reach
  *   assigned  - only records assigned to the user
  *   own       - only records the user created
  *   shared    - only records explicitly shared with the user (or created by them)
@@ -13,7 +13,7 @@ export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org";
 
 type Grants = Partial<Record<Role, Scope>>;
 
-const STAFF: Grants = { maayish_lead: "any", consultant: "any" };
+const STAFF: Grants = { firm_admin: "any", consultant: "any" };
 const ALL_BUT_OWNER: Grants = { ...STAFF, client_admin: "any", client_manager: "any" };
 const READ_WORK: Grants = { ...ALL_BUT_OWNER, action_owner: "assigned" };
 const DO_WORK: Grants = { client_manager: "any", action_owner: "assigned" };
@@ -23,22 +23,22 @@ const DO_WORK: Grants = { client_manager: "any", action_owner: "assigned" };
  * Permissions and AI Access Spec. Anything not listed is denied: adding a
  * permission name without adding grants gives nobody access.
  *
- * Labels (maayish_private, client_private, user_private) are checked
+ * Labels (firm_private, client_private, user_private) are checked
  * separately in authorize(), so "any" never reaches a record the label hides.
  */
 export const POLICY = {
   // Tenancy
   "organization.read": { ...ALL_BUT_OWNER },
-  "organization.create": { maayish_lead: "any" },
-  "organization.update": { maayish_lead: "any", client_admin: "any" },
+  "organization.create": { firm_admin: "any" },
+  "organization.update": { firm_admin: "any", client_admin: "any" },
   "org_user.read": { ...ALL_BUT_OWNER },
-  "org_user.manage": { maayish_lead: "any", client_admin: "any" },
+  "org_user.manage": { firm_admin: "any", client_admin: "any" },
 
-  // Engagements
-  "engagement.read": { ...ALL_BUT_OWNER, action_owner: "any" },
-  "engagement.create": { maayish_lead: "any" },
-  "engagement.update": { maayish_lead: "any" },
-  "engagement.manage_members": { maayish_lead: "any", client_admin: "any" },
+  // Projects
+  "project.read": { ...ALL_BUT_OWNER, action_owner: "any" },
+  "project.create": { firm_admin: "any" },
+  "project.update": { firm_admin: "any" },
+  "project.manage_members": { firm_admin: "any", client_admin: "any" },
 
   // Findings and recommendations
   "finding.read": { ...ALL_BUT_OWNER },
@@ -71,7 +71,7 @@ export const POLICY = {
   "document.download": { ...ALL_BUT_OWNER, action_owner: "shared" },
   "document.upload": { ...STAFF, client_admin: "any", client_manager: "any", action_owner: "assigned" },
   "document.manage": {
-    maayish_lead: "owner_org",
+    firm_admin: "owner_org",
     consultant: "owner_org",
     client_admin: "owner_org",
     client_manager: "owner_org",
@@ -88,11 +88,11 @@ export const POLICY = {
   "activity.read": { ...READ_WORK },
 
   // AI assistant. Whether client users get it is an open decision in the
-  // spec; until it is made, only Maayish staff do. To enable client managers,
+  // spec; until it is made, only firm staff do. To enable client managers,
   // add `client_manager: "any"` here; retrieval rules stay the same.
   "assistant.query": { ...STAFF },
   "ai_conversation.read": {
-    maayish_lead: "own",
+    firm_admin: "own",
     consultant: "own",
     client_admin: "own",
     client_manager: "own",

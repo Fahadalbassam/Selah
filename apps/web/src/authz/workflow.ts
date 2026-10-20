@@ -16,7 +16,7 @@ export type ActionStatus =
  * check_action_transition() holds the same list of moves, so a move missing
  * here is also rejected by Postgres.
  *
- * Only action.review (Maayish staff) can leave Awaiting Review, and only that
+ * Only action.review (firm staff) can leave Awaiting Review, and only that
  * path reaches Verified Complete. A client's claim never counts as verified.
  */
 export const TRANSITIONS: Readonly<Record<string, Permission>> = {

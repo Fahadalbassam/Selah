@@ -46,7 +46,7 @@ services:
   ollama-pull:
     image: ollama/ollama:0.40.6
     environment: { OLLAMA_HOST: "ollama:11434" }
-    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-bge-m3} && ollama pull ${LLM_MODEL:-qwen3:8b}"]
+    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-bge-m3} && ollama pull ${LLM_MODEL:-qwen3:4b}"]
     depends_on: [ollama]
     restart: "no"
 
@@ -55,8 +55,11 @@ services:
     environment:
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?set in .env}
       OLLAMA_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
       EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      LLM_API_BASE: ${LLM_API_BASE:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on: [ollama]
     ports: ["127.0.0.1:8000:8000"]
 

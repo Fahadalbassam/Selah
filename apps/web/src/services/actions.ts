@@ -1,25 +1,33 @@
 import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, activityEvents, engagements, evidenceSubmissions, notifications, reviews } from "@/db/schema";
-import { assertAllowed, canTransition, ForbiddenError, type ActionStatus, type Principal, type Resource } from "@/authz";
+import { actions, activityEvents, projects, evidenceSubmissions, notifications, reviews } from "@/db/schema";
+import {
+  assertAllowed,
+  canTransition,
+  ForbiddenError,
+  transitionPermission,
+  type ActionStatus,
+  type Principal,
+  type Resource,
+} from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
 async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ action: actions, maayishOrgId: engagements.maayishOrgId })
+    .select({ action: actions, firmOrgId: projects.firmOrgId })
     .from(actions)
-    .innerJoin(engagements, eq(engagements.id, actions.engagementId))
+    .innerJoin(projects, eq(projects.id, actions.projectId))
     .where(eq(actions.id, id))
     .limit(1);
   if (!row) return null;
   const resource: Resource & { type: "action" } = {
     type: "action",
     id: row.action.id,
-    clientOrgId: row.action.clientOrgId,
-    maayishOrgId: row.maayishOrgId,
-    engagementId: row.action.engagementId,
+    orgId: row.action.orgId,
+    firmOrgId: row.firmOrgId,
+    projectId: row.action.projectId,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],
   };
@@ -53,7 +61,9 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
 
   const from = action.status;
   const decision = canTransition(principal, resource, from, input.to);
-  if (!decision.allowed) throw new ForbiddenError("action.work", resource, decision.reason);
+  if (!decision.allowed) {
+    throw new ForbiddenError(transitionPermission(from, input.to) ?? "action.work", resource, decision.reason);
+  }
 
   const patch: Partial<typeof actions.$inferInsert> = { status: input.to };
 
@@ -91,8 +101,8 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
       .orderBy(desc(evidenceSubmissions.submittedAt))
       .limit(1);
     await tx.insert(reviews).values({
-      engagementId: action.engagementId,
-      clientOrgId: action.clientOrgId,
+      projectId: action.projectId,
+      orgId: action.orgId,
       actionId: id,
       evidenceSubmissionId: evidence?.id,
       reviewerId: principal.userId,
@@ -110,8 +120,8 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   if (updated.length === 0) throw new ConflictError("the action changed; reload and try again");
 
   await tx.insert(activityEvents).values({
-    engagementId: action.engagementId,
-    clientOrgId: action.clientOrgId,
+    projectId: action.projectId,
+    orgId: action.orgId,
     actorId: principal.userId,
     entityType: "action",
     entityId: id,

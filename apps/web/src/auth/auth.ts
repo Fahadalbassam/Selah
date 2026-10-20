@@ -55,7 +55,7 @@ function createAuth() {
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: production },
       database: { generateId: "uuid" },
     },
-    // MFA for Maayish staff (spec: "if feasible"). Enforcement per role is
+    // MFA for firm staff (spec: "if feasible"). Enforcement per role is
     // done in services/principal.ts once the team confirms it.
     plugins: [twoFactor({ issuer: "Selah" }), nextCookies()],
   });

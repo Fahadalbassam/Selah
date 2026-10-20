@@ -1,6 +1,6 @@
 // Row-level security tests against a real Postgres with the migrations
 // applied. They connect as selah_app (the runtime role) and prove the
-// database blocks cross-tenant, cross-engagement and label leaks even when
+// database blocks cross-tenant, cross-project and label leaks even when
 // app code asks for the wrong rows directly.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { retrieve } from "@/services/assistant";
 import type { Tx } from "@/db/client";
-import { ACME, ACME_ENG_1, ACME_ENG_2, BETA, BETA_ENG, MAAYISH } from "../fixtures";
+import { ACME, ACME_PROJ_1, ACME_PROJ_2, BETA, BETA_PROJ, FIRM } from "../fixtures";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -27,7 +27,10 @@ const U = {
   acmeManager: id(4),
   acmeOwner: id(5),
   betaManager: id(6),
+  overseer: id(7), // consultant assigned to Beta, member of no project
 };
+const INTERNAL = id(501);
+const REC_INTERNAL = id(104);
 const REC_ACME_1 = id(101);
 const REC_ACME_2 = id(102);
 const REC_BETA = id(103);
@@ -60,63 +63,72 @@ async function count(userId: string | null, table: string, where = "true", param
 beforeAll(async () => {
   const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
   await q(`TRUNCATE "user", organizations CASCADE`);
-  await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'maayish','Maayish'), ($2,'client','Acme'), ($3,'client','Beta')`, [MAAYISH, ACME, BETA]);
+  await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'firm','firm'), ($2,'client','Acme'), ($3,'client','Beta')`, [FIRM, ACME, BETA]);
   for (const [name, uid] of Object.entries(U)) {
     await q(`INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)`, [uid, name, `${name}@example.test`]);
   }
   await q(`INSERT INTO account (account_id, provider_id, user_id, password) VALUES ($1, 'credential', $2, 'scrypt-hash')`, [U.acmeManager, U.acmeManager]);
   await q(
     `INSERT INTO org_memberships (user_id, org_id, role) VALUES
-      ($1,$7,'maayish_lead'), ($2,$7,'consultant'), ($3,$8,'client_admin'),
-      ($4,$8,'client_manager'), ($5,$8,'action_owner'), ($6,$9,'client_manager')`,
-    [U.lead, U.consultant, U.acmeAdmin, U.acmeManager, U.acmeOwner, U.betaManager, MAAYISH, ACME, BETA],
+      ($1,$7,'firm_admin'), ($2,$7,'consultant'), ($3,$8,'client_admin'),
+      ($4,$8,'client_manager'), ($5,$8,'action_owner'), ($6,$9,'client_manager'), ($10,$7,'consultant')`,
+    [U.lead, U.consultant, U.acmeAdmin, U.acmeManager, U.acmeOwner, U.betaManager, FIRM, ACME, BETA, U.overseer],
   );
   await q(
-    `INSERT INTO engagements (id, client_org_id, maayish_org_id, title, state) VALUES
-      ($1,$4,$6,'Acme governance','active'), ($2,$4,$6,'Acme HR policy','active'), ($3,$5,$6,'Beta strategy','active')`,
-    [ACME_ENG_1, ACME_ENG_2, BETA_ENG, ACME, BETA, MAAYISH],
+    `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state) VALUES
+      ($1,'client',$4,$6,'Acme governance','active'), ($2,'client',$4,$6,'Acme HR policy','active'),
+      ($3,'client',$5,$6,'Beta strategy','active'), ($7,'internal',$6,$6,'Firm methodology','active')`,
+    [ACME_PROJ_1, ACME_PROJ_2, BETA_PROJ, ACME, BETA, FIRM, INTERNAL],
   );
+  await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1, $2)`, [BETA, U.overseer]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1, $2)`, [INTERNAL, U.consultant]);
+  await q(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'Internal method',$4)`, [
+    REC_INTERNAL,
+    INTERNAL,
+    FIRM,
+    U.lead,
+  ]);
   await q(
-    `INSERT INTO engagement_members (engagement_id, user_id) VALUES ($1,$3), ($1,$4), ($1,$5), ($2,$3), ($6,$7)`,
-    [ACME_ENG_1, ACME_ENG_2, U.consultant, U.acmeManager, U.acmeOwner, BETA_ENG, U.betaManager],
+    `INSERT INTO project_members (project_id, user_id) VALUES ($1,$3), ($1,$4), ($1,$5), ($2,$3), ($6,$7)`,
+    [ACME_PROJ_1, ACME_PROJ_2, U.consultant, U.acmeManager, U.acmeOwner, BETA_PROJ, U.betaManager],
   );
-  // Make the consultant a member of ACME_ENG_1 only.
-  await q(`DELETE FROM engagement_members WHERE engagement_id = $1 AND user_id = $2`, [ACME_ENG_2, U.consultant]);
+  // Make the consultant a member of ACME_PROJ_1 only.
+  await q(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [ACME_PROJ_2, U.consultant]);
   await q(
-    `INSERT INTO recommendations (id, engagement_id, client_org_id, title, created_by) VALUES
+    `INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES
       ($1,$4,$6,'Board charter',$8), ($2,$5,$6,'HR policy',$8), ($3,$7,$9,'Beta rec',$8)`,
-    [REC_ACME_1, REC_ACME_2, REC_BETA, ACME_ENG_1, ACME_ENG_2, ACME, BETA_ENG, U.consultant, BETA],
+    [REC_ACME_1, REC_ACME_2, REC_BETA, ACME_PROJ_1, ACME_PROJ_2, ACME, BETA_PROJ, U.consultant, BETA],
   );
   await q(
-    `INSERT INTO actions (id, engagement_id, client_org_id, recommendation_id, title, owner_user_id, status, created_by)
+    `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
      VALUES ($1,$2,$3,$4,'Draft the charter',$5,'assigned',$6)`,
-    [ACTION_ACME, ACME_ENG_1, ACME, REC_ACME_1, U.acmeOwner, U.consultant],
+    [ACTION_ACME, ACME_PROJ_1, ACME, REC_ACME_1, U.acmeOwner, U.consultant],
   );
   const doc = (docId: string, eng: string, org: string, ownerOrg: string, by: string, purpose: string, state: string, vis: string) =>
     q(
-      `INSERT INTO documents (id, engagement_id, client_org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
          ai_indexable, storage_key, content_type, size_bytes, sha256)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'doc',$8,true,$9,'application/pdf',1,'x')`,
       [docId, eng, org, ownerOrg, by, purpose, state, vis, `key-${docId}`],
     );
-  await doc(DOC_SHARED, ACME_ENG_1, ACME, MAAYISH, U.consultant, "deliverable", "submitted", "shared");
-  await doc(DOC_CLIENT_PRIVATE, ACME_ENG_1, ACME, ACME, U.acmeManager, "client_document", "submitted", "client_private");
-  await doc(DOC_DRAFT_EVIDENCE, ACME_ENG_1, ACME, ACME, U.acmeOwner, "evidence", "draft", "shared");
-  await doc(DOC_BETA, BETA_ENG, BETA, MAAYISH, U.consultant, "deliverable", "submitted", "shared");
+  await doc(DOC_SHARED, ACME_PROJ_1, ACME, FIRM, U.consultant, "deliverable", "submitted", "shared");
+  await doc(DOC_CLIENT_PRIVATE, ACME_PROJ_1, ACME, ACME, U.acmeManager, "client_document", "submitted", "client_private");
+  await doc(DOC_DRAFT_EVIDENCE, ACME_PROJ_1, ACME, ACME, U.acmeOwner, "evidence", "draft", "shared");
+  await doc(DOC_BETA, BETA_PROJ, BETA, FIRM, U.consultant, "deliverable", "submitted", "shared");
   await q(
-    `INSERT INTO meeting_notes (id, engagement_id, client_org_id, author_id, held_on, title, body, visibility)
-     VALUES ($1,$2,$3,$4,'2026-10-01','Internal','Our private view','maayish_private')`,
-    [NOTE_PRIVATE, ACME_ENG_1, ACME, U.consultant],
+    `INSERT INTO meeting_notes (id, project_id, org_id, author_id, held_on, title, body, visibility)
+     VALUES ($1,$2,$3,$4,'2026-10-01','Internal','Our private view','firm_private')`,
+    [NOTE_PRIVATE, ACME_PROJ_1, ACME, U.consultant],
   );
   const chunk = (docId: string, eng: string, org: string, vis: string, hot: number) =>
     q(
-      `INSERT INTO ai_chunks (engagement_id, client_org_id, source_type, source_id, visibility, chunk_index, content, embedding)
+      `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)
        VALUES ($1,$2,'document',$3,$4,0,$5,$6)`,
       [eng, org, docId, vis, `chunk of ${docId}`, vec(hot)],
     );
-  await chunk(DOC_SHARED, ACME_ENG_1, ACME, "shared", 1);
-  await chunk(DOC_CLIENT_PRIVATE, ACME_ENG_1, ACME, "client_private", 0);
-  await chunk(DOC_BETA, BETA_ENG, BETA, "shared", 0);
+  await chunk(DOC_SHARED, ACME_PROJ_1, ACME, "shared", 1);
+  await chunk(DOC_CLIENT_PRIVATE, ACME_PROJ_1, ACME, "client_private", 0);
+  await chunk(DOC_BETA, BETA_PROJ, BETA, "shared", 0);
 });
 
 afterAll(async () => {
@@ -139,7 +151,7 @@ describe("RLS is on everywhere", () => {
   });
 
   it("with no user set, nothing is visible", async () => {
-    for (const t of ["organizations", "engagements", "recommendations", "actions", "documents", "ai_chunks", "meeting_notes"]) {
+    for (const t of ["organizations", "projects", "recommendations", "actions", "documents", "ai_chunks", "meeting_notes"]) {
       expect(await count(null, t), t).toBe(0);
     }
   });
@@ -157,17 +169,17 @@ describe("RLS is on everywhere", () => {
 describe("scenario 5: tenant isolation", () => {
   it("Beta's manager sees none of Acme's rows, even by id", async () => {
     expect(await count(U.betaManager, "recommendations", "id = $1", [REC_ACME_1])).toBe(0);
-    expect(await count(U.betaManager, "documents", "client_org_id = $1", [ACME])).toBe(0);
-    expect(await count(U.betaManager, "ai_chunks", "client_org_id = $1", [ACME])).toBe(0);
+    expect(await count(U.betaManager, "documents", "org_id = $1", [ACME])).toBe(0);
+    expect(await count(U.betaManager, "ai_chunks", "org_id = $1", [ACME])).toBe(0);
     expect(await count(U.betaManager, "organizations", "id = $1", [ACME])).toBe(0);
     expect(await count(U.betaManager, `"user"`, "id = $1", [U.acmeManager])).toBe(0);
   });
 
-  it("Beta's manager cannot write into Acme's engagement", async () => {
+  it("Beta's manager cannot write into Acme's project", async () => {
     await expect(
       as(U.betaManager, (c) =>
-        c.query(`INSERT INTO recommendations (engagement_id, client_org_id, title, created_by) VALUES ($1,$2,'x',$3)`, [
-          ACME_ENG_1,
+        c.query(`INSERT INTO recommendations (project_id, org_id, title, created_by) VALUES ($1,$2,'x',$3)`, [
+          ACME_PROJ_1,
           ACME,
           U.betaManager,
         ]),
@@ -175,10 +187,10 @@ describe("scenario 5: tenant isolation", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("a mismatched engagement and tenant pair is rejected by the foreign key", async () => {
+  it("a mismatched project and tenant pair is rejected by the foreign key", async () => {
     await expect(
-      owner.query(`INSERT INTO recommendations (engagement_id, client_org_id, title, created_by) VALUES ($1,$2,'x',$3)`, [
-        ACME_ENG_1,
+      owner.query(`INSERT INTO recommendations (project_id, org_id, title, created_by) VALUES ($1,$2,'x',$3)`, [
+        ACME_PROJ_1,
         BETA,
         U.consultant,
       ]),
@@ -186,28 +198,69 @@ describe("scenario 5: tenant isolation", () => {
   });
 });
 
-describe("scenario 6: engagement membership", () => {
-  it("Acme's manager sees engagement 1 but not engagement 2", async () => {
+describe("scenario 6: project membership", () => {
+  it("Acme's manager sees project 1 but not project 2", async () => {
     expect(await count(U.acmeManager, "recommendations", "id = $1", [REC_ACME_1])).toBe(1);
     expect(await count(U.acmeManager, "recommendations", "id = $1", [REC_ACME_2])).toBe(0);
   });
 
-  it("the consultant sees only their engagement; the lead and client admin see more", async () => {
-    expect(await count(U.consultant, "recommendations")).toBe(1);
-    expect(await count(U.lead, "recommendations")).toBe(3);
+  it("the consultant sees only their project; the lead and client admin see more", async () => {
+    expect(await count(U.consultant, "recommendations", "org_id = $1", [ACME])).toBe(1);
+    expect(await count(U.lead, "recommendations")).toBe(4);
     expect(await count(U.acmeAdmin, "recommendations")).toBe(2);
   });
 });
 
+describe("hierarchy: client assignments", () => {
+  it("a consultant assigned to Beta sees Beta's projects and nothing of Acme", async () => {
+    expect(await count(U.overseer, "recommendations", "id = $1", [REC_BETA])).toBe(1);
+    expect(await count(U.overseer, "recommendations", "org_id = $1", [ACME])).toBe(0);
+    expect(await count(U.overseer, "organizations", "id = $1", [BETA])).toBe(1);
+    expect(await count(U.overseer, "organizations", "id = $1", [ACME])).toBe(0);
+  });
+
+  it("a consultant not assigned to Beta never sees it", async () => {
+    expect(await count(U.consultant, "organizations", "id = $1", [BETA])).toBe(0);
+    expect(await count(U.consultant, "projects", "id = $1", [BETA_PROJ])).toBe(0);
+  });
+
+  it("only the firm admin can assign consultants to clients", async () => {
+    await expect(
+      as(U.consultant, (c) => c.query(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [BETA, U.consultant])),
+    ).rejects.toThrow(/row-level security/);
+    await as(U.lead, (c) =>
+      c.query(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [ACME, U.overseer]),
+    );
+  });
+});
+
+describe("internal projects", () => {
+  it("are visible to the firm admin and members, never to clients or non-member consultants", async () => {
+    expect(await count(U.lead, "recommendations", "id = $1", [REC_INTERNAL])).toBe(1);
+    expect(await count(U.consultant, "recommendations", "id = $1", [REC_INTERNAL])).toBe(1);
+    expect(await count(U.overseer, "recommendations", "id = $1", [REC_INTERNAL])).toBe(0);
+    for (const u of [U.acmeAdmin, U.acmeManager, U.acmeOwner, U.betaManager]) {
+      expect(await count(u, "projects", "id = $1", [INTERNAL])).toBe(0);
+      expect(await count(u, "recommendations", "id = $1", [REC_INTERNAL])).toBe(0);
+    }
+  });
+
+  it("must belong to the firm itself", async () => {
+    await expect(
+      owner.query(`INSERT INTO projects (kind, org_id, firm_org_id, title) VALUES ('internal', $1, $2, 'x')`, [ACME, FIRM]),
+    ).rejects.toThrow(/internal project belongs to the firm/);
+  });
+});
+
 describe("scenario 7: labels", () => {
-  it("Maayish-private notes are invisible to every Acme user", async () => {
+  it("Firm-private notes are invisible to every Acme user", async () => {
     for (const u of [U.acmeAdmin, U.acmeManager, U.acmeOwner]) {
       expect(await count(u, "meeting_notes", "id = $1", [NOTE_PRIVATE])).toBe(0);
     }
     expect(await count(U.consultant, "meeting_notes", "id = $1", [NOTE_PRIVATE])).toBe(1);
   });
 
-  it("client-private documents and their chunks are invisible to Maayish, including the lead", async () => {
+  it("client-private documents and their chunks are invisible to firm, including the lead", async () => {
     for (const u of [U.lead, U.consultant]) {
       expect(await count(u, "documents", "id = $1", [DOC_CLIENT_PRIVATE])).toBe(0);
       expect(await count(u, "ai_chunks", "source_id = $1", [DOC_CLIENT_PRIVATE])).toBe(0);
@@ -227,8 +280,8 @@ describe("scenario 3 and 10: workflow and history", () => {
     await expect(
       as(U.acmeManager, (c) =>
         c.query(
-          `INSERT INTO reviews (engagement_id, client_org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
-          [ACME_ENG_1, ACME, ACTION_ACME, U.acmeManager],
+          `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
+          [ACME_PROJ_1, ACME, ACTION_ACME, U.acmeManager],
         ),
       ),
     ).rejects.toThrow(/row-level security/);
@@ -238,8 +291,8 @@ describe("scenario 3 and 10: workflow and history", () => {
     await expect(
       as(U.consultant, (c) =>
         c.query(
-          `INSERT INTO reviews (engagement_id, client_org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
-          [ACME_ENG_1, ACME, ACTION_ACME, U.lead],
+          `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
+          [ACME_PROJ_1, ACME, ACTION_ACME, U.lead],
         ),
       ),
     ).rejects.toThrow(/row-level security/);
@@ -261,8 +314,8 @@ describe("scenario 3 and 10: workflow and history", () => {
       );
       await c.query("ROLLBACK TO SAVEPOINT s");
       await c.query(
-        `INSERT INTO reviews (engagement_id, client_org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
-        [ACME_ENG_1, ACME, ACTION_ACME, U.consultant],
+        `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`,
+        [ACME_PROJ_1, ACME, ACTION_ACME, U.consultant],
       );
       const res = await c.query(`UPDATE actions SET status = 'verified_complete' WHERE id = $1 RETURNING status`, [ACTION_ACME]);
       expect(res.rows[0].status).toBe("verified_complete");
@@ -274,8 +327,8 @@ describe("scenario 3 and 10: workflow and history", () => {
     try {
       await c.query("BEGIN");
       const { rows } = await c.query(
-        `INSERT INTO reviews (engagement_id, client_org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'revise') RETURNING id`,
-        [ACME_ENG_1, ACME, ACTION_ACME, U.consultant],
+        `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'revise') RETURNING id`,
+        [ACME_PROJ_1, ACME, ACTION_ACME, U.consultant],
       );
       await expect(c.query(`UPDATE reviews SET outcome = 'accept' WHERE id = $1`, [rows[0].id])).rejects.toThrow(/append-only/);
     } finally {
@@ -300,7 +353,7 @@ describe("scenario 8: AI index", () => {
       const query = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)); // nearest: Beta and client-private chunks
       const rows = await retrieve(
         tx,
-        { engagementId: ACME_ENG_1, clientOrgId: ACME, labels: ["shared", "maayish_private", "user_private"], userId: U.consultant },
+        { projectId: ACME_PROJ_1, orgId: ACME, labels: ["shared", "firm_private", "user_private"], userId: U.consultant },
         query,
       );
       expect(rows.map((r) => r.sourceId)).toEqual([DOC_SHARED]);
@@ -312,7 +365,7 @@ describe("scenario 8: AI index", () => {
       const tx = drizzle(c, { schema }) as unknown as Tx;
       const rows = await retrieve(
         tx,
-        { engagementId: BETA_ENG, clientOrgId: BETA, labels: ["shared", "client_private"], userId: U.consultant },
+        { projectId: BETA_PROJ, orgId: BETA, labels: ["shared", "client_private"], userId: U.consultant },
         Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)),
       );
       expect(rows).toEqual([]);
