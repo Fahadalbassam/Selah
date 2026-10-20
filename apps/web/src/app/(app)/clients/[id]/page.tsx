@@ -1,4 +1,4 @@
-import { ArrowLeft, Crown, UserPlus } from "lucide-react";
+import { ArrowLeft, Crown, Eye, EyeOff, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -27,7 +27,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
-      <PageHeader title={(ar ? client.nameAr : null) ?? client.name} description={ar ? client.name : (client.nameAr ?? undefined)} />
+      <PageHeader title={(ar ? client.nameAr : null) ?? client.name} description={ar ? client.name : (client.nameAr ?? undefined)}>
+        {can.watch ? (
+          <ApiButton
+            endpoint={`/api/clients/${client.id}/watch`}
+            method="PUT"
+            body={{ on: !data.watching }}
+            label={data.watching ? t("unwatch") : t("watch")}
+            icon={data.watching ? <EyeOff /> : <Eye />}
+            title={t("watchClientHint")}
+          />
+        ) : null}
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="space-y-6">

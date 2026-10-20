@@ -21,6 +21,7 @@ import {
   type AnyPgColumn,
   customType,
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -215,6 +216,26 @@ export const projectMembers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("project_members_user_idx").on(t.userId)],
+);
+
+// A firm admin who oversees a client or one project without being staffed on
+// it. Watchers get the same notifications as the team; other admins get none.
+export const watches = pgTable(
+  "watches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clientOrgId: uuid("client_org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("watches_one_target", sql`(${t.clientOrgId} IS NULL) <> (${t.projectId} IS NULL)`),
+    uniqueIndex("watches_client_uq").on(t.userId, t.clientOrgId).where(sql`${t.clientOrgId} IS NOT NULL`),
+    uniqueIndex("watches_project_uq").on(t.userId, t.projectId).where(sql`${t.projectId} IS NOT NULL`),
+  ],
 );
 
 // Columns every project-scoped table shares, plus the composite FK that

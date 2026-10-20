@@ -1,14 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
   activityEvents,
-  clientAssignments,
   documents,
   evidenceSubmissions,
   notifications,
-  projectMembers,
   projects,
   reviews,
 } from "@/db/schema";
@@ -177,25 +175,12 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     });
   }
 
-  // Work waiting for review goes to the people who review it: the client's
-  // consultants, or the leads of an internal project.
+  // Work waiting for review goes to the project's firm-side audience: the
+  // client's lead and the staff on the project (an internal project's leads),
+  // plus admins watching it (drizzle/0008_staffed_visibility.sql).
   if (input.to === "awaiting_review") {
-    const reviewers =
-      resource.projectKind === "internal"
-        ? await tx
-            .select({ userId: projectMembers.userId })
-            .from(projectMembers)
-            .where(and(eq(projectMembers.projectId, action.projectId), eq(projectMembers.isLead, true)))
-        : await tx
-            .select({ userId: clientAssignments.userId })
-            .from(clientAssignments)
-            .where(eq(clientAssignments.clientOrgId, action.orgId));
-    const to = reviewers.map((r) => r.userId).filter((u) => u !== principal.userId && u !== action.ownerUserId);
-    if (to.length) {
-      await tx.insert(notifications).values(
-        to.map((userId) => ({ userId, kind: "action.awaiting_review", entityType: "action", entityId: id })),
-      );
-    }
+    const skip = `{${action.ownerUserId ?? ""}}`; // uuid[] literal: the owner was told above
+    await tx.execute(sql`select app_notify_project_team(${id}::uuid, 'action.awaiting_review', ${skip}::uuid[])`);
   }
 
   await audit(tx, {

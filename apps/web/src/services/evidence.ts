@@ -17,6 +17,8 @@ export interface PreparedUpload {
   contentType: string;
   sha256: string;
   scanned: boolean;
+  /** How long the virus scan took, for the audit record. */
+  scanMs: number;
 }
 
 /**
@@ -30,12 +32,23 @@ export async function prepareUpload(userId: string, actionId: string, file: File
   if (!check.ok) throw new BadRequestError(`file rejected: ${check.reason}`);
 
   // Scan before anything is stored: an infected file never reaches the bucket.
+  const started = performance.now();
+  const elapsed = () => Math.round(performance.now() - started);
   const scan = await scanUpload(bytes).catch(async (err: unknown) => {
     if (err instanceof BadRequestError) {
-      await auditDetached({ actorId: userId, action: "evidence.submit", resourceType: "action", resourceId: actionId, outcome: "deny", reason: "infected" });
+      await auditDetached({
+        actorId: userId,
+        action: "evidence.submit",
+        resourceType: "action",
+        resourceId: actionId,
+        outcome: "deny",
+        reason: "infected",
+        meta: { sizeBytes: bytes.byteLength, scanMs: elapsed() },
+      });
     }
     throw err;
   });
+  const scanMs = elapsed();
 
   return {
     bytes,
@@ -43,6 +56,7 @@ export async function prepareUpload(userId: string, actionId: string, file: File
     contentType: check.contentType,
     sha256: createHash("sha256").update(bytes).digest("hex"),
     scanned: scan.scanned,
+    scanMs,
   };
 }
 
@@ -119,7 +133,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
     resourceType: "action",
     resourceId: actionId,
     outcome: "allow",
-    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength, scanned: input.file.scanned },
+    meta: { documentId: doc!.id, sizeBytes: bytes.byteLength, scanned: input.file.scanned, scanMs: input.file.scanMs },
   });
 
   if (input.submitForReview) {

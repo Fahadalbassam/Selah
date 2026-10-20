@@ -193,10 +193,27 @@ describe("AI retrieval scope (scenarios 5, 7, 8)", () => {
 });
 
 describe("hierarchy: consultants see only clients assigned to them", () => {
-  it("an assigned consultant reaches every project of that client without membership", () => {
-    const overseer = principal("consultant", [], undefined, [BETA]);
-    expect(authorize(overseer, "recommendation.read", betaRecord("recommendation")).allowed).toBe(true);
-    expect(authorize(overseer, "organization.read", { ...betaRecord("organization"), projectId: null }).allowed).toBe(true);
+  it("a consultant on a client's team sees the client, but only the projects they are staffed on", () => {
+    const member = principal("consultant", [], undefined, [BETA]);
+    expect(authorize(member, "organization.read", { ...betaRecord("organization"), projectId: null }).allowed).toBe(true);
+    expect(authorize(member, "recommendation.read", betaRecord("recommendation"))).toEqual({
+      allowed: false,
+      reason: "membership:not-member",
+    });
+    const staffed = principal("consultant", [BETA_PROJ], undefined, [BETA]);
+    expect(authorize(staffed, "recommendation.read", betaRecord("recommendation")).allowed).toBe(true);
+  });
+
+  it("the client's lead sees every project of that client without being staffed", () => {
+    const lead = principal("consultant", [], undefined, [], { clients: [BETA] });
+    expect(authorize(lead, "recommendation.read", betaRecord("recommendation")).allowed).toBe(true);
+    expect(authorize(lead, "project.manage_members", betaRecord("project")).allowed).toBe(true);
+  });
+
+  it("only the firm admin may watch a client or project", () => {
+    expect(authorize(principal("firm_admin"), "project.watch", betaRecord("project")).allowed).toBe(true);
+    const lead = principal("consultant", [], undefined, [], { clients: [BETA] });
+    expect(authorize(lead, "project.watch", betaRecord("project")).allowed).toBe(false);
   });
 
   it("an unassigned consultant reaches neither the client nor its projects", () => {

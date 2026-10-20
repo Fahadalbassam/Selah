@@ -41,6 +41,8 @@ export const POLICY = {
   "project.create_internal": { ...STAFF }, // the creator becomes its lead
   "project.update": { firm_admin: "any" },
   "project.manage_members": { firm_admin: "any", client_admin: "any", consultant: "lead" },
+  // Oversight without being staffed: the admin follows a client or project.
+  "project.watch": { firm_admin: "any" },
 
   // Staffing. Only the firm admin adds clients and names a client's lead.
   // The lead consultant adds or removes consultants on that client and,

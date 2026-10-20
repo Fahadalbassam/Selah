@@ -145,6 +145,9 @@ export function ApiButton(props: {
   variant?: "default" | "outline" | "ghost" | "destructive" | "secondary";
   size?: "default" | "sm";
   confirm?: string;
+  icon?: ReactNode;
+  /** Tooltip text. */
+  title?: string;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
@@ -161,7 +164,8 @@ export function ApiButton(props: {
   }
   return (
     <span className="inline-flex flex-col items-start gap-1">
-      <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy}>
+      <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy} title={props.title}>
+        {props.icon}
         {props.label}
       </Button>
       {error ? <span className="text-xs text-destructive">{t(`errors.${error}`)}</span> : null}
