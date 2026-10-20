@@ -1,4 +1,4 @@
-import { deflateRawSync, crc32 } from "node:zlib";
+import { crc32, deflateRawSync, deflateSync } from "node:zlib";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Runs against a real clamd (CLAMD_HOST, default port 3310). Nothing here
@@ -68,6 +68,19 @@ function zipCrypto(data: Buffer, password: string, crc: number): Buffer {
   return out;
 }
 
+/** A PDF whose page content stream (compressed, as real PDFs are) is `payload`. */
+function pdfWithStream(payload: Buffer): Buffer {
+  const stream = deflateSync(payload);
+  return Buffer.concat([
+    Buffer.from(
+      "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+        `3 0 obj<</Type/Page/Parent 2 0 R/Contents 4 0 R>>endobj\n4 0 obj<</Length ${stream.length}/Filter/FlateDecode>>stream\n`,
+    ),
+    stream,
+    Buffer.from("\nendstream\nendobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"),
+  ]);
+}
+
 /** A one-entry zip archive (deflated), enough for ClamAV to unpack. */
 function zip(name: string, content: Buffer, password?: string): Buffer {
   const crc = crc32(content);
@@ -123,7 +136,9 @@ describe("upload scanning against clamd", () => {
   const infected: Array<[string, File]> = [
     ["EICAR as a text file", file(EICAR, "notes.txt", "text/plain")],
     ["EICAR inside a zip named .docx", file(zip("word/document.xml", EICAR), "report.docx", DOCX)],
-    ["EICAR appended to a PDF", file(Buffer.concat([PDF, EICAR]), "evidence.pdf", "application/pdf")],
+    // ClamAV's EICAR signature matches the file exactly, so text merely
+    // appended to a PDF passes; a PDF has to carry it inside one of its streams.
+    ["EICAR inside a PDF stream", file(pdfWithStream(EICAR), "evidence.pdf", "application/pdf")],
     // Harmless content, refused only because clamd runs with AlertEncrypted:
     // this case fails if the scanner's configuration was not applied.
     ["a password-protected .docx", file(zip("word/document.xml", Buffer.from("<w:document/>"), "secret"), "locked.docx", DOCX)],
