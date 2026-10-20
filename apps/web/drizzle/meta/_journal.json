@@ -127,6 +127,20 @@
       "when": 1792539217973,
       "tag": "0017_intake_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792539804897,
+      "tag": "0018_expertise",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792539805963,
+      "tag": "0019_expertise_rules",
+      "breakpoints": true
     }
   ]
 }

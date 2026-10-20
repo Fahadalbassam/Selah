@@ -659,13 +659,15 @@ export const firmSettings = pgTable("firm_settings", {
   // An open action untouched this many days counts as stale.
   staleDays: integer("stale_days").notNull().default(14),
   // Check-ins after handover, in days.
-  // Where new inquiries are announced by email (a link only), besides the
-  // in-app notice to every firm admin.
-  intakeEmail: text("intake_email"),
   checkinDays: integer("checkin_days")
     .array()
     .notNull()
     .default(sql`'{30,60,90}'::integer[]`),
+  // Where new inquiries are announced by email (a link only), besides the
+  // in-app notice to every firm admin.
+  intakeEmail: text("intake_email"),
+  // Suggest a lead for an inquiry from consultants' declared expertise.
+  suggestionsEnabled: boolean("suggestions_enabled").notNull().default(true),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -984,6 +986,51 @@ export const discoverySessions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("discovery_sessions_inquiry_idx").on(t.inquiryId)],
+);
+
+// ------------------------------------------------- consultant expertise
+
+// What a consultant can lead, as the firm admin records it. Used only to
+// suggest a lead for a new inquiry (app_suggest_leads); never to score or
+// rank people.
+export const consultantProfiles = pgTable("consultant_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  firmOrgId: uuid("firm_org_id")
+    .notNull()
+    .references(() => organizations.id),
+  // Languages they can run an engagement in.
+  languages: text("languages").array().notNull().default(sql`'{ar}'::text[]`),
+  // The consultant says when they are too busy to take a new client.
+  acceptingNewClients: boolean("accepting_new_clients").notNull().default(true),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const consultantServiceAreas = pgTable(
+  "consultant_service_areas",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => consultantProfiles.userId, { onDelete: "cascade" }),
+    serviceAreaId: uuid("service_area_id")
+      .notNull()
+      .references(() => serviceAreas.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.serviceAreaId] })],
+);
+
+export const consultantSectors = pgTable(
+  "consultant_sectors",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => consultantProfiles.userId, { onDelete: "cascade" }),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.sectorId] })],
 );
 
 // ------------------------------------------------- history and audit

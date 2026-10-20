@@ -118,6 +118,21 @@ export const POLICY = {
   "metrics.read": { ...ALL_BUT_OWNER },
   "team_metrics.read": { firm_admin: "any" },
 
+  // Intake. Firm admins see and decide every inquiry; the consultant it is
+  // handed to qualifies it (moves it forward, adds notes, runs discovery).
+  // Only the admin assigns the owner, records the conflict check, decides
+  // the outcome and turns a won inquiry into a client.
+  "inquiry.read": { firm_admin: "any", consultant: "assigned" },
+  "inquiry.work": { firm_admin: "any", consultant: "assigned" },
+  "inquiry.decide": { firm_admin: "any" },
+  // Who can lead what. The admin records it; a consultant keeps their own
+  // languages and availability. Suggestions match one inquiry; they are
+  // not a ranking of people.
+  "consultant_profile.read": { ...STAFF },
+  "consultant_profile.manage": { firm_admin: "any" },
+  "consultant_profile.update_own": { consultant: "own" },
+  "lead_suggestion.read": { firm_admin: "any" },
+
   // AI assistant. Whether client users get it is an open decision in the
   // spec; until it is made, only firm staff do. To enable client managers,
   // add `client_manager: "any"` here; retrieval rules stay the same.

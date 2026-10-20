@@ -416,3 +416,30 @@ describe("metrics", () => {
     }
   });
 });
+
+describe("intake and expertise", () => {
+  const firmOrg = (r: Partial<Resource>): Resource => ({ type: "inquiry", orgId: FIRM, firmOrgId: FIRM, projectId: null, ...r });
+  const admin = principal("firm_admin", [], FIRM);
+  const cons = principal("consultant", [], FIRM);
+
+  it("a consultant reads and works only the inquiries handed to them; the admin decides", () => {
+    const theirs = firmOrg({ assignees: [cons.userId] });
+    const other = firmOrg({ assignees: [] });
+    expect(authorize(cons, "inquiry.read", theirs).allowed).toBe(true);
+    expect(authorize(cons, "inquiry.work", theirs).allowed).toBe(true);
+    expect(authorize(cons, "inquiry.read", other).allowed).toBe(false);
+    expect(authorize(cons, "inquiry.decide", theirs).allowed).toBe(false);
+    expect(authorize(cons, "lead_suggestion.read", theirs).allowed).toBe(false);
+    expect(authorize(admin, "inquiry.decide", other).allowed).toBe(true);
+    expect(authorize(principal("client_admin", [], ACME), "inquiry.read", firmOrg({ orgId: ACME })).allowed).toBe(false);
+  });
+
+  it("a consultant updates only their own profile, and never their expertise", () => {
+    const own = firmOrg({ type: "consultant_profile", createdBy: cons.userId });
+    const someone = firmOrg({ type: "consultant_profile", createdBy: admin.userId });
+    expect(authorize(cons, "consultant_profile.update_own", own).allowed).toBe(true);
+    expect(authorize(cons, "consultant_profile.update_own", someone).allowed).toBe(false);
+    expect(authorize(cons, "consultant_profile.manage", own).allowed).toBe(false);
+    expect(authorize(admin, "consultant_profile.manage", own).allowed).toBe(true);
+  });
+});

@@ -25,6 +25,39 @@ Firm admins see every inquiry. An admin can hand one to a consultant (the owner)
 
 Closing an inquiry sets `purge_after`: 30 days for spam, 12 months for the other closed statuses. `app_purge_inquiries(today)` (run by the owner role) then blanks the contact fields and the message, and keeps the organisation, services and dates for reporting. The job may only anonymise, nothing else.
 
+## Triage and discovery
+
+The firm's side lives under `/api/intake` and needs a session.
+
+- `GET /api/intake/inquiries` lists the inbox, newest first. Admins see every inquiry and a consultant sees the ones handed to them. `GET /api/intake/inquiries/:id` returns the inquiry, its history and its discovery sessions. The address hashes are never returned.
+- `PATCH /api/intake/inquiries/:id` changes the status, the owner or the conflict check. The owner may only take the next step forward; everything else needs an admin.
+- `POST /api/intake/inquiries/:id/notes` adds a note to the history.
+- `POST /api/intake/inquiries/:id/discovery` books the discovery session and moves the inquiry to discovery scheduled. `PATCH /api/intake/discovery/:id` records when it was held, the notes and the outcome. The first outcome moves the inquiry to discovery done.
+
+## Who could lead it
+
+The admin records what each consultant can lead: service areas and sectors (`PUT /api/consultants/:id/profile`, list with `GET /api/consultants`). A consultant keeps their own languages and says whether they can take a new client, but cannot change their expertise.
+
+`GET /api/intake/inquiries/:id/suggestions` (admin only) runs `app_suggest_leads()`. It returns up to five active consultants who cover at least one of the services asked for. Each one comes with its reasons: the services matched, whether they know the sector and speak the requester's language, whether they are taking new clients, and how many active clients they already have. Available people with the closest match and the lightest load come first.
+
+- It only suggests. The admin still chooses the lead.
+- No performance data goes in, so it is a match for one inquiry, not a ranking of people.
+- A firm can turn it off with `firm_settings.suggestions_enabled`.
+
+## Becoming a client
+
+`POST /api/intake/inquiries/:id/convert` (admin only) wins the inquiry and makes it a client in one transaction:
+
+1. It creates the client organisation, or links an existing one for a returning client.
+2. It names the lead, if one is given.
+3. It starts the first project in the planned state, if a title is given.
+
+The inquiry must be past discovery and its conflict check must be clear or waived. An inquiry becomes a client only once.
+
+## Jobs
+
+`npm run job:purge-inquiries` runs the anonymisation daily, using the Riyadh date.
+
 ## Not built yet
 
-Triage and conversion to a client (creating the client organisation, its lead, the first invitation and the project), lead suggestions by consultant specialty, and the scheduled purge script.
+Inviting the client's people after conversion (part of the accounts work), and keeping a record of contacts who have no login.
