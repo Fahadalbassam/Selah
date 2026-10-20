@@ -642,6 +642,7 @@ describe("review integrity", () => {
 
 describe("staffed-only visibility, co-consulting and watching", () => {
   const ACT = id(801);
+  const ACT0 = id(802);
   const asUser = (c: { query: (s: string, p?: unknown[]) => Promise<unknown> }, uid: string) =>
     c.query("SELECT set_config('selah.user_id', $1, true)", [uid]);
 
@@ -687,7 +688,7 @@ describe("staffed-only visibility, co-consulting and watching", () => {
   it("work for review reaches the client's lead and watching admins, and nobody else", async () => {
     await owner.query(
       `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
-       VALUES ($1,$2,$3,$4,'Beta plan',$5,'in_progress',$6)`,
+       VALUES ($1,$2,$3,$4,'Beta plan',$5,'awaiting_review',$6)`,
       [ACT, BETA_PROJ, BETA, REC_BETA, U.betaManager, U.overseer],
     );
     await as(U.lead, async (c) => {
@@ -707,5 +708,28 @@ describe("staffed-only visibility, co-consulting and watching", () => {
     await expect(
       as(U.acmeOwner, (c) => c.query(`SELECT app_notify_project_team($1, 'action.awaiting_review', '{}')`, [ACT])),
     ).rejects.toThrow(/not visible/);
+    // Nobody can forge another kind, or "awaiting review" for an action that is not.
+    await expect(
+      as(U.betaManager, (c) => c.query(`SELECT app_notify_project_team($1, 'action.verified_complete', '{}')`, [ACT])),
+    ).rejects.toThrow(/does not match/);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Beta follow-up',$5,'in_progress',$6)`,
+      [ACT0, BETA_PROJ, BETA, REC_BETA, U.betaManager, U.overseer],
+    );
+    await expect(
+      as(U.betaManager, (c) => c.query(`SELECT app_notify_project_team($1, 'action.awaiting_review', '{}')`, [ACT0])),
+    ).rejects.toThrow(/does not match/);
+  });
+
+  it("on a client project the admin staffs only the client's team, its users, or themselves", async () => {
+    await as(U.lead, async (c) => {
+      await c.query("SAVEPOINT s");
+      await expect(c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [BETA_PROJ, U.consultant])).rejects.toThrow(
+        /row-level security/,
+      );
+      await c.query("ROLLBACK TO SAVEPOINT s");
+      await c.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [BETA_PROJ, U.lead]);
+    });
   });
 });
