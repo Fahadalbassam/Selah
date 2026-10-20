@@ -154,6 +154,10 @@ export const projects = pgTable(
     remindDaysBefore: integer("remind_days_before").notNull().default(3),
     escalateLevel2Days: integer("escalate_level2_days").notNull().default(7),
     escalateLevel3Days: integer("escalate_level3_days").notNull().default(14),
+    // Handover: the day the report was delivered (check-ins follow), and the
+    // client's sponsor, who is told at the last escalation level. drizzle/0015.
+    handoverOn: date("handover_on"),
+    clientSponsorUserId: uuid("client_sponsor_user_id").references(() => user.id),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -608,12 +612,14 @@ export const followUps = pgTable(
     assigneeUserId: uuid("assignee_user_id").references(() => user.id),
     visibility: visibility("visibility").notNull().default("shared"),
     status: followUpStatus("status").notNull().default("open"),
+    // Set on the check-ins created after handover: days after handover_on.
+    checkinDay: integer("checkin_day"),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [scopedFk("follow_ups", t)],
+  (t) => [scopedFk("follow_ups", t), uniqueIndex("follow_ups_checkin_once").on(t.projectId, t.checkinDay)],
 );
 
 // Reports start firm-private and become shared only when a consultant
@@ -650,6 +656,13 @@ export const firmSettings = pgTable("firm_settings", {
   clientKpisEnabled: boolean("client_kpis_enabled").notNull().default(false),
   // Days after a KPI period ends before a missing reading shows as not reported.
   kpiGraceDays: integer("kpi_grace_days").notNull().default(10),
+  // An open action untouched this many days counts as stale.
+  staleDays: integer("stale_days").notNull().default(14),
+  // Check-ins after handover, in days.
+  checkinDays: integer("checkin_days")
+    .array()
+    .notNull()
+    .default(sql`'{30,60,90}'::integer[]`),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -779,6 +792,28 @@ export const recommendationKpis = pgTable(
     createdAt: createdAt(),
   },
   (t) => [scopedFk("recommendation_kpis", t), primaryKey({ columns: [t.recommendationId, t.kpiId] })],
+);
+
+// What happened to each AI draft a person saw, so the drafts can be
+// evaluated before anyone relies on them. Filled once AI drafting is on.
+export const aiDraftOutcome = pgEnum("ai_draft_outcome", ["accepted_unchanged", "edited", "discarded"]);
+export const aiDrafts = pgTable(
+  "ai_drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    kind: text("kind").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id"),
+    outcome: aiDraftOutcome("outcome").notNull(),
+    // Characters changed between the draft and what was kept.
+    editDistance: integer("edit_distance"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("ai_drafts", t), check("ai_draft_distance", sql`${t.editDistance} IS NULL OR ${t.editDistance} >= 0`)],
 );
 
 // ------------------------------------------------- history and audit

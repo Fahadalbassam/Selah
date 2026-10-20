@@ -97,3 +97,23 @@ It also returns open and overdue counts. A periodic report (`POST /api/projects/
 | `POST /api/actions/:id/deadline-requests`; `PATCH /api/deadline-requests/:id` | ask: owner or client manager; decide: firm |
 | `GET /api/projects/:id/progress` | anyone on the project |
 | `POST /api/projects/:id/reports` | firm |
+
+## Handover and deviations
+
+Rules: `drizzle/0015_handover_rules.sql`. Tests: `tests/db/handover.test.ts`.
+
+- **Client sponsor** (`projects.client_sponsor_user_id`): an active admin or manager of the project's client. They are added at escalation level 3.
+- **Check-ins.** Setting `projects.handover_on` creates follow-ups at 30, 60 and 90 days (`firm_settings.checkin_days`). They are due at 09:00 Riyadh time, assigned to the client's lead consultant, and firm-private. Moving the handover date moves the check-ins still open.
+- **Deviations** (`v_deviations`, under the caller's RLS). One row per open action or KPI and the rule it breaks. AI may summarise the rows later; the rules decide what counts.
+
+| Rule | Meaning |
+|---|---|
+| `overdue` | The current due date has passed. |
+| `stale` | No change, progress update or evidence in `firm_settings.stale_days` (14). |
+| `slipped` | 2 or more approved deadline changes. |
+| `churn` | 2 or more revision requests. |
+| `orphaned` | The owner is no longer an active member. |
+| `kpi_not_reported` | A KPI period passed its grace days with no reading (client KPIs on). |
+| `kpi_off_target` | The latest reading is in the red band (client KPIs on). |
+
+- **AI draft outcomes** (`ai_drafts`): whoever saw a draft records whether it was accepted unchanged, edited (with the edit distance) or discarded. The firm reads them to evaluate the drafts. Append-only. The table fills once AI drafting is on.
