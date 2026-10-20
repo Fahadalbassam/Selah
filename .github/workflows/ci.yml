@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16-trixie
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: selah }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPASSWORD: postgres
+      POSTGRES_DB: selah
+      SELAH_OWNER_PASSWORD: owner-ci
+      SELAH_APP_PASSWORD: app-ci
+      SELAH_AUTH_PASSWORD: auth-ci
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: sh ../../db/init/01-roles.sh
+      - run: npm ci
+      - run: npm run db:migrate
+        env: { DATABASE_OWNER_URL: "postgres://selah_owner:owner-ci@localhost:5432/selah_test" }
+      - run: npm run test:db
+        env:
+          TEST_DATABASE_OWNER_URL: postgres://selah_owner:owner-ci@localhost:5432/selah_test
+          TEST_DATABASE_APP_URL: postgres://selah_app:app-ci@localhost:5432/selah_test
+
+  ai:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/ai } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
