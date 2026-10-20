@@ -251,6 +251,9 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER kpi_rules BEFORE INSERT OR UPDATE ON kpis FOR EACH ROW EXECUTE FUNCTION check_kpi();
 --> statement-breakpoint
+-- Periods start on the 1st, so monthly and quarterly steps never drift.
+ALTER TABLE kpis ADD CONSTRAINT kpi_starts_on_first CHECK (extract(day FROM start_date) = 1);
+--> statement-breakpoint
 CREATE FUNCTION check_recommendation_kpi() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
@@ -279,6 +282,10 @@ BEGIN
           <> (to_jsonb(OLD) - '{status,verified_by,verified_at,note}'::text[]) THEN
       RAISE EXCEPTION 'a reading is only verified or rejected, once' USING ERRCODE = 'check_violation';
     END IF;
+    -- Nobody verifies their own report, as with action reviews.
+    IF NEW.status = 'verified' AND app_uid() IS NOT DISTINCT FROM OLD.reported_by THEN
+      RAISE EXCEPTION 'a reading is verified by someone other than its reporter' USING ERRCODE = 'insufficient_privilege';
+    END IF;
     NEW.verified_by := app_uid();
     NEW.verified_at := now();
     RETURN NEW;
@@ -294,6 +301,9 @@ BEGIN
     WHERE g::date = NEW.period_start
   ) THEN
     RAISE EXCEPTION 'that is not one of the KPI''s periods' USING ERRCODE = 'check_violation';
+  END IF;
+  IF app_uid() IS NOT NULL AND NEW.period_start > (now() AT TIME ZONE 'Asia/Riyadh')::date THEN
+    RAISE EXCEPTION 'that period has not started yet' USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.supersedes_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM kpi_readings r WHERE r.id = NEW.supersedes_id AND r.kpi_id = NEW.kpi_id AND r.period_start = NEW.period_start
@@ -317,9 +327,17 @@ CREATE TRIGGER kpi_reading_rules BEFORE INSERT OR UPDATE ON kpi_readings FOR EAC
 -- Each period of a KPI up to as_of, with its current reading (the latest
 -- one not replaced by a correction). A period with no reading is "due"
 -- until its end plus the firm's grace days, then "not_reported", never a
--- zero. progress_pct is how far the value is from baseline to target.
+-- zero.
+--   progress_pct  how far the value is from baseline to target
+--   expected_pct  how far it should be by the period's end, on a straight
+--                 line from start_date to target_date
+--   rag           progress against expected: green at green_threshold % of
+--                 expected or better, amber at amber_threshold %, else red
 CREATE FUNCTION app_kpi_periods(kid uuid, as_of date)
-RETURNS TABLE (period_start date, period_end date, reading_id uuid, value numeric, status text, progress_pct numeric, rag text)
+RETURNS TABLE (
+  period_start date, period_end date, reading_id uuid, value numeric, status text,
+  progress_pct numeric, expected_pct numeric, rag text
+)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
   WITH k AS (SELECT * FROM kpis WHERE id = kid),
   periods AS (
@@ -330,16 +348,23 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
     SELECT DISTINCT ON (r.period_start) r.* FROM kpi_readings r
     WHERE r.kpi_id = kid AND NOT EXISTS (SELECT 1 FROM kpi_readings c WHERE c.supersedes_id = r.id)
     ORDER BY r.period_start, r.created_at DESC, r.id DESC
+  ),
+  scored AS (
+    SELECT p.*, c.id AS reading_id, c.value, c.status AS reading_status, k.project_id, k.green_threshold, k.amber_threshold,
+      100 * (c.value - k.baseline) / nullif(k.target - k.baseline, 0) AS progress,
+      least(100.0, 100.0 * (least(p.period_end, k.target_date) - k.start_date + 1) / (k.target_date - k.start_date + 1)) AS expected
+    FROM k, periods p LEFT JOIN current c ON c.period_start = p.period_start
   )
-  SELECT p.period_start, p.period_end, c.id, c.value,
-    COALESCE(c.status::text, CASE WHEN p.period_end + app_kpi_grace(k.project_id) < as_of THEN 'not_reported' ELSE 'due' END),
-    round(100 * (c.value - k.baseline) / nullif(k.target - k.baseline, 0), 1),
-    CASE WHEN c.id IS NULL OR c.status = 'rejected' THEN NULL
-         WHEN 100 * (c.value - k.baseline) / nullif(k.target - k.baseline, 0) >= k.green_threshold THEN 'green'
-         WHEN 100 * (c.value - k.baseline) / nullif(k.target - k.baseline, 0) >= k.amber_threshold THEN 'amber'
+  SELECT s.period_start, s.period_end, s.reading_id, s.value,
+    COALESCE(s.reading_status::text, CASE WHEN s.period_end + app_kpi_grace(s.project_id) < as_of THEN 'not_reported' ELSE 'due' END),
+    round(s.progress, 1),
+    round(s.expected, 1),
+    CASE WHEN s.reading_id IS NULL OR s.reading_status = 'rejected' THEN NULL
+         WHEN 100 * s.progress / s.expected >= s.green_threshold THEN 'green'
+         WHEN 100 * s.progress / s.expected >= s.amber_threshold THEN 'amber'
          ELSE 'red' END
-  FROM k, periods p LEFT JOIN current c ON c.period_start = p.period_start
-  ORDER BY p.period_start
+  FROM scored s
+  ORDER BY s.period_start
 $$;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_kpi_periods(uuid, date) TO selah_app;
