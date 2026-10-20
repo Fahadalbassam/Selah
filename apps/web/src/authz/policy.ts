@@ -113,6 +113,10 @@ export const POLICY = {
   "report.write": { ...STAFF },
   "report.share": { ...STAFF },
   "activity.read": { ...READ_WORK },
+  // Implementation metrics of a project (computed, never typed in), and the
+  // admin's view of the team's load. No per-person scores or rankings.
+  "metrics.read": { ...ALL_BUT_OWNER },
+  "team_metrics.read": { firm_admin: "any" },
 
   // AI assistant. Whether client users get it is an open decision in the
   // spec; until it is made, only firm staff do. To enable client managers,

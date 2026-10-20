@@ -403,3 +403,16 @@ describe("follow-through after the report", () => {
     expect(canTransition(colleague, own as Resource & { type: "action" }, "in_progress", "closed").allowed).toBe(true);
   });
 });
+
+describe("metrics", () => {
+  it("project metrics are for the firm and the client's admins and managers; team metrics for the firm admin", () => {
+    const project = acmeRecord("project");
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "metrics.read", project).allowed).toBe(true);
+    expect(authorize(principal("action_owner", [ACME_PROJ_1]), "metrics.read", project).allowed).toBe(false);
+    const team: Resource = { type: "org_user", orgId: FIRM, firmOrgId: FIRM, projectId: null };
+    expect(authorize(principal("firm_admin"), "team_metrics.read", team).allowed).toBe(true);
+    for (const role of ["consultant", "client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role), "team_metrics.read", { ...team, orgId: principal(role).orgId, firmOrgId: FIRM }).allowed, role).toBe(false);
+    }
+  });
+});

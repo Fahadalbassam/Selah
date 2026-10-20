@@ -27,6 +27,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -331,6 +332,10 @@ export const actions = pgTable(
     // verification needs a review after it) and when it was last reopened
     // (a risk acceptance must be signed after it). drizzle/0011.
     awaitingReviewAt: ts("awaiting_review_at"),
+    // The due date agreed when the action was released. Frozen afterwards
+    // (approved deadline changes move due_date only), so "on time" is
+    // measured against what was agreed. drizzle/0013.
+    baselineDueDate: date("baseline_due_date"),
     reopenedAt: ts("reopened_at"),
     // Set when status is "closed" (see drizzle/0011_follow_through_rules.sql).
     closureOutcome: closureOutcome("closure_outcome"),
@@ -632,6 +637,148 @@ export const reports = pgTable(
     createdAt: createdAt(),
   },
   (t) => [scopedFk("reports", t)],
+);
+
+// ------------------------------------------------------------- metrics
+
+// The firm's settings. Client KPIs (below) stay off until the firm turns
+// them on.
+export const firmSettings = pgTable("firm_settings", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  clientKpisEnabled: boolean("client_kpis_enabled").notNull().default(false),
+  // Days after a KPI period ends before a missing reading shows as not reported.
+  kpiGraceDays: integer("kpi_grace_days").notNull().default(10),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+// Monthly copies of the implementation metrics (v_project_metrics), written
+// by a job, so trends survive later changes. Never typed in.
+export const metricSnapshots = pgTable(
+  "metric_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    metric: text("metric").notNull(),
+    value: numeric("value"),
+    asOf: date("as_of").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("metric_snapshots", t), uniqueIndex("metric_snapshots_once").on(t.projectId, t.metric, t.asOf)],
+);
+
+// Client KPIs (optional, behind firm_settings.client_kpis_enabled): the
+// client's own strategic measures, entered by hand. Readings are the client's
+// claims until the firm verifies them; nothing is computed or pulled in.
+export const kpiPerspective = pgEnum("kpi_perspective", ["financial", "customer", "internal_process", "learning_growth"]);
+export const kpiDirection = pgEnum("kpi_direction", ["higher_better", "lower_better"]);
+export const kpiFrequency = pgEnum("kpi_frequency", ["monthly", "quarterly"]);
+export const kpiReadingStatus = pgEnum("kpi_reading_status", ["reported", "verified", "rejected"]);
+
+export const strategicObjectives = pgTable(
+  "strategic_objectives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    perspective: kpiPerspective("perspective").notNull(),
+    titleAr: text("title_ar"),
+    titleEn: text("title_en"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("strategic_objectives", t), check("objective_titled", sql`coalesce(${t.titleAr}, ${t.titleEn}) IS NOT NULL`)],
+);
+
+export const kpis = pgTable(
+  "kpis",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    objectiveId: uuid("objective_id")
+      .notNull()
+      .references(() => strategicObjectives.id, { onDelete: "cascade" }),
+    nameAr: text("name_ar"),
+    nameEn: text("name_en"),
+    unit: text("unit").notNull(),
+    direction: kpiDirection("direction").notNull(),
+    baseline: numeric("baseline").notNull(),
+    target: numeric("target").notNull(),
+    // The first reporting period starts here; readings are due per period.
+    startDate: date("start_date").notNull(),
+    targetDate: date("target_date").notNull(),
+    frequency: kpiFrequency("frequency").notNull(),
+    // The client person who reports it.
+    ownerUserId: uuid("owner_user_id").references(() => user.id),
+    dataSource: text("data_source"),
+    // Percent of the way from baseline to target.
+    greenThreshold: integer("green_threshold").notNull().default(90),
+    amberThreshold: integer("amber_threshold").notNull().default(60),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    scopedFk("kpis", t),
+    index("kpis_objective_idx").on(t.objectiveId),
+    check("kpi_named", sql`coalesce(${t.nameAr}, ${t.nameEn}) IS NOT NULL`),
+    check("kpi_dates", sql`${t.targetDate} > ${t.startDate}`),
+    check("kpi_thresholds", sql`0 <= ${t.amberThreshold} AND ${t.amberThreshold} <= ${t.greenThreshold} AND ${t.greenThreshold} <= 100`),
+  ],
+);
+
+// Append-only, except that the firm verifies or rejects a reported value
+// once. A correction is a new reading that supersedes the old one.
+export const kpiReadings = pgTable(
+  "kpi_readings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => kpis.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    value: numeric("value").notNull(),
+    reportedBy: uuid("reported_by")
+      .notNull()
+      .references(() => user.id),
+    reportedAt: createdAt(),
+    evidenceDocumentId: uuid("evidence_document_id").references(() => documents.id),
+    supersedesId: uuid("supersedes_id").references((): AnyPgColumn => kpiReadings.id),
+    status: kpiReadingStatus("status").notNull().default("reported"),
+    verifiedBy: uuid("verified_by").references(() => user.id),
+    verifiedAt: ts("verified_at"),
+    note: text("note"),
+  },
+  (t) => [
+    scopedFk("kpi_readings", t),
+    index("kpi_readings_kpi_idx").on(t.kpiId, t.periodStart),
+    uniqueIndex("kpi_readings_supersede_once").on(t.supersedesId),
+  ],
+);
+
+// A recommendation is intended to move a KPI. A stated intent, never a claim
+// of cause.
+export const recommendationKpis = pgTable(
+  "recommendation_kpis",
+  {
+    ...scoped(),
+    recommendationId: uuid("recommendation_id")
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "cascade" }),
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => kpis.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("recommendation_kpis", t), primaryKey({ columns: [t.recommendationId, t.kpiId] })],
 );
 
 // ------------------------------------------------- history and audit
