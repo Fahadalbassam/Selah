@@ -8,8 +8,9 @@ import type { Role } from "./types";
  *   own       - only records the user created
  *   shared    - only records explicitly shared with the user (or created by them)
  *   owner_org - only records whose controlling org is the user's org
+ *   lead      - only clients (or internal projects) the user leads
  */
-export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org";
+export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead";
 
 type Grants = Partial<Record<Role, Scope>>;
 
@@ -36,9 +37,21 @@ export const POLICY = {
 
   // Projects
   "project.read": { ...ALL_BUT_OWNER, action_owner: "any" },
-  "project.create": { firm_admin: "any" },
+  "project.create": { firm_admin: "any" }, // client projects
+  "project.create_internal": { ...STAFF }, // the creator becomes its lead
   "project.update": { firm_admin: "any" },
-  "project.manage_members": { firm_admin: "any", client_admin: "any" },
+  "project.manage_members": { firm_admin: "any", client_admin: "any", consultant: "lead" },
+
+  // Staffing. Only the firm admin adds clients and names a client's lead.
+  // The lead consultant adds or removes consultants on that client and,
+  // with the admin, decides join requests. Consultants see a directory of
+  // client names (no data) and may ask to join.
+  "client_directory.read": { ...STAFF },
+  "client_assignment.read": { ...STAFF },
+  "client_assignment.manage": { firm_admin: "any", consultant: "lead" },
+  "client_assignment.set_lead": { firm_admin: "any" },
+  "join_request.create": { consultant: "any" },
+  "join_request.decide": { firm_admin: "any", consultant: "lead" },
 
   // Findings and recommendations
   "finding.read": { ...ALL_BUT_OWNER },
@@ -102,6 +115,20 @@ export const POLICY = {
 
 export type Permission = keyof typeof POLICY;
 
-export function grantFor(permission: Permission, role: Role): Scope | undefined {
-  return (POLICY[permission] as Grants)[role];
+/**
+ * Internal projects have no client, so firm staff do the work themselves:
+ * the action's owner works it and another staff member reviews it (see the
+ * self-review rule in workflow.ts). These grants replace POLICY's for
+ * records of internal projects.
+ */
+const INTERNAL_POLICY: Partial<Record<Permission, Grants>> = {
+  "action.work": { firm_admin: "assigned", consultant: "assigned" },
+  "evidence.submit": { firm_admin: "assigned", consultant: "assigned" },
+  "progress_update.create": { ...STAFF },
+  "deadline_request.create": { firm_admin: "assigned", consultant: "assigned" },
+};
+
+export function grantFor(permission: Permission, role: Role, projectKind?: "internal" | "client"): Scope | undefined {
+  const grants = (projectKind === "internal" ? INTERNAL_POLICY[permission] : undefined) ?? (POLICY[permission] as Grants);
+  return grants[role];
 }

@@ -23,6 +23,18 @@ There are two layers. Both must allow a request.
 
 A project has a `kind`. An **internal** project belongs to the firm (`org_id = firm_org_id`, enforced by the `check_project_orgs` trigger); client roles never see it. A **client** project belongs to a client organization. The firm admin manages `client_assignments`, which is what places a consultant over a client. RLS mirrors this in `app_can_see_project()` and `app_is_assigned_to_client()`.
 
+## Staffing (who works on which client)
+
+Decided with the product owner on 2026-10-20:
+
+- Only the **firm admin** adds clients and names one **lead consultant** per client (`client_assignments.is_lead`).
+- The **lead** adds or removes other consultants on that client (`client_assignment.manage`, scope `lead`). Only the admin changes or removes the lead.
+- Consultants see a **directory of client names only** (`app_client_directory()`, no projects, people or files) and can **ask to join** with a reason (`join_requests`). The admin or that client's lead approves or declines; a decision is final and audited.
+- Any firm member can create an **internal project** and becomes its lead (`project_members.is_lead`).
+- On internal projects firm staff do the work themselves (`INTERNAL_POLICY` in `policy.ts`), and **nobody reviews their own action** (`workflow:self-review`, mirrored in the `reviews` insert policy).
+
+RLS for all of this is in `drizzle/0003_staffing_security.sql`.
+
 The `Principal` is built from the session and the database (`services/principal.ts`), never from anything the browser sends.
 
 ## How a request flows

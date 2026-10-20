@@ -19,14 +19,14 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
   if (!membership) return null;
 
   const rows = await tx
-    .select({ projectId: projectMembers.projectId })
+    .select({ projectId: projectMembers.projectId, isLead: projectMembers.isLead })
     .from(projectMembers)
     .where(eq(projectMembers.userId, userId));
 
   const assignments =
     membership.role === "consultant"
       ? await tx
-          .select({ clientOrgId: clientAssignments.clientOrgId })
+          .select({ clientOrgId: clientAssignments.clientOrgId, isLead: clientAssignments.isLead })
           .from(clientAssignments)
           .where(eq(clientAssignments.userId, userId))
       : [];
@@ -38,5 +38,7 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     role: membership.role,
     projectIds: new Set(rows.map((r) => r.projectId)),
     assignedClientIds: new Set(assignments.map((a) => a.clientOrgId)),
+    leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
+    leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
   };
 }

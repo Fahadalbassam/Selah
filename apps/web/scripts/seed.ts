@@ -73,10 +73,10 @@ await db.insert(s.orgMemberships).values([
   { userId: u.rawdahManager, orgId: rawdah!.id, role: "client_manager" },
 ]);
 
-// Each consultant oversees one client.
+// Each consultant leads one client.
 await db.insert(s.clientAssignments).values([
-  { clientOrgId: nukhba!.id, userId: u.consultant, assignedBy: u.admin },
-  { clientOrgId: rawdah!.id, userId: u.consultant2, assignedBy: u.admin },
+  { clientOrgId: nukhba!.id, userId: u.consultant, isLead: true, assignedBy: u.admin },
+  { clientOrgId: rawdah!.id, userId: u.consultant2, isLead: true, assignedBy: u.admin },
 ]);
 
 const [board] = await db
@@ -114,6 +114,7 @@ await db.insert(s.projectMembers).values([
   { projectId: board!.id, userId: u.nukhbaManager, addedBy: u.nukhbaAdmin },
   { projectId: board!.id, userId: u.nukhbaOwner, addedBy: u.nukhbaAdmin },
   { projectId: rawdahProject!.id, userId: u.rawdahManager, addedBy: u.admin },
+  { projectId: internal!.id, userId: u.admin, isLead: true, addedBy: u.admin },
   { projectId: internal!.id, userId: u.consultant, addedBy: u.admin },
   { projectId: internal!.id, userId: u.consultant2, addedBy: u.admin },
 ]);

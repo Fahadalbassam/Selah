@@ -16,7 +16,7 @@ import { audit } from "./audit";
 
 export async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ action: actions, firmOrgId: projects.firmOrgId })
+    .select({ action: actions, firmOrgId: projects.firmOrgId, projectKind: projects.kind })
     .from(actions)
     .innerJoin(projects, eq(projects.id, actions.projectId))
     .where(eq(actions.id, id))
@@ -28,6 +28,7 @@ export async function loadAction(tx: Tx, id: string) {
     orgId: row.action.orgId,
     firmOrgId: row.firmOrgId,
     projectId: row.action.projectId,
+    projectKind: row.projectKind,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],
   };
