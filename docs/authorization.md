@@ -61,8 +61,12 @@ A denial returns **404**, the same as a missing record, so ids cannot be probed,
 | Draft → Assigned | `action.release` | Firm admin, consultant |
 | Assigned → In Progress, In Progress ↔ Blocked, In Progress → Awaiting Review, Revision Requested → In Progress | `action.work` | Action owner (own actions), client manager |
 | Awaiting Review → Verified Complete or Revision Requested | `action.review` | Firm admin, consultant |
+| Any open status → Closed (with an outcome) | `action.close` | Firm admin, consultant |
+| Verified Complete or Closed → In Progress | `action.reopen` | Firm admin, consultant |
 
 The database trigger `check_action_transition` holds the same list and also requires an `accept` review before Verified Complete. Only firm staff can insert reviews (RLS). So a client claim can never become "verified".
+
+Nobody reviews or closes an action they own or submitted evidence for. Since `0011_follow_through_rules.sql` the trigger also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Client managers and admins may change the owner. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
 
 ## AI retrieval
 

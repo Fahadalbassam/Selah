@@ -7,6 +7,7 @@ import { prepareUpload, submitEvidence } from "@/services/evidence";
 const fields = z.object({
   note: z.string().trim().max(4000).optional(),
   submitForReview: z.enum(["true", "false"]).default("false"),
+  evidenceRequestId: z.uuid().optional(),
 });
 
 export const POST = route(
@@ -25,6 +26,7 @@ export const POST = route(
     submitEvidence(tx, principal, params.id, {
       file: prepared,
       note: body.note || undefined,
+      evidenceRequestId: body.evidenceRequestId,
       submitForReview: body.submitForReview === "true",
     }),
 );
