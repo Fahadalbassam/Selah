@@ -45,3 +45,13 @@ Optional and off by default (`organizations.departments_enabled`). Nobody is tur
 - The assistant's index copies each chunk's department, and retrieval applies the same rule inside the vector search. Refiling a document or an action takes its chunks out until it is indexed again.
 - Level 2 of the reminder ladder adds the head of the action's department.
 - A department cuts across projects (HR work shows up in several), so it does not repeat the project scope.
+
+## Minimal records (consultant-managed only)
+
+Some family offices want the firm to keep as little as possible. `PATCH /api/orgs/:id/engagement` with `minimalRecords: true` and a `displayAlias` (firm admin only; migrations 0026–0027):
+
+- The alias replaces the client's name in Selah. The real name is not kept here (the inquiry it came from is purged on its own schedule).
+- It is switched on before anything is filed: the client must have no contacts or files yet.
+- From then on Selah refuses, for that client: files (so evidence is recorded as progress with `receivedVia`), client contacts, assistant indexing, and an account as an action's owner. `ownerName` holds a job title ("finance manager"), not a person's name.
+- Leaving consultant-managed mode is refused while it is on.
+- `npm run job:purge-minimal` (daily, as the schema owner) blanks the free text of progress updates, firm notes, meeting notes, decisions and summaries once `firm_settings.minimal_purge_days` (90) have passed since `projects.handover_on`. Statuses, dates and who did what are kept. Each project is purged once.
