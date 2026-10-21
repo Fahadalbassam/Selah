@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/auth/auth";
 import type { Principal } from "@/authz";
-import { asUser, type Tx } from "@/db/client";
+import { asAnonymous, asUser, type Tx } from "@/db/client";
 import { loadPrincipal } from "@/services/principal";
 import { NotFoundError } from "./errors";
 
@@ -35,4 +35,9 @@ class NoAccess extends Error {}
 
 export async function hasSession(): Promise<boolean> {
   return (await session()) !== null;
+}
+
+/** For public pages (the inquiry form): reads run with no user, under RLS. */
+export async function withAnonymous<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return asAnonymous(fn);
 }
