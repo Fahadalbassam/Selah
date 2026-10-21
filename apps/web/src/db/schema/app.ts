@@ -126,6 +126,11 @@ export const organizations = pgTable("organizations", {
   engagementMode: engagementMode("engagement_mode"),
   // Departments are optional: off, everyone on a project sees its work.
   departmentsEnabled: boolean("departments_enabled").notNull().default(false),
+  // Consultant-managed clients only: keep as little as possible. The org is
+  // known by an alias, nothing is uploaded, no contacts or AI, and free text
+  // is purged after handover (drizzle/0027_insight_rules.sql).
+  minimalRecords: boolean("minimal_records").notNull().default(false),
+  displayAlias: text("display_alias"),
   createdAt: createdAt(),
 });
 
@@ -180,6 +185,8 @@ export const projects = pgTable(
     // client's sponsor, who is told at the last escalation level. drizzle/0015.
     handoverOn: date("handover_on"),
     clientSponsorUserId: uuid("client_sponsor_user_id").references(() => user.id),
+    // Set when a minimal-records client's free text was purged.
+    minimalPurgedAt: ts("minimal_purged_at"),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -238,6 +245,21 @@ export const joinRequests = pgTable(
     index("join_requests_client_idx").on(t.clientOrgId),
     uniqueIndex("join_requests_one_pending").on(t.clientOrgId, t.userId).where(sql`${t.status} = 'pending'`),
   ],
+);
+
+// When each person last opened a project, for "since your last visit".
+export const projectVisits = pgTable(
+  "project_visits",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.projectId] })],
 );
 
 // Explicit project membership (firm staff on internal projects, consultants
@@ -770,6 +792,8 @@ export const firmSettings = pgTable("firm_settings", {
   accessReviewDays: integer("access_review_days").notNull().default(90),
   // Accounts a restricted client may have (all client admins).
   restrictedMaxAdmins: integer("restricted_max_admins").notNull().default(2),
+  // Days after handover before a minimal-records client's free text is purged.
+  minimalPurgeDays: integer("minimal_purge_days").notNull().default(90),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
