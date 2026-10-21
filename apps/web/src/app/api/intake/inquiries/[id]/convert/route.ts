@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { ENGAGEMENT_MODES } from "@/lib/engagement";
 import { route } from "@/server/http";
 import { convertInquiry } from "@/services/inquiries";
 
 const body = z.object({
   client: z.union([
-    z.object({ name: z.string().trim().min(2).max(200), nameAr: z.string().trim().max(200).optional() }),
+    z.object({
+      name: z.string().trim().min(2).max(200),
+      nameAr: z.string().trim().max(200).optional(),
+      engagementMode: z.enum(ENGAGEMENT_MODES).optional(),
+    }),
     z.object({ existingClientId: z.uuid() }),
   ]),
   leadUserId: z.uuid().optional(),

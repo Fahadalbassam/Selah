@@ -3,10 +3,12 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Tx } from "@/db/client";
 import { activityEvents, documents, evidenceSubmissions } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
+import type { Received } from "@/lib/engagement";
 import { checkUpload } from "@/lib/upload-rules";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { loadAction, transitionAction } from "./actions";
 import { audit, auditDetached } from "./audit";
+import { receivedFor } from "./progress";
 import { scanUpload } from "./scan";
 import { putObject } from "./storage";
 
@@ -67,6 +69,8 @@ export interface EvidenceInput {
   evidenceRequestId?: string;
   /** Also move the action to Awaiting Review in the same transaction. */
   submitForReview: boolean;
+  /** Firm staff for a consultant-managed client: how and when the client sent it. */
+  received?: Partial<Received>;
 }
 
 const OPEN_FOR_EVIDENCE = new Set(["in_progress", "revision_requested"]);
@@ -86,6 +90,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
   assertAllowed(principal, "action.read", resource);
   assertAllowed(principal, "evidence.submit", resource);
   if (!OPEN_FOR_EVIDENCE.has(action.status)) throw new BadRequestError("this action is not open for evidence");
+  const received = receivedFor(principal, resource.projectKind, input.received);
 
   const { bytes, sha256 } = input.file;
   const storageKey = randomUUID();
@@ -119,6 +124,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
       note: input.note,
       // The database checks the item is open on this action and marks it submitted.
       evidenceRequestId: input.evidenceRequestId,
+      ...received,
     })
     .returning({ id: evidenceSubmissions.id });
   await tx.insert(activityEvents).values({

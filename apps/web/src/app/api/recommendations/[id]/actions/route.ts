@@ -6,6 +6,8 @@ const body = z.object({
   title: z.string().trim().min(1).max(300),
   description: z.string().trim().max(8000).optional(),
   ownerUserId: z.uuid().optional(),
+  ownerName: z.string().trim().min(1).max(200).optional(),
+  departmentId: z.uuid().optional(),
   dueDate: z.iso.date().optional(),
   evidence: z
     .array(z.object({ title: z.string().trim().min(1).max(300), description: z.string().trim().max(4000).optional() }))

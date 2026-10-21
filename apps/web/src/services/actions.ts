@@ -7,6 +7,8 @@ import {
   documents,
   evidenceSubmissions,
   notifications,
+  organizations,
+  progressUpdates,
   projects,
   reviews,
   riskAcceptances,
@@ -25,9 +27,10 @@ import { audit } from "./audit";
 
 export async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ action: actions, firmOrgId: projects.firmOrgId, projectKind: projects.kind })
+    .select({ action: actions, firmOrgId: projects.firmOrgId, projectKind: projects.kind, engagementMode: organizations.engagementMode })
     .from(actions)
     .innerJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(organizations, eq(organizations.id, actions.orgId))
     .where(eq(actions.id, id))
     .limit(1);
   if (!row) return null;
@@ -38,13 +41,14 @@ export async function loadAction(tx: Tx, id: string) {
     firmOrgId: row.firmOrgId,
     projectId: row.action.projectId,
     projectKind: row.projectKind,
+    engagementMode: row.engagementMode,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],
   };
   return { action: row.action, resource };
 }
 
-/** Who submitted evidence since the action's last review (the round under review). */
+/** Who submitted evidence, or recorded progress for the client, since the action's last review (the round under review). */
 export async function roundSubmitters(tx: Tx, actionId: string): Promise<string[]> {
   const [previous] = await tx
     .select({ at: reviews.createdAt })
@@ -56,7 +60,18 @@ export async function roundSubmitters(tx: Tx, actionId: string): Promise<string[
     .selectDistinct({ userId: evidenceSubmissions.submittedBy })
     .from(evidenceSubmissions)
     .where(and(eq(evidenceSubmissions.actionId, actionId), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined));
-  return rows.map((r) => r.userId);
+  // Progress recorded on the client's behalf counts too (drizzle/0025).
+  const recorders = await tx
+    .selectDistinct({ userId: progressUpdates.authorId })
+    .from(progressUpdates)
+    .where(
+      and(
+        eq(progressUpdates.actionId, actionId),
+        eq(progressUpdates.source, "consultant_recorded"),
+        previous ? gt(progressUpdates.createdAt, previous.at) : undefined,
+      ),
+    );
+  return [...new Set([...rows, ...recorders].map((r) => r.userId))];
 }
 
 /** Load an action the user may read. Unknown and forbidden look the same (404). */

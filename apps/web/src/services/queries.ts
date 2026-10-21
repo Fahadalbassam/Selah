@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -94,7 +94,9 @@ export async function listActions(tx: Tx, principal: Principal, filter: { projec
       status: actions.status,
       dueDate: actions.dueDate,
       ownerUserId: actions.ownerUserId,
-      ownerName: user.name,
+      // A consultant-managed client's owner has a name, not an account.
+      ownerName: sql<string | null>`coalesce(${user.name}, ${actions.ownerName})`,
+      departmentId: actions.departmentId,
       createdBy: actions.createdBy,
       projectId: actions.projectId,
       orgId: actions.orgId,
@@ -327,7 +329,15 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
 
   const updates = authorize(principal, "progress_update.read", resource).allowed
     ? await tx
-        .select({ id: progressUpdates.id, body: progressUpdates.body, createdAt: progressUpdates.createdAt, authorName: user.name })
+        .select({
+          id: progressUpdates.id,
+          body: progressUpdates.body,
+          createdAt: progressUpdates.createdAt,
+          authorName: user.name,
+          source: progressUpdates.source,
+          receivedVia: progressUpdates.receivedVia,
+          receivedOn: progressUpdates.receivedOn,
+        })
         .from(progressUpdates)
         .leftJoin(user, eq(user.id, progressUpdates.authorId))
         .where(eq(progressUpdates.actionId, id))
@@ -340,6 +350,9 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
           note: evidenceSubmissions.note,
           submittedAt: evidenceSubmissions.submittedAt,
           submitterName: user.name,
+          source: evidenceSubmissions.source,
+          receivedVia: evidenceSubmissions.receivedVia,
+          receivedOn: evidenceSubmissions.receivedOn,
           documentId: documents.id,
           documentTitle: documents.title,
           sizeBytes: documents.sizeBytes,
@@ -374,12 +387,23 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
         .where(eq(reviews.actionId, id))
     : [];
 
+  // source tells "submitted by the client" from "recorded by a consultant"
+  // (with how and when the client told them); the two are never mixed.
+  type Recorded = Pick<(typeof updates)[number], "source" | "receivedVia" | "receivedOn">;
   type Entry =
-    | { kind: "update"; at: Date; who: string | null; body: string }
+    | ({ kind: "update"; at: Date; who: string | null; body: string } & Recorded)
     | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
     | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null };
   const timeline: Entry[] = [
-    ...updates.map((u) => ({ kind: "update" as const, at: u.createdAt, who: u.authorName, body: u.body })),
+    ...updates.map((u) => ({
+      kind: "update" as const,
+      at: u.createdAt,
+      who: u.authorName,
+      body: u.body,
+      source: u.source,
+      receivedVia: u.receivedVia,
+      receivedOn: u.receivedOn,
+    })),
     ...evidence.map((e) => ({ kind: "evidence" as const, at: e.submittedAt, who: e.submitterName, evidence: e })),
     ...reviewRows.map((r) => ({ kind: "review" as const, at: r.createdAt, who: r.reviewerName, outcome: r.outcome, reason: r.reason })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
@@ -400,7 +424,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       dueDate: action.dueDate,
       blockedReason: action.blockedReason,
       projectId: action.projectId,
-      ownerName: owner?.name ?? null,
+      ownerName: owner?.name ?? action.ownerName,
+      departmentId: action.departmentId,
       overdue: isOverdue({ status: from, dueDate: action.dueDate }),
     },
     context: context!,

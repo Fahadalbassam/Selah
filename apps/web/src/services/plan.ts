@@ -4,9 +4,11 @@ import type { Tx } from "@/db/client";
 import {
   actions,
   activityEvents,
+  departments,
   evidenceRequests,
   findings,
   orgMemberships,
+  organizations,
   projectMembers,
   recommendations,
 } from "@/db/schema";
@@ -93,10 +95,38 @@ async function assertOwner(tx: Tx, projectId: string, orgId: string, userId: str
   if (!m) throw new BadRequestError("the owner must be on the project team");
 }
 
+/**
+ * Who answers for an action: a person on the project, or (consultant-managed
+ * clients, who have no accounts) the client person's name. A department, if
+ * set, must be an active one of the action's client.
+ */
+async function checkOwnership(
+  tx: Tx,
+  scope: { projectId: string; orgId: string },
+  input: { ownerUserId?: string | null; ownerName?: string | null; departmentId?: string | null },
+) {
+  if (input.ownerUserId && input.ownerName) throw new BadRequestError("give an owner or an owner's name, not both");
+  if (input.ownerUserId) await assertOwner(tx, scope.projectId, scope.orgId, input.ownerUserId);
+  if (input.ownerName) {
+    const [org] = await tx.select({ mode: organizations.engagementMode }).from(organizations).where(eq(organizations.id, scope.orgId));
+    if (org?.mode !== "consultant_managed") throw new BadRequestError("an owner's name is for clients the firm manages; pick a person on the project");
+  }
+  if (input.departmentId) {
+    const [d] = await tx
+      .select({ id: departments.id })
+      .from(departments)
+      .where(and(eq(departments.id, input.departmentId), eq(departments.orgId, scope.orgId), eq(departments.active, true)));
+    if (!d) throw new BadRequestError("that department is not an active department of this client");
+  }
+}
+
 export interface ActionInput {
   title: string;
   description?: string;
   ownerUserId?: string;
+  /** Consultant-managed clients: the client person responsible (no account). */
+  ownerName?: string;
+  departmentId?: string;
   dueDate?: string;
   /** The evidence list: what the firm needs to see to verify it. */
   evidence?: { title: string; description?: string }[];
@@ -111,9 +141,9 @@ export async function createAction(tx: Tx, principal: Principal, recommendationI
   assertAllowed(principal, "action.write", { ...resource, type: "action" });
   if (input.release) {
     assertAllowed(principal, "action.release", { ...resource, type: "action" });
-    if (!input.ownerUserId || !input.dueDate) throw new BadRequestError("a released action needs an owner and a due date");
+    if (!(input.ownerUserId || input.ownerName) || !input.dueDate) throw new BadRequestError("a released action needs an owner and a due date");
   }
-  if (input.ownerUserId) await assertOwner(tx, rec.projectId, rec.orgId, input.ownerUserId);
+  await checkOwnership(tx, rec, input);
 
   const [row] = await tx
     .insert(actions)
@@ -124,6 +154,8 @@ export async function createAction(tx: Tx, principal: Principal, recommendationI
       title: input.title,
       description: input.description,
       ownerUserId: input.ownerUserId,
+      ownerName: input.ownerName,
+      departmentId: input.departmentId,
       dueDate: input.dueDate,
       status: input.release ? "assigned" : "draft",
       createdBy: principal.userId,
@@ -160,23 +192,41 @@ export async function updateAction(
   tx: Tx,
   principal: Principal,
   id: string,
-  input: { title?: string; description?: string | null; ownerUserId?: string | null; dueDate?: string | null },
+  input: {
+    title?: string;
+    description?: string | null;
+    ownerUserId?: string | null;
+    ownerName?: string | null;
+    departmentId?: string | null;
+    dueDate?: string | null;
+  },
 ) {
   const loaded = await loadAction(tx, id);
   if (!loaded) throw new NotFoundError("action");
   const { action, resource } = loaded;
   assertAllowed(principal, "action.read", resource);
-  const planChange = input.title !== undefined || input.description !== undefined || input.dueDate !== undefined;
+  const planChange =
+    input.title !== undefined ||
+    input.description !== undefined ||
+    input.dueDate !== undefined ||
+    input.ownerName !== undefined ||
+    input.departmentId !== undefined;
   if (planChange) assertAllowed(principal, "action.write", resource);
   if (input.ownerUserId !== undefined) assertAllowed(principal, "action.assign_owner", resource);
   if (action.status === "verified_complete" || action.status === "closed") throw new BadRequestError("reopen the action first");
-  if (input.ownerUserId) await assertOwner(tx, action.projectId, action.orgId, input.ownerUserId);
+  await checkOwnership(tx, action, input);
+  // Naming one kind of owner replaces the other.
+  const patch = { ...input };
+  if (input.ownerUserId) patch.ownerName = null;
+  if (input.ownerName) patch.ownerUserId = null;
   // A released action keeps an owner and a due date.
-  if (action.status !== "draft" && (input.ownerUserId === null || input.dueDate === null)) {
+  const ownerUserId = patch.ownerUserId !== undefined ? patch.ownerUserId : action.ownerUserId;
+  const ownerName = patch.ownerName !== undefined ? patch.ownerName : action.ownerName;
+  if (action.status !== "draft" && (!(ownerUserId || ownerName) || input.dueDate === null)) {
     throw new BadRequestError("a released action needs an owner and a due date");
   }
 
-  await tx.update(actions).set(input).where(eq(actions.id, id));
+  await tx.update(actions).set(patch).where(eq(actions.id, id));
   await tx.insert(activityEvents).values({
     projectId: action.projectId,
     orgId: action.orgId,
