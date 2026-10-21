@@ -52,7 +52,9 @@ export type ResourceType =
   | "consultant_profile"
   | "client_contact"
   | "meeting"
-  | "department";
+  | "department"
+  | "assessment_template"
+  | "assessment";
 
 /**
  * The attributes of a record that the check needs. Services load these from

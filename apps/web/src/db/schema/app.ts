@@ -105,6 +105,16 @@ export const engagementMode = pgEnum("engagement_mode", ["full", "restricted", "
 // consultant on the client's behalf, or staff on an internal project.
 export const recordSource = pgEnum("record_source", ["client_portal", "consultant_recorded", "internal"]);
 export const receivedVia = pgEnum("received_via", ["meeting", "email", "phone", "document"]);
+// A client's legal form. It decides which assessment criteria are legal
+// requirements for that client (CMA governance rules bind listed companies).
+export const legalForm = pgEnum("legal_form", [
+  "sole_proprietorship",
+  "llc",
+  "closed_jsc",
+  "listed_jsc",
+  "non_profit",
+  "other",
+]);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 const createdAt = () => ts("created_at").notNull().defaultNow();
@@ -131,6 +141,8 @@ export const organizations = pgTable("organizations", {
   // is purged after handover (drizzle/0027_insight_rules.sql).
   minimalRecords: boolean("minimal_records").notNull().default(false),
   displayAlias: text("display_alias"),
+  // Clients only. Needed before the client is assessed (drizzle/0029).
+  legalForm: legalForm("legal_form"),
   createdAt: createdAt(),
 });
 
@@ -384,6 +396,8 @@ export const findings = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     sourceDocumentId: uuid("source_document_id"),
+    // A gap a consultant confirmed in an assessment (drizzle/0029). At most one finding per answer.
+    assessmentAnswerId: uuid("assessment_answer_id").references((): AnyPgColumn => assessmentAnswers.id),
     visibility: visibility("visibility").notNull().default("shared"),
     createdBy: uuid("created_by")
       .notNull()
@@ -391,7 +405,11 @@ export const findings = pgTable(
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [scopedFk("findings", t), index("findings_project_idx").on(t.projectId)],
+  (t) => [
+    scopedFk("findings", t),
+    index("findings_project_idx").on(t.projectId),
+    uniqueIndex("findings_answer_uq").on(t.assessmentAnswerId),
+  ],
 );
 
 export const recommendations = pgTable(
@@ -1496,4 +1514,268 @@ export const meetingSummaries = pgTable(
     visibility: visibility("visibility").notNull().default("firm_private"),
   },
   (t) => [scopedFk("meeting_summaries", t)],
+);
+
+// ------------------------------------------------------------ assessments
+//
+// The firm's assessment templates (drizzle/0029_assessments_rules.sql). A
+// template has numbered versions; a published version never changes, and an
+// edit is a new draft. An assessment of a client project points at one
+// published version. Gaps become findings, and from there the existing
+// recommendations, actions, evidence and reviews carry the work.
+
+export const questionType = pgEnum("assessment_question_type", ["yes_no", "multiple_choice", "rating", "text"]);
+// Where a criterion comes from, worked out for each client from its legal
+// form when the assessment is created:
+//   legal_requirement  - binding on this client under a law or regulation
+//   regulator_guidance - issued by a regulator, not binding on this client
+//   good_practice      - a voluntary reference (IFC, OECD, or CMA used as one)
+//   firm_method        - the consulting firm's own criteria
+//   team_proposed      - the team's wording, with no outside source
+export const criterionBasis = pgEnum("criterion_basis", [
+  "legal_requirement",
+  "regulator_guidance",
+  "good_practice",
+  "firm_method",
+  "team_proposed",
+]);
+export const templateVersionStatus = pgEnum("template_version_status", ["draft", "published"]);
+export const assessmentStatus = pgEnum("assessment_status", ["draft", "final"]);
+
+// Consultants the firm admin lets build and publish templates. The admin always can.
+export const templateAuthors = pgTable(
+  "template_authors",
+  {
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    grantedBy: uuid("granted_by")
+      .notNull()
+      .references(() => user.id),
+    grantedAt: ts("granted_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.firmOrgId, t.userId] })],
+);
+
+export const assessmentTemplates = pgTable(
+  "assessment_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    nameAr: text("name_ar"),
+    description: text("description"),
+    descriptionAr: text("description_ar"),
+    // Archived templates are not offered for new assessments; old ones stay readable.
+    archivedAt: ts("archived_at"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("assessment_templates_firm_uq").on(t.id, t.firmOrgId)],
+);
+
+export const templateVersions = pgTable(
+  "template_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateId: uuid("template_id").notNull(),
+    firmOrgId: uuid("firm_org_id").notNull(),
+    version: integer("version").notNull(),
+    status: templateVersionStatus("status").notNull().default("draft"),
+    publishedBy: uuid("published_by").references(() => user.id),
+    publishedAt: ts("published_at"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "template_versions_template_fk",
+      columns: [t.templateId, t.firmOrgId],
+      foreignColumns: [assessmentTemplates.id, assessmentTemplates.firmOrgId],
+    }).onDelete("cascade"),
+    unique("template_versions_number_uq").on(t.templateId, t.version),
+    unique("template_versions_firm_uq").on(t.id, t.firmOrgId),
+    // One draft at a time per template.
+    uniqueIndex("template_versions_one_draft").on(t.templateId).where(sql`status = 'draft'`),
+  ],
+);
+
+export const templateSections = pgTable(
+  "template_sections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    versionId: uuid("version_id").notNull(),
+    firmOrgId: uuid("firm_org_id").notNull(),
+    position: integer("position").notNull(),
+    title: text("title").notNull(),
+    titleAr: text("title_ar"),
+    description: text("description"),
+    descriptionAr: text("description_ar"),
+  },
+  (t) => [
+    foreignKey({
+      name: "template_sections_version_fk",
+      columns: [t.versionId, t.firmOrgId],
+      foreignColumns: [templateVersions.id, templateVersions.firmOrgId],
+    }).onDelete("cascade"),
+    unique("template_sections_version_uq").on(t.id, t.versionId),
+    index("template_sections_version_idx").on(t.versionId),
+  ],
+);
+
+// Scoring, kept visible (drizzle/0029): yes 2, partly 1, no 0; a rating of
+// 1-4 is 0-3 points; a multiple-choice option carries its own points; text
+// is not scored; "na" is left out. Points are multiplied by the weight (1-3).
+// An answer at or below gap_max_points (default: half the maximum, rounded
+// down) is a gap that a consultant may confirm as a finding.
+export const templateQuestions = pgTable(
+  "template_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    versionId: uuid("version_id").notNull(),
+    sectionId: uuid("section_id").notNull(),
+    firmOrgId: uuid("firm_org_id").notNull(),
+    position: integer("position").notNull(),
+    // A short reference shown next to the question, such as "4.2".
+    ref: text("ref"),
+    prompt: text("prompt").notNull(),
+    promptAr: text("prompt_ar"),
+    guidance: text("guidance"),
+    guidanceAr: text("guidance_ar"),
+    type: questionType("type").notNull(),
+    // multiple_choice: [{ value, label, labelAr, points }]
+    options: jsonb("options").$type<{ value: string; label: string; labelAr?: string; points: number }[]>(),
+    weight: integer("weight").notNull().default(1),
+    gapMaxPoints: integer("gap_max_points"),
+    // Where the criterion comes from: its basis for most clients, the legal
+    // forms for which it is binding or regulator guidance instead, and the
+    // source in words with the page, section or article.
+    basis: criterionBasis("basis").notNull(),
+    legalFor: legalForm("legal_for").array(),
+    guidanceFor: legalForm("guidance_for").array(),
+    citation: text("citation"),
+    locator: text("locator"),
+    // Asked only when an earlier question of the same version has one of these answers.
+    appliesIfQuestionId: uuid("applies_if_question_id").references((): AnyPgColumn => templateQuestions.id),
+    appliesIfValues: text("applies_if_values").array(),
+  },
+  (t) => [
+    foreignKey({
+      name: "template_questions_section_fk",
+      columns: [t.sectionId, t.versionId],
+      foreignColumns: [templateSections.id, templateSections.versionId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "template_questions_version_fk",
+      columns: [t.versionId, t.firmOrgId],
+      foreignColumns: [templateVersions.id, templateVersions.firmOrgId],
+    }).onDelete("cascade"),
+    check("template_questions_weight", sql`${t.weight} BETWEEN 1 AND 3`),
+    check("template_questions_gap", sql`${t.gapMaxPoints} IS NULL OR ${t.gapMaxPoints} >= 0`),
+    check(
+      "template_questions_applies",
+      sql`(${t.appliesIfQuestionId} IS NULL) = (${t.appliesIfValues} IS NULL) AND (${t.appliesIfValues} IS NULL OR cardinality(${t.appliesIfValues}) > 0)`,
+    ),
+    index("template_questions_version_idx").on(t.versionId),
+  ],
+);
+
+// One assessment of a client project, against one published version.
+export const assessments = pgTable(
+  "assessments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    templateVersionId: uuid("template_version_id").notNull(),
+    title: text("title").notNull(),
+    // The client's legal form when the assessment was created; the bases
+    // on its answers were worked out from it.
+    legalForm: legalForm("legal_form").notNull(),
+    status: assessmentStatus("status").notNull().default("draft"),
+    // A final assessment the firm has shared: the client's admins and
+    // managers on the project then read its answers and scores.
+    sharedWithClient: boolean("shared_with_client").notNull().default(false),
+    finalisedBy: uuid("finalised_by").references(() => user.id),
+    finalisedAt: ts("finalised_at"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    scopedFk("assessments", t),
+    foreignKey({
+      name: "assessments_version_fk",
+      columns: [t.templateVersionId, t.firmOrgId],
+      foreignColumns: [templateVersions.id, templateVersions.firmOrgId],
+    }),
+    unique("assessments_scope_uq").on(t.id, t.projectId, t.orgId),
+    index("assessments_project_idx").on(t.projectId),
+  ],
+);
+
+// One row per question, made when the assessment is created, holding the
+// basis worked out for this client and, once answered, the answer.
+// value: yes | partly | no | na (yes/no), an option's value, "1".."4", or
+// na; text answers go in text_answer. The comment is shown to the client
+// when the assessment is shared.
+export const assessmentAnswers = pgTable(
+  "assessment_answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assessmentId: uuid("assessment_id").notNull(),
+    ...scoped(),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => templateQuestions.id),
+    basis: criterionBasis("basis").notNull(),
+    value: text("value"),
+    textAnswer: text("text_answer"),
+    comment: text("comment"),
+    answeredBy: uuid("answered_by").references(() => user.id),
+    answeredAt: ts("answered_at"),
+  },
+  (t) => [
+    foreignKey({
+      name: "assessment_answers_assessment_fk",
+      columns: [t.assessmentId, t.projectId, t.orgId],
+      foreignColumns: [assessments.id, assessments.projectId, assessments.orgId],
+    }).onDelete("cascade"),
+    scopedFk("assessment_answers", t),
+    unique("assessment_answers_question_uq").on(t.assessmentId, t.questionId),
+    index("assessment_answers_assessment_idx").on(t.assessmentId),
+  ],
+);
+
+// Files that back an answer: documents of the same project, uploaded and
+// scanned the usual way.
+export const assessmentEvidence = pgTable(
+  "assessment_evidence",
+  {
+    answerId: uuid("answer_id")
+      .notNull()
+      .references(() => assessmentAnswers.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    ...scoped(),
+    addedBy: uuid("added_by")
+      .notNull()
+      .references(() => user.id),
+    addedAt: ts("added_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.answerId, t.documentId] }), scopedFk("assessment_evidence", t)],
 );
