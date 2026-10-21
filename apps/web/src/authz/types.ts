@@ -48,7 +48,8 @@ export type ResourceType =
   | "client_directory"
   | "join_request"
   | "inquiry"
-  | "consultant_profile";
+  | "consultant_profile"
+  | "client_contact";
 
 /**
  * The attributes of a record that the check needs. Services load these from
