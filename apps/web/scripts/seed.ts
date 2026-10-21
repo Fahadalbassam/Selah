@@ -42,7 +42,7 @@ const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISO
 
 const [firm] = await db
   .insert(s.organizations)
-  .values({ kind: "firm", name: "Mizan Advisory", nameAr: "ميزان للاستشارات" })
+  .values({ kind: "firm", name: "Mizan Advisory", nameAr: "ميزان للاستشارات", allowedEmailDomains: ["mizan.example"] })
   .returning();
 const [nukhba] = await db
   .insert(s.organizations)

@@ -33,7 +33,12 @@ export const POLICY = {
   "organization.create": { firm_admin: "any" },
   "organization.update": { firm_admin: "any", client_admin: "any" },
   "org_user.read": { ...ALL_BUT_OWNER },
-  "org_user.manage": { firm_admin: "any", client_admin: "any" },
+  "org_user.manage": { firm_admin: "any", client_admin: "any" }, // invite, switch off, change addresses, review access
+  // PDPL erasure: details removed, ids and history kept. Firm admin only.
+  "org_user.erase": { firm_admin: "any" },
+  // People at a client without a login (consultant-managed engagements). Firm-only.
+  "client_contact.read": { ...STAFF },
+  "client_contact.write": { ...STAFF },
 
   // Projects
   "project.read": { ...ALL_BUT_OWNER, action_owner: "any" },
