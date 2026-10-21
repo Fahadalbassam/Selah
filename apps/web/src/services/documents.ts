@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { documentShares, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
-import { ConflictError, NotFoundError } from "@/server/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { downloadable } from "./scan";
 import { DOWNLOAD_TTL_SECONDS, signedDownloadUrl } from "./storage";
@@ -57,4 +57,26 @@ export async function createDownloadLink(tx: Tx, principal: Principal, id: strin
     meta: { version: loaded.doc.version },
   });
   return { url, expiresIn: DOWNLOAD_TTL_SECONDS };
+}
+
+/**
+ * Share a client-private file with the firm. One-way: a file the firm has
+ * seen is never made private again. The database checks the caller is the
+ * client's admin and records the share in the activity history.
+ */
+export async function shareDocument(tx: Tx, principal: Principal, id: string) {
+  const loaded = await loadDocument(tx, id);
+  if (!loaded) throw new NotFoundError("document");
+  assertAllowed(principal, "document.share", loaded.resource);
+  if (loaded.doc.visibility !== "client_private") throw new BadRequestError("this file is not private to the client");
+  await tx.update(documents).set({ visibility: "shared" }).where(eq(documents.id, id));
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "document.share",
+    resourceType: "document",
+    resourceId: id,
+    outcome: "allow",
+  });
+  return { id, visibility: "shared" as const };
 }

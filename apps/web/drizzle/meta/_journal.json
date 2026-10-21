@@ -169,6 +169,20 @@
       "when": 1792541458965,
       "tag": "0023_meetings_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792542488286,
+      "tag": "0024_engagement",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792542513273,
+      "tag": "0025_engagement_rules",
+      "breakpoints": true
     }
   ]
 }

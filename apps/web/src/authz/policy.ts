@@ -1,4 +1,4 @@
-import type { Role } from "./types";
+import type { EngagementMode, Role } from "./types";
 
 /**
  * How far a role's grant reaches once the organization and project checks
@@ -32,6 +32,12 @@ export const POLICY = {
   "organization.read": { ...ALL_BUT_OWNER },
   "organization.create": { firm_admin: "any" },
   "organization.update": { firm_admin: "any", client_admin: "any" },
+  // How a client takes part (full, restricted, consultant-managed). The firm admin's call.
+  "organization.engagement": { firm_admin: "any" },
+  // Optional departments: names for everyone at the client, managed by its
+  // admin or the firm admin. The client admin switches them on or off.
+  "department.read": { ...ALL_BUT_OWNER, action_owner: "any" },
+  "department.manage": { firm_admin: "any", client_admin: "any" },
   "org_user.read": { ...ALL_BUT_OWNER },
   "org_user.manage": { firm_admin: "any", client_admin: "any" }, // invite, switch off, change addresses, review access
   // PDPL erasure: details removed, ids and history kept. Firm admin only.
@@ -108,6 +114,8 @@ export const POLICY = {
     client_admin: "owner_org",
     client_manager: "owner_org",
   }, // visibility label, AI flag, shares
+  // Share a client-private file with the firm (one-way). The client admin only.
+  "document.share": { client_admin: "owner_org" },
 
   // Meetings, follow-ups, reports, history
   "meeting_note.read": { ...ALL_BUT_OWNER, action_owner: "shared" },
@@ -174,7 +182,30 @@ const INTERNAL_POLICY: Partial<Record<Permission, Grants>> = {
   "deadline_request.create": { firm_admin: "assigned", consultant: "assigned" },
 };
 
-export function grantFor(permission: Permission, role: Role, projectKind?: "internal" | "client"): Scope | undefined {
-  const grants = (projectKind === "internal" ? INTERNAL_POLICY[permission] : undefined) ?? (POLICY[permission] as Grants);
+/**
+ * A consultant-managed client has no accounts in Selah, so the staff on its
+ * projects record its progress and evidence and move its actions, on its
+ * behalf. Someone else on the team still verifies (workflow.ts, and the
+ * database counts recorded progress as submitting).
+ */
+const CONSULTANT_MANAGED_POLICY: Partial<Record<Permission, Grants>> = {
+  "action.work": { ...STAFF },
+  "evidence.submit": { ...STAFF },
+  "progress_update.create": { ...STAFF },
+};
+
+export function grantFor(
+  permission: Permission,
+  role: Role,
+  projectKind?: "internal" | "client",
+  engagementMode?: EngagementMode | null,
+): Scope | undefined {
+  const special =
+    projectKind === "internal"
+      ? INTERNAL_POLICY[permission]
+      : engagementMode === "consultant_managed"
+        ? CONSULTANT_MANAGED_POLICY[permission]
+        : undefined;
+  const grants = special ?? (POLICY[permission] as Grants);
   return grants[role];
 }
