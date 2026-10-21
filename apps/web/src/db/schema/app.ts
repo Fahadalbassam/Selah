@@ -1399,6 +1399,12 @@ export const outboundEmails = pgTable("outbound_emails", {
   locale: text("locale").notNull().default("ar"),
   createdAt: createdAt(),
   sentAt: ts("sent_at"),
+  // The sender's bookkeeping (src/jobs/mail.ts): tries so far, when the next
+  // try may start (also its claim on the row), the last error, and when it gave up.
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: ts("next_attempt_at"),
+  lastError: text("last_error"),
+  failedAt: ts("failed_at"),
 });
 
 // ------------------------------------------------------------- meetings

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -44,7 +45,15 @@ export function SignInForm() {
             <Input id="email" name="email" type="email" autoComplete="username" dir="ltr" required />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="password">{t("password")}</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">{t("password")}</Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                {t("forgot")}
+              </Link>
+            </div>
             <Input id="password" name="password" type="password" autoComplete="current-password" dir="ltr" required />
           </div>
           {failed ? <p className="text-sm text-destructive">{t("error")}</p> : null}
