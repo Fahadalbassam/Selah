@@ -6,6 +6,10 @@ Migrations 0022 (tables) and 0023 (rules). Selah records meetings and links to t
 
 `POST /api/projects/:id/meetings` books a meeting. The firm's people on the project can book any meeting. A client admin or manager can book shared ones only. The organiser is added as an attendee.
 
+The same request can carry the attendees and `sendInvites: true`, so one step books the meeting, invites the people and queues the calendar invite. If any attendee is refused, nothing is booked. `app_meeting_invitees(project)` lists whom the caller can invite: for the firm, everyone with an account who can open the project; for a client, its own people and the firm staff on the project, never the firm's whole staff. Only the firm also sees the client's contacts.
+
+Selah doesn't create Meet links (that needs a Google Workspace connection). The booking form links to `meet.google.com/new` so the organiser can make one and paste it.
+
 - **Call links** must be https on Google Meet, Teams (`teams.microsoft.com`, `teams.live.com`) or Zoom (`zoom.us` and its subdomains). This stops a link that looks like it came from the consultant from pointing anywhere else. The provider is worked out from the link. An online meeting needs a link.
 - **The agenda** is written by the database at booking, in the meeting's language. It lists the project's overdue, awaiting-review and blocked actions, and what changed since the last meeting that was held.
 - **Visibility.** A meeting is shared or firm-private. A firm-private meeting, with its decisions and summary, is invisible to the client, and its records cannot be made more visible than the meeting itself.
@@ -32,6 +36,7 @@ Migrations 0022 (tables) and 0023 (rules). Selah records meetings and links to t
 
 - **Decisions** (`POST /api/meetings/:id/decisions`) are append-only. A correction is a new decision that supersedes one from the same meeting. Follow-ups can point at the decision they follow.
 - **The summary** (`PUT /api/meetings/:id/summary`) can be written only once the meeting is held. Whoever saves it confirms it, and it starts firm-private.
+- **Follow-ups** (`POST /api/meetings/:id/follow-ups`, `PATCH /api/follow-ups/:id`, migrations 0037-0038) come out of a meeting and can follow up one of its decisions. They show on the schedule. They stay in the meeting's project and are never more visible than the meeting. The person assigned must be able to open the project, and must be firm staff for a firm-only follow-up. The firm writes and edits them; the assignee, client side included, can only mark their own one done or open it again.
 - Summaries and decisions can be translated on demand (docs/translations.md).
 - Not built yet: the AI draft of the summary from a transcript. Meet has no Arabic transcripts, so the summary is written by hand by default.
 
@@ -45,9 +50,13 @@ A transcript is personal data (PDPL), so Selah keeps it only as long as it takes
 - **Never edited**, only replaced. Imports and deletions are logged without the text.
 - **Deleted on schedule.** At most 90 days after import, and `firm_settings.transcript_keep_days` (30) after the summary is confirmed, whichever comes first. `npm run job:purge-transcripts` runs daily as the schema owner.
 
-The meeting page (`/meetings/:id`, from the project's Meetings tab) shows the meeting, its summary and decisions (with on-demand translation), its attendees, and for the firm the transcript panel.
+## Screens
 
-Not built yet: Meet's REST API import (it needs a Google Workspace connection), screens to book meetings and write summaries and decisions (the APIs exist), and the AI draft.
+- **Book** from the project's Meetings tab: title, type, date, time, length, where, the call link, shared or firm-only, attendees, and whether to email the invite now. The link is checked against the same allowlist before saving (`src/lib/meetings.ts`).
+- **The meeting page** (`/meetings/:id`) shows the time, the call link, the agenda, the summary, decisions and follow-ups (with on-demand translation), and the attendees. Whoever runs the meeting can edit or move it while it is scheduled and send the updated invite, send invites, mark it held once it has started, cancel it and send the cancellation, and add or remove attendees. An invited person answers there.
+- **After it is held**, whoever runs it writes the summary (saving confirms it, firm-only unless shared), records decisions (a correction replaces an earlier one, which is then shown struck through), and the firm adds follow-ups. The firm also gets the transcript panel.
+
+Not built yet: Meet's REST API import and creating Meet links (both need a Google Workspace connection), and the AI draft of the summary.
 
 ## The schedule
 

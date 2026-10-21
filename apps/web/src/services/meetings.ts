@@ -1,9 +1,11 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
   clientContacts,
+  followUps,
   meetingAttendees,
   meetingDecisions,
   meetingNotes,
@@ -69,8 +71,23 @@ export async function listMeetings(tx: Tx, principal: Principal, projectId: stri
     .orderBy(asc(meetings.startsAt));
 }
 
-/** Book a meeting; the organiser attends. The database writes the agenda. */
-export async function bookMeeting(tx: Tx, principal: Principal, projectId: string, input: MeetingInput) {
+export interface Invitee {
+  userId?: string;
+  contactId?: string;
+  optional?: boolean;
+}
+
+/**
+ * Book a meeting with its attendees in one go; the organiser attends. The
+ * database writes the agenda and checks every attendee. With `sendInvites`
+ * the calendar invite is queued for everyone with an address.
+ */
+export async function bookMeeting(
+  tx: Tx,
+  principal: Principal,
+  projectId: string,
+  { attendees = [], sendInvites: send = false, ...input }: MeetingInput & { attendees?: Invitee[]; sendInvites?: boolean },
+) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   const visibility = input.visibility ?? "shared";
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility });
@@ -86,6 +103,21 @@ export async function bookMeeting(tx: Tx, principal: Principal, projectId: strin
     icsUid: "set-by-database",
   });
   await tx.insert(meetingAttendees).values({ meetingId: id, userId: principal.userId, role: "organizer" });
+  const others = attendees.filter((a) => a.userId !== principal.userId);
+  for (const a of others) {
+    if (!a.userId === !a.contactId) throw new BadRequestError("give a person or a contact");
+    if (a.contactId && principal.orgKind !== "firm") throw new BadRequestError("contacts are invited by the firm");
+  }
+  if (others.length) {
+    await tx
+      .insert(meetingAttendees)
+      .values(
+        others.map(
+          (a) =>
+            ({ meetingId: id, userId: a.userId, contactId: a.contactId, role: a.optional ? "optional" : "required" }) as const,
+        ),
+      );
+  }
   await audit(tx, {
     actorId: principal.userId,
     orgId: project.orgId,
@@ -94,7 +126,38 @@ export async function bookMeeting(tx: Tx, principal: Principal, projectId: strin
     resourceId: id,
     outcome: "allow",
   });
-  return { id };
+  if (!send) return { id, queued: 0 };
+  const { rows } = await tx.execute<{ n: number }>(sql`select app_send_meeting_invites(${id}) as n`);
+  return { id, queued: rows[0]!.n };
+}
+
+/**
+ * Whom the user can invite to a meeting on the project: people with an
+ * account who can open it and, for the firm, the client's contacts.
+ */
+export async function meetingInvitees(tx: Tx, principal: Principal, projectId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility: "shared" });
+  const { rows } = await tx.execute<{ user_id: string; name: string; firm: boolean }>(
+    sql`select * from app_meeting_invitees(${projectId})`,
+  );
+  // The user themselves included: they can be assigned a follow-up.
+  const people = rows.map((r) => ({ userId: r.user_id, name: r.name, firm: r.firm }));
+  // Only the firm keeps the contact list (RLS returns nothing to anyone else).
+  const contacts =
+    principal.orgKind === "firm" && project.kind === "client"
+      ? await tx
+          .select({
+            contactId: clientContacts.id,
+            name: clientContacts.name,
+            title: clientContacts.title,
+            hasEmail: sql<boolean>`${clientContacts.email} is not null`,
+          })
+          .from(clientContacts)
+          .where(eq(clientContacts.orgId, project.orgId))
+          .orderBy(asc(clientContacts.name))
+      : [];
+  return { people, contacts };
 }
 
 export async function getMeeting(tx: Tx, principal: Principal, id: string) {
@@ -119,7 +182,11 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .from(meetingDecisions)
     .where(eq(meetingDecisions.meetingId, id))
     .orderBy(asc(meetingDecisions.createdAt));
-  const [summary] = await tx.select().from(meetingSummaries).where(eq(meetingSummaries.meetingId, id));
+  const [summary] = await tx
+    .select({ ...getTableColumns(meetingSummaries), confirmedByName: user.name })
+    .from(meetingSummaries)
+    .leftJoin(user, eq(user.id, meetingSummaries.confirmedBy))
+    .where(eq(meetingSummaries.meetingId, id));
   const notes = await tx
     .select({ id: meetingNotes.id, title: meetingNotes.title, visibility: meetingNotes.visibility, heldOn: meetingNotes.heldOn })
     .from(meetingNotes)
@@ -137,8 +204,35 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .from(meetingTranscripts)
     .leftJoin(user, eq(user.id, meetingTranscripts.importedBy))
     .where(eq(meetingTranscripts.meetingId, id));
+  const assignee = alias(user, "assignee");
+  const follow = await tx
+    .select({
+      id: followUps.id,
+      title: followUps.title,
+      dueAt: followUps.dueAt,
+      status: followUps.status,
+      visibility: followUps.visibility,
+      decisionId: followUps.meetingDecisionId,
+      assigneeUserId: followUps.assigneeUserId,
+      assignee: assignee.name,
+    })
+    .from(followUps)
+    .leftJoin(assignee, eq(assignee.id, followUps.assigneeUserId))
+    .where(eq(followUps.meetingId, id))
+    .orderBy(asc(followUps.createdAt));
   const canRun = principal.orgKind === "firm" || meeting.organizerId === principal.userId;
-  return { meeting, attendees, decisions, summary: summary ?? null, notes, transcript: transcript ?? null, canRun };
+  return {
+    meeting,
+    attendees,
+    decisions,
+    followUps: follow,
+    summary: summary ?? null,
+    notes,
+    transcript: transcript ?? null,
+    canRun,
+    canFollowUp: principal.orgKind === "firm",
+    me: principal.userId,
+  };
 }
 
 // ---------------------------------------------------------- transcripts
@@ -321,6 +415,61 @@ export async function saveSummary(
       target: meetingSummaries.meetingId,
       set: { lang: values.lang, mainPointsMd: values.mainPointsMd, source: "manual", visibility: values.visibility },
     });
+  return { ok: true };
+}
+
+// ----------------------------------------------------------- follow-ups
+
+export interface FollowUpInput {
+  title: string;
+  dueAt?: Date | null;
+  assigneeUserId?: string | null;
+  decisionId?: string | null;
+  visibility?: Visibility;
+}
+
+/** A follow-up out of the meeting. The firm writes them (RLS); the database checks the assignee. */
+export async function addFollowUp(tx: Tx, principal: Principal, id: string, input: FollowUpInput) {
+  const { meeting, resource } = await loadMeeting(tx, principal, id);
+  assertAllowed(principal, "follow_up.write", { ...resource, type: "follow_up" });
+  const [row] = await tx
+    .insert(followUps)
+    .values({
+      projectId: meeting.projectId,
+      orgId: meeting.orgId,
+      meetingId: id,
+      meetingDecisionId: input.decisionId ?? null,
+      title: input.title,
+      dueAt: input.dueAt ?? null,
+      assigneeUserId: input.assigneeUserId ?? null,
+      visibility: input.visibility ?? meeting.visibility,
+      createdBy: principal.userId,
+    })
+    .returning({ id: followUps.id });
+  return row!;
+}
+
+/**
+ * Change a follow-up. The firm changes anything but its meeting; the
+ * assignee only marks it done or open again (both checked by the database).
+ */
+export async function updateFollowUp(
+  tx: Tx,
+  principal: Principal,
+  followUpId: string,
+  change: Partial<Omit<FollowUpInput, "decisionId">> & { status?: "open" | "done" },
+) {
+  const [f] = await tx.select().from(followUps).where(eq(followUps.id, followUpId));
+  if (!f) throw new NotFoundError("follow-up");
+  const mine = f.assigneeUserId === principal.userId;
+  if (!mine) {
+    const { resource } = await loadProject(tx, principal, f.projectId);
+    assertAllowed(principal, "follow_up.write", { ...resource, type: "follow_up", visibility: f.visibility });
+  } else if (principal.orgKind !== "firm" && Object.keys(change).some((k) => k !== "status")) {
+    throw new BadRequestError("only mark it done or open");
+  }
+  const updated = await tx.update(followUps).set(change).where(eq(followUps.id, followUpId)).returning({ id: followUps.id });
+  if (!updated.length) throw new NotFoundError("follow-up");
   return { ok: true };
 }
 

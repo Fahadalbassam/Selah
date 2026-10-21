@@ -13,6 +13,11 @@ const body = z
     locationText: z.string().trim().max(300).optional(),
     spokenLang: z.enum(["ar", "en", "mixed"]).optional(),
     visibility: z.enum(["shared", "firm_private"]).optional(),
+    attendees: z
+      .array(z.object({ userId: z.uuid().optional(), contactId: z.uuid().optional(), optional: z.boolean().optional() }))
+      .max(100)
+      .optional(),
+    sendInvites: z.boolean().optional(),
   })
   .refine((b) => b.endsAt > b.startsAt, { path: ["endsAt"], message: "ends after it starts" });
 

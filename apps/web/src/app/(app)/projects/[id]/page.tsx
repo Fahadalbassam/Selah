@@ -1,9 +1,10 @@
-import { Bot, CalendarDays, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
+import { Bot, CalendarDays, CalendarPlus, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
+import { MeetingForm } from "@/components/meeting-form";
 import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
-import { listMeetings } from "@/services/meetings";
+import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 
@@ -20,7 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings, invitees, me } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     return {
       data,
@@ -28,6 +29,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       firmStaff: principal.orgKind === "firm",
       // Roles that can't read meetings simply get no tab.
       meetings: await listMeetings(tx, principal, id).catch(() => null),
+      // Who may book: the list of people to invite, or null.
+      invitees: await meetingInvitees(tx, principal, id).catch(() => null),
+      me: principal.userId,
     };
   });
   const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, format] = await Promise.all([
@@ -105,7 +109,23 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </TabsContent>
 
         {meetings ? (
-          <TabsContent value="meetings">
+          <TabsContent value="meetings" className="space-y-4">
+            {invitees ? (
+              <div className="flex justify-end">
+                <MeetingForm
+                  projectId={project.id}
+                  firm={firmStaff}
+                  invitees={invitees}
+                  me={me}
+                  trigger={
+                    <Button size="sm">
+                      <CalendarPlus />
+                      {tMeeting("book")}
+                    </Button>
+                  }
+                />
+              </div>
+            ) : null}
             {meetings.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("noMeetings")}</p>
             ) : (
