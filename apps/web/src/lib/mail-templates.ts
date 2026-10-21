@@ -1,0 +1,151 @@
+// The text of each queued mail (outbound_emails.kind). Pure, so the sender
+// and the tests share it. Mails carry a link and a line, never content: the
+// reader signs in to see anything. Every mail is Arabic first, then English,
+// because the queue does not know the reader's language.
+
+export const MAIL_KINDS = [
+  "invitation",
+  "email_change.confirm",
+  "email_change.notice",
+  "access_review.due",
+  "meeting.invite",
+  "meeting.cancel",
+  "password_reset",
+  "password_reset.notice",
+] as const;
+export type MailKind = (typeof MAIL_KINDS)[number];
+
+interface Copy {
+  subject: string;
+  lines: string[];
+  action?: string;
+}
+
+const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
+  invitation: {
+    ar: { subject: "دعوة للانضمام إلى صلة", lines: ["تمت دعوتك إلى صلة.", "الرابط صالح لمدة 7 أيام."], action: "قبول الدعوة" },
+    en: {
+      subject: "You're invited to Selah",
+      lines: ["You have been invited to Selah.", "The link works for 7 days."],
+      action: "Accept the invitation",
+    },
+  },
+  "email_change.confirm": {
+    ar: {
+      subject: "أكّد عنوان بريدك الجديد",
+      lines: ["غيّر مسؤول حسابك عنوان بريدك في صلة إلى هذا العنوان.", "الرابط صالح لمدة يومين."],
+      action: "تأكيد العنوان",
+    },
+    en: {
+      subject: "Confirm your new address",
+      lines: ["Your administrator changed your Selah address to this one.", "The link works for 2 days."],
+      action: "Confirm the address",
+    },
+  },
+  "email_change.notice": {
+    ar: {
+      subject: "تغيّر عنوان بريدك في صلة",
+      lines: ["نُقل حسابك في صلة إلى عنوان آخر، وانتهت جميع جلساته.", "إن لم تكن تتوقع ذلك فتواصل مع مسؤول حسابك."],
+    },
+    en: {
+      subject: "Your Selah address was changed",
+      lines: [
+        "Your Selah account was moved to another address, and every session was signed out.",
+        "If you did not expect this, contact your administrator.",
+      ],
+    },
+  },
+  "access_review.due": {
+    ar: {
+      subject: "مراجعة صلاحيات الوصول",
+      lines: ["حان وقت مراجعة من لا يزال لديه وصول إلى صلة في منظمتك."],
+      action: "مراجعة الأشخاص",
+    },
+    en: {
+      subject: "Time to review access",
+      lines: ["It's time to review who in your organisation still has access to Selah."],
+      action: "Review people",
+    },
+  },
+  "meeting.invite": {
+    ar: { subject: "دعوة اجتماع", lines: ["دعوة الاجتماع مرفقة. افتحها لإضافتها إلى تقويمك."] },
+    en: { subject: "Meeting invitation", lines: ["The meeting invitation is attached. Open it to add it to your calendar."] },
+  },
+  "meeting.cancel": {
+    ar: { subject: "أُلغي الاجتماع", lines: ["أُلغي الاجتماع. افتح المرفق لإزالته من تقويمك."] },
+    en: {
+      subject: "Meeting cancelled",
+      lines: ["The meeting was cancelled. Open the attachment to remove it from your calendar."],
+    },
+  },
+  password_reset: {
+    ar: {
+      subject: "إعادة تعيين كلمة المرور",
+      lines: ["طُلب تعيين كلمة مرور جديدة لحسابك في صلة.", "الرابط صالح لمدة ساعة. إن لم تطلب ذلك فتجاهل هذه الرسالة."],
+      action: "تعيين كلمة مرور جديدة",
+    },
+    en: {
+      subject: "Reset your password",
+      lines: [
+        "Someone asked to set a new password for your Selah account.",
+        "The link works for one hour. If it wasn't you, ignore this mail.",
+      ],
+      action: "Set a new password",
+    },
+  },
+  "password_reset.notice": {
+    ar: {
+      subject: "تغيّرت كلمة مرورك",
+      lines: ["عُيّنت كلمة مرور جديدة لحسابك في صلة، وانتهت جميع جلساته.", "إن لم تكن أنت فتواصل مع مسؤول حسابك فوراً."],
+    },
+    en: {
+      subject: "Your password was changed",
+      lines: [
+        "A new password was set for your Selah account, and every session was signed out.",
+        "If this wasn't you, contact your administrator now.",
+      ],
+    },
+  },
+};
+
+export interface RenderedMail {
+  subject: string;
+  text: string;
+  html: string;
+}
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** `link` is the path stored in the queue; it is joined to the site's address. */
+export function renderMail(kind: MailKind, link: string | null, appUrl: string): RenderedMail {
+  const copy = COPY[kind];
+  const url = link ? new URL(link, appUrl).toString() : null;
+  const subject = `${copy.ar.subject} | ${copy.en.subject}`;
+
+  const textPart = (c: Copy) => [...c.lines, ...(url && c.action ? [`${c.action}: ${url}`] : [])].join("\n");
+  const text = `${textPart(copy.ar)}\n\n---\n\n${textPart(copy.en)}\n`;
+
+  const htmlPart = (c: Copy, dir: "rtl" | "ltr", lang: string) =>
+    `<div dir="${dir}" lang="${lang}" style="text-align:${dir === "rtl" ? "right" : "left"}">` +
+    c.lines.map((l) => `<p style="margin:0 0 12px">${escapeHtml(l)}</p>`).join("") +
+    (url && c.action
+      ? `<p style="margin:16px 0"><a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;border-radius:6px;text-decoration:none">${escapeHtml(c.action)}</a></p>`
+      : "") +
+    `</div>`;
+  const html =
+    `<!doctype html><html><body style="font-family:system-ui,'Segoe UI',Tahoma,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:560px;margin:0 auto;padding:24px">` +
+    htmlPart(copy.ar, "rtl", "ar") +
+    `<hr style="border:0;border-top:1px solid #ddd;margin:24px 0">` +
+    htmlPart(copy.en, "ltr", "en") +
+    (url ? `<p style="font-size:12px;color:#666;direction:ltr;word-break:break-all">${escapeHtml(url)}</p>` : "") +
+    `</body></html>`;
+  return { subject, text, html };
+}
+
+/** Wait before the next try, by tries so far: 1, 5, 15 minutes, 1, 3, 6, 12 hours. */
+export function retryDelayMinutes(attempts: number): number {
+  const steps = [1, 5, 15, 60, 180, 360, 720];
+  return steps[Math.min(Math.max(attempts, 1), steps.length) - 1]!;
+}
+
+export const MAX_ATTEMPTS = 8;

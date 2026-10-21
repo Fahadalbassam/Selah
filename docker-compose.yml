@@ -122,6 +122,20 @@ services:
       ai: { condition: service_started }
     ports: ["127.0.0.1:3000:3000"]
 
+  # Sends queued mail through the server's relay, waking on each new mail.
+  mail:
+    build: { context: ./apps/web, target: tools }
+    command: ["npm", "run", "job:mail", "--", "--watch"]
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DATABASE_OWNER_URL: postgres://selah_owner:${SELAH_OWNER_PASSWORD}@db:5432/selah
+      SMTP_URL: ${SMTP_URL:?set in .env}
+      MAIL_FROM: ${MAIL_FROM:?set in .env}
+    depends_on:
+      setup: { condition: service_completed_successfully }
+    restart: unless-stopped
+
 volumes:
   db-data:
   storage-data:
