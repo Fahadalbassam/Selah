@@ -46,7 +46,9 @@ export type ResourceType =
   | "ai_conversation"
   | "client_assignment"
   | "client_directory"
-  | "join_request";
+  | "join_request"
+  | "inquiry"
+  | "consultant_profile";
 
 /**
  * The attributes of a record that the check needs. Services load these from
