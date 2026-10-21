@@ -153,7 +153,23 @@ describe("scenario 3: workflow, only a consultant verifies", () => {
       const p = principal(role, [ACME_PROJ_1]);
       expect(canTransition(p, action, "in_progress", "verified_complete").allowed, role).toBe(false);
       expect(canTransition(p, action, "draft", "verified_complete").allowed, role).toBe(false);
-      expect(canTransition(p, action, "verified_complete", "in_progress").allowed, role).toBe(false);
+      expect(canTransition(p, action, "verified_complete", "awaiting_review").allowed, role).toBe(false);
+      expect(canTransition(p, action, "draft", "closed").allowed, role).toBe(false);
+      expect(canTransition(p, action, "closed", "verified_complete").allowed, role).toBe(false);
+    }
+  });
+
+  it("only the firm closes an open action or reopens a finished one", () => {
+    const lead = principal("firm_admin");
+    for (const p of [consultant, lead]) {
+      expect(canTransition(p, action, "in_progress", "closed").allowed).toBe(true);
+      expect(canTransition(p, action, "awaiting_review", "closed").allowed).toBe(true);
+      expect(canTransition(p, action, "closed", "in_progress").allowed).toBe(true);
+      expect(canTransition(p, action, "verified_complete", "in_progress").allowed).toBe(true);
+    }
+    for (const p of [owner, manager, principal("client_admin")]) {
+      expect(canTransition(p, action, "in_progress", "closed").allowed).toBe(false);
+      expect(canTransition(p, action, "closed", "in_progress").allowed).toBe(false);
     }
   });
 
@@ -341,5 +357,121 @@ describe("internal project work", () => {
     const lead = principal("consultant", [INTERNAL], undefined, [], { projects: [INTERNAL] });
     expect(authorize(lead, "project.manage_members", project).allowed).toBe(true);
     expect(authorize(me, "project.manage_members", project).allowed).toBe(false);
+  });
+});
+
+describe("follow-through after the report", () => {
+  const owner = principal("action_owner", [ACME_PROJ_1]);
+  const manager = principal("client_manager", [ACME_PROJ_1]);
+  const consultant = principal("consultant", [ACME_PROJ_1]);
+  const INTERNAL_PROJ = "00000000-0000-4000-8000-0000000000f3";
+  const action = (type: Resource["type"], extra: Partial<Resource> = {}) => acmeRecord(type, { assignees: [owner.userId], ...extra });
+
+  it("only a named client admin or manager accepts a risk", () => {
+    expect(authorize(manager, "risk.accept", action("risk_acceptance")).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "risk.accept", action("risk_acceptance")).allowed).toBe(true);
+    for (const p of [owner, consultant, principal("firm_admin")]) {
+      expect(authorize(p, "risk.accept", action("risk_acceptance")).allowed).toBe(false);
+    }
+  });
+
+  it("the firm's notes on an action never reach the client", () => {
+    expect(authorize(consultant, "action_note.read", action("action_note")).allowed).toBe(true);
+    for (const p of [owner, manager, principal("client_admin")]) {
+      expect(authorize(p, "action_note.read", action("action_note")).allowed).toBe(false);
+    }
+  });
+
+  it("the client reads the evidence list but only the firm writes it", () => {
+    expect(authorize(owner, "evidence_request.read", action("evidence_request")).allowed).toBe(true);
+    expect(authorize(owner, "evidence_request.manage", action("evidence_request")).allowed).toBe(false);
+    expect(authorize(manager, "evidence_request.manage", action("evidence_request")).allowed).toBe(false);
+    expect(authorize(consultant, "evidence_request.manage", action("evidence_request")).allowed).toBe(true);
+  });
+
+  it("owners ask for a new deadline and the firm decides", () => {
+    expect(authorize(owner, "deadline_request.create", action("deadline_request")).allowed).toBe(true);
+    expect(authorize(owner, "deadline_request.decide", action("deadline_request")).allowed).toBe(false);
+    expect(authorize(consultant, "deadline_request.decide", action("deadline_request")).allowed).toBe(true);
+  });
+
+  it("nobody closes an action they own (internal projects)", () => {
+    const staff = principal("consultant", [INTERNAL_PROJ]);
+    const own = { ...action("action"), orgId: FIRM, projectId: INTERNAL_PROJ, projectKind: "internal" as const, assignees: [staff.userId] };
+    expect(canTransition(staff, own as Resource & { type: "action" }, "in_progress", "closed").allowed).toBe(false);
+    const colleague = principal("consultant", [INTERNAL_PROJ]);
+    expect(canTransition(colleague, own as Resource & { type: "action" }, "in_progress", "closed").allowed).toBe(true);
+  });
+});
+
+describe("metrics", () => {
+  it("project metrics are for the firm and the client's admins and managers; team metrics for the firm admin", () => {
+    const project = acmeRecord("project");
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "metrics.read", project).allowed).toBe(true);
+    expect(authorize(principal("action_owner", [ACME_PROJ_1]), "metrics.read", project).allowed).toBe(false);
+    const team: Resource = { type: "org_user", orgId: FIRM, firmOrgId: FIRM, projectId: null };
+    expect(authorize(principal("firm_admin"), "team_metrics.read", team).allowed).toBe(true);
+    for (const role of ["consultant", "client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role), "team_metrics.read", { ...team, orgId: principal(role).orgId, firmOrgId: FIRM }).allowed, role).toBe(false);
+    }
+  });
+});
+
+describe("intake and expertise", () => {
+  const firmOrg = (r: Partial<Resource>): Resource => ({ type: "inquiry", orgId: FIRM, firmOrgId: FIRM, projectId: null, ...r });
+  const admin = principal("firm_admin", [], FIRM);
+  const cons = principal("consultant", [], FIRM);
+
+  it("a consultant reads and works only the inquiries handed to them; the admin decides", () => {
+    const theirs = firmOrg({ assignees: [cons.userId] });
+    const other = firmOrg({ assignees: [] });
+    expect(authorize(cons, "inquiry.read", theirs).allowed).toBe(true);
+    expect(authorize(cons, "inquiry.work", theirs).allowed).toBe(true);
+    expect(authorize(cons, "inquiry.read", other).allowed).toBe(false);
+    expect(authorize(cons, "inquiry.decide", theirs).allowed).toBe(false);
+    expect(authorize(cons, "lead_suggestion.read", theirs).allowed).toBe(false);
+    expect(authorize(admin, "inquiry.decide", other).allowed).toBe(true);
+    expect(authorize(principal("client_admin", [], ACME), "inquiry.read", firmOrg({ orgId: ACME })).allowed).toBe(false);
+  });
+
+  it("a consultant updates only their own profile, and never their expertise", () => {
+    const own = firmOrg({ type: "consultant_profile", createdBy: cons.userId });
+    const someone = firmOrg({ type: "consultant_profile", createdBy: admin.userId });
+    expect(authorize(cons, "consultant_profile.update_own", own).allowed).toBe(true);
+    expect(authorize(cons, "consultant_profile.update_own", someone).allowed).toBe(false);
+    expect(authorize(cons, "consultant_profile.manage", own).allowed).toBe(false);
+    expect(authorize(admin, "consultant_profile.manage", own).allowed).toBe(true);
+  });
+});
+
+describe("engagement modes", () => {
+  const managed = (type: Resource["type"]) => acmeRecord(type, { projectKind: "client", engagementMode: "consultant_managed" });
+  const full = (type: Resource["type"]) => acmeRecord(type, { projectKind: "client", engagementMode: "full" });
+
+  it("staff on a consultant-managed client's project record its work, and only there", () => {
+    const staffed = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    for (const perm of ["action.work", "evidence.submit", "progress_update.create"] as const) {
+      expect(authorize(staffed, perm, managed("action")).allowed, perm).toBe(true);
+      expect(authorize(staffed, perm, full("action")).allowed, perm).toBe(false);
+    }
+    // Not staffed on the project: still no.
+    expect(authorize(principal("consultant", [], undefined, [ACME]), "progress_update.create", managed("action")).allowed).toBe(false);
+  });
+
+  it("only the firm admin changes a client's mode; the client admin manages its departments", () => {
+    const org = acmeRecord("organization", { projectId: null });
+    const dept = acmeRecord("department", { projectId: null });
+    expect(authorize(principal("firm_admin"), "organization.engagement", org).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "organization.engagement", org).allowed).toBe(false);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "organization.engagement", org).allowed).toBe(false);
+    expect(authorize(principal("client_admin"), "department.manage", dept).allowed).toBe(true);
+    expect(authorize(principal("client_manager"), "department.manage", dept).allowed).toBe(false);
+  });
+
+  it("only the client admin shares a client-private file", () => {
+    const doc = acmeRecord("document", { visibility: "client_private", ownerOrgId: ACME });
+    expect(authorize(principal("client_admin"), "document.share", doc).allowed).toBe(true);
+    expect(authorize(principal("client_manager"), "document.share", doc).allowed).toBe(false);
+    expect(authorize(principal("firm_admin"), "document.share", doc).allowed).toBe(false);
   });
 });

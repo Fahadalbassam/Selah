@@ -13,7 +13,7 @@ import {
   user,
   watches,
 } from "@/db/schema";
-import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
@@ -59,13 +59,26 @@ export async function clientDirectory(tx: Tx, principal: Principal) {
   return rows.rows.map((r) => ({ id: r.id, name: r.name, nameAr: r.name_ar, assigned: r.assigned, isLead: r.is_lead, pending: r.pending }));
 }
 
-export async function createClient(tx: Tx, principal: Principal, input: { name: string; nameAr?: string }) {
+export async function createClient(
+  tx: Tx,
+  principal: Principal,
+  input: { name: string; nameAr?: string; engagementMode?: EngagementMode },
+) {
   assertAllowed(principal, "organization.create", firmRecord(principal));
   // No RETURNING: the read policy is evaluated against the statement's
   // snapshot, which does not contain the new row yet.
   const id = randomUUID();
-  await tx.insert(organizations).values({ id, kind: "client", name: input.name, nameAr: input.nameAr });
-  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "client.create", resourceType: "organization", resourceId: id, outcome: "allow" });
+  const engagementMode = input.engagementMode ?? "full";
+  await tx.insert(organizations).values({ id, kind: "client", name: input.name, nameAr: input.nameAr, engagementMode });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "client.create",
+    resourceType: "organization",
+    resourceId: id,
+    outcome: "allow",
+    meta: { engagementMode },
+  });
   return { id };
 }
 
@@ -297,7 +310,8 @@ export async function createInternalProject(tx: Tx, principal: Principal, input:
 
 // ------------------------------------------------------------ projects
 
-async function loadProject(tx: Tx, principal: Principal, projectId: string) {
+/** Load a project the user may read. Unknown and forbidden look the same (404). */
+export async function loadProject(tx: Tx, principal: Principal, projectId: string) {
   const [p] = await tx
     .select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId })
     .from(projects)

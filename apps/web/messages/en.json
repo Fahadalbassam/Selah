@@ -38,7 +38,8 @@
     "blocked": "Blocked",
     "awaiting_review": "Awaiting review",
     "revision_requested": "Revision requested",
-    "verified_complete": "Verified complete"
+    "verified_complete": "Verified complete",
+    "closed": "Closed"
   },
   "visibility": {
     "shared": "Shared with client",
