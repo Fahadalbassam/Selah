@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css";
 @import "@fontsource/ibm-plex-sans-arabic/400.css";
 @import "@fontsource/ibm-plex-sans-arabic/500.css";
 @import "@fontsource/ibm-plex-sans-arabic/600.css";
@@ -148,15 +149,6 @@
   to {
     opacity: 1;
     transform: none;
-  }
-}
-
-@keyframes topo-drift {
-  from {
-    transform: translate3d(-1.5%, -1%, 0) rotate(-1deg);
-  }
-  to {
-    transform: translate3d(1.5%, 1%, 0) rotate(1deg);
   }
 }
 
