@@ -2,18 +2,24 @@
 // The app database role can read only a few columns of "user" (see the RLS
 // migration); passwords, sessions and 2FA secrets are reachable only through
 // the separate auth role.
-import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image: text("image"),
-  twoFactorEnabled: boolean("two_factor_enabled").default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // One account per address, whatever its case.
+  (t) => [uniqueIndex("user_email_lower_uq").on(sql`lower(${t.email})`)],
+);
 
 export const session = pgTable(
   "session",

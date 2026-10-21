@@ -131,13 +131,14 @@ BEGIN
     sector, (payload ->> 'employee_band')::employee_band, (payload ->> 'ownership_type')::ownership_type,
     btrim(payload ->> 'contact_name'), nullif(btrim(payload ->> 'contact_role'), ''), lower(btrim(payload ->> 'email')),
     nullif(btrim(payload ->> 'phone'), ''), payload ->> 'preferred_language', nullif(btrim(payload ->> 'message'), ''),
-    jsonb_build_object(
-      'has_strategy', coalesce((payload -> 'self_check' ->> 'has_strategy')::boolean, false),
-      'has_org_chart', coalesce((payload -> 'self_check' ->> 'has_org_chart')::boolean, false),
-      'has_delegation_matrix', coalesce((payload -> 'self_check' ->> 'has_delegation_matrix')::boolean, false),
-      'has_policies', coalesce((payload -> 'self_check' ->> 'has_policies')::boolean, false),
-      'has_sops', coalesce((payload -> 'self_check' ->> 'has_sops')::boolean, false),
-      'has_kpis', coalesce((payload -> 'self_check' ->> 'has_kpis')::boolean, false)),
+    -- Only the questions answered: a skipped question is not a "no".
+    jsonb_strip_nulls(jsonb_build_object(
+      'has_strategy', (payload -> 'self_check' ->> 'has_strategy')::boolean,
+      'has_org_chart', (payload -> 'self_check' ->> 'has_org_chart')::boolean,
+      'has_delegation_matrix', (payload -> 'self_check' ->> 'has_delegation_matrix')::boolean,
+      'has_policies', (payload -> 'self_check' ->> 'has_policies')::boolean,
+      'has_sops', (payload -> 'self_check' ->> 'has_sops')::boolean,
+      'has_kpis', (payload -> 'self_check' ->> 'has_kpis')::boolean)),
     (payload ->> 'urgency')::inquiry_urgency, (payload ->> 'heard_from')::heard_from,
     btrim(payload ->> 'privacy_notice_version'), now(), payload ->> 'ip_hash', payload ->> 'user_agent_hash'
   ) RETURNING id INTO iid;
