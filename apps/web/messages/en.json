@@ -543,5 +543,14 @@
     "wrongPassword": "Wrong password.",
     "wrongCode": "That code didn't work. Check the time on your phone and try the newest code.",
     "limited": "Too many tries. Wait a minute and try again."
+  },
+  "translation": {
+    "show": "Show in English",
+    "machine": "Machine translated",
+    "reviewed": "Translation reviewed by the firm",
+    "original": "Show original",
+    "markReviewed": "Mark as reviewed",
+    "unavailable": "Translation isn't available right now.",
+    "limited": "Too many translations for now. Try again later."
   }
 }

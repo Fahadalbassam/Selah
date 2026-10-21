@@ -1812,3 +1812,35 @@ export const assessmentEvidence = pgTable(
   },
   (t) => [primaryKey({ columns: [t.answerId, t.documentId] }), scopedFk("assessment_evidence", t)],
 );
+
+// ------------------------------------------------------- translations
+
+// On-demand translations of people's text (drizzle/0034_translations_rules.sql).
+// Text is stored once, in the language it was written in; the other language
+// is made the first time someone asks, then kept here. A translation is tied
+// to a hash of the text it came from, so an edit retires it. It is labelled
+// machine-translated until firm staff review it; the original stays the record.
+export const contentTranslations = pgTable(
+  "content_translations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    field: text("field").notNull(),
+    sourceLang: text("source_lang").notNull(),
+    targetLang: text("target_lang").notNull(),
+    sourceSha256: text("source_sha256").notNull(),
+    text: text("text").notNull(),
+    model: text("model").notNull(),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+    reviewedBy: uuid("reviewed_by").references(() => user.id),
+    reviewedAt: ts("reviewed_at"),
+  },
+  (t) => [
+    uniqueIndex("content_translations_one").on(t.entityType, t.entityId, t.field, t.targetLang, t.sourceSha256),
+    index("content_translations_creator_idx").on(t.createdBy, t.createdAt),
+    scopedFk("content_translations", t),
+  ],
+);
