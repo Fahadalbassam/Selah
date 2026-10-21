@@ -94,14 +94,8 @@ describe("the public form", () => {
     const row = await byRef(ref);
     expect([row.status, row.owner_user_id, row.client_org_id, row.conflict_status]).toEqual(["new", null, null, "not_checked"]);
     expect([row.contact_email, row.firm_org_id]).toEqual(["sami@example.test", FIRM]);
-    expect(row.self_check).toEqual({
-      has_strategy: false,
-      has_org_chart: true,
-      has_delegation_matrix: false,
-      has_policies: false,
-      has_sops: false,
-      has_kpis: false,
-    });
+    // Skipped questions stay unanswered rather than becoming "no".
+    expect(row.self_check).toEqual({ has_strategy: false, has_org_chart: true });
     const services = await owner.query(
       `SELECT sa.code FROM inquiry_services s JOIN service_areas sa ON sa.id = s.service_area_id WHERE s.inquiry_id = $1 ORDER BY 1`,
       [row.id],
