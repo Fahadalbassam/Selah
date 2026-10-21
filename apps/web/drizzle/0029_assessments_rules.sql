@@ -30,6 +30,8 @@ GRANT SELECT, UPDATE ON assessment_answers TO selah_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT, DELETE ON assessment_evidence TO selah_app;
 --> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE, DELETE ON assessment_notes TO selah_app;
+--> statement-breakpoint
 ALTER TABLE template_authors ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE assessment_templates ENABLE ROW LEVEL SECURITY;
@@ -45,6 +47,8 @@ ALTER TABLE assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assessment_answers ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE assessment_evidence ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE assessment_notes ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 -- The firm admin, or a consultant the admin named, of this firm.
 CREATE FUNCTION app_is_template_author(firm uuid) RETURNS boolean
@@ -129,12 +133,38 @@ CREATE POLICY firm_update ON assessment_answers FOR UPDATE TO selah_app
   USING (app_org_kind() = 'firm' AND app_can_see_project(project_id))
   WITH CHECK (app_org_kind() = 'firm' AND app_can_see_project(project_id));
 --> statement-breakpoint
+-- The client sees evidence rows only for files shared with it.
 CREATE POLICY scoped_read ON assessment_evidence FOR SELECT TO selah_app
-  USING (EXISTS (SELECT 1 FROM assessment_answers x WHERE x.id = answer_id AND app_can_see_assessment(x.assessment_id)));
+  USING (EXISTS (SELECT 1 FROM assessment_answers x WHERE x.id = answer_id AND app_can_see_assessment(x.assessment_id))
+         AND (app_org_kind() = 'firm' OR EXISTS (SELECT 1 FROM documents d WHERE d.id = document_id AND d.visibility = 'shared')));
 --> statement-breakpoint
 CREATE POLICY firm_write ON assessment_evidence FOR ALL TO selah_app
   USING (app_org_kind() = 'firm' AND app_can_see_project(project_id))
   WITH CHECK (app_org_kind() = 'firm' AND app_can_see_project(project_id) AND added_by = app_uid());
+--> statement-breakpoint
+-- The firm's notes on answers: firm staff on the project, never the client.
+CREATE POLICY firm_only ON assessment_notes FOR ALL TO selah_app
+  USING (app_org_kind() = 'firm' AND app_can_see_project(project_id))
+  WITH CHECK (app_org_kind() = 'firm' AND app_can_see_project(project_id) AND updated_by = app_uid());
+--> statement-breakpoint
+CREATE FUNCTION check_assessment_note() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE x assessment_answers%ROWTYPE;
+BEGIN
+  IF current_setting('selah.purge', true) = 'on' AND current_user NOT IN ('selah_app', 'selah_auth') THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO x FROM assessment_answers WHERE id = NEW.answer_id;
+  NEW.project_id := x.project_id;
+  NEW.org_id := x.org_id;
+  IF app_uid() IS NOT NULL THEN
+    NEW.updated_by := app_uid();
+  END IF;
+  NEW.updated_at := now();
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER note_rules BEFORE INSERT OR UPDATE ON assessment_notes FOR EACH ROW EXECUTE FUNCTION check_assessment_note();
 --> statement-breakpoint
 -- An author is an active consultant of the firm.
 CREATE FUNCTION check_template_author() RETURNS trigger
@@ -328,9 +358,11 @@ BEGIN
     FOR q IN SELECT * FROM template_questions WHERE section_id = s.id ORDER BY position LOOP
       qmap := qmap || jsonb_build_object(q.id::text, gen_random_uuid());
       INSERT INTO template_questions (id, version_id, section_id, firm_org_id, position, ref, prompt, prompt_ar, guidance, guidance_ar,
-                                      type, options, weight, gap_max_points, basis, legal_for, guidance_for, citation, locator)
+                                      type, options, weight, gap_max_points, basis, legal_for, guidance_for, citation, locator,
+                                      citation_verified)
         VALUES ((qmap ->> q.id::text)::uuid, nv, ns, firm, q.position, q.ref, q.prompt, q.prompt_ar, q.guidance, q.guidance_ar,
-                q.type, q.options, q.weight, q.gap_max_points, q.basis, q.legal_for, q.guidance_for, q.citation, q.locator);
+                q.type, q.options, q.weight, q.gap_max_points, q.basis, q.legal_for, q.guidance_for, q.citation, q.locator,
+                q.citation_verified);
     END LOOP;
   END LOOP;
   -- Conditions last, once every question they point at exists.
@@ -634,10 +666,13 @@ CREATE TRIGGER finding_answer BEFORE INSERT OR UPDATE OF assessment_answer_id ON
 -- Per confirmed gap: its finding, the recommendations answering it, and
 -- their released actions by state. Reported (awaiting review), evidenced
 -- (evidence submitted) and verified (accepted by a review) are counted
--- apart and never added together. With the caller's rights.
+-- apart and never added together: "evidenced" overlaps the other two.
+-- Verified is split by whose evidence it rested on (app_verified_basis).
+-- With the caller's rights.
 CREATE FUNCTION app_assessment_followup(aid uuid)
 RETURNS TABLE (answer_id uuid, ref text, finding_id uuid, finding_title text, recommendations integer, actions integer,
-               reported integer, evidenced integer, verified integer, closed integer, overdue integer)
+               reported integer, evidenced integer, verified integer, verified_client_evidence integer,
+               verified_consultant_recorded integer, closed integer, overdue integer)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
   SELECT x.id, q.ref, f.id, f.title,
          (SELECT count(*) FROM recommendations r WHERE r.finding_id = f.id)::integer,
@@ -645,6 +680,8 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
          count(a.id) FILTER (WHERE a.status::text = 'awaiting_review')::integer,
          count(a.id) FILTER (WHERE EXISTS (SELECT 1 FROM evidence_submissions es WHERE es.action_id = a.id))::integer,
          count(a.id) FILTER (WHERE a.status::text = 'verified_complete')::integer,
+         count(a.id) FILTER (WHERE a.status::text = 'verified_complete' AND app_verified_basis(a.id) = 'client_evidence')::integer,
+         count(a.id) FILTER (WHERE a.status::text = 'verified_complete' AND app_verified_basis(a.id) = 'consultant_recorded')::integer,
          count(a.id) FILTER (WHERE a.status::text = 'closed')::integer,
          count(a.id) FILTER (WHERE a.status::text NOT IN ('verified_complete', 'closed') AND a.due_date < (now() AT TIME ZONE 'Asia/Riyadh')::date)::integer
   FROM assessment_answers x
@@ -730,6 +767,7 @@ BEGIN
     UPDATE actions SET blocked_reason = gone WHERE project_id = pid AND blocked_reason <> gone;
     UPDATE assessment_answers SET text_answer = gone WHERE project_id = pid AND text_answer <> gone;
     UPDATE assessment_answers SET comment = gone WHERE project_id = pid AND comment <> gone;
+    UPDATE assessment_notes SET body = gone WHERE project_id = pid AND body <> gone;
     UPDATE projects SET minimal_purged_at = now() WHERE id = pid;
     n := n + 1;
   END LOOP;

@@ -3,7 +3,7 @@ import { route } from "@/server/http";
 import { answerQuestion } from "@/services/assessments";
 
 // value: yes | partly | no | na, "1".."4" | na, or a choice's value. textAnswer for text questions.
-// The comment is shown to the client if the assessment is shared.
+// The comment is shown to the client if the assessment is shared; firm-only notes go to /note.
 const body = z
   .object({
     value: z.string().trim().min(1).max(50).nullable(),

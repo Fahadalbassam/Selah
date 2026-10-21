@@ -41,7 +41,7 @@ const U = {
   admin2: id(19), // admin of another firm
 };
 const P = { acme: id(21), listed: id(22), noform: id(23), internal: id(24) };
-const DOC = { acme: id(31), listed: id(32), private: id(33) };
+const DOC = { acme: id(31), listed: id(32), private: id(33), firm: id(34) };
 
 async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
   const c = await app.connect();
@@ -136,6 +136,7 @@ beforeAll(async () => {
     [DOC.acme, P.acme, ACME, "shared"],
     [DOC.listed, P.listed, LISTED, "shared"],
     [DOC.private, P.acme, ACME, "client_private"],
+    [DOC.firm, P.acme, ACME, "firm_private"],
   ]) {
     await q(
       `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
@@ -185,7 +186,17 @@ describe("the starter template", () => {
     expect(questions.filter((q) => q.basis === "legal_requirement")).toEqual([]);
     const all = JSON.stringify(STARTER_TEMPLATE);
     expect(all).not.toMatch(/non-compliant|required by law|\bmust\b/i);
-    expect(questions.filter((q) => q.legalFor?.includes("listed_jsc")).map((q) => q.ref)).toEqual(["3.2", "6.4", "7.4"]);
+    expect(questions.filter((q) => q.legalFor?.includes("listed_jsc")).map((q) => q.ref)).toEqual(["3.2", "6.4"]);
+    // Citations not yet checked against the source say so.
+    expect(questions.filter((q) => !q.citationVerified).map((q) => q.ref)).toEqual([
+      "2.1",
+      "2.4",
+      "3.3",
+      "3.4",
+      "6.4",
+      "7.3",
+      "7.4",
+    ]);
     await svc(U.author, (tx, p) => A.publishVersion(tx, p, starter.versionId));
     const logged = await owner.query(`SELECT meta FROM audit_log WHERE action = 'template.publish'`);
     expect(logged.rows[0].meta).toEqual({ template_id: starter.id, version: 1 });
@@ -281,6 +292,28 @@ describe("published versions", () => {
     await expect(
       svc(U.author, (tx, p) => A.addQuestion(tx, p, vid, { ...base, type: "yes_no", basis: "good_practice" })),
     ).rejects.toThrow(/name the source/);
+    // Only legal forms make a criterion binding or guidance: never a question's own basis, even directly.
+    await expect(
+      svc(U.author, (tx, p) =>
+        A.addQuestion(tx, p, vid, { ...base, type: "yes_no", basis: "legal_requirement" as never, citation: "x", locator: "y" }),
+      ),
+    ).rejects.toThrow(/own_basis/);
+    await expect(
+      commitAs(
+        U.author,
+        `INSERT INTO template_questions (version_id, section_id, firm_org_id, position, prompt, type, basis, citation, locator)
+         VALUES ($1,$2,$3,9,'Q','yes_no','regulator_guidance','x','y')`,
+        [vid, sid, FIRM],
+      ),
+    ).rejects.toThrow(/own_basis/);
+    await expect(
+      commitAs(
+        U.author,
+        `INSERT INTO template_questions (version_id, section_id, firm_org_id, position, prompt, type, basis, legal_for)
+         VALUES ($1,$2,$3,9,'Q','yes_no','firm_method','{listed_jsc}')`,
+        [vid, sid, FIRM],
+      ),
+    ).rejects.toThrow(/sourced/);
     const { id: parent } = await svc(U.author, (tx, p) => A.addQuestion(tx, p, vid, { ...base, type: "yes_no" }));
     await expect(
       svc(U.author, (tx, p) =>
@@ -369,7 +402,7 @@ describe("assessments", () => {
     expect(await bases(listed)).toEqual([
       "legal_requirement",
       "legal_requirement",
-      "legal_requirement",
+      "good_practice", // 7.4 waits for the CMA article to be checked
       "good_practice",
       "firm_method",
     ]);
@@ -439,6 +472,8 @@ describe("assessments", () => {
     ]);
     for (const q of left) await answer(acme, q.ref!, q.type === "multiple_choice" ? q.options![0]!.value : "no");
     await svc(U.cons, (tx, p) => A.addAnswerEvidence(tx, p, left[0]!.answer.id, DOC.acme));
+    await svc(U.cons, (tx, p) => A.addAnswerEvidence(tx, p, left[0]!.answer.id, DOC.firm));
+    await svc(U.cons, (tx, p) => A.setFirmNote(tx, p, left[0]!.answer.id, "the founder resisted this"));
     await expect(svc(U.cons, (tx, p) => A.addAnswerEvidence(tx, p, left[0]!.answer.id, DOC.listed))).rejects.toThrow(
       /this project/,
     );
@@ -476,6 +511,18 @@ describe("assessments", () => {
     const seen = await svc(U.cmgr, (tx, p) => A.getAssessment(tx, p, acme));
     expect(seen.canConduct).toBe(false);
     expect(seen.sections.flatMap((s) => s.questions)).toHaveLength(28);
+    // The firm's notes and firm-private files stay with the firm.
+    const q = seen.sections.flatMap((s) => s.questions).find((x) => x.ref === "2.1")!;
+    expect(q.answer).not.toHaveProperty("firmNote");
+    expect(q.evidence.map((e) => e.documentId)).toEqual([DOC.acme]);
+    const hidden = await sqlAs(
+      U.cmgr,
+      `SELECT (SELECT count(*) FROM assessment_notes)::int AS notes, (SELECT count(*) FROM assessment_evidence)::int AS evidence`,
+    );
+    expect(hidden.rows[0]).toEqual({ notes: 0, evidence: 1 });
+    const firmView = await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme));
+    const fq = firmView.sections.flatMap((s) => s.questions).find((x) => x.ref === "2.1")!;
+    expect([fq.answer.firmNote, fq.evidence.length]).toEqual(["the founder resisted this", 2]);
     // The client sees the questions of this version, and nothing else of the firm's.
     const t = await sqlAs(
       U.cmgr,
@@ -565,7 +612,13 @@ describe("from gap to verified work", () => {
       [P.acme, ACME, act.id, U.cons],
     );
     await commitAs(U.cons, `UPDATE actions SET status = 'verified_complete' WHERE id = $1`, [act.id]);
-    expect((await followUp())[0]).toMatchObject({ reported: 0, evidenced: 1, verified: 1 });
+    expect((await followUp())[0]).toMatchObject({
+      reported: 0,
+      evidenced: 1,
+      verified: 1,
+      verifiedClientEvidence: 1,
+      verifiedConsultantRecorded: 0,
+    });
     expect(await metrics()).toMatchObject({ verified: 1, verified_client_evidence: 1 });
     const reviewer = await owner.query(`SELECT reviewer_id, outcome, created_at FROM reviews WHERE action_id = $1`, [act.id]);
     expect(reviewer.rows[0]).toMatchObject({ reviewer_id: U.cons, outcome: "accept" });

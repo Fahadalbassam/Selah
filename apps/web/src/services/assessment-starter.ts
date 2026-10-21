@@ -1,4 +1,4 @@
-import type { Basis, ChoiceOption, LegalForm, QuestionType } from "@/lib/assessments";
+import type { OwnBasis, ChoiceOption, LegalForm, QuestionType } from "@/lib/assessments";
 
 // The starter family-governance template: the team's proposed questions,
 // not an official assessment of any regulator, publisher or firm. Each one
@@ -11,17 +11,23 @@ import type { Basis, ChoiceOption, LegalForm, QuestionType } from "@/lib/assessm
 // in 2023. Only Art. 16, 41 and 43 are confirmed in the current text; the
 // rest is cited by chapter until checked against the official text.
 
+// Citations not yet checked against the source's current text: chapter-level
+// references, the Companies Law family charter article, and the MoC rules.
+export const UNVERIFIED_CITATIONS = new Set(["2.1", "2.4", "3.3", "3.4", "6.4", "7.3", "7.4"]);
+
 export interface StarterQuestion {
   ref: string;
   prompt: string;
   promptAr: string;
   type: QuestionType;
   options?: ChoiceOption[];
-  basis: Basis;
+  basis: OwnBasis;
   legalFor?: LegalForm[];
   guidanceFor?: LegalForm[];
   citation: string | null;
   locator: string | null;
+  guidance?: string;
+  guidanceAr?: string;
   appliesIf?: { ref: string; values: string[] };
 }
 
@@ -148,6 +154,10 @@ export const STARTER_TEMPLATE = {
             `${IFC}; ${CMA}`,
             "IFC Sec. III; CMA Art. 16 (board composition)",
           ),
+          guidance:
+            'For a listed company, "yes" does not confirm CMA Art. 16: at least two independent directors or one-third of the board, whichever is greater, and a non-executive majority. Check the numbers.',
+          guidanceAr:
+            "في الشركة المدرجة، الإجابة بنعم لا تؤكد الالتزام بالمادة 16 من لائحة حوكمة الشركات: عضوان مستقلان على الأقل أو ثلث المجلس أيهما أكثر، وأغلبية غير تنفيذية. تحقق من الأعداد.",
           legalFor: ["listed_jsc"],
           appliesIf: { ref: "3.1", values: ["advisory_board", "board"] },
         },
@@ -307,9 +317,10 @@ export const STARTER_TEMPLATE = {
             "هل يُفصح عن التعاملات مع الأطراف ذات العلاقة وتُعتمد قبل حدوثها؟",
             "good_practice",
             `${CMA}; ${OECD}`,
-            "CMA chapter on conflicts of interest (Arts. 41, 43); OECD",
+            "CMA chapter on conflicts of interest (related-party article to verify); OECD chapter on disclosure",
           ),
-          legalFor: ["listed_jsc"],
+          // Not marked binding for listed companies until the CMA article on
+          // approving related-party dealings is checked.
         },
       ],
     },
@@ -346,6 +357,6 @@ export const STARTER_TEMPLATE = {
   ] satisfies { title: string; titleAr: string; questions: StarterQuestion[] }[],
 };
 
-function q(ref: string, prompt: string, promptAr: string, basis: Basis, citation: string, locator: string): StarterQuestion {
+function q(ref: string, prompt: string, promptAr: string, basis: OwnBasis, citation: string, locator: string): StarterQuestion {
   return { ref, prompt, promptAr, type: "yes_no", basis, citation, locator };
 }

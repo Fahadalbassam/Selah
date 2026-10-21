@@ -4,6 +4,7 @@ import type { Tx } from "@/db/client";
 import {
   assessmentAnswers,
   assessmentEvidence,
+  assessmentNotes,
   assessments,
   assessmentTemplates,
   documents,
@@ -16,12 +17,12 @@ import {
   user,
 } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
-import { BASIS_LABELS, type Basis, type ChoiceOption, type LegalForm, type QuestionType } from "@/lib/assessments";
+import { BASIS_LABELS, type OwnBasis, type ChoiceOption, type LegalForm, type QuestionType } from "@/lib/assessments";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { snapshotReport } from "./follow-through";
 import { loadProject } from "./staffing";
-import { STARTER_TEMPLATE } from "./assessment-starter";
+import { STARTER_TEMPLATE, UNVERIFIED_CITATIONS } from "./assessment-starter";
 
 // Assessment templates and assessments (drizzle/0029_assessments_rules.sql,
 // docs/assessments.md). The database holds the rules: who authors, that a
@@ -329,11 +330,14 @@ export interface QuestionInput {
   options?: ChoiceOption[] | null;
   weight: number;
   gapMaxPoints?: number | null;
-  basis: Basis;
+  /** A question's own basis. Legal requirement and regulator guidance come only from legalFor and guidanceFor. */
+  basis: OwnBasis;
   legalFor?: LegalForm[] | null;
   guidanceFor?: LegalForm[] | null;
   citation?: string | null;
   locator?: string | null;
+  /** False until someone checks the citation against the source's current text. */
+  citationVerified?: boolean;
   appliesIfQuestionId?: string | null;
   appliesIfValues?: string[] | null;
 }
@@ -341,13 +345,11 @@ export interface QuestionInput {
 /** An outside source is named with where in it the criterion comes from. */
 function checkProvenance(input: Partial<QuestionInput>) {
   if (
-    (input.basis === "legal_requirement" || input.basis === "regulator_guidance" || input.basis === "good_practice") &&
-    !input.citation
+    (input.basis === "good_practice" || input.legalFor?.length || input.guidanceFor?.length) &&
+    !(input.citation && input.locator)
   )
-    throw new BadRequestError("name the source this criterion comes from");
+    throw new BadRequestError("name the source and where in it (a page, section, chapter or article)");
   if (input.citation && !input.locator) throw new BadRequestError("say where in the source: a page, section, chapter or article");
-  if ((input.legalFor?.length || input.guidanceFor?.length) && !input.citation)
-    throw new BadRequestError("name the law or regulation that binds or guides these legal forms");
 }
 
 export async function addQuestion(tx: Tx, principal: Principal, versionId: string, input: QuestionInput) {
@@ -372,7 +374,7 @@ async function questionRow(tx: Tx, principal: Principal, questionId: string) {
 export async function updateQuestion(tx: Tx, principal: Principal, questionId: string, input: Partial<QuestionInput>) {
   const q = await questionRow(tx, principal, questionId);
   await loadDraft(tx, principal, q.versionId);
-  checkProvenance({ ...q, ...input });
+  checkProvenance({ ...q, basis: q.basis as OwnBasis, ...input });
   await tx.update(templateQuestions).set(input).where(eq(templateQuestions.id, questionId));
   return { ok: true };
 }
@@ -411,6 +413,7 @@ export async function installStarterTemplate(tx: Tx, principal: Principal, opts:
         sectionId,
         position: j + 1,
         weight: 1,
+        citationVerified: !UNVERIFIED_CITATIONS.has(q.ref),
         appliesIfQuestionId: appliesIf ? byRef.get(appliesIf.ref)! : null,
         appliesIfValues: appliesIf ? appliesIf.values : null,
       });
@@ -637,6 +640,15 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
     .from(assessmentEvidence)
     .innerJoin(documents, eq(documents.id, assessmentEvidence.documentId))
     .where(inArray(assessmentEvidence.answerId, answers.length ? answers.map((x) => x.id) : [a.id]));
+  // Firm staff only; row-level security returns none to the client.
+  const notes =
+    principal.orgKind === "firm"
+      ? await tx
+          .select({ answerId: assessmentNotes.answerId, body: assessmentNotes.body })
+          .from(assessmentNotes)
+          .where(eq(assessmentNotes.projectId, a.projectId))
+      : [];
+  const noteOf = new Map(notes.map((n) => [n.answerId, n.body]));
   const byQuestion = new Map(answers.map((x) => [x.questionId, x]));
   const resultOf = new Map(results.map((r) => [r.answer_id, r]));
   const firm = principal.orgKind === "firm";
@@ -668,7 +680,7 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
             textAnswer: x.textAnswer,
             comment: x.comment,
             answeredAt: x.answeredAt,
-            ...(firm ? { answeredBy: x.answeredBy } : {}),
+            ...(firm ? { answeredBy: x.answeredBy, firmNote: noteOf.get(x.id) ?? null } : {}),
           },
           applicable: r?.applicable ?? true,
           points: r?.points ?? null,
@@ -701,6 +713,20 @@ export async function answerQuestion(
   const { assessment } = await loadAnswer(tx, principal, answerId);
   if (assessment.status !== "draft") throw new ConflictError("a final assessment is kept as it was: start a new one to reassess");
   await tx.update(assessmentAnswers).set(input).where(eq(assessmentAnswers.id, answerId));
+  return { ok: true };
+}
+
+/** The firm's own note on an answer, never shown to the client. Empty removes it. */
+export async function setFirmNote(tx: Tx, principal: Principal, answerId: string, body: string) {
+  const { answer, assessment } = await loadAnswer(tx, principal, answerId);
+  if (!body) {
+    await tx.delete(assessmentNotes).where(eq(assessmentNotes.answerId, answerId));
+    return { ok: true };
+  }
+  await tx
+    .insert(assessmentNotes)
+    .values({ answerId, projectId: answer.projectId, orgId: assessment.orgId, body, updatedBy: principal.userId })
+    .onConflictDoUpdate({ target: assessmentNotes.answerId, set: { body, updatedBy: principal.userId } });
   return { ok: true };
 }
 
@@ -795,8 +821,10 @@ export interface GapFollowUp {
   reported: number;
   /** Released actions with evidence submitted. */
   evidenced: number;
-  /** Accepted by a consultant's review. */
+  /** Accepted by a consultant's review. Counted again below by whose evidence it rested on. */
   verified: number;
+  verifiedClientEvidence: number;
+  verifiedConsultantRecorded: number;
   closed: number;
   overdue: number;
 }
@@ -814,6 +842,8 @@ export async function assessmentFollowUp(tx: Tx, principal: Principal, assessmen
     reported: number;
     evidenced: number;
     verified: number;
+    verified_client_evidence: number;
+    verified_consultant_recorded: number;
     closed: number;
     overdue: number;
   }>(sql`select * from app_assessment_followup(${assessmentId}::uuid)`);
@@ -827,6 +857,8 @@ export async function assessmentFollowUp(tx: Tx, principal: Principal, assessmen
     reported: r.reported,
     evidenced: r.evidenced,
     verified: r.verified,
+    verifiedClientEvidence: r.verified_client_evidence,
+    verifiedConsultantRecorded: r.verified_consultant_recorded,
     closed: r.closed,
     overdue: r.overdue,
   }));
