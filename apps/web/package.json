@@ -17,6 +17,7 @@
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
     "job:follow-ups": "tsx scripts/follow-ups.ts",
+    "job:mail": "tsx scripts/send-mail.ts",
     "job:metrics": "tsx scripts/metrics-snapshot.ts",
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",
     "job:purge-minimal": "tsx scripts/purge-minimal.ts"
@@ -38,6 +39,7 @@
     "next": "^16.4.2",
     "next-intl": "^4.14.9",
     "next-themes": "^0.4.6",
+    "nodemailer": "^10.1.7",
     "pg": "^8.23.1",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
@@ -51,6 +53,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

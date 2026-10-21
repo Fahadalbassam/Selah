@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "@/env";
@@ -32,6 +33,19 @@ function createAuth() {
       disableSignUp: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+      // Password reset (ASVS V6.4): the link goes through the mail queue,
+      // never in the response, and only to people with an active membership
+      // (app_queue_password_reset decides, and caps it at three an hour).
+      // The answer is the same whether the address exists or not. A reset
+      // ends every session and mails a notice; 2FA still applies after it.
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, token }) => {
+        await authDb.execute(sql`select app_queue_password_reset(${user.id}::uuid, ${token})`);
+      },
+      onPasswordReset: async ({ user }) => {
+        await authDb.execute(sql`select app_password_was_reset(${user.id}::uuid)`);
+      },
     },
     // Server-side sessions (ASVS V7): 8 hour lifetime, refreshed while active,
     // and a fresh sign-in needed for sensitive changes after 10 minutes.
@@ -47,6 +61,8 @@ function createAuth() {
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
         "/two-factor/*": { window: 60, max: 5 },
+        "/request-password-reset": { window: 60, max: 3 },
+        "/reset-password": { window: 60, max: 5 },
       },
     },
     advanced: {

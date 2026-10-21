@@ -51,6 +51,7 @@ jobs:
         env:
           TEST_DATABASE_OWNER_URL: postgres://selah_owner:owner-ci@localhost:5432/selah_test
           TEST_DATABASE_APP_URL: postgres://selah_app:app-ci@localhost:5432/selah_test
+          TEST_DATABASE_AUTH_URL: postgres://selah_auth:auth-ci@localhost:5432/selah_test
 
   # Upload scanning against the same ClamAV image as docker-compose.yml. The
   # image ships with its signatures, so clamd is up within a minute or two.
