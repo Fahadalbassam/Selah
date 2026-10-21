@@ -141,6 +141,20 @@
       "when": 1792539805963,
       "tag": "0019_expertise_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792540370620,
+      "tag": "0020_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792540371805,
+      "tag": "0021_accounts_rules",
+      "breakpoints": true
     }
   ]
 }
