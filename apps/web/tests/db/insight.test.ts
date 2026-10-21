@@ -176,7 +176,53 @@ describe("minimal records", () => {
     await owner.query(`INSERT INTO client_contacts (org_id, name) VALUES ($1,'Majed')`, [MIN]);
     await expect(run(U.admin, on, [MIN, "Client M"])).rejects.toThrow(/remove the client's contacts and files/);
     await owner.query(`DELETE FROM client_contacts WHERE org_id = $1`, [MIN]);
+    // The inquiries they came from, with the requester's details.
+    const inq = async (client: string, name: string) => {
+      const iid = next();
+      await owner.query(
+        `INSERT INTO inquiries (id, firm_org_id, public_ref, org_name, org_name_ar, cr_number, contact_name, contact_role, contact_email,
+           contact_phone, message, sector_id, employee_band, ownership_type, self_check, privacy_notice_version, consented_at,
+           preferred_language, status, conflict_status, client_org_id)
+         VALUES ($1,$2,$3,$4,$4,'1010999999','Majed','CEO','majed@example.test','+966 55 111 1111',$4 || ' wants a charter',
+           (SELECT id FROM sectors LIMIT 1),'50-249','family_multi_partner','{}','2026-10-20',now(),'ar','won','clear',$5)`,
+        [iid, FIRM, `INQ-${iid.slice(-8)}`, name, client],
+      );
+      await owner.query(
+        `INSERT INTO discovery_sessions (inquiry_id, scheduled_at, mode, created_by, attendees, notes) VALUES ($1, now(), 'video', $2, 'Majed', $3)`,
+        [iid, U.lead, `${name} family tensions`],
+      );
+      await owner.query(`INSERT INTO inquiry_events (inquiry_id, event, note) VALUES ($1, 'conflict_checked', $2)`, [
+        iid,
+        `${name} is clear`,
+      ]);
+      return iid;
+    };
+    const mine = await inq(MIN, "Quiet family");
+    const theirs = await inq(FAM, "Family");
     await run(U.admin, on, [MIN, " Client M "]);
+    // Nothing the firm holds still names the client, and another client's inquiry is untouched.
+    const named = await owner.query(
+      `SELECT t FROM (
+         SELECT 'inquiries' AS t, to_jsonb(i)::text AS v FROM inquiries i
+         UNION ALL SELECT 'discovery_sessions', to_jsonb(d)::text FROM discovery_sessions d
+         UNION ALL SELECT 'inquiry_events', to_jsonb(e)::text FROM inquiry_events e
+         UNION ALL SELECT 'organizations', to_jsonb(o)::text FROM organizations o
+         UNION ALL SELECT 'audit_log', to_jsonb(a)::text FROM audit_log a
+         UNION ALL SELECT 'activity_events', to_jsonb(a)::text FROM activity_events a) x
+       WHERE v ILIKE '%Quiet family%' OR v ILIKE '%majed%' AND v ILIKE '%' || $1 || '%'`,
+      [mine],
+    );
+    expect(named.rows).toEqual([]);
+    const gone = (await owner.query(`SELECT anonymised_at, client_org_id, status FROM inquiries WHERE id = $1`, [mine])).rows[0];
+    expect([gone.anonymised_at !== null, gone.client_org_id, gone.status]).toEqual([true, MIN, "won"]);
+    const kept = (await owner.query(`SELECT org_name, anonymised_at FROM inquiries WHERE id = $1`, [theirs])).rows[0];
+    expect(kept).toEqual({ org_name: "Family", anonymised_at: null });
+    const notes = await owner.query(`SELECT count(*)::int AS n FROM discovery_sessions WHERE notes IS NOT NULL`);
+    expect(notes.rows[0].n).toBe(1);
+    // Firm staff cannot use that path to rewrite an inquiry.
+    await expect(
+      run(U.admin, `UPDATE inquiries SET org_name = 'Someone else', anonymised_at = now() WHERE id = $1`, [theirs]),
+    ).rejects.toThrow(/not allowed/);
     const org = (await owner.query(`SELECT name, name_ar, display_alias FROM organizations WHERE id = $1`, [MIN])).rows[0];
     expect(org).toEqual({ name: "Client M", name_ar: "Client M", display_alias: "Client M" });
     // The alias stays the name; leaving consultant-managed is refused while it is on.
@@ -217,6 +263,8 @@ describe("minimal records", () => {
       `INSERT INTO meeting_notes (project_id, org_id, author_id, held_on, title, body) VALUES ($1,$2,$3,'2026-01-05','Kickoff','who said what')`,
       [P.min, MIN, U.lead],
     );
+    await owner.query(`UPDATE recommendations SET rationale = 'the eldest son decides alone' WHERE id = $1`, [REC.min]);
+    await owner.query(`UPDATE actions SET description = 'ask the uncles' WHERE id = $1`, [aid]);
     await owner.query(`UPDATE projects SET handover_on = '2026-06-01' WHERE id = $1`, [P.min]);
     const purge = async (day: string) => (await owner.query(`SELECT app_purge_minimal_records($1::date) AS n`, [day])).rows[0].n;
     expect(await purge("2026-08-29")).toBe(0); // 89 days
@@ -229,6 +277,11 @@ describe("minimal records", () => {
       [P.min],
     );
     expect(texts.rows[0]).toEqual({ updates: ["—"], notes: ["—"], meetings: ["—"] });
+    const plan = await owner.query(
+      `SELECT r.title, r.rationale, a.description, a.status FROM actions a JOIN recommendations r ON r.id = a.recommendation_id WHERE a.id = $1`,
+      [aid],
+    );
+    expect(plan.rows[0]).toEqual({ title: "Charter", rationale: "—", description: "—", status: "in_progress" });
     const pu = (await owner.query(`SELECT source, received_on FROM progress_updates WHERE action_id = $1`, [aid])).rows[0];
     expect(pu.source).toBe("consultant_recorded");
     expect(pu.received_on).not.toBeNull();

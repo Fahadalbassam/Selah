@@ -50,8 +50,11 @@ Optional and off by default (`organizations.departments_enabled`). Nobody is tur
 
 Some family offices want the firm to keep as little as possible. `PATCH /api/orgs/:id/engagement` with `minimalRecords: true` and a `displayAlias` (firm admin only; migrations 0026–0027):
 
-- The alias replaces the client's name in Selah. The real name is not kept here (the inquiry it came from is purged on its own schedule).
+- The alias replaces the client's name in Selah. Switching it on also clears the inquiry the client came from: the organisation's name and CR number, the requester's contact details and message, the discovery session's attendees and notes, and the notes in the inquiry's history. The inquiry keeps its link to the client and its statistics (sector, services, size, ownership, dates). Audit entries hold ids, not names.
 - It is switched on before anything is filed: the client must have no contacts or files yet.
 - From then on Selah refuses, for that client: files (so evidence is recorded as progress with `receivedVia`), client contacts, assistant indexing, and an account as an action's owner. `ownerName` holds a job title ("finance manager"), not a person's name.
 - Leaving consultant-managed mode is refused while it is on.
-- `npm run job:purge-minimal` (daily, as the schema owner) blanks the free text of progress updates, firm notes, meeting notes, decisions and summaries once `firm_settings.minimal_purge_days` (90) have passed since `projects.handover_on`. Statuses, dates and who did what are kept. Each project is purged once.
+- `npm run job:purge-minimal` (daily, as the schema owner) blanks free text once `firm_settings.minimal_purge_days` (90) have passed since `projects.handover_on`. Each project is purged once.
+  - Blanked: progress updates, firm notes on actions, meeting agendas, notes, decisions and summaries, finding descriptions, recommendation rationale, target outcome and required evidence, and action descriptions, closure notes and blocked reasons.
+  - Kept: titles (of the project, findings, recommendations, actions and meetings), owner job titles, statuses, dates, and who did what. Consultants write titles without names or sensitive detail.
+- **Not for a client who forbids any record.** Minimal records keeps less, for less long, but Selah still stores the work while it runs. A client who does not allow its information to be stored at all should not be managed in Selah. An alias does not change that: the firm still holds the record.
