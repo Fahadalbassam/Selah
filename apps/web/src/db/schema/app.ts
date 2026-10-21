@@ -108,6 +108,10 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   nameAr: text("name_ar"),
   status: orgStatus("status").notNull().default("active"),
+  // Email domains its people must use. The firm must set them before it
+  // invites anyone; for a client, null means any address (many family firms
+  // have no company domain).
+  allowedEmailDomains: text("allowed_email_domains").array(),
   createdAt: createdAt(),
 });
 
@@ -127,6 +131,10 @@ export const orgMemberships = pgTable(
       .references(() => organizations.id),
     role: role("role").notNull(),
     active: boolean("active").notNull().default(true),
+    // Who switched the account off, when and why. Nothing is deleted.
+    deactivatedAt: ts("deactivated_at"),
+    deactivatedBy: uuid("deactivated_by").references(() => user.id),
+    deactivationReason: text("deactivation_reason"),
     createdAt: createdAt(),
   },
   (t) => [index("org_memberships_org_idx").on(t.orgId)],
@@ -668,6 +676,8 @@ export const firmSettings = pgTable("firm_settings", {
   intakeEmail: text("intake_email"),
   // Suggest a lead for an inquiry from consultants' declared expertise.
   suggestionsEnabled: boolean("suggestions_enabled").notNull().default(true),
+  // Ask each organisation's admin this often whether its people still work there.
+  accessReviewDays: integer("access_review_days").notNull().default(90),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1151,3 +1161,104 @@ export const aiMessages = pgTable(
   },
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],
 );
+
+// ------------------------------------------------------------- accounts
+
+// An invitation to join one organisation in one role, bound to one address.
+// Only the token's hash is stored; the link goes to that address only.
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    role: role("role").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    invitedBy: uuid("invited_by").references(() => user.id),
+    expiresAt: ts("expires_at").notNull(),
+    acceptedAt: ts("accepted_at"),
+    acceptedUserId: uuid("accepted_user_id").references(() => user.id),
+    revokedAt: ts("revoked_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("invitations_one_open").on(t.email).where(sql`${t.acceptedAt} IS NULL AND ${t.revokedAt} IS NULL`),
+    index("invitations_org_idx").on(t.orgId),
+  ],
+);
+
+// An admin's change of someone's sign-in address, confirmed from the new address.
+export const emailChanges = pgTable(
+  "email_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    oldEmail: text("old_email").notNull(),
+    newEmail: text("new_email").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    requestedBy: uuid("requested_by")
+      .notNull()
+      .references(() => user.id),
+    expiresAt: ts("expires_at").notNull(),
+    confirmedAt: ts("confirmed_at"),
+    cancelledAt: ts("cancelled_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("email_changes_one_open").on(t.userId).where(sql`${t.confirmedAt} IS NULL AND ${t.cancelledAt} IS NULL`)],
+);
+
+// "Are these people still with you?" Without single sign-on, a client's own
+// offboarding never reaches Selah, so each admin confirms their list.
+export const accessReviews = pgTable(
+  "access_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    reviewedBy: uuid("reviewed_by")
+      .notNull()
+      .references(() => user.id),
+    kept: uuid("kept").array().notNull(),
+    deactivated: uuid("deactivated").array().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("access_reviews_org_idx").on(t.orgId, t.createdAt)],
+);
+
+// People at a client the firm deals with who have no login (consultant-managed
+// engagements): action owners by name, meeting invitees. Firm-only.
+export const clientContacts = pgTable(
+  "client_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    title: text("title"),
+    email: text("email"),
+    phone: text("phone"),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("client_contacts_org_idx").on(t.orgId)],
+);
+
+// Mail waiting to be sent. Links only, never content: the reader signs in
+// to see anything. A sender job delivers and stamps sent_at.
+export const outboundEmails = pgTable("outbound_emails", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  toEmail: text("to_email").notNull(),
+  kind: text("kind").notNull(),
+  link: text("link"),
+  locale: text("locale").notNull().default("ar"),
+  createdAt: createdAt(),
+  sentAt: ts("sent_at"),
+});
