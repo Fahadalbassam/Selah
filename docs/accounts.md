@@ -52,6 +52,18 @@ Without single sign-on, a client's own offboarding never reaches Selah, so every
 
 Every id stays, so audit rows and history still hold together. The erasure itself is logged with its reason. It cannot be undone.
 
+## Two-factor sign-in
+
+Firm admins, consultants and client admins must sign in with a code from an authenticator app (TOTP, Better Auth's two-factor plugin). Client managers and action owners may turn it on for themselves.
+
+- **Until it is on**, those roles can open nothing but `/security`: pages redirect there and API routes answer 403 `two_factor_required` (`src/server/http.ts`, `page.ts`).
+- **Setting it up** (`/security`): confirm the password, scan the QR code (or type the key), and type a code to prove it works. Only then is it switched on. Ten backup codes are shown once; each signs in once. New ones can be made later with the password.
+- **Signing in** asks for the code after the password, or a backup code. Wrong codes are limited to 5 a minute, and Better Auth locks the account after 10 failures in a row.
+- **Switching it off** is refused for the required roles, by a Better Auth hook and by a database trigger (`two_factor_stays_on`).
+- **A lost phone:** the person's admin resets it from the team page (`POST /api/people/:id/two-factor-reset`, with a reason). Who may do this follows the address-change rule: the firm admin for anyone, a client admin for their own people except fellow admins, nobody for themselves. The reset removes the secret, ends every session, mails the person, and is audited. They set it up again at the next sign-in.
+- Admins see who has it on (`app_two_factor_status`). The app role cannot read the flag directly.
+- `TWO_FACTOR_REQUIRED=false` switches enforcement off for local development; production refuses to start with it.
+
 ## Password reset
 
 "Forgot it?" on the sign-in page (`/forgot-password`) asks Better Auth for a reset link.
@@ -77,5 +89,5 @@ Every id stays, so audit rows and history still hold together. The erasure itsel
 ## Known limits
 
 - An invitation or address change to an address that already has an account is refused, and that reveals to an admin that the address is in use somewhere. Unique addresses make this unavoidable. The refusal names no organisation.
-- Not built yet: 2FA enforcement for admins and consultants, and single sign-on.
+- Not built yet: single sign-on.
 - The sender has been tested against the database with a fake relay, not against a real SMTP server.

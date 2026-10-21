@@ -9,7 +9,7 @@ Results are test results on the executed cases, not a guarantee of security.
 | Chapter | Where it is handled | Status |
 |---|---|---|
 | V8 Authorization | `src/authz/authorize.ts` (one check, deny by default); `drizzle/0001_security.sql` (RLS on every table); `tests/authorize.test.ts`, `tests/db/rls.test.ts` | Done for the skeleton |
-| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 5 per minute, TOTP 2FA plugin | 2FA enforcement for firm staff not yet switched on |
+| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 5 per minute, TOTP two-factor sign-in, required for firm admins, consultants and client admins (`src/server/http.ts`, migration 0032); password reset by a mailed link valid for one hour, at most three an hour (migration 0031) | Single sign-on not built |
 | V7 Session management | Server-side sessions in `HttpOnly`, `SameSite=Lax`, `Secure` (production) cookies with a `__Secure-` prefix; 8 h lifetime, fresh sign-in after 10 min for sensitive changes | Done |
 | V4 API | `src/server/http.ts`: Origin check on every write (CSRF), session required, ids from the URL only used to look rows up; `tests/route-guard.test.ts` | Done |
 | V2 Validation and business logic | Zod on every params/body (`route()`); status moves checked in `authz/workflow.ts` and the `check_action_transition` trigger; optimistic concurrency on status updates | Done |

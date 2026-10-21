@@ -1,6 +1,7 @@
 import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
@@ -71,8 +72,22 @@ function createAuth() {
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: production },
       database: { generateId: "uuid" },
     },
-    // MFA for firm staff (spec: "if feasible"). Enforcement per role is
-    // done in services/principal.ts once the team confirms it.
+    // Two-factor sign-in (TOTP). Firm admins, consultants and client admins
+    // must use it: src/server/http.ts and page.ts refuse them everything but
+    // /security until it is on, and they can't switch it off. The database
+    // refuses that too (drizzle/0032_two_factor_rules.sql); this hook gives
+    // a clear answer instead of an error.
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/two-factor/disable") return;
+        const s = await getSessionFromCtx(ctx);
+        if (!s) return;
+        const { rows } = await authDb.execute<{ required: boolean }>(
+          sql`select app_requires_two_factor(${s.user.id}::uuid) as required`,
+        );
+        if (rows[0]?.required) throw new APIError("FORBIDDEN", { message: "two-factor sign-in is required for your role" });
+      }),
+    },
     plugins: [twoFactor({ issuer: "Selah" }), nextCookies()],
   });
 }

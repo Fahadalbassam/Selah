@@ -22,7 +22,8 @@
     "language": "العربية",
     "theme": "Toggle theme",
     "signOut": "Sign out",
-    "account": "Account"
+    "account": "Account",
+    "security": "Sign-in security"
   },
   "role": {
     "firm_admin": "Firm admin",
@@ -122,7 +123,14 @@
     "email": "Email",
     "role": "Role",
     "projects": "Projects",
-    "empty": "You can't view the team list."
+    "empty": "You can't view the team list.",
+    "twoFactor": "Two-factor",
+    "twoFactorOn": "On",
+    "twoFactorOff": "Not set up",
+    "resetTwoFactor": "Reset two-factor",
+    "resetTwoFactorTitle": "Reset two-factor sign-in for {name}?",
+    "resetTwoFactorHint": "For a lost or replaced phone. They're signed out everywhere, get an email, and set it up again at their next sign-in. This is logged.",
+    "reason": "Why"
   },
   "actionsPage": {
     "title": "Actions",
@@ -170,7 +178,15 @@
       "invited": "Your account is ready. Sign in with your new password.",
       "reset": "Your password was changed. Sign in with the new one.",
       "email": "Your address was changed. Sign in with the new one."
-    }
+    },
+    "code": "Code from your authenticator app",
+    "codeHint": "Open the app and type the 6-digit code for Selah.",
+    "backupCode": "Backup code",
+    "backupHint": "One of the codes you saved when you set it up. Each works once.",
+    "codeError": "That code didn't work. Try the newest one.",
+    "verify": "Continue",
+    "useBackup": "Use a backup code instead",
+    "useApp": "Use the authenticator app"
   },
   "notFound": {
     "title": "Not found",
@@ -501,5 +517,31 @@
       "submit": "Confirm the address",
       "invalid": "This link has expired or was already used."
     }
+  },
+  "security": {
+    "title": "Two-factor sign-in",
+    "on": "It's on. You sign in with your password and a code from your authenticator app.",
+    "required": "Your role needs it. Set it up to continue: it takes a minute.",
+    "optional": "Add a code from an authenticator app to your password.",
+    "back": "Back to Selah",
+    "intro": "You'll need an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator or 1Password. First, confirm your password.",
+    "password": "Password",
+    "start": "Continue",
+    "scan": "Scan this code with your authenticator app, then type the 6-digit code it shows.",
+    "qr": "QR code for your authenticator app",
+    "manual": "Can't scan? Type this key into the app:",
+    "code": "6-digit code",
+    "confirm": "Turn it on",
+    "codes": "It's on. Save these backup codes somewhere safe, away from your phone. Each one signs you in once if you lose it. They won't be shown again.",
+    "copy": "Copy the codes",
+    "saved": "I've saved them",
+    "newCodesHint": "New backup codes replace the old ones.",
+    "newCodes": "Make new backup codes",
+    "offHint": "Switching it off means your password alone signs you in.",
+    "off": "Switch it off",
+    "lostPhone": "Your role needs two-factor sign-in, so it can't be switched off. If you lose your phone, use a backup code, or ask your admin to reset it.",
+    "wrongPassword": "Wrong password.",
+    "wrongCode": "That code didn't work. Check the time on your phone and try the newest code.",
+    "limited": "Too many tries. Wait a minute and try again."
   }
 }

@@ -16,13 +16,20 @@ export function SignInForm() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // After the password: the code from the authenticator app, or a backup code.
+  const [step, setStep] = useState<"password" | "totp" | "backup">("password");
+
+  const done = () => {
+    router.replace("/");
+    router.refresh();
+  };
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     setBusy(true);
     setFailed(false);
-    const { error } = await authClient.signIn.email({
+    const { data, error } = await authClient.signIn.email({
       email: String(form.get("email")),
       password: String(form.get("password")),
     });
@@ -32,8 +39,63 @@ export function SignInForm() {
       setFailed(true);
       return;
     }
-    router.replace("/");
-    router.refresh();
+    if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) return setStep("totp");
+    done();
+  }
+
+  async function verify(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const code = String(new FormData(e.currentTarget).get("code")).replace(/\s+/g, "");
+    setBusy(true);
+    setFailed(false);
+    const { error } =
+      step === "totp" ? await authClient.twoFactor.verifyTotp({ code }) : await authClient.twoFactor.verifyBackupCode({ code });
+    setBusy(false);
+    if (error) return setFailed(true);
+    done();
+  }
+
+  if (step !== "password") {
+    return (
+      <Card className="py-6 shadow-xs">
+        <CardContent className="px-6">
+          <form onSubmit={verify} className="space-y-4" key={step}>
+            <div className="grid gap-2">
+              <Label htmlFor="code">{step === "totp" ? t("code") : t("backupCode")}</Label>
+              <p className="text-xs text-muted-foreground">{step === "totp" ? t("codeHint") : t("backupHint")}</p>
+              <Input
+                id="code"
+                name="code"
+                dir="ltr"
+                autoFocus
+                required
+                autoComplete="one-time-code"
+                {...(step === "totp"
+                  ? { inputMode: "numeric" as const, pattern: "[0-9 ]{6,7}", maxLength: 7 }
+                  : { maxLength: 32 })}
+                className="text-center font-mono tracking-widest"
+              />
+            </div>
+            {failed ? <p className="text-sm text-destructive">{t("codeError")}</p> : null}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
+              {t("verify")}
+            </Button>
+            <Button
+              type="button"
+              variant="link"
+              className="w-full text-muted-foreground"
+              onClick={() => {
+                setFailed(false);
+                setStep(step === "totp" ? "backup" : "totp");
+              }}
+            >
+              {step === "totp" ? t("useBackup") : t("useApp")}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
