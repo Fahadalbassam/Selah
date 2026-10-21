@@ -812,6 +812,8 @@ export const firmSettings = pgTable("firm_settings", {
   restrictedMaxAdmins: integer("restricted_max_admins").notNull().default(2),
   // Days after handover before a minimal-records client's free text is purged.
   minimalPurgeDays: integer("minimal_purge_days").notNull().default(90),
+  // Days a meeting transcript is kept after its summary is confirmed.
+  transcriptKeepDays: integer("transcript_keep_days").notNull().default(30),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1520,6 +1522,30 @@ export const meetingSummaries = pgTable(
     visibility: visibility("visibility").notNull().default("firm_private"),
   },
   (t) => [scopedFk("meeting_summaries", t)],
+);
+
+// A meeting's transcript, imported by firm staff from a file or pasted, only
+// when the meeting records that participants were told (transcript_consent).
+// Firm-only, never changed, and deleted on delete_after: a set time after
+// the summary is confirmed (firm_settings.transcript_keep_days), or 90 days
+// after import at the latest. drizzle/0036_transcripts_rules.sql.
+export const meetingTranscripts = pgTable(
+  "meeting_transcripts",
+  {
+    meetingId: uuid("meeting_id")
+      .primaryKey()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    ...scoped(),
+    lang: text("lang").notNull(),
+    format: text("format").notNull(),
+    body: text("body").notNull(),
+    importedBy: uuid("imported_by")
+      .notNull()
+      .references(() => user.id),
+    importedAt: ts("imported_at").notNull().defaultNow(),
+    deleteAfter: date("delete_after").notNull(),
+  },
+  (t) => [scopedFk("meeting_transcripts", t), index("meeting_transcripts_delete_idx").on(t.deleteAfter)],
 );
 
 // ------------------------------------------------------------ assessments

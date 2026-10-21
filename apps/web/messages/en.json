@@ -101,7 +101,9 @@
     "version": "Version",
     "aiIndexed": "Available to assistant",
     "changed": "moved {from} to {to}",
-    "internalBanner": "Internal project: no client can see it."
+    "internalBanner": "Internal project: no client can see it.",
+    "meetings": "Meetings",
+    "noMeetings": "No meetings yet."
   },
   "priority": {
     "low": "Low",
@@ -552,5 +554,63 @@
     "markReviewed": "Mark as reviewed",
     "unavailable": "Translation isn't available right now.",
     "limited": "Too many translations for now. Try again later."
+  },
+  "meeting": {
+    "back": "Back to the project",
+    "join": "Join the call",
+    "calendar": "Add to calendar",
+    "markHeld": "Mark as held",
+    "agenda": "Agenda",
+    "summary": "Summary",
+    "noSummary": "No summary yet.",
+    "decisions": "Decisions",
+    "noDecisions": "No decisions recorded.",
+    "decidedBy": "Decided by {who}",
+    "attendees": "Attendees",
+    "organizer": "Organiser",
+    "status": {
+      "scheduled": "Scheduled",
+      "held": "Held",
+      "cancelled": "Cancelled"
+    },
+    "response": {
+      "needs_action": "No answer yet",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "tentative": "Maybe"
+    },
+    "transcript": {
+      "title": "Transcript",
+      "hint": "Firm only. Used to write the summary, then deleted automatically. The client never sees it.",
+      "consent": "Participants were told this meeting may be transcribed",
+      "withdrawConfirm": "Switching this off deletes the transcript now. Continue?",
+      "needConsent": "Record that participants were told before importing a transcript.",
+      "needHeld": "Mark the meeting as held to import its transcript.",
+      "kept": "Imported by {who} on {date} ({chars} characters)",
+      "deleteOn": "It will be deleted on {date}.",
+      "show": "Show",
+      "hide": "Hide",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this transcript? This can't be undone.",
+      "deleted": "Transcript deleted",
+      "file": "Transcript file (.txt, .vtt or .srt)",
+      "replace": "Replace with a file (.txt, .vtt or .srt)",
+      "paste": "Or paste the text",
+      "lang": "Spoken language",
+      "langs": {
+        "ar": "Arabic",
+        "en": "English",
+        "mixed": "Mixed"
+      },
+      "preview": "{chars} characters ready ({format}).",
+      "formats": {
+        "text": "plain text",
+        "vtt": "captions, timings removed",
+        "srt": "captions, timings removed"
+      },
+      "tooLong": "This transcript is too long (500,000 characters at most).",
+      "import": "Import",
+      "imported": "Transcript imported"
+    }
   }
 }

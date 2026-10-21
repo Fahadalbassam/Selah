@@ -8,12 +8,14 @@ import {
   meetingDecisions,
   meetingNotes,
   meetingSummaries,
+  meetingTranscripts,
   meetings,
   projects,
   user,
 } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
 import { buildIcs } from "@/lib/ics";
+import { parseTranscript, TRANSCRIPT_MAX_CHARS, type TranscriptFormat } from "@/lib/transcripts";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { loadProject } from "./staffing";
@@ -122,7 +124,84 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .select({ id: meetingNotes.id, title: meetingNotes.title, visibility: meetingNotes.visibility, heldOn: meetingNotes.heldOn })
     .from(meetingNotes)
     .where(eq(meetingNotes.meetingId, id));
-  return { meeting, attendees, decisions, summary: summary ?? null, notes };
+  // Firm staff running the meeting see whether a transcript is kept, and until when (RLS hides it from everyone else).
+  const [transcript] = await tx
+    .select({
+      lang: meetingTranscripts.lang,
+      format: meetingTranscripts.format,
+      chars: sql<number>`length(${meetingTranscripts.body})`.mapWith(Number),
+      importedAt: meetingTranscripts.importedAt,
+      deleteAfter: meetingTranscripts.deleteAfter,
+      importedBy: user.name,
+    })
+    .from(meetingTranscripts)
+    .leftJoin(user, eq(user.id, meetingTranscripts.importedBy))
+    .where(eq(meetingTranscripts.meetingId, id));
+  const canRun = principal.orgKind === "firm" || meeting.organizerId === principal.userId;
+  return { meeting, attendees, decisions, summary: summary ?? null, notes, transcript: transcript ?? null, canRun };
+}
+
+// ---------------------------------------------------------- transcripts
+
+async function loadForTranscript(tx: Tx, principal: Principal, id: string) {
+  const loaded = await loadMeeting(tx, principal, id);
+  // Firm staff only: a transcript is never shown to the client.
+  if (principal.orgKind !== "firm") throw new NotFoundError("meeting");
+  assertAllowed(principal, "meeting.run", loaded.resource);
+  return loaded;
+}
+
+/** The transcript's text, for firm staff who run the meeting. */
+export async function getTranscript(tx: Tx, principal: Principal, id: string) {
+  await loadForTranscript(tx, principal, id);
+  const [t] = await tx.select().from(meetingTranscripts).where(eq(meetingTranscripts.meetingId, id));
+  if (!t) throw new NotFoundError("transcript");
+  return { lang: t.lang, format: t.format, body: t.body, importedAt: t.importedAt, deleteAfter: t.deleteAfter };
+}
+
+/**
+ * Import (or replace) a held meeting's transcript. The database refuses it
+ * unless the meeting records that participants were told, and sets when it
+ * will be deleted.
+ */
+export async function importTranscript(
+  tx: Tx,
+  principal: Principal,
+  id: string,
+  input: { text: string; format: TranscriptFormat; lang: "ar" | "en" | "mixed" },
+) {
+  const { meeting } = await loadForTranscript(tx, principal, id);
+  if (!meeting.transcriptConsent)
+    throw new BadRequestError("record that participants were told the meeting may be transcribed first");
+  if (meeting.status !== "held") throw new BadRequestError("mark the meeting held first");
+  const body = parseTranscript(input.text, input.format);
+  if (!body) throw new BadRequestError("the file has no transcript text");
+  if (body.length > TRANSCRIPT_MAX_CHARS) throw new BadRequestError("the transcript is too long");
+  await tx.delete(meetingTranscripts).where(eq(meetingTranscripts.meetingId, id));
+  const [row] = await tx
+    .insert(meetingTranscripts)
+    .values({
+      meetingId: id,
+      projectId: meeting.projectId,
+      orgId: meeting.orgId,
+      lang: input.lang,
+      format: input.format,
+      body,
+      importedBy: principal.userId,
+      deleteAfter: "1970-01-01", // set by the database
+    })
+    .returning({ deleteAfter: meetingTranscripts.deleteAfter });
+  return { chars: body.length, deleteAfter: row!.deleteAfter };
+}
+
+export async function deleteTranscript(tx: Tx, principal: Principal, id: string) {
+  await loadForTranscript(tx, principal, id);
+  const gone = await tx
+    .delete(meetingTranscripts)
+    .where(eq(meetingTranscripts.meetingId, id))
+    .returning({ id: meetingTranscripts.meetingId });
+  if (!gone.length) throw new NotFoundError("transcript");
+  return { ok: true };
 }
 
 export async function updateMeeting(

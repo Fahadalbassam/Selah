@@ -33,9 +33,21 @@ Migrations 0022 (tables) and 0023 (rules). Selah records meetings and links to t
 - **Decisions** (`POST /api/meetings/:id/decisions`) are append-only. A correction is a new decision that supersedes one from the same meeting. Follow-ups can point at the decision they follow.
 - **The summary** (`PUT /api/meetings/:id/summary`) can be written only once the meeting is held. Whoever saves it confirms it, and it starts firm-private.
 - Summaries and decisions can be translated on demand (docs/translations.md).
-- Not built yet:
-  - The AI draft from a Meet transcript. Meet has no Arabic transcripts, so the summary is written by hand by default.
-  - Transcript import. It needs `transcript_consent`, which the database records together with who noted it.
+- Not built yet: the AI draft of the summary from a transcript. Meet has no Arabic transcripts, so the summary is written by hand by default.
+
+## Transcripts
+
+A transcript is personal data (PDPL), so Selah keeps it only as long as it takes to write the summary. Migrations 0035 (table) and 0036 (rules).
+
+- **Consent first.** A transcript can be imported only when the meeting records that participants were told it may be transcribed (`transcript_consent`, with who noted it and when), and only once the meeting is held. Switching consent off deletes the transcript at once.
+- **Firm only.** The firm's people who run the meeting import, read and delete it (`PUT/GET/DELETE /api/meetings/:id/transcript`). Clients never see it, not even that one exists.
+- **Formats.** A pasted text or a `.txt` export (Google Meet saves transcripts as a Doc), or WebVTT/SubRip captions from Meet, Teams or Zoom recordings. Captions are turned into "Speaker: words" lines with timings removed (`src/lib/transcripts.ts`). At most 500,000 characters.
+- **Never edited**, only replaced. Imports and deletions are logged without the text.
+- **Deleted on schedule.** At most 90 days after import, and `firm_settings.transcript_keep_days` (30) after the summary is confirmed, whichever comes first. `npm run job:purge-transcripts` runs daily as the schema owner.
+
+The meeting page (`/meetings/:id`, from the project's Meetings tab) shows the meeting, its summary and decisions (with on-demand translation), its attendees, and for the firm the transcript panel.
+
+Not built yet: Meet's REST API import (it needs a Google Workspace connection), screens to book meetings and write summaries and decisions (the APIs exist), and the AI draft.
 
 ## The schedule
 
