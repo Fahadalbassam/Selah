@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { BrandWordmark } from "@/components/brand";
@@ -20,6 +21,12 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         </div>
         {error === "no_access" ? <p className="text-center text-sm text-destructive">{t("noAccess")}</p> : null}
         <SignInForm />
+        <p className="text-center text-sm text-muted-foreground">
+          {t("newHere")}{" "}
+          <Link href="/inquiry" className="font-medium text-foreground underline-offset-4 hover:underline">
+            {t("inquiry")}
+          </Link>
+        </p>
       </div>
     </div>
   );

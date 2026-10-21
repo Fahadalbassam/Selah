@@ -150,7 +150,9 @@
     "assistantName": "Assistant",
     "emptyThread": "Pick a project and ask a question. Answers cite the records they come from.",
     "notGrounded": "No permitted source supports a confident answer.",
-    "enterHint": "Enter to send · Shift+Enter for a new line"
+    "enterHint": "Enter to send · Shift+Enter for a new line",
+    "searching": "Searching the records you can see…",
+    "toLatest": "Jump to the latest answer"
   },
   "signIn": {
     "title": "Sign in",
@@ -160,7 +162,9 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "error": "Wrong email or password.",
-    "noAccess": "Your account isn't linked to an active organization."
+    "noAccess": "Your account isn't linked to an active organization.",
+    "newHere": "Not working with us yet?",
+    "inquiry": "Send an inquiry"
   },
   "notFound": {
     "title": "Not found",
@@ -301,5 +305,154 @@
     "watchHint": "Get the team's notifications for this project without being staffed on it.",
     "watchClientHint": "Get the team's notifications for all of this client's projects.",
     "clientLeadBadge": "Client lead · sees all projects"
+  },
+  "inquiry": {
+    "metaTitle": "Work with us",
+    "eyebrow": "New inquiry",
+    "title": "Tell us about your organisation",
+    "lede": "A few plain questions so the right consultant can get back to you. It takes about five minutes, and nothing here commits you to anything.",
+    "nextTitle": "What happens next",
+    "next1": "The firm's team reads your inquiry and checks it for conflicts of interest.",
+    "next2": "A consultant contacts you to arrange a short discovery session.",
+    "next3": "If we agree to work together, you get an invitation to your own private workspace.",
+    "haveAccount": "Already working with us?",
+    "signIn": "Sign in",
+    "language": "العربية",
+    "stepOf": "Step {current} of {total}",
+    "steps": {
+      "org": "Organisation",
+      "contact": "Contact",
+      "needs": "What you need",
+      "today": "Today",
+      "review": "Review"
+    },
+    "org": {
+      "name": "Organisation name",
+      "nameHint": "As it appears on your commercial registration.",
+      "nameAr": "Name in Arabic",
+      "nameArHint": "Optional, if different from the name above.",
+      "cr": "Commercial registration number",
+      "crHint": "Optional. Digits only.",
+      "sector": "Sector",
+      "sectorPlaceholder": "Choose a sector",
+      "size": "Number of employees",
+      "ownership": "Ownership",
+      "ownershipPlaceholder": "Choose one"
+    },
+    "contact": {
+      "name": "Your name",
+      "role": "Your role",
+      "roleHint": "Optional, for example general manager or founder.",
+      "email": "Work email",
+      "phone": "Phone",
+      "phoneHint": "Optional. Include the country code, for example +966.",
+      "language": "Preferred language",
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "needs": {
+      "services": "Which services are you interested in?",
+      "servicesHint": "Choose at least one. You can change this later with the consultant.",
+      "message": "Anything else we should know?",
+      "messageHint": "Optional. Please don't include confidential details yet.",
+      "urgency": "How soon do you need help?",
+      "heardFrom": "How did you hear about us?",
+      "heardFromPlaceholder": "Optional"
+    },
+    "today": {
+      "intro": "Six quick questions about what your organisation already has. There are no wrong answers: it helps the consultant prepare for the first conversation.",
+      "yes": "Yes",
+      "no": "No",
+      "skip": "You can leave any question unanswered."
+    },
+    "review": {
+      "intro": "Check your answers before you send them.",
+      "edit": "Edit",
+      "consent": "I have read the privacy notice and agree that the firm may use these details to respond to this inquiry.",
+      "privacyLink": "Read the privacy notice",
+      "noFiles": "Please don't send documents yet. Files are shared later, inside your private workspace, after an engagement starts.",
+      "notAnswered": "Not answered"
+    },
+    "honeypot": "Leave this field empty",
+    "back": "Back",
+    "next": "Continue",
+    "send": "Send inquiry",
+    "sending": "Sending…",
+    "errors": {
+      "required": "This field is required.",
+      "email": "Enter a valid email address.",
+      "cr": "Use digits only.",
+      "phone": "Use digits, spaces, brackets, + or - only.",
+      "services": "Choose at least one service.",
+      "consent": "Please confirm you have read the privacy notice.",
+      "server": "Some answers need another look. We've taken you to the first one.",
+      "rateLimited": "Too many inquiries were sent from this connection. Please try again in an hour.",
+      "stale": "The privacy notice was updated. Please reload the page and review it.",
+      "failed": "Your inquiry couldn't be sent. Check your connection and try again."
+    },
+    "sent": {
+      "title": "Thank you, your inquiry was received",
+      "body": "We've sent it to the firm's team. A consultant will contact you at <email></email>.",
+      "refLabel": "Your reference",
+      "refHint": "Quote this reference if you contact the firm about your inquiry.",
+      "copy": "Copy reference",
+      "copied": "Reference copied",
+      "another": "Send another inquiry"
+    },
+    "selfCheck": {
+      "hasStrategy": "A written strategy",
+      "hasOrgChart": "An approved organisational chart",
+      "hasDelegationMatrix": "A delegation of authority matrix",
+      "hasPolicies": "Written policies",
+      "hasSops": "Documented procedures",
+      "hasKpis": "Defined performance indicators (KPIs)"
+    },
+    "employeeBand": {
+      "1-9": "1–9",
+      "10-49": "10–49",
+      "50-249": "50–249",
+      "250+": "250+"
+    },
+    "ownershipType": {
+      "sole": "Sole owner",
+      "family_single_owner": "Family business, one owner",
+      "family_multi_partner": "Family business, several partners",
+      "llc": "Limited liability company",
+      "joint_stock": "Joint stock company",
+      "non_profit": "Non-profit",
+      "other": "Other"
+    },
+    "urgency": {
+      "exploring": "Just exploring",
+      "within_3_months": "Within 3 months",
+      "urgent": "Urgent"
+    },
+    "heardFromOption": {
+      "referral": "A referral",
+      "search": "A search engine",
+      "social_media": "Social media",
+      "event": "An event",
+      "existing_client": "We already work with the firm",
+      "other": "Other"
+    }
+  },
+  "privacy": {
+    "metaTitle": "Privacy notice",
+    "title": "Privacy notice for inquiries",
+    "version": "Version {version}",
+    "intro": "This notice explains what happens to the details you send through the inquiry form on this site, which is run by the consulting firm that uses Selah.",
+    "collectTitle": "What we collect",
+    "collect": "Your organisation's name, sector, size and ownership type, the optional commercial registration number, your name, role, email and phone, the services you're interested in, your message, and your answers to the six self-check questions. We don't accept files through the form.",
+    "whyTitle": "Why",
+    "why": "Only to respond to your inquiry, check it for conflicts of interest, and decide whether and how the firm can help. We don't use it for marketing and we don't sell it.",
+    "whoTitle": "Who sees it",
+    "who": "The firm's administrators, and the one consultant they assign to your inquiry. Other clients never see it.",
+    "technicalTitle": "Technical details",
+    "technical": "To stop abuse, we keep a keyed one-way hash of your network address and browser, never the address itself, and allow a few inquiries per hour from one address.",
+    "keepTitle": "How long we keep it",
+    "keep": "If we start working together, your inquiry becomes part of your client record. Otherwise the contact details and message are erased 12 months after the inquiry is closed, or 30 days for spam. We keep only anonymous figures, such as sector and size, for statistics.",
+    "rightsTitle": "Your rights",
+    "rights": "You can ask to see, correct or delete your details by replying to the email you receive from the firm, or by contacting the firm directly. Requests are answered within 30 days, in line with the Saudi Personal Data Protection Law.",
+    "back": "Back to the inquiry form"
   }
 }
