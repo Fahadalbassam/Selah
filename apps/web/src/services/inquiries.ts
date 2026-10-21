@@ -13,7 +13,7 @@ import {
   serviceAreas,
   user,
 } from "@/db/schema";
-import { assertAllowed, type Principal, type Resource } from "@/authz";
+import { assertAllowed, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { createClient, setLead } from "./staffing";
@@ -246,7 +246,8 @@ export async function suggestLeads(tx: Tx, principal: Principal, id: string) {
 
 export interface Conversion {
   /** A new client organisation, or an existing one (a returning client). */
-  client: { name: string; nameAr?: string } | { existingClientId: string };
+  /** A new client starts in the engagement mode chosen here (full by default); an existing one keeps its own. */
+  client: { name: string; nameAr?: string; engagementMode?: EngagementMode } | { existingClientId: string };
   leadUserId?: string;
   /** Starts the first engagement, planned, when given. */
   projectTitle?: string;

@@ -42,7 +42,7 @@ const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISO
 
 const [firm] = await db
   .insert(s.organizations)
-  .values({ kind: "firm", name: "Mizan Advisory", nameAr: "ميزان للاستشارات" })
+  .values({ kind: "firm", name: "Mizan Advisory", nameAr: "ميزان للاستشارات", allowedEmailDomains: ["mizan.example"] })
   .returning();
 const [nukhba] = await db
   .insert(s.organizations)
@@ -51,6 +51,11 @@ const [nukhba] = await db
 const [rawdah] = await db
   .insert(s.organizations)
   .values({ kind: "client", name: "Rawdah Foundation", nameAr: "مؤسسة الروضة" })
+  .returning();
+// A family office that does not use Selah: the firm records its progress.
+const [waha] = await db
+  .insert(s.organizations)
+  .values({ kind: "client", name: "Al-Waha Family Office", nameAr: "مكتب الواحة العائلي", engagementMode: "consultant_managed" })
   .returning();
 
 const u = {
@@ -77,6 +82,7 @@ await db.insert(s.orgMemberships).values([
 await db.insert(s.clientAssignments).values([
   { clientOrgId: nukhba!.id, userId: u.consultant, isLead: true, assignedBy: u.admin },
   { clientOrgId: rawdah!.id, userId: u.consultant2, isLead: true, assignedBy: u.admin },
+  { clientOrgId: waha!.id, userId: u.consultant, isLead: true, assignedBy: u.admin },
 ]);
 
 const [board] = await db
@@ -97,6 +103,10 @@ const [rawdahProject] = await db
   .insert(s.projects)
   .values({ kind: "client", orgId: rawdah!.id, firmOrgId: firm!.id, title: "الخطة الاستراتيجية ٢٠٢٧", state: "active", createdBy: u.admin })
   .returning();
+const [wahaProject] = await db
+  .insert(s.projects)
+  .values({ kind: "client", orgId: waha!.id, firmOrgId: firm!.id, title: "حوكمة الشركة العائلية", state: "active", createdBy: u.admin })
+  .returning();
 const [internal] = await db
   .insert(s.projects)
   .values({
@@ -114,6 +124,8 @@ await db.insert(s.projectMembers).values([
   { projectId: board!.id, userId: u.nukhbaManager, addedBy: u.nukhbaAdmin },
   { projectId: board!.id, userId: u.nukhbaOwner, addedBy: u.nukhbaAdmin },
   { projectId: rawdahProject!.id, userId: u.rawdahManager, addedBy: u.admin },
+  { projectId: wahaProject!.id, userId: u.consultant, isLead: true, addedBy: u.admin },
+  { projectId: wahaProject!.id, userId: u.consultant2, addedBy: u.admin },
   { projectId: internal!.id, userId: u.admin, isLead: true, addedBy: u.admin },
   { projectId: internal!.id, userId: u.consultant, addedBy: u.admin },
   { projectId: internal!.id, userId: u.consultant2, addedBy: u.admin },
@@ -188,6 +200,21 @@ await db.insert(s.actions).values({
   dueDate: day(14),
   ownerUserId: u.consultant2,
   createdBy: u.admin,
+});
+
+const [wahaRec] = await db
+  .insert(s.recommendations)
+  .values({ projectId: wahaProject!.id, orgId: waha!.id, title: "ميثاق العائلة", priority: "high", createdBy: u.consultant })
+  .returning();
+await db.insert(s.actions).values({
+  projectId: wahaProject!.id,
+  orgId: waha!.id,
+  recommendationId: wahaRec!.id,
+  title: "صياغة ميثاق العائلة",
+  status: "in_progress",
+  dueDate: day(20),
+  ownerName: "ماجد الواحي (مدير المكتب)",
+  createdBy: u.consultant,
 });
 
 await db.insert(s.documents).values([

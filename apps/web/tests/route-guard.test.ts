@@ -19,6 +19,9 @@ const EXEMPT: Record<string, string> = {
 const PUBLIC: Record<string, string> = {
   "inquiries/route.ts": "the public inquiry form",
   "intake/options/route.ts": "the inquiry form's choices",
+  "invite/[token]/route.ts": "an invited person opening their link",
+  "invite/[token]/accept/route.ts": "an invited person setting up their account",
+  "email-change/confirm/route.ts": "a new address confirming an admin's change",
 };
 
 function routeFiles(dir: string): string[] {

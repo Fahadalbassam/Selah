@@ -1,5 +1,5 @@
 import "server-only";
-import { and, cosineDistance, eq, inArray, ne, or } from "drizzle-orm";
+import { and, cosineDistance, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
@@ -112,6 +112,8 @@ export function retrieve(tx: Tx, scope: RetrievalScope, vector: number[]) {
         eq(aiChunks.orgId, scope.orgId),
         inArray(aiChunks.visibility, [...scope.labels]),
         or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
+        // The department rule (drizzle/0025), as in row-level security.
+        sql`app_dept_ok(${aiChunks.departmentId}, ${aiChunks.orgId})`,
         // Document chunks must still be indexable, live and the current version.
         or(
           ne(aiChunks.sourceType, "document"),
