@@ -47,3 +47,16 @@ The client's own strategic measures, entered by hand. They need the supervisor's
 - `app_kpi_periods(kpi, as_of)`: every period up to the date, with its current reading and status (reported, verified, rejected, or, with no reading, **due** until the period end plus `kpi_grace_days`, then **not_reported**, never zero). Each period also shows progress (how far the value is from baseline to target) and expected progress (the share of the time from start to target date passed by the period's end). The band compares the two: green at `green_threshold` % of expected or better, amber at `amber_threshold` %, otherwise red. So a year-long KPI that is on its trajectory shows green from the first period.
 
 Not built, by design: automatic KPI pulls from client systems, consultant rankings.
+
+## Verified on whose evidence
+
+A verification is only as strong as what it rests on, so verified actions are counted by basis, never mixed silently (migration 0027):
+
+- `app_verified_basis(action)`: `client_evidence` (everything the accepting review covered came from the client in Selah), `consultant_recorded` (all of it was recorded by a consultant for a consultant-managed client), `mixed`, or `internal`. The review covers the submissions it names, or else those of its round; with no evidence at all, the round's progress updates. Null until verified.
+- `v_project_metrics` adds `verified_client_evidence`, `verified_consultant_recorded` and `verified_mixed`, and monthly snapshots keep them.
+- The action detail returns `verifiedBasis` for the badge.
+
+## The trace and "since your last visit"
+
+- `GET /api/projects/:id/trace` returns the project as edges (`nodeType`, `nodeId`, `parentType`, `parentId`, `label`, `state`): objective ← KPI, finding ← recommendation ← action ← evidence or review, KPI ← recommendation (meant to move it), and action ← action (the node supersedes its parent). It runs with the caller's rights, so a firm-private finding or another department's action, and every link to it, are simply absent. Plain Postgres, no graph database.
+- `GET /api/projects/:id/since-last-visit` lists the actions that moved (status or plan, progress, evidence, review) since the person last opened the project, using the same function as a meeting agenda's "changed since the last meeting". The first visit looks back 7 days. `PUT` on the same path marks the project as seen. No AI.
