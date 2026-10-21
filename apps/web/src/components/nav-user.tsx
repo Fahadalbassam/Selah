@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, Languages, LogOut, Moon, Sun } from "lucide-react";
+import { ChevronsUpDown, Languages, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useTransition } from "react";
@@ -23,7 +23,7 @@ export interface NavUserProps {
   name: string;
   email: string;
   otherLocale: string;
-  labels: { language: string; theme: string; signOut: string };
+  labels: { language: string; theme: string; security: string; signOut: string };
 }
 
 export function NavUser({ name, email, otherLocale, labels }: NavUserProps) {
@@ -68,6 +68,10 @@ export function NavUser({ name, email, otherLocale, labels }: NavUserProps) {
               <DropdownMenuItem onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
                 {resolvedTheme === "dark" ? <Sun /> : <Moon />}
                 {labels.theme}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => router.push("/security")}>
+                <ShieldCheck />
+                {labels.security}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
