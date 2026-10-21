@@ -112,6 +112,14 @@ export const POLICY = {
   // Meetings, follow-ups, reports, history
   "meeting_note.read": { ...ALL_BUT_OWNER, action_owner: "shared" },
   "meeting_note.write": { ...STAFF },
+  // Meetings. The firm on the project books any; a client admin or manager
+  // books shared ones and runs the ones they organise ("own"). Labels and
+  // project membership are checked as for other records.
+  "meeting.read": { ...ALL_BUT_OWNER, action_owner: "any" },
+  "meeting.book": { ...STAFF, client_admin: "any", client_manager: "any" },
+  "meeting.run": { ...STAFF, client_admin: "own", client_manager: "own" },
+  // Meetings, action due dates and follow-ups in one calendar.
+  "schedule.read": { ...ALL_BUT_OWNER, action_owner: "any" },
   "follow_up.read": { ...ALL_BUT_OWNER, action_owner: "assigned" },
   "follow_up.write": { ...STAFF },
   "report.read": { ...ALL_BUT_OWNER },
