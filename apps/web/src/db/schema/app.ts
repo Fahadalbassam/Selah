@@ -599,6 +599,8 @@ export const meetingNotes = pgTable(
     authorId: uuid("author_id")
       .notNull()
       .references(() => user.id),
+    // The meeting the note belongs to, when it was taken at one.
+    meetingId: uuid("meeting_id").references((): AnyPgColumn => meetings.id, { onDelete: "set null" }),
     heldOn: date("held_on").notNull(),
     title: text("title").notNull(),
     body: text("body").notNull(),
@@ -615,6 +617,8 @@ export const followUps = pgTable(
     ...scoped(),
     meetingNoteId: uuid("meeting_note_id").references(() => meetingNotes.id, { onDelete: "set null" }),
     actionId: uuid("action_id").references(() => actions.id, { onDelete: "set null" }),
+    // The meeting decision this follows up, if any.
+    meetingDecisionId: uuid("meeting_decision_id").references((): AnyPgColumn => meetingDecisions.id),
     title: text("title").notNull(),
     dueAt: ts("due_at"),
     assigneeUserId: uuid("assignee_user_id").references(() => user.id),
@@ -1258,7 +1262,124 @@ export const outboundEmails = pgTable("outbound_emails", {
   toEmail: text("to_email").notNull(),
   kind: text("kind").notNull(),
   link: text("link"),
+  // Meeting invites: the sender builds the .ics from the meeting when it sends.
+  meetingId: uuid("meeting_id").references((): AnyPgColumn => meetings.id, { onDelete: "cascade" }),
   locale: text("locale").notNull().default("ar"),
   createdAt: createdAt(),
   sentAt: ts("sent_at"),
 });
+
+// ------------------------------------------------------------- meetings
+
+// Selah records meetings and links to the call; it never hosts one.
+// Invites go out as .ics files (RFC 5545). drizzle/0023_meetings_rules.sql.
+export const meetingKind = pgEnum("meeting_kind", ["kickoff", "status", "steering", "workshop", "handover", "other"]);
+export const meetingLocation = pgEnum("meeting_location", ["online", "in_person", "phone"]);
+export const meetingProvider = pgEnum("meeting_provider", ["google_meet", "teams", "zoom"]);
+export const meetingStatus = pgEnum("meeting_status", ["scheduled", "held", "cancelled"]);
+export const attendeeRole = pgEnum("attendee_role", ["organizer", "required", "optional"]);
+export const attendeeResponse = pgEnum("attendee_response", ["needs_action", "accepted", "declined", "tentative"]);
+
+export const meetings = pgTable(
+  "meetings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    kind: meetingKind("kind").notNull(),
+    title: text("title").notNull(),
+    startsAt: ts("starts_at").notNull(),
+    endsAt: ts("ends_at").notNull(),
+    location: meetingLocation("location").notNull(),
+    // https only, on an allowlisted host; the provider follows from the host.
+    joinUrl: text("join_url"),
+    provider: meetingProvider("provider"),
+    locationText: text("location_text"),
+    organizerId: uuid("organizer_id")
+      .notNull()
+      .references(() => user.id),
+    status: meetingStatus("status").notNull().default("scheduled"),
+    // Stable for the meeting's life; the sequence goes up on every change
+    // calendars must pick up (RFC 5545 UID and SEQUENCE).
+    icsUid: text("ics_uid").notNull().unique(),
+    icsSequence: integer("ics_sequence").notNull().default(0),
+    // What to cover, written by the database when the meeting is booked:
+    // the project's open work that needs attention.
+    agendaMd: text("agenda_md"),
+    spokenLang: text("spoken_lang").notNull().default("ar"),
+    // Participants were told the call may be transcribed (needed before any transcript import).
+    transcriptConsent: boolean("transcript_consent").notNull().default(false),
+    consentNotedBy: uuid("consent_noted_by").references(() => user.id),
+    visibility: visibility("visibility").notNull().default("shared"),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [scopedFk("meetings", t), index("meetings_project_idx").on(t.projectId, t.startsAt), index("meetings_start_idx").on(t.startsAt)],
+);
+
+// A person with an account, or a client contact without one; never a free-typed address.
+export const meetingAttendees = pgTable(
+  "meeting_attendees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    meetingId: uuid("meeting_id")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => user.id),
+    contactId: uuid("contact_id").references(() => clientContacts.id, { onDelete: "cascade" }),
+    role: attendeeRole("role").notNull().default("required"),
+    response: attendeeResponse("response").notNull().default("needs_action"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("attendee_one_kind", sql`(${t.userId} IS NULL) <> (${t.contactId} IS NULL)`),
+    uniqueIndex("meeting_attendees_user_uq").on(t.meetingId, t.userId),
+    uniqueIndex("meeting_attendees_contact_uq").on(t.meetingId, t.contactId),
+    index("meeting_attendees_user_idx").on(t.userId),
+  ],
+);
+
+// What the meeting decided, as recorded. Append-only: a correction is a new
+// row that supersedes the old one.
+export const meetingDecisions = pgTable(
+  "meeting_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    meetingId: uuid("meeting_id")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    lang: text("lang").notNull().default("ar"),
+    decidedBy: text("decided_by"),
+    supersedesId: uuid("supersedes_id").references((): AnyPgColumn => meetingDecisions.id),
+    visibility: visibility("visibility").notNull().default("shared"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("meeting_decisions", t), index("meeting_decisions_meeting_idx").on(t.meetingId)],
+);
+
+// The summary written after a meeting: main points here, decisions and
+// follow-ups in their own tables. Written by hand by default; an AI draft
+// counts only once a person confirms it.
+export const meetingSummaries = pgTable(
+  "meeting_summaries",
+  {
+    meetingId: uuid("meeting_id")
+      .primaryKey()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    ...scoped(),
+    lang: text("lang").notNull(),
+    mainPointsMd: text("main_points_md").notNull(),
+    source: text("source").notNull().default("manual"),
+    draftedByAiAt: ts("drafted_by_ai_at"),
+    confirmedBy: uuid("confirmed_by")
+      .notNull()
+      .references(() => user.id),
+    confirmedAt: ts("confirmed_at").notNull().defaultNow(),
+    visibility: visibility("visibility").notNull().default("firm_private"),
+  },
+  (t) => [scopedFk("meeting_summaries", t)],
+);

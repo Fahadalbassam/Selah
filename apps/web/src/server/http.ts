@@ -25,11 +25,13 @@ import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from 
  *
  * tests/route-guard.test.ts fails the build if a route skips this wrapper.
  */
-export interface Context<P, B, R = undefined> {
+export interface Context<P, B, R = undefined, Q = undefined> {
   principal: Principal;
   tx: Tx;
   params: P;
   body: B;
+  /** The URL's search parameters (only when the route sets `query`). */
+  query: Q;
   /** Files from a multipart form (only when the route sets `form`). */
   files: Map<string, File>;
   /** What `prepare` returned. */
@@ -37,8 +39,10 @@ export interface Context<P, B, R = undefined> {
   ip: string | null;
 }
 
-interface Options<P extends z.ZodType, B extends z.ZodType, R> {
+interface Options<P extends z.ZodType, B extends z.ZodType, R, Q extends z.ZodType = z.ZodUndefined> {
   params?: P;
+  /** Search parameters schema (each value a string). */
+  query?: Q;
   /** JSON body schema. */
   body?: B;
   /** Multipart form instead of JSON: `body` then validates the text fields. */
@@ -51,14 +55,16 @@ interface Options<P extends z.ZodType, B extends z.ZodType, R> {
   prepare?: (input: { userId: string; params: z.infer<P>; body: z.infer<B>; files: Map<string, File> }) => Promise<R>;
 }
 
-type Handler<P, B, R> = (ctx: Context<P, B, R>) => Promise<unknown>;
+type Handler<P, B, R, Q = undefined> = (ctx: Context<P, B, R, Q>) => Promise<unknown>;
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined, R = undefined>(
-  options: Options<P, B, R>,
-  handler: Handler<z.infer<P>, z.infer<B>, R>,
-) {
+export function route<
+  P extends z.ZodType = z.ZodUndefined,
+  B extends z.ZodType = z.ZodUndefined,
+  R = undefined,
+  Q extends z.ZodType = z.ZodUndefined,
+>(options: Options<P, B, R, Q>, handler: Handler<z.infer<P>, z.infer<B>, R, z.infer<Q>>) {
   return async (req: NextRequest, segment: { params: Promise<Record<string, string | string[]>> }) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     let userId: string | null = null;
@@ -73,6 +79,7 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const uid = userId;
 
       const params = parse(options.params, await segment.params);
+      const query = parse(options.query, Object.fromEntries(req.nextUrl.searchParams));
       const files = new Map<string, File>();
       let raw: unknown;
       if (options.form) {
@@ -95,7 +102,16 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const result = await asUser(uid, async (tx) => {
         const principal = await loadPrincipal(tx, uid);
         if (!principal) throw new NoMembershipError();
-        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, prepared: prepared as R, ip });
+        return handler({
+          principal,
+          tx,
+          params: params as z.infer<P>,
+          body: body as z.infer<B>,
+          query: query as z.infer<Q>,
+          files,
+          prepared: prepared as R,
+          ip,
+        });
       });
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {
