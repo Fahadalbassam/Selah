@@ -21,7 +21,7 @@ export function authorize(principal: Principal, permission: Permission, resource
   const org = checkOrganization(principal, resource);
   if (!org.allowed) return org;
 
-  const scope = grantFor(permission, principal.role, resource.projectKind);
+  const scope = grantFor(permission, principal.role, resource.projectKind, resource.engagementMode);
   if (!scope) return deny(`role:${principal.role} lacks ${permission}`);
 
   const membership = checkMembership(principal, resource);

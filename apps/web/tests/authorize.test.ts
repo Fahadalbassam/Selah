@@ -443,3 +443,35 @@ describe("intake and expertise", () => {
     expect(authorize(admin, "consultant_profile.manage", own).allowed).toBe(true);
   });
 });
+
+describe("engagement modes", () => {
+  const managed = (type: Resource["type"]) => acmeRecord(type, { projectKind: "client", engagementMode: "consultant_managed" });
+  const full = (type: Resource["type"]) => acmeRecord(type, { projectKind: "client", engagementMode: "full" });
+
+  it("staff on a consultant-managed client's project record its work, and only there", () => {
+    const staffed = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    for (const perm of ["action.work", "evidence.submit", "progress_update.create"] as const) {
+      expect(authorize(staffed, perm, managed("action")).allowed, perm).toBe(true);
+      expect(authorize(staffed, perm, full("action")).allowed, perm).toBe(false);
+    }
+    // Not staffed on the project: still no.
+    expect(authorize(principal("consultant", [], undefined, [ACME]), "progress_update.create", managed("action")).allowed).toBe(false);
+  });
+
+  it("only the firm admin changes a client's mode; the client admin manages its departments", () => {
+    const org = acmeRecord("organization", { projectId: null });
+    const dept = acmeRecord("department", { projectId: null });
+    expect(authorize(principal("firm_admin"), "organization.engagement", org).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "organization.engagement", org).allowed).toBe(false);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "organization.engagement", org).allowed).toBe(false);
+    expect(authorize(principal("client_admin"), "department.manage", dept).allowed).toBe(true);
+    expect(authorize(principal("client_manager"), "department.manage", dept).allowed).toBe(false);
+  });
+
+  it("only the client admin shares a client-private file", () => {
+    const doc = acmeRecord("document", { visibility: "client_private", ownerOrgId: ACME });
+    expect(authorize(principal("client_admin"), "document.share", doc).allowed).toBe(true);
+    expect(authorize(principal("client_manager"), "document.share", doc).allowed).toBe(false);
+    expect(authorize(principal("firm_admin"), "document.share", doc).allowed).toBe(false);
+  });
+});

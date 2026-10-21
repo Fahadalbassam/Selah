@@ -96,6 +96,15 @@ export const chunkSource = pgEnum("chunk_source", [
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const auditOutcome = pgEnum("audit_outcome", ["allow", "deny", "error"]);
+// How a client takes part (drizzle/0025_engagement_rules.sql):
+//   full               - the client's people use Selah and record their own work
+//   restricted         - client admins only; their uploads stay private to them until shared
+//   consultant_managed - no client accounts; the firm records what it hears from the client
+export const engagementMode = pgEnum("engagement_mode", ["full", "restricted", "consultant_managed"]);
+// Who wrote a progress update or submitted evidence: the client in Selah, a
+// consultant on the client's behalf, or staff on an internal project.
+export const recordSource = pgEnum("record_source", ["client_portal", "consultant_recorded", "internal"]);
+export const receivedVia = pgEnum("received_via", ["meeting", "email", "phone", "document"]);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 const createdAt = () => ts("created_at").notNull().defaultNow();
@@ -112,6 +121,11 @@ export const organizations = pgTable("organizations", {
   // invites anyone; for a client, null means any address (many family firms
   // have no company domain).
   allowedEmailDomains: text("allowed_email_domains").array(),
+  // Clients only (null for the firm). Only the firm admin changes it, and a
+  // change never deletes data.
+  engagementMode: engagementMode("engagement_mode"),
+  // Departments are optional: off, everyone on a project sees its work.
+  departmentsEnabled: boolean("departments_enabled").notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -278,6 +292,66 @@ const scopedFk = (name: string, t: { projectId: AnyPgColumn; orgId: AnyPgColumn 
     foreignColumns: [projects.id, projects.orgId],
   }).onDelete("cascade");
 
+// ------------------------------------------------------------ departments
+
+// Optional, per client (organizations.departments_enabled). A department
+// cuts across projects; its rows stay within the client's own org.
+export const departments = pgTable(
+  "departments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    nameAr: text("name_ar").notNull(),
+    nameEn: text("name_en"),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("departments_id_org_uq").on(t.id, t.orgId), uniqueIndex("departments_name_uq").on(t.orgId, t.nameAr)],
+);
+
+// The head is reminded at level 2 of the ladder, with the client's managers.
+export const departmentMembers = pgTable(
+  "department_members",
+  {
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    isHead: boolean("is_head").notNull().default(false),
+    addedBy: uuid("added_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index("department_members_user_idx").on(t.userId)],
+);
+
+// A row's department belongs to the row's own org.
+const departmentFk = (name: string, t: { departmentId: AnyPgColumn; orgId: AnyPgColumn }) =>
+  foreignKey({
+    name: `${name}_department_fk`,
+    columns: [t.departmentId, t.orgId],
+    foreignColumns: [departments.id, departments.orgId],
+  });
+
+// Progress and evidence: who recorded it, and (consultant_recorded only) how
+// and when the client told the firm. The database sets source.
+const recorded = () => ({
+  source: recordSource("source").notNull().default("client_portal"),
+  receivedVia: receivedVia("received_via"),
+  receivedOn: date("received_on"),
+});
+const recordedChecks = (name: string, t: { source: AnyPgColumn; receivedVia: AnyPgColumn; receivedOn: AnyPgColumn }) => [
+  check(
+    `${name}_received`,
+    sql`(${t.source} = 'consultant_recorded') = (${t.receivedVia} IS NOT NULL AND ${t.receivedOn} IS NOT NULL)`,
+  ),
+  check(`${name}_received_only`, sql`${t.source} = 'consultant_recorded' OR (${t.receivedVia} IS NULL AND ${t.receivedOn} IS NULL)`),
+];
+
 // ------------------------------------------------- findings and actions
 
 export const findings = pgTable(
@@ -337,6 +411,12 @@ export const actions = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     ownerUserId: uuid("owner_user_id").references(() => user.id),
+    // The client person responsible when they have no account
+    // (consultant-managed engagements). Never set together with owner_user_id.
+    ownerName: text("owner_name"),
+    // Optional: only the department's members (and the client admin and the
+    // firm) see it, when the client has departments switched on.
+    departmentId: uuid("department_id"),
     status: actionStatus("status").notNull().default("draft"),
     dueDate: date("due_date"),
     blockedReason: text("blocked_reason"),
@@ -363,8 +443,10 @@ export const actions = pgTable(
   },
   (t) => [
     scopedFk("actions", t),
+    departmentFk("actions", t),
     index("actions_project_idx").on(t.projectId),
     index("actions_owner_idx").on(t.ownerUserId),
+    check("actions_one_owner", sql`${t.ownerUserId} IS NULL OR ${t.ownerName} IS NULL`),
   ],
 );
 
@@ -382,9 +464,10 @@ export const progressUpdates = pgTable(
       .references(() => user.id),
     isBlocker: boolean("is_blocker").notNull().default(false),
     body: text("body").notNull(),
+    ...recorded(),
     createdAt: createdAt(),
   },
-  (t) => [scopedFk("progress_updates", t), index("progress_updates_action_idx").on(t.actionId)],
+  (t) => [scopedFk("progress_updates", t), index("progress_updates_action_idx").on(t.actionId), ...recordedChecks("progress_updates", t)],
 );
 
 export const deadlineChangeRequests = pgTable(
@@ -427,6 +510,7 @@ export const documents = pgTable(
     state: documentState("state").notNull().default("draft"),
     title: text("title").notNull(),
     visibility: visibility("visibility").notNull().default("firm_private"),
+    departmentId: uuid("department_id"),
     aiIndexable: boolean("ai_indexable").notNull().default(false),
     version: integer("version").notNull().default(1),
     supersedesId: uuid("supersedes_id"),
@@ -440,6 +524,7 @@ export const documents = pgTable(
   },
   (t) => [
     scopedFk("documents", t),
+    departmentFk("documents", t),
     foreignKey({ name: "documents_supersedes_fk", columns: [t.supersedesId], foreignColumns: [t.id] }),
     index("documents_project_idx").on(t.projectId),
   ],
@@ -480,9 +565,10 @@ export const evidenceSubmissions = pgTable(
     note: text("note"),
     // The item on the action's evidence list this file answers, if any.
     evidenceRequestId: uuid("evidence_request_id").references((): AnyPgColumn => evidenceRequests.id),
+    ...recorded(),
     submittedAt: createdAt(),
   },
-  (t) => [scopedFk("evidence_submissions", t), index("evidence_action_idx").on(t.actionId)],
+  (t) => [scopedFk("evidence_submissions", t), index("evidence_action_idx").on(t.actionId), ...recordedChecks("evidence_submissions", t)],
 );
 
 // The evidence list for an action ("prepared by client" list): what the
@@ -682,6 +768,8 @@ export const firmSettings = pgTable("firm_settings", {
   suggestionsEnabled: boolean("suggestions_enabled").notNull().default(true),
   // Ask each organisation's admin this often whether its people still work there.
   accessReviewDays: integer("access_review_days").notNull().default(90),
+  // Accounts a restricted client may have (all client admins).
+  restrictedMaxAdmins: integer("restricted_max_admins").notNull().default(2),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1120,6 +1208,8 @@ export const aiChunks = pgTable(
     sourceVersion: integer("source_version").notNull().default(1),
     visibility: visibility("visibility").notNull(),
     ownerUserId: uuid("owner_user_id"),
+    // Copied from the source document by the database.
+    departmentId: uuid("department_id"),
     chunkIndex: integer("chunk_index").notNull(),
     lang: text("lang"),
     content: text("content").notNull(),

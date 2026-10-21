@@ -12,6 +12,8 @@ const body = z
     title: z.string().trim().min(1).max(300),
     description: z.string().trim().max(8000).nullable(),
     ownerUserId: z.uuid().nullable(),
+    ownerName: z.string().trim().min(1).max(200).nullable(),
+    departmentId: z.uuid().nullable(),
     dueDate: z.iso.date().nullable(),
   })
   .partial()
