@@ -170,9 +170,119 @@ BEGIN
   RAISE EXCEPTION '% is append-only', TG_TABLE_NAME USING ERRCODE = 'insufficient_privilege';
 END $$;
 --> statement-breakpoint
+-- Switching minimal records on also clears what the firm holds about the
+-- client from before it was one: the requester's details on its inquiry, the
+-- discovery session's attendees and notes, and the notes in the inquiry's
+-- history, as the retention job would. The link to the client and the
+-- statistics (sector, services, size, dates) stay.
+CREATE OR REPLACE FUNCTION check_inquiry_update() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  is_admin boolean := app_role() = 'firm_admin';
+  owner_cols text[] := ARRAY['status', 'updated_at'];
+  admin_cols text[] := ARRAY['status', 'owner_user_id', 'conflict_status', 'conflict_note', 'client_org_id', 'updated_at'];
+  purge_cols text[] := ARRAY['org_name', 'org_name_ar', 'cr_number', 'contact_name', 'contact_role', 'contact_email', 'contact_phone',
+                             'message', 'ip_hash', 'user_agent_hash', 'anonymised_at', 'updated_at'];
+BEGIN
+  -- Switching a client to minimal records clears its inquiry at once
+  -- (forget_client_inquiries below): the requester's details to null, nothing else.
+  IF (to_jsonb(NEW) - purge_cols) = (to_jsonb(OLD) - purge_cols) AND OLD.anonymised_at IS NULL AND NEW.anonymised_at IS NOT NULL
+     AND NOT (jsonb_strip_nulls(to_jsonb(NEW)) ?| purge_cols[1:10])
+     AND EXISTS (SELECT 1 FROM organizations o WHERE o.id = NEW.client_org_id AND o.minimal_records) THEN
+    RETURN NEW;
+  END IF;
+  IF app_uid() IS NULL THEN
+    IF (to_jsonb(NEW) - purge_cols) <> (to_jsonb(OLD) - purge_cols) THEN
+      RAISE EXCEPTION 'jobs only anonymise inquiries' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF (to_jsonb(NEW) - CASE WHEN is_admin THEN admin_cols ELSE owner_cols END)
+     <> (to_jsonb(OLD) - CASE WHEN is_admin THEN admin_cols ELSE owner_cols END) THEN
+    RAISE EXCEPTION 'that change to an inquiry is not allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  NEW.updated_at := now();
+
+  IF NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id AND NEW.owner_user_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM org_memberships m WHERE m.user_id = NEW.owner_user_id AND m.org_id = NEW.firm_org_id AND m.active
+  ) THEN
+    RAISE EXCEPTION 'the owner must be an active member of the firm' USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF NEW.conflict_status IS DISTINCT FROM OLD.conflict_status OR NEW.conflict_note IS DISTINCT FROM OLD.conflict_note THEN
+    IF NEW.conflict_status IN ('flagged', 'waived') AND NEW.conflict_note IS NULL THEN
+      RAISE EXCEPTION 'say what the conflict is, or why it was waived' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.conflict_checked_by := app_uid();
+    NEW.conflict_checked_at := now();
+  END IF;
+
+  IF NEW.status <> OLD.status THEN
+    IF NOT (
+      (OLD.status, NEW.status) IN (('new', 'triaged'), ('triaged', 'discovery_scheduled'),
+                                   ('discovery_scheduled', 'discovery_done'), ('discovery_done', 'proposal_sent'))
+      OR (is_admin AND (
+        (OLD.status IN ('discovery_done', 'proposal_sent') AND NEW.status = 'won')
+        OR (OLD.status IN ('new', 'triaged', 'discovery_scheduled', 'discovery_done', 'proposal_sent')
+            AND NEW.status IN ('lost', 'declined', 'withdrawn'))
+        OR (OLD.status IN ('new', 'triaged') AND NEW.status = 'spam')
+        OR (OLD.status = 'spam' AND NEW.status = 'new')))
+    ) THEN
+      RAISE EXCEPTION 'invalid inquiry status change % -> %', OLD.status, NEW.status USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.status = 'won' AND NEW.conflict_status NOT IN ('clear', 'waived') THEN
+      RAISE EXCEPTION 'check for conflicts before winning an inquiry' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.status IN ('won', 'lost', 'declined', 'spam', 'withdrawn') THEN
+      NEW.closed_at := now();
+      NEW.purge_after := CASE NEW.status
+        WHEN 'won' THEN NULL
+        WHEN 'spam' THEN (now() AT TIME ZONE 'Asia/Riyadh')::date + 30
+        ELSE ((now() AT TIME ZONE 'Asia/Riyadh')::date + interval '12 months')::date END;
+    ELSE
+      NEW.closed_at := NULL;
+      NEW.purge_after := NULL;
+    END IF;
+  END IF;
+
+  IF NEW.client_org_id IS DISTINCT FROM OLD.client_org_id THEN
+    IF OLD.client_org_id IS NOT NULL OR NEW.status <> 'won'
+       OR NOT EXISTS (SELECT 1 FROM organizations o WHERE o.id = NEW.client_org_id AND o.kind = 'client') THEN
+      RAISE EXCEPTION 'a won inquiry becomes a client once' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.converted_by := app_uid();
+    NEW.converted_at := now();
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION forget_client_inquiries() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF NOT NEW.minimal_records OR OLD.minimal_records THEN
+    RETURN NULL;
+  END IF;
+  UPDATE discovery_sessions d SET attendees = NULL, notes = NULL
+    FROM inquiries i WHERE i.id = d.inquiry_id AND i.client_org_id = NEW.id;
+  UPDATE inquiries SET
+    org_name = NULL, org_name_ar = NULL, cr_number = NULL, contact_name = NULL, contact_role = NULL,
+    contact_email = NULL, contact_phone = NULL, message = NULL, ip_hash = NULL, user_agent_hash = NULL,
+    anonymised_at = now()
+  WHERE client_org_id = NEW.id AND anonymised_at IS NULL;
+  PERFORM set_config('selah.purge', 'on', true);
+  UPDATE inquiry_events e SET note = NULL
+    FROM inquiries i WHERE i.id = e.inquiry_id AND i.client_org_id = NEW.id AND e.note IS NOT NULL;
+  PERFORM set_config('selah.purge', 'off', true);
+  RETURN NULL;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER minimal_records_forget AFTER UPDATE OF minimal_records ON organizations
+  FOR EACH ROW EXECUTE FUNCTION forget_client_inquiries();
+--> statement-breakpoint
 -- After handover plus firm_settings.minimal_purge_days, blank the free text
--- of a minimal-records client's progress updates, notes, meeting notes,
--- decisions and summaries. Statuses, dates, who and when are kept. Once per
+-- of a minimal-records client's progress updates, notes, meetings (agenda,
+-- notes, decisions, summaries), findings, recommendations and actions.
+-- Titles, statuses, dates, who and when are kept. Once per
 -- project; run daily as the schema owner (npm run job:purge-minimal).
 CREATE FUNCTION app_purge_minimal_records(today date) RETURNS integer
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
@@ -194,6 +304,14 @@ BEGIN
     UPDATE meeting_notes SET body = gone WHERE project_id = pid AND body <> gone;
     UPDATE meeting_decisions SET text = gone WHERE project_id = pid AND text <> gone;
     UPDATE meeting_summaries SET main_points_md = gone WHERE project_id = pid AND main_points_md <> gone;
+    UPDATE meetings SET agenda_md = gone WHERE project_id = pid AND agenda_md <> gone;
+    UPDATE findings SET description = gone WHERE project_id = pid AND description <> gone;
+    UPDATE recommendations SET rationale = gone WHERE project_id = pid AND rationale <> gone;
+    UPDATE recommendations SET target_outcome = gone WHERE project_id = pid AND target_outcome <> gone;
+    UPDATE recommendations SET required_evidence = gone WHERE project_id = pid AND required_evidence <> gone;
+    UPDATE actions SET description = gone WHERE project_id = pid AND description <> gone;
+    UPDATE actions SET closure_note = gone WHERE project_id = pid AND closure_note <> gone;
+    UPDATE actions SET blocked_reason = gone WHERE project_id = pid AND blocked_reason <> gone;
     UPDATE projects SET minimal_purged_at = now() WHERE id = pid;
     n := n + 1;
   END LOOP;
