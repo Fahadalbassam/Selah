@@ -20,7 +20,8 @@
     "job:mail": "tsx scripts/send-mail.ts",
     "job:metrics": "tsx scripts/metrics-snapshot.ts",
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",
-    "job:purge-minimal": "tsx scripts/purge-minimal.ts"
+    "job:purge-minimal": "tsx scripts/purge-minimal.ts",
+    "job:purge-transcripts": "tsx scripts/purge-transcripts.ts"
   },
   "dependencies": {
     "@animate-ui/react": "^2.0.0",

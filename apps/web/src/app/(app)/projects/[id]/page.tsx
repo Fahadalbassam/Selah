@@ -1,4 +1,5 @@
-import { Bot, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
+import { Bot, CalendarDays, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
+import { listMeetings } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 
@@ -18,17 +20,24 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
-    return { data, team: await getProjectTeam(tx, principal, id), firmStaff: principal.orgKind === "firm" };
+    return {
+      data,
+      team: await getProjectTeam(tx, principal, id),
+      firmStaff: principal.orgKind === "firm",
+      // Roles that can't read meetings simply get no tab.
+      meetings: await listMeetings(tx, principal, id).catch(() => null),
+    };
   });
-  const [t, ts, tVis, tKind, tPrio, tStatus, format] = await Promise.all([
+  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("staffing"),
     getTranslations("visibility"),
     getTranslations("kind"),
     getTranslations("priority"),
     getTranslations("status"),
+    getTranslations("meeting"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -62,6 +71,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="recs" className="gap-4">
         <TabsList>
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
+          {meetings ? <TabsTrigger value="meetings">{t("meetings")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
           {team ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
@@ -93,6 +103,31 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </Card>
           ))}
         </TabsContent>
+
+        {meetings ? (
+          <TabsContent value="meetings">
+            {meetings.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("noMeetings")}</p>
+            ) : (
+              <ul className="divide-y rounded-lg border bg-card">
+                {meetings.map((m) => (
+                  <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                    <CalendarDays className="size-4 text-muted-foreground" />
+                    <Link href={`/meetings/${m.id}`} className="font-medium hover:underline">
+                      {m.title}
+                    </Link>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {format.dateTime(m.startsAt, { dateStyle: "medium", timeStyle: "short" })}
+                    </span>
+                    <Badge variant="outline" className="ms-auto">
+                      {tMeeting(`status.${m.status}`)}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="docs">
           {data.documents.length === 0 ? (

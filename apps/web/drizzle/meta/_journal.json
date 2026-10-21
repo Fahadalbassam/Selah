@@ -246,6 +246,20 @@
       "when": 1792564938810,
       "tag": "0034_translations_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792565535776,
+      "tag": "0035_transcripts",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792565537041,
+      "tag": "0036_transcripts_rules",
+      "breakpoints": true
     }
   ]
 }
