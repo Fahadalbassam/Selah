@@ -260,6 +260,20 @@
       "when": 1792565537041,
       "tag": "0036_transcripts_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792625467101,
+      "tag": "0037_meeting_follow_ups",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792625468089,
+      "tag": "0038_meeting_follow_ups_rules",
+      "breakpoints": true
     }
   ]
 }

@@ -34,7 +34,11 @@ export interface Field {
 }
 
 /** Calls one of our JSON API routes and maps its error to a message key. */
-export async function callApi(url: string, method: string, body?: unknown): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+export async function callApi(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<{ ok: true; data: unknown } | { ok: false; error: string; message?: string }> {
   try {
     const res = await fetch(url, {
       method,
@@ -42,7 +46,9 @@ export async function callApi(url: string, method: string, body?: unknown): Prom
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
-    return { ok: false, error: res.status === 409 ? "conflict" : res.status === 400 ? "invalid" : "generic" };
+    // The data rule's own words (English), for callers that map known ones to a message.
+    const message = ((await res.json().catch(() => null)) as { message?: string } | null)?.message;
+    return { ok: false, error: res.status === 409 ? "conflict" : res.status === 400 ? "invalid" : "generic", message };
   } catch {
     return { ok: false, error: "generic" };
   }
