@@ -232,6 +232,20 @@
       "when": 1792564263216,
       "tag": "0032_two_factor_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792564937557,
+      "tag": "0033_translations",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792564938810,
+      "tag": "0034_translations_rules",
+      "breakpoints": true
     }
   ]
 }

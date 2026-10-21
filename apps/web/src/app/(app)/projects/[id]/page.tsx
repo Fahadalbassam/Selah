@@ -4,6 +4,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +18,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
-    return { data, team: await getProjectTeam(tx, principal, id) };
+    return { data, team: await getProjectTeam(tx, principal, id), firmStaff: principal.orgKind === "firm" };
   });
   const [t, ts, tVis, tKind, tPrio, tStatus, format] = await Promise.all([
     getTranslations("project"),
@@ -77,7 +78,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                     {t("priority")}: {tPrio(r.priority)}
                   </Badge>
                 </div>
-                {r.rationale ? <CardDescription>{r.rationale}</CardDescription> : null}
+                {r.rationale ? (
+                  <Translatable entityType="recommendation" entityId={r.id} field="rationale" text={r.rationale} canReview={firmStaff} className="text-sm text-muted-foreground" />
+                ) : null}
                 {r.requiredEvidence ? (
                   <p className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">{t("requiredEvidence")}:</span> {r.requiredEvidence}

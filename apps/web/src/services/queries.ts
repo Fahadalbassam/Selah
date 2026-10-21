@@ -408,12 +408,13 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
   // (with how and when the client told them); the two are never mixed.
   type Recorded = Pick<(typeof updates)[number], "source" | "receivedVia" | "receivedOn">;
   type Entry =
-    | ({ kind: "update"; at: Date; who: string | null; body: string } & Recorded)
+    | ({ kind: "update"; id: string; at: Date; who: string | null; body: string } & Recorded)
     | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
     | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null };
   const timeline: Entry[] = [
     ...updates.map((u) => ({
       kind: "update" as const,
+      id: u.id,
       at: u.createdAt,
       who: u.authorName,
       body: u.body,
@@ -455,6 +456,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     context: context!,
     timeline,
     moves,
+    // Firm staff may mark a translation of this page's text reviewed.
+    firmStaff: principal.orgKind === "firm",
     can: {
       addUpdate: authorize(principal, "progress_update.create", resource).allowed && from !== "verified_complete",
       submitEvidence:
