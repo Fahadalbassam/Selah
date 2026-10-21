@@ -13,7 +13,16 @@ from pydantic import BaseModel, Field
 
 from .config import Settings, get_settings
 from .llm import LLM, make_llm
-from .prompt import ANSWER_SCHEMA, Answer, Passage, build_messages, check_answer
+from .prompt import (
+    ANSWER_SCHEMA,
+    TRANSLATION_SCHEMA,
+    Answer,
+    Passage,
+    build_messages,
+    build_translation_messages,
+    check_answer,
+    check_translation,
+)
 
 app = FastAPI(title="Selah AI service", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -50,6 +59,17 @@ class AnswerRequest(BaseModel):
     language: Literal["ar", "en", "auto"] = "auto"
 
 
+class TranslateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+    source: Literal["ar", "en"]
+    target: Literal["ar", "en"]
+
+
+class TranslateResponse(BaseModel):
+    text: str
+    model: str
+
+
 @app.get("/health")
 async def health() -> dict[str, bool]:
     return {"ok": True}
@@ -77,3 +97,18 @@ async def answer(
     system, user = build_messages(req.question, req.passages, req.language)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
+
+
+@app.post("/v1/translate", dependencies=[Depends(require_token)])
+async def translate(
+    req: TranslateRequest,
+    llm: Annotated[LLM, Depends(get_llm)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TranslateResponse:
+    if req.source == req.target:
+        raise HTTPException(status_code=422, detail="source and target are the same")
+    system, user = build_translation_messages(req.text, req.source, req.target)
+    text = check_translation(await llm.chat_json(system, user, TRANSLATION_SCHEMA))
+    if text is None:
+        raise HTTPException(status_code=502, detail="the model gave no translation")
+    return TranslateResponse(text=text, model=settings.llm_model)

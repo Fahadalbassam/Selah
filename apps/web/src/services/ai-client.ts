@@ -40,3 +40,7 @@ export type Answer = z.infer<typeof answerSchema>;
 export function answer(question: string, passages: Passage[], language: "ar" | "en" | "auto"): Promise<Answer> {
   return call("/v1/answer", { question, passages, language }, answerSchema);
 }
+
+export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {
+  return call("/v1/translate", { text, source, target }, z.object({ text: z.string().min(1), model: z.string() }));
+}

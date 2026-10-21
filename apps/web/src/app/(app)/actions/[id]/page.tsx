@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { Translatable } from "@/components/translatable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
@@ -34,9 +35,12 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
-      <PageHeader title={action.title} description={action.description ?? undefined}>
+      <PageHeader title={action.title}>
         <StatusBadge status={action.status} />
       </PageHeader>
+      {action.description ? (
+        <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">
@@ -67,7 +71,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                           <span className="text-muted-foreground">{t(`entry.${e.kind === "review" ? e.outcome : e.kind}`)}</span>
                           <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(e.at)}</span>
                         </p>
-                        {e.kind === "update" ? <p className="text-sm whitespace-pre-wrap">{e.body}</p> : null}
+                        {e.kind === "update" ? (
+                          <Translatable entityType="progress_update" entityId={e.id} field="body" text={e.body} canReview={data.firmStaff} className="text-sm" />
+                        ) : null}
                         {e.kind === "review" && e.reason ? <p className="text-sm whitespace-pre-wrap">{e.reason}</p> : null}
                         {e.kind === "evidence" ? (
                           <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">

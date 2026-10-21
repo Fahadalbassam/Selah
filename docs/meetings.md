@@ -32,10 +32,10 @@ Migrations 0022 (tables) and 0023 (rules). Selah records meetings and links to t
 
 - **Decisions** (`POST /api/meetings/:id/decisions`) are append-only. A correction is a new decision that supersedes one from the same meeting. Follow-ups can point at the decision they follow.
 - **The summary** (`PUT /api/meetings/:id/summary`) can be written only once the meeting is held. Whoever saves it confirms it, and it starts firm-private.
+- Summaries and decisions can be translated on demand (docs/translations.md).
 - Not built yet:
   - The AI draft from a Meet transcript. Meet has no Arabic transcripts, so the summary is written by hand by default.
   - Transcript import. It needs `transcript_consent`, which the database records together with who noted it.
-  - On-demand translation.
 
 ## The schedule
 
