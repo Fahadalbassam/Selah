@@ -296,7 +296,24 @@ export async function listTeam(tx: Tx, principal: Principal) {
     .select({ userId: projectMembers.userId })
     .from(projectMembers)
     .where(inArray(projectMembers.userId, rows.map((r) => r.id).concat(principal.userId)));
-  return rows.map((r) => ({ ...r, projectCount: memberships.filter((m) => m.userId === r.id).length }));
+  // Admins also see who has two-factor sign-in on, and may reset it for the
+  // people the database lets them (app_reset_two_factor): never themselves,
+  // and a client admin not a fellow admin.
+  const admin = principal.role === "firm_admin" || principal.role === "client_admin";
+  const twoFactor = admin
+    ? new Map(
+        (
+          await tx.execute<{ user_id: string; enabled: boolean }>(sql`select user_id, enabled from app_two_factor_status(${principal.orgId})`)
+        ).rows.map((r) => [r.user_id, r.enabled]),
+      )
+    : null;
+  return rows.map((r) => ({
+    ...r,
+    projectCount: memberships.filter((m) => m.userId === r.id).length,
+    twoFactor: twoFactor ? (twoFactor.get(r.id) ?? false) : null,
+    canResetTwoFactor:
+      admin && r.id !== principal.userId && r.active && (principal.role === "firm_admin" || r.role !== "client_admin") && twoFactor?.get(r.id) === true,
+  }));
 }
 
 /**

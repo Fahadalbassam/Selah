@@ -76,7 +76,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           name: viewer.name,
           email: viewer.email,
           otherLocale: rtl ? "en" : "ar",
-          labels: { language: tHeader("language"), theme: tHeader("theme"), signOut: tHeader("signOut") },
+          labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
         }}
       />
       <SidebarInset>

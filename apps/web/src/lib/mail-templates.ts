@@ -12,6 +12,7 @@ export const MAIL_KINDS = [
   "meeting.cancel",
   "password_reset",
   "password_reset.notice",
+  "two_factor.reset",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -103,6 +104,22 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       lines: [
         "A new password was set for your Selah account, and every session was signed out.",
         "If this wasn't you, contact your administrator now.",
+      ],
+    },
+  },
+  "two_factor.reset": {
+    ar: {
+      subject: "أُعيد ضبط التحقق بخطوتين",
+      lines: [
+        "أعاد مسؤول حسابك ضبط التحقق بخطوتين لحسابك في صلة، وانتهت جميع جلساته.",
+        "ستُعِدّه من جديد عند تسجيل الدخول التالي. إن لم تطلب ذلك فتواصل مع مسؤول حسابك.",
+      ],
+    },
+    en: {
+      subject: "Your two-factor sign-in was reset",
+      lines: [
+        "Your administrator reset two-factor sign-in for your Selah account, and every session was signed out.",
+        "You'll set it up again at your next sign-in. If you didn't ask for this, contact your administrator.",
       ],
     },
   },

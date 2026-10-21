@@ -24,6 +24,9 @@ const schema = z.object({
   CLAMD_HOST: z.string().optional(),
   CLAMD_PORT: z.coerce.number().int().default(3310),
   SCAN_REQUIRED: z.enum(["true", "false"]).default("true"),
+  // Two-factor sign-in for firm admins, consultants and client admins.
+  // "false" is for local development only and refused in production.
+  TWO_FACTOR_REQUIRED: z.enum(["true", "false"]).default("true"),
   AI_SERVICE_URL: z.url(),
   AI_SERVICE_TOKEN: z.string().min(32),
 });
@@ -38,6 +41,9 @@ export function env(): Env {
     // Uploads must never be stored unscanned in production.
     if (parsed.NODE_ENV === "production" && parsed.SCAN_REQUIRED === "false") {
       throw new Error("SCAN_REQUIRED=false is not allowed in production");
+    }
+    if (parsed.NODE_ENV === "production" && parsed.TWO_FACTOR_REQUIRED === "false") {
+      throw new Error("TWO_FACTOR_REQUIRED=false is not allowed in production");
     }
     cached = parsed;
   }
