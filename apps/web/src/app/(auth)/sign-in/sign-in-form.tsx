@@ -1,9 +1,9 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ export function SignInForm() {
           </div>
           {failed ? <p className="text-sm text-destructive">{t("error")}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" /> : null}
+            {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {busy ? t("submitting") : t("submit")}
           </Button>
         </form>

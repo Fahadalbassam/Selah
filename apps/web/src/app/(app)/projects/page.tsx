@@ -47,12 +47,12 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       {shown.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((p) => {
             const pct = p.actionCount ? Math.round((p.verifiedCount / p.actionCount) * 100) : 0;
             return (
               <Link key={p.id} href={`/projects/${p.id}`} className="group">
-                <Card className="h-full gap-3 py-5 shadow-xs transition-colors group-hover:border-primary/40">
+                <Card className="h-full gap-3 py-5 shadow-xs transition-[border-color,box-shadow,translate] duration-(--duration-base) ease-(--ease-out-soft) group-hover:-translate-y-0.5 group-hover:border-foreground/20 group-hover:shadow-md">
                   <CardHeader className="px-5">
                     <div className="flex items-center justify-between gap-2">
                       <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">

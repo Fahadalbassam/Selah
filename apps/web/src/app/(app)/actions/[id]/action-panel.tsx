@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { toast } from "sonner";
+import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -82,7 +84,7 @@ export function ActionPanel({ actionId, status, moves, can }: Props) {
           hint={t("acceptHint")}
           run={() => transition(to)}
           onDone={done}
-          trigger={<Button className="bg-success text-white hover:bg-success/90">{t("move.verified_complete")}</Button>}
+          trigger={<Button>{t("move.verified_complete")}</Button>}
         />,
       );
     } else {
@@ -112,6 +114,7 @@ export function ActionPanel({ actionId, status, moves, can }: Props) {
 }
 
 function useRun(onDone: () => void) {
+  const tc = useTranslations("common");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function go(run: () => Promise<Result>, after?: () => void) {
@@ -120,6 +123,7 @@ function useRun(onDone: () => void) {
     try {
       const r = await run();
       if (r.ok) {
+        toast.success(tc("saved"));
         after?.();
         onDone();
       } else setError(r.error);
@@ -146,6 +150,7 @@ function RunButton({ label, run, onDone }: { label: string; run: () => Promise<R
   return (
     <div className="space-y-1">
       <Button onClick={() => go(run)} disabled={busy}>
+        {busy ? <BrandLoader tone="current" className="size-4" /> : null}
         {label}
       </Button>
       <ErrorText error={error} />
@@ -171,6 +176,7 @@ function ConfirmDialog(props: { title: string; hint: string; trigger: ReactNode;
             {t("cancel")}
           </Button>
           <Button onClick={() => go(props.run, () => setOpen(false))} disabled={busy}>
+            {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {busy ? t("saving") : t("confirm")}
           </Button>
         </DialogFooter>
@@ -213,6 +219,7 @@ function ReasonDialog(props: {
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={busy || !reason.trim()}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {busy ? t("saving") : t("confirm")}
             </Button>
           </DialogFooter>
@@ -264,6 +271,7 @@ function EvidenceDialog(props: { actionId: string; submit: boolean; trigger: Rea
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {busy ? t("saving") : props.submit ? t("sendForReview") : t("upload")}
             </Button>
           </DialogFooter>
@@ -288,6 +296,7 @@ function UpdateForm({ actionId, onDone }: { actionId: string; onDone: () => void
       <ErrorText error={error} />
       <div>
         <Button type="submit" variant="secondary" size="sm" disabled={busy || !body.trim()}>
+          {busy ? <BrandLoader tone="current" className="size-4" /> : null}
           {busy ? t("saving") : t("post")}
         </Button>
       </div>
