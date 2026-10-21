@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth/auth";
 import { ForbiddenError, type Principal } from "@/authz";
-import { asUser, type Tx } from "@/db/client";
+import { asAnonymous, asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { auditDetached } from "@/services/audit";
 import { loadPrincipal } from "@/services/principal";
@@ -25,11 +25,13 @@ import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from 
  *
  * tests/route-guard.test.ts fails the build if a route skips this wrapper.
  */
-export interface Context<P, B, R = undefined> {
+export interface Context<P, B, R = undefined, Q = undefined> {
   principal: Principal;
   tx: Tx;
   params: P;
   body: B;
+  /** The URL's search parameters (only when the route sets `query`). */
+  query: Q;
   /** Files from a multipart form (only when the route sets `form`). */
   files: Map<string, File>;
   /** What `prepare` returned. */
@@ -37,8 +39,10 @@ export interface Context<P, B, R = undefined> {
   ip: string | null;
 }
 
-interface Options<P extends z.ZodType, B extends z.ZodType, R> {
+interface Options<P extends z.ZodType, B extends z.ZodType, R, Q extends z.ZodType = z.ZodUndefined> {
   params?: P;
+  /** Search parameters schema (each value a string). */
+  query?: Q;
   /** JSON body schema. */
   body?: B;
   /** Multipart form instead of JSON: `body` then validates the text fields. */
@@ -51,14 +55,16 @@ interface Options<P extends z.ZodType, B extends z.ZodType, R> {
   prepare?: (input: { userId: string; params: z.infer<P>; body: z.infer<B>; files: Map<string, File> }) => Promise<R>;
 }
 
-type Handler<P, B, R> = (ctx: Context<P, B, R>) => Promise<unknown>;
+type Handler<P, B, R, Q = undefined> = (ctx: Context<P, B, R, Q>) => Promise<unknown>;
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined, R = undefined>(
-  options: Options<P, B, R>,
-  handler: Handler<z.infer<P>, z.infer<B>, R>,
-) {
+export function route<
+  P extends z.ZodType = z.ZodUndefined,
+  B extends z.ZodType = z.ZodUndefined,
+  R = undefined,
+  Q extends z.ZodType = z.ZodUndefined,
+>(options: Options<P, B, R, Q>, handler: Handler<z.infer<P>, z.infer<B>, R, z.infer<Q>>) {
   return async (req: NextRequest, segment: { params: Promise<Record<string, string | string[]>> }) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     let userId: string | null = null;
@@ -73,6 +79,7 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const uid = userId;
 
       const params = parse(options.params, await segment.params);
+      const query = parse(options.query, Object.fromEntries(req.nextUrl.searchParams));
       const files = new Map<string, File>();
       let raw: unknown;
       if (options.form) {
@@ -95,7 +102,16 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
       const result = await asUser(uid, async (tx) => {
         const principal = await loadPrincipal(tx, uid);
         if (!principal) throw new NoMembershipError();
-        return handler({ principal, tx, params: params as z.infer<P>, body: body as z.infer<B>, files, prepared: prepared as R, ip });
+        return handler({
+          principal,
+          tx,
+          params: params as z.infer<P>,
+          body: body as z.infer<B>,
+          query: query as z.infer<Q>,
+          files,
+          prepared: prepared as R,
+          ip,
+        });
       });
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {
@@ -105,6 +121,50 @@ export function route<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType 
 }
 
 class NoMembershipError extends Error {}
+
+interface PublicOptions<P extends z.ZodType, B extends z.ZodType> {
+  params?: P;
+  /** JSON body schema. */
+  body?: B;
+  /** Largest accepted body. */
+  maxBytes: number;
+}
+
+/**
+ * For the few endpoints the public uses without signing in (the inquiry
+ * form). Same CSRF check, validation and error handling as route(), but no
+ * session: the handler runs as the app role with no user set, so row-level
+ * security allows nothing beyond the SECURITY DEFINER functions granted for
+ * the purpose. Invalid input answers 400 with the names of the bad fields.
+ * tests/route-guard.test.ts lists the routes allowed to use it.
+ */
+export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined>(
+  options: PublicOptions<P, B>,
+  handler: (ctx: { tx: Tx; params: z.infer<P>; body: z.infer<B>; ip: string | null; userAgent: string | null }) => Promise<unknown>,
+) {
+  return async (req: NextRequest, segment?: { params: Promise<Record<string, string | string[]>> }) => {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    try {
+      if (!SAFE_METHODS.has(req.method) && !sameOrigin(req)) return json({ error: "forbidden" }, 403);
+      const params = parse(options.params, segment ? await segment.params : {}) as z.infer<P>;
+      let body: z.infer<B> = undefined as z.infer<B>;
+      if (options.body) {
+        const length = Number(req.headers.get("content-length") ?? NaN);
+        if (!Number.isFinite(length) || length > options.maxBytes) return json({ error: "too_large" }, 413);
+        const result = options.body.safeParse(await readJson(req));
+        if (!result.success) {
+          const fields = [...new Set(result.error.issues.map((i) => String(i.path[0] ?? "")).filter(Boolean))];
+          return json({ error: "bad_request", fields }, 400);
+        }
+        body = result.data;
+      }
+      const result = await asAnonymous((tx) => handler({ tx, params, body, ip, userAgent: req.headers.get("user-agent") }));
+      return result instanceof Response ? result : json(result ?? { ok: true }, 200);
+    } catch (err) {
+      return toErrorResponse(err, null, ip, req);
+    }
+  };
+}
 
 function parse<T extends z.ZodType>(schema: T | undefined, value: unknown): z.infer<T> | undefined {
   if (!schema) return undefined;
@@ -160,8 +220,34 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
   if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
+  // A database rule refused the write (the app's own checks should have
+  // caught it first). Row-level security answers like a missing record.
+  const pg = pgError(err);
+  const code = pg?.code;
+  if (code === "42501") return json({ error: "not_found" }, 404);
+  // Raised by submit_inquiry() and similar validating functions.
+  if (code === "SL400") {
+    const field = /invalid field: (\w+)/.exec(pg!.message)?.[1];
+    return json(field ? { error: "bad_request", fields: [field] } : { error: "bad_request", message: pg!.message }, 400);
+  }
+  if (code === "SL429") return json({ error: "rate_limited" }, 429);
+  // A rule a trigger raised (no constraint name) explains itself in words
+  // written for people; a table constraint's message names internals.
+  if (code === "23514" && !pg!.constraint) return json({ error: "conflict", message: pg!.message }, 409);
+  if (code === "23514" || code === "23505") return json({ error: "conflict", message: "refused by a data rule" }, 409);
   console.error(`[api] ${req.method} ${req.nextUrl.pathname} failed`, err);
   return json({ error: "internal_error" }, 500);
+}
+
+/** The Postgres error inside a (possibly wrapped) error, if any. */
+function pgError(err: unknown): { code: string; message: string; constraint?: string } | undefined {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    const { code, constraint } = e as { code?: unknown; constraint?: unknown };
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) {
+      return { code, message: e.message, constraint: typeof constraint === "string" ? constraint : undefined };
+    }
+  }
+  return undefined;
 }
 
 function json(body: unknown, status: number) {

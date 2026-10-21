@@ -1,0 +1,263 @@
+// Client intake (migrations 0016-0017) against a real Postgres: the public
+// submit path, who sees an inquiry, its workflow, and anonymisation.
+//
+// Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { Pool, type PoolClient } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
+const appUrl = process.env.TEST_DATABASE_APP_URL;
+if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
+
+const owner = new Pool({ connectionString: ownerUrl, max: 2 });
+const app = new Pool({ connectionString: appUrl, max: 4 });
+
+const id = (n: number) => `00000000-0000-4000-d000-${String(n).padStart(12, "0")}`;
+const FIRM = id(1);
+const ACME = id(2);
+const NEW_CLIENT = id(3);
+const U = { admin: id(11), cons: id(12), other: id(13), cmgr: id(14), former: id(15) };
+
+/** Run fn on the app role as `userId`, or with no user (the public form); committed when asked. */
+async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
+  const c = await app.connect();
+  try {
+    await c.query("BEGIN");
+    if (userId) await c.query("SELECT set_config('selah.user_id', $1, true)", [userId]);
+    const out = await fn(c);
+    await c.query(commit ? "COMMIT" : "ROLLBACK");
+    return out;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+const run = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params), true);
+const attempt = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params));
+
+const form = (extra: Record<string, unknown> = {}) => ({
+  org_name: "Al-Waha Trading",
+  org_name_ar: "الواحة للتجارة",
+  cr_number: "1010123456",
+  sector: "trade_distribution",
+  employee_band: "50-249",
+  ownership_type: "family_multi_partner",
+  contact_name: "Sami",
+  contact_role: "CEO",
+  email: "Sami@Example.test",
+  phone: "+966 55 000 0000",
+  preferred_language: "ar",
+  services: ["family_business_governance", "delegation_matrix"],
+  message: "We want a family charter.",
+  self_check: { has_strategy: false, has_org_chart: true },
+  urgency: "within_3_months",
+  heard_from: "referral",
+  consent: true,
+  privacy_notice_version: "2026-10-20",
+  ...extra,
+});
+const submit = async (payload: Record<string, unknown>) =>
+  (await run(null, `SELECT submit_inquiry($1::jsonb) AS ref`, [JSON.stringify(payload)])).rows[0].ref as string;
+const byRef = async (ref: string) => (await owner.query(`SELECT * FROM inquiries WHERE public_ref = $1`, [ref])).rows[0];
+
+beforeAll(async () => {
+  const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
+  await q(`TRUNCATE "user", organizations CASCADE`);
+  await q(`TRUNCATE inquiries CASCADE`);
+  await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'firm','firm'), ($2,'client','Acme'), ($3,'client','Al-Waha')`, [
+    FIRM,
+    ACME,
+    NEW_CLIENT,
+  ]);
+  for (const [name, uid] of Object.entries(U)) {
+    await q(`INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)`, [uid, name, `${name}@example.test`]);
+  }
+  await q(
+    `INSERT INTO org_memberships (user_id, org_id, role, active) VALUES
+      ($1,$6,'firm_admin',true), ($2,$6,'consultant',true), ($3,$6,'consultant',true), ($4,$7,'client_manager',true),
+      ($5,$6,'consultant',false)`,
+    [U.admin, U.cons, U.other, U.cmgr, U.former, FIRM, ACME],
+  );
+});
+
+afterAll(async () => {
+  await owner.end();
+  await app.end();
+});
+
+describe("the public form", () => {
+  it("submits through submit_inquiry only, as a new inquiry, and tells the firm admins", async () => {
+    const ref = await submit(form({ status: "won", owner_user_id: U.cons, client_org_id: ACME, conflict_status: "clear" }));
+    expect(ref).toMatch(/^INQ-[0-9A-F]{8}$/);
+    const row = await byRef(ref);
+    expect([row.status, row.owner_user_id, row.client_org_id, row.conflict_status]).toEqual(["new", null, null, "not_checked"]);
+    expect([row.contact_email, row.firm_org_id]).toEqual(["sami@example.test", FIRM]);
+    // Skipped questions stay unanswered rather than becoming "no".
+    expect(row.self_check).toEqual({ has_strategy: false, has_org_chart: true });
+    const services = await owner.query(
+      `SELECT sa.code FROM inquiry_services s JOIN service_areas sa ON sa.id = s.service_area_id WHERE s.inquiry_id = $1 ORDER BY 1`,
+      [row.id],
+    );
+    expect(services.rows.map((r) => r.code)).toEqual(["delegation_matrix", "family_business_governance"]);
+    const told = await owner.query(`SELECT user_id FROM notifications WHERE entity_id = $1 AND kind = 'inquiry.new'`, [row.id]);
+    expect(told.rows.map((r) => r.user_id)).toEqual([U.admin]);
+  });
+
+  it("the public cannot read or write inquiries directly, but can read the lists", async () => {
+    await expect(attempt(null, `SELECT * FROM inquiries`)).resolves.toMatchObject({ rowCount: 0 });
+    await expect(attempt(null, `INSERT INTO inquiries (firm_org_id, public_ref) VALUES ($1, 'x')`, [FIRM])).rejects.toThrow(
+      /permission denied/,
+    );
+    expect((await attempt(null, `SELECT code FROM service_areas`)).rowCount).toBe(7);
+    expect((await attempt(null, `SELECT code FROM sectors`)).rowCount).toBe(8);
+    await expect(attempt(null, `UPDATE sectors SET active = false`)).resolves.toMatchObject({ rowCount: 0 });
+  });
+
+  it("names the invalid field", async () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ email: "not-an-email" }, "email"],
+      [{ org_name: " " }, "org_name"],
+      [{ sector: "mining" }, "sector"],
+      [{ services: [] }, "services"],
+      [{ services: ["strategic_plan", "astrology"] }, "services"],
+      [{ employee_band: "huge" }, "employee_band"],
+      [{ consent: false }, "consent"],
+      [{ message: "x".repeat(2001) }, "message"],
+      [{ phone: "call me" }, "phone"],
+      [{ preferred_language: "fr" }, "preferred_language"],
+      [{ urgency: "yesterday" }, "urgency"],
+    ];
+    for (const [extra, field] of cases) {
+      await expect(submit(form(extra)), field).rejects.toThrow(`invalid field: ${field}`);
+    }
+  });
+
+  it("allows 5 an hour from one address", async () => {
+    for (let i = 0; i < 5; i++) await submit(form({ ip_hash: "ip-1" }));
+    await expect(submit(form({ ip_hash: "ip-1" }))).rejects.toThrow(/too many inquiries/);
+    await submit(form({ ip_hash: "ip-2" }));
+  });
+});
+
+describe("who sees an inquiry", () => {
+  it("the firm admin sees all; a consultant only the ones they qualify; clients none", async () => {
+    const ref = await submit(form());
+    const iid = (await byRef(ref)).id;
+    const sees = async (uid: string) => (await attempt(uid, `SELECT 1 FROM inquiries WHERE id = $1`, [iid])).rowCount;
+    expect(await sees(U.admin)).toBe(1);
+    expect(await sees(U.cons)).toBe(0);
+    expect(await sees(U.cmgr)).toBe(0);
+    await run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.cons]);
+    expect(await sees(U.cons)).toBe(1);
+    expect(await sees(U.other)).toBe(0);
+    expect((await attempt(U.cons, `SELECT 1 FROM inquiry_events WHERE inquiry_id = $1`, [iid])).rowCount).toBeGreaterThan(0);
+    expect((await attempt(U.other, `SELECT 1 FROM inquiry_events WHERE inquiry_id = $1`, [iid])).rowCount).toBe(0);
+    await expect(run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.former])).rejects.toThrow(
+      /active member of the firm/,
+    );
+  });
+});
+
+describe("the workflow", () => {
+  let iid: string;
+  const set = (uid: string, sql: string) => run(uid, `UPDATE inquiries SET ${sql} WHERE id = $1`, [iid]);
+
+  beforeAll(async () => {
+    iid = (await byRef(await submit(form()))).id;
+    await run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.cons]);
+  });
+
+  it("the owner moves it forward and cannot decide the outcome or touch anything else", async () => {
+    await set(U.cons, `status = 'triaged'`);
+    await set(U.cons, `status = 'discovery_scheduled'`);
+    await run(
+      U.cons,
+      `INSERT INTO discovery_sessions (inquiry_id, scheduled_at, mode, created_by) VALUES ($1, now(), 'video', $2)`,
+      [iid, U.cons],
+    );
+    await set(U.cons, `status = 'discovery_done'`);
+    await expect(set(U.cons, `status = 'won'`)).rejects.toThrow(/invalid inquiry status change/);
+    await expect(set(U.cons, `conflict_status = 'clear'`)).rejects.toThrow(/not allowed/);
+    await expect(set(U.cons, `owner_user_id = '${U.other}'`)).rejects.toThrow(/not allowed/);
+    await expect(set(U.cons, `contact_email = 'x@y.z'`)).rejects.toThrow(/not allowed/);
+    await set(U.cons, `status = 'proposal_sent'`);
+    await run(
+      U.cons,
+      `INSERT INTO inquiry_events (inquiry_id, actor_id, event, note) VALUES ($1,$2,'note','Sent the proposal')`,
+      [iid, U.cons],
+    );
+    await expect(
+      run(U.cons, `INSERT INTO inquiry_events (inquiry_id, actor_id, event, to_status) VALUES ($1,$2,'status_changed','won')`, [
+        iid,
+        U.cons,
+      ]),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("winning needs a conflict check, and a won inquiry becomes a client once", async () => {
+    await expect(set(U.admin, `status = 'won'`)).rejects.toThrow(/check for conflicts/);
+    await expect(set(U.admin, `conflict_status = 'waived'`)).rejects.toThrow(/say what the conflict is/);
+    await set(U.admin, `conflict_status = 'clear'`);
+    await expect(set(U.admin, `client_org_id = '${NEW_CLIENT}'`)).rejects.toThrow(/becomes a client once/);
+    await set(U.admin, `status = 'won'`);
+    await set(U.admin, `client_org_id = '${NEW_CLIENT}'`);
+    await expect(set(U.admin, `client_org_id = '${ACME}'`)).rejects.toThrow(/becomes a client once/);
+    const row = (await owner.query(`SELECT * FROM inquiries WHERE id = $1`, [iid])).rows[0];
+    expect([row.conflict_checked_by, row.converted_by, row.purge_after]).toEqual([U.admin, U.admin, null]);
+    const events = await owner.query(`SELECT event FROM inquiry_events WHERE inquiry_id = $1 ORDER BY created_at, event`, [iid]);
+    expect(events.rows.map((r) => r.event)).toEqual(
+      expect.arrayContaining(["submitted", "owner_changed", "status_changed", "note", "conflict_checked", "converted"]),
+    );
+    await expect(owner.query(`DELETE FROM inquiry_events WHERE inquiry_id = $1`, [iid])).rejects.toThrow(/append-only/);
+  });
+});
+
+describe("retention", () => {
+  it("closing sets a purge date, and the job clears exactly the requester's details", async () => {
+    const spam = (await byRef(await submit(form({ ip_hash: "ip-9" })))).id;
+    const lost = (await byRef(await submit(form()))).id;
+    await run(U.admin, `UPDATE inquiries SET status = 'spam' WHERE id = $1`, [spam]);
+    await run(U.admin, `UPDATE inquiries SET status = 'lost' WHERE id = $1`, [lost]);
+    const dates = await owner.query(`SELECT id, purge_after - (closed_at AT TIME ZONE 'Asia/Riyadh')::date AS days FROM inquiries WHERE id IN ($1, $2)`, [
+      spam,
+      lost,
+    ]);
+    const days = Object.fromEntries(dates.rows.map((r) => [r.id, r.days]));
+    expect(days[spam]).toBe(30);
+    expect(days[lost]).toBeGreaterThanOrEqual(365);
+
+    await expect(attempt(U.admin, `SELECT app_purge_inquiries('2099-01-01')`)).rejects.toThrow(/permission denied/);
+    const n = Number((await owner.query(`SELECT app_purge_inquiries('2099-01-01') AS n`)).rows[0].n);
+    expect(n).toBe(2);
+    const row = (await owner.query(`SELECT * FROM inquiries WHERE id = $1`, [lost])).rows[0];
+    const cleared = [
+      "org_name",
+      "org_name_ar",
+      "cr_number",
+      "contact_name",
+      "contact_role",
+      "contact_email",
+      "contact_phone",
+      "message",
+      "ip_hash",
+      "user_agent_hash",
+    ];
+    for (const col of cleared) expect(row[col], col).toBeNull();
+    expect(row.anonymised_at).not.toBeNull();
+    // Kept for statistics.
+    expect([row.employee_band, row.ownership_type, row.status, row.sector_id === null]).toEqual([
+      "50-249",
+      "family_multi_partner",
+      "lost",
+      false,
+    ]);
+    expect(Number((await owner.query(`SELECT count(*) FROM inquiry_services WHERE inquiry_id = $1`, [lost])).rows[0].count)).toBe(
+      2,
+    );
+    // A won inquiry is never purged, and jobs cannot change anything else.
+    expect(Number((await owner.query(`SELECT app_purge_inquiries('2099-01-01') AS n`)).rows[0].n)).toBe(0);
+    await expect(owner.query(`UPDATE inquiries SET status = 'won' WHERE id = $1`, [lost])).rejects.toThrow(/only anonymise/);
+  });
+});

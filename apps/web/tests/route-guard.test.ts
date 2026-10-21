@@ -13,6 +13,17 @@ const EXEMPT: Record<string, string> = {
   "health/route.ts": "liveness probe; reads no data",
 };
 
+// Routes the public uses without signing in. They go through publicRoute(),
+// which runs with no user, so RLS allows only what the database grants the
+// public (the submit_inquiry() function and the service and sector lists).
+const PUBLIC: Record<string, string> = {
+  "inquiries/route.ts": "the public inquiry form",
+  "intake/options/route.ts": "the inquiry form's choices",
+  "invite/[token]/route.ts": "an invited person opening their link",
+  "invite/[token]/accept/route.ts": "an invited person setting up their account",
+  "email-change/confirm/route.ts": "a new address confirming an admin's change",
+};
+
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -34,8 +45,9 @@ describe("API route guard", () => {
     expect(source).toMatch(/from "@\/server\/http"/);
     const exported = [...source.matchAll(/export\s+(?:const|async function|function)\s+(GET|POST|PUT|PATCH|DELETE)\b(.*)/g)];
     expect(exported.length).toBeGreaterThan(0);
+    const wrapper = file in PUBLIC ? "publicRoute" : "route";
     for (const [, method, rest] of exported) {
-      expect(rest, `${method} must be "= route(...)"`).toMatch(/^\s*=\s*route\(/);
+      expect(rest, `${method} must be "= ${wrapper}(...)"`).toMatch(new RegExp(`^\\s*=\\s*${wrapper}\\(`));
     }
     // No direct database access in route files.
     expect(source).not.toMatch(/@\/db\//);

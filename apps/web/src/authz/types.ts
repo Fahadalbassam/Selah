@@ -1,5 +1,6 @@
 export type Role = "firm_admin" | "consultant" | "client_admin" | "client_manager" | "action_owner";
 export type OrgKind = "firm" | "client";
+export type EngagementMode = "full" | "restricted" | "consultant_managed";
 export type Visibility = "shared" | "firm_private" | "client_private" | "user_private";
 
 export const FIRM_ROLES: readonly Role[] = ["firm_admin", "consultant"];
@@ -31,6 +32,9 @@ export type ResourceType =
   | "finding"
   | "recommendation"
   | "action"
+  | "action_note"
+  | "evidence_request"
+  | "risk_acceptance"
   | "progress_update"
   | "deadline_request"
   | "evidence"
@@ -43,7 +47,12 @@ export type ResourceType =
   | "ai_conversation"
   | "client_assignment"
   | "client_directory"
-  | "join_request";
+  | "join_request"
+  | "inquiry"
+  | "consultant_profile"
+  | "client_contact"
+  | "meeting"
+  | "department";
 
 /**
  * The attributes of a record that the check needs. Services load these from
@@ -73,6 +82,8 @@ export interface Resource {
   ownerOrgId?: string;
   /** Kind of the record's project. Internal projects have their own work rules. */
   projectKind?: "internal" | "client";
+  /** How the record's client takes part. Consultant-managed clients have their own work rules. */
+  engagementMode?: EngagementMode | null;
   /** Staffing records (assignments, join requests): the client they are about. */
   clientOrgId?: string;
 }
