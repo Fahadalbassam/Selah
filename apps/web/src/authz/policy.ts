@@ -72,6 +72,17 @@ export const POLICY = {
   "recommendation.read": { ...READ_WORK },
   "recommendation.write": { ...STAFF },
 
+  // Assessment templates belong to the firm. Its staff read them; the firm
+  // admin and the consultants the admin names build and publish them (the
+  // database checks the names: template_authors). Clients never see one.
+  "assessment_template.read": { ...STAFF },
+  "assessment_template.manage": { ...STAFF },
+  "template_author.manage": { firm_admin: "any" },
+  // Assessments of a client project. The firm on the project runs them;
+  // the client's admins and managers read one once it is final and shared.
+  "assessment.read": { ...ALL_BUT_OWNER },
+  "assessment.conduct": { ...STAFF },
+
   // Actions. Status moves map to these in workflow.ts.
   "action.read": { ...READ_WORK },
   "action.write": { ...STAFF },

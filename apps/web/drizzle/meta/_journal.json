@@ -197,6 +197,20 @@
       "when": 1792543904455,
       "tag": "0027_insight_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792545038258,
+      "tag": "0028_assessments",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792545039590,
+      "tag": "0029_assessments_rules",
+      "breakpoints": true
     }
   ]
 }
