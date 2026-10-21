@@ -3,7 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { toast } from "sonner";
+import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -15,17 +18,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 export interface Field {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "select";
+  type?: "text" | "textarea" | "select" | "date";
   required?: boolean;
   maxLength?: number;
   dir?: "rtl" | "ltr";
   options?: { value: string; label: string }[];
+  /** Placeholder for select and date fields. */
+  placeholder?: string;
 }
 
 /** Calls one of our JSON API routes and maps its error to a message key. */
@@ -78,6 +83,7 @@ export function FormDialog(props: {
     setBusy(false);
     if (!r.ok) return setError(r.error);
     setOpen(false);
+    toast.success(t("saved"));
     const newId = (r.data as { id?: string } | null)?.id;
     if (props.redirectTo && newId) router.push(props.redirectTo.replace(":id", encodeURIComponent(newId)));
     else router.refresh();
@@ -98,20 +104,20 @@ export function FormDialog(props: {
               {f.type === "textarea" ? (
                 <Textarea id={`f-${f.name}`} name={f.name} required={f.required} maxLength={f.maxLength ?? 2000} rows={3} dir={f.dir} />
               ) : f.type === "select" ? (
-                <select
-                  id={`f-${f.name}`}
-                  name={f.name}
-                  required={f.required}
-                  className={cn(
-                    "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  )}
-                >
-                  {f.options?.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                <Select name={f.name} required={f.required} defaultValue={f.options?.[0]?.value}>
+                  <SelectTrigger id={`f-${f.name}`} className="w-full">
+                    <SelectValue placeholder={f.placeholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {f.options?.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : f.type === "date" ? (
+                <DatePicker id={`f-${f.name}`} name={f.name} required={f.required} placeholder={f.placeholder ?? f.label} clearLabel={t("clear")} />
               ) : (
                 <Input id={`f-${f.name}`} name={f.name} required={f.required} maxLength={f.maxLength ?? 200} dir={f.dir} />
               )}
@@ -127,6 +133,7 @@ export function FormDialog(props: {
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {busy ? t("saving") : props.submitLabel}
             </Button>
           </DialogFooter>
@@ -165,7 +172,7 @@ export function ApiButton(props: {
   return (
     <span className="inline-flex flex-col items-start gap-1">
       <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy} title={props.title}>
-        {props.icon}
+        {busy ? <BrandLoader tone="current" className="size-4" /> : props.icon}
         {props.label}
       </Button>
       {error ? <span className="text-xs text-destructive">{t(`errors.${error}`)}</span> : null}

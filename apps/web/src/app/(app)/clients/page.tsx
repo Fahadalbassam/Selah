@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { PeopleStack } from "@/components/people-stack";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,7 +85,9 @@ export default async function ClientsPage() {
                       ) : null}
                     </TableCell>
                     <TableCell className={c.lead ? "" : "text-muted-foreground"}>{c.lead ?? t("noLead")}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.consultants.length ? c.consultants.join(ar ? "، " : ", ") : tc("none")}</TableCell>
+                    <TableCell>
+                      <PeopleStack names={c.consultants} empty={tc("none")} />
+                    </TableCell>
                     <TableCell className="text-end tabular-nums">{c.projectCount}</TableCell>
                   </TableRow>
                 );

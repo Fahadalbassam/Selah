@@ -145,7 +145,12 @@
     "sources": "Sources",
     "disclaimer": "The assistant suggests; it does not decide. It never approves evidence or rules on compliance. Consultants decide.",
     "error": "Couldn't reach the AI service. Make sure it is running.",
-    "noProjects": "No projects are available to the assistant."
+    "noProjects": "No projects are available to the assistant.",
+    "you": "You",
+    "assistantName": "Assistant",
+    "emptyThread": "Pick a project and ask a question. Answers cite the records they come from.",
+    "notGrounded": "No permitted source supports a confident answer.",
+    "enterHint": "Enter to send · Shift+Enter for a new line"
   },
   "signIn": {
     "title": "Sign in",
@@ -227,6 +232,9 @@
   "common": {
     "cancel": "Cancel",
     "saving": "Saving…",
+    "saved": "Saved",
+    "clear": "Clear",
+    "loading": "Loading…",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "That was already done, or someone changed it first. Reload to see the latest.",
