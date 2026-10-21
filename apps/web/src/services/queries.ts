@@ -409,6 +409,10 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const from = action.status as ActionStatus;
+  const verifiedBasis =
+    from === "verified_complete"
+      ? (await tx.execute<{ b: string | null }>(sql`select app_verified_basis(${id}::uuid) as b`)).rows[0]?.b
+      : null;
   const submitters = from === "awaiting_review" ? await roundSubmitters(tx, id) : [];
   const moves = Object.keys(TRANSITIONS)
     .filter((k) => k.startsWith(`${from}>`))
@@ -426,6 +430,9 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       projectId: action.projectId,
       ownerName: owner?.name ?? action.ownerName,
       departmentId: action.departmentId,
+      // Verified on the client's evidence or on what a consultant recorded
+      // (drizzle/0027); null until verified.
+      verifiedBasis: from === "verified_complete" ? (verifiedBasis ?? null) : null,
       overdue: isOverdue({ status: from, dueDate: action.dueDate }),
     },
     context: context!,

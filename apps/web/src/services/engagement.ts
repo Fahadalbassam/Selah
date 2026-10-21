@@ -24,6 +24,8 @@ async function clientOrg(tx: Tx, orgId: string) {
       name: organizations.name,
       engagementMode: organizations.engagementMode,
       departmentsEnabled: organizations.departmentsEnabled,
+      minimalRecords: organizations.minimalRecords,
+      displayAlias: organizations.displayAlias,
     })
     .from(organizations)
     .where(and(eq(organizations.id, orgId), eq(organizations.kind, "client")));
@@ -65,9 +67,10 @@ export async function setEngagement(
   tx: Tx,
   principal: Principal,
   orgId: string,
-  input: { engagementMode?: EngagementMode; departmentsEnabled?: boolean },
+  input: { engagementMode?: EngagementMode; departmentsEnabled?: boolean; minimalRecords?: boolean; displayAlias?: string },
 ) {
-  if (input.engagementMode !== undefined) {
+  // Minimal records (consultant-managed only): the alias replaces the name.
+  if (input.engagementMode !== undefined || input.minimalRecords !== undefined || input.displayAlias !== undefined) {
     assertAllowed(principal, "organization.engagement", orgRecord(principal, "organization", orgId));
   }
   if (input.departmentsEnabled !== undefined) {
