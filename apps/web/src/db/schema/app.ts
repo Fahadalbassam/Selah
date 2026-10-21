@@ -743,7 +743,8 @@ export const followUps = pgTable(
     ...scoped(),
     meetingNoteId: uuid("meeting_note_id").references(() => meetingNotes.id, { onDelete: "set null" }),
     actionId: uuid("action_id").references(() => actions.id, { onDelete: "set null" }),
-    // The meeting decision this follows up, if any.
+    // The meeting it came out of, and the decision it follows up, if any.
+    meetingId: uuid("meeting_id").references((): AnyPgColumn => meetings.id, { onDelete: "set null" }),
     meetingDecisionId: uuid("meeting_decision_id").references((): AnyPgColumn => meetingDecisions.id),
     title: text("title").notNull(),
     dueAt: ts("due_at"),
@@ -757,7 +758,11 @@ export const followUps = pgTable(
       .references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [scopedFk("follow_ups", t), uniqueIndex("follow_ups_checkin_once").on(t.projectId, t.checkinDay)],
+  (t) => [
+    scopedFk("follow_ups", t),
+    uniqueIndex("follow_ups_checkin_once").on(t.projectId, t.checkinDay),
+    index("follow_ups_meeting_idx").on(t.meetingId),
+  ],
 );
 
 // Reports start firm-private and become shared only when a consultant
