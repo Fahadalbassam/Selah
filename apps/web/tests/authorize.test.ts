@@ -475,3 +475,26 @@ describe("engagement modes", () => {
     expect(authorize(principal("firm_admin"), "document.share", doc).allowed).toBe(false);
   });
 });
+
+describe("assessments", () => {
+  const template = { type: "assessment_template" as const, orgId: FIRM, firmOrgId: FIRM, projectId: null };
+
+  it("templates are the firm's: its staff read them, the firm admin names authors, clients never reach one", () => {
+    expect(authorize(principal("consultant"), "assessment_template.read", template).allowed).toBe(true);
+    expect(authorize(principal("consultant"), "template_author.manage", template).allowed).toBe(false);
+    expect(authorize(principal("firm_admin"), "template_author.manage", template).allowed).toBe(true);
+    for (const role of ["client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role), "assessment_template.read", template).allowed, role).toBe(false);
+      expect(authorize(principal(role), "assessment_template.manage", template).allowed, role).toBe(false);
+    }
+  });
+
+  it("the firm on the project conducts an assessment; client admins and managers may read it, action owners not", () => {
+    const a = acmeRecord("assessment", { projectKind: "client" });
+    expect(authorize(principal("consultant", [ACME_PROJ_1]), "assessment.conduct", a).allowed).toBe(true);
+    expect(authorize(principal("consultant", [ACME_PROJ_2]), "assessment.conduct", a).allowed).toBe(false);
+    expect(authorize(principal("client_admin"), "assessment.conduct", a).allowed).toBe(false);
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "assessment.read", a).allowed).toBe(true);
+    expect(authorize(principal("action_owner", [ACME_PROJ_1]), "assessment.read", a).allowed).toBe(false);
+  });
+});
