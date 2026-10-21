@@ -1664,6 +1664,8 @@ export const templateQuestions = pgTable(
     guidanceFor: legalForm("guidance_for").array(),
     citation: text("citation"),
     locator: text("locator"),
+    // False until someone checks the citation against the source's current text.
+    citationVerified: boolean("citation_verified").notNull().default(false),
     // Asked only when an earlier question of the same version has one of these answers.
     appliesIfQuestionId: uuid("applies_if_question_id").references((): AnyPgColumn => templateQuestions.id),
     appliesIfValues: text("applies_if_values").array(),
@@ -1681,6 +1683,13 @@ export const templateQuestions = pgTable(
     }).onDelete("cascade"),
     check("template_questions_weight", sql`${t.weight} BETWEEN 1 AND 3`),
     check("template_questions_gap", sql`${t.gapMaxPoints} IS NULL OR ${t.gapMaxPoints} >= 0`),
+    // Binding or guidance status comes only from legal_for and guidance_for, per client.
+    check("template_questions_own_basis", sql`${t.basis} NOT IN ('legal_requirement', 'regulator_guidance')`),
+    check(
+      "template_questions_sourced",
+      sql`(${t.basis} <> 'good_practice' AND coalesce(cardinality(${t.legalFor}), 0) = 0 AND coalesce(cardinality(${t.guidanceFor}), 0) = 0)
+        OR (nullif(trim(${t.citation}), '') IS NOT NULL AND nullif(trim(${t.locator}), '') IS NOT NULL)`,
+    ),
     check(
       "template_questions_applies",
       sql`(${t.appliesIfQuestionId} IS NULL) = (${t.appliesIfValues} IS NULL) AND (${t.appliesIfValues} IS NULL OR cardinality(${t.appliesIfValues}) > 0)`,
@@ -1744,6 +1753,7 @@ export const assessmentAnswers = pgTable(
     basis: criterionBasis("basis").notNull(),
     value: text("value"),
     textAnswer: text("text_answer"),
+    // Shown to the client when the assessment is shared. Firm-only notes go in assessment_notes.
     comment: text("comment"),
     answeredBy: uuid("answered_by").references(() => user.id),
     answeredAt: ts("answered_at"),
@@ -1758,6 +1768,23 @@ export const assessmentAnswers = pgTable(
     unique("assessment_answers_question_uq").on(t.assessmentId, t.questionId),
     index("assessment_answers_assessment_idx").on(t.assessmentId),
   ],
+);
+
+// The firm's own notes on an answer, never shown to the client.
+export const assessmentNotes = pgTable(
+  "assessment_notes",
+  {
+    answerId: uuid("answer_id")
+      .primaryKey()
+      .references(() => assessmentAnswers.id, { onDelete: "cascade" }),
+    ...scoped(),
+    body: text("body").notNull(),
+    updatedBy: uuid("updated_by")
+      .notNull()
+      .references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [scopedFk("assessment_notes", t)],
 );
 
 // Files that back an answer: documents of the same project, uploaded and

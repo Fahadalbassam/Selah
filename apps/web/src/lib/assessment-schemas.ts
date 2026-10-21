@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BASES, LEGAL_FORMS, QUESTION_TYPES } from "./assessments";
+import { LEGAL_FORMS, OWN_BASES, QUESTION_TYPES } from "./assessments";
 
 // Request bodies for the assessment template routes.
 
@@ -45,11 +45,13 @@ export const questionBody = z.object({
     .optional(),
   weight: z.number().int().min(1).max(3).default(1),
   gapMaxPoints: z.number().int().min(0).max(30).nullable().optional(),
-  basis: z.enum(BASES),
+  // Legal requirement and regulator guidance come only from legalFor and guidanceFor, per client.
+  basis: z.enum(OWN_BASES),
   legalFor: z.array(z.enum(LEGAL_FORMS)).max(6).nullable().optional(),
   guidanceFor: z.array(z.enum(LEGAL_FORMS)).max(6).nullable().optional(),
   citation: optionalText(500),
   locator: optionalText(200),
+  citationVerified: z.boolean().optional(),
   appliesIfQuestionId: z.uuid().nullable().optional(),
   appliesIfValues: z.array(z.string().trim().min(1).max(50)).min(1).max(10).nullable().optional(),
 });

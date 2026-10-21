@@ -13,6 +13,9 @@ export type QuestionType = (typeof QUESTION_TYPES)[number];
  */
 export const BASES = ["legal_requirement", "regulator_guidance", "good_practice", "firm_method", "team_proposed"] as const;
 export type Basis = (typeof BASES)[number];
+/** A question's own basis. Legal requirement and regulator guidance come only from its legal forms, per client. */
+export const OWN_BASES = ["good_practice", "firm_method", "team_proposed"] as const;
+export type OwnBasis = (typeof OWN_BASES)[number];
 
 export const BASIS_LABELS: Record<Basis, { en: string; ar: string }> = {
   legal_requirement: { en: "Legal requirement for this client", ar: "متطلب نظامي لهذا العميل" },

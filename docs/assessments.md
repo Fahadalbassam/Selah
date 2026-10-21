@@ -13,7 +13,7 @@ Assessment → gaps → findings → recommendations → actions → progress an
 3. **Answers.** Consultants answer, comment and attach files while it is a draft. Finalising needs every question that applies answered (or marked not applicable). After that nothing changes; a reassessment is a new assessment, so the two can be compared.
 4. **Gaps.** An answer at or below the question's threshold is a gap. Selah only suggests it: a consultant confirms each gap as a finding (`POST /api/assessment-answers/:id/finding`), at most once per answer.
 5. **From here, the existing system.** The finding is an ordinary finding. Recommendations answer it (`POST /api/projects/:id/recommendations` with `findingId`), actions carry them out, and progress, evidence, reviews, reminders and metrics work exactly as they do for a recommendation made directly. There is one recommendation system, and direct recommendations need no assessment.
-6. **Follow-up.** `GET /api/assessments/:id/follow-up` lists each confirmed gap with its recommendations and released actions: reported (awaiting review), evidenced (evidence submitted) and verified (accepted by a consultant's review), counted apart and never added together. The review records who verified, the decision and when.
+6. **Follow-up.** `GET /api/assessments/:id/follow-up` lists each confirmed gap with its recommendations and released actions: reported (awaiting review), evidenced (evidence submitted) and verified (accepted by a consultant's review), counted apart and never added together. "Evidenced" overlaps the other two. Verified is also split by whose evidence it rested on: the client's, or recorded by a consultant. The review records who verified, the decision and when.
 7. **Reports.** `POST /api/assessments/:id/report` freezes the section scores and the follow-up table into a report (firm-private until shared, like any report), with the line that the percentages are indicative and not a certification.
 8. **Trace.** `GET /api/projects/:id/trace` now starts at the assessment: assessment → finding → recommendation → action → evidence or review.
 
@@ -39,7 +39,9 @@ Each question records its basis for most clients, the legal forms for which it i
 | `firm_method` | The consulting firm's own criteria |
 | `team_proposed` | The team's wording, with no outside source |
 
-The basis is worked out **per assessment** from the client's legal form (`PUT /api/orgs/:id/legal-form`, firm admin only) and kept on each answer. An assessment cannot start until the legal form is recorded. For example, the CMA Corporate Governance Regulations bind listed companies, so a board-independence question is a legal requirement for a listed company and good practice for a family LLC. Changing a client's legal form later does not change assessments already made. Selah refuses a good-practice, guidance or legal basis without a named source and a locator.
+The basis is worked out **per assessment** from the client's legal form (`PUT /api/orgs/:id/legal-form`, firm admin only) and kept on each answer. An assessment cannot start until the legal form is recorded. For example, the CMA Corporate Governance Regulations bind listed companies, so a board-independence question is a legal requirement for a listed company and good practice for a family LLC. Changing a client's legal form later does not change assessments already made.
+
+A question's own basis can only be good practice, the firm's method or the team's proposal. Legal requirement and regulator guidance come only from its legal forms, so no question can be made "legal" for every client. A good-practice question, or one with legal forms, needs a named source and a locator, enforced by the database. `citation_verified` stays false until someone checks the citation against the source's current text, so screens and reports can show "source to verify".
 
 ## The starter template
 
@@ -54,7 +56,7 @@ These are **the team's proposed questions**, from the research thread's source m
 - **Ministry of Commerce governance regulations for non-listed joint stock companies (2018)**: guidance, to verify.
 - **Companies Law (2022)**: a family charter binds once adopted but is not required. The article (reported as Art. 11) is to verify.
 
-For a non-listed family company nothing in the starter template is a legal requirement. Three questions (board independence, conflict-of-interest policy, related-party dealings) become legal requirements for a listed company, and the board-meetings question is regulator guidance for a non-listed joint stock company.
+For a non-listed family company nothing in the starter template is a legal requirement. Two questions (board independence, CMA Art. 16; conflict-of-interest policy, Art. 41) become legal requirements for a listed company, and the board-meetings question is regulator guidance for a non-listed joint stock company. Related-party dealings (7.4) stay good practice for everyone until the CMA article is checked. On 3.2 the guidance says that "yes" does not confirm the Art. 16 thresholds. Seven citations are marked as not yet verified: 2.1, 2.4, 3.3, 3.4, 6.4, 7.3 and 7.4.
 
 ## Scoring
 
@@ -75,9 +77,9 @@ Percentages are indicative. They are shown to firm staff, and to the client only
 | Draft assessment | conduct | conduct | no | no | no |
 | Final assessment | conduct, share | conduct, share | no | read once shared | no |
 
-The answer's comment is shown to the client when the assessment is shared; write firm-only notes on the actions instead. Evidence on an answer is a file of the same project that the firm can see (not client-private), uploaded and scanned the usual way.
+The answer's comment is shown to the client when the assessment is shared. The firm's own notes go in `PUT /api/assessment-answers/:id/note` (table `assessment_notes`), which only firm staff on the project can read. Evidence on an answer is a file of the same project that the firm can see (not client-private), uploaded and scanned the usual way. The client sees evidence rows only for files shared with it.
 
-Minimal-records clients: written answers and comments are blanked with the rest after handover (docs/engagement.md).
+Minimal-records clients: written answers, comments and firm notes are blanked with the rest after handover (docs/engagement.md).
 
 ## Endpoints
 
@@ -100,7 +102,8 @@ Minimal-records clients: written answers and comments are blanked with the rest 
 | `PUT /api/assessments/:id/share` | share with the client, or stop |
 | `GET /api/assessments/:id/follow-up` | each confirmed gap and the work on it |
 | `POST /api/assessments/:id/report` | a report from a final assessment |
-| `PATCH /api/assessment-answers/:id` | answer, comment |
+| `PATCH /api/assessment-answers/:id` | answer, comment (shown to the client when shared) |
+| `PUT /api/assessment-answers/:id/note` | the firm's own note, never shown to the client |
 | `PUT/DELETE /api/assessment-answers/:id/evidence/:documentId` | attach or remove a file |
 | `POST /api/assessment-answers/:id/finding` | confirm a gap as a finding |
 

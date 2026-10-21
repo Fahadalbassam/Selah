@@ -1,5 +1,5 @@
 {
-  "id": "d570f0fd-5fac-4c7d-afb1-87202078b75a",
+  "id": "3bb37da3-7159-4f41-b50a-590c711e9cf0",
   "prevId": "5fae4a2f-f06f-41ae-870a-326b9c1574ed",
   "version": "7",
   "dialect": "postgresql",
@@ -1881,6 +1881,98 @@
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.assessment_notes": {
+      "name": "assessment_notes",
+      "schema": "",
+      "columns": {
+        "answer_id": {
+          "name": "answer_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "assessment_notes_answer_id_assessment_answers_id_fk": {
+          "name": "assessment_notes_answer_id_assessment_answers_id_fk",
+          "tableFrom": "assessment_notes",
+          "tableTo": "assessment_answers",
+          "columnsFrom": [
+            "answer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "assessment_notes_updated_by_user_id_fk": {
+          "name": "assessment_notes_updated_by_user_id_fk",
+          "tableFrom": "assessment_notes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "assessment_notes_project_fk": {
+          "name": "assessment_notes_project_fk",
+          "tableFrom": "assessment_notes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -8857,6 +8949,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "citation_verified": {
+          "name": "citation_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "applies_if_question_id": {
           "name": "applies_if_question_id",
           "type": "uuid",
@@ -8943,6 +9042,14 @@
         "template_questions_gap": {
           "name": "template_questions_gap",
           "value": "\"template_questions\".\"gap_max_points\" IS NULL OR \"template_questions\".\"gap_max_points\" >= 0"
+        },
+        "template_questions_own_basis": {
+          "name": "template_questions_own_basis",
+          "value": "\"template_questions\".\"basis\" NOT IN ('legal_requirement', 'regulator_guidance')"
+        },
+        "template_questions_sourced": {
+          "name": "template_questions_sourced",
+          "value": "(\"template_questions\".\"basis\" <> 'good_practice' AND coalesce(cardinality(\"template_questions\".\"legal_for\"), 0) = 0 AND coalesce(cardinality(\"template_questions\".\"guidance_for\"), 0) = 0)\n        OR (nullif(trim(\"template_questions\".\"citation\"), '') IS NOT NULL AND nullif(trim(\"template_questions\".\"locator\"), '') IS NOT NULL)"
         },
         "template_questions_applies": {
           "name": "template_questions_applies",

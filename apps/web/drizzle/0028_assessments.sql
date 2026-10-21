@@ -28,6 +28,15 @@ CREATE TABLE "assessment_evidence" (
 	CONSTRAINT "assessment_evidence_answer_id_document_id_pk" PRIMARY KEY("answer_id","document_id")
 );
 --> statement-breakpoint
+CREATE TABLE "assessment_notes" (
+	"answer_id" uuid PRIMARY KEY NOT NULL,
+	"project_id" uuid NOT NULL,
+	"org_id" uuid NOT NULL,
+	"body" text NOT NULL,
+	"updated_by" uuid NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "assessment_templates" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"firm_org_id" uuid NOT NULL,
@@ -87,10 +96,14 @@ CREATE TABLE "template_questions" (
 	"guidance_for" "legal_form"[],
 	"citation" text,
 	"locator" text,
+	"citation_verified" boolean DEFAULT false NOT NULL,
 	"applies_if_question_id" uuid,
 	"applies_if_values" text[],
 	CONSTRAINT "template_questions_weight" CHECK ("template_questions"."weight" BETWEEN 1 AND 3),
 	CONSTRAINT "template_questions_gap" CHECK ("template_questions"."gap_max_points" IS NULL OR "template_questions"."gap_max_points" >= 0),
+	CONSTRAINT "template_questions_own_basis" CHECK ("template_questions"."basis" NOT IN ('legal_requirement', 'regulator_guidance')),
+	CONSTRAINT "template_questions_sourced" CHECK (("template_questions"."basis" <> 'good_practice' AND coalesce(cardinality("template_questions"."legal_for"), 0) = 0 AND coalesce(cardinality("template_questions"."guidance_for"), 0) = 0)
+        OR (nullif(trim("template_questions"."citation"), '') IS NOT NULL AND nullif(trim("template_questions"."locator"), '') IS NOT NULL)),
 	CONSTRAINT "template_questions_applies" CHECK (("template_questions"."applies_if_question_id" IS NULL) = ("template_questions"."applies_if_values" IS NULL) AND ("template_questions"."applies_if_values" IS NULL OR cardinality("template_questions"."applies_if_values") > 0))
 );
 --> statement-breakpoint
@@ -130,6 +143,9 @@ ALTER TABLE "assessment_evidence" ADD CONSTRAINT "assessment_evidence_answer_id_
 ALTER TABLE "assessment_evidence" ADD CONSTRAINT "assessment_evidence_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_evidence" ADD CONSTRAINT "assessment_evidence_added_by_user_id_fk" FOREIGN KEY ("added_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_evidence" ADD CONSTRAINT "assessment_evidence_project_fk" FOREIGN KEY ("project_id","org_id") REFERENCES "public"."projects"("id","org_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assessment_notes" ADD CONSTRAINT "assessment_notes_answer_id_assessment_answers_id_fk" FOREIGN KEY ("answer_id") REFERENCES "public"."assessment_answers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assessment_notes" ADD CONSTRAINT "assessment_notes_updated_by_user_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assessment_notes" ADD CONSTRAINT "assessment_notes_project_fk" FOREIGN KEY ("project_id","org_id") REFERENCES "public"."projects"("id","org_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_templates" ADD CONSTRAINT "assessment_templates_firm_org_id_organizations_id_fk" FOREIGN KEY ("firm_org_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_templates" ADD CONSTRAINT "assessment_templates_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_firm_org_id_organizations_id_fk" FOREIGN KEY ("firm_org_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
