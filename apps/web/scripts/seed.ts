@@ -7,6 +7,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { auth } from "@/auth/auth";
 import * as s from "@/db/schema";
+import type { Tx } from "@/db/client";
+import { answerQuestion, createAssessment, getAssessment, installStarterTemplate } from "@/services/assessments";
 
 if (process.env.NODE_ENV === "production") throw new Error("seed refuses to run in production");
 const password = process.env.SEED_PASSWORD;
@@ -46,16 +48,16 @@ const [firm] = await db
   .returning();
 const [nukhba] = await db
   .insert(s.organizations)
-  .values({ kind: "client", name: "Al-Nukhba Holding", nameAr: "شركة النخبة القابضة" })
+  .values({ kind: "client", name: "Al-Nukhba Holding", nameAr: "شركة النخبة القابضة", legalForm: "closed_jsc" })
   .returning();
 const [rawdah] = await db
   .insert(s.organizations)
-  .values({ kind: "client", name: "Rawdah Foundation", nameAr: "مؤسسة الروضة" })
+  .values({ kind: "client", name: "Rawdah Foundation", nameAr: "مؤسسة الروضة", legalForm: "non_profit" })
   .returning();
 // A family office that does not use Selah: the firm records its progress.
 const [waha] = await db
   .insert(s.organizations)
-  .values({ kind: "client", name: "Al-Waha Family Office", nameAr: "مكتب الواحة العائلي", engagementMode: "consultant_managed" })
+  .values({ kind: "client", name: "Al-Waha Family Office", nameAr: "مكتب الواحة العائلي", engagementMode: "consultant_managed", legalForm: "llc" })
   .returning();
 
 const u = {
@@ -247,6 +249,28 @@ await db.insert(s.documents).values([
     scanStatus: "clean",
   },
 ]);
+
+// The starter governance template, published, with Khalid as an author, and
+// a baseline assessment of Al-Nukhba under way.
+await db.insert(s.templateAuthors).values({ firmOrgId: firm!.id, userId: u.consultant, grantedBy: u.admin });
+const adminPrincipal = {
+  userId: u.admin,
+  orgId: firm!.id,
+  orgKind: "firm" as const,
+  role: "firm_admin" as const,
+  projectIds: new Set<string>(),
+  assignedClientIds: new Set<string>(),
+  leadClientIds: new Set<string>(),
+  leadProjectIds: new Set<string>(),
+};
+const tx = db as unknown as Tx;
+const starter = await installStarterTemplate(tx, adminPrincipal, { publish: true });
+const baseline = await createAssessment(tx, adminPrincipal, board!.id, { templateId: starter.id, title: "التقييم المبدئي ٢٠٢٦" });
+const seeded = await getAssessment(tx, adminPrincipal, baseline.id);
+const sample: Record<string, string> = { "1.1": "yes", "1.2": "partly", "1.3": "no", "2.1": "no", "2.2": "informal", "4.1": "partly", "4.3": "2" };
+for (const q of seeded.sections.flatMap((x) => x.questions)) {
+  if (q.ref && sample[q.ref]) await answerQuestion(tx, adminPrincipal, q.answer.id, { value: sample[q.ref]! });
+}
 
 await pool.end();
 console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. sara@mizan.example (firm admin), khalid@mizan.example (consultant), reem@nukhba.example (client manager)");
