@@ -225,6 +225,13 @@
       "when": 1792563479743,
       "tag": "0031_mail_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792564263216,
+      "tag": "0032_two_factor_rules",
+      "breakpoints": true
     }
   ]
 }

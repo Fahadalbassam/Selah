@@ -230,6 +230,19 @@ export async function submitAccessReview(
   return review!;
 }
 
+/**
+ * Reset someone's two-factor sign-in (a lost phone). Their sessions end, they
+ * are mailed, and they set it up again at the next sign-in. The database
+ * decides who may (app_reset_two_factor) and writes the audit log.
+ */
+export async function resetTwoFactor(tx: Tx, principal: Principal, userId: string, reason: string) {
+  const m = await membershipOf(tx, userId);
+  assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
+  if (userId === principal.userId) throw new BadRequestError("another admin resets your two-factor sign-in");
+  await tx.execute(sql`select app_reset_two_factor(${userId}, ${reason})`);
+  return { ok: true };
+}
+
 /** A PDPL erasure request: details and sign-in removed, ids and history kept. */
 export async function eraseUser(tx: Tx, principal: Principal, userId: string, reason: string) {
   const m = await membershipOf(tx, userId);
