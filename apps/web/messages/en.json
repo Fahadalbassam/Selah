@@ -164,7 +164,13 @@
     "error": "Wrong email or password.",
     "noAccess": "Your account isn't linked to an active organization.",
     "newHere": "Not working with us yet?",
-    "inquiry": "Send an inquiry"
+    "inquiry": "Send an inquiry",
+    "forgot": "Forgot it?",
+    "done": {
+      "invited": "Your account is ready. Sign in with your new password.",
+      "reset": "Your password was changed. Sign in with the new one.",
+      "email": "Your address was changed. Sign in with the new one."
+    }
   },
   "notFound": {
     "title": "Not found",
@@ -454,5 +460,46 @@
     "rightsTitle": "Your rights",
     "rights": "You can ask to see, correct or delete your details by replying to the email you receive from the firm, or by contacting the firm directly. Requests are answered within 30 days, in line with the Saudi Personal Data Protection Law.",
     "back": "Back to the inquiry form"
+  },
+  "account": {
+    "password": {
+      "new": "New password",
+      "confirm": "Type it again",
+      "rule": "12 to 128 characters.",
+      "mismatch": "The two passwords don't match.",
+      "length": "The password must be 12 to 128 characters."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "We'll mail a link to set a new one.",
+      "email": "Email",
+      "submit": "Send the link",
+      "sent": "If this address has an active account, a link is on its way. It works for one hour.",
+      "limited": "Too many tries. Wait a minute and try again.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Every signed-in device will be signed out.",
+      "submit": "Save the password",
+      "invalid": "This link has expired or was already used.",
+      "again": "Send a new link"
+    },
+    "invite": {
+      "title": "Join {org}",
+      "subtitle": "You're invited as {role}.",
+      "email": "Email",
+      "name": "Your name",
+      "submit": "Create my account",
+      "failed": "The account couldn't be created. The invitation may have expired.",
+      "invalidTitle": "This invitation can't be used",
+      "invalid": "It has expired, was revoked, or was already accepted. Ask your admin for a new one."
+    },
+    "confirmEmail": {
+      "title": "Confirm your new address",
+      "subtitle": "Your admin moved your account to this address. You'll sign in with it from now on.",
+      "submit": "Confirm the address",
+      "invalid": "This link has expired or was already used."
+    }
   }
 }
