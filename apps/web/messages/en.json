@@ -160,11 +160,54 @@
     "noProjects": "No projects are available to the assistant.",
     "you": "You",
     "assistantName": "Assistant",
-    "emptyThread": "Pick a project and ask a question. Answers cite the records they come from.",
+    "emptyThread": "Pick a project and ask a question. Answers cite the files and records they come from. Each question starts or continues one chat.",
     "notGrounded": "No permitted source supports a confident answer.",
     "enterHint": "Enter to send · Shift+Enter for a new line",
     "searching": "Searching the records you can see…",
-    "toLatest": "Jump to the latest answer"
+    "toLatest": "Jump to the latest answer",
+    "newChat": "New chat",
+    "chats": "Your chats",
+    "searchChats": "Search your chats",
+    "noChats": "No chats yet.",
+    "noMatch": "No chat matches.",
+    "showArchived": "Show archived",
+    "hideArchived": "Hide archived",
+    "noArchived": "Nothing archived.",
+    "untitled": "Untitled chat",
+    "cases": {
+      "recommendation": "Recommendation",
+      "action": "Action",
+      "finding": "Finding",
+      "meeting": "Meeting",
+      "document": "File"
+    },
+    "rename": "Rename chat",
+    "keep": "Keep (don't archive)",
+    "keepHint": "Keep: not archived when idle. It is still deleted on schedule.",
+    "unkeep": "Stop keeping",
+    "kept": "Kept",
+    "archive": "Archive",
+    "unarchive": "Bring back",
+    "archivedBadge": "Archived",
+    "delete": "Delete chat",
+    "deleteConfirm": "Delete this chat now? Its messages and their translations are deleted and can't be brought back.",
+    "deleted": "Chat deleted.",
+    "saveFailed": "Couldn't save that. Try again.",
+    "chatGone": "That chat isn't available to you.",
+    "deletesOn": "Deleted on {date}, under the firm's retention rule.",
+    "deletesSoon": "Deleted on {date}. Save anything you need to the project before then.",
+    "translating": "Translating…",
+    "folded": "Answer in {lang} · translate",
+    "languages": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "showTranslation": "Show translation",
+    "page": "p. {n}",
+    "newerVersion": "newer version uploaded",
+    "sourceGone": "Source no longer available to you",
+    "sourceGoneHint": "You can't open this source any more, so its name isn't shown.",
+    "askAbout": "Ask the assistant"
   },
   "signIn": {
     "title": "Sign in",
@@ -1449,6 +1492,16 @@
       "purgeHint": "Days after handover before a minimal-records client's free text is cleared. 0 clears it at handover.",
       "transcripts": "Meeting transcripts",
       "transcriptsHint": "Days a transcript is kept after its summary is confirmed, from 1 to 90."
+    },
+    "chats": {
+      "title": "Assistant chats",
+      "hint": "Chats quote client files, so they are kept only while they are needed. The audit log records each deletion, never what a chat said.",
+      "archive": "Archive after",
+      "archiveHint": "Days without a message before a chat is archived, unless its owner keeps it. From 7 to 365.",
+      "afterClose": "Delete after the project closes",
+      "afterCloseHint": "Days after a project is closed before its chats are deleted. 0 deletes them the next night.",
+      "idle": "Delete after the last message",
+      "idleHint": "Days after a chat's last message before it is deleted, even if the project is still open. From 30 to 730, and more than the archive days."
     }
   },
   "insight": {
@@ -1550,7 +1603,14 @@
     "reopen": "Reopen",
     "dialogHint": "Setting or moving the date creates or moves the check-ins that are still open.",
     "hintAfter": "The report was delivered. The firm will check in with you over the following months.",
-    "hintPending": "The report hasn't been handed over yet."
+    "hintPending": "The report hasn't been handed over yet.",
+    "projectState": "Project",
+    "open": "Open",
+    "closedOn": "Closed on {date}",
+    "closeProject": "Close project",
+    "reopenProject": "Reopen",
+    "closeConfirm": "Close this project? Close it when the engagement is over. Everyone's assistant chats about it are deleted after the firm's retention period (90 days by default).",
+    "reopenConfirm": "Reopen this project? Its chats are kept again until it closes."
   },
   "engagement": {
     "title": "How the client takes part",

@@ -7,6 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { BrandLoader } from "@/components/brand";
+import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils";
 export interface Handover {
   kind: "client" | "internal";
   handoverOn: string | null;
+  state: "planned" | "active" | "closed";
+  closedAt: string | Date | null;
   sponsor: { id: string; name: string | null } | null;
   checkins: {
     id: string;
@@ -42,6 +45,8 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsor, setSponsor] = useState(data.sponsor?.id ?? "none");
+  const [confirm, confirmDialog] = useConfirm();
+  const closed = data.state === "closed";
   const client = data.kind === "client";
   const day = (d: string) => format.dateTime(new Date(`${d}T00:00:00`), { dateStyle: "medium" });
 
@@ -57,6 +62,14 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
     setBusy(false);
     if (!r.ok) return setError(r.message ?? tc(`errors.${r.error}`));
     setOpen(false);
+    toast.success(tc("saved"));
+    router.refresh();
+  }
+
+  async function setState(state: "active" | "closed") {
+    if (!(await confirm(t(state === "closed" ? "closeConfirm" : "reopenConfirm")))) return;
+    const r = await callApi(`/api/projects/${projectId}/state`, "PATCH", { state });
+    if (!r.ok) return toast.error(r.message ?? tc(`errors.${r.error}`));
     toast.success(tc("saved"));
     router.refresh();
   }
@@ -93,6 +106,21 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
           <div className="space-y-1">
             <dt className="text-xs text-muted-foreground">{t("date")}</dt>
             <dd className="tabular-nums">{data.handoverOn ? day(data.handoverOn) : t("notYet")}</dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="text-xs text-muted-foreground">{t("projectState")}</dt>
+            <dd className="flex flex-wrap items-center gap-2">
+              <span className="tabular-nums">
+                {closed && data.closedAt
+                  ? t("closedOn", { date: format.dateTime(new Date(data.closedAt), { dateStyle: "medium" }) })
+                  : t("open")}
+              </span>
+              {data.can.edit ? (
+                <Button variant="ghost" size="sm" className="h-7" onClick={() => setState(closed ? "active" : "closed")}>
+                  {closed ? t("reopenProject") : t("closeProject")}
+                </Button>
+              ) : null}
+            </dd>
           </div>
           {client ? (
             <div className="space-y-1">
@@ -135,6 +163,7 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
         ) : null}
       </CardContent>
 
+      {confirmDialog}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <form onSubmit={save} className="grid gap-4">

@@ -14,7 +14,10 @@
 | `restricted_max_admins` | 2          | 1 to 10                            | Accounts a restricted client may have.                                                                                                                           |
 | `minimal_purge_days`    | 90         | 0 to 3650                          | Days after handover before a minimal-records client's free text is cleared.                                                                                      |
 | `transcript_keep_days`  | 30         | 1 to 90                            | Days a transcript is kept after its summary is confirmed.                                                                                                        |
+| `chat_archive_days`     | 30         | 7 to 365                           | Days without a message before an assistant chat is archived, unless its owner keeps it.                                                                          |
+| `chat_after_close_days` | 90         | 0 to 365                           | Days after a project closes before its assistant chats are deleted.                                                                                              |
+| `chat_idle_delete_days` | 180        | 30 to 730, more than archive days  | Days after a chat's last message before it is deleted, even while the project is open.                                                                           |
 
-The ranges are database checks (migration 0044 and earlier), and the API checks the same ranges first so the page can say what is wrong. The firm's email domains are set on `/team` with its people.
+The ranges are database checks (migrations 0044 and 0047, and earlier), and the API checks the same ranges first so the page can say what is wrong. The firm's email domains are set on `/team` with its people.
 
 Not here yet: a switch for client access to the assistant. That waits for the client AI layer and its security review.

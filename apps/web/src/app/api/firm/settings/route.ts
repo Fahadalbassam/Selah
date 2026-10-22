@@ -16,6 +16,10 @@ const body = z
     restrictedMaxAdmins: days(1, 10),
     minimalPurgeDays: days(0, 3650),
     transcriptKeepDays: days(1, 90),
+    chatArchiveDays: days(7, 365),
+    chatAfterCloseDays: days(0, 365),
+    // Must also be more than the archive days (checked by the database).
+    chatIdleDeleteDays: days(30, 730),
   })
   .partial()
   .strict();

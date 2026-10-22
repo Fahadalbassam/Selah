@@ -115,6 +115,9 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       AI_SERVICE_URL: http://ai:8000
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      # Names are masked before anything reaches a hosted model (docs/assistant.md).
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      AI_MASKING: ${AI_MASKING:-auto}
       CLAMD_HOST: clamav
     depends_on:
       clamav: { condition: service_healthy }
