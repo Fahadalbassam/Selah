@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { route } from "@/server/http";
-import { snapshotReport } from "@/services/follow-through";
+import { listReports, snapshotReport } from "@/services/follow-through";
+
+const params = z.object({ id: z.uuid() });
+
+export const GET = route({ params }, ({ tx, principal, params }) => listReports(tx, principal, params.id));
 
 const body = z.object({
   title: z.string().trim().min(1).max(300),
@@ -9,6 +13,4 @@ const body = z.object({
   bodyMd: z.string().max(100_000).optional(),
 });
 
-export const POST = route({ params: z.object({ id: z.uuid() }), body }, ({ tx, principal, params, body }) =>
-  snapshotReport(tx, principal, params.id, body),
-);
+export const POST = route({ params, body }, ({ tx, principal, params, body }) => snapshotReport(tx, principal, params.id, body));
