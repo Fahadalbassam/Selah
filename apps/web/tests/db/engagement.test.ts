@@ -5,8 +5,15 @@
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { createHash } from "node:crypto";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Principal } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { engagementError } from "@/lib/engagement";
+import { departmentChoices, getEngagement, setEngagement } from "@/services/engagement";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -54,6 +61,15 @@ async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, c
 }
 const run = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params), true);
 const attempt = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params));
+const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+  as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    },
+    true,
+  );
 const sees = async (userId: string, table: string, rowId: string) =>
   (await attempt(userId, `SELECT 1 FROM ${table} WHERE id = $1`, [rowId])).rowCount === 1;
 
@@ -441,5 +457,48 @@ describe("changing mode", () => {
       { from: "full", to: "restricted" },
     ]);
     expect(log.rows[0].actor_id).toBe(U.admin);
+  });
+});
+
+describe("the engagement screens", () => {
+  it("tell the firm admin what stands in the way of each mode, and nobody else", async () => {
+    const acme = await svc(U.admin, (tx, p) => getEngagement(tx, p, ACME));
+    const active = (await owner.query(`SELECT role FROM org_memberships WHERE org_id = $1 AND active`, [ACME])).rows;
+    expect(acme.canChangeMode).toBe(true);
+    expect(acme.fit).toEqual({
+      activeAccounts: active.length,
+      nonAdminAccounts: active.filter((r) => r.role !== "client_admin").length,
+      restrictedMaxAdmins: 2,
+      hasContactsOrFiles: true,
+    });
+    expect(acme.fit!.nonAdminAccounts).toBeGreaterThan(0);
+    const managed = await svc(U.admin, (tx, p) => getEngagement(tx, p, MANAGED));
+    expect(managed.fit).toMatchObject({ activeAccounts: 0, nonAdminAccounts: 0 });
+    // The client's admin manages its departments but not its mode.
+    const own = await svc(U.cadmin, (tx, p) => getEngagement(tx, p, ACME));
+    expect(own).toMatchObject({ canChangeMode: false, canManageDepartments: true, fit: null });
+    expect(own.departments.map((d) => d.nameEn)).toEqual(expect.arrayContaining(["HR", "Finance"]));
+    await expect(svc(U.cadmin, (tx, p) => setEngagement(tx, p, ACME, { engagementMode: "restricted" }))).rejects.toThrow();
+  });
+
+  it("give the database's refusal a message the screen knows", async () => {
+    // The route passes on the database's own words (src/server/http.ts).
+    const words = (e: Error & { cause?: Error }) => e.cause?.message ?? e.message;
+    const refusal = await svc(U.admin, (tx, p) => setEngagement(tx, p, ACME, { engagementMode: "consultant_managed" })).catch(
+      words,
+    );
+    expect(engagementError(String(refusal))).toBe("accounts");
+    const alias = await svc(U.admin, (tx, p) => setEngagement(tx, p, MANAGED, { minimalRecords: true, displayAlias: " " })).catch(
+      words,
+    );
+    expect(engagementError(String(alias))).toBe("alias");
+  });
+
+  it("offer an action the client's departments only while it uses them", async () => {
+    const on = await svc(U.lead, (tx, p) => departmentChoices(tx, p, ACME));
+    expect(on.enabled).toBe(true);
+    expect(on.departments.map((d) => d.id)).toEqual(expect.arrayContaining([DEPT.hr, DEPT.fin]));
+    await expect(svc(U.cadmin, (tx, p) => departmentChoices(tx, p, RESTR))).rejects.toThrow();
+    expect((await svc(U.lead, (tx, p) => departmentChoices(tx, p, MANAGED))).enabled).toBe(false);
   });
 });
