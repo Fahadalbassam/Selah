@@ -25,7 +25,7 @@ Templates belong to the firm. Firm staff read them; clients never see a template
 - **Versions.** A template has numbered versions. A draft is edited freely; a published version is never changed or deleted, by anyone, even directly in the database. To change a published template, `POST /api/assessment-templates/:id/draft` copies its latest version into a new draft (one draft at a time). Publishing needs every section to have a question. Assessments point at the version they were made with, so later edits never change them.
 - **Duplicate.** `POST /api/assessment-templates/:id/duplicate` copies the template into a new template's first draft.
 - **Archive.** `PATCH /api/assessment-templates/:id` with `archived: true` keeps it off new assessments; old assessments stay readable.
-- **Questions.** Types: yes/no (with partly and not applicable), multiple choice (each option has its points), rating 1–4, and text (not scored). Each has a weight of 1–3 and an optional gap threshold. A question can apply only when an earlier scored question of the same version has one of given answers (one simple condition, no branching trees).
+- **Questions.** Types: yes/no (with partly and not applicable), multiple choice (each option has its points), rating 1–4, and text (not scored). Each has a weight of 1–3 and an optional gap threshold. A question can apply only when an earlier scored question of the same version has one of given answers (one simple condition, no branching trees). A multiple-choice question whose options all score 0 only describes the client: it must be answered and can be a condition, but is never scored or a gap.
 
 ### Where a criterion comes from
 
@@ -39,25 +39,28 @@ Each question records its basis for most clients, the legal forms for which it i
 | `firm_method` | The consulting firm's own criteria |
 | `team_proposed` | The team's wording, with no outside source |
 
-The basis is worked out **per assessment** from the client's legal form (`PUT /api/orgs/:id/legal-form`, firm admin only) and kept on each answer. An assessment cannot start until the legal form is recorded. For example, the CMA Corporate Governance Regulations bind listed companies, so a board-independence question is a legal requirement for a listed company and good practice for a family LLC. Changing a client's legal form later does not change assessments already made.
+The basis is worked out **per assessment** from the client's legal form (`PUT /api/orgs/:id/legal-form`, firm admin only) and kept on each answer. An assessment cannot start until the legal form is recorded. Legal forms: sole proprietorship, LLC, closed and listed joint stock company, bank or finance company, capital market institution, non-profit, other. For example, the CMA Corporate Governance Regulations bind listed companies and SAMA's Key Principles of Governance bind banks and finance companies, so a board-independence question is a legal requirement for a listed company and good practice for a family LLC. Changing a client's legal form later does not change assessments already made.
 
 A question's own basis can only be good practice, the firm's method or the team's proposal. Legal requirement and regulator guidance come only from its legal forms, so no question can be made "legal" for every client. A good-practice question, or one with legal forms, needs a named source and a locator, enforced by the database. `citation_verified` stays false until someone checks the citation against the source's current text, so screens and reports can show "source to verify".
 
 ## The starter template
 
-`POST /api/assessment-templates/starter` installs "Family business governance: starter assessment" as a draft the firm can edit, in Arabic and English (`src/services/assessment-starter.ts`). It has 28 questions in eight areas: governance structure and accountability; family ownership and decision-making; board or management responsibilities; delegation of authority; succession planning; policies and operating procedures; documentation and transparency; monitoring and implementation of recommendations.
+`POST /api/assessment-templates/starter` installs "Family business governance: starter assessment" as a draft the firm can edit, in Arabic and English (`src/services/assessment-starter.ts`). It opens with an unscored company profile question, "Is the company family-owned or family-controlled?" (0.1); the family questions (2.1 to 2.5 and 5.2) apply only when the answer is yes, so non-family clients skip them. Then 28 questions in eight areas: governance structure and accountability; family ownership and decision-making; board or management responsibilities; delegation of authority; succession planning; policies and operating procedures; documentation and transparency; monitoring and implementation of recommendations.
 
 These are **the team's proposed questions**, from the research thread's source map (2026-10-21). They are not an official assessment of CMA, IFC, OECD or any firm. Each question names the source it is informed by:
 
 - **Deep Dive methodology session (2026)**, by page: the firm's method (structure, delegation matrix, policies and procedures, strategy and KPIs, follow-up after delivery).
 - **IFC Family Business Governance Handbook (2nd ed., 2008)**, by section.
-- **G20/OECD Principles of Corporate Governance (2023)**, by chapter.
-- **CMA Corporate Governance Regulations** (listed companies, as amended 2023). Only Art. 16, 41 and 43 are confirmed in the current numbering; everything else is cited by chapter until checked against the official text.
-- **Ministry of Commerce governance regulations for non-listed joint stock companies (2018)**: guidance, to verify.
-- **Companies Law (2022)**: a family charter binds once adopted but is not required. The article (reported as Art. 11) is to verify.
+- **G20/OECD Principles of Corporate Governance (2023)**, by principle (V.D.7, IV.A.7, II.A.3, IV.A.1, II.F.1, V.D.4, V.E).
+- **CMA Corporate Governance Regulations** (listed companies, as amended 2023), by article: 16, 23(b), 28(14), 30(b), 35, 40, 41, 41(6).
+- **SAMA Key Principles of Governance in Financial Institutions (2021)**, by article: 7, 22, 39, 43, 43(f), 87(a). Binding for banks and finance companies; cited as good practice for others.
+- **Ministry of Commerce governance regulations for non-listed joint stock companies (2018)**: guidance. Chapter 6 on conflicts of interest; on board meetings only "periodic meetings", with no count.
+- **Companies Law (2022), Art. 11(2)**: a family charter binds once adopted, provided it does not contradict the Law or the articles; it is not required.
 - **MoC Guiding Charter for Saudi Family Businesses (الميثاق الاسترشادي للشركات العائلية, May 2018)**: regulator guidance, non-binding unless the family adopts a charter under the Companies Law. Cited by chapter on 2.1 to 2.4. Press coverage calls it "the proposed draft", so the final text may differ. These questions stay good practice.
 
-For a non-listed family company nothing in the starter template is a legal requirement. Two questions (board independence, CMA Art. 16; conflict-of-interest policy, Art. 41) become legal requirements for a listed company, and the board-meetings question is regulator guidance for a non-listed joint stock company. Related-party dealings (7.4) stay good practice for everyone until the CMA article is checked. On 3.2 the guidance says that "yes" does not confirm the Art. 16 thresholds. Nine citations are marked as not yet verified: 2.1 to 2.4 (the MoC charter is known only as a reported draft), 3.3, 3.4, 6.4, 7.3 and 7.4.
+For a non-listed company nothing in the starter template is a legal requirement. For a listed company, board independence (3.2, CMA Art. 16), board meetings and minutes (3.4, Art. 30(b) and 35), the conflict-of-interest policy (6.4, Art. 41) and related-party dealings (7.4, Arts. 40, 41(6), 28(14)) are legal requirements. For a bank or finance company, the same four plus succession (5.1, SAMA Arts. 39 and 87(a)) are, under SAMA's principles. For a closed joint stock company, 3.4 and 6.4 are regulator guidance (MoC 2018). Capital market institutions get no legal labels until it is checked which rules bind them. On 3.2 the guidance says that "yes" does not confirm the Art. 16 thresholds. On 2.1 the guidance says a gap can be answered with a recommendation to draft a family charter, which the firm can deliver.
+
+Citations were checked against full copies of the texts on 2026-10-22 (research source map, section 6). Two stay marked "source to verify": 2.3 (the MoC family charter chapter; the charter is known only as a reported draft) and 3.4 (the MoC 2018 rules give no confirmed meeting count).
 
 ## Scoring
 
@@ -68,7 +71,7 @@ Fixed and visible (`app_assessment_results`, `app_assessment_scores`):
 - Section % = points earned ÷ points possible. The total is the same over all sections. No hidden weights.
 - A gap is an applicable scored answer at or below the threshold (default: half the maximum, rounded down, so "partly" and "no", or a rating of 1–2).
 
-Percentages are indicative and firm-only. A client reading a shared assessment, the project's assessment list or a comparison sees the answers, comments and confirmed findings, but no points, percentages or totals (the service blanks them for any non-firm caller).
+Percentages are indicative and firm-only. A client reading a shared assessment, the project's assessment list or a comparison sees the answers, comments and confirmed findings, but no points, percentages or totals (the service blanks them for any non-firm caller, and the database refuses `app_assessment_scores` to a client and returns no points or suggested gaps from `app_assessment_results` or `app_assessment_compare`). The API also leaves out each question's weight, gap threshold and option points for a client, so the scores can't be rebuilt from the answers. The database itself still lets a client's admins and managers read the template questions of an assessment shared with them, scoring fields included; nothing in the app reads them that way, and a column-level split is left for later.
 
 ## Retake and compare
 

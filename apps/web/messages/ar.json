@@ -798,6 +798,8 @@
         "llc": "شركة ذات مسؤولية محدودة",
         "closed_jsc": "شركة مساهمة مقفلة",
         "listed_jsc": "شركة مساهمة مدرجة",
+        "bank_or_finance_company": "بنك أو شركة تمويل",
+        "capital_market_institution": "مؤسسة سوق مالية",
         "non_profit": "جهة غير ربحية",
         "other": "أخرى"
       },
