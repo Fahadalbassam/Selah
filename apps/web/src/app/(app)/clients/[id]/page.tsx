@@ -1,4 +1,4 @@
-import { ArrowLeft, Crown, Eye, EyeOff, Pencil, UserPlus } from "lucide-react";
+import { ArrowLeft, Crown, Eye, EyeOff, Pencil, UserPlus, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -16,12 +16,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) => (principal.orgKind === "firm" ? await getClientTeam(tx, principal, id) : null));
+  const data = await withPrincipal(async (tx, principal) =>
+    principal.orgKind === "firm" ? { ...(await getClientTeam(tx, principal, id)), admin: principal.role === "firm_admin" } : null,
+  );
   if (!data) notFound();
-  const [t, tc, tq, format] = await Promise.all([
+  const [t, tc, tq, tp, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
+    getTranslations("people"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -181,6 +184,22 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             {client.legalForm ? tq(`forms.${client.legalForm}`) : <span className="text-muted-foreground">{tq("notRecorded")}</span>}
           </CardContent>
         </Card>
+        {data.admin ? (
+          <Card className="h-fit gap-4 py-5 shadow-xs">
+            <CardHeader className="px-5">
+              <CardTitle className="text-base">{tp("clientPeople")}</CardTitle>
+              <CardDescription>{tp("clientPeopleHint")}</CardDescription>
+            </CardHeader>
+            <CardContent className="px-5">
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/clients/${client.id}/people`}>
+                  <UsersRound />
+                  {tp("manage")}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
         <Card className="h-fit gap-4 py-5 shadow-xs">
           <CardHeader className="px-5">
             <CardTitle className="text-base">{t("clientProjects")}</CardTitle>
