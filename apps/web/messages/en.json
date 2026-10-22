@@ -1439,5 +1439,86 @@
       "transcripts": "Meeting transcripts",
       "transcriptsHint": "Days a transcript is kept after its summary is confirmed, from 1 to 90."
     }
+  },
+  "insight": {
+    "since": {
+      "title": "{n, plural, one {# action moved} other {# actions moved}} since your last visit on {date}",
+      "firstTitle": "{n, plural, one {# action moved} other {# actions moved}} in the last 7 days",
+      "more": "Show {n} more",
+      "fewer": "Show fewer"
+    },
+    "deviations": {
+      "tab": "Needs attention",
+      "hint": "Open actions and client KPIs that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
+      "none": "Nothing breaks a deviation rule right now.",
+      "item": "Item",
+      "rule": "Rule",
+      "detailHead": "Detail",
+      "owner": "Owner",
+      "rules": {
+        "overdue": {
+          "name": "Overdue",
+          "hint": "The current due date has passed."
+        },
+        "stale": {
+          "name": "Stale",
+          "hint": "No change, progress note or evidence for longer than the firm's stale period."
+        },
+        "slipped": {
+          "name": "Slipped",
+          "hint": "Two or more deadline changes were approved."
+        },
+        "churn": {
+          "name": "Sent back",
+          "hint": "Two or more revision requests."
+        },
+        "orphaned": {
+          "name": "No active owner",
+          "hint": "The owner is no longer an active member of the client."
+        },
+        "kpi_not_reported": {
+          "name": "KPI not reported",
+          "hint": "A KPI period passed its grace days with no reading."
+        },
+        "kpi_off_target": {
+          "name": "KPI off target",
+          "hint": "The latest reading is in the red band."
+        }
+      },
+      "detail": {
+        "overdue": "{n, plural, one {# day} other {# days}} overdue",
+        "stale": "No change for {n, plural, one {# day} other {# days}}",
+        "slipped": "Due date moved {n} times",
+        "churn": "Sent back {n} times",
+        "orphaned": "The owner has left",
+        "kpi_not_reported": "No reading for the period from {period}",
+        "kpi_off_target": "Off target for the period from {period}"
+      }
+    },
+    "trace": {
+      "tab": "Trace",
+      "hint": "How each piece of work connects: from what was found to the actions, the evidence and the reviews, and from the objectives to the KPIs meant to show progress.",
+      "empty": "Nothing to trace yet.",
+      "work": "From findings to verified work",
+      "workHint": "Finding, recommendation, action, then the evidence sent and each review.",
+      "goals": "Objectives and KPIs",
+      "goalsHint": "Each objective's KPIs, and the recommendations meant to move them.",
+      "types": {
+        "objective": "Objective",
+        "kpi": "KPI",
+        "finding": "Finding",
+        "recommendation": "Recommendation",
+        "action": "Action",
+        "evidence": "Evidence"
+      },
+      "review": {
+        "accept": "Accepted",
+        "revise": "Sent back",
+        "reject": "Rejected"
+      },
+      "replaces": "Replaces the action above",
+      "recorded": "recorded by a consultant",
+      "seeBelow": "(see under its finding)"
+    }
   }
 }
