@@ -216,7 +216,8 @@
       "blocked": "Mark as blocked",
       "awaiting_review": "Submit for review",
       "verified_complete": "Accept and verify",
-      "revision_requested": "Request revision"
+      "revision_requested": "Request revision",
+      "closed": "Close action"
     },
     "resume": "Resume work",
     "reasonLabel": "Reason",
@@ -224,6 +225,7 @@
     "blockHint": "Explain what is blocking this action. The consultant will see it.",
     "reviseHint": "Tell the owner what is missing. They will see this reason.",
     "acceptHint": "Accepting marks this action as verified complete. It cannot be undone; a correction needs a new action.",
+    "closeHint": "Closing stops work on this action and takes it off everyone's list. A consultant can reopen it later.",
     "evidenceTitle": "Submit evidence",
     "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images and text, up to 20 MB. Files are scanned for viruses.",
     "file": "File",
@@ -246,7 +248,9 @@
       "needEvidence": "Attach evidence before sending for review.",
       "infected": "The file was flagged by the virus scanner and was not stored.",
       "scanner": "The virus scanner is unavailable, so uploads are paused. Try again shortly.",
-      "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner."
+      "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner.",
+      "pastDate": "The new date is in the past.",
+      "sameDate": "That's already the due date."
     },
     "entry": {
       "update": "posted an update",
@@ -259,7 +263,53 @@
     "awaitingNote": "Waiting for the consultant's decision.",
     "verifiedNote": "Verified by the firm.",
     "firmReviewer": "The consultant",
-    "someone": "Someone"
+    "someone": "Someone",
+    "items": {
+      "title": "Evidence list",
+      "hintClient": "What the consultant asked you to send. Answer each item with a file; the consultant accepts it or says what's missing.",
+      "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
+      "none": "No items yet.",
+      "due": "Due {date}",
+      "status": {
+        "open": "Waiting",
+        "submitted": "Sent, to review",
+        "accepted": "Accepted",
+        "rejected": "Not accepted",
+        "waived": "Not needed"
+      },
+      "rejectedBecause": "Not accepted: {note}",
+      "waivedBecause": "Not needed: {note}",
+      "answer": "Send a file",
+      "answerTitle": "Send a file for: {item}",
+      "accept": "Accept",
+      "reject": "Not accepted",
+      "rejectHint": "Say what's missing. The client sees this and can send another file.",
+      "waive": "Not needed",
+      "waiveHint": "Say why this item is no longer needed. The client sees this.",
+      "reopen": "Ask again",
+      "add": "Add an item",
+      "addHint": "Name a document or record the client should send. They're told about it.",
+      "itemTitle": "What to send",
+      "itemDescription": "Details (optional)",
+      "itemDue": "Due date (optional)"
+    },
+    "deadline": {
+      "title": "Due date changes",
+      "none": "No change requested.",
+      "ask": "Ask for a new date",
+      "askHint": "Propose a new due date and say why. The consultant approves or declines it.",
+      "newDate": "New due date",
+      "send": "Send request",
+      "to": "Move to {date}",
+      "by": "Asked by {who} on {date}",
+      "status": {
+        "pending": "Waiting",
+        "approved": "Approved",
+        "rejected": "Declined"
+      },
+      "approve": "Approve",
+      "reject": "Decline"
+    }
   },
   "common": {
     "cancel": "Cancel",

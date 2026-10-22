@@ -5,14 +5,16 @@ import {
   actionNotes,
   activityEvents,
   deadlineChangeRequests,
+  documents,
   evidenceRequests,
+  evidenceSubmissions,
   metricSnapshots,
   notifications,
   reports,
   riskAcceptances,
   user,
 } from "@/db/schema";
-import { assertAllowed, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
@@ -235,6 +237,70 @@ export async function decideDeadlineChange(tx: Tx, principal: Principal, request
   });
   await notify(tx, req.requestedBy, principal, `deadline.${status}`, action.id);
   return { id: requestId, status };
+}
+
+// ---------------------------------------------- on the action's page
+
+const FINISHED = new Set(["verified_complete", "closed"]);
+
+/**
+ * The action's evidence list, with the files sent for each item, and its
+ * deadline change requests, as this user may see them, plus what they may
+ * do with them. The checks are the same as the routes'.
+ */
+export async function actionFollowThrough(tx: Tx, principal: Principal, actionId: string) {
+  const { action, resource } = await actionFor(tx, principal, actionId, "evidence_request");
+  const deadlineResource = { ...resource, type: "deadline_request" } as Resource;
+  const finished = FINISHED.has(action.status);
+  const readItems = authorize(principal, "evidence_request.read", resource).allowed;
+  const items = readItems ? await listEvidenceRequests(tx, principal, actionId) : [];
+  // Row-level security leaves out files this user can't see.
+  const files = items.length
+    ? await tx
+        .select({
+          requestId: evidenceSubmissions.evidenceRequestId,
+          documentId: documents.id,
+          title: documents.title,
+          submittedAt: evidenceSubmissions.submittedAt,
+        })
+        .from(evidenceSubmissions)
+        .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+        .where(eq(evidenceSubmissions.actionId, actionId))
+        .orderBy(asc(evidenceSubmissions.submittedAt))
+    : [];
+  const deadlines = authorize(principal, "deadline_request.read", deadlineResource).allowed
+    ? await tx
+        .select({
+          id: deadlineChangeRequests.id,
+          proposedDueDate: deadlineChangeRequests.proposedDueDate,
+          reason: deadlineChangeRequests.reason,
+          status: deadlineChangeRequests.status,
+          requestedBy: user.name,
+          createdAt: deadlineChangeRequests.createdAt,
+          decidedAt: deadlineChangeRequests.decidedAt,
+        })
+        .from(deadlineChangeRequests)
+        .leftJoin(user, eq(user.id, deadlineChangeRequests.requestedBy))
+        .where(eq(deadlineChangeRequests.actionId, actionId))
+        .orderBy(desc(deadlineChangeRequests.createdAt))
+    : [];
+  return {
+    items: items.map((i) => ({
+      ...i,
+      files: files
+        .filter((f) => f.requestId === i.id)
+        .map((f) => ({ documentId: f.documentId, title: f.title, submittedAt: f.submittedAt })),
+    })),
+    deadlines,
+    can: {
+      manageItems: !finished && authorize(principal, "evidence_request.manage", resource).allowed,
+      requestDeadline:
+        !finished &&
+        !deadlines.some((d) => d.status === "pending") &&
+        authorize(principal, "deadline_request.create", deadlineResource).allowed,
+      decideDeadline: authorize(principal, "deadline_request.decide", deadlineResource).allowed,
+    },
+  };
 }
 
 // --------------------------------------------- implementation progress
