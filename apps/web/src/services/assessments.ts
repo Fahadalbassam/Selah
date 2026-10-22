@@ -10,6 +10,7 @@ import {
   documents,
   findings,
   organizations,
+  orgMemberships,
   templateAuthors,
   templateQuestions,
   templateSections,
@@ -130,6 +131,34 @@ async function isAuthor(tx: Tx, principal: Principal) {
   } catch {
     return false;
   }
+}
+
+/** A template with all its versions, newest first, for the template screen. */
+export async function templateOverview(tx: Tx, principal: Principal, templateId: string) {
+  assertAllowed(principal, "assessment_template.read", firmRecord(principal));
+  const [t] = await tx
+    .select({
+      id: assessmentTemplates.id,
+      name: assessmentTemplates.name,
+      nameAr: assessmentTemplates.nameAr,
+      description: assessmentTemplates.description,
+      descriptionAr: assessmentTemplates.descriptionAr,
+      archivedAt: assessmentTemplates.archivedAt,
+    })
+    .from(assessmentTemplates)
+    .where(and(eq(assessmentTemplates.id, templateId), eq(assessmentTemplates.firmOrgId, principal.orgId)));
+  if (!t) throw new NotFoundError("template");
+  const versions = await tx
+    .select({
+      id: templateVersions.id,
+      version: templateVersions.version,
+      status: templateVersions.status,
+      publishedAt: templateVersions.publishedAt,
+    })
+    .from(templateVersions)
+    .where(eq(templateVersions.templateId, templateId))
+    .orderBy(desc(templateVersions.version));
+  return { ...t, versions, canAuthor: await isAuthor(tx, principal) };
 }
 
 /** One version with its sections and questions, in order. */
@@ -436,6 +465,19 @@ export async function listTemplateAuthors(tx: Tx, principal: Principal) {
     .orderBy(asc(user.name));
 }
 
+/** Active consultants of the firm who are not authors yet (the firm admin picks from them). */
+export async function authorCandidates(tx: Tx, principal: Principal) {
+  if (!authorize(principal, "template_author.manage", firmRecord(principal)).allowed) return [];
+  const authors = new Set((await listTemplateAuthors(tx, principal)).map((a) => a.userId));
+  const rows = await tx
+    .select({ userId: user.id, name: user.name, email: user.email })
+    .from(orgMemberships)
+    .innerJoin(user, eq(user.id, orgMemberships.userId))
+    .where(and(eq(orgMemberships.orgId, principal.orgId), eq(orgMemberships.role, "consultant"), eq(orgMemberships.active, true)))
+    .orderBy(asc(user.name));
+  return rows.filter((r) => !authors.has(r.userId));
+}
+
 export async function addTemplateAuthor(tx: Tx, principal: Principal, userId: string) {
   assertAllowed(principal, "template_author.manage", firmRecord(principal));
   await tx
@@ -620,7 +662,7 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
   const one = await loadAssessment(tx, principal, firstId, "assessment.read");
   const two = await loadAssessment(tx, principal, secondId, "assessment.read");
   const [earlier, later] = one.assessment.createdAt <= two.assessment.createdAt ? [one, two] : [two, one];
-  const { rows } = await tx.execute<{
+  const { rows: all } = await tx.execute<{
     match_key: string;
     ref: string | null;
     section_position: number;
@@ -641,6 +683,19 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
     in_later: boolean;
     wording_changed: boolean;
   }>(sql`select * from app_assessment_compare(${earlier.assessment.id}::uuid, ${later.assessment.id}::uuid)`);
+  // Clients compare answers only: points, totals and gaps are the firm's.
+  const firm = principal.orgKind === "firm";
+  const rows = firm
+    ? all
+    : all.map((r) => ({
+        ...r,
+        before_points: null,
+        after_points: null,
+        before_max: null,
+        after_max: null,
+        before_gap: false,
+        after_gap: false,
+      }));
 
   const sum = (xs: (number | null)[]) => xs.reduce<number>((n, x) => n + (x ?? 0), 0);
   const sections = new Map<string, { title: string; titleAr: string | null; position: number; rows: typeof rows }>();
@@ -671,11 +726,14 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
     createdAt: x.createdAt,
     finalisedAt: x.finalisedAt,
   });
-  const totals = (when: "before" | "after") => ({
-    earned: sum(rows.map((r) => (when === "before" ? r.before_points : r.after_points))),
-    possible: sum(rows.map((r) => (when === "before" ? r.before_max : r.after_max))),
-    gaps: rows.filter((r) => (when === "before" ? r.before_gap : r.after_gap)).length,
-  });
+  const totals = (when: "before" | "after") =>
+    firm
+      ? {
+          earned: sum(rows.map((r) => (when === "before" ? r.before_points : r.after_points))),
+          possible: sum(rows.map((r) => (when === "before" ? r.before_max : r.after_max))),
+          gaps: rows.filter((r) => (when === "before" ? r.before_gap : r.after_gap)).length,
+        }
+      : { earned: null, possible: null, gaps: null };
   return {
     earlier: { ...head(earlier.assessment), ...totals("before") },
     later: { ...head(later.assessment), ...totals("after") },
@@ -684,8 +742,8 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
       .map((s) => ({
         title: s.title,
         titleAr: s.titleAr,
-        before: { earned: sum(s.rows.map((r) => r.before_points)), possible: sum(s.rows.map((r) => r.before_max)) },
-        after: { earned: sum(s.rows.map((r) => r.after_points)), possible: sum(s.rows.map((r) => r.after_max)) },
+        before: firm ? { earned: sum(s.rows.map((r) => r.before_points)), possible: sum(s.rows.map((r) => r.before_max)) } : null,
+        after: firm ? { earned: sum(s.rows.map((r) => r.after_points)), possible: sum(s.rows.map((r) => r.after_max)) } : null,
         // Questions the later one has not answered yet are counted, not listed.
         unanswered: s.rows.filter((r) => r.in_later && r.after_value === null).length,
         // Only what changed: a different answer, a question added or dropped, or
@@ -722,6 +780,7 @@ export async function listAssessments(tx: Tx, principal: Principal, projectId: s
       sharedWithClient: assessments.sharedWithClient,
       finalisedAt: assessments.finalisedAt,
       createdAt: assessments.createdAt,
+      templateId: assessmentTemplates.id,
       templateName: assessmentTemplates.name,
       templateNameAr: assessmentTemplates.nameAr,
       version: templateVersions.version,
@@ -731,6 +790,8 @@ export async function listAssessments(tx: Tx, principal: Principal, projectId: s
     .innerJoin(assessmentTemplates, eq(assessmentTemplates.id, templateVersions.templateId))
     .where(eq(assessments.projectId, projectId))
     .orderBy(desc(assessments.createdAt));
+  // Scores are the firm's working view: clients see the answers, never the points (Fahad, 2026-10-22).
+  if (principal.orgKind !== "firm") return rows.map((r) => ({ ...r, total: null }));
   return Promise.all(rows.map(async (r) => ({ ...r, total: (await scores(tx, r.id)).total })));
 }
 
@@ -773,6 +834,8 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
   const resultOf = new Map(results.map((r) => [r.answer_id, r]));
   const firm = principal.orgKind === "firm";
   const score = await scores(tx, assessmentId);
+  // Clients see the questions, answers, comments and evidence, but no points, percentages or gaps.
+  const hidden = { earned: null, possible: null, pct: null, gaps: null, confirmed: null };
   return {
     id: a.id,
     projectId: a.projectId,
@@ -782,10 +845,12 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
     sharedWithClient: a.sharedWithClient,
     finalisedAt: a.finalisedAt,
     canConduct: authorize(principal, "assessment.conduct", resource).allowed,
-    total: score.total,
+    total: firm ? score.total : { ...hidden, toAnswer: score.total.toAnswer },
     sections: content.sections.map((s) => ({
       ...s,
-      ...omit(score.sections.find((x) => x.sectionId === s.id)!, "sectionId", "position", "title", "titleAr"),
+      ...(firm
+        ? omit(score.sections.find((x) => x.sectionId === s.id)!, "sectionId", "position", "title", "titleAr")
+        : { ...hidden, toAnswer: score.sections.find((x) => x.sectionId === s.id)!.toAnswer }),
       questions: s.questions.map((q) => {
         const x = byQuestion.get(q.id)!;
         const r = resultOf.get(x.id);
@@ -803,10 +868,10 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
             ...(firm ? { answeredBy: x.answeredBy, firmNote: noteOf.get(x.id) ?? null } : {}),
           },
           applicable: r?.applicable ?? true,
-          points: r?.points ?? null,
-          maxPoints: r?.max_points ?? null,
-          isGap: r?.is_gap ?? false,
-          findingId: r?.finding_id ?? null,
+          points: firm ? (r?.points ?? null) : null,
+          maxPoints: firm ? (r?.max_points ?? null) : null,
+          isGap: firm ? (r?.is_gap ?? false) : false,
+          findingId: firm ? (r?.finding_id ?? null) : null,
           evidence: evidence.filter((e) => e.answerId === x.id).map((e) => omit(e, "answerId")),
         };
       }),

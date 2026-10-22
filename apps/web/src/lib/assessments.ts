@@ -34,3 +34,35 @@ export interface ChoiceOption {
   labelAr?: string;
   points: number;
 }
+
+/** A data rule's words (English, from the API) as a message key under "assessment.errors", or null. */
+export function assessmentError(message: string | undefined): string | null {
+  if (!message) return null;
+  const rules: [RegExp, string][] = [
+    [/name the source/, "needSource"],
+    [/say where in the source/, "needLocator"],
+    [/published version cannot be changed|published version is kept/, "published"],
+    [/only version/, "onlyVersion"],
+    [/every section at least one question/, "emptySection"],
+    [/answer every question that applies/, "unanswered"],
+    [/legal form first/, "legalForm"],
+    [/publish the template before|published version of a template/, "notPublished"],
+    [/template is archived/, "archived"],
+    [/already a finding/, "alreadyFinding"],
+    [/at least two options/, "options"],
+    [/condition names|can depend only/, "condition"],
+    [/either bound or guided/, "boundOrGuided"],
+    [/finalise the assessment before/, "finaliseFirst"],
+    [/attach a file of this project/, "evidenceFile"],
+    [/refused by a data rule/, "refTaken"],
+  ];
+  return rules.find(([re]) => re.test(message))?.[1] ?? null;
+}
+
+/** The possible answers of a scored question, for the answer controls and conditions. */
+export function answerValues(q: { type: QuestionType; options?: ChoiceOption[] | null }): string[] {
+  if (q.type === "yes_no") return [...YES_NO_VALUES];
+  if (q.type === "rating") return [...RATING_VALUES];
+  if (q.type === "multiple_choice") return (q.options ?? []).map((o) => o.value);
+  return [];
+}

@@ -31,6 +31,8 @@ export interface Field {
   options?: { value: string; label: string }[];
   /** Placeholder for select and date fields. */
   placeholder?: string;
+  /** The current value, when the dialog edits something. */
+  defaultValue?: string;
 }
 
 /** Calls one of our JSON API routes and maps its error to a message key. */
@@ -68,6 +70,10 @@ export function FormDialog(props: {
   submitLabel: string;
   /** Where to go afterwards; ":id" is replaced by the new record's id. Default: refresh. */
   redirectTo?: string;
+  /** Sent with the fields, such as a position. */
+  extra?: Record<string, unknown>;
+  /** Send an emptied field as null (to clear it) instead of leaving it out. */
+  sendEmptyAsNull?: boolean;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
@@ -78,14 +84,18 @@ export function FormDialog(props: {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const body: Record<string, string> = {};
+    const body: Record<string, unknown> = { ...props.extra };
+    let endpoint = props.endpoint;
     for (const f of props.fields) {
       const v = String(form.get(f.name) ?? "").trim();
-      if (v) body[f.name] = v;
+      // A field named in the endpoint (":userId") goes in the path, not the body.
+      if (endpoint.includes(`:${f.name}`)) endpoint = endpoint.replace(`:${f.name}`, encodeURIComponent(v));
+      else if (v) body[f.name] = v;
+      else if (props.sendEmptyAsNull && !f.required) body[f.name] = null;
     }
     setBusy(true);
     setError(null);
-    const r = await callApi(props.endpoint, props.method ?? "POST", body);
+    const r = await callApi(endpoint, props.method ?? "POST", body);
     setBusy(false);
     if (!r.ok) return setError(r.error);
     setOpen(false);
@@ -108,9 +118,17 @@ export function FormDialog(props: {
             <div key={f.name} className="grid gap-2">
               <Label htmlFor={`f-${f.name}`}>{f.label}</Label>
               {f.type === "textarea" ? (
-                <Textarea id={`f-${f.name}`} name={f.name} required={f.required} maxLength={f.maxLength ?? 2000} rows={3} dir={f.dir} />
+                <Textarea
+                  id={`f-${f.name}`}
+                  name={f.name}
+                  required={f.required}
+                  maxLength={f.maxLength ?? 2000}
+                  rows={3}
+                  dir={f.dir}
+                  defaultValue={f.defaultValue}
+                />
               ) : f.type === "select" ? (
-                <Select name={f.name} required={f.required} defaultValue={f.options?.[0]?.value}>
+                <Select name={f.name} required={f.required} defaultValue={f.defaultValue ?? f.options?.[0]?.value}>
                   <SelectTrigger id={`f-${f.name}`} className="w-full">
                     <SelectValue placeholder={f.placeholder} />
                   </SelectTrigger>
@@ -125,7 +143,14 @@ export function FormDialog(props: {
               ) : f.type === "date" ? (
                 <DatePicker id={`f-${f.name}`} name={f.name} required={f.required} placeholder={f.placeholder ?? f.label} clearLabel={t("clear")} />
               ) : (
-                <Input id={`f-${f.name}`} name={f.name} required={f.required} maxLength={f.maxLength ?? 200} dir={f.dir} />
+                <Input
+                  id={`f-${f.name}`}
+                  name={f.name}
+                  required={f.required}
+                  maxLength={f.maxLength ?? 200}
+                  dir={f.dir}
+                  defaultValue={f.defaultValue}
+                />
               )}
             </div>
           ))}
