@@ -13,18 +13,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
+import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
+import { ProgressTab } from "./progress-tab";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings, invitees, me, assessments, templates } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -43,9 +45,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       // Who may book: the list of people to invite, or null.
       invitees: await meetingInvitees(tx, principal, id).catch(() => null),
       me: principal.userId,
+      // Action owners don't read metrics or reports; they get no tab.
+      metrics: await projectMetrics(tx, principal, id)
+        .then(async (m) => ({ ...m, progress: await projectProgress(tx, principal, id) }))
+        .catch(() => null),
+      reports: await listReports(tx, principal, id).catch(() => null),
     };
   });
-  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, format] = await Promise.all([
+  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("staffing"),
     getTranslations("visibility"),
@@ -54,6 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("status"),
     getTranslations("meeting"),
     getTranslations("assessment.run"),
+    getTranslations("metrics"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -87,6 +95,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="recs" className="gap-4">
         <TabsList>
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
+          {metrics ? <TabsTrigger value="progress">{tMetrics("tab")}</TabsTrigger> : null}
           {meetings ? <TabsTrigger value="meetings">{t("meetings")}</TabsTrigger> : null}
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
@@ -199,6 +208,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                 ))}
               </ul>
             )}
+          </TabsContent>
+        ) : null}
+
+        {metrics ? (
+          <TabsContent value="progress">
+            <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} />
           </TabsContent>
         ) : null}
 

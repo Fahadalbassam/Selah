@@ -29,12 +29,22 @@ Rules: `apps/web/drizzle/0013_metrics_rules.sql`. Tests: `apps/web/tests/db/metr
 
 API: `GET /api/projects/:id/metrics` returns `{ live, history }`. Readers: the firm, and the client's admins and managers.
 
+Screen: the project's **Progress** tab shows these numbers, the verified share at each monthly snapshot (with a table view), and the project's reports. Action owners get no tab.
+
+**Reports.** A report freezes `app_project_progress` as of its period's last day, with optional notes. It starts firm-only and the firm shares it with the client in one step that can't be undone; a correction is a new report.
+
+- API: `GET`/`POST /api/projects/:id/reports`, `GET /api/reports/:id`, `POST /api/reports/:id/share`.
+- Clients see only shared reports, and an unshared one reads as not found.
+- The report page is `/reports/:id`.
+
 ## 2. The team (firm admin only)
 
 - `app_team_workload()`: for each active colleague, sorted by name, the number of clients they are assigned to, the open projects they are staffed on, and the actions waiting for review on their projects. It is for staffing decisions, and carries no score.
 - `app_team_metrics(since)`: the team as a whole. Reviews done since the date, the median days from the first evidence of a round to its review, actions waiting for review, and overdue actions.
 
 API: `GET /api/team/metrics` (last 90 days).
+
+Screen: the Team page shows both to the firm admin, under the team list. The workload table is sorted by name.
 
 ## 3. Client KPIs (optional, off by default)
 
