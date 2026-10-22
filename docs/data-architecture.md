@@ -205,14 +205,14 @@ Legion (server)                                 Lenovo (backup), LAN cable only
 
 **Retention (run on the Lenovo, weekly):** `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`, then `restic check`.
 
-**Restore test (once a month, and before any demo or hand-in):**
+**Restore test (once a month, and before any demo or hand-in; a recorded restore test is the GP's evidence that backups work):**
 
 1. Restore the latest snapshot to a scratch folder.
 2. `pg_restore` it into a throwaway database and compare row counts with the live one.
 3. Pick ten random `documents` rows and check that each restored file's SHA-256 matches `documents.sha256`.
 4. Write down the date, the time it took and any problem. An untested backup doesn't count.
 
-**Off-site copy.** Both laptops sit in the same room, so a fire, theft, flood or power surge can take both. Once a week, copy the restic repository to an encrypted external drive and keep it somewhere else. Restic's `copy` command keeps it encrypted. An encrypted copy to a cloud bucket would also work, since the provider only sees ciphertext. Still, check with the firm before real client data leaves the Kingdom, even encrypted.
+**Off-site copy (for a real deployment; documented, not needed for the GP).** Both laptops sit in the same room, so a fire, theft, flood or power surge can take both. Once a week, copy the restic repository to an encrypted external drive and keep it somewhere else. Restic's `copy` command keeps it encrypted. An encrypted copy to a cloud bucket would also work, since the provider only sees ciphertext. Still, check with the firm before real client data leaves the Kingdom, even encrypted.
 
 **What is not backed up:** the Ollama models (downloaded again), ClamAV signatures (downloaded again) and Docker images (rebuilt). The `.env` file and the restic password are kept separately from the backups, because they unlock them.
 
