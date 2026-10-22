@@ -32,7 +32,9 @@ Each chat message is stored once with its language (`ar` or `en`). Messages from
 
 ## File summaries
 
-`POST /api/documents/:id/summary` with `lang`. Firm staff only, like the assistant.
+`POST /api/documents/:id/summary` with `lang`. Firm staff only, like the assistant. `GET /api/documents/:id/summary?lang=` returns the kept summary, if any, and the file's text status, without calling the model.
+
+Screen: the project's Documents tab has a Summary button on each file available to the assistant (firm staff). It shows the kept summary in either language, each line with page links that open the file at that page; when there is none, a Summarise button makes it. A file whose text can't be read is marked "Text not readable".
 
 - Made once per file version (its SHA-256) and language, from the file's indexed pages, then kept for everyone who can open the file.
 - Every line cites the pages it rests on. Lines citing pages the file doesn't have are dropped; a summary with no line left is refused.
@@ -50,8 +52,11 @@ Each line of a meeting summary can point at where it came from (`meeting_summary
 
 Only the firm adds them. Rewriting the summary's text drops its pointers, since the lines have moved.
 
+- `POST /api/meetings/:id/summary/sources` with `line` and either `kind: "transcript"` and `quote` (the passage copied from the transcript; the server finds its place) or `kind: "document"`, `documentId` and `page`.
+- `DELETE /api/meeting-summary-sources/:id`.
+- The meeting page lists each line's sources under the summary: a transcript passage opens its text (firm only), a file page opens the file at that page, marked when a newer version of the file has been uploaded since. Firm staff who run a held meeting link and remove them there.
+
 ## Not done yet
 
-- No screens: the assistant isn't in use, so summaries and source links have no UI.
 - PDF and Office text extraction.
 - Nothing writes meeting summary sources automatically yet; that comes with AI meeting summaries.

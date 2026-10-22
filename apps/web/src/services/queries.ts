@@ -199,6 +199,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       visibility: documents.visibility,
       version: documents.version,
       aiIndexable: documents.aiIndexable,
+      textStatus: documents.textStatus,
       purpose: documents.purpose,
       createdAt: documents.createdAt,
       uploadedBy: documents.uploadedBy,
