@@ -17,6 +17,7 @@
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
     "job:follow-ups": "tsx scripts/follow-ups.ts",
+    "job:index-documents": "tsx scripts/index-documents.ts",
     "job:mail": "tsx scripts/send-mail.ts",
     "job:metrics": "tsx scripts/metrics-snapshot.ts",
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",

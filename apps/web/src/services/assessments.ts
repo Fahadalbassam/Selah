@@ -589,6 +589,120 @@ async function scores(tx: Tx, assessmentId: string) {
   };
 }
 
+/**
+ * Assess the project again on the same template (its latest published
+ * version), to compare with this one once it is answered. Only a final
+ * assessment is retaken.
+ */
+export async function retakeAssessment(tx: Tx, principal: Principal, assessmentId: string, input: { title?: string } = {}) {
+  const { assessment: a } = await loadAssessment(tx, principal, assessmentId, "assessment.conduct");
+  if (a.status !== "final") throw new ConflictError("finalise the assessment before retaking it");
+  const [v] = await tx
+    .select({ templateId: templateVersions.templateId })
+    .from(templateVersions)
+    .where(eq(templateVersions.id, a.templateVersionId));
+  return createAssessment(tx, principal, a.projectId, { templateId: v!.templateId, title: input.title ?? a.title });
+}
+
+interface Side {
+  value: string | null;
+  points: number | null;
+  maxPoints: number | null;
+  gap: boolean;
+}
+
+/**
+ * Two assessments of the same client on the same template, earlier first:
+ * points per section and every question whose answer changed, was added or
+ * was dropped. Points are earned and possible points, as on the assessment.
+ */
+export async function compareAssessments(tx: Tx, principal: Principal, firstId: string, secondId: string) {
+  const one = await loadAssessment(tx, principal, firstId, "assessment.read");
+  const two = await loadAssessment(tx, principal, secondId, "assessment.read");
+  const [earlier, later] = one.assessment.createdAt <= two.assessment.createdAt ? [one, two] : [two, one];
+  const { rows } = await tx.execute<{
+    match_key: string;
+    ref: string | null;
+    section_position: number;
+    section_title: string;
+    section_title_ar: string | null;
+    prompt: string;
+    prompt_ar: string | null;
+    type: QuestionType;
+    before_value: string | null;
+    after_value: string | null;
+    before_points: number | null;
+    after_points: number | null;
+    before_max: number | null;
+    after_max: number | null;
+    before_gap: boolean;
+    after_gap: boolean;
+    in_earlier: boolean;
+    in_later: boolean;
+  }>(sql`select * from app_assessment_compare(${earlier.assessment.id}::uuid, ${later.assessment.id}::uuid)`);
+
+  const sum = (xs: (number | null)[]) => xs.reduce<number>((n, x) => n + (x ?? 0), 0);
+  const sections = new Map<string, { title: string; titleAr: string | null; position: number; rows: typeof rows }>();
+  for (const r of rows) {
+    const key = `${r.section_position}:${r.section_title}`;
+    const s = sections.get(key) ?? {
+      title: r.section_title,
+      titleAr: r.section_title_ar,
+      position: r.section_position,
+      rows: [],
+    };
+    s.rows.push(r);
+    sections.set(key, s);
+  }
+  const side = (r: (typeof rows)[number], when: "before" | "after"): Side | null =>
+    (when === "before" ? r.in_earlier : r.in_later)
+      ? {
+          value: when === "before" ? r.before_value : r.after_value,
+          points: when === "before" ? r.before_points : r.after_points,
+          maxPoints: when === "before" ? r.before_max : r.after_max,
+          gap: when === "before" ? r.before_gap : r.after_gap,
+        }
+      : null;
+  const head = (x: typeof earlier.assessment) => ({
+    id: x.id,
+    title: x.title,
+    status: x.status,
+    createdAt: x.createdAt,
+    finalisedAt: x.finalisedAt,
+  });
+  const totals = (when: "before" | "after") => ({
+    earned: sum(rows.map((r) => (when === "before" ? r.before_points : r.after_points))),
+    possible: sum(rows.map((r) => (when === "before" ? r.before_max : r.after_max))),
+    gaps: rows.filter((r) => (when === "before" ? r.before_gap : r.after_gap)).length,
+  });
+  return {
+    earlier: { ...head(earlier.assessment), ...totals("before") },
+    later: { ...head(later.assessment), ...totals("after") },
+    sections: [...sections.values()]
+      .sort((x, y) => x.position - y.position)
+      .map((s) => ({
+        title: s.title,
+        titleAr: s.titleAr,
+        before: { earned: sum(s.rows.map((r) => r.before_points)), possible: sum(s.rows.map((r) => r.before_max)) },
+        after: { earned: sum(s.rows.map((r) => r.after_points)), possible: sum(s.rows.map((r) => r.after_max)) },
+        // Questions the later one has not answered yet are counted, not listed.
+        unanswered: s.rows.filter((r) => r.in_later && r.after_value === null).length,
+        // Only what changed: a different answer, or a question added or dropped.
+        changes: s.rows
+          .filter((r) => !r.in_earlier || !r.in_later || (r.after_value !== null && r.before_value !== r.after_value))
+          .map((r) => ({
+            ref: r.ref,
+            prompt: r.prompt,
+            promptAr: r.prompt_ar,
+            type: r.type,
+            change: !r.in_earlier ? ("added" as const) : !r.in_later ? ("dropped" as const) : ("answer" as const),
+            before: side(r, "before"),
+            after: side(r, "after"),
+          })),
+      })),
+  };
+}
+
 /** A project's assessments, newest first, with their totals: a reassessment shows the change. */
 export async function listAssessments(tx: Tx, principal: Principal, projectId: string) {
   const { resource } = await loadProject(tx, principal, projectId);

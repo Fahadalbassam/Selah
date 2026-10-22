@@ -83,6 +83,10 @@ export const documentState = pgEnum("document_state", ["draft", "submitted", "ar
 // "skipped" (stored without a scanner, local development only) can be
 // downloaded only while SCAN_REQUIRED=false, which production refuses.
 export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected", "error", "skipped"]);
+// Whether a file's text could be read for the assistant: "not_searchable" when
+// nothing could be extracted (a scan without text, say), so it is never
+// silently missing from answers.
+export const textStatus = pgEnum("text_status", ["pending", "searchable", "not_searchable"]);
 export const requestStatus = pgEnum("request_status", ["pending", "approved", "rejected"]);
 export const followUpStatus = pgEnum("follow_up_status", ["open", "done"]);
 export const chunkSource = pgEnum("chunk_source", [
@@ -560,6 +564,7 @@ export const documents = pgTable(
     sha256: text("sha256").notNull(),
     scanStatus: scanStatus("scan_status").notNull().default("pending"),
     scannedAt: ts("scanned_at"),
+    textStatus: textStatus("text_status").notNull().default("pending"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -1260,6 +1265,8 @@ export const aiChunks = pgTable(
     // Copied from the source document by the database.
     departmentId: uuid("department_id"),
     chunkIndex: integer("chunk_index").notNull(),
+    // The page it is on, for files that have pages, so answers cite the page.
+    page: integer("page"),
     lang: text("lang"),
     content: text("content").notNull(),
     embedding: vector("embedding", { dimensions: 1024 }).notNull(),
@@ -1299,10 +1306,42 @@ export const aiMessages = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     role: text("role", { enum: ["user", "assistant"] }).notNull(),
     content: text("content").notNull(),
-    citations: jsonb("citations").$type<Array<{ chunkId: string; sourceType: string; sourceId: string; version: number }>>(),
+    // Stored once, in the language it was written in; the other language
+    // comes from the translation cache (content_translations).
+    lang: text("lang").notNull().default("ar"),
+    citations:
+      jsonb("citations").$type<Array<{ chunkId: string; sourceType: string; sourceId: string; version: number; page?: number | null }>>(),
     createdAt: createdAt(),
   },
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],
+);
+
+// A summary of one file, made once per version and language and then kept
+// (drizzle/0041). Keyed by the file's hash, so a new version never reuses an
+// old summary; read with the file's own rights.
+export const documentSummaries = pgTable(
+  "document_summaries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    ...scoped(),
+    sha256: text("sha256").notNull(),
+    lang: text("lang").notNull(),
+    summary: text("summary").notNull(),
+    // Each line of the summary and the pages it rests on.
+    citations: jsonb("citations").$type<Array<{ line: number; pages: number[] }>>().notNull(),
+    model: text("model").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    scopedFk("document_summaries", t),
+    uniqueIndex("document_summaries_once").on(t.documentId, t.sha256, t.lang),
+  ],
 );
 
 // ------------------------------------------------------------- accounts
@@ -1527,6 +1566,29 @@ export const meetingSummaries = pgTable(
     visibility: visibility("visibility").notNull().default("firm_private"),
   },
   (t) => [scopedFk("meeting_summaries", t)],
+);
+
+// Where each line of a meeting summary came from: a passage of the transcript
+// (character offsets into it) or a page of a project file. An AI draft gives
+// one for every point, so a person can check it before confirming. A
+// transcript pointer outlives the transcript, which is deleted on schedule.
+export const meetingSummarySources = pgTable(
+  "meeting_summary_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    meetingId: uuid("meeting_id")
+      .notNull()
+      .references(() => meetingSummaries.meetingId, { onDelete: "cascade" }),
+    ...scoped(),
+    line: integer("line").notNull(),
+    kind: text("kind", { enum: ["transcript", "document"] }).notNull(),
+    transcriptStart: integer("transcript_start"),
+    transcriptEnd: integer("transcript_end"),
+    documentId: uuid("document_id").references(() => documents.id, { onDelete: "cascade" }),
+    documentVersion: integer("document_version"),
+    page: integer("page"),
+  },
+  (t) => [scopedFk("meeting_summary_sources", t), index("meeting_summary_sources_meeting_idx").on(t.meetingId, t.line)],
 );
 
 // A meeting's transcript, imported by firm staff from a file or pasted, only

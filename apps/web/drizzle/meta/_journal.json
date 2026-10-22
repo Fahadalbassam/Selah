@@ -274,6 +274,27 @@
       "when": 1792625468089,
       "tag": "0038_meeting_follow_ups_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792626495388,
+      "tag": "0039_assessment_compare",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792626696555,
+      "tag": "0040_ai_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792626721208,
+      "tag": "0041_ai_sources_rules",
+      "breakpoints": true
     }
   ]
 }

@@ -44,3 +44,20 @@ export function answer(question: string, passages: Passage[], language: "ar" | "
 export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {
   return call("/v1/translate", { text, source, target }, z.object({ text: z.string().min(1), model: z.string() }));
 }
+
+export interface SummaryPoint {
+  text: string;
+  pages: number[];
+}
+
+/** Summarise a file from its pages. Points that cite no page given are dropped by the service. */
+export function summarizePages(
+  pages: { n: number; text: string }[],
+  lang: "ar" | "en",
+): Promise<{ points: SummaryPoint[]; model: string }> {
+  return call(
+    "/v1/summarize",
+    { pages, lang },
+    z.object({ points: z.array(z.object({ text: z.string(), pages: z.array(z.number().int()) })), model: z.string() }),
+  );
+}
