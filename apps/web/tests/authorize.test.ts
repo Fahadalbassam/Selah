@@ -106,10 +106,19 @@ describe("assignment and sharing", () => {
     expect(authorize(owner, "action.read", acmeRecord("action", { assignees: ["someone-else"] })).allowed).toBe(false);
   });
 
-  it("action owners see documents only when shared with them", () => {
-    const owner = principal("action_owner", [ACME_PROJ_1]);
+  it("action owners see their own files, files shared with them, and their department teammates' files", () => {
+    const HR = "00000000-0000-4000-8000-0000000000d1";
+    const FIN = "00000000-0000-4000-8000-0000000000d2";
+    const owner = principal("action_owner", [ACME_PROJ_1], undefined, [], {}, [HR]);
     expect(authorize(owner, "document.download", acmeRecord("document")).allowed).toBe(false);
+    expect(authorize(owner, "document.download", acmeRecord("document", { createdBy: owner.userId })).allowed).toBe(true);
     expect(authorize(owner, "document.download", acmeRecord("document", { sharedWith: [owner.userId] })).allowed).toBe(true);
+    expect(authorize(owner, "document.download", acmeRecord("document", { departmentId: HR })).allowed).toBe(true);
+    expect(authorize(owner, "document.read", acmeRecord("document", { departmentId: FIN })).allowed).toBe(false);
+    // The team rule never crosses a project, a tenant or a label.
+    expect(authorize(owner, "document.read", acmeRecord("document", { departmentId: HR, projectId: ACME_PROJ_2 })).allowed).toBe(false);
+    expect(authorize(owner, "document.read", acmeRecord("document", { departmentId: HR, visibility: "firm_private" })).allowed).toBe(false);
+    expect(authorize(owner, "document.read", betaRecord("document", { departmentId: HR })).allowed).toBe(false);
   });
 
   it("only the controlling org may change a document's labels and AI flag", () => {

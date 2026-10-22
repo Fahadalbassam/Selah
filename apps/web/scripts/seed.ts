@@ -264,6 +264,7 @@ const adminPrincipal = {
   assignedClientIds: new Set<string>(),
   leadClientIds: new Set<string>(),
   leadProjectIds: new Set<string>(),
+  departmentIds: new Set<string>(),
 };
 const tx = db as unknown as Tx;
 const starter = await installStarterTemplate(tx, adminPrincipal, { publish: true });

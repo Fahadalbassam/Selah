@@ -18,7 +18,7 @@ export function maskingOn(
 /**
  * The masking for one request about one project: its client and firm, their
  * people and contacts, and the client's departments (app_mask_terms,
- * drizzle/0046). Off, it changes nothing.
+ * drizzle/0047). Off, it changes nothing.
  */
 export async function projectMasker(tx: Tx, projectId: string, on = maskingOn()): Promise<Masker> {
   if (!on) return createMasker([]);

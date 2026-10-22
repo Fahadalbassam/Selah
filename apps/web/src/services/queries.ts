@@ -204,6 +204,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       createdAt: documents.createdAt,
       uploadedBy: documents.uploadedBy,
       ownerOrgId: documents.ownerOrgId,
+      departmentId: documents.departmentId,
       orgId: documents.orgId,
       projectId: documents.projectId,
     })
@@ -243,6 +244,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       visibility: d.visibility,
       createdBy: d.uploadedBy,
       ownerOrgId: d.ownerOrgId,
+      departmentId: d.departmentId,
     })),
     activity: authorize(principal, "activity.read", projectResource).allowed ? activity : [],
   };
@@ -377,13 +379,14 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
           visibility: documents.visibility,
           uploadedBy: documents.uploadedBy,
           ownerOrgId: documents.ownerOrgId,
+          departmentId: documents.departmentId,
         })
         .from(evidenceSubmissions)
         .leftJoin(user, eq(user.id, evidenceSubmissions.submittedBy))
         .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
         .where(eq(evidenceSubmissions.actionId, id))
     : [];
-  const evidence = evidenceRows.map(({ visibility, uploadedBy, ownerOrgId, ...e }) => ({
+  const evidence = evidenceRows.map(({ visibility, uploadedBy, ownerOrgId, departmentId, ...e }) => ({
     ...e,
     canDownload: authorize(principal, "document.download", {
       type: "document",
@@ -394,6 +397,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       visibility,
       createdBy: uploadedBy,
       ownerOrgId,
+      departmentId,
     }).allowed,
   }));
 

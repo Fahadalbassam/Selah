@@ -15,6 +15,7 @@ export function principal(
   orgId?: string,
   assignedClients: string[] = [],
   lead: { clients?: string[]; projects?: string[] } = {},
+  departments: string[] = [],
 ): Principal {
   const firm = role === "firm_admin" || role === "consultant";
   return {
@@ -26,6 +27,7 @@ export function principal(
     assignedClientIds: new Set([...assignedClients, ...(lead.clients ?? [])]),
     leadClientIds: new Set(lead.clients ?? []),
     leadProjectIds: new Set(lead.projects ?? []),
+    departmentIds: new Set(departments),
   };
 }
 

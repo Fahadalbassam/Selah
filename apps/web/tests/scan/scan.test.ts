@@ -145,8 +145,8 @@ describe("upload scanning against clamd", () => {
   ];
 
   it.each(infected)("refuses %s and audits the refusal", async (_label, upload) => {
-    await expect(prepareUpload(USER, ACTION, upload)).rejects.toThrow(BadRequestError);
-    await expect(prepareUpload(USER, ACTION, upload)).rejects.toThrow("file rejected: infected");
+    await expect(prepareUpload(USER, { type: "action", id: ACTION }, upload)).rejects.toThrow(BadRequestError);
+    await expect(prepareUpload(USER, { type: "action", id: ACTION }, upload)).rejects.toThrow("file rejected: infected");
     expect(state.audits).toContainEqual(
       expect.objectContaining({
         actorId: USER,
@@ -157,7 +157,7 @@ describe("upload scanning against clamd", () => {
   });
 
   it("accepts a clean PDF as scanned", async () => {
-    const prepared = await prepareUpload(USER, ACTION, file(PDF, "evidence.pdf", "application/pdf"));
+    const prepared = await prepareUpload(USER, { type: "action", id: ACTION }, file(PDF, "evidence.pdf", "application/pdf"));
     expect(prepared.scanned).toBe(true);
     expect(prepared.scanMs).toBeGreaterThanOrEqual(0);
     expect(prepared.contentType).toBe("application/pdf");
@@ -166,7 +166,7 @@ describe("upload scanning against clamd", () => {
 
   it("refuses with 503 when clamd is down", async () => {
     state.env.CLAMD_PORT = 1; // nothing listens there
-    const err = await prepareUpload(USER, ACTION, file(PDF, "evidence.pdf", "application/pdf")).catch((e: unknown) => e);
+    const err = await prepareUpload(USER, { type: "action", id: ACTION }, file(PDF, "evidence.pdf", "application/pdf")).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(UnavailableError);
     expect(state.audits).toHaveLength(0);
   });
