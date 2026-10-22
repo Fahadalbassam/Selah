@@ -103,7 +103,7 @@ export function SecurityPanel({ enabled, required }: { enabled: boolean; require
     <Card className="py-6 shadow-xs">
       <CardContent className="space-y-4 px-6">
         {stage.kind === "scan" ? (
-          <form onSubmit={confirm} className="space-y-4">
+          <form method="post" onSubmit={confirm} className="space-y-4">
             <p className="text-sm">{t("scan")}</p>
             <div
               className="mx-auto size-44 rounded-md bg-white p-2 [&_svg]:size-full"
@@ -160,7 +160,7 @@ export function SecurityPanel({ enabled, required }: { enabled: boolean; require
             </Button>
           </div>
         ) : !enabled ? (
-          <form onSubmit={start} className="space-y-4">
+          <form method="post" onSubmit={start} className="space-y-4">
             <p className="text-sm text-muted-foreground">{t("intro")}</p>
             {passwordField}
             {errorLine}
@@ -171,7 +171,7 @@ export function SecurityPanel({ enabled, required }: { enabled: boolean; require
           </form>
         ) : (
           <>
-            <form onSubmit={newCodes} className="space-y-4">
+            <form method="post" onSubmit={newCodes} className="space-y-4">
               <p className="text-sm text-muted-foreground">{t("newCodesHint")}</p>
               {passwordField}
               {errorLine}
@@ -181,7 +181,7 @@ export function SecurityPanel({ enabled, required }: { enabled: boolean; require
               </Button>
             </form>
             {!required ? (
-              <form onSubmit={switchOff} className="space-y-3 border-t pt-4">
+              <form method="post" onSubmit={switchOff} className="space-y-3 border-t pt-4">
                 <p className="text-sm text-muted-foreground">{t("offHint")}</p>
                 <div className="grid gap-2">
                   <Label htmlFor="off-password">{t("password")}</Label>

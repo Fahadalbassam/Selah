@@ -99,7 +99,7 @@ export function CardSkeleton({ lines = 3, className }: { lines?: number; classNa
 /** A main column with a narrower side panel, as on the detail pages. */
 export function DetailSkeleton({ side = "20rem" }: { side?: string }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_var(--side)]" style={{ "--side": side } as React.CSSProperties}>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_var(--side)]" style={{ "--side": side } as React.CSSProperties}>
       <div className="space-y-6">
         <CardSkeleton lines={4} />
         <CardSkeleton lines={3} />

@@ -102,7 +102,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
         }}
       />
-      <SidebarInset>
+      {/* min-w-0: a wide table scrolls inside its card instead of pushing the page sideways. */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
           <SidebarTrigger className="-ms-1" />
           <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
@@ -111,7 +112,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <NotificationBell unread={unread} />
           </div>
         </header>
-        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
+        <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

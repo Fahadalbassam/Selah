@@ -31,7 +31,7 @@ export function ForgotForm() {
         {state === "sent" ? (
           <p className="text-sm">{t("sent")}</p>
         ) : (
-          <form onSubmit={submit} className="space-y-4">
+          <form method="post" onSubmit={submit} className="space-y-4">
             <div className="grid gap-2">
               <Label htmlFor="email">{t("email")}</Label>
               <Input id="email" name="email" type="email" autoComplete="username" dir="ltr" required />

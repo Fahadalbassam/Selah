@@ -118,7 +118,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
 
       <Tabs defaultValue="recs" className="gap-4">
-        <TabsList>
+        {/* Up to ten tabs: scroll inside the bar at tablet width rather than widen the page. */}
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
           {metrics ? <TabsTrigger value="progress">{tMetrics("tab")}</TabsTrigger> : null}
           {deviations ? (

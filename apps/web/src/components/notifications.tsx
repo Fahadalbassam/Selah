@@ -78,7 +78,8 @@ export function NotificationList({ items, onOpen }: { items: NotificationRow[]; 
               <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", unread ? "bg-foreground" : "bg-transparent")} />
               <span className="min-w-0 flex-1 space-y-0.5">
                 <span className={cn("block", unread ? "font-medium" : "text-muted-foreground")}>{text(n)}</span>
-                <span className="block text-xs text-muted-foreground tabular-nums">
+                {/* Server and browser clocks can straddle a minute: let the browser's text win. */}
+                <span className="block text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
                   {format.relativeTime(new Date(n.createdAt), new Date())}
                 </span>
               </span>

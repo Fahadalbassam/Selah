@@ -51,7 +51,8 @@ export function SinceLastVisit(props: {
                 {c.title}
               </Link>
               <StatusBadge status={c.status as ActionStatus} />
-              <span className="w-28 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
+              {/* Server and browser clocks can straddle a minute: let the browser's text win. */}
+              <span className="w-28 shrink-0 text-end text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
                 {format.relativeTime(new Date(c.changedAt), new Date())}
               </span>
             </li>

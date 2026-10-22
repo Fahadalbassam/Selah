@@ -65,6 +65,8 @@ export function EvidenceList(props: {
   actionId: string;
   items: EvidenceItem[];
   canManage: boolean;
+  /** The viewer is firm staff: picks the hint, which shouldn't follow canManage (off once verified). */
+  firmView: boolean;
   /** The user may attach evidence now (the action is open for it). */
   canSubmit: boolean;
 }) {
@@ -80,7 +82,7 @@ export function EvidenceList(props: {
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
           <CardTitle className="text-base">{t("title")}</CardTitle>
-          <CardDescription>{props.canManage ? t("hintFirm") : t("hintClient")}</CardDescription>
+          <CardDescription>{props.firmView ? t("hintFirm") : t("hintClient")}</CardDescription>
         </div>
         {props.canManage ? <AddItem actionId={props.actionId} onDone={done} /> : null}
       </CardHeader>

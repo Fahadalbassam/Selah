@@ -12,3 +12,8 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+# Playwright end-to-end runs
+apps/web/e2e/.auth/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/e2e-results/

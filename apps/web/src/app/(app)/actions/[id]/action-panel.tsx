@@ -45,9 +45,11 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   const res = await fetch(url, init);
   if (res.ok) return { ok: true };
   const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+  const m = body.message ?? "";
+  // A data rule's refusal is a 409 too; say which rule before falling back to "someone changed it".
+  if (m.includes("every evidence request")) return { ok: false, error: "openEvidence" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
-  const m = body.message ?? "";
   if (m.includes("too large")) return { ok: false, error: "too_large" };
   if (m.includes("rejected: empty")) return { ok: false, error: "empty" };
   if (m.includes("rejected: infected")) return { ok: false, error: "infected" };
@@ -141,6 +143,9 @@ export function ActionPanel({ actionId, status, moves, can, close }: Props) {
       </CardHeader>
       <CardContent className="space-y-5 px-5">
         {buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : <p className="text-sm text-muted-foreground">{note}</p>}
+        {status === "revision_requested" && moves.includes("in_progress") ? (
+          <p className="text-sm text-muted-foreground">{t("revisionNote")}</p>
+        ) : null}
         {can.addUpdate ? <UpdateForm actionId={actionId} onDone={done} /> : null}
       </CardContent>
     </Card>

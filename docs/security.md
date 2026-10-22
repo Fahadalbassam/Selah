@@ -9,7 +9,7 @@ Results are test results on the executed cases, not a guarantee of security.
 | Chapter | Where it is handled | Status |
 |---|---|---|
 | V8 Authorization | `src/authz/authorize.ts` (one check, deny by default); `drizzle/0001_security.sql` (RLS on every table); `tests/authorize.test.ts`, `tests/db/rls.test.ts` | Done for the skeleton |
-| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 5 per minute, TOTP two-factor sign-in, required for firm admins, consultants and client admins (`src/server/http.ts`, migration 0032); password reset by a mailed link valid for one hour, at most three an hour (migration 0031) | Single sign-on not built |
+| V6 Authentication | `src/auth/auth.ts`: Better Auth, scrypt hashing, invite-only (sign-up disabled), 12+ character passwords, sign-in limited to 10 per account per 15 minutes from any address (`src/auth/attempts.ts`) and 20 per address a minute, at most 5 two-factor codes per sign-in, TOTP two-factor sign-in, required for firm admins, consultants and client admins (`src/server/http.ts`, migration 0032); password reset by a mailed link valid for one hour, at most three an hour (migration 0031) | Single sign-on not built |
 | V7 Session management | Server-side sessions in `HttpOnly`, `SameSite=Lax`, `Secure` (production) cookies with a `__Secure-` prefix; 8 h lifetime, fresh sign-in after 10 min for sensitive changes | Done |
 | V4 API | `src/server/http.ts`: Origin check on every write (CSRF), session required, ids from the URL only used to look rows up; `tests/route-guard.test.ts` | Done |
 | V2 Validation and business logic | Zod on every params/body (`route()`); status moves checked in `authz/workflow.ts` and the `check_action_transition` trigger; optimistic concurrency on status updates | Done |
@@ -19,7 +19,7 @@ Results are test results on the executed cases, not a guarantee of security.
 | V14 Data protection | Visibility labels; app role cannot read passwords, sessions or the audit log; sample seed data only | Done |
 | V16 Logging and errors | `audit_log` (insert-only for the app, append-only trigger): status changes, downloads, AI queries and every denial are logged with actor and reason, never document text; generic error bodies | Sign-in events not yet copied into `audit_log` |
 | V13 Configuration | Secrets only in `.env` (ignored by Git), validated at start (`src/env.ts`); `npm audit` in CI; ports bound to 127.0.0.1 | Done |
-| V12 Secure communication | HTTPS for the deployed site through a reverse proxy on the team's Linux server | Not yet set up |
+| V12 Secure communication | HTTPS for the deployed site through a reverse proxy on the team's Linux server. The proxy must overwrite `X-Forwarded-For` with the visitor's address, not append to it: per-address limits and the intake form read it | Not yet set up |
 
 ## Database roles
 

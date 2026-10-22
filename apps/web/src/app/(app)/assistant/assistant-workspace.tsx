@@ -126,10 +126,12 @@ export function AssistantWorkspace({
   projects,
   initialChatId,
   initialCase,
+  initialProjectId = null,
 }: {
   projects: { id: string; title: string; client: string }[];
   initialChatId: string | null;
   initialCase: NewChatCase | null;
+  initialProjectId?: string | null;
 }) {
   const t = useTranslations("assistant");
   const locale = useLocale() as Lang;
@@ -143,7 +145,7 @@ export function AssistantWorkspace({
   const [chatVersion, setChatVersion] = useState(0);
   const [loaded, setLoaded] = useState<{ key: string; chat: Chat | null } | null>(null);
   const [draft, setDraft] = useState<{ projectId: string; case: NewChatCase | null }>({
-    projectId: initialCase?.projectId ?? projects[0]?.id ?? "",
+    projectId: initialCase?.projectId ?? initialProjectId ?? projects[0]?.id ?? "",
     case: initialCase,
   });
   const [pending, setPending] = useState<string | null>(null);
@@ -317,7 +319,8 @@ function ChatList(props: {
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {c.caseType ? <span>{t(`cases.${c.caseType}`)}</span> : null}
           {c.caseType ? <span aria-hidden>·</span> : null}
-          <span className="tabular-nums">{format.relativeTime(new Date(c.lastMessageAt), now)}</span>
+          {/* A chat started after the list mounted is newer than `now`: "now", not "in 1 second". */}
+          <span className="tabular-nums">{format.relativeTime(new Date(Math.min(Date.parse(c.lastMessageAt), now)), now)}</span>
           {c.keep ? <Pin className="size-3" aria-label={t("kept")} /> : null}
         </span>
       </button>
