@@ -10,6 +10,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListChecks,
+  Settings,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const ICONS = {
   templates: ClipboardList,
   assistant: Bot,
   team: Users,
+  settings: Settings,
 } satisfies Record<string, LucideIcon>;
 
 export interface NavItem {

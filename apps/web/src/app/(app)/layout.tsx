@@ -36,7 +36,10 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
           { title: t("assistant"), href: "/assistant", icon: "assistant" },
         ],
       },
-      { label: t("organization"), items: [team] },
+      {
+        label: t("organization"),
+        items: role === "firm_admin" ? [team, { title: t("settings"), href: "/settings", icon: "settings" }] : [team],
+      },
     ];
   }
   if (role === "action_owner") {
