@@ -1,6 +1,6 @@
 # Assistant sources
 
-How the assistant finds text, keeps it in each person's rights, and shows where every line came from; how chats are labelled, shown in two languages and deleted; and how names are masked before a hosted model sees them. Migrations 0040 (tables), 0041 (rules), 0045 and 0046 (chats, retention, masking); `src/jobs/index-documents.ts`, `src/services/assistant.ts`, `src/services/masking.ts`, `src/services/document-summaries.ts`; the AI service's `POST /v1/embed`, `/v1/answer` and `/v1/summarize`. The design and its reasons: https://claude.ai/artifact/FTRTXVTCLqgRjgwbCsCVDW.
+How the assistant finds text, keeps it in each person's rights, and shows where every line came from; how chats are labelled, shown in two languages and deleted; and how names are masked before a hosted model sees them. Migrations 0040 (tables), 0041 (rules), 0046 and 0047 (chats, retention, masking); `src/jobs/index-documents.ts`, `src/services/assistant.ts`, `src/services/masking.ts`, `src/services/document-summaries.ts`; the AI service's `POST /v1/embed`, `/v1/answer` and `/v1/summarize`. The design and its reasons: https://claude.ai/artifact/FTRTXVTCLqgRjgwbCsCVDW.
 
 No model has been run for any of this: the tests use fake vectors and a fake summariser, and nothing runs on the server yet.
 
@@ -49,7 +49,7 @@ Every chat belongs to one person and one project (`ai_conversations.project_id`)
 
 - **Title:** the first question on one line, cut at 60 characters, with no model call. The owner can rename it.
 - **Case** (optional): the recommendation, action, finding, meeting or file the chat is about. The database checks it is a record of the same project that the person can see. "Ask the assistant" on an action, a meeting, a recommendation or a file starts a chat already linked to it (`/assistant?project=…&case=action:…`). Deleting the record unlinks the chat; the chat stays in its project.
-- **Who reads it:** only its owner, and only while they can still see the project. A consultant taken off a client loses the chat and its messages at once (migration 0046 closed a gap: the messages used to stay readable by id). Staffed again, they get them back, until retention deletes them.
+- **Who reads it:** only its owner, and only while they can still see the project. A consultant taken off a client loses the chat and its messages at once (migration 0047 closed a gap: the messages used to stay readable by id). Staffed again, they get them back, until retention deletes them.
 - **Sources shown again:** opening an old chat checks each citation again. A source the person can no longer open shows as "Source no longer available to you", without its title; a file with a newer version says so.
 - **API:** `GET /api/assistant/conversations[?archived=1]`, `GET /api/assistant/conversations/:id?lang=`, `PATCH` (title, keep, archived), `DELETE`. `POST /api/assistant/query` takes `caseType` and `caseId` when it starts a chat.
 
