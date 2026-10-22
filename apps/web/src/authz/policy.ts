@@ -9,8 +9,10 @@ import type { EngagementMode, Role } from "./types";
  *   shared    - only records explicitly shared with the user (or created by them)
  *   owner_org - only records whose controlling org is the user's org
  *   lead      - only clients (or internal projects) the user leads
+ *   team      - the user's own records, records shared with them, and records
+ *               filed under one of their departments
  */
-export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead";
+export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead" | "team";
 
 type Grants = Partial<Record<Role, Scope>>;
 
@@ -116,8 +118,11 @@ export const POLICY = {
   "review.create": { ...STAFF },
 
   // Documents
-  "document.read": { ...ALL_BUT_OWNER, action_owner: "shared" },
-  "document.download": { ...ALL_BUT_OWNER, action_owner: "shared" },
+  // An action owner sees their own files, files shared with them, and their
+  // department teammates' files (decided 2026-10-22: the team sees each
+  // other's uploads; the manager and client admin see everything below).
+  "document.read": { ...ALL_BUT_OWNER, action_owner: "team" },
+  "document.download": { ...ALL_BUT_OWNER, action_owner: "team" },
   "document.upload": { ...STAFF, client_admin: "any", client_manager: "any", action_owner: "assigned" },
   "document.manage": {
     firm_admin: "owner_org",

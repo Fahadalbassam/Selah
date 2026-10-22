@@ -23,6 +23,8 @@ export interface Principal {
   leadClientIds: ReadonlySet<string>;
   /** Projects (internal) the user leads. */
   leadProjectIds: ReadonlySet<string>;
+  /** Client users only: the departments they belong to (their team). */
+  departmentIds: ReadonlySet<string>;
 }
 
 export type ResourceType =
@@ -78,6 +80,8 @@ export interface Resource {
   createdBy?: string | null;
   /** Users the record is assigned to (an action's owner, or a recommendation's action owners). */
   assignees?: readonly string[];
+  /** The client department the record is filed under (documents: the team that sees it). */
+  departmentId?: string | null;
   /** Users a document or note was explicitly shared with. */
   sharedWith?: readonly string[];
   /** Which org controls the record (documents: who may change its labels and AI flag). */

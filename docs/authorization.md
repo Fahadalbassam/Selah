@@ -84,11 +84,15 @@ The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists doc
 | Consultant | Files of the projects they are staffed on (all of a client's projects when they lead it). Never client-private files. |
 | Client admin | All of the company's files, including client-private ones. Nothing of the firm or other clients. |
 | Client manager | The company's files outside departments, and their own department's. |
-| Action owner | Their own uploads and files shared with them one by one. |
+| Action owner | Their own uploads, their department teammates' files (decided 2026-10-22: the team sees each other's work, the manager and client admin see everything below), and files shared with them one by one. |
+
+A file shared with someone one by one reaches them even when it is filed under another department (`0045_document_shares_cross_department.sql`).
 
 Files are grouped client, then project, then source (evidence by action, deliverables, client documents, meetings, assessments). Only the latest version is listed; downloads go through the usual one-minute signed link.
 
 **Reusing a file as evidence** (`POST /api/actions/:id/evidence/existing`) copies the stored object under a new random key and records a new evidence document. The original keeps its label, department and history; the copy follows the evidence rules. It is refused unless the person can submit evidence on the action and download the original, and the original belongs to the same client, is `shared` (never firm-only or private) and was cleared by the virus scan. Tests: `tests/db/files.test.ts`.
+
+**Adding a file to a project** (`POST /api/projects/:id/documents`, the Files card's "Add a file") is open to firm staff on the project and to client admins and managers. `GET /api/files/targets` lists the projects and the choices each side has: firm staff label a file firm-only or shared (internal work is always firm-only); a client labels it shared or private to the company (a restricted client's files start private); a client admin can file it under any department, a manager under their own. Files are scanned like evidence. The upload is audited but kept off the project's activity feed, which both sides see.
 
 ## Adding a new record type (checklist)
 
