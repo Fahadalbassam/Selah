@@ -3,16 +3,16 @@
 The whole stack in Docker (`docker compose -f docker-compose.yml -f docker-compose.test.yml up`), seeded, driven by Playwright (`apps/web/e2e`). Started 2026-10-22, during the feature freeze.
 
 Severity: **S1** blocks a core flow, **S2** wrong behaviour or a security weakness, **S3** confusing or broken state, **S4** polish.
-Status: open, fixed, gap (needs a feature, listed only until Fahad decides).
+Status: open, fixed, gap (needs a feature), built (a gap Fahad approved, now built).
 
 | # | Sev | Area | What happens | Status |
 |---|-----|------|--------------|--------|
 | 1 | S2 | Docker | `ollama-pull` pulls `LLM_MODEL` even when `LLM_PROVIDER=openai_compat`, so a hosted `gpt-oss:120b` started a 65 GB local download. | fixed (compose pulls the chat model only for `ollama`) |
 | 2 | S3 | Sign-in | After 5 tries a minute the sign-in form says "Wrong email or password" (and the code step "That code didn't work") for the rate-limit 429, so a person with the right password thinks it's wrong. | fixed ("Too many tries") |
 | 3 | S2 | Docker | Nothing runs the scheduled jobs in Docker: files are never indexed for the assistant, no follow-up reminders, no purges, no metrics snapshots. | fixed (`jobs` service running `scripts/jobs.sh`) |
-| 4 | S1 | Recommendations | No screen creates a recommendation, an action or a finding. The APIs exist (`POST /api/projects/:id/recommendations`, `/api/recommendations/:id/actions`, `/api/projects/:id/findings`) but nothing in the UI calls them, so the core flow can't start from the browser. | gap? (wiring only, no backend) |
-| 5 | S2 | Clients | No screen lists or edits client contacts (`/api/clients/:id/contacts`, `/api/contacts/:id`), though meeting invites use them. | gap? |
-| 6 | S3 | Actions | Firm-only action notes (`/api/actions/:id/notes`) have no screen. | gap? |
+| 4 | S1 | Recommendations | No screen creates a recommendation, an action or a finding. The APIs exist (`POST /api/projects/:id/recommendations`, `/api/recommendations/:id/actions`, `/api/projects/:id/findings`) but nothing in the UI calls them, so the core flow can't start from the browser. | built (Recommendations tab: add finding, add recommendation, add action with release; e2e `core-flow` test 1 now starts in the browser) |
+| 5 | S2 | Clients | No screen lists or edits client contacts (`/api/clients/:id/contacts`, `/api/contacts/:id`), though meeting invites use them. | built (Client contacts card on the client page: add, edit, remove; e2e `plan`) |
+| 6 | S3 | Actions | Firm-only action notes (`/api/actions/:id/notes`) have no screen. | built (Firm notes card on the action page, firm only; e2e `plan` checks clients get nothing) |
 | 7 | S4 | Docker | Seeding inside Docker isn't documented; `db:seed` needs the full web env. | fixed (`seed` profile in docker-compose.test.yml) |
 | 8 | S1 | Security | Sign-in and two-factor rate limits are keyed on the client-sent `X-Forwarded-For`, and nothing in front of the app overwrites it. Rotating the header gives unlimited password guesses and unlimited TOTP guesses (7 tries with 7 header values: no 429; with one value: 429 from the 6th). | fixed (10 sign-ins per account per 15 minutes, fixed window, any address; e2e probe). The reverse proxy must still overwrite X-Forwarded-For |
 | 9 | S2 | Sign-in | Better Auth's window restarts on every call, and in Docker every browser arrives from the same gateway address. Five sign-ins in a row, each less than a minute apart, lock everyone out until a full quiet minute passes (an office behind one NAT address hits this). | fixed (per-address limit raised to 20 a minute; the per-account limit does the real work) |

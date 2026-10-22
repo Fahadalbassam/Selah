@@ -1,10 +1,11 @@
-import { CalendarDays, CalendarPlus, ClipboardList, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, SearchCheck, UserPlus } from "lucide-react";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
 import { EyeOff } from "@/components/animate-ui/icons/eye-off";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
+import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -12,7 +13,9 @@ import { ActionsTable } from "@/components/actions-table";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
 import { AskAbout } from "@/components/ask-about";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { SectionHeader } from "@/components/section-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,12 +27,14 @@ import { listReports, projectMetrics, projectProgress } from "@/services/follow-
 import { getHandover } from "@/services/handover";
 import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
+import { planOptions } from "@/services/plan";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
 import { HandoverCard } from "./handover-card";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
+import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
 import { ProgressTab } from "./progress-tab";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,7 +42,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -49,6 +54,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           ? (await listTemplates(tx, principal)).templates.filter((x) => x.published && !x.archivedAt)
           : null,
       data,
+      // What this user may add to the plan, with the choices for a new action; null for clients.
+      plan: await planOptions(tx, principal, id),
       team: await getProjectTeam(tx, principal, id),
       firmStaff: principal.orgKind === "firm",
       // Roles that can't read meetings simply get no tab.
@@ -69,8 +76,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       handover: await getHandover(tx, principal, id),
     };
   });
-  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, format] = await Promise.all([
+  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, format] = await Promise.all([
     getTranslations("project"),
+    getTranslations("plan"),
     getTranslations("staffing"),
     getTranslations("visibility"),
     getTranslations("kind"),
@@ -136,36 +144,193 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {team ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
         </TabsList>
 
-        <TabsContent value="recs" className="space-y-4">
-          {data.recommendations.length === 0 ? <p className="text-sm text-muted-foreground">{t("noRecs")}</p> : null}
-          {data.recommendations.map((r) => (
-            <Card key={r.id} className="gap-4 py-5 shadow-xs">
-              <CardHeader className="px-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle className="text-base">{r.title}</CardTitle>
-                  <Badge variant="outline">
-                    {t("priority")}: {tPrio(r.priority)}
-                  </Badge>
-                  {firmStaff ? (
-                    <span className="ms-auto">
-                      <AskAbout projectId={project.id} type="recommendation" id={r.id} size="icon-sm" />
-                    </span>
-                  ) : null}
-                </div>
-                {r.rationale ? (
-                  <Translatable entityType="recommendation" entityId={r.id} field="rationale" text={r.rationale} canReview={firmStaff} className="text-sm text-muted-foreground" />
+        <TabsContent value="recs" className="space-y-6">
+          {data.findings.length || plan?.can.finding ? (
+            <section className="space-y-3">
+              <SectionHeader title={tPlan("findings.title")} description={tPlan("findings.hint")}>
+                {plan?.can.finding ? (
+                  <FormDialog
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        <Plus />
+                        {tPlan("findings.add")}
+                      </Button>
+                    }
+                    title={tPlan("findings.add")}
+                    description={tPlan("findings.addHint")}
+                    endpoint={`/api/projects/${project.id}/findings`}
+                    fields={[
+                      { name: "title", label: tPlan("findings.field"), required: true, maxLength: 300 },
+                      { name: "description", label: tPlan("findings.description"), type: "textarea", maxLength: 8000 },
+                      ...(project.kind === "client"
+                        ? [
+                            {
+                              name: "visibility",
+                              label: tPlan("findings.visibility"),
+                              type: "select" as const,
+                              required: true,
+                              options: [
+                                { value: "shared", label: tVis("shared") },
+                                { value: "firm_private", label: tVis("firm_private") },
+                              ],
+                            },
+                          ]
+                        : []),
+                    ]}
+                    submitLabel={tPlan("findings.add")}
+                  />
                 ) : null}
-                {r.requiredEvidence ? (
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{t("requiredEvidence")}:</span> {r.requiredEvidence}
-                  </p>
-                ) : null}
-              </CardHeader>
-              <CardContent className="px-5">
-                <ActionsTable rows={r.actions.map((a) => ({ ...a, overdue: isOverdue(a) }))} empty="—" showProject={false} />
-              </CardContent>
-            </Card>
-          ))}
+              </SectionHeader>
+              {data.findings.length === 0 ? (
+                <EmptyState icon={<SearchCheck />} description={tPlan("findings.none")} className="py-6 md:py-6" />
+              ) : (
+                <ul className="divide-y rounded-xl border bg-card shadow-xs">
+                  {data.findings.map((f) => {
+                    const answeredBy = data.recommendations.filter((r) => r.findingId === f.id).length;
+                    return (
+                      <li key={f.id} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="font-medium" dir="auto">
+                            {f.title}
+                          </p>
+                          {f.description ? (
+                            <p className="whitespace-pre-wrap text-muted-foreground" dir="auto">
+                              {f.description}
+                            </p>
+                          ) : null}
+                          <p className="text-xs text-muted-foreground">
+                            {tPlan("findings.answeredBy", { n: answeredBy })}
+                            {f.fromAssessment ? ` · ${tPlan("findings.fromAssessment")}` : ""}
+                          </p>
+                        </div>
+                        {f.visibility === "firm_private" ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Lock className="size-3" />
+                            {tVis("firm_private")}
+                          </Badge>
+                        ) : null}
+                        {plan?.can.recommendation ? (
+                          <RecommendationDialog
+                            projectId={project.id}
+                            client={project.kind === "client"}
+                            findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                            defaultFindingId={f.id}
+                            trigger={
+                              <Button size="sm" variant="ghost">
+                                <Plus />
+                                {tPlan("rec.add")}
+                              </Button>
+                            }
+                          />
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
+          <section className="space-y-3">
+            <SectionHeader title={t("recommendations")}>
+              {plan?.can.recommendation && data.recommendations.length ? (
+                <RecommendationDialog
+                  projectId={project.id}
+                  client={project.kind === "client"}
+                  findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                  trigger={
+                    <Button size="sm">
+                      <Plus />
+                      {tPlan("rec.add")}
+                    </Button>
+                  }
+                />
+              ) : null}
+            </SectionHeader>
+            {data.recommendations.length === 0 ? (
+              <EmptyState
+                icon={<ClipboardList />}
+                description={t("noRecs")}
+                action={
+                  plan?.can.recommendation ? (
+                    <RecommendationDialog
+                      projectId={project.id}
+                      client={project.kind === "client"}
+                      findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                      trigger={
+                        <Button size="sm">
+                          <Plus />
+                          {tPlan("rec.add")}
+                        </Button>
+                      }
+                    />
+                  ) : undefined
+                }
+              />
+            ) : null}
+            {data.recommendations.map((r) => {
+              const finding = r.findingId ? data.findings.find((f) => f.id === r.findingId) : null;
+              return (
+                <Card key={r.id} className="gap-4 py-5 shadow-xs">
+                  <CardHeader className="px-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-base">{r.title}</CardTitle>
+                      <Badge variant="outline">
+                        {t("priority")}: {tPrio(r.priority)}
+                      </Badge>
+                      {r.source !== "consultant" ? <Badge variant="outline">{tPlan(`rec.sources.${r.source}`)}</Badge> : null}
+                      {r.visibility === "firm_private" ? (
+                        <Badge variant="outline" className="gap-1">
+                          <Lock className="size-3" />
+                          {tVis("firm_private")}
+                        </Badge>
+                      ) : null}
+                      {firmStaff ? (
+                        <span className="ms-auto flex items-center gap-1">
+                          {plan?.can.action ? (
+                            <ActionDialog
+                              recommendationId={r.id}
+                              recommendationTitle={r.title}
+                              options={{
+                                owners: plan.owners,
+                                ownerByName: plan.ownerByName,
+                                minimalRecords: plan.minimalRecords,
+                                departments: plan.departments,
+                                canRelease: plan.can.release,
+                              }}
+                              trigger={
+                                <Button size="sm" variant="outline">
+                                  <Plus />
+                                  {tPlan("action.add")}
+                                </Button>
+                              }
+                            />
+                          ) : null}
+                          <AskAbout projectId={project.id} type="recommendation" id={r.id} size="icon-sm" />
+                        </span>
+                      ) : null}
+                    </div>
+                    {finding ? (
+                      <p className="text-xs text-muted-foreground" dir="auto">
+                        {tPlan("rec.answers", { finding: finding.title })}
+                      </p>
+                    ) : null}
+                    {r.rationale ? (
+                      <Translatable entityType="recommendation" entityId={r.id} field="rationale" text={r.rationale} canReview={firmStaff} className="text-sm text-muted-foreground" />
+                    ) : null}
+                    {r.requiredEvidence ? (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{t("requiredEvidence")}:</span> {r.requiredEvidence}
+                      </p>
+                    ) : null}
+                  </CardHeader>
+                  <CardContent className="px-5">
+                    <ActionsTable rows={r.actions.map((a) => ({ ...a, overdue: isOverdue(a) }))} empty="—" showProject={false} />
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
         </TabsContent>
 
         {meetings ? (

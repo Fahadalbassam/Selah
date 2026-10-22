@@ -1,34 +1,67 @@
 import { expect, request, test } from "@playwright/test";
-import { ids } from "./support/db";
+import { ids, one } from "./support/db";
 import { EICAR, pdf } from "./support/files";
 import { L } from "./support/msg";
+import { hydrated } from "./support/session";
 import { open, pickNextMonthDay, toastSaved } from "./support/ui";
-import { authFile } from "./support/users";
 
 // Recommendation -> action -> evidence -> review -> revision -> verified,
 // with the owner in Arabic and the consultant in English; a due-date request
 // both ways; notifications and mail along the way.
-const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const stamp = Date.now().toString(36);
+const findingTitle = `Unsigned minutes ${stamp}`;
 const recTitle = `توصية اختبار ${stamp}`;
 const actTitle = `إجراء اختبار ${stamp}`;
 let actionId = "";
 
 test.describe.configure({ mode: "serial" });
 
-test("consultant creates a recommendation and releases an action (API: no screen yet, bug #4)", async () => {
-  const api = await request.newContext({ baseURL: BASE, storageState: authFile("khalid"), extraHTTPHeaders: { origin: BASE } });
-  const rec = await api.post(`/api/projects/${ids.board()}/recommendations`, {
-    data: { title: recTitle, rationale: "سبب الاختبار", priority: "high", requiredEvidence: "ملف PDF موقع" },
-  });
-  expect(rec.status(), await rec.text()).toBeLessThan(300);
-  const recId = (await rec.json()).id;
-  const due = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
-  const act = await api.post(`/api/recommendations/${recId}/actions`, {
-    data: { title: actTitle, ownerUserId: ids.user("abdullah@nukhba.example"), dueDate: due, release: true, evidence: [{ title: "المحضر الموقع" }] },
-  });
-  expect(act.status(), await act.text()).toBeLessThan(300);
-  actionId = (await act.json()).id;
+test("consultant records a finding, answers it with a recommendation and releases an action (English, dark)", async ({ browser }) => {
+  const t = L("en");
+  const page = await open(browser, "khalid", "en", "dark");
+  await page.goto(`/projects/${ids.board()}`);
+  await hydrated(page, "main");
+
+  await page.getByRole("button", { name: t("plan.findings.add") }).click();
+  const fd = page.getByRole("dialog");
+  await fd.locator("#f-title").fill(findingTitle);
+  await fd.locator("#f-description").fill("Board minutes for 2025 are unsigned.");
+  await fd.getByRole("button", { name: t("plan.findings.add") }).click();
+  await toastSaved(page);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // "Add a recommendation" on the finding's row answers that finding.
+  await page.getByRole("listitem").filter({ hasText: findingTitle }).getByRole("button", { name: t("plan.rec.add") }).click();
+  const rd = page.getByRole("dialog");
+  await rd.locator("#r-title").fill(recTitle);
+  await rd.locator("#r-rationale").fill("سبب الاختبار");
+  await rd.locator("#r-priority").click();
+  await page.getByRole("option", { name: t("priority.high") }).click();
+  await rd.locator("#r-evidence").fill("ملف PDF موقع");
+  await rd.getByRole("button", { name: t("plan.rec.save") }).click();
+  await toastSaved(page);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const card = page.locator("[data-slot=card]").filter({ hasText: recTitle });
+  await expect(card.getByText(t("plan.rec.answers", { finding: findingTitle }))).toBeVisible();
+
+  await card.getByRole("button", { name: t("plan.action.add") }).click();
+  const ad = page.getByRole("dialog");
+  await ad.locator("#a-title").fill(actTitle);
+  await ad.locator("#a-owner").click();
+  await page.getByRole("option", { name: "عبدالله المطيري" }).click();
+  await pickNextMonthDay(page, "a-due");
+  await ad.getByRole("button", { name: t("plan.action.addItem") }).click();
+  await ad.getByRole("textbox", { name: t("plan.action.item", { n: 1 }) }).fill("المحضر الموقع");
+  await expect(ad.getByRole("switch")).toBeChecked();
+  await page.screenshot({ path: "e2e-results/shots/consultant-en-new-action.png" });
+  await ad.getByRole("button", { name: t("plan.action.save") }).click();
+  await expect(page.getByText(t("plan.action.released"))).toBeVisible();
+  await expect(card.getByRole("link", { name: actTitle })).toBeVisible();
+  actionId = one(`select id from actions where title='${actTitle}'`);
+  expect(one(`select status from actions where id='${actionId}'`)).toBe("assigned");
+  expect(one(`select count(*) from evidence_requests where action_id='${actionId}'`)).toBe("1");
+  await page.screenshot({ path: "e2e-results/shots/consultant-en-plan.png", fullPage: true });
+  await page.context().close();
 });
 
 test("owner sees it, starts work, posts a note and is refused an infected file (Arabic)", async ({ browser }) => {

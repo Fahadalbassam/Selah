@@ -7,6 +7,7 @@ import {
   clientAssignments,
   documents,
   evidenceSubmissions,
+  findings,
   orgMemberships,
   organizations,
   progressUpdates,
@@ -192,6 +193,22 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     assignees: projectActions.filter((a) => a.recommendationId === r.id && a.ownerUserId).map((a) => a.ownerUserId!),
   });
 
+  // What the consultants found; each recommendation may answer one.
+  const findingRows = await tx
+    .select({
+      id: findings.id,
+      title: findings.title,
+      description: findings.description,
+      visibility: findings.visibility,
+      createdBy: findings.createdBy,
+      orgId: findings.orgId,
+      projectId: findings.projectId,
+      fromAssessment: sql<boolean>`${findings.assessmentAnswerId} is not null`,
+    })
+    .from(findings)
+    .where(eq(findings.projectId, id))
+    .orderBy(asc(findings.createdAt));
+
   const docs = await tx
     .select({
       id: documents.id,
@@ -235,6 +252,15 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     })),
     // Shares are checked per document by the download route; the list shows
     // documents whose label and project the user passes.
+    findings: visible(principal, "finding.read", findingRows, (f) => ({
+      type: "finding",
+      id: f.id,
+      orgId: f.orgId,
+      firmOrgId: p.firmOrgId,
+      projectId: f.projectId,
+      visibility: f.visibility,
+      createdBy: f.createdBy,
+    })),
     documents: visible(principal, "document.read", docs, (d) => ({
       type: "document",
       id: d.id,

@@ -1,4 +1,5 @@
 import { ArrowLeft, Pencil, UserPlus, UsersRound } from "lucide-react";
+import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
 import { EyeOff } from "@/components/animate-ui/icons/eye-off";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LEGAL_FORMS } from "@/lib/assessments";
 import { withPrincipal } from "@/server/page";
+import { listContacts } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
 import { suggestClientLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
@@ -32,23 +34,33 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       ...team,
       admin,
       engagement,
+      // People at the client without an account; firm staff on the client's team only.
+      contacts: await listContacts(tx, principal, id).catch(() => null),
       // Who fits this client, from the inquiry it came from. The admin decides.
       suggestions: admin ? await suggestClientLeads(tx, principal, id) : null,
       services: admin ? (await intakeOptions(tx)).services : [],
     };
   });
   if (!data) notFound();
-  const [t, tc, tq, tp, ti, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, tCt, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
     getTranslations("people"),
     getTranslations("inbox"),
+    getTranslations("clients.contacts"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
   const { client, can } = data;
   const onTeam = new Set(data.team.map((m) => m.userId));
+  const contactFields = (c?: { name: string; nameAlt: string | null; title: string | null; email: string | null; phone: string | null }) => [
+    { name: "name", label: tCt("name"), required: true, maxLength: 120, defaultValue: c?.name },
+    { name: "nameAlt", label: tCt("nameAlt"), maxLength: 200, defaultValue: c?.nameAlt ?? undefined },
+    { name: "title", label: tCt("jobTitle"), maxLength: 120, defaultValue: c?.title ?? undefined },
+    { name: "email", label: tCt("email"), maxLength: 254, dir: "ltr" as const, defaultValue: c?.email ?? undefined },
+    { name: "phone", label: tCt("phone"), maxLength: 30, dir: "ltr" as const, defaultValue: c?.phone ?? undefined },
+  ];
   const serviceName = (code: string) => {
     const x = data.services.find((o) => o.code === code);
     return x ? (ar ? x.nameAr : x.nameEn) : code;
@@ -143,6 +155,85 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               ))}
             </CardContent>
           </Card>
+
+          {data.contacts ? (
+            <Card className="gap-4 py-5 shadow-xs">
+              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">{tCt("title")}</CardTitle>
+                  <CardDescription>{data.engagement.minimalRecords ? tCt("minimal") : tCt("hint")}</CardDescription>
+                </div>
+                {data.engagement.minimalRecords ? null : (
+                  <FormDialog
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        <Plus />
+                        {tCt("add")}
+                      </Button>
+                    }
+                    title={tCt("add")}
+                    description={tCt("hint")}
+                    endpoint={`/api/clients/${client.id}/contacts`}
+                    fields={contactFields()}
+                    submitLabel={tCt("add")}
+                  />
+                )}
+              </CardHeader>
+              {data.engagement.minimalRecords ? null : (
+                <CardContent className="divide-y px-5">
+                  {data.contacts.length === 0 ? <p className="py-2 text-sm text-muted-foreground">{tCt("none")}</p> : null}
+                  {data.contacts.map((c) => (
+                    <div key={c.id} className="flex flex-wrap items-center gap-3 py-3">
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <p className="text-sm font-medium">
+                          <span dir="auto">{c.name}</span>
+                          {c.nameAlt ? (
+                            <span className="ms-2 text-xs font-normal text-muted-foreground" dir="auto">
+                              {c.nameAlt}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.title ? <span dir="auto">{c.title}</span> : null}
+                          {c.title && (c.email || c.phone) ? " · " : null}
+                          {c.email ? <bdi dir="ltr">{c.email}</bdi> : null}
+                          {c.email && c.phone ? " · " : null}
+                          {c.phone ? <bdi dir="ltr">{c.phone}</bdi> : null}
+                          {c.email ? null : (
+                            <>
+                              {c.title || c.phone ? " · " : null}
+                              {tCt("noEmail")}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      <FormDialog
+                        trigger={
+                          <Button size="sm" variant="ghost">
+                            <Pencil />
+                            {tCt("edit")}
+                          </Button>
+                        }
+                        title={tCt("editTitle")}
+                        endpoint={`/api/contacts/${c.id}`}
+                        method="PATCH"
+                        sendEmptyAsNull
+                        fields={contactFields(c)}
+                        submitLabel={tq("save")}
+                      />
+                      <ApiButton
+                        endpoint={`/api/contacts/${c.id}`}
+                        method="DELETE"
+                        label={tCt("remove")}
+                        variant="ghost"
+                        confirm={tCt("removeConfirm", { name: c.name })}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          ) : null}
 
           {data.suggestions?.enabled ? (
             <Card className="gap-4 py-5 shadow-xs">
