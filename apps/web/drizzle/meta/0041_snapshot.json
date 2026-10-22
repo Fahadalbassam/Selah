@@ -1553,8 +1553,7 @@
           "name": "lang",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'ar'"
+          "notNull": true
         },
         "citations": {
           "name": "citations",

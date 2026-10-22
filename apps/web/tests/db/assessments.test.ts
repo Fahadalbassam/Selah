@@ -740,4 +740,13 @@ describe("retake and compare", () => {
     await expect(svc(U.outsider, (tx, p) => A.compareAssessments(tx, p, acme, again), true)).rejects.toThrow(/not found/);
     await expect(sqlAs(U.cmgr, `SELECT * FROM app_assessment_compare($1, $2)`, [acme, again])).rejects.toThrow(/not found/);
   });
+
+  it("matches questions by a reference that names one question in its version", async () => {
+    await as(U.author, async (c) => {
+      const draft = (await c.query(`SELECT app_copy_template_version($1, $2) AS id`, [starter.versionId, starter.id])).rows[0].id;
+      await expect(
+        c.query(`UPDATE template_questions SET ref = ' 1.1 ' WHERE version_id = $1 AND ref = '1.2'`, [draft]),
+      ).rejects.toThrow(/template_questions_ref_once/);
+    });
+  });
 });

@@ -639,6 +639,7 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
     after_gap: boolean;
     in_earlier: boolean;
     in_later: boolean;
+    wording_changed: boolean;
   }>(sql`select * from app_assessment_compare(${earlier.assessment.id}::uuid, ${later.assessment.id}::uuid)`);
 
   const sum = (xs: (number | null)[]) => xs.reduce<number>((n, x) => n + (x ?? 0), 0);
@@ -687,15 +688,20 @@ export async function compareAssessments(tx: Tx, principal: Principal, firstId: 
         after: { earned: sum(s.rows.map((r) => r.after_points)), possible: sum(s.rows.map((r) => r.after_max)) },
         // Questions the later one has not answered yet are counted, not listed.
         unanswered: s.rows.filter((r) => r.in_later && r.after_value === null).length,
-        // Only what changed: a different answer, or a question added or dropped.
+        // Only what changed: a different answer, a question added or dropped, or
+        // reworded under the same reference (its answers are not like for like).
         changes: s.rows
-          .filter((r) => !r.in_earlier || !r.in_later || (r.after_value !== null && r.before_value !== r.after_value))
+          .filter(
+            (r) =>
+              !r.in_earlier || !r.in_later || r.wording_changed || (r.after_value !== null && r.before_value !== r.after_value),
+          )
           .map((r) => ({
             ref: r.ref,
             prompt: r.prompt,
             promptAr: r.prompt_ar,
             type: r.type,
             change: !r.in_earlier ? ("added" as const) : !r.in_later ? ("dropped" as const) : ("answer" as const),
+            wordingChanged: r.wording_changed,
             before: side(r, "before"),
             after: side(r, "after"),
           })),

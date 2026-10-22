@@ -19,6 +19,16 @@ export type Summarizer = (
 
 const MAX_PAGES = 200;
 
+// A file the model just failed on is not sent again for a while: failed
+// calls are rolled back with the request, so they don't count towards the
+// database's hourly limit. Per server process.
+const FAILURE_PAUSE_MS = 10 * 60_000;
+const failedUntil = new Map<string, number>();
+function failed(key: string) {
+  if (failedUntil.size > 10_000) failedUntil.clear();
+  failedUntil.set(key, Date.now() + FAILURE_PAUSE_MS);
+}
+
 export async function summarizeDocument(
   tx: Tx,
   principal: Principal,
@@ -60,10 +70,14 @@ export async function summarizeDocument(
   const pages = [...byPage].slice(0, MAX_PAGES).map(([n, parts]) => ({ n, text: parts.join("\n").slice(0, 20000) }));
   if (!pages.length) throw new BadRequestError("this file has no text to summarise");
 
+  const attempt = `${doc.sha256}:${lang}`;
+  if ((failedUntil.get(attempt) ?? 0) > Date.now())
+    throw new UnavailableError("this file could not be summarised, try again later");
   let made: Awaited<ReturnType<Summarizer>>;
   try {
     made = await summarizer(pages, lang);
   } catch {
+    failed(attempt);
     throw new UnavailableError("summaries are not available right now");
   }
   // Only points that cite pages we gave, one line each.
@@ -74,7 +88,10 @@ export async function summarizeDocument(
       pages: [...new Set(p.pages.filter((n) => known.has(n)))].sort((a, b) => a - b),
     }))
     .filter((p) => p.text && p.pages.length);
-  if (!points.length) throw new UnavailableError("the model gave no summary that cites the file");
+  if (!points.length) {
+    failed(attempt);
+    throw new UnavailableError("the model gave no summary that cites the file");
+  }
 
   const [row] = await tx
     .insert(documentSummaries)

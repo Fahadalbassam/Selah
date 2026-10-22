@@ -13,6 +13,15 @@
 
 ALTER TABLE ai_messages ADD CONSTRAINT ai_message_lang CHECK (lang IN ('ar', 'en'));
 --> statement-breakpoint
+-- Messages written before the column: told from their script, as detectLang()
+-- does (Arabic when at least as many Arabic letters as Latin ones). From now
+-- on the app always says.
+UPDATE ai_messages SET lang = CASE
+  WHEN length(regexp_replace(content, '[^؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]', '', 'g')) >= length(regexp_replace(content, '[^A-Za-z]', '', 'g'))
+       AND content ~ '[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]' THEN 'ar' ELSE 'en' END;
+--> statement-breakpoint
+ALTER TABLE ai_messages ALTER COLUMN lang DROP DEFAULT;
+--> statement-breakpoint
 ALTER TABLE ai_chunks ADD CONSTRAINT ai_chunk_page CHECK (page IS NULL OR page >= 1);
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION app_translation_source(etype text, eid uuid, fld text)

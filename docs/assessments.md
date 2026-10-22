@@ -77,6 +77,7 @@ A client is assessed again by retaking a final assessment (`POST /api/assessment
 `GET /api/assessments/compare?a=&b=` compares two assessments of the same client on the same template (`app_assessment_compare`). It runs with the caller's rights, so a client can compare only assessments shared with it.
 
 - Questions are matched by their reference ("2.1"), or by their wording when they have none, because a template can change between versions. A question only in the later assessment is shown as added, and one only in the earlier assessment as dropped.
+- A reference names one question in a version (enforced). Questions without one that share the same wording are matched in order. A question reworded under the same reference is flagged (`wordingChanged`), so the two answers aren't read as like for like.
 - Each section shows points earned and possible in both assessments, from the same per-question points as the assessment itself, plus the questions whose answer changed.
 - Questions the later assessment hasn't answered yet are counted, not listed as changes.
 

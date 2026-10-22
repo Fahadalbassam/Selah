@@ -51,7 +51,9 @@ const U = {
   cmgr: id(15),
   actionOwner: id(16),
   bmgr: id(17),
+  hr: id(18),
 };
+const DEPT = { hr: id(31), fin: id(32) };
 const PROJECT_ORG: Record<string, string> = { [P1]: ACME, [P2]: ACME, [BETA_P]: BETA, [INTERNAL]: FIRM };
 
 // Every kind of file the index can hold, and some it must never answer from.
@@ -68,6 +70,7 @@ const D = {
   betaShared: id(110),
   betaPrivate: id(111),
   internal: id(112),
+  finance: id(113),
 };
 type Doc = [project: string, ownerOrg: string, by: string, purpose: string, state: string, vis: string];
 const DOCS: Record<string, Doc> = {
@@ -83,7 +86,9 @@ const DOCS: Record<string, Doc> = {
   [D.betaShared]: [BETA_P, FIRM, U.other, "deliverable", "submitted", "shared"],
   [D.betaPrivate]: [BETA_P, BETA, U.bmgr, "client_document", "submitted", "client_private"],
   [D.internal]: [INTERNAL, FIRM, U.admin, "deliverable", "submitted", "shared"],
+  [D.finance]: [P1, FIRM, U.cons, "deliverable", "submitted", "shared"],
 };
+const DEPT_OF: Record<string, string> = { [D.finance]: DEPT.fin };
 const TEXT = "First page about the board.\fSecond page about the family council.\f\fFourth page about exits.";
 // Every passage is the same distance from the question: only the filter decides.
 const embed: Embed = async (texts) => texts.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)));
@@ -123,15 +128,21 @@ beforeAll(async () => {
     ACME,
     BETA,
   ]);
+  await q(`UPDATE organizations SET departments_enabled = true WHERE id = $1`, [ACME]);
   for (const [name, uid] of Object.entries(U)) {
     await q(`INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)`, [uid, name, `${name}@example.test`]);
   }
   await q(
     `INSERT INTO org_memberships (user_id, org_id, role) VALUES
       ($1,$8,'firm_admin'), ($2,$8,'consultant'), ($3,$8,'consultant'), ($4,$9,'client_admin'),
-      ($5,$9,'client_manager'), ($6,$9,'action_owner'), ($7,$10,'client_manager')`,
-    [U.admin, U.cons, U.other, U.cadmin, U.cmgr, U.actionOwner, U.bmgr, FIRM, ACME, BETA],
+      ($5,$9,'client_manager'), ($6,$9,'action_owner'), ($7,$10,'client_manager'), ($11,$9,'client_manager')`,
+    [U.admin, U.cons, U.other, U.cadmin, U.cmgr, U.actionOwner, U.bmgr, FIRM, ACME, BETA, U.hr],
   );
+  await q(
+    `INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$3,'الموارد البشرية','HR'), ($2,$3,'المالية','Finance')`,
+    [DEPT.hr, DEPT.fin, ACME],
+  );
+  await q(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2)`, [DEPT.hr, U.hr]);
   await q(
     `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES
       ($1,'client',$5,$7,'Acme governance','active',$8), ($2,'client',$5,$7,'Acme HR policy','active',$8),
@@ -139,22 +150,28 @@ beforeAll(async () => {
     [P1, P2, BETA_P, INTERNAL, ACME, BETA, FIRM, U.admin],
   );
   await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$3), ($2,$4)`, [ACME, BETA, U.cons, U.other]);
-  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$4), ($1,$5), ($1,$6), ($2,$7), ($3,$8)`, [
-    P1,
-    BETA_P,
-    INTERNAL,
-    U.cons,
-    U.cmgr,
-    U.actionOwner,
-    U.other,
-    U.bmgr,
-  ]);
+  await q(
+    `INSERT INTO project_members (project_id, user_id) VALUES ($1,$4), ($1,$5), ($1,$6), ($2,$7), ($2,$8), ($1,$9), ($3,$7)`,
+    [P1, BETA_P, INTERNAL, U.cons, U.cmgr, U.actionOwner, U.other, U.bmgr, U.hr],
+  );
   for (const [docId, [project, ownerOrg, by, purpose, state, vis]] of Object.entries(DOCS)) {
     await q(
       `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
-         ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status)
-       VALUES ($1,$2,$3,$4,$5,$6::document_purpose,$7,'doc',$8,$6::document_purpose <> 'evidence',$9,'text/plain',1,$10,'clean')`,
-      [docId, project, PROJECT_ORG[project], ownerOrg, by, purpose, state, vis, `key-${docId}`, `sha-${docId}`],
+         ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status, department_id)
+       VALUES ($1,$2,$3,$4,$5,$6::document_purpose,$7,'doc',$8,$6::document_purpose <> 'evidence',$9,'text/plain',1,$10,'clean',$11)`,
+      [
+        docId,
+        project,
+        PROJECT_ORG[project],
+        ownerOrg,
+        by,
+        purpose,
+        state,
+        vis,
+        `key-${docId}`,
+        `sha-${docId}`,
+        DEPT_OF[docId] ?? null,
+      ],
     );
     await indexDocument(owner, docId, pagesFromText(`${TEXT}\n\n${docId}`), embed);
   }
@@ -251,7 +268,9 @@ describe("search index", () => {
       const scope = retrievalScope(p, { type: "project", id: P1, orgId: ACME, firmOrgId: FIRM, projectId: P1 })!;
       return new Set((await retrieve(tx, scope, QUERY)).map((r) => r.sourceId));
     });
-    expect([...found].sort()).toEqual([D.shared, D.firmPrivate, D.consPrivate].sort());
+    // Every passage is equally close, so the top 8 can come from any of these files.
+    expect([...found].every((f) => [D.shared, D.firmPrivate, D.consPrivate, D.finance].includes(f))).toBe(true);
+    expect(found.size).toBeGreaterThan(1);
     // Beta's consultant is not on Acme at all.
     const none = await as(U.other, async (c) => {
       const tx = drizzle(c, { schema }) as unknown as Tx;
@@ -259,6 +278,26 @@ describe("search index", () => {
     });
     expect(none).toEqual([]);
   });
+});
+
+// Exact sets, so a mistake in the files' own row-level security can't pass
+// the leak test above by hiding the same rows from both sides.
+it("shows each client user exactly the passages of the files they may open", async () => {
+  const seen = async (uid: string, project: string) =>
+    (await sqlAs(uid, `SELECT DISTINCT source_id FROM ai_chunks WHERE project_id = $1 ORDER BY source_id`, [project])).rows.map(
+      (r) => r.source_id,
+    );
+  // The client's admin: shared and the client's own private files, no firm-private, no one else's private file, every department.
+  expect(await seen(U.cadmin, P1)).toEqual([D.shared, D.clientPrivate, D.finance].sort());
+  // A manager outside the finance department doesn't see its file; their own private file they do.
+  expect(await seen(U.cmgr, P1)).toEqual([D.shared, D.clientPrivate, D.cmgrPrivate].sort());
+  expect(await seen(U.hr, P1)).toEqual([D.shared, D.clientPrivate].sort());
+  // An action owner on the project reads what its client side may, but not someone else's private file.
+  // (They never get the assistant: retrievalScope() refuses them.)
+  expect(await seen(U.actionOwner, P1)).toEqual([D.shared, D.clientPrivate].sort());
+  expect(await seen(U.cons, P1)).toEqual([D.shared, D.firmPrivate, D.consPrivate, D.finance].sort());
+  expect(await seen(U.bmgr, P1)).toEqual([]);
+  expect(await seen(U.bmgr, BETA_P)).toEqual([D.betaShared, D.betaPrivate].sort());
 });
 
 describe("file summaries", () => {
@@ -287,9 +326,14 @@ describe("file summaries", () => {
     await svc(U.admin, (tx, p) => summarizeDocument(tx, p, D.shared, "ar", fake()));
     expect(calls).toBe(2);
     // A point that cites nothing real is dropped; none left is an error, not a summary.
-    await expect(svc(U.cons, (tx, p) => summarizeDocument(tx, p, D.firmPrivate, "en", fake(points([[42]]))))).rejects.toThrow(
+    await expect(svc(U.cons, (tx, p) => summarizeDocument(tx, p, D.firmPrivate, "ar", fake(points([[42]]))))).rejects.toThrow(
       /no summary that cites/,
     );
+    // The model is not asked again about that file for a while.
+    await expect(svc(U.admin, (tx, p) => summarizeDocument(tx, p, D.firmPrivate, "ar", fake()))).rejects.toThrow(
+      /try again later/,
+    );
+    expect(calls).toBe(3);
   });
 
   it("are read with the file's rights", async () => {

@@ -28,7 +28,7 @@ Rights are applied before retrieval, never by a model:
 
 ## Answers
 
-Each chat message is stored once with its language (`ar` or `en`). An answer is shown in the other language through the translation cache (docs/translations.md), and only its owner can read either. An answer's citations name the file, its version and the page.
+Each chat message is stored once with its language (`ar` or `en`). Messages from before the column were labelled from their script when it was added. An answer is shown in the other language through the translation cache (docs/translations.md), and only its owner can read either. An answer's citations name the file, its version and the page.
 
 ## File summaries
 
@@ -38,6 +38,7 @@ Each chat message is stored once with its language (`ar` or `en`). An answer is 
 - Every line cites the pages it rests on. Lines citing pages the file doesn't have are dropped; a summary with no line left is refused.
 - Read with the file's own rights. Deleted when the AI flag goes off, the visibility or department changes, the file is archived, or a new version is uploaded.
 - At most 30 new summaries per person an hour (translations allow 200).
+- When the model fails on a file, or gives no line that cites it, that file and language aren't sent again for 10 minutes (per server process), since failed calls don't count towards the hourly limit.
 - A file that isn't indexed yet, or has no readable text, is refused.
 
 ## Meeting summary sources

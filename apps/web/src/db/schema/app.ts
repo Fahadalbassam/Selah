@@ -1308,7 +1308,7 @@ export const aiMessages = pgTable(
     content: text("content").notNull(),
     // Stored once, in the language it was written in; the other language
     // comes from the translation cache (content_translations).
-    lang: text("lang").notNull().default("ar"),
+    lang: text("lang").notNull(),
     citations:
       jsonb("citations").$type<Array<{ chunkId: string; sourceType: string; sourceId: string; version: number; page?: number | null }>>(),
     createdAt: createdAt(),
