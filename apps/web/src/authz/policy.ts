@@ -149,6 +149,9 @@ export const POLICY = {
   // admin's view of the team's load. No per-person scores or rankings.
   "metrics.read": { ...ALL_BUT_OWNER },
   "team_metrics.read": { firm_admin: "any" },
+  // The firm's own settings: intake address, client KPIs, reminders, review
+  // and retention periods. The database enforces the ranges.
+  "firm_settings.manage": { firm_admin: "any" },
 
   // Intake. Firm admins see and decide every inquiry; the consultant it is
   // handed to qualifies it (moves it forward, adds notes, runs discovery).

@@ -417,6 +417,16 @@ describe("metrics", () => {
   });
 });
 
+describe("firm settings", () => {
+  it("are the firm admin's alone", () => {
+    const firm: Resource = { type: "organization", orgId: FIRM, firmOrgId: FIRM, projectId: null };
+    expect(authorize(principal("firm_admin"), "firm_settings.manage", firm).allowed).toBe(true);
+    for (const role of ["consultant", "client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role), "firm_settings.manage", firm).allowed, role).toBe(false);
+    }
+  });
+});
+
 describe("intake and expertise", () => {
   const firmOrg = (r: Partial<Resource>): Resource => ({ type: "inquiry", orgId: FIRM, firmOrgId: FIRM, projectId: null, ...r });
   const admin = principal("firm_admin", [], FIRM);

@@ -18,7 +18,8 @@
     "organization": "Organization",
     "team": "Team",
     "templates": "Assessment templates",
-    "inquiries": "Inquiries"
+    "inquiries": "Inquiries",
+    "settings": "Settings"
   },
   "header": {
     "language": "العربية",
@@ -307,6 +308,7 @@
   },
   "common": {
     "cancel": "Cancel",
+    "save": "Save",
     "saving": "Saving…",
     "saved": "Saved",
     "clear": "Clear",
@@ -1350,5 +1352,54 @@
     "clientPeople": "Client's people",
     "clientPeopleHint": "Invite and manage the client's own accounts.",
     "manage": "Manage people"
+  },
+  "settings": {
+    "title": "Firm settings",
+    "updated": "Last changed {date}.",
+    "defaults": "These are the starting values. Nothing has been changed yet.",
+    "days": "days",
+    "intake": {
+      "title": "Intake",
+      "hint": "What happens when someone fills in the inquiry form on the website.",
+      "email": "Intake address",
+      "emailHint": "Each new inquiry sends a link to this address. The mail never carries the inquiry itself, so reading it needs a firm sign-in. Firm admins always get the notice in Selah. Leave it empty to send no mail.",
+      "suggestions": "Suggest a lead",
+      "suggestionsHint": "On each inquiry, suggest consultants whose declared expertise matches it. It's a match for that inquiry, not a ranking of people."
+    },
+    "kpis": {
+      "title": "Client KPIs",
+      "hint": "Clients report their own key indicators on projects. Readings are the client's claims until the firm verifies them.",
+      "enabled": "Clients report KPIs",
+      "enabledHint": "Switches KPI reporting on for every client project.",
+      "grace": "Grace before “not reported”",
+      "graceHint": "Days after a period ends before a missing reading shows as not reported."
+    },
+    "follow": {
+      "title": "Follow-through",
+      "hint": "How Selah decides that work needs attention.",
+      "stale": "Stale after",
+      "staleHint": "An open action nobody has touched for this long shows as stale.",
+      "checkins": "Check-ins after handover",
+      "checkinsHint": "Days after handover, separated by commas. Up to six, from 1 to 730.",
+      "checkinsInvalid": "Use up to six whole numbers from 1 to 730, separated by commas."
+    },
+    "accounts": {
+      "title": "Accounts",
+      "hint": "How often access is checked, and how many accounts a restricted client may have.",
+      "review": "Access review every",
+      "reviewHint": "Each organisation's admins are asked this often whether their people still work there.",
+      "restricted": "Accounts for a restricted client",
+      "restrictedHint": "A restricted client has client admins only, up to this many.",
+      "domains": "The firm's email domains and people are managed on",
+      "domainsLink": "the Team page."
+    },
+    "records": {
+      "title": "Records",
+      "hint": "How long some records are kept.",
+      "purge": "Minimal-records clients",
+      "purgeHint": "Days after handover before a minimal-records client's free text is cleared. 0 clears it at handover.",
+      "transcripts": "Meeting transcripts",
+      "transcriptsHint": "Days a transcript is kept after its summary is confirmed, from 1 to 90."
+    }
   }
 }

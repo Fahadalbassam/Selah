@@ -13,6 +13,7 @@ export const MAIL_KINDS = [
   "password_reset",
   "password_reset.notice",
   "two_factor.reset",
+  "inquiry.new",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -121,6 +122,14 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
         "Your administrator reset two-factor sign-in for your Selah account, and every session was signed out.",
         "You'll set it up again at your next sign-in. If you didn't ask for this, contact your administrator.",
       ],
+    },
+  },
+  "inquiry.new": {
+    ar: { subject: "استفسار جديد", lines: ["وصل استفسار جديد عبر نموذج الموقع. سجّل الدخول لقراءته."], action: "فتح الاستفسار" },
+    en: {
+      subject: "New inquiry",
+      lines: ["A new inquiry came in through the website form. Sign in to read it."],
+      action: "Open the inquiry",
     },
   },
 };
