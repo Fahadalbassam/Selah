@@ -3,8 +3,14 @@
 // rules, and the AI draft log.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Principal } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { projectDeviations } from "@/services/insight";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -215,6 +221,22 @@ describe("deviations", () => {
     expect(await rules(U.cons, quiet)).toEqual(["stale"]);
     expect((await attempt(U.betaMgr, `SELECT * FROM v_deviations`)).rowCount).toBe(0);
     expect((await attempt(U.cmgr, `SELECT DISTINCT project_id FROM v_deviations`)).rows).toEqual([{ project_id: PROJ }]);
+  });
+
+  it("are listed for the firm on the project page, most pressing first", async () => {
+    const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+      as(userId, async (c) => {
+        const tx = drizzle(c, { schema }) as unknown as Tx;
+        return fn(tx, (await loadPrincipal(tx, userId))!);
+      });
+    const late = await action({ due: "2020-01-01", updatedAt: "2020-01-01" });
+    const rows = await svc(U.cons, (tx, p) => projectDeviations(tx, p, PROJ));
+    const mine = rows.filter((r) => r.entityId === late);
+    expect(mine.map((r) => r.rule)).toEqual(["overdue", "stale"]);
+    expect(mine[0]).toMatchObject({ entityType: "action", title: "Act", dueDate: "2020-01-01" });
+    expect(mine[0]!.detail.days).toBeGreaterThan(365);
+    expect(rows.findIndex((r) => r.rule === "stale")).toBeGreaterThan(rows.findIndex((r) => r.rule === "overdue"));
+    await expect(svc(U.cmgr, (tx, p) => projectDeviations(tx, p, PROJ))).rejects.toThrow();
   });
 });
 
