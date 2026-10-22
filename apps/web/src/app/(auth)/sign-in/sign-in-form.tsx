@@ -60,7 +60,7 @@ export function SignInForm() {
     return (
       <Card className="py-6 shadow-xs">
         <CardContent className="px-6">
-          <form onSubmit={verify} className="space-y-4" key={step}>
+          <form method="post" onSubmit={verify} className="space-y-4" key={step}>
             <div className="grid gap-2">
               <Label htmlFor="code">{step === "totp" ? t("code") : t("backupCode")}</Label>
               <p className="text-xs text-muted-foreground">{step === "totp" ? t("codeHint") : t("backupHint")}</p>
@@ -102,7 +102,8 @@ export function SignInForm() {
   return (
     <Card className="py-6 shadow-xs">
       <CardContent className="px-6">
-        <form onSubmit={submit} className="space-y-4">
+        {/* method="post": a submit before the page hydrates must not put the password in the URL. */}
+        <form method="post" onSubmit={submit} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="email">{t("email")}</Label>
             <Input id="email" name="email" type="email" autoComplete="username" dir="ltr" required />

@@ -34,10 +34,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, follow, closing, depts } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       data,
+      firmView: principal.orgKind === "firm",
       follow: await actionFollowThrough(tx, principal, id),
       closing: await actionClosure(tx, principal, id),
       // Internal projects have no departments.
@@ -70,7 +71,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
           {closing.closure ? (
             <div className="space-y-1 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
@@ -105,7 +106,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             close={closing.can.close ? { signed: closing.signed, replacements: closing.replacements } : undefined}
           />
 
-          <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} canSubmit={data.can.submitEvidence} />
+          <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} firmView={firmView} canSubmit={data.can.submitEvidence} />
 
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

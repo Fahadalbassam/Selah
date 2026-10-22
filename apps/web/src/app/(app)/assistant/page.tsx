@@ -22,7 +22,7 @@ const search = z.object({
 export default async function AssistantPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
   const params = search.parse(await searchParams);
   const locale = await getLocale();
-  const { projects, initialCase } = await withPrincipal(async (tx, principal) => {
+  const { projects, initialCase, initialProjectId } = await withPrincipal(async (tx, principal) => {
     const all = await listProjects(tx, principal);
     const projects = all.filter(
       (p) => authorize(principal, "assistant.query", { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }).allowed,
@@ -36,6 +36,8 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
     return {
       projects: projects.map((p) => ({ id: p.id, title: p.title, client: locale === "ar" && p.orgNameAr ? p.orgNameAr : p.orgName })),
       initialCase,
+      // ?project= alone (no case) still picks that project, when the user may ask about it.
+      initialProjectId: params.project && projects.some((p) => p.id === params.project) ? params.project : null,
     };
   });
   // Client roles don't have the assistant yet (open decision in the spec).
@@ -44,7 +46,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title={t("title")} description={t("subtitle")} />
-      <AssistantWorkspace projects={projects} initialChatId={params.chat ?? null} initialCase={initialCase} />
+      <AssistantWorkspace projects={projects} initialChatId={params.chat ?? null} initialCase={initialCase} initialProjectId={initialProjectId} />
       <p className="text-xs text-muted-foreground">{t("disclaimer")}</p>
     </>
   );

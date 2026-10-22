@@ -197,9 +197,14 @@ export async function removeDepartmentMember(tx: Tx, principal: Principal, id: s
   return { ok: true };
 }
 
-/** What an action can be filed under: the client's active departments, when it uses them. */
+/**
+ * What an action can be filed under: the client's active departments, when it
+ * uses them. Null when the caller may not read the client's departments (a
+ * consultant staffed on the project but not assigned to the client), so the
+ * action page leaves the picker out instead of failing.
+ */
 export async function departmentChoices(tx: Tx, principal: Principal, orgId: string) {
-  assertAllowed(principal, "department.read", orgRecord(principal, "department", orgId));
+  if (!authorize(principal, "department.read", orgRecord(principal, "department", orgId)).allowed) return null;
   const [org] = await tx.select({ on: organizations.departmentsEnabled }).from(organizations).where(eq(organizations.id, orgId));
   const list = await tx
     .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn, active: departments.active })

@@ -97,6 +97,22 @@ test.describe("permission probes", () => {
     expect(res.status()).toBe(403);
   });
 
+  test("password guesses are capped per account, whatever X-Forwarded-For says (bug #8)", async () => {
+    const r = await as(null);
+    // An address nobody has, so no seeded account is locked out by the probe.
+    const email = `probe-${Date.now()}@nobody.example`;
+    const codes: number[] = [];
+    for (let i = 1; i <= 12; i++) {
+      const res = await r.post("/api/auth/sign-in/email", {
+        headers: { "x-forwarded-for": `10.9.${i}.${i}` },
+        data: { email, password: "not-the-password-1" },
+      });
+      codes.push(res.status());
+    }
+    expect(codes.slice(0, 10).every((c) => c === 401)).toBe(true);
+    expect(codes.slice(10)).toEqual([429, 429]);
+  });
+
   test("a garbage or foreign id is a 404, not a 500", async () => {
     const r = await as("khalid");
     for (const p of [`/api/actions/00000000-0000-0000-0000-000000000000`, `/api/actions/not-a-uuid`, `/api/projects/${rawdah}/progress`, `/api/documents/00000000-0000-0000-0000-000000000000/download`]) {

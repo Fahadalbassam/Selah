@@ -67,7 +67,9 @@ function Row({ id, label, hint, children }: { id: string; label: string; hint: s
         <Label htmlFor={id}>{label}</Label>
         <p className="text-sm text-muted-foreground">{hint}</p>
       </div>
-      <div className="shrink-0">{children}</div>
+      {/* Radix puts a hidden form input beside a switch, shifted left by its own width; in RTL that
+          pushed the page sideways. Keep it inside this box. */}
+      <div className="relative shrink-0 [&>input]:!start-0 [&>input]:![transform:none]">{children}</div>
     </div>
   );
 }

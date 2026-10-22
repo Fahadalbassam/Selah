@@ -36,7 +36,7 @@ export function AcceptForm({ token, email, name }: { token: string; email: strin
   return (
     <Card className="py-6 shadow-xs">
       <CardContent className="px-6">
-        <form onSubmit={submit} className="space-y-4">
+        <form method="post" onSubmit={submit} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="email">{t("invite.email")}</Label>
             <Input id="email" value={email} dir="ltr" readOnly disabled />

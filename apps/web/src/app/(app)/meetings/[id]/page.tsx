@@ -93,7 +93,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
         {firm ? <AskAbout projectId={meeting.projectId} type="meeting" id={meeting.id} /> : null}
       </PageHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
           <Card className="gap-3 py-5 shadow-xs">
             <CardContent className="space-y-3 px-5 text-sm">

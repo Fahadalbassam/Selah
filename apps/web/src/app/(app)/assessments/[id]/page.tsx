@@ -19,6 +19,12 @@ import { AddEvidence, AnswerControl, AssessmentButton, ComparePicker, ConfirmGap
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** A section's number as its questions' refs give it ("0.1" → 0), so the two agree; else its position. */
+function sectionNumber(questions: { ref: string | null }[], index: number) {
+  const head = questions.find((q) => q.ref)?.ref?.split(".")[0];
+  return head && /^\d+$/.test(head) ? head : String(index + 1);
+}
+
 export default async function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
@@ -31,7 +37,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
       a,
       project: project.project,
       // Evidence is a project file the firm can see, never a client-private one.
-      files: project.documents.filter((d) => d.visibility !== "client_private").map((d) => ({ id: d.id, title: d.title })),
+      files: project.documents.filter((d) => d.visibility !== "client_private").map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt })),
       templateId: all.find((x) => x.id === id)?.templateId,
       others: all.filter((x) => x.id !== id),
       followUp: firm && a.status === "final" ? await assessmentFollowUp(tx, principal, id) : [],
@@ -44,7 +50,13 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
-  const { a, project, files, firm, followUp } = data;
+  const { a, project, firm, followUp } = data;
+  // Files often share a name (draft.pdf sent three times): add the date so they can be told apart.
+  const dupes = new Set(data.files.map((f) => f.title).filter((title, i, all) => all.indexOf(title) !== i));
+  const files = data.files.map((f) => ({
+    id: f.id,
+    title: dupes.has(f.title) ? `${f.title} · ${format.dateTime(f.createdAt, { dateStyle: "medium", timeStyle: "short" })}` : f.title,
+  }));
   const draft = a.status === "draft";
   const conduct = a.canConduct;
   const edit = draft && conduct;
@@ -157,7 +169,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
           <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
             <div className="space-y-1.5">
               <CardTitle className="text-base">
-                {si + 1}. {(ar ? s.titleAr : null) ?? s.title}
+                {sectionNumber(s.questions, si)}. {(ar ? s.titleAr : null) ?? s.title}
               </CardTitle>
               {s.description ? <CardDescription>{(ar ? s.descriptionAr : null) ?? s.description}</CardDescription> : null}
             </div>

@@ -496,9 +496,10 @@ describe("the engagement screens", () => {
 
   it("offer an action the client's departments only while it uses them", async () => {
     const on = await svc(U.lead, (tx, p) => departmentChoices(tx, p, ACME));
-    expect(on.enabled).toBe(true);
-    expect(on.departments.map((d) => d.id)).toEqual(expect.arrayContaining([DEPT.hr, DEPT.fin]));
-    await expect(svc(U.cadmin, (tx, p) => departmentChoices(tx, p, RESTR))).rejects.toThrow();
-    expect((await svc(U.lead, (tx, p) => departmentChoices(tx, p, MANAGED))).enabled).toBe(false);
+    expect(on?.enabled).toBe(true);
+    expect(on?.departments.map((d) => d.id)).toEqual(expect.arrayContaining([DEPT.hr, DEPT.fin]));
+    // Someone who may not read them gets no choices (the page hides the picker), not an error.
+    expect(await svc(U.cadmin, (tx, p) => departmentChoices(tx, p, RESTR))).toBeNull();
+    expect((await svc(U.lead, (tx, p) => departmentChoices(tx, p, MANAGED)))?.enabled).toBe(false);
   });
 });

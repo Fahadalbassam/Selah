@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { one } from "./support/db";
+import { msg } from "./support/msg";
 import { open } from "./support/ui";
 
 // The baseline assessment: answer what's left, finalise, retake, compare;
@@ -53,7 +54,12 @@ test("client admin and manager see no scores anywhere (Arabic)", async ({ browse
     for (let i = 0; i < names.length; i++) {
       await tabs.nth(i).click();
       const text = await page.locator("main main").innerText();
-      expect(/\d+\s*\/\s*\d+\s*·|\d+(\.\d+)?\s*%/.test(text), `${u} tab ${names[i]} shows a score: ${text.match(/.{0,40}\d+(\.\d+)?\s*%.{0,20}/)?.[0]}`).toBe(false);
+      // The share of actions done (a plain "39%") is the client's to see; assessment
+      // points ("38/55 · 69.1%") and the firm-only score labels are not.
+      expect(/\d+\s*\/\s*\d+\s*·/.test(text), `${u} tab ${names[i]} shows points`).toBe(false);
+      for (const key of ["assessment.run.points", "assessment.run.indicative"]) {
+        expect(text.includes(msg("ar", key)), `${u} tab ${names[i]} shows ${key}`).toBe(false);
+      }
     }
     const res = await page.goto(`/assessments/${assessment}`);
     const body = await page.locator("body").innerText();

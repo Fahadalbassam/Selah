@@ -295,6 +295,7 @@
       "type": "This file type isn't allowed, or the file doesn't match its extension.",
       "too_large": "The file is larger than 20 MB.",
       "empty": "The file is empty.",
+      "openEvidence": "Accept or waive every item on the evidence list first.",
       "needEvidence": "Attach evidence before sending for review.",
       "infected": "The file was flagged by the virus scanner and was not stored.",
       "scanner": "The virus scanner is unavailable, so uploads are paused. Try again shortly.",
@@ -312,13 +313,14 @@
       "reject": "rejected the evidence"
     },
     "download": "Download",
+    "revisionNote": "Resume work, make the changes, then send it for review again.",
     "awaitingNote": "Waiting for the consultant's decision.",
     "verifiedNote": "Verified by the firm.",
     "firmReviewer": "The consultant",
     "someone": "Someone",
     "items": {
       "title": "Evidence list",
-      "hintClient": "What the consultant asked you to send. Answer each item with a file; the consultant accepts it or says what's missing.",
+      "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button (a file sent with \"Submit for review\" doesn't answer an item). The consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
       "none": "No items yet.",
       "due": "Due {date}",

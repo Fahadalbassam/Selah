@@ -8,7 +8,11 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "@/env";
+import { accountKey, createAttemptLimiter } from "@/auth/attempts";
 import { account, session, twoFactor as twoFactorTable, user, verification } from "@/db/schema/auth";
+
+// Ten sign-ins per account per 15 minutes, from any address (src/auth/attempts.ts).
+const signInsPerAccount = createAttemptLimiter({ max: 10, windowSeconds: 15 * 60 });
 
 function createAuth() {
   const e = env();
@@ -60,7 +64,9 @@ function createAuth() {
       window: 60,
       max: 100,
       customRules: {
-        "/sign-in/email": { window: 60, max: 5 },
+        // Per address. An office behind one address shares it, so it is
+        // looser than the per-account limit in the hook below.
+        "/sign-in/email": { window: 60, max: 20 },
         "/two-factor/*": { window: 60, max: 5 },
         "/request-password-reset": { window: 60, max: 3 },
         "/reset-password": { window: 60, max: 5 },
@@ -79,6 +85,14 @@ function createAuth() {
     // a clear answer instead of an error.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/sign-in/email") {
+          const key = accountKey((ctx.body as { email?: unknown } | undefined)?.email);
+          const wait = key ? signInsPerAccount.take(key) : null;
+          if (wait !== null) {
+            throw new APIError("TOO_MANY_REQUESTS", { message: "too many sign-in attempts" }, { "X-Retry-After": String(wait) });
+          }
+          return;
+        }
         if (ctx.path !== "/two-factor/disable") return;
         const s = await getSessionFromCtx(ctx);
         if (!s) return;

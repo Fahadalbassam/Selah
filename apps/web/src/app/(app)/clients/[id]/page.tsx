@@ -73,7 +73,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         ) : null}
       </PageHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
