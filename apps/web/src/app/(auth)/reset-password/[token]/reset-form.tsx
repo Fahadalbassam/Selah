@@ -31,7 +31,7 @@ export function ResetForm({ token }: { token: string }) {
   return (
     <Card className="py-6 shadow-xs">
       <CardContent className="px-6">
-        <form onSubmit={submit} className="space-y-4">
+        <form method="post" onSubmit={submit} className="space-y-4">
           <PasswordFields />
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>

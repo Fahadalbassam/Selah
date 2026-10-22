@@ -63,7 +63,7 @@ export default async function TemplatesPage() {
         ) : null}
       </PageHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="overflow-hidden rounded-xl border bg-card">
           {list.templates.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">{canAuthor ? t("emptyAuthor") : t("empty")}</p>

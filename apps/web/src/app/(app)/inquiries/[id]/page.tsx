@@ -97,7 +97,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
         meta={<ToneBadge tone={q.status === "new" ? "new" : "open"}>{status(q.status)}</ToneBadge>}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
           {can.work && !q.clientOrgId ? (
             <Card className="gap-4 py-5 shadow-xs">
@@ -287,8 +287,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                               : ["submitted", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
                                 ? t(`events.${e.event}`)
                                 : e.event}
-                      </span>
-                      <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
+                      </span>{" "}
+                      <span className="ms-1 text-xs text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
                     </p>
                     {e.note ? (
                       <p className="whitespace-pre-wrap" dir="auto">

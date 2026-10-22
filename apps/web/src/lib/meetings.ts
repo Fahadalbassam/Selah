@@ -11,17 +11,25 @@ export function callProvider(url: string): "google_meet" | "teams" | "zoom" | nu
   return null;
 }
 
-/** A local date (YYYY-MM-DD) and time (HH:MM) as an instant in the browser's time zone. */
+// Times are entered and shown in Riyadh time, whatever the browser's own zone.
+// Saudi Arabia has kept UTC+3 all year since 1957, so a fixed offset is exact.
+const RIYADH_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/** A Riyadh date (YYYY-MM-DD) and time (HH:MM) as an instant. */
 export function localInstant(date: string, time: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null;
-  const d = new Date(`${date}T${time}:00`);
+  const d = new Date(`${date}T${time}:00+03:00`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /** The reverse of localInstant, for prefilling a form. */
 export function localParts(d: Date): { date: string; time: string } {
+  const r = new Date(d.getTime() + RIYADH_OFFSET_MS);
   const p = (n: number) => String(n).padStart(2, "0");
-  return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, time: `${p(d.getHours())}:${p(d.getMinutes())}` };
+  return {
+    date: `${r.getUTCFullYear()}-${p(r.getUTCMonth() + 1)}-${p(r.getUTCDate())}`,
+    time: `${p(r.getUTCHours())}:${p(r.getUTCMinutes())}`,
+  };
 }
 
 export const DURATIONS = [30, 45, 60, 90, 120] as const;

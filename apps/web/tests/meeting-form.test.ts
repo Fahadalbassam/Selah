@@ -14,6 +14,9 @@ describe("meeting form helpers", () => {
   it("turn a local date and time into an instant and back", () => {
     const d = localInstant("2026-11-03", "09:30")!;
     expect(localParts(d)).toEqual({ date: "2026-11-03", time: "09:30" });
+    // Riyadh time whatever the browser's zone: 09:30 in Riyadh is 06:30 UTC.
+    expect(d.toISOString()).toBe("2026-11-03T06:30:00.000Z");
+    expect(localParts(new Date("2026-11-03T22:15:00Z"))).toEqual({ date: "2026-11-04", time: "01:15" });
     expect(localInstant("2026-11-03", "")).toBeNull();
   });
 

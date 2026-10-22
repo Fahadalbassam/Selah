@@ -1,0 +1,33 @@
+# Local end-to-end testing only: `docker compose -f docker-compose.yml -f docker-compose.test.yml up`.
+# Adds Mailpit as the SMTP sink (web UI on http://localhost:8025) so the mail
+# job really sends, and nothing leaves the machine.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+  mail:
+    environment:
+      SMTP_URL: smtp://mailpit:1025
+    depends_on:
+      mailpit: { condition: service_started }
+  # Sample data: `docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm seed`
+  seed:
+    profiles: ["seed"]
+    build: { context: ./apps/web, target: tools }
+    command: ["npm", "run", "db:seed"]
+    environment:
+      NODE_ENV: development
+      SEED_PASSWORD: ${SEED_PASSWORD:?set in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DATABASE_OWNER_URL: postgres://selah_owner:${SELAH_OWNER_PASSWORD}@db:5432/selah
+      DATABASE_APP_URL: postgres://selah_app:${SELAH_APP_PASSWORD}@db:5432/selah
+      DATABASE_AUTH_URL: postgres://selah_auth:${SELAH_AUTH_PASSWORD}@db:5432/selah
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      S3_ENDPOINT: http://storage:9000
+      S3_BUCKET: ${S3_BUCKET:-selah-evidence}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      AI_SERVICE_URL: http://ai:8000
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+    depends_on:
+      setup: { condition: service_completed_successfully }

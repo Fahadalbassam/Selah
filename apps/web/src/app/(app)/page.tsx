@@ -49,8 +49,12 @@ export default async function OverviewPage() {
           </Card>
         ))}
       </div>
+      {/* Full-strength text: at /90 on the tinted background it was 4.36:1, under AA. */}
       {stats.overdue > 0 ? (
-        <Alert variant="destructive" className="animate-page-in border-destructive/30 bg-destructive/5">
+        <Alert
+          variant="destructive"
+          className="animate-page-in border-destructive/30 bg-destructive/5 *:data-[slot=alert-description]:text-destructive"
+        >
           <Clock animateOnView />
           <AlertDescription>
             <span>
