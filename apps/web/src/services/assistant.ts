@@ -111,10 +111,10 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     result.answer = masker.unmask(result.answer);
     citations = result.cited_ids.flatMap((pid) => byPassageId.get(pid) ?? []);
     grounded = result.grounded && citations.length > 0;
-    text = grounded ? result.answer : cannotConfirm(input.language);
+    text = grounded ? result.answer : cannotConfirm(input.language, input.question);
     if (!grounded) citations = [];
   } else {
-    text = cannotConfirm(input.language);
+    text = cannotConfirm(input.language, input.question);
   }
 
   const conversationId = chat?.id ?? (await newConversation(tx, principal, eng.id, input.question, input.case));
@@ -271,8 +271,8 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
     }
     case "action": {
       const [a] = (
-        await tx.execute<{ title: string; status: string; due_date: string | null; rec: string | null }>(sql`
-          SELECT a.title, a.status, a.due_date, r.title AS rec
+        await tx.execute<{ title: string; status: string; due_date: string | null; blocked_reason: string | null; rec: string | null }>(sql`
+          SELECT a.title, a.status, a.due_date, a.blocked_reason, r.title AS rec
           FROM actions a LEFT JOIN recommendations r ON r.id = a.recommendation_id WHERE a.id = ${id}`)
       ).rows;
       if (!a) return null;
@@ -288,6 +288,7 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
       ).rows;
       return [
         `Action "${clip(a.title, 200)}": status ${a.status}${a.due_date ? `, due ${day(a.due_date)}` : ""}.`,
+        a.status === "blocked" && a.blocked_reason ? `Blocked because: "${clip(a.blocked_reason, 300)}"` : "",
         a.rec ? `It belongs to recommendation "${clip(a.rec, 200)}".` : "",
         rev ? `Last review: ${rev.outcome} on ${day(rev.created_at)}.` : "No review yet.",
         upd ? `Last progress update (${day(upd.created_at)}): "${clip(upd.body, 300)}"` : "No progress update yet.",
@@ -384,8 +385,9 @@ async function recentTurns(tx: Tx, conversationId: string): Promise<HistoryTurn[
   return rows.reverse().map((m) => ({ role: m.role, content: clip(m.content, 1000) }));
 }
 
-function cannotConfirm(language: AskInput["language"]) {
-  return language === "en" ? CANNOT_CONFIRM.en : CANNOT_CONFIRM.ar;
+/** "auto" follows the question's language, as answers do. */
+export function cannotConfirm(language: AskInput["language"], question: string) {
+  return (language === "auto" ? detectLang(question) : language) === "en" ? CANNOT_CONFIRM.en : CANNOT_CONFIRM.ar;
 }
 
 /** The person's chats, newest first: the open ones, or the archived ones. */
