@@ -102,3 +102,5 @@ CI runs all of these on every pull request. ClamAV needs at least 3 GiB of free 
 5. **AI sees only what you could open.** Retrieval filters run inside the vector query and under RLS. The AI service never gets database credentials.
 
 See [docs/security.md](docs/security.md) for the OWASP ASVS 5.0 and OWASP LLM Top 10 mapping.
+
+See [docs/data-architecture.md](docs/data-architecture.md) for how the database, file storage and the assistant's access fit together.
