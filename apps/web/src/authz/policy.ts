@@ -149,6 +149,9 @@ export const POLICY = {
   // admin's view of the team's load. No per-person scores or rankings.
   "metrics.read": { ...ALL_BUT_OWNER },
   "team_metrics.read": { firm_admin: "any" },
+  // The deviation rules (v_deviations) over a project: overdue, stale,
+  // slipped, churn, orphaned, and the client KPI rules. For the firm.
+  "deviation.read": { ...STAFF },
   // The firm's own settings: intake address, client KPIs, reminders, review
   // and retention periods. The database enforces the ranges.
   "firm_settings.manage": { firm_admin: "any" },

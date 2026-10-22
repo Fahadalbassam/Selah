@@ -417,6 +417,16 @@ describe("metrics", () => {
   });
 });
 
+describe("deviations", () => {
+  it("are for the firm's staff on the project", () => {
+    const action = acmeRecord("action");
+    expect(authorize(principal("consultant", [ACME_PROJ_1]), "deviation.read", action).allowed).toBe(true);
+    for (const role of ["client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role, [ACME_PROJ_1]), "deviation.read", action).allowed, role).toBe(false);
+    }
+  });
+});
+
 describe("firm settings", () => {
   it("are the firm admin's alone", () => {
     const firm: Resource = { type: "organization", orgId: FIRM, firmOrgId: FIRM, projectId: null };

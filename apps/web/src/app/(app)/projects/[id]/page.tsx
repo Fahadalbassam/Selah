@@ -14,11 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
+import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
+import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ProgressTab } from "./progress-tab";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +28,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -50,9 +52,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         .then(async (m) => ({ ...m, progress: await projectProgress(tx, principal, id) }))
         .catch(() => null),
       reports: await listReports(tx, principal, id).catch(() => null),
+      // What moved since this person's last visit; the page moves the mark once shown.
+      visit: await sinceLastVisit(tx, principal, id).catch(() => null),
+      // The deviation rules, for the firm.
+      deviations: await projectDeviations(tx, principal, id).catch(() => null),
+      trace: await projectTrace(tx, principal, id).catch(() => null),
     };
   });
-  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, format] = await Promise.all([
+  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("staffing"),
     getTranslations("visibility"),
@@ -62,6 +69,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("meeting"),
     getTranslations("assessment.run"),
     getTranslations("metrics"),
+    getTranslations("insight"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -92,10 +100,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </p>
       ) : null}
 
+      {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
+
       <Tabs defaultValue="recs" className="gap-4">
         <TabsList>
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
           {metrics ? <TabsTrigger value="progress">{tMetrics("tab")}</TabsTrigger> : null}
+          {deviations ? (
+            <TabsTrigger value="attention">
+              {tInsight("deviations.tab")}
+              {deviations.length ? <span className="text-xs text-muted-foreground tabular-nums">{new Set(deviations.map((d) => d.entityId)).size}</span> : null}
+            </TabsTrigger>
+          ) : null}
+          {trace ? <TabsTrigger value="trace">{tInsight("trace.tab")}</TabsTrigger> : null}
           {meetings ? <TabsTrigger value="meetings">{t("meetings")}</TabsTrigger> : null}
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
@@ -214,6 +231,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         {metrics ? (
           <TabsContent value="progress">
             <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} />
+          </TabsContent>
+        ) : null}
+
+        {deviations ? (
+          <TabsContent value="attention">
+            <Deviations rows={deviations} />
+          </TabsContent>
+        ) : null}
+        {trace ? (
+          <TabsContent value="trace">
+            <Trace rows={trace} />
           </TabsContent>
         ) : null}
 

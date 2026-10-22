@@ -129,4 +129,5 @@ Rules: `drizzle/0015_handover_rules.sql`. Tests: `tests/db/handover.test.ts`.
 | `kpi_not_reported` | A KPI period passed its grace days with no reading (client KPIs on). |
 | `kpi_off_target` | The latest reading is in the red band (client KPIs on). |
 
+- **On the project page:** firm staff get a "Needs attention" tab (`projectDeviations`, permission `deviation.read`), which lists each item and the rule it breaks, most pressing first. Everyone who reads recommendations gets a "Trace" tab (`app_trace`) showing findings → recommendations → actions → evidence and reviews, and objectives → KPIs → the recommendations meant to move them. Everyone who reads actions sees what moved since their last visit (`app_changed_actions`) above the tabs. The page moves the mark after showing it (`PUT /api/projects/:id/since-last-visit`).
 - **AI draft outcomes** (`ai_drafts`): whoever saw a draft records whether it was accepted unchanged, edited (with the edit distance) or discarded. The firm reads them to evaluate the drafts. Append-only. The table fills once AI drafting is on.
