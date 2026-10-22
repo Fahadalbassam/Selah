@@ -1261,5 +1261,44 @@
       "restricted": "Restricted: only the client's admins sign in",
       "consultant_managed": "Consultant-managed: the firm records for the client"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "open": "Notifications",
+    "unread": "{n, plural, =0 {No unread notifications} one {1 unread} other {# unread}}",
+    "markAll": "Mark all as read",
+    "seeAll": "See all",
+    "empty": "Nothing new.",
+    "gone": "An update about something you can no longer open",
+    "kinds": {
+      "action_assigned": "{title} was released to you",
+      "action_in_progress": "Work started on {title}",
+      "action_blocked": "{title} was marked blocked",
+      "action_awaiting_review": "{title} is waiting for review",
+      "action_verified_complete": "{title} was accepted and verified",
+      "action_revision_requested": "Changes were requested on {title}",
+      "action_closed": "{title} was closed",
+      "evidence_requested": "New evidence was requested for {title}",
+      "evidence_request_accepted": "Your evidence for {title} was accepted",
+      "evidence_request_rejected": "Your evidence for {title} was not accepted",
+      "evidence_request_waived": "An evidence item for {title} is no longer needed",
+      "evidence_request_open": "An evidence item for {title} was asked for again",
+      "risk_accepted": "A risk was accepted on {title}",
+      "deadline_requested": "A new due date was requested for {title}",
+      "deadline_approved": "Your new due date for {title} was approved",
+      "deadline_rejected": "Your new due date for {title} was declined",
+      "follow_up_due_soon": "{title} is due soon",
+      "follow_up_overdue": "{title} is overdue",
+      "follow_up_escalated": "{title} is overdue and escalated (level {level})",
+      "client_assigned": "You were added to the {title} team",
+      "client_lead": "You are now the lead consultant for {title}",
+      "join_request_approved": "Your request to join {title} was approved",
+      "join_request_declined": "Your request to join {title} was declined",
+      "project_staffed": "You were staffed on {title}",
+      "inquiry_new": "New inquiry from {title}",
+      "inquiry_assigned": "The inquiry from {title} was handed to you",
+      "access_review_due": "It's time to review who has access at {title}",
+      "other": "Something changed on {title}"
+    }
   }
 }
