@@ -10,7 +10,7 @@ Where Selah keeps its data, how firm and client data are kept apart, how files a
 | Are firm and client data separated? | Yes, by row, not by database. Every client-owned row carries the client's `org_id` and a `project_id`. Row-level security (RLS) in Postgres hides every row the signed-in person may not see. |
 | Are we adding collections? | No. "Collection" is a MongoDB word. The Postgres equivalent is a **table**, and Selah has about 75 of them. Clients don't get their own tables. All clients share each table, and each row is tagged with its client. |
 | Does each consultant get their own space? | No. Consultants are firm users, not tenants. What a consultant sees is worked out on each request from `client_assignments` (which clients they are on) and `project_members` (which projects they are staffed on). |
-| How many buckets? | One private bucket (`selah-evidence`). |
+| How many buckets? | One private bucket today (`selah-evidence`). **[Proposed]** Three: files, backups, and a separate one for development. See [Bucket and folder layout](#bucket-and-folder-layout-either-store-proposed). |
 | A folder per client? | Not today. Files are stored under random keys with no folders. **[Proposed]** Use a `org/<client>/project/<project>/` prefix per file, for exports, deletion and backups. Prefixes don't add security; the database check does. |
 | Is R2 used? | No. The code speaks the S3 protocol, so the store can be RustFS on the server (today, in `docker-compose.yml`) or Cloudflare R2 by changing `.env`. Which one to use is an open decision, see [R2 or self-hosted](#r2-or-self-hosted-storage). |
 | Can file access be secured? | Yes, and it already is. The bucket is private. A file is opened only through a one-minute signed link, which the server issues after checking the person's rights, and every download is audited. |
@@ -127,17 +127,54 @@ None of these change who can see what. They change how the same rules are stored
 
 ## 4. R2 or self-hosted storage
 
-The code works with both. Switching only means changing `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION=auto` and the keys in `.env`. (R2 does not support the public-access-block call. `storage:init` already tolerates that, and R2 buckets are private by default.)
+**RustFS is not a cloud service.** It is a small program, run here in Docker, that turns a folder on a disk into an S3-style bucket. It is the self-hosted twin of R2, and Selah talks to both the same way. With RustFS, the files live on whatever machine runs it. Today that is the team's Linux server, the same machine as the database.
 
-| | RustFS on the team's Linux server (today) | Cloudflare R2 |
+### Comparison
+
+| | RustFS on our own machine | Cloudflare R2 |
 |---|---|---|
-| Where files live | on the server, in the same place as the database | Cloudflare's data centres. R2 offers enforced jurisdictions for the EU and FedRAMP, and only best-effort location hints elsewhere. None of them is in Saudi Arabia. |
-| Encryption at rest | needs disk encryption (recommendation 4) | automatic AES-256 |
-| Durability | one disk unless backed up | replicated by Cloudflare |
-| Signed links | the server must expose the storage port through its HTTPS proxy | work on R2's S3 endpoint. Cloudflare's docs say presigned links don't work on custom domains. |
-| Cost | none beyond the server | free tier, then pay per GB |
+| **Security of the store** | As good as the machine. We have to patch it, encrypt the disk, firewall it, and keep the storage port behind HTTPS. | Strong by default: AES-256 at rest, TLS, private buckets, and keys that can be scoped to one bucket. Run by a professional team. |
+| **What protects client files from each other** | Selah's server check and signed links (section 2) | The same. The store never decides access, so this is equal. |
+| **Data residency (PDPL)** | Files stay wherever the machine is, in Saudi Arabia. | No Saudi location. Enforced jurisdictions are the EU and FedRAMP; other regions only get best-effort hints. Real client documents leaving the Kingdom need a lawful transfer basis under the PDPL's transfer rules, which the firm should confirm. |
+| **Durability** | One disk. A dead disk or a stolen laptop loses everything that isn't backed up. | Replicated by Cloudflare. |
+| **Backups** | We must copy files and database dumps off the machine every night. | Files are already off the server. We still back up the database, and a second R2 bucket can hold the encrypted dumps. |
+| **Cost** | Free; uses the disk. | Free tier of 10 GB, then about $0.015 per GB a month, with no download fees. A GP's test data fits in the free tier. |
+| **Availability** | Only while the machine is on and online. A laptop that sleeps, travels or changes networks is a poor server. | Always on. |
 
-**Recommendation:** keep files on the server for the graduation project, and keep R2 as a configuration option. Client governance documents leaving Saudi Arabia may need checking under the PDPL's cross-border transfer rules, so the firm and the supervisor should confirm before real client files go to R2. Synthetic test data can go anywhere.
+**Is R2 secure enough?** Yes. The open question about R2 was never its security. It is where real client data is allowed to live. For the graduation project, with synthetic data, R2 is a good choice and saves us from building disk encryption and file backups ourselves. Before the firm puts real client files in, it should confirm that storing them outside the Kingdom is acceptable, or keep production on a server in Saudi Arabia. The code doesn't care which.
+
+**A laptop as the server** is not recommended for anything people rely on. A laptop sleeps, moves between networks and can be lost, and anything on its disk is gone with it. The team's Linux server is a better self-hosted home. R2 removes the question for files.
+
+### What switching to R2 takes
+
+No code changes, only settings:
+
+1. In the Cloudflare dashboard, create the buckets (below). Leave public access off and don't attach a custom domain.
+2. Create an R2 API token with **Object Read & Write**, limited to the files bucket. Keep its access key and secret.
+3. In `.env`: `S3_ENDPOINT` and `S3_PUBLIC_ENDPOINT` = `https://<account-id>.r2.cloudflarestorage.com`, `S3_REGION=auto`, `S3_BUCKET=selah-files`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` from the token.
+4. Remove the `storage` service from `docker-compose.yml` (or leave it unused).
+5. Test once: upload a file, check it arrives with its SHA-256 checksum, download it through the one-minute link, and check that the link stops working after a minute.
+
+### Bucket and folder layout (either store) [Proposed]
+
+| Bucket | Holds | Who has a key |
+|---|---|---|
+| `selah-files` | every uploaded file (evidence, client documents, deliverables) | web app (read and write), indexing job (read only), cleanup job (delete) |
+| `selah-backups` | nightly encrypted database dumps (and file copies, when self-hosted) | the backup job only |
+| `selah-files-dev` | test and development uploads, synthetic data only | developers |
+
+Inside `selah-files`:
+
+```
+org/<org id>/project/<project id>/<document id>
+```
+
+- **A client** has one `org/<client id>/` prefix, with one sub-prefix per project. A client's whole export, size or deletion is one prefix.
+- **The firm's internal projects** sit under `org/<firm id>/project/<project id>/`.
+- **Consultants have no folder of their own.** Files belong to projects, not to the person who uploaded them. A consultant's upload goes under the client's project, and their personal (`user_private`) files sit there too, protected by the label rather than by the folder.
+- **Ids only.** No client names, file names or titles appear in a key; those stay in the database. The last part is the document's own id, so each version (a new row) gets a new key.
+- **Folders are for running the system, not for security.** A person never gets a key or a folder listing, only a one-minute link to one file after the server's check. Putting two clients in one folder or in a hundred makes no difference to who can open what.
+- Today's files have flat random keys. They keep working, because the key is read from the row, and new uploads use the layout above.
 
 ## 5. What the assistant can reach [Built]
 
