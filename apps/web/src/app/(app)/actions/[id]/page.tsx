@@ -13,11 +13,13 @@ import { Translatable } from "@/components/translatable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
+import { departmentChoices } from "@/services/engagement";
 import { actionClosure, actionFollowThrough } from "@/services/follow-through";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
 import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
+import { DepartmentPicker } from "./department-picker";
 import { DeadlineRequests, EvidenceList } from "./follow-through-panels";
 
 function fileSize(bytes: number) {
@@ -31,12 +33,25 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, follow, closing } = await withPrincipal(async (tx, principal) => ({
-    data: await getActionDetail(tx, principal, id),
-    follow: await actionFollowThrough(tx, principal, id),
-    closing: await actionClosure(tx, principal, id),
-  }));
-  const [t, tTable, format] = await Promise.all([getTranslations("action"), getTranslations("table"), getFormatter()]);
+  const { data, follow, closing, depts } = await withPrincipal(async (tx, principal) => {
+    const data = await getActionDetail(tx, principal, id);
+    return {
+      data,
+      follow: await actionFollowThrough(tx, principal, id),
+      closing: await actionClosure(tx, principal, id),
+      // Internal projects have no departments.
+      depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
+    };
+  });
+  const [t, tTable, tEng, format] = await Promise.all([
+    getTranslations("action"),
+    getTranslations("table"),
+    getTranslations("engagement.departments"),
+    getFormatter(),
+  ]);
+  const dept = depts?.departments.find((d) => d.id === data.action.departmentId) ?? null;
+  // Shown while the client uses departments, or while the action is still filed under one.
+  const showDept = !!depts && (depts.enabled || !!dept);
   const ar = (await getLocale()) === "ar";
   const { action, context } = data;
   const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
@@ -148,6 +163,20 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                   {action.overdue ? ` (${tTable("overdue")})` : ""}
                 </span>,
               ],
+              ...(showDept
+                ? [
+                    [
+                      tEng("department"),
+                      data.can.fileDepartment && depts!.enabled ? (
+                        <DepartmentPicker key="dp" actionId={action.id} value={action.departmentId} departments={depts!.departments} />
+                      ) : dept ? (
+                        (ar ? dept.nameAr : (dept.nameEn ?? dept.nameAr))
+                      ) : (
+                        tEng("none")
+                      ),
+                    ] as const,
+                  ]
+                : []),
               ...(context.requiredEvidence ? [[t("requiredEvidence"), context.requiredEvidence] as const] : []),
               ...(context.projectKind === "client" ? [[tTable("client"), (ar ? context.orgNameAr : null) ?? context.orgName] as const] : []),
             ].map(([k, v], i) => (

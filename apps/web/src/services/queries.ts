@@ -449,6 +449,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       projectId: action.projectId,
       ownerName: owner?.name ?? action.ownerName,
       departmentId: action.departmentId,
+      orgId: action.orgId,
       // Verified on the client's evidence or on what a consultant recorded
       // (drizzle/0027); null until verified.
       verifiedBasis: from === "verified_complete" ? (verifiedBasis ?? null) : null,
@@ -463,6 +464,9 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       addUpdate: authorize(principal, "progress_update.create", resource).allowed && from !== "verified_complete",
       submitEvidence:
         authorize(principal, "evidence.submit", resource).allowed && (from === "in_progress" || from === "revision_requested"),
+      // File it under one of the client's departments (a plan change).
+      fileDepartment:
+        authorize(principal, "action.write", resource).allowed && from !== "verified_complete" && from !== "closed",
     },
   };
 }

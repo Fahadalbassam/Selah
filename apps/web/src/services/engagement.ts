@@ -1,7 +1,16 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, ne } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { departmentMembers, departments, organizations, user } from "@/db/schema";
+import {
+  clientContacts,
+  departmentMembers,
+  departments,
+  documents,
+  firmSettings,
+  orgMemberships,
+  organizations,
+  user,
+} from "@/db/schema";
 import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 
@@ -22,6 +31,7 @@ async function clientOrg(tx: Tx, orgId: string) {
     .select({
       id: organizations.id,
       name: organizations.name,
+      nameAr: organizations.nameAr,
       engagementMode: organizations.engagementMode,
       departmentsEnabled: organizations.departmentsEnabled,
       minimalRecords: organizations.minimalRecords,
@@ -50,11 +60,38 @@ export async function getEngagement(tx: Tx, principal: Principal, orgId: string)
     .innerJoin(user, eq(user.id, departmentMembers.userId))
     .where(eq(departments.orgId, orgId))
     .orderBy(asc(user.name));
+  const canChangeMode = authorize(principal, "organization.engagement", orgRecord(principal, "organization", orgId)).allowed;
   return {
     ...org,
-    canChangeMode: authorize(principal, "organization.engagement", orgRecord(principal, "organization", orgId)).allowed,
+    canChangeMode,
     canManageDepartments: authorize(principal, "department.manage", orgRecord(principal, "department", orgId)).allowed,
     departments: depts.map((d) => ({ ...d, members: members.filter((m) => m.departmentId === d.id) })),
+    fit: canChangeMode ? await modeFit(tx, principal, orgId) : null,
+  };
+}
+
+/**
+ * What stands in the way of each mode, so the screen can say so before the
+ * firm admin tries. The database still decides (drizzle/0025, 0027).
+ */
+async function modeFit(tx: Tx, principal: Principal, orgId: string) {
+  const active = and(eq(orgMemberships.orgId, orgId), eq(orgMemberships.active, true));
+  const [[accounts], [nonAdmin], [settings], [contacts], [files]] = await Promise.all([
+    tx.select({ n: count() }).from(orgMemberships).where(active),
+    tx
+      .select({ n: count() })
+      .from(orgMemberships)
+      .where(and(active, ne(orgMemberships.role, "client_admin"))),
+    tx.select({ max: firmSettings.restrictedMaxAdmins }).from(firmSettings).where(eq(firmSettings.orgId, principal.orgId)),
+    tx.select({ n: count() }).from(clientContacts).where(eq(clientContacts.orgId, orgId)),
+    tx.select({ n: count() }).from(documents).where(eq(documents.orgId, orgId)),
+  ]);
+  return {
+    activeAccounts: accounts!.n,
+    nonAdminAccounts: nonAdmin!.n,
+    restrictedMaxAdmins: settings?.max ?? 2,
+    // Minimal records start before anything is filed.
+    hasContactsOrFiles: contacts!.n + files!.n > 0,
   };
 }
 
@@ -132,4 +169,16 @@ export async function removeDepartmentMember(tx: Tx, principal: Principal, id: s
     .returning({ userId: departmentMembers.userId });
   if (!removed.length) throw new BadRequestError("that person is not in this department");
   return { ok: true };
+}
+
+/** What an action can be filed under: the client's active departments, when it uses them. */
+export async function departmentChoices(tx: Tx, principal: Principal, orgId: string) {
+  assertAllowed(principal, "department.read", orgRecord(principal, "department", orgId));
+  const [org] = await tx.select({ on: organizations.departmentsEnabled }).from(organizations).where(eq(organizations.id, orgId));
+  const list = await tx
+    .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn, active: departments.active })
+    .from(departments)
+    .where(eq(departments.orgId, orgId))
+    .orderBy(asc(departments.nameAr));
+  return { enabled: org?.on ?? false, departments: list };
 }

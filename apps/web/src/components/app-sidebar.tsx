@@ -10,6 +10,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListChecks,
+  Network,
   Settings,
   Users,
   type LucideIcon,
@@ -48,6 +49,7 @@ const ICONS = {
   assistant: Bot,
   team: Users,
   settings: Settings,
+  departments: Network,
 } satisfies Record<string, LucideIcon>;
 
 export interface NavItem {
