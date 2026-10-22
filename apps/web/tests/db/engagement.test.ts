@@ -13,6 +13,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { engagementError } from "@/lib/engagement";
 import { departmentChoices, getEngagement, setEngagement } from "@/services/engagement";
+import { planOptions } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -501,5 +502,29 @@ describe("the engagement screens", () => {
     // Someone who may not read them gets no choices (the page hides the picker), not an error.
     expect(await svc(U.cadmin, (tx, p) => departmentChoices(tx, p, RESTR))).toBeNull();
     expect((await svc(U.lead, (tx, p) => departmentChoices(tx, p, MANAGED)))?.enabled).toBe(false);
+  });
+
+  it("offer the add-an-action form only owners the server accepts, and the client's way of naming them", async () => {
+    const acme = await svc(U.lead, (tx, p) => planOptions(tx, p, P.acme));
+    expect(acme?.can).toEqual({ finding: true, recommendation: true, action: true, release: true });
+    // The client's people on the team, each still an active member: not the firm's consultants.
+    expect(acme?.owners.map((o) => o.userId).sort()).toEqual([U.cmgr, U.hr, U.fin].sort());
+    expect(acme?.ownerByName).toBe(false);
+    expect(acme?.departments.map((d) => d.id).sort()).toEqual([DEPT.hr, DEPT.fin].sort());
+    // A consultant-managed client has no accounts, so its owners are named, not picked.
+    const managed = await svc(U.cons, (tx, p) => planOptions(tx, p, P.managed));
+    expect(managed?.ownerByName).toBe(true);
+    expect(managed?.owners).toEqual([]);
+    expect(managed?.departments).toEqual([]);
+    // The client's own people can't add to the firm's plan, so they get no form at all.
+    expect(await svc(U.cmgr, (tx, p) => planOptions(tx, p, P.acme))).toBeNull();
+    // Someone who left the client drops off the list.
+    await owner.query(`UPDATE org_memberships SET active = false WHERE user_id = $1 AND org_id = $2`, [U.fin, ACME]);
+    try {
+      const after = await svc(U.lead, (tx, p) => planOptions(tx, p, P.acme));
+      expect(after?.owners.map((o) => o.userId)).not.toContain(U.fin);
+    } finally {
+      await owner.query(`UPDATE org_memberships SET active = true WHERE user_id = $1 AND org_id = $2`, [U.fin, ACME]);
+    }
   });
 });

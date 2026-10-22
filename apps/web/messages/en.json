@@ -133,6 +133,23 @@
       "editHint": "One per line, in Arabic or English, for example Al-Nukhba or النخبة. Up to 6.",
       "field": "Short names",
       "none": "None yet."
+    },
+    "contacts": {
+      "title": "Client contacts",
+      "hint": "People at the client without a Selah account. They can be invited to meetings by email.",
+      "none": "No contacts yet.",
+      "add": "Add a contact",
+      "edit": "Edit",
+      "editTitle": "Edit contact",
+      "remove": "Remove",
+      "removeConfirm": "Remove {name}? They're also taken off any meeting they were invited to.",
+      "name": "Name",
+      "nameAlt": "Name in the other language (optional)",
+      "jobTitle": "Job title (optional)",
+      "email": "Email (optional)",
+      "phone": "Phone (optional)",
+      "noEmail": "No email, so no invites",
+      "minimal": "This client keeps minimal records, so it has no contacts."
     }
   },
   "team": {
@@ -402,7 +419,15 @@
       "signButton": "Sign"
     },
     "pickExisting": "Choose from Selah files",
-    "uploadNew": "Upload a new file"
+    "uploadNew": "Upload a new file",
+    "notes": {
+      "title": "Firm notes",
+      "hint": "Only firm staff see these notes. The client never does.",
+      "none": "No notes yet.",
+      "add": "Add a note",
+      "label": "Note",
+      "placeholder": "Context for the firm team: calls, concerns, what to check next."
+    }
   },
   "common": {
     "cancel": "Cancel",
@@ -1814,6 +1839,76 @@
       "tooLarge": "This file is larger than 20 MB.",
       "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text.",
       "generic": "The file couldn't be added. Try again."
+    }
+  },
+  "plan": {
+    "findings": {
+      "title": "Findings",
+      "hint": "What the consultants found. A recommendation can answer one of them.",
+      "none": "No findings yet.",
+      "fromAssessment": "From an assessment",
+      "add": "Add a finding",
+      "addHint": "Record a gap or an issue. A shared finding is visible to the client's admin and managers.",
+      "field": "Finding",
+      "description": "Details (optional)",
+      "visibility": "Who can see it",
+      "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}"
+    },
+    "rec": {
+      "add": "Add a recommendation",
+      "addHint": "What the firm recommends and what shows it's done. Actions carry it out.",
+      "title": "Recommendation",
+      "finding": "Answers the finding (optional)",
+      "noFinding": "No finding",
+      "rationale": "Why (optional)",
+      "targetOutcome": "Target outcome (optional)",
+      "priority": "Priority",
+      "dueDate": "Due date (optional)",
+      "requiredEvidence": "Evidence that shows it's done (optional)",
+      "source": "Source",
+      "sources": {
+        "consultant": "Consultant's recommendation",
+        "board_decision": "Board decision",
+        "compliance": "Compliance requirement"
+      },
+      "decidedOn": "Decided on",
+      "visibility": "Who can see it",
+      "answers": "Answers: {finding}",
+      "save": "Add the recommendation"
+    },
+    "action": {
+      "add": "Add an action",
+      "addHint": "A step someone at the client carries out. Keep it as a draft, or release it to its owner now.",
+      "title": "Action",
+      "description": "What to do (optional)",
+      "owner": "Owner",
+      "noOwner": "No owner yet",
+      "ownerName": "Owner's name",
+      "ownerTitle": "Owner's job title",
+      "ownerNameHint": "The firm manages this client, so the owner has no account.",
+      "noOwners": "Nobody from the client is on this project yet. Add them on the Team tab before releasing.",
+      "department": "Department (optional)",
+      "noDepartment": "No department",
+      "dueDate": "Due date",
+      "dueOptional": "Due date (optional for a draft)",
+      "evidence": "Evidence list (optional)",
+      "evidenceHint": "What the client should send so the firm can verify it.",
+      "item": "Item {n}",
+      "addItem": "Add an item",
+      "removeItem": "Remove item {n}",
+      "release": "Release to the owner now",
+      "releaseHint": "They're told straight away. Otherwise it stays a draft that only the firm sees.",
+      "save": "Add the action",
+      "released": "Action released to its owner",
+      "drafted": "Saved as a draft"
+    },
+    "errors": {
+      "boardDate": "A board decision needs the date it was decided.",
+      "ownerTeam": "The owner must be on the project team.",
+      "releaseNeeds": "To release it, pick an owner and a due date.",
+      "jobTitle": "This client keeps minimal records: give the owner's job title, not a name.",
+      "department": "That department is no longer active. Pick another one.",
+      "finding": "That finding isn't in this project."
     }
   }
 }

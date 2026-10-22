@@ -92,7 +92,7 @@ Every app page is, top to bottom:
 |---|---|---|
 | List page | One full-width table or card grid | Projects, clients, inquiries, actions, templates, notifications |
 | Summary row | `grid grid-cols-2 gap-4 lg:grid-cols-4` of summary cards or `StatTile`s | Overview, team totals, project progress, reports |
-| Detail with side panel | `grid gap-6 lg:grid-cols-[1fr_20rem]` (main first in source order) | Action, meeting, inquiry, template list. The client page uses `22rem` because its side panel holds the team. |
+| Detail with side panel | `grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]` (main first in source order; `minmax(0,…)` keeps long titles and tables from pushing the page wider than a tablet) | Action, meeting, inquiry, template list. The client page uses `22rem` because its side panel holds the team. |
 | Headline plus chart | `grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]` | Project progress, reports |
 | Tabs | shadcn `Tabs` under the header, one panel per tab | Project page |
 | Card grid | `grid gap-4 md:grid-cols-2 xl:grid-cols-3` | Projects |
@@ -110,7 +110,7 @@ Long text (descriptions, AI answers, summaries, policy text) stays within `max-w
 |---|---|---|
 | Confirmation (`useConfirm`) | shadcn default (`max-w-lg`) | Content height |
 | Short form (`FormDialog`) | Default `max-w-lg` | Content height |
-| Long form (meeting, question editor) | `sm:max-w-xl` or `sm:max-w-2xl` | `max-h-[85vh] overflow-y-auto` |
+| Long form (meeting, question editor, recommendation, action) | `sm:max-w-xl` or `sm:max-w-2xl` | `max-h-[85vh] overflow-y-auto` |
 | Document preview or summary | `sm:max-w-2xl` | `max-h-[85vh]` |
 
 Use `85vh` for every tall dialog. Footer buttons: primary action last in reading order (shadcn's `DialogFooter` handles the placement).
@@ -267,6 +267,8 @@ Sizes: `sm` in page headers, cards and tables; `default` in dialogs and forms; `
 - Emails, URLs, codes and numbers are `dir="ltr"` even in Arabic.
 - Dates use `DatePicker` (react-day-picker), never a bare `<input type="date">`.
 - Confirm success with a `sonner` toast; show failures inline next to the action.
+- A `Switch` inside a form sits in `<span className="relative [&>input]:!start-0 [&>input]:![transform:none]">`: Radix renders a hidden input that otherwise overflows the page in RTL.
+- Creating plan records (finding, recommendation, action) happens where they are read: the project's Recommendations tab, with the add button in the `SectionHeader` and on each row (a finding row offers "Add a recommendation" with the finding preselected; a recommendation card offers "Add an action").
 
 ### Tables
 
@@ -322,7 +324,7 @@ Who: firm admin, consultants (and the lead consultant per client).
 - **Navigation:** Workspace (Overview, Projects with All / Client / Internal, Clients, Inquiries, Actions, Review queue, Assessment templates, Assistant) and Organization (Team, plus Settings for firm admins).
 - **Overview:** four summary cards (In progress, Awaiting review, Blocked, Verified), the overdue alert, then "Needs your decision" as an `ActionsTable`. The footnote that claims are not proof stays.
 - **Density:** tables over cards for lists; side panels on detail pages; tabs on the project page.
-- **Firm-only content must look firm-only.** Anything a client cannot see (internal projects, private notes, scores, firm-only reports and assessments) carries a `Lock` icon or a "Firm only" badge, and internal projects show the muted banner. Scores are firm-only and never appear on client screens.
+- **Firm-only content must look firm-only.** Anything a client cannot see (internal projects, private notes and firm notes on actions, firm-only findings and recommendations, scores, firm-only reports and assessments) carries a `Lock` icon or a "Firm only" badge, and internal projects show the muted banner. Scores are firm-only and never appear on client screens.
 - **Decisions are explicit:** review actions (accept, request revision, waive) are buttons with a clear outcome, behind a dialog when they need a reason. Nothing changes status silently.
 - **People data:** workload is "sorted by name, for allocation, not a rating". Never rank people or colour them by performance.
 - **Consultant-managed clients:** screens that record work on the client's behalf say so (the record source is shown).
