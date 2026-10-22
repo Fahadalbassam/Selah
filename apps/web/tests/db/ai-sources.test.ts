@@ -24,7 +24,8 @@ vi.mock("@/services/ai-client", () => ({
   },
 }));
 const { retrieve } = await import("@/services/assistant");
-const { summarizeDocument } = await import("@/services/document-summaries");
+const { getDocumentSummary, summarizeDocument } = await import("@/services/document-summaries");
+const M = await import("@/services/meetings");
 const T = await import("@/services/translations");
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -315,7 +316,15 @@ describe("file summaries", () => {
   });
 
   it("are made once per file version and language, and cite only pages the file has", async () => {
+    // Reading never calls the model: nothing is kept yet.
+    expect(await svc(U.cons, (tx, p) => getDocumentSummary(tx, p, D.shared, "en"))).toMatchObject({
+      aiIndexable: true,
+      textStatus: "searchable",
+      summary: null,
+    });
+    expect(calls).toBe(0);
     const first = await svc(U.cons, (tx, p) => summarizeDocument(tx, p, D.shared, "en", fake()));
+    expect((await svc(U.admin, (tx, p) => getDocumentSummary(tx, p, D.shared, "en"))).summary).toEqual(first);
     expect(first.points).toEqual([
       { text: "Point 1", pages: [1] },
       { text: "Point 2", pages: [2] },
@@ -480,6 +489,39 @@ describe("meeting summary sources", () => {
       (await sqlAs(uid, `SELECT document_id FROM meeting_summary_sources`)).rows.map((r) => r.document_id);
     expect(await seen(U.cons)).toHaveLength(2);
     expect(await seen(U.cmgr)).toEqual([D.shared]);
+  });
+
+  it("are added by quoting the transcript or naming a file page, and shown with the meeting", async () => {
+    await expect(
+      svc(U.cons, (tx, p) => M.addSummarySource(tx, p, MEETING, { line: 1, kind: "transcript", quote: "meets monthly" })),
+    ).rejects.toThrow(/not in the transcript/);
+    await svc(U.cons, (tx, p) =>
+      M.addSummarySource(tx, p, MEETING, { line: 1, kind: "transcript", quote: "The board meets quarterly." }),
+    );
+    await svc(U.cons, (tx, p) =>
+      M.addSummarySource(tx, p, MEETING, { line: 2, kind: "document", documentId: D.shared, page: 3 }),
+    );
+    await svc(U.cons, (tx, p) =>
+      M.addSummarySource(tx, p, MEETING, { line: 2, kind: "document", documentId: D.firmPrivate, page: 1 }),
+    );
+    await expect(
+      svc(U.cmgr, (tx, p) => M.addSummarySource(tx, p, MEETING, { line: 1, kind: "document", documentId: D.shared, page: 1 })),
+    ).rejects.toThrow(/not found/);
+
+    const firm = (await svc(U.cons, (tx, p) => M.getMeeting(tx, p, MEETING))).sources;
+    expect(firm.map((x) => [x.line, x.kind, x.page])).toEqual([
+      [1, "transcript", null],
+      [2, "document", 1],
+      [2, "document", 3],
+    ]);
+    expect(firm[0]!.excerpt).toBe("The board meets quarterly.");
+    expect(firm[2]).toMatchObject({ documentId: D.shared, documentVersion: 1, outdated: false });
+    // The client sees the shared file's page only: no transcript, no firm-private file.
+    const client = (await svc(U.cmgr, (tx, p) => M.getMeeting(tx, p, MEETING))).sources;
+    expect(client.map((x) => [x.line, x.documentId, x.excerpt])).toEqual([[2, D.shared, null]]);
+    await expect(svc(U.cmgr, (tx, p) => M.removeSummarySource(tx, p, client[0]!.id))).rejects.toThrow(/not found/);
+    await svc(U.cons, (tx, p) => M.removeSummarySource(tx, p, firm[0]!.id));
+    expect((await owner.query(`SELECT count(*) FROM meeting_summary_sources`)).rows[0].count).toBe("2");
   });
 
   it("are retired when the summary's text is rewritten", async () => {

@@ -10,7 +10,9 @@ import {
   meetingDecisions,
   meetingNotes,
   meetingSummaries,
+  meetingSummarySources,
   meetingTranscripts,
+  documents,
   meetings,
   projects,
   user,
@@ -221,18 +223,131 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .where(eq(followUps.meetingId, id))
     .orderBy(asc(followUps.createdAt));
   const canRun = principal.orgKind === "firm" || meeting.organizerId === principal.userId;
+  const sources = summary ? await summarySources(tx, id) : [];
+  // Files a summary line can cite: this project's, as row-level security shows them to firm staff who run it.
+  const sourceFiles =
+    summary && canRun && principal.orgKind === "firm"
+      ? await tx
+          .select({ id: documents.id, title: documents.title, version: documents.version })
+          .from(documents)
+          .where(
+            and(
+              eq(documents.projectId, meeting.projectId),
+              sql`not exists (select 1 from documents n where n.supersedes_id = ${documents.id})`,
+            ),
+          )
+          .orderBy(asc(documents.title))
+      : [];
   return {
     meeting,
     attendees,
     decisions,
     followUps: follow,
     summary: summary ?? null,
+    sources,
+    sourceFiles,
     notes,
     transcript: transcript ?? null,
     canRun,
     canFollowUp: principal.orgKind === "firm",
     me: principal.userId,
   };
+}
+
+// ------------------------------------------------- summary line sources
+
+const EXCERPT_CHARS = 400;
+
+/**
+ * Where each summary line came from, as the caller may see it: row-level
+ * security keeps transcript passages to the firm and file pages to people
+ * who can open the file.
+ */
+async function summarySources(tx: Tx, meetingId: string) {
+  const rows = await tx
+    .select({
+      id: meetingSummarySources.id,
+      line: meetingSummarySources.line,
+      kind: meetingSummarySources.kind,
+      transcriptStart: meetingSummarySources.transcriptStart,
+      transcriptEnd: meetingSummarySources.transcriptEnd,
+      documentId: meetingSummarySources.documentId,
+      documentVersion: meetingSummarySources.documentVersion,
+      page: meetingSummarySources.page,
+      documentTitle: documents.title,
+      // A newer version of the file has been uploaded since (a new row that supersedes this one).
+      superseded: sql<boolean>`exists (select 1 from documents n where n.supersedes_id = ${documents.id})`,
+    })
+    .from(meetingSummarySources)
+    .leftJoin(documents, eq(documents.id, meetingSummarySources.documentId))
+    .where(eq(meetingSummarySources.meetingId, meetingId))
+    .orderBy(asc(meetingSummarySources.line), asc(meetingSummarySources.kind), asc(meetingSummarySources.page));
+  const needsText = rows.some((r) => r.kind === "transcript");
+  const [t] = needsText
+    ? await tx
+        .select({ body: meetingTranscripts.body })
+        .from(meetingTranscripts)
+        .where(eq(meetingTranscripts.meetingId, meetingId))
+    : [];
+  return rows.map(({ superseded, ...r }) => ({
+    ...r,
+    // The passage itself, shortened; the transcript can be gone (deleted on schedule) while the pointer stays.
+    excerpt:
+      r.kind === "transcript" && t
+        ? t.body.slice(r.transcriptStart!, Math.min(r.transcriptEnd!, r.transcriptStart! + EXCERPT_CHARS))
+        : null,
+    // The page was cited in an older version of the file.
+    outdated: r.kind === "document" && superseded === true,
+  }));
+}
+
+export type SummarySourceInput =
+  | { line: number; kind: "transcript"; quote: string }
+  | { line: number; kind: "document"; documentId: string; page: number };
+
+/**
+ * Point a summary line at where it came from: a passage of the transcript,
+ * found by quoting it, or a page of a project file. Firm staff who run the
+ * meeting; the database checks the line, the passage and the file.
+ */
+export async function addSummarySource(tx: Tx, principal: Principal, meetingId: string, input: SummarySourceInput) {
+  const { meeting, resource } = await loadMeeting(tx, principal, meetingId);
+  if (principal.orgKind !== "firm") throw new NotFoundError("meeting");
+  assertAllowed(principal, "meeting.run", resource);
+  const base = { meetingId, projectId: meeting.projectId, orgId: meeting.orgId, line: input.line };
+  if (input.kind === "transcript") {
+    const [t] = await tx
+      .select({ body: meetingTranscripts.body })
+      .from(meetingTranscripts)
+      .where(eq(meetingTranscripts.meetingId, meetingId));
+    if (!t) throw new BadRequestError("import the transcript first");
+    const quote = input.quote.trim();
+    const at = quote ? t.body.indexOf(quote) : -1;
+    if (at < 0) throw new BadRequestError("that passage is not in the transcript; copy it exactly");
+    const [row] = await tx
+      .insert(meetingSummarySources)
+      .values({ ...base, kind: "transcript", transcriptStart: at, transcriptEnd: at + quote.length })
+      .returning({ id: meetingSummarySources.id });
+    return row!;
+  }
+  const [row] = await tx
+    .insert(meetingSummarySources)
+    .values({ ...base, kind: "document", documentId: input.documentId, page: input.page })
+    .returning({ id: meetingSummarySources.id });
+  return row!;
+}
+
+export async function removeSummarySource(tx: Tx, principal: Principal, sourceId: string) {
+  const [src] = await tx
+    .select({ meetingId: meetingSummarySources.meetingId })
+    .from(meetingSummarySources)
+    .where(eq(meetingSummarySources.id, sourceId));
+  if (!src) throw new NotFoundError("source");
+  const { resource } = await loadMeeting(tx, principal, src.meetingId);
+  if (principal.orgKind !== "firm") throw new NotFoundError("source");
+  assertAllowed(principal, "meeting.run", resource);
+  await tx.delete(meetingSummarySources).where(eq(meetingSummarySources.id, sourceId));
+  return { ok: true };
 }
 
 // ---------------------------------------------------------- transcripts

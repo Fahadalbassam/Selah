@@ -722,6 +722,32 @@
       "reopen": "Open again",
       "dueOn": "due {date}",
       "forDecisionN": "decision {n}"
+    },
+    "sources": {
+      "title": "Where each line came from",
+      "none": "No line points at a source yet.",
+      "line": "Line {n}",
+      "transcript": "Transcript passage",
+      "transcriptGone": "The transcript has been deleted; the pointer is kept.",
+      "file": "File page",
+      "filePage": "{title}, p. {n}",
+      "outdated": "Cited in an older version of the file.",
+      "remove": "Remove source",
+      "add": "Link a source",
+      "addHint": "Point a summary line at a passage of the transcript (firm only) or a page of a project file. Rewriting the summary removes its links.",
+      "whichLine": "Summary line",
+      "kind": "Source",
+      "quote": "Passage",
+      "quoteHint": "Copy the passage exactly as it appears in the transcript.",
+      "page": "Page",
+      "save": "Link",
+      "errors": {
+        "generic": "Something went wrong. Try again.",
+        "invalid": "Check the fields and try again.",
+        "notInTranscript": "That passage isn't in the transcript. Copy it exactly.",
+        "noLine": "The summary has no such line.",
+        "file": "Choose a file of this project and a page from 1."
+      }
     }
   },
   "assessment": {
@@ -960,6 +986,24 @@
       "reworded": "Reworded: not like for like",
       "pts": "pts",
       "unanswered": "{n} not answered yet in the later one."
+    }
+  },
+  "fileSummary": {
+    "open": "Summary",
+    "hint": "Each line cites the pages it rests on. Made once per file version and language, then kept.",
+    "page": "p. {n}",
+    "none": "No summary of this version in this language yet.",
+    "make": "Summarise",
+    "notSearchable": "This file's text can't be read, so it can't be searched or summarised.",
+    "notSearchableShort": "Text not readable",
+    "notIndexed": "This file hasn't been indexed yet.",
+    "notForAssistant": "This file isn't available to the assistant.",
+    "sources": "Sources",
+    "errors": {
+      "generic": "Something went wrong. Try again.",
+      "limit": "You've made the most summaries allowed this hour.",
+      "unavailable": "Summaries aren't available right now. Try again later.",
+      "noText": "This file has no readable text to summarise."
     }
   }
 }

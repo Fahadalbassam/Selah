@@ -20,6 +20,7 @@ import {
   RespondButtons,
   SummaryBlock,
 } from "./record-panels";
+import { SummarySources } from "./summary-sources";
 import { TranscriptPanel } from "./transcript-panel";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,7 +44,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     getTranslations("visibility"),
     getFormatter(),
   ]);
-  const { meeting, attendees, decisions, followUps, summary, transcript, canRun, canFollowUp, me } = data;
+  const { meeting, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, me } = data;
   const when = `${format.dateTime(meeting.startsAt, { dateStyle: "full", timeStyle: "short" })} – ${format.dateTime(meeting.endsAt, { timeStyle: "short" })}`;
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
@@ -209,6 +210,18 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                       })}{" "}
                       · {tVis(summary.visibility)}
                     </p>
+                    <SummarySources
+                      meetingId={meeting.id}
+                      // Numbered as the database numbers them: one per line, trailing newlines dropped.
+                      lines={summary.mainPointsMd
+                        .replace(/\n+$/, "")
+                        .split("\n")
+                        .map((l) => l.replace(/^\s*[-*•]\s+/, ""))}
+                      sources={sources}
+                      files={sourceFiles}
+                      canEdit={firm && canRun && held}
+                      hasTranscript={transcript !== null}
+                    />
                   </>
                 ) : null;
                 if (canRun && held)

@@ -29,13 +29,7 @@ function failed(key: string) {
   failedUntil.set(key, Date.now() + FAILURE_PAUSE_MS);
 }
 
-export async function summarizeDocument(
-  tx: Tx,
-  principal: Principal,
-  documentId: string,
-  lang: "ar" | "en",
-  summarizer: Summarizer = summarizePages,
-) {
+async function loadForSummary(tx: Tx, principal: Principal, documentId: string) {
   // Row-level security: a file the caller can't open is not found.
   const [doc] = await tx.select().from(documents).where(eq(documents.id, documentId));
   if (!doc) throw new NotFoundError("document");
@@ -48,16 +42,46 @@ export async function summarizeDocument(
     firmOrgId: project.firmOrgId,
     projectId: project.id,
   });
-  if (!doc.aiIndexable) throw new ConflictError("this file is not available to the assistant");
-  if (doc.textStatus === "not_searchable") throw new ConflictError("this file's text could not be read");
-  if (doc.textStatus !== "searchable") throw new ConflictError("this file has not been indexed yet");
+  return doc;
+}
 
+async function keptSummary(tx: Tx, doc: { id: string; sha256: string }, lang: "ar" | "en") {
   const [kept] = await tx
     .select()
     .from(documentSummaries)
     .where(
       and(eq(documentSummaries.documentId, doc.id), eq(documentSummaries.sha256, doc.sha256), eq(documentSummaries.lang, lang)),
     );
+  return kept ?? null;
+}
+
+/**
+ * The summary already made for the file's current version in this language,
+ * if any, and whether one can be made: never calls the model.
+ */
+export async function getDocumentSummary(tx: Tx, principal: Principal, documentId: string, lang: "ar" | "en") {
+  const doc = await loadForSummary(tx, principal, documentId);
+  const kept = await keptSummary(tx, doc, lang);
+  return {
+    aiIndexable: doc.aiIndexable,
+    textStatus: doc.textStatus,
+    summary: kept ? view(kept) : null,
+  };
+}
+
+export async function summarizeDocument(
+  tx: Tx,
+  principal: Principal,
+  documentId: string,
+  lang: "ar" | "en",
+  summarizer: Summarizer = summarizePages,
+) {
+  const doc = await loadForSummary(tx, principal, documentId);
+  if (!doc.aiIndexable) throw new ConflictError("this file is not available to the assistant");
+  if (doc.textStatus === "not_searchable") throw new ConflictError("this file's text could not be read");
+  if (doc.textStatus !== "searchable") throw new ConflictError("this file has not been indexed yet");
+
+  const kept = await keptSummary(tx, doc, lang);
   if (kept) return view(kept);
 
   const chunks = await tx
@@ -110,12 +134,7 @@ export async function summarizeDocument(
     .returning();
   // Someone else made it a moment earlier: use theirs.
   if (row) return view(row);
-  const [theirs] = await tx
-    .select()
-    .from(documentSummaries)
-    .where(
-      and(eq(documentSummaries.documentId, doc.id), eq(documentSummaries.sha256, doc.sha256), eq(documentSummaries.lang, lang)),
-    );
+  const theirs = await keptSummary(tx, doc, lang);
   if (!theirs) throw new NotFoundError("summary");
   return view(theirs);
 }
