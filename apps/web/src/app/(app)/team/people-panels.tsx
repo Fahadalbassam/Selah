@@ -86,12 +86,13 @@ const reasonField = (label: string, min = 1) => (
 );
 const field = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
 
-type Open = null | "email" | "off" | "twoFactor" | "erase";
+type Open = null | "email" | "nameAlt" | "off" | "twoFactor" | "erase";
 
 /** The menu of what an admin can do to one person. The server decides again. */
 export function PersonMenu(props: {
   userId: string;
   name: string;
+  nameAlt: string | null;
   active: boolean;
   canChange: boolean;
   canResetTwoFactor: boolean;
@@ -115,6 +116,7 @@ export function PersonMenu(props: {
           {props.active && props.canChange ? (
             <DropdownMenuItem onSelect={() => setOpen("email")}>{t("changeEmail")}</DropdownMenuItem>
           ) : null}
+          {props.canChange ? <DropdownMenuItem onSelect={() => setOpen("nameAlt")}>{t("nameAlt")}</DropdownMenuItem> : null}
           {props.active && props.canResetTwoFactor ? (
             <DropdownMenuItem onSelect={() => setOpen("twoFactor")}>{t("resetTwoFactor")}</DropdownMenuItem>
           ) : null}
@@ -153,6 +155,19 @@ export function PersonMenu(props: {
         <div className="grid gap-2">
           <Label htmlFor="p-email">{t("newEmail")}</Label>
           <Input id="p-email" name="newEmail" type="email" required maxLength={254} dir="ltr" />
+        </div>
+      </ActionDialog>
+      <ActionDialog
+        open={open === "nameAlt"}
+        onOpenChange={set}
+        title={`${t("nameAlt")}: ${props.name}`}
+        description={t("nameAltHint")}
+        submitLabel={t("save")}
+        send={(f) => callApi(`${base}/name-alt`, "PUT", { nameAlt: field(f, "nameAlt") })}
+      >
+        <div className="grid gap-2">
+          <Label htmlFor="p-name-alt">{t("nameAlt")}</Label>
+          <Input id="p-name-alt" name="nameAlt" maxLength={120} dir="auto" defaultValue={props.nameAlt ?? ""} />
         </div>
       </ActionDialog>
       <ActionDialog
