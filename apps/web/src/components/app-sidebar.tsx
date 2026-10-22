@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
 import { SidebarBrand } from "@/components/brand";
+import { FilesSidebarItem } from "@/components/file-explorer";
 import { NavUser, type NavUserProps } from "@/components/nav-user";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -70,6 +71,8 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   roleLabel: string;
   groups: NavGroup[];
   user: NavUserProps;
+  /** Which side of the workspace the person is on (the file explorer's wording). */
+  orgKind: "firm" | "client";
 }
 
 /**
@@ -77,7 +80,7 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
  * (sub-menus). The menu only reflects what the server decided this user may
  * open; it is not the access control.
  */
-export function AppSidebar({ appName, orgName, roleLabel, groups, user, ...props }: AppSidebarProps) {
+export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, ...props }: AppSidebarProps) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const current = search ? `${pathname}?${search}` : pathname;
@@ -152,6 +155,9 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, ...props
             </SidebarMenu>
           </SidebarGroup>
         ))}
+        <SidebarGroup className="mt-auto">
+          <FilesSidebarItem orgKind={orgKind} side={props.side === "right" ? "right" : "left"} />
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser {...user} />
