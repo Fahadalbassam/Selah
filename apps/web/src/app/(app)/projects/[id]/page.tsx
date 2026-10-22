@@ -11,6 +11,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
+import { AskAbout } from "@/components/ask-about";
 import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +145,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   <Badge variant="outline">
                     {t("priority")}: {tPrio(r.priority)}
                   </Badge>
+                  {firmStaff ? (
+                    <span className="ms-auto">
+                      <AskAbout projectId={project.id} type="recommendation" id={r.id} size="icon-sm" />
+                    </span>
+                  ) : null}
                 </div>
                 {r.rationale ? (
                   <Translatable entityType="recommendation" entityId={r.id} field="rationale" text={r.rationale} canReview={firmStaff} className="text-sm text-muted-foreground" />
@@ -285,6 +291,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   ) : null}
                   {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                   {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
+                  {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
                 </li>
               ))}
             </ul>

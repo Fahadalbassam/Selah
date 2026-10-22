@@ -20,6 +20,7 @@
     "job:index-documents": "tsx scripts/index-documents.ts",
     "job:mail": "tsx scripts/send-mail.ts",
     "job:metrics": "tsx scripts/metrics-snapshot.ts",
+    "job:purge-chats": "tsx scripts/purge-chats.ts",
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",
     "job:purge-minimal": "tsx scripts/purge-minimal.ts",
     "job:purge-transcripts": "tsx scripts/purge-transcripts.ts"

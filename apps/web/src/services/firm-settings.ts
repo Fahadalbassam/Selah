@@ -20,6 +20,9 @@ export const FIRM_SETTING_DEFAULTS = {
   restrictedMaxAdmins: 2,
   minimalPurgeDays: 90,
   transcriptKeepDays: 30,
+  chatArchiveDays: 30,
+  chatAfterCloseDays: 90,
+  chatIdleDeleteDays: 180,
 };
 export type FirmSettings = typeof FIRM_SETTING_DEFAULTS;
 export type FirmSettingsPatch = Partial<FirmSettings>;
