@@ -17,6 +17,7 @@ import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
+import { DocumentSummary, TextStatusBadge } from "./document-summary";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -224,6 +225,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                       {t("aiIndexed")}
                     </Badge>
                   ) : null}
+                  {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
+                  {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                 </li>
               ))}
             </ul>
