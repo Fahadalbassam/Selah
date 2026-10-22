@@ -61,6 +61,19 @@ describe("masking", () => {
     expect(m.mask("Refinanced by Al-Nukhba and Al-Nukhba Holding")).toBe("Refinanced by [ORG_1] and [ORG_2]");
   });
 
+  it("gives one placeholder to a record's names in both languages", () => {
+    const m = createMasker([
+      { kind: "ORG", term: "Al-Nukhba Holding", entity: "org:1" },
+      { kind: "ORG", term: "شركة النخبة القابضة", entity: "org:1" },
+      { kind: "ORG", term: "Rawdah Group", entity: "org:2" },
+      { kind: "PERSON", term: "Reem Al-Harbi", entity: "user:1" },
+    ]);
+    expect(m.mask("Al-Nukhba Holding (شركة النخبة القابضة) and Rawdah Group")).toBe("[ORG_1] ([ORG_1]) and [ORG_2]");
+    // A part of the name is the same person; the answer gets the name as first seen.
+    expect(m.mask("Reem Al-Harbi, then Reem")).toBe("[PERSON_1], then [PERSON_1]");
+    expect(m.unmask("[ORG_1] asked [PERSON_1]")).toBe("Al-Nukhba Holding asked Reem Al-Harbi");
+  });
+
   it("changes nothing when off", () => {
     const m = createMasker([]);
     expect(m.mask("Reem in Riyadh, 0551234567")).toBe("Reem in Riyadh, 0551234567");

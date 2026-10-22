@@ -3,6 +3,8 @@ Ollama for a hosted API is one new class and a config change. A hosted API
 sends text to an outside company: use it with sample data only unless
 firm approves."""
 
+import json
+import re
 from typing import Any, Protocol
 
 import httpx
@@ -62,6 +64,18 @@ class HostedChatLLM:
         return await self._local.embed(texts)
 
     async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
+        # Some providers accept response_format but ignore it (Ollama's cloud
+        # does, tested 2026-10-22), so the prompt also asks for JSON and the
+        # reply is checked here: one retry if it still isn't a JSON object.
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        raw = await self._complete(messages, schema)
+        found = json_object(raw)
+        if found is None:
+            retry = [*messages, {"role": "assistant", "content": raw}, {"role": "user", "content": RETRY_JSON}]
+            found = json_object(await self._complete(retry, schema))
+        return found if found is not None else raw
+
+    async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
         res = await self._client.post(
             "/chat/completions",
             json={
@@ -71,11 +85,29 @@ class HostedChatLLM:
                     "type": "json_schema",
                     "json_schema": {"name": "answer", "schema": schema, "strict": True},
                 },
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                "messages": messages,
             },
         )
         res.raise_for_status()
-        return res.json()["choices"][0]["message"]["content"]
+        return res.json()["choices"][0]["message"]["content"] or ""
+
+
+RETRY_JSON = "Your reply was not valid JSON. Reply again with the JSON object only, matching the format in the instructions."
+_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$")
+
+
+def json_object(raw: str) -> str | None:
+    """The JSON object in a model reply, tolerating a code fence or words
+    around it; None if there is no object."""
+    text = _FENCE.sub("", raw.strip())
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        return None
+    candidate = text[start : end + 1]
+    try:
+        return candidate if isinstance(json.loads(candidate), dict) else None
+    except json.JSONDecodeError:
+        return None
 
 
 def make_llm(settings: Settings) -> LLM:

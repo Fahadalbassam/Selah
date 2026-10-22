@@ -337,6 +337,13 @@
       "when": 1792690624000,
       "tag": "0047_assistant_chats_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792699000000,
+      "tag": "0048_mask_terms_entities",
+      "breakpoints": true
     }
   ]
 }

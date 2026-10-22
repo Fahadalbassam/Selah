@@ -231,6 +231,23 @@ describe("asking", () => {
     );
   });
 
+  it("says why an action is blocked when the action is the case", async () => {
+    await owner.query(`UPDATE actions SET status = 'blocked', blocked_reason = 'Waiting for the legal adviser' WHERE id = $1`, [ACT]);
+    try {
+      await ask(U.cons, { question: "Why is this blocked?", case: { type: "action", id: ACT } });
+      const record = sent[0]!.passages.find((p) => p.source === "action")!;
+      expect(record.text).toContain('Blocked because: "Waiting for the legal adviser"');
+    } finally {
+      await owner.query(`UPDATE actions SET status = 'in_progress', blocked_reason = NULL WHERE id = $1`, [ACT]);
+    }
+  });
+
+  it("can't confirm in the question's language when the language is auto", async () => {
+    reply = () => ({ answer: "x", cited_ids: [], grounded: false });
+    expect((await ask(U.cons, { question: "What is the dividend policy?", language: "auto" })).answer).toMatch(/can't confirm/);
+    expect((await ask(U.cons, { question: "ما سياسة توزيع الأرباح؟", language: "auto" })).answer).toMatch(/لا أستطيع/);
+  });
+
   it("says it can't confirm, and cites nothing, when the model isn't grounded", async () => {
     reply = () => ({ answer: "Probably yes.", cited_ids: ["P1"], grounded: false });
     const r = await ask(U.cons, { question: "Is it compliant?" });
@@ -392,6 +409,12 @@ describe("masking names before the model", () => {
     } finally {
       delete process.env.LLM_PROVIDER;
     }
+  });
+
+  it("gives a client's English and Arabic names one placeholder", async () => {
+    process.env.AI_MASKING = "on";
+    await ask(U.cons, { question: "Is Al-Nukhba Holding the same as شركة النخبة القابضة?" });
+    expect(sent[0]!.question).toBe("Is [ORG_1] the same as [ORG_1]?");
   });
 
   it("is on by default with a hosted model", async () => {

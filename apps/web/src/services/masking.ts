@@ -18,10 +18,10 @@ export function maskingOn(
 /**
  * The masking for one request about one project: its client and firm, their
  * people and contacts, and the client's departments (app_mask_terms,
- * drizzle/0047). Off, it changes nothing.
+ * drizzle/0047 and 0048). Off, it changes nothing.
  */
 export async function projectMasker(tx: Tx, projectId: string, on = maskingOn()): Promise<Masker> {
   if (!on) return createMasker([]);
-  const { rows } = await tx.execute<{ kind: string; term: string }>(sql`SELECT kind, term FROM app_mask_terms(${projectId})`);
+  const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`SELECT kind, term, entity FROM app_mask_terms(${projectId})`);
   return createMasker(rows, { places: true });
 }

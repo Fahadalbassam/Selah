@@ -41,6 +41,10 @@ Rights are applied before retrieval, never by a model:
 
 Each chat message is stored once with its language (`ar` or `en`). Messages from before the column were labelled from their script when it was added. An answer is shown in the other language through the translation cache (docs/translations.md), and only its owner can read either. An answer's citations name the file, its version and the page, or the record.
 
+When passages disagree (an approved version and a newer draft, say), the model gives each version with its citation and says which one the passages call approved, newer or a draft; it doesn't pick one silently or refuse. Passage ids such as `[P2]` are taken out of the answer's text, since the sources are listed under it. Under `language: "auto"`, "I can't confirm" is in the question's language, like answers.
+
+Hosted APIs don't all honour `response_format` (Ollama's cloud accepts it and ignores it), so the prompt asks for JSON too, and the AI service takes the JSON object out of the reply (a code fence or words around it are fine) and asks once more if there is none.
+
 A follow-up gets the chat's last 8 messages as context (`history`). They are never sources: the model is told not to cite them, and every turn searches again under the person's rights as they are now. Messages can't be edited by anyone (`UPDATE` is revoked).
 
 ## Chats
@@ -80,7 +84,7 @@ The firm should confirm the numbers with its own legal adviser before real clien
 
 When the model runs outside our server (`LLM_PROVIDER=openai_compat`, for example GPT-OSS on Ollama's cloud), the web app replaces known names with placeholders before anything leaves, and puts the names back in what comes back (`AI_MASKING=auto`, the default; `on` and `off` force it). People always see real names; only the model sees placeholders.
 
-- **What is masked:** the project's client and the firm (name, Arabic name, alias), their people and the client's contacts (full names, and name parts of 4+ letters), the client's departments (`app_mask_terms`, for a project the caller can see), main Saudi cities, email addresses and phone numbers. Longest name first; Latin names as whole words; Arabic names also after a prefix such as و or ل, with short vowels ignored.
+- **What is masked:** the project's client and the firm (name, Arabic name, alias), their people and the client's contacts (full names, and name parts of 4+ letters), the client's departments (`app_mask_terms`, for a project the caller can see), main Saudi cities, email addresses and phone numbers. Longest name first; Latin names as whole words; Arabic names also after a prefix such as و or ل, with short vowels ignored. All the names of one record share one placeholder (migration 0048), so "Al-Nukhba Holding" and "شركة النخبة القابضة" are both `[ORG_1]`; before that the model took them for two companies.
 - **Where:** the question, every passage and record, the chat history, translations and file summaries. Embeddings are made locally and don't leave the server.
 - **When:** at the moment of sending, from the current names, so a person or department added later is masked without re-indexing. The mapping lives only in that request.
 - **Proven by** `tests/db/assistant-chats.test.ts`: no known name reaches the model's payload, and placeholders in the answer come back as the names.
@@ -88,6 +92,8 @@ When the model runs outside our server (`LLM_PROVIDER=openai_compat`, for exampl
 Limits, to state plainly in the report:
 
 - It reduces what leaves; it doesn't guarantee anonymity. A name that isn't in Selah (a person mentioned only inside a file) is not masked, and unusual details can still identify a client.
+- Selah keeps one name per person. Someone registered in Arabic ("ريم الحربي") is not masked where a file spells them in English ("Reem Al-Harbi"), and a short form of a company name ("Al-Nukhba") is masked only if it is the company's alias.
+- The masking knows the project's own client. Another client's name typed into the question is sent as typed (nothing of that client is retrieved).
 - Under PDPL, pseudonymised data can still be personal data. Sending it abroad still needs the firm's approval.
 - The real fix is a model that runs on our server or is hosted in Saudi Arabia. The service already supports a local Ollama model; masking turns off by itself when it is used.
 
@@ -116,6 +122,17 @@ Only the firm adds them. Rewriting the summary's text drops its pointers, since 
 - `POST /api/meetings/:id/summary/sources` with `line` and either `kind: "transcript"` and `quote` (the passage copied from the transcript; the server finds its place) or `kind: "document"`, `documentId` and `page`.
 - `DELETE /api/meeting-summary-sources/:id`.
 - The meeting page lists each line's sources under the summary: a transcript passage opens its text (firm only), a file page opens the file at that page, marked when a newer version of the file has been uploaded since. Firm staff who run a held meeting link and remove them there.
+
+## Evaluating with a real model
+
+`scripts/assistant-eval/` asks the real pipeline as each seeded user: 39 questions (English, Arabic, mixed, exact terms, follow-ups, case chats, other clients, leak probes), 11 access probes, the language switch, and 10 questions again with masking off. First run, 2026-10-22, GPT-OSS-120B on Ollama's cloud with local bge-m3 embeddings: 38 of 39 answers correct on review, every access probe refused, no passage from another project retrieved, every name Selah knows masked, median answer 1.2 s (the model about 1.0 s, search 23 ms). The full report is linked from pull request #32 and lives in the project files.
+
+```sh
+cd apps/web
+npm run db:seed && npx tsx scripts/assistant-eval/seed.ts > /tmp/eval-ids.json && npm run job:index-documents
+# The AI service with LLM_PROVIDER=openai_compat, pointed at a logging proxy that appends each request to $PAYLOAD_LOG.
+CONTENT=/tmp/eval-ids.json PAYLOAD_LOG=… OUT=/tmp/eval.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/run.ts
+```
 
 ## Not done yet
 

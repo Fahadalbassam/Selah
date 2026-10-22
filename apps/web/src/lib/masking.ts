@@ -8,6 +8,8 @@ export type MaskKind = "ORG" | "PERSON" | "DEPT" | "PLACE" | "EMAIL" | "PHONE";
 export interface MaskTerm {
   kind: string;
   term: string;
+  /** The record the name belongs to: its names in both languages share one placeholder. */
+  entity?: string | null;
 }
 
 export interface Masker {
@@ -57,18 +59,21 @@ const normalise = (s: string) => s.replace(/\p{M}/gu, "").replace(/\s+/g, " ").t
 /** The masking a request uses. Without terms (masking off) both directions leave text as it is. */
 export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {}): Masker {
   const kindOf = new Map<string, MaskKind>();
-  const add = (kind: MaskKind, raw: string) => {
+  // The record each name belongs to, so "Al-Nukhba Holding" and "شركة النخبة القابضة" are one [ORG_n].
+  const entityOf = new Map<string, string>();
+  const add = (kind: MaskKind, raw: string, entity?: string | null) => {
     const term = normalise(raw);
     if (term.length < 3 || kindOf.has(term.toLowerCase())) return;
     kindOf.set(term.toLowerCase(), kind);
+    if (entity) entityOf.set(term.toLowerCase(), entity);
   };
   for (const t of terms) {
     const kind = (["ORG", "PERSON", "DEPT", "PLACE"].includes(t.kind) ? t.kind : "ORG") as MaskKind;
-    add(kind, t.term);
+    add(kind, t.term, t.entity);
     // "Reem Al-Harbi" is also written "Reem" or "Al-Harbi".
     if (kind === "PERSON") {
       for (const part of normalise(t.term).split(/\s+/)) {
-        if (part.length >= 4 && !NAME_PARTS_KEPT.has(part.toLowerCase())) add("PERSON", part);
+        if (part.length >= 4 && !NAME_PARTS_KEPT.has(part.toLowerCase())) add("PERSON", part, t.entity);
       }
     }
   }
@@ -93,7 +98,8 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
   const original = new Map<string, string>();
   const counts = new Map<MaskKind, number>();
   const placeholder = (kind: MaskKind, surface: string) => {
-    const key = `${kind}:${normalise(surface).toLowerCase()}`;
+    const name = normalise(surface).toLowerCase();
+    const key = entityOf.get(name) ?? `${kind}:${name}`;
     let p = placeholderOf.get(key);
     if (!p) {
       const n = (counts.get(kind) ?? 0) + 1;
