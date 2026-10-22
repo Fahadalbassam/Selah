@@ -24,6 +24,9 @@ export interface Settings {
   restrictedMaxAdmins: number;
   minimalPurgeDays: number;
   transcriptKeepDays: number;
+  chatArchiveDays: number;
+  chatAfterCloseDays: number;
+  chatIdleDeleteDays: number;
 }
 type Key = keyof Settings;
 
@@ -237,6 +240,24 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
           {days("transcriptKeepDays", "s-transcripts", 1, 90)}
         </Row>
         {err("records")}
+      </Section>
+
+      <Section
+        id="chats"
+        title={t("chats.title")}
+        description={t("chats.hint")}
+        send={save("chats", ["chatArchiveDays", "chatAfterCloseDays", "chatIdleDeleteDays"])}
+      >
+        <Row id="s-chat-archive" label={t("chats.archive")} hint={t("chats.archiveHint")}>
+          {days("chatArchiveDays", "s-chat-archive", 7, 365)}
+        </Row>
+        <Row id="s-chat-close" label={t("chats.afterClose")} hint={t("chats.afterCloseHint")}>
+          {days("chatAfterCloseDays", "s-chat-close", 0, 365)}
+        </Row>
+        <Row id="s-chat-idle" label={t("chats.idle")} hint={t("chats.idleHint")}>
+          {days("chatIdleDeleteDays", "s-chat-idle", 30, 730)}
+        </Row>
+        {err("chats")}
       </Section>
     </div>
   );

@@ -6,6 +6,7 @@ import type { Principal } from "@/authz";
 import { detectLang, isTranslatable } from "@/lib/translations";
 import { BadRequestError, NotFoundError, UnavailableError } from "@/server/errors";
 import { translateText } from "./ai-client";
+import { projectMasker } from "./masking";
 
 // On-demand translations (drizzle/0034_translations_rules.sql). The database
 // lets a person read or make a translation only while they can read the
@@ -63,7 +64,10 @@ export async function translate(tx: Tx, principal: Principal, r: TranslationRequ
 
   let made: { text: string; model: string };
   try {
-    made = await translateText(src.body, sourceLang, r.to);
+    // A hosted model gets placeholders for known names (docs/assistant.md).
+    const masker = await projectMasker(tx, src.projectId);
+    made = await translateText(masker.mask(src.body), sourceLang, r.to);
+    made = { ...made, text: masker.unmask(made.text) };
   } catch {
     throw new UnavailableError("translation is not available right now");
   }

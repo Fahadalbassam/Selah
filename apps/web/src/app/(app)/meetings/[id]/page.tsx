@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ApiButton } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
+import { AskAbout } from "@/components/ask-about";
 import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,9 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             <Badge variant="outline">{tVis(meeting.visibility)}</Badge>
           </>
         }
-      />
+      >
+        {firm ? <AskAbout projectId={meeting.projectId} type="meeting" id={meeting.id} /> : null}
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">

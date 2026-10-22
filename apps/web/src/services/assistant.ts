@@ -1,35 +1,63 @@
 import "server-only";
-import { and, cosineDistance, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { aiChunks, aiConversations, aiMessages, documents, projects } from "@/db/schema";
+import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
+import { chatTitle, fuse, keywordQuery } from "@/lib/assistant-search";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
-import { answer, embed, type Passage } from "./ai-client";
+import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
+import { projectMasker } from "./masking";
 
 const TOP_K = 8;
+// Each list of the hybrid search; the merge keeps TOP_K.
+const CANDIDATES = 20;
+// Linked records added after the search (the case first, then hops).
+const MAX_RECORDS = 3;
+// Earlier turns of the same chat given as context. Never as sources.
+const HISTORY_MESSAGES = 8;
 const CANNOT_CONFIRM = {
   ar: "لا أستطيع تأكيد ذلك من المصادر المتاحة لك.",
   en: "I can't confirm this from the sources available to you.",
 };
 
+export type CaseType = "recommendation" | "action" | "finding" | "meeting" | "document";
+export interface CaseRef {
+  type: CaseType;
+  id: string;
+}
+
 export interface AskInput {
   projectId: string;
   question: string;
   conversationId?: string;
+  /** Only when starting a chat: the record it is about. */
+  case?: CaseRef;
   language: "ar" | "en" | "auto";
+}
+
+export interface Citation {
+  /** The passage, for a file; null for a record. */
+  chunkId: string | null;
+  sourceType: string;
+  sourceId: string;
+  version: number;
+  page?: number | null;
 }
 
 /**
  * Answer a question from the project's permitted material.
  *
  *   1. authorize() decides the retrieval scope (same check as the rest of the app).
- *   2. The scope goes INSIDE the vector query's WHERE clause, and the query
- *      also runs under RLS, so other tenants' chunks are never scored.
- *   3. Only surviving passages go to the AI service, each with a short id.
- *   4. Cited ids are checked against the ids we supplied.
- *   5. No passages, or no valid citations: say so instead of guessing.
+ *   2. The scope goes INSIDE both search queries' WHERE clause, and they also
+ *      run under RLS, so other tenants' chunks are never scored.
+ *   3. Linked records (the chat's case, and the recommendations and actions
+ *      behind the files found) are read under the same RLS.
+ *   4. Only surviving passages go to the AI service, each with a short id.
+ *      Earlier turns of the chat go as context, never as sources.
+ *   5. Cited ids are checked against the ids we supplied.
+ *   6. No passages, or no valid citations: say so instead of guessing.
  */
 export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const [eng] = await tx.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
@@ -44,40 +72,52 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const scope = retrievalScope(principal, resource);
   if (!scope) throw new ForbiddenError("assistant.query", resource, "retrieval:no-scope");
 
+  const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId, eng.id) : null;
+  const caseRef = chat ? chat.caseRef : (input.case ?? null);
+
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
-  const chunks = await retrieve(tx, scope, vector);
+  const chunks = await retrieve(tx, scope, vector, { query: input.question, case: caseRef });
+  const records = await linkedRecords(tx, caseRef, chunks);
 
-  const passages: Passage[] = chunks.map((c, i) => ({
-    id: `P${i + 1}`,
-    text: c.content,
-    source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}`,
-  }));
-  const byPassageId = new Map(passages.map((p, i) => [p.id, chunks[i]!]));
+  const sources = [
+    ...chunks.map((c) => ({
+      text: c.content,
+      source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}`,
+      citation: { chunkId: c.id, sourceType: c.sourceType, sourceId: c.sourceId, version: c.sourceVersion, page: c.page },
+    })),
+    ...records.map((r) => ({
+      text: r.text,
+      source: r.type,
+      citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null },
+    })),
+  ];
+  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: s.text, source: s.source }));
+  const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation]));
+  const history = chat ? await recentTurns(tx, chat.id) : [];
 
   let text: string;
-  let cited: typeof chunks = [];
+  let citations: Citation[] = [];
   let grounded = false;
+  // A hosted model gets placeholders for known names, never the names (docs/assistant.md).
+  const masker = await projectMasker(tx, eng.id);
   if (passages.length > 0) {
-    const result = await answer(input.question, passages, input.language);
-    cited = result.cited_ids.flatMap((pid) => byPassageId.get(pid) ?? []);
-    grounded = result.grounded && cited.length > 0;
+    const result = await answer(
+      masker.mask(input.question),
+      passages.map((p) => ({ ...p, text: masker.mask(p.text) })),
+      input.language,
+      history.map((h) => ({ ...h, content: masker.mask(h.content) })),
+    );
+    result.answer = masker.unmask(result.answer);
+    citations = result.cited_ids.flatMap((pid) => byPassageId.get(pid) ?? []);
+    grounded = result.grounded && citations.length > 0;
     text = grounded ? result.answer : cannotConfirm(input.language);
+    if (!grounded) citations = [];
   } else {
     text = cannotConfirm(input.language);
   }
 
-  const citations = cited.map((c) => ({
-    chunkId: c.id,
-    sourceType: c.sourceType,
-    sourceId: c.sourceId,
-    version: c.sourceVersion,
-    page: c.page,
-  }));
-
-  const conversationId = input.conversationId
-    ? await ownConversation(tx, principal, input.conversationId, eng.id)
-    : await newConversation(tx, principal, eng.id);
+  const conversationId = chat?.id ?? (await newConversation(tx, principal, eng.id, input.question, input.case));
   // Each message is stored once, in its own language; the other comes from the translation cache.
   const answerLang = input.language === "auto" ? detectLang(text) : input.language;
   const saved = await tx
@@ -95,7 +135,14 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     resourceType: "project",
     resourceId: eng.id,
     outcome: "allow",
-    meta: { passages: passages.length, cited: citations.length, grounded },
+    meta: {
+      passages: chunks.length,
+      records: records.length,
+      cited: citations.length,
+      grounded,
+      turns: history.length / 2,
+      masked: masker.replaced,
+    },
   });
 
   // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").
@@ -103,53 +150,215 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations };
 }
 
-/** The permission filter lives in this WHERE clause, never after it. */
-export function retrieve(tx: Tx, scope: RetrievalScope, vector: number[]) {
-  return tx
-    .select({
-      id: aiChunks.id,
-      content: aiChunks.content,
-      sourceType: aiChunks.sourceType,
-      sourceId: aiChunks.sourceId,
-      sourceVersion: aiChunks.sourceVersion,
-      page: aiChunks.page,
-    })
-    .from(aiChunks)
-    .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)))
-    .where(
-      and(
-        eq(aiChunks.projectId, scope.projectId),
-        eq(aiChunks.orgId, scope.orgId),
-        inArray(aiChunks.visibility, [...scope.labels]),
-        or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
-        // The department rule (drizzle/0025), as in row-level security.
-        sql`app_dept_ok(${aiChunks.departmentId}, ${aiChunks.orgId})`,
-        // Document chunks must still be indexable, live and the current version.
-        or(
-          ne(aiChunks.sourceType, "document"),
-          and(
-            eq(documents.aiIndexable, true),
-            ne(documents.state, "archived"),
-            eq(documents.version, aiChunks.sourceVersion),
-          ),
-        ),
-      ),
-    )
-    .orderBy(cosineDistance(aiChunks.embedding, vector))
-    .limit(TOP_K);
+export interface RetrieveOptions {
+  /** The question's text, for the keyword half of the search. */
+  query?: string;
+  /** Passages of this record rank higher. */
+  case?: CaseRef | null;
 }
 
-async function newConversation(tx: Tx, principal: Principal, projectId: string) {
+/**
+ * Hybrid search: the nearest passages by meaning and the best keyword
+ * matches, merged by reciprocal rank. The permission filter lives in both
+ * WHERE clauses, never after them.
+ */
+export async function retrieve(tx: Tx, scope: RetrievalScope, vector: number[], opts: RetrieveOptions = {}) {
+  const fields = {
+    id: aiChunks.id,
+    content: aiChunks.content,
+    sourceType: aiChunks.sourceType,
+    sourceId: aiChunks.sourceId,
+    sourceVersion: aiChunks.sourceVersion,
+    page: aiChunks.page,
+  };
+  const base = () =>
+    tx
+      .select(fields)
+      .from(aiChunks)
+      .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)));
+  const where = (extra?: SQL) => and(scopeFilter(scope), extra);
+
+  const byMeaning = await base().where(where()).orderBy(cosineDistance(aiChunks.embedding, vector)).limit(CANDIDATES);
+  const words = opts.query ? keywordQuery(opts.query) : null;
+  const tsq = words ? sql`to_tsquery('simple', ${words})` : null;
+  const byWords = tsq
+    ? await base()
+        .where(where(sql`${aiChunks.tsv} @@ ${tsq}`))
+        .orderBy(desc(sql`ts_rank(${aiChunks.tsv}, ${tsq})`), asc(aiChunks.id))
+        .limit(CANDIDATES)
+    : [];
+  const c = opts.case;
+  return fuse([byMeaning, byWords], TOP_K, c ? (r) => r.sourceType === c.type && r.sourceId === c.id : undefined);
+}
+
+/** The retrieval scope as SQL, mirroring row-level security on ai_chunks. */
+function scopeFilter(scope: RetrievalScope) {
+  return and(
+    eq(aiChunks.projectId, scope.projectId),
+    eq(aiChunks.orgId, scope.orgId),
+    inArray(aiChunks.visibility, [...scope.labels]),
+    or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
+    // The department rule (drizzle/0025), as in row-level security.
+    sql`app_dept_ok(${aiChunks.departmentId}, ${aiChunks.orgId})`,
+    // Document chunks must still be indexable, live and the current version.
+    or(
+      ne(aiChunks.sourceType, "document"),
+      and(eq(documents.aiIndexable, true), ne(documents.state, "archived"), eq(documents.version, aiChunks.sourceVersion)),
+    ),
+  );
+}
+
+// ------------------------------------------------------- linked records
+
+interface RecordPassage {
+  type: "recommendation" | "action" | "finding" | "meeting";
+  id: string;
+  text: string;
+}
+
+const day = (d: unknown) => (d ? String(d instanceof Date ? d.toISOString() : d).slice(0, 10) : null);
+const clip = (s: string | null | undefined, n: number) => {
+  const t = (s ?? "").replace(/\s+/g, " ").trim();
+  return t.length <= n ? t : `${t.slice(0, n - 1)}…`;
+};
+
+/**
+ * What the firm did about what was found: the chat's case, then the
+ * recommendations (through their findings) and actions (through their
+ * evidence) that point at the files found. Read under the person's own
+ * row-level security, a few rows each, so the model never gets the whole project.
+ */
+export async function linkedRecords(tx: Tx, caseRef: CaseRef | null, chunks: { sourceType: string; sourceId: string }[]) {
+  const wanted: { type: RecordPassage["type"]; id: string }[] = [];
+  if (caseRef && caseRef.type !== "document") wanted.push({ type: caseRef.type, id: caseRef.id });
+
+  const docIds = [...new Set(chunks.filter((c) => c.sourceType === "document").map((c) => c.sourceId))].slice(0, 3);
+  if (docIds.length) {
+    const ids = sql`ARRAY[${sql.join(docIds.map((d) => sql`${d}::uuid`), sql`, `)}]`;
+    const recs = await tx.execute<{ id: string }>(sql`
+      SELECT DISTINCT r.id FROM recommendations r JOIN findings f ON f.id = r.finding_id
+      WHERE f.source_document_id = ANY(${ids}) LIMIT 2`);
+    const acts = await tx.execute<{ id: string }>(sql`
+      SELECT DISTINCT a.id FROM evidence_submissions e JOIN actions a ON a.id = e.action_id
+      WHERE e.document_id = ANY(${ids}) LIMIT 2`);
+    for (const r of recs.rows) wanted.push({ type: "recommendation", id: r.id });
+    for (const a of acts.rows) wanted.push({ type: "action", id: a.id });
+  }
+
+  const out: RecordPassage[] = [];
+  const seen = new Set<string>();
+  for (const w of wanted) {
+    if (out.length >= MAX_RECORDS) break;
+    const key = `${w.type}:${w.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const text = await describe(tx, w.type, w.id);
+    if (text) out.push({ ...w, text });
+  }
+  return out;
+}
+
+async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promise<string | null> {
+  switch (type) {
+    case "recommendation": {
+      const [r] = (
+        await tx.execute<{ title: string; priority: string; due_date: string | null }>(
+          sql`SELECT title, priority, due_date FROM recommendations WHERE id = ${id}`,
+        )
+      ).rows;
+      if (!r) return null;
+      return `Recommendation "${clip(r.title, 200)}" (priority ${r.priority}${r.due_date ? `, due ${day(r.due_date)}` : ""}). Actions: ${await actionList(tx, id)}.`;
+    }
+    case "action": {
+      const [a] = (
+        await tx.execute<{ title: string; status: string; due_date: string | null; rec: string | null }>(sql`
+          SELECT a.title, a.status, a.due_date, r.title AS rec
+          FROM actions a LEFT JOIN recommendations r ON r.id = a.recommendation_id WHERE a.id = ${id}`)
+      ).rows;
+      if (!a) return null;
+      const [rev] = (
+        await tx.execute<{ outcome: string; created_at: string }>(
+          sql`SELECT outcome, created_at FROM reviews WHERE action_id = ${id} ORDER BY created_at DESC LIMIT 1`,
+        )
+      ).rows;
+      const [upd] = (
+        await tx.execute<{ body: string; created_at: string }>(
+          sql`SELECT body, created_at FROM progress_updates WHERE action_id = ${id} ORDER BY created_at DESC LIMIT 1`,
+        )
+      ).rows;
+      return [
+        `Action "${clip(a.title, 200)}": status ${a.status}${a.due_date ? `, due ${day(a.due_date)}` : ""}.`,
+        a.rec ? `It belongs to recommendation "${clip(a.rec, 200)}".` : "",
+        rev ? `Last review: ${rev.outcome} on ${day(rev.created_at)}.` : "No review yet.",
+        upd ? `Last progress update (${day(upd.created_at)}): "${clip(upd.body, 300)}"` : "No progress update yet.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+    case "finding": {
+      const [f] = (
+        await tx.execute<{ title: string; description: string | null }>(
+          sql`SELECT title, description FROM findings WHERE id = ${id}`,
+        )
+      ).rows;
+      if (!f) return null;
+      const recs = (
+        await tx.execute<{ title: string }>(
+          sql`SELECT title FROM recommendations WHERE finding_id = ${id} ORDER BY created_at LIMIT 4`,
+        )
+      ).rows;
+      return `Finding "${clip(f.title, 200)}"${f.description ? `: ${clip(f.description, 400)}` : "."} Recommendations: ${
+        recs.length ? recs.map((r) => `"${clip(r.title, 120)}"`).join("; ") : "none recorded"
+      }.`;
+    }
+    case "meeting": {
+      const [m] = (
+        await tx.execute<{ title: string; starts_at: string }>(sql`SELECT title, starts_at FROM meetings WHERE id = ${id}`)
+      ).rows;
+      if (!m) return null;
+      const decisions = (
+        await tx.execute<{ text: string }>(
+          sql`SELECT text FROM meeting_decisions WHERE meeting_id = ${id} ORDER BY created_at LIMIT 5`,
+        )
+      ).rows;
+      return `Meeting "${clip(m.title, 200)}" on ${day(m.starts_at)}. Decisions: ${
+        decisions.length ? decisions.map((d) => `"${clip(d.text, 200)}"`).join("; ") : "none recorded"
+      }.`;
+    }
+  }
+}
+
+async function actionList(tx: Tx, recommendationId: string) {
+  const rows = (
+    await tx.execute<{ title: string; status: string; due_date: string | null }>(sql`
+      SELECT title, status, due_date FROM actions WHERE recommendation_id = ${recommendationId}
+      ORDER BY created_at LIMIT 6`)
+  ).rows;
+  if (!rows.length) return "none recorded";
+  return rows
+    .map((a) => `"${clip(a.title, 120)}" ${a.status}${a.due_date ? ` (due ${day(a.due_date)})` : ""}`)
+    .join("; ");
+}
+
+// --------------------------------------------------------------- chats
+
+async function newConversation(tx: Tx, principal: Principal, projectId: string, question: string, caseRef?: CaseRef) {
   const [row] = await tx
     .insert(aiConversations)
-    .values({ userId: principal.userId, projectId })
+    .values({
+      userId: principal.userId,
+      projectId,
+      title: chatTitle(question),
+      caseType: caseRef?.type ?? null,
+      caseId: caseRef?.id ?? null,
+    })
     .returning({ id: aiConversations.id });
   return row!.id;
 }
 
 async function ownConversation(tx: Tx, principal: Principal, id: string, projectId: string) {
   const [row] = await tx
-    .select({ id: aiConversations.id })
+    .select({ id: aiConversations.id, caseType: aiConversations.caseType, caseId: aiConversations.caseId })
     .from(aiConversations)
     .where(
       and(
@@ -160,9 +369,236 @@ async function ownConversation(tx: Tx, principal: Principal, id: string, project
     )
     .limit(1);
   if (!row) throw new NotFoundError("conversation");
-  return row.id;
+  const caseRef: CaseRef | null = row.caseType && row.caseId ? { type: row.caseType, id: row.caseId } : null;
+  return { id: row.id, caseRef };
+}
+
+/** The chat's last few messages, oldest first, as context for a follow-up. */
+async function recentTurns(tx: Tx, conversationId: string): Promise<HistoryTurn[]> {
+  const rows = await tx
+    .select({ role: aiMessages.role, content: aiMessages.content })
+    .from(aiMessages)
+    .where(eq(aiMessages.conversationId, conversationId))
+    .orderBy(desc(aiMessages.createdAt), asc(aiMessages.role)) // a question and its answer share a time
+    .limit(HISTORY_MESSAGES);
+  return rows.reverse().map((m) => ({ role: m.role, content: clip(m.content, 1000) }));
 }
 
 function cannotConfirm(language: AskInput["language"]) {
   return language === "en" ? CANNOT_CONFIRM.en : CANNOT_CONFIRM.ar;
+}
+
+/** The person's chats, newest first: the open ones, or the archived ones. */
+export async function listConversations(tx: Tx, principal: Principal, opts: { archived: boolean }) {
+  // Row-level security keeps this to the person's own chats in projects they can still see.
+  return tx
+    .select({
+      id: aiConversations.id,
+      title: aiConversations.title,
+      projectId: aiConversations.projectId,
+      projectTitle: projects.title,
+      projectKind: projects.kind,
+      orgName: organizations.name,
+      orgNameAr: organizations.nameAr,
+      caseType: aiConversations.caseType,
+      caseId: aiConversations.caseId,
+      keep: aiConversations.keep,
+      archivedAt: aiConversations.archivedAt,
+      lastMessageAt: aiConversations.lastMessageAt,
+      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId})`,
+    })
+    .from(aiConversations)
+    .innerJoin(projects, eq(projects.id, aiConversations.projectId))
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .where(
+      and(
+        eq(aiConversations.userId, principal.userId),
+        opts.archived ? isNotNull(aiConversations.archivedAt) : isNull(aiConversations.archivedAt),
+      ),
+    )
+    .orderBy(desc(aiConversations.lastMessageAt))
+    .limit(200);
+}
+
+export interface ShownCitation extends Citation {
+  label: string | null;
+  /** False when the person can no longer open the source. */
+  available: boolean;
+  /** For a file: true when a newer version has been uploaded since. */
+  newer?: boolean;
+}
+
+/**
+ * One chat with its messages. An answer in the other language comes with its
+ * kept translation when there is one (no model call). Each citation is checked
+ * again: a source the person can no longer open is marked, without a title.
+ */
+export async function getConversation(tx: Tx, principal: Principal, id: string, locale: "ar" | "en") {
+  const [chat] = await tx
+    .select({
+      id: aiConversations.id,
+      title: aiConversations.title,
+      projectId: aiConversations.projectId,
+      projectTitle: projects.title,
+      orgName: organizations.name,
+      orgNameAr: organizations.nameAr,
+      caseType: aiConversations.caseType,
+      caseId: aiConversations.caseId,
+      keep: aiConversations.keep,
+      archivedAt: aiConversations.archivedAt,
+      lastMessageAt: aiConversations.lastMessageAt,
+      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId})`,
+    })
+    .from(aiConversations)
+    .innerJoin(projects, eq(projects.id, aiConversations.projectId))
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, principal.userId)));
+  if (!chat) throw new NotFoundError("conversation");
+
+  const messages = await tx
+    .select({
+      id: aiMessages.id,
+      role: aiMessages.role,
+      content: aiMessages.content,
+      lang: aiMessages.lang,
+      citations: aiMessages.citations,
+      createdAt: aiMessages.createdAt,
+    })
+    .from(aiMessages)
+    .where(eq(aiMessages.conversationId, id))
+    .orderBy(asc(aiMessages.createdAt), desc(aiMessages.role)); // the question before its answer
+
+  const kept = await keptTranslations(
+    tx,
+    messages.filter((m) => m.role === "assistant" && m.lang !== locale).map((m) => m.id),
+    locale,
+  );
+  const all = messages.flatMap((m) => (m.citations ?? []) as Citation[]);
+  const labels = await citationLabels(tx, all);
+  const caseLabel =
+    chat.caseType && chat.caseId
+      ? (await citationLabels(tx, [{ chunkId: null, sourceType: chat.caseType, sourceId: chat.caseId, version: 1 }])).get(
+          `${chat.caseType}:${chat.caseId}`,
+        )
+      : null;
+
+  return {
+    ...chat,
+    caseLabel: caseLabel?.label ?? null,
+    messages: messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      lang: m.lang as "ar" | "en",
+      createdAt: m.createdAt,
+      translation: kept.get(m.id) ?? null,
+      citations: ((m.citations ?? []) as Citation[]).map((c): ShownCitation => {
+        const l = labels.get(`${c.sourceType}:${c.sourceId}`);
+        return {
+          ...c,
+          chunkId: c.chunkId ?? null,
+          label: l?.label ?? null,
+          available: Boolean(l),
+          ...(c.sourceType === "document" && l ? { newer: (l.version ?? 1) > c.version } : {}),
+        };
+      }),
+    })),
+  };
+}
+
+async function keptTranslations(tx: Tx, ids: string[], locale: "ar" | "en") {
+  const out = new Map<string, { id: string; text: string; reviewed: boolean }>();
+  if (!ids.length) return out;
+  // Only a translation of the text as it is now (its hash), read under the source's rules.
+  const { rows } = await tx.execute<{ entity_id: string; id: string; text: string; reviewed_by: string | null }>(sql`
+    SELECT t.entity_id, t.id, t.text, t.reviewed_by FROM content_translations t
+    JOIN ai_messages m ON m.id = t.entity_id
+    WHERE t.entity_type = 'ai_message' AND t.field = 'content' AND t.target_lang = ${locale}
+      AND t.entity_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}])
+      AND t.source_sha256 = encode(sha256(convert_to(m.content, 'UTF8')), 'hex')`);
+  for (const r of rows) out.set(r.entity_id, { id: r.id, text: r.text, reviewed: r.reviewed_by !== null });
+  return out;
+}
+
+/** Titles of cited sources the person can still open, keyed "type:id". */
+async function citationLabels(tx: Tx, cites: Citation[]) {
+  const out = new Map<string, { label: string; version?: number }>();
+  const ids = (type: string) => [...new Set(cites.filter((c) => c.sourceType === type).map((c) => c.sourceId))];
+  const list = (xs: string[]) => sql`ARRAY[${sql.join(xs.map((i) => sql`${i}::uuid`), sql`, `)}]`;
+  const tables: [string, SQL][] = [
+    ["document", sql`SELECT id, title, version FROM documents`],
+    ["recommendation", sql`SELECT id, title, NULL::int AS version FROM recommendations`],
+    ["action", sql`SELECT id, title, NULL::int AS version FROM actions`],
+    ["finding", sql`SELECT id, title, NULL::int AS version FROM findings`],
+    ["meeting", sql`SELECT id, title, NULL::int AS version FROM meetings`],
+  ];
+  for (const [type, select] of tables) {
+    const xs = ids(type);
+    if (!xs.length) continue;
+    const { rows } = await tx.execute<{ id: string; title: string; version: number | null }>(
+      sql`${select} WHERE id = ANY(${list(xs)})`,
+    );
+    for (const r of rows) out.set(`${type}:${r.id}`, { label: r.title, version: r.version ?? undefined });
+  }
+  // A newer version of a file is a new row that supersedes it.
+  const docs = ids("document");
+  if (docs.length) {
+    const { rows } = await tx.execute<{ supersedes_id: string; version: number }>(
+      sql`SELECT supersedes_id, max(version) AS version FROM documents WHERE supersedes_id = ANY(${list(docs)}) GROUP BY supersedes_id`,
+    );
+    for (const r of rows) {
+      const cur = out.get(`document:${r.supersedes_id}`);
+      if (cur) cur.version = Math.max(cur.version ?? 1, r.version);
+    }
+  }
+  return out;
+}
+
+export async function updateConversation(
+  tx: Tx,
+  principal: Principal,
+  id: string,
+  patch: { title?: string; keep?: boolean; archived?: boolean },
+) {
+  const set: Partial<typeof aiConversations.$inferInsert> = {};
+  if (patch.title !== undefined) set.title = patch.title;
+  if (patch.keep !== undefined) set.keep = patch.keep;
+  if (patch.archived !== undefined) set.archivedAt = patch.archived ? new Date() : null;
+  const rows = await tx
+    .update(aiConversations)
+    .set(set)
+    .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, principal.userId)))
+    .returning({ id: aiConversations.id });
+  if (!rows.length) throw new NotFoundError("conversation");
+  return { id };
+}
+
+/** The owner deletes a chat now. Its translations go with its messages. */
+export async function deleteConversation(tx: Tx, principal: Principal, id: string) {
+  const rows = await tx
+    .delete(aiConversations)
+    .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, principal.userId)))
+    .returning({ id: aiConversations.id, projectId: aiConversations.projectId });
+  if (!rows.length) throw new NotFoundError("conversation");
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "assistant.chat_deleted",
+    resourceType: "ai_conversation",
+    resourceId: id,
+    outcome: "allow",
+    meta: { project: rows[0]!.projectId },
+  });
+  return { id };
+}
+
+/** The title of a record a new chat would be about, if the person can see it in that project. */
+export async function caseLabel(tx: Tx, projectId: string, ref: CaseRef): Promise<string | null> {
+  const table = { recommendation: "recommendations", action: "actions", finding: "findings", meeting: "meetings", document: "documents" }[
+    ref.type
+  ];
+  const { rows } = await tx.execute<{ title: string }>(
+    sql`SELECT title FROM ${sql.identifier(table)} WHERE id = ${ref.id} AND project_id = ${projectId}`,
+  );
+  return rows[0]?.title ?? null;
 }

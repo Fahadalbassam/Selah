@@ -37,8 +37,19 @@ const answerSchema = z.object({
 
 export type Answer = z.infer<typeof answerSchema>;
 
-export function answer(question: string, passages: Passage[], language: "ar" | "en" | "auto"): Promise<Answer> {
-  return call("/v1/answer", { question, passages, language }, answerSchema);
+/** An earlier turn of the same chat: context for a follow-up, never a source. */
+export interface HistoryTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export function answer(
+  question: string,
+  passages: Passage[],
+  language: "ar" | "en" | "auto",
+  history: HistoryTurn[] = [],
+): Promise<Answer> {
+  return call("/v1/answer", { question, passages, language, history }, answerSchema);
 }
 
 export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {
