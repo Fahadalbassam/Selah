@@ -5,6 +5,7 @@ import {
   Building2,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   FolderKanban,
   LayoutDashboard,
   ListChecks,
@@ -40,6 +41,7 @@ const ICONS = {
   clients: Building2,
   actions: ListChecks,
   review: ClipboardCheck,
+  templates: ClipboardList,
   assistant: Bot,
   team: Users,
 } satisfies Record<string, LucideIcon>;

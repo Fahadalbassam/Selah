@@ -1,4 +1,4 @@
-import { Bot, CalendarDays, CalendarPlus, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
+import { Bot, CalendarDays, CalendarPlus, ClipboardList, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -12,18 +12,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
+import { listAssessments, listTemplates } from "@/services/assessments";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
+import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings, invitees, me } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings, invitees, me, assessments, templates } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
+    const client = data.project.kind === "client";
     return {
+      // Client projects only; roles that can't read assessments get no tab.
+      assessments: client ? await listAssessments(tx, principal, id).catch(() => null) : null,
+      // Published templates to start from, for firm staff.
+      templates:
+        client && principal.orgKind === "firm"
+          ? (await listTemplates(tx, principal)).templates.filter((x) => x.published && !x.archivedAt)
+          : null,
       data,
       team: await getProjectTeam(tx, principal, id),
       firmStaff: principal.orgKind === "firm",
@@ -34,7 +44,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       me: principal.userId,
     };
   });
-  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, format] = await Promise.all([
+  const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("staffing"),
     getTranslations("visibility"),
@@ -42,6 +52,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("priority"),
     getTranslations("status"),
     getTranslations("meeting"),
+    getTranslations("assessment.run"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -76,6 +87,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <TabsList>
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
           {meetings ? <TabsTrigger value="meetings">{t("meetings")}</TabsTrigger> : null}
+          {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
           {team ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
@@ -142,6 +154,46 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                     <Badge variant="outline" className="ms-auto">
                       {tMeeting(`status.${m.status}`)}
                     </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+        ) : null}
+
+        {assessments ? (
+          <TabsContent value="assessments" className="space-y-4">
+            {templates ? (
+              <div className="flex justify-end">
+                <StartAssessment
+                  projectId={project.id}
+                  templates={templates.map((x) => ({ id: x.id, label: (ar ? x.nameAr : null) ?? x.name }))}
+                />
+              </div>
+            ) : null}
+            {assessments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{firmStaff ? t("noAssessments") : t("noAssessmentsClient")}</p>
+            ) : (
+              <ul className="divide-y rounded-lg border bg-card">
+                {assessments.map((x) => (
+                  <li key={x.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                    <ClipboardList className="size-4 text-muted-foreground" />
+                    <Link href={`/assessments/${x.id}`} className="font-medium hover:underline">
+                      {x.title}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {(ar ? x.templateNameAr : null) ?? x.templateName} · v{x.version} ·{" "}
+                      {format.dateTime(x.createdAt, { dateStyle: "medium" })}
+                    </span>
+                    <span className="ms-auto flex items-center gap-2">
+                      {x.total ? (
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {x.total.pct === null ? "—" : `${x.total.pct}%`} · {tRun("gapsCount", { n: x.total.gaps })}
+                        </span>
+                      ) : null}
+                      {firmStaff && x.sharedWithClient ? <Badge variant="outline">{tRun("sharedWithClient")}</Badge> : null}
+                      <Badge variant={x.status === "draft" ? "outline" : "secondary"}>{tRun(`status.${x.status}`)}</Badge>
+                    </span>
                   </li>
                 ))}
               </ul>

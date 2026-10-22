@@ -85,7 +85,7 @@ export async function createClient(
 /** One client's team, the consultants who could join it, and its pending requests. */
 export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: string) {
   const [client] = await tx
-    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr })
+    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, legalForm: organizations.legalForm })
     .from(organizations)
     .where(and(eq(organizations.id, clientOrgId), eq(organizations.kind, "client")))
     .limit(1);
@@ -141,7 +141,14 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
     requests,
     projects: clientProjects,
     watching,
-    can: { manage: canManage, setLead: canSetLead, decide: canDecide, watch: canWatch },
+    can: {
+      manage: canManage,
+      setLead: canSetLead,
+      decide: canDecide,
+      watch: canWatch,
+      // The legal form decides which criteria bind this client (docs/assessments.md).
+      setLegalForm: authorize(principal, "organization.engagement", { ...resource, type: "organization" }).allowed,
+    },
   };
 }
 

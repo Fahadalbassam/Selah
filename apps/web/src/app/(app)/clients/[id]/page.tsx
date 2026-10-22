@@ -1,4 +1,4 @@
-import { ArrowLeft, Crown, Eye, EyeOff, UserPlus } from "lucide-react";
+import { ArrowLeft, Crown, Eye, EyeOff, Pencil, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LEGAL_FORMS } from "@/lib/assessments";
 import { withPrincipal } from "@/server/page";
 import { getClientTeam } from "@/services/staffing";
 
@@ -17,7 +18,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   if (!UUID.test(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => (principal.orgKind === "firm" ? await getClientTeam(tx, principal, id) : null));
   if (!data) notFound();
-  const [t, tc, format] = await Promise.all([getTranslations("staffing"), getTranslations("clients"), getFormatter()]);
+  const [t, tc, tq, format] = await Promise.all([
+    getTranslations("staffing"),
+    getTranslations("clients"),
+    getTranslations("assessment.question"),
+    getFormatter(),
+  ]);
   const ar = (await getLocale()) === "ar";
   const { client, can } = data;
 
@@ -138,6 +144,43 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           ) : null}
         </div>
 
+        <div className="space-y-6">
+        <Card className="h-fit gap-4 py-5 shadow-xs">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base">{tq("legalFormTitle")}</CardTitle>
+              <CardDescription>{tq("legalFormHint")}</CardDescription>
+            </div>
+            {can.setLegalForm ? (
+              <FormDialog
+                trigger={
+                  <Button size="sm" variant="outline">
+                    <Pencil />
+                    {tq("change")}
+                  </Button>
+                }
+                title={tq("legalFormTitle")}
+                description={tq("legalFormHint")}
+                endpoint={`/api/orgs/${client.id}/legal-form`}
+                method="PUT"
+                fields={[
+                  {
+                    name: "legalForm",
+                    label: tq("legalFormTitle"),
+                    type: "select",
+                    required: true,
+                    defaultValue: client.legalForm ?? undefined,
+                    options: LEGAL_FORMS.map((f) => ({ value: f, label: tq(`forms.${f}`) })),
+                  },
+                ]}
+                submitLabel={tq("save")}
+              />
+            ) : null}
+          </CardHeader>
+          <CardContent className="px-5 text-sm">
+            {client.legalForm ? tq(`forms.${client.legalForm}`) : <span className="text-muted-foreground">{tq("notRecorded")}</span>}
+          </CardContent>
+        </Card>
         <Card className="h-fit gap-4 py-5 shadow-xs">
           <CardHeader className="px-5">
             <CardTitle className="text-base">{t("clientProjects")}</CardTitle>
@@ -151,6 +194,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </CardContent>
         </Card>
+        </div>
       </div>
     </>
   );
