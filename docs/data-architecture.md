@@ -10,9 +10,9 @@ Where Selah keeps its data, how firm and client data are kept apart, how files a
 | Are firm and client data separated? | Yes, by row, not by database. Every client-owned row carries the client's `org_id` and a `project_id`. Row-level security (RLS) in Postgres hides every row the signed-in person may not see. |
 | Are we adding collections? | No. "Collection" is a MongoDB word. The Postgres equivalent is a **table**, and Selah has about 75 of them. Clients don't get their own tables. All clients share each table, and each row is tagged with its client. |
 | Does each consultant get their own space? | No. Consultants are firm users, not tenants. What a consultant sees is worked out on each request from `client_assignments` (which clients they are on) and `project_members` (which projects they are staffed on). |
-| How many buckets? | One private bucket today (`selah-evidence`). **[Proposed]** Three: files, backups, and a separate one for development. See [Bucket and folder layout](#bucket-and-folder-layout-either-store-proposed). |
+| How many buckets? | One private bucket today (`selah-evidence`). **[Proposed]** Two buckets, files and development, plus encrypted backups on a second machine. See [Bucket and folder layout](#bucket-and-folder-layout-either-store-proposed). |
 | A folder per client? | Not today. Files are stored under random keys with no folders. **[Proposed]** Use a `org/<client>/project/<project>/` prefix per file, for exports, deletion and backups. Prefixes don't add security; the database check does. |
-| Is R2 used? | No. The code speaks the S3 protocol, so the store can be RustFS on the server (today, in `docker-compose.yml`) or Cloudflare R2 by changing `.env`. Which one to use is an open decision, see [R2 or self-hosted](#r2-or-self-hosted-storage). |
+| Is R2 used? | No. The code speaks the S3 protocol, so the store can be RustFS on the server (today, in `docker-compose.yml`) or Cloudflare R2 by changing `.env`. **Decided 2026-10-22: self-hosted** on the Legion laptop, with backups to a second laptop. See [R2 or self-hosted](#r2-or-self-hosted-storage). |
 | Can file access be secured? | Yes, and it already is. The bucket is private. A file is opened only through a one-minute signed link, which the server issues after checking the person's rights, and every download is audited. |
 | Can the AI see the database or the bucket? | No. The AI service has no storage keys and no database connection. For each question the web app, acting as the signed-in person, searches under that person's rights and hands the model only the passages that survive. See [What the assistant can reach](#what-the-assistant-can-reach). |
 
@@ -127,6 +127,8 @@ None of these change who can see what. They change how the same rules are stored
 
 ## 4. R2 or self-hosted storage
 
+**Decision (Fahad, 2026-10-22): self-hosted.** Files stay on our own machine in RustFS, with the bucket and folder layout below, so moving to R2 later is a settings change. The server is the Legion laptop, and backups go to a second laptop (the Lenovo) over a LAN cable, see [Backups](#backups-self-hosted-proposed). Neither machine is running Selah yet. The comparison is kept here for the record.
+
 **RustFS is not a cloud service.** It is a small program, run here in Docker, that turns a folder on a disk into an S3-style bucket. It is the self-hosted twin of R2, and Selah talks to both the same way. With RustFS, the files live on whatever machine runs it. Today that is the team's Linux server, the same machine as the database.
 
 ### Comparison
@@ -143,9 +145,9 @@ None of these change who can see what. They change how the same rules are stored
 
 **Is R2 secure enough?** Yes. The open question about R2 was never its security. It is where real client data is allowed to live. For the graduation project, with synthetic data, R2 is a good choice and saves us from building disk encryption and file backups ourselves. Before the firm puts real client files in, it should confirm that storing them outside the Kingdom is acceptable, or keep production on a server in Saudi Arabia. The code doesn't care which.
 
-**A laptop as the server** is not recommended for anything people rely on. A laptop sleeps, moves between networks and can be lost, and anything on its disk is gone with it. The team's Linux server is a better self-hosted home. R2 removes the question for files.
+**A laptop as the server** works if it's set up as one: never sleeps on lid close or idle, stays on a wired connection, sits on a UPS or at least a surge protector, and has full-disk encryption (LUKS) so a stolen laptop exposes nothing. Its battery covers short power cuts.
 
-### What switching to R2 takes
+### What switching to R2 would take
 
 No code changes, only settings:
 
@@ -160,7 +162,6 @@ No code changes, only settings:
 | Bucket | Holds | Who has a key |
 |---|---|---|
 | `selah-files` | every uploaded file (evidence, client documents, deliverables) | web app (read and write), indexing job (read only), cleanup job (delete) |
-| `selah-backups` | nightly encrypted database dumps (and file copies, when self-hosted) | the backup job only |
 | `selah-files-dev` | test and development uploads, synthetic data only | developers |
 
 Inside `selah-files`:
@@ -174,7 +175,46 @@ org/<org id>/project/<project id>/<document id>
 - **Consultants have no folder of their own.** Files belong to projects, not to the person who uploaded them. A consultant's upload goes under the client's project, and their personal (`user_private`) files sit there too, protected by the label rather than by the folder.
 - **Ids only.** No client names, file names or titles appear in a key; those stay in the database. The last part is the document's own id, so each version (a new row) gets a new key.
 - **Folders are for running the system, not for security.** A person never gets a key or a folder listing, only a one-minute link to one file after the server's check. Putting two clients in one folder or in a hundred makes no difference to who can open what.
+- Backups are not a bucket here. They are an encrypted restic repository on the Lenovo, see below. (On R2 they would be a separate `selah-backups` bucket.)
 - Today's files have flat random keys. They keep working, because the key is read from the row, and new uploads use the layout above.
+
+### Backups (self-hosted) [Proposed]
+
+The 3-2-1 rule: three copies, on two different devices, with one away from the building.
+
+```
+Legion (server)                                 Lenovo (backup), LAN cable only
+ ├─ Postgres ── pg_dump -Fc ──┐                  restic rest-server --append-only
+ ├─ RustFS ── rclone sync ────┼─ restic backup ─▶ /backup/selah  (encrypted repo, LUKS disk)
+ └─ .env (kept separately) ───┘   02:00 Riyadh    └─ prune + check, run on the Lenovo
+                                                  └─ weekly: copy to an encrypted external drive kept off-site
+```
+
+**Network.** A direct cable between the two laptops with fixed addresses (for example `10.10.0.1` and `10.10.0.2`). The Lenovo's firewall accepts only the restic port, only from the Legion, only on that cable. The Lenovo is never on the internet-facing network and runs nothing else.
+
+**Nightly job on the Legion (02:00 Riyadh time):**
+
+1. `pg_dump -Fc selah` into a staging folder. This is one consistent snapshot of the whole database, including the AI index.
+2. `rclone sync` the `selah-files` bucket into the staging folder as plain files, through the S3 API. Copying RustFS's internal data folder directly isn't safe, because its format belongs to RustFS.
+3. `restic backup` the staging folder to the Lenovo. Restic only sends what changed, so after the first night it's quick.
+4. Write the outcome (time, size, success or failure) to a log, and alert the firm admin if no backup has succeeded in 36 hours.
+
+**Encryption.** Restic encrypts everything on the Legion before it leaves (AES-256), so the Lenovo only ever holds ciphertext. The Lenovo's disk is also LUKS-encrypted. The restic password lives in the Legion's `.env` **and** on paper or in a password manager held by Fahad. Without that password the backups can't be read by anyone, including us.
+
+**Ransomware and mistakes.** The Lenovo runs restic's rest-server in `--append-only` mode. The Legion can add backups but can't delete or overwrite them. A compromised or broken server can't destroy its own backups.
+
+**Retention (run on the Lenovo, weekly):** `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`, then `restic check`.
+
+**Restore test (once a month, and before any demo or hand-in):**
+
+1. Restore the latest snapshot to a scratch folder.
+2. `pg_restore` it into a throwaway database and compare row counts with the live one.
+3. Pick ten random `documents` rows and check that each restored file's SHA-256 matches `documents.sha256`.
+4. Write down the date, the time it took and any problem. An untested backup doesn't count.
+
+**Off-site copy.** Both laptops sit in the same room, so a fire, theft, flood or power surge can take both. Once a week, copy the restic repository to an encrypted external drive and keep it somewhere else. Restic's `copy` command keeps it encrypted. An encrypted copy to a cloud bucket would also work, since the provider only sees ciphertext. Still, check with the firm before real client data leaves the Kingdom, even encrypted.
+
+**What is not backed up:** the Ollama models (downloaded again), ClamAV signatures (downloaded again) and Docker images (rebuilt). The `.env` file and the restic password are kept separately from the backups, because they unlock them.
 
 ## 5. What the assistant can reach [Built]
 
