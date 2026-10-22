@@ -1721,6 +1721,25 @@
     "downloadFailed": "This file can't be downloaded right now.",
     "useFile": "Use this file",
     "pickHint": "Pick a file you already have in Selah. A copy is attached as evidence; the original stays where it is.",
-    "notShared": "Only files shared between your company and the firm can be used as evidence."
+    "notShared": "Only files shared between your company and the firm can be used as evidence.",
+    "move": "Move the Files card: drag it, or use the arrow keys",
+    "moveRole": "movable card header",
+    "close": "Close",
+    "upload": "Add a file",
+    "uploadTitle": "Add a file to a project",
+    "uploadHint": "Checked for viruses, then stored privately. Choose who can see it; you can't change the project later.",
+    "project": "Project",
+    "file": "File",
+    "wholeCompany": "The whole company",
+    "departmentHint": "Filed under a department, it reaches that team (and the firm, when shared). Otherwise everyone at your company with access to the project sees it.",
+    "cancel": "Cancel",
+    "uploaded": "File added",
+    "errors": {
+      "scanner": "The virus scanner isn't available right now. Try again in a minute.",
+      "infected": "This file was refused: the virus scan found a problem.",
+      "tooLarge": "This file is larger than 20 MB.",
+      "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text.",
+      "generic": "The file couldn't be added. Try again."
+    }
   }
 }

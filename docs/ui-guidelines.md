@@ -42,7 +42,7 @@ Do not edit `components/ui/*` for a single screen. Change the look of one usage 
 | `BrandMark`, `BrandWordmark`, `SidebarBrand`, `BrandLoader` | The logo and the branded spinner. Use `BrandLoader` inside busy buttons. |
 | `Translatable` | User-written text that may be shown in the other language on demand. |
 | `AnimatedNumber`, `MetricHistory`, `PeopleStack`, `Topography` | Counting numbers, the progress trend chart, stacked avatars, and the animated contour background. |
-| `FilesSidebarItem`, `FileBrowser` | The file explorer: the animated folder at the bottom of the sidebar opens a sheet (from the sidebar's side) with search, the file tree and the selected file's details. `FileBrowser` with `pick` is the same tree inside the evidence dialog, to reuse a file instead of uploading it again. |
+| `FilesSidebarItem`, `FileBrowser` | The file explorer: the animated folder at the bottom of the sidebar opens a floating card (not modal) with search, the file tree, the selected file's details and "Add a file". The card is dragged by its header or moved with the arrow keys when the header has focus, stays inside the window, remembers its position per browser, and closes with Escape. `FileBrowser` with `pick` is the same tree inside the evidence dialog, to reuse a file instead of uploading it again. |
 | `FileTree` (`components/ui/file-tree.tsx`) | AI Elements File Tree, adapted: monochrome icons, logical spacing, a chevron that flips in RTL, and a `meta` slot for counts and version badges. Use it for any folder-like list. |
 
 ### Icons
