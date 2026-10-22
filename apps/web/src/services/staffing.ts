@@ -85,7 +85,13 @@ export async function createClient(
 /** One client's team, the consultants who could join it, and its pending requests. */
 export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: string) {
   const [client] = await tx
-    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, legalForm: organizations.legalForm })
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      nameAr: organizations.nameAr,
+      shortNames: organizations.shortNames,
+      legalForm: organizations.legalForm,
+    })
     .from(organizations)
     .where(and(eq(organizations.id, clientOrgId), eq(organizations.kind, "client")))
     .limit(1);

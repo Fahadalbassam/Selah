@@ -100,5 +100,15 @@ const fnd = await one<{ id: string }>(
   [board.id, board.org_id, ids.minutes_en, khalid],
 );
 await pool.query(`UPDATE recommendations SET finding_id = $1 WHERE id = $2`, [fnd.id, rec.id]);
+// People are registered in Arabic and the files spell them in English; companies go by short names.
+const alt: [string, string][] = [
+  ["reem@nukhba.example", "Reem Al-Harbi"], ["fahd@nukhba.example", "Fahd Al-Dosari"], ["abdullah@nukhba.example", "Abdullah Al-Mutairi"],
+  ["khalid@mizan.example", "Khalid Al-Shammari"], ["hind@rawdah.example", "Hind Al-Zahrani"],
+];
+for (const [email, name] of alt) await pool.query(`UPDATE "user" SET name_alt = $2 WHERE email = $1`, [email, name]);
+const short: [string, string[]][] = [
+  ["Al-Nukhba Holding", ["Al-Nukhba", "النخبة"]], ["Rawdah Foundation", ["Rawdah", "الروضة"]], ["Al-Waha Family Office", ["Al-Waha", "الواحة"]],
+];
+for (const [name, names] of short) await pool.query(`UPDATE organizations SET short_names = $2 WHERE name = $1`, [name, names]);
 console.log(JSON.stringify({ ids, board: board.id, rawdah: rawdah.id, waha: waha.id }));
 await pool.end();

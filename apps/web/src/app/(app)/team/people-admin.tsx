@@ -103,6 +103,11 @@ export async function PeopleAdmin({
                       {p.name}
                       {self ? <span className="ms-2 text-xs font-normal text-muted-foreground">({t("you")})</span> : null}
                     </p>
+                    {p.nameAlt ? (
+                      <p className="text-xs text-muted-foreground" dir="auto">
+                        {p.nameAlt}
+                      </p>
+                    ) : null}
                     <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span dir="ltr">{p.email}</span>
                       {p.personalEmail ? <Badge variant="outline">{t("personal")}</Badge> : null}
@@ -120,6 +125,7 @@ export async function PeopleAdmin({
                       <PersonMenu
                         userId={p.userId}
                         name={p.name}
+                        nameAlt={p.nameAlt}
                         active={p.active}
                         canChange={canChange}
                         canResetTwoFactor={canChange && p.twoFactor}

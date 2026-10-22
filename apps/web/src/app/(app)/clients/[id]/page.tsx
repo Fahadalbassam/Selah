@@ -261,6 +261,49 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             {client.legalForm ? tq(`forms.${client.legalForm}`) : <span className="text-muted-foreground">{tq("notRecorded")}</span>}
           </CardContent>
         </Card>
+        <Card className="h-fit gap-4 py-5 shadow-xs">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base">{tc("shortNames.title")}</CardTitle>
+              <CardDescription>{tc("shortNames.hint")}</CardDescription>
+            </div>
+            {can.setLegalForm ? (
+              <FormDialog
+                trigger={
+                  <Button size="sm" variant="outline">
+                    <Pencil />
+                    {tq("change")}
+                  </Button>
+                }
+                title={tc("shortNames.title")}
+                description={tc("shortNames.editHint")}
+                endpoint={`/api/orgs/${client.id}/short-names`}
+                method="PUT"
+                fields={[
+                  {
+                    name: "shortNames",
+                    label: tc("shortNames.field"),
+                    type: "textarea",
+                    maxLength: 1000,
+                    defaultValue: client.shortNames.join("\n"),
+                  },
+                ]}
+                submitLabel={tq("save")}
+              />
+            ) : null}
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-1.5 px-5 text-sm">
+            {client.shortNames.length ? (
+              client.shortNames.map((n) => (
+                <Badge key={n} variant="secondary" dir="auto">
+                  {n}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-muted-foreground">{tc("shortNames.none")}</span>
+            )}
+          </CardContent>
+        </Card>
         {data.admin ? (
           <Card className="h-fit gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

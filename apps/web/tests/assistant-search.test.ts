@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatTitle, fuse, keywordQuery } from "@/lib/assistant-search";
+import { chatTitle, fuse, keywordQuery, statusIntent } from "@/lib/assistant-search";
 import { createMasker } from "@/lib/masking";
 
 describe("keyword query", () => {
@@ -74,9 +74,46 @@ describe("masking", () => {
     expect(m.unmask("[ORG_1] asked [PERSON_1]")).toBe("Al-Nukhba Holding asked Reem Al-Harbi");
   });
 
+  it("finds a Latin name however its parts are joined, and counts them as one", () => {
+    const m = createMasker([
+      { kind: "PERSON", term: "ريم الحربي", entity: "user:1" },
+      { kind: "PERSON", term: "Reem Al-Harbi", entity: "user:1" },
+      { kind: "ORG", term: "Al-Nukhba", entity: "org:1" },
+    ]);
+    expect(m.mask("Reem Al Harbi, Reem Alharbi, reem el-harbi, Al‑Harbi, Harbi")).toBe(
+      "[PERSON_1], [PERSON_1], [PERSON_1], [PERSON_1], [PERSON_1]",
+    );
+    expect(m.mask("AlNukhba and Al Nukhba and El-Nukhba")).toBe("[ORG_1] and [ORG_1] and [ORG_1]");
+    expect(m.mask("ريم الحربي")).toBe("[PERSON_1]");
+    // Whole words only: "Alnukhbawi" is someone else.
+    expect(m.mask("Alnukhbawi")).toBe("Alnukhbawi");
+  });
+
   it("changes nothing when off", () => {
     const m = createMasker([]);
     expect(m.mask("Reem in Riyadh, 0551234567")).toBe("Reem in Riyadh, 0551234567");
     expect(m.unmask("[ORG_1]")).toBe("[ORG_1]");
+  });
+});
+
+describe("status questions", () => {
+  const kinds = (q: string) => [...statusIntent(q)].sort();
+
+  it("notices questions about the state of the work, in both languages", () => {
+    expect(kinds("What is overdue on this project?")).toEqual(["overdue"]);
+    expect(kinds("Which actions are blocked or stuck?")).toEqual(["blocked"]);
+    expect(kinds("What is awaiting review?")).toEqual(["review"]);
+    expect(kinds("What's due this week?")).toEqual(["due_soon"]);
+    expect(kinds("ما الإجراءات المتأخرة؟")).toEqual(["overdue"]);
+    expect(kinds("ما المتعثر في المشروع؟")).toEqual(["blocked"]);
+    expect(kinds("ما الذي بانتظار المراجعة؟")).toEqual(["review"]);
+    expect(kinds("ما المستحق هذا الأسبوع؟")).toEqual(["due_soon"]);
+    expect(kinds("ما الإجراءات التي لم تنجز بعد؟")).toEqual(["open"]);
+  });
+
+  it("leaves questions about what files say to search", () => {
+    expect(kinds("What does Article 12 of the charter say?")).toEqual([]);
+    expect(kinds("ما صلاحيات لجنة المراجعة في الميثاق؟")).toEqual([]);
+    expect(kinds("Who chairs the audit committee?")).toEqual([]);
   });
 });
