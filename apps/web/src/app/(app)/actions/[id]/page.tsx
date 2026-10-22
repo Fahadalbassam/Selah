@@ -4,18 +4,22 @@ import { FileText } from "@/components/animate-ui/icons/file-text";
 import { MessageSquare } from "@/components/animate-ui/icons/message-square";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { CircleX } from "@/components/animate-ui/icons/circle-x";
+import { Lock } from "@/components/animate-ui/icons/lock";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { AskAbout } from "@/components/ask-about";
+import { FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Translatable } from "@/components/translatable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { departmentChoices } from "@/services/engagement";
-import { actionClosure, actionFollowThrough } from "@/services/follow-through";
+import { actionClosure, actionFollowThrough, listActionNotes } from "@/services/follow-through";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
 import { RiskAcceptances } from "./closure-panels";
@@ -34,21 +38,24 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, follow, closing, depts, firmView } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       data,
       firmView: principal.orgKind === "firm",
       follow: await actionFollowThrough(tx, principal, id),
       closing: await actionClosure(tx, principal, id),
+      // Firm-only notes; anyone who may not read them (every client role) gets null.
+      notes: await listActionNotes(tx, principal, id).catch(() => null),
       // Internal projects have no departments.
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
     };
   });
-  const [t, tTable, tEng, format] = await Promise.all([
+  const [t, tTable, tEng, tVis, format] = await Promise.all([
     getTranslations("action"),
     getTranslations("table"),
     getTranslations("engagement.departments"),
+    getTranslations("visibility"),
     getFormatter(),
   ]);
   const dept = depts?.departments.find((d) => d.id === data.action.departmentId) ?? null;
@@ -107,6 +114,51 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           />
 
           <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} firmView={firmView} canSubmit={data.can.submitEvidence} />
+
+          {notes ? (
+            <Card className="gap-4 py-5 shadow-xs">
+              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+                <div className="space-y-1.5">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {t("notes.title")}
+                    <Badge variant="outline" className="gap-1">
+                      <Lock className="size-3" />
+                      {tVis("firm_private")}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>{t("notes.hint")}</CardDescription>
+                </div>
+                <FormDialog
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      {t("notes.add")}
+                    </Button>
+                  }
+                  title={t("notes.add")}
+                  description={t("notes.hint")}
+                  endpoint={`/api/actions/${action.id}/notes`}
+                  fields={[{ name: "body", label: t("notes.label"), type: "textarea", required: true, maxLength: 8000, placeholder: t("notes.placeholder") }]}
+                  submitLabel={t("notes.add")}
+                />
+              </CardHeader>
+              <CardContent className="px-5">
+                {notes.length === 0 ? <p className="text-sm text-muted-foreground">{t("notes.none")}</p> : null}
+                <ol className="space-y-4">
+                  {notes.map((n) => (
+                    <li key={n.id} className="space-y-1 text-sm">
+                      <p>
+                        <span className="font-medium">{n.author}</span>{" "}
+                        <span className="ms-1 text-xs text-muted-foreground tabular-nums">{when(n.at)}</span>
+                      </p>
+                      <p className="whitespace-pre-wrap" dir="auto">
+                        {n.body}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -11,8 +11,9 @@ import {
   organizations,
   projectMembers,
   recommendations,
+  user,
 } from "@/db/schema";
-import { assertAllowed, type Principal, type Visibility } from "@/authz";
+import { assertAllowed, authorize, type Principal, type Visibility } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
 import { audit } from "./audit";
@@ -24,6 +25,58 @@ import { loadProject } from "./staffing";
 // (drizzle/0011_follow_through_rules.sql enforces the same).
 
 type Label = Extract<Visibility, "shared" | "firm_private">;
+
+/**
+ * What the plan screens offer this user on a project: which records they may
+ * add, and the choices for a new action (people who can own it, or a typed
+ * name for a client the firm manages, and the client's departments). Null for
+ * anyone who can't write the plan.
+ */
+export async function planOptions(tx: Tx, principal: Principal, projectId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  const can = (permission: "finding.write" | "recommendation.write" | "action.write" | "action.release", type: "finding" | "recommendation" | "action") =>
+    authorize(principal, permission, { ...resource, type }).allowed;
+  const write = {
+    finding: can("finding.write", "finding"),
+    recommendation: can("recommendation.write", "recommendation"),
+    action: can("action.write", "action"),
+    release: can("action.release", "action"),
+  };
+  if (!write.finding && !write.recommendation && !write.action) return null;
+
+  // The same rule as assertOwner: on the project team and an active member of the project's organization.
+  const owners = await tx
+    .select({ userId: user.id, name: user.name })
+    .from(projectMembers)
+    .innerJoin(user, eq(user.id, projectMembers.userId))
+    .innerJoin(
+      orgMemberships,
+      and(eq(orgMemberships.userId, projectMembers.userId), eq(orgMemberships.orgId, project.orgId), eq(orgMemberships.active, true)),
+    )
+    .where(eq(projectMembers.projectId, projectId))
+    .orderBy(asc(user.name));
+
+  let ownerByName = false;
+  let minimalRecords = false;
+  let departmentList: { id: string; nameAr: string; nameEn: string | null }[] = [];
+  if (project.kind === "client") {
+    const [org] = await tx
+      .select({ mode: organizations.engagementMode, minimal: organizations.minimalRecords, departmentsOn: organizations.departmentsEnabled })
+      .from(organizations)
+      .where(eq(organizations.id, project.orgId));
+    ownerByName = org?.mode === "consultant_managed";
+    // Minimal records: the owner is a job title, never a name (drizzle rules).
+    minimalRecords = org?.minimal ?? false;
+    if (org?.departmentsOn) {
+      departmentList = await tx
+        .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+        .from(departments)
+        .where(and(eq(departments.orgId, project.orgId), eq(departments.active, true)))
+        .orderBy(asc(departments.nameAr));
+    }
+  }
+  return { can: write, kind: project.kind, owners, ownerByName, minimalRecords, departments: departmentList };
+}
 
 export async function createFinding(
   tx: Tx,

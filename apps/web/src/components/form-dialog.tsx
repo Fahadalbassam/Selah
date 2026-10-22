@@ -30,7 +30,7 @@ export interface Field {
   maxLength?: number;
   dir?: "rtl" | "ltr";
   options?: { value: string; label: string }[];
-  /** Placeholder for select and date fields. */
+  /** Placeholder (for a date field, also its empty label). */
   placeholder?: string;
   /** The current value, when the dialog edits something. */
   defaultValue?: string;
@@ -127,6 +127,7 @@ export function FormDialog(props: {
                   rows={3}
                   dir={f.dir}
                   defaultValue={f.defaultValue}
+                  placeholder={f.placeholder}
                 />
               ) : f.type === "select" ? (
                 <Select name={f.name} required={f.required} defaultValue={f.defaultValue ?? f.options?.[0]?.value}>
@@ -151,6 +152,7 @@ export function FormDialog(props: {
                   maxLength={f.maxLength ?? 200}
                   dir={f.dir}
                   defaultValue={f.defaultValue}
+                  placeholder={f.placeholder}
                 />
               )}
             </div>

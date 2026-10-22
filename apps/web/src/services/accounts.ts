@@ -308,7 +308,7 @@ export async function createContact(tx: Tx, principal: Principal, clientOrgId: s
   assertAllowed(principal, "client_contact.write", contactsOf(principal, clientOrgId));
   const [row] = await tx
     .insert(clientContacts)
-    .values({ orgId: clientOrgId, ...input })
+    .values({ orgId: clientOrgId, ...input, createdBy: principal.userId })
     .returning({ id: clientContacts.id });
   return row!;
 }
