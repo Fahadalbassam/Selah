@@ -2,12 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { listInquiries } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
+import { ToneBadge } from "@/components/tone-badge";
 
 const CLOSED = new Set(["lost", "declined", "spam", "withdrawn"]);
 const VIEWS = ["open", "won", "closed"] as const;
@@ -50,9 +50,9 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
         ))}
       </nav>
       {rows.length === 0 ? (
-        <p className="rounded-lg border bg-card px-4 py-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+        <p className="rounded-xl border bg-card px-4 py-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -82,15 +82,15 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
                   </TableCell>
                   <TableCell className="text-sm">{r.urgency ? ti(`urgency.${r.urgency}`) : "—"}</TableCell>
                   <TableCell>
-                    <Badge variant={r.status === "new" ? "default" : "outline"}>{t(`statuses.${r.status}`)}</Badge>
+                    <ToneBadge tone={r.status === "new" ? "new" : "open"}>{t(`statuses.${r.status}`)}</ToneBadge>
                   </TableCell>
                   <TableCell className="text-sm">
                     {r.ownerName ?? <span className="text-muted-foreground">{t("unassigned")}</span>}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={r.conflictStatus === "flagged" ? "destructive" : "secondary"}>
+                    <ToneBadge tone={r.conflictStatus === "flagged" ? "problem" : "neutral"}>
                       {t(`conflicts.${r.conflictStatus}`)}
-                    </Badge>
+                    </ToneBadge>
                   </TableCell>
                   <TableCell className="text-end text-sm text-muted-foreground tabular-nums">
                     {format.dateTime(r.createdAt, { dateStyle: "medium" })}

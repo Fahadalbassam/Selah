@@ -346,6 +346,8 @@
   },
   "common": {
     "cancel": "إلغاء",
+    "continue": "متابعة",
+    "confirmTitle": "هل أنت متأكد؟",
     "save": "حفظ",
     "saving": "جارٍ الحفظ…",
     "saved": "تم الحفظ",

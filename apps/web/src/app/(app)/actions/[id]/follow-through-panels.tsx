@@ -1,6 +1,8 @@
 "use client";
 
-import { CalendarClock, FileText, Plus } from "lucide-react";
+import { CalendarClock } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Plus } from "@/components/animate-ui/icons/plus";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
@@ -17,6 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +49,12 @@ export interface DeadlineRequest {
 }
 
 const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
+
+/** A YYYY-MM-DD day as local midnight, for the calendar's disabled range. */
+function localDate(day: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y!, m! - 1, d!);
+}
 
 /**
  * The evidence the firm asked for on this action, item by item. The owner
@@ -200,7 +209,13 @@ function AddItem({ actionId, onDone }: { actionId: string; onDone: () => void })
           </div>
           <div className="grid gap-2">
             <Label htmlFor="item-due">{t("itemDue")}</Label>
-            <Input id="item-due" name="dueDate" type="date" min={firmToday()} className="w-44" />
+            <DatePicker
+              id="item-due"
+              name="dueDate"
+              placeholder={t("itemDue")}
+              disabled={{ before: localDate(firmToday()) }}
+              className="w-44"
+            />
           </div>
           <ErrorText error={error} />
           <DialogFooter>
@@ -308,12 +323,12 @@ function AskForDate({ actionId, dueDate, onDone }: { actionId: string; dueDate: 
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="new-date">{t("newDate")}</Label>
-            <Input
+            <DatePicker
               id="new-date"
               name="date"
-              type="date"
               required
-              min={firmToday()}
+              placeholder={t("newDate")}
+              disabled={{ before: localDate(firmToday()) }}
               defaultValue={dueDate ?? undefined}
               className="w-44"
             />

@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -108,7 +108,7 @@ export function PersonMenu(props: {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8" aria-label={t("actions", { name: props.name })}>
-            <MoreHorizontal className="size-4" />
+            <Ellipsis className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -260,7 +260,7 @@ export function AccessReview({
           })
         }
       >
-        <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
+        <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border">
           {people.map((p) => (
             <li key={p.userId} className="space-y-2 px-3 py-2.5">
               <label className="flex items-center gap-3 text-sm">

@@ -12,7 +12,7 @@ export default async function NotificationsPage() {
       <PageHeader title={t("title")} description={t("unread", { n: unread })}>
         {unread > 0 ? <MarkAllRead /> : null}
       </PageHeader>
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="overflow-hidden rounded-xl border bg-card">
         <NotificationList items={items} />
       </div>
     </>

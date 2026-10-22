@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { BrandLoader } from "@/components/brand";

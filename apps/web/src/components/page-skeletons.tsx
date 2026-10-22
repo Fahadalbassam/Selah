@@ -45,7 +45,7 @@ export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
 
 export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <div className="flex gap-6 border-b bg-muted/50 px-4 py-3">
         {Array.from({ length: cols }, (_, c) => (
           <Skeleton key={c} className={cn("h-4", c === 0 ? "w-40 flex-1" : "w-20")} />

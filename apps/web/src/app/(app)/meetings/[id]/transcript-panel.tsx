@@ -1,6 +1,8 @@
 "use client";
 
-import { FileText, Trash2, Upload } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Upload } from "@/components/animate-ui/icons/upload";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -14,6 +16,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { formatOf, parseTranscript, TRANSCRIPT_MAX_CHARS, type TranscriptFormat } from "@/lib/transcripts";
+import { useConfirm } from "@/components/confirm-dialog";
 
 interface Kept {
   lang: string;
@@ -55,8 +58,9 @@ export function TranscriptPanel(props: {
     router.refresh();
   }
 
-  const setConsent = (on: boolean) => {
-    if (!on && props.transcript && !window.confirm(t("withdrawConfirm"))) return;
+  const [confirm, confirmDialog] = useConfirm();
+  const setConsent = async (on: boolean) => {
+    if (!on && props.transcript && !(await confirm(t("withdrawConfirm")))) return;
     return run(() => callApi(`/api/meetings/${props.meetingId}`, "PATCH", { transcriptConsent: on }));
   };
 
@@ -85,7 +89,7 @@ export function TranscriptPanel(props: {
         </div>
 
         {props.transcript ? (
-          <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
             <p className="flex flex-wrap items-center gap-2">
               <FileText className="size-4 text-muted-foreground" />
               {t("kept", {
@@ -113,7 +117,7 @@ export function TranscriptPanel(props: {
                 size="sm"
                 variant="ghost"
                 disabled={busy}
-                onClick={() => window.confirm(t("deleteConfirm")) && run(() => callApi(endpoint, "DELETE"), t("deleted"))}
+                onClick={async () => (await confirm(t("deleteConfirm"))) && run(() => callApi(endpoint, "DELETE"), t("deleted"))}
               >
                 <Trash2 />
                 {t("delete")}
@@ -187,6 +191,7 @@ export function TranscriptPanel(props: {
           </form>
         )}
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }

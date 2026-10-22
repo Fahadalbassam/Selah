@@ -1,4 +1,7 @@
-import { ArrowLeft, FileText, Lock, ScrollText, X } from "lucide-react";
+import { ArrowLeft, ScrollText } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Lock } from "@/components/animate-ui/icons/lock";
+import { X } from "@/components/animate-ui/icons/x";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -61,15 +64,18 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {project.title}
       </Link>
-      <PageHeader title={a.title}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={draft ? "outline" : "secondary"}>{t(`status.${a.status}`)}</Badge>
-          <Badge variant="outline">
-            {t("legalForm")}: {tq(`forms.${a.legalForm}`)}
-          </Badge>
-          {firm ? <Badge variant="outline">{a.sharedWithClient ? t("sharedWithClient") : t("firmOnly")}</Badge> : null}
-        </div>
-      </PageHeader>
+      <PageHeader
+        title={a.title}
+        meta={
+          <>
+            <Badge variant={draft ? "outline" : "secondary"}>{t(`status.${a.status}`)}</Badge>
+            <Badge variant="outline">
+              {t("legalForm")}: {tq(`forms.${a.legalForm}`)}
+            </Badge>
+            {firm ? <Badge variant="outline">{a.sharedWithClient ? t("sharedWithClient") : t("firmOnly")}</Badge> : null}
+          </>
+        }
+      />
 
       {conduct ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -125,11 +131,11 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("toAnswer")}</p>
-              <p className="text-lg font-medium tabular-nums">{a.total.toAnswer}</p>
+              <p className="text-2xl font-semibold tabular-nums">{a.total.toAnswer}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("gaps")}</p>
-              <p className="text-lg font-medium tabular-nums">
+              <p className="text-2xl font-semibold tabular-nums">
                 {a.total.gaps}{" "}
                 <span className="text-sm font-normal text-muted-foreground">
                   ({t("confirmedCount", { n: a.total.confirmed ?? 0 })})

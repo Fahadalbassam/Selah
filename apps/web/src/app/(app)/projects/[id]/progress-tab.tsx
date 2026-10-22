@@ -1,4 +1,5 @@
-import { FilePlus2, FileText } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
@@ -117,7 +118,7 @@ export async function ProgressTab({
           <StatTile label={t("onTime")} value={percent(num(live.on_time_rate))} hint={t("onTimeHint")} />
           <StatTile label={t("slips")} value={num(live.deadline_slips) ?? 0} hint={t("slipsHint")} />
           <StatTile label={t("revisions")} value={percent(num(live.revision_rate))} />
-          <div className="space-y-1 rounded-lg border bg-card px-4 py-3">
+          <div className="space-y-1 rounded-xl border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{t("basis")}</p>
             <dl className="space-y-0.5 text-sm">
               {basis.map(([k, v]) => (

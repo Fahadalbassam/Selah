@@ -26,7 +26,7 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
     return <EmptyState icon={<CircleCheck animateOnView />} description={empty} />;
   }
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <Table>
         <TableHeader className="bg-muted/50">
           <TableRow>

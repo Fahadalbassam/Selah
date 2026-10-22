@@ -346,6 +346,8 @@
   },
   "common": {
     "cancel": "Cancel",
+    "continue": "Continue",
+    "confirmTitle": "Are you sure?",
     "save": "Save",
     "saving": "Saving…",
     "saved": "Saved",

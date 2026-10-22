@@ -45,7 +45,7 @@ export async function PeopleAdmin({
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{t("title")}</h2>
+          <h2 className="text-base font-semibold">{t("title")}</h2>
           <p className="text-sm text-muted-foreground">
             {t("hint", { org: (ar ? org.nameAr : null) ?? org.name })}
             {org.engagementMode === "restricted" ? ` ${t("restrictedHint")}` : ""}
@@ -80,7 +80,7 @@ export async function PeopleAdmin({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="overflow-hidden rounded-xl border bg-card">
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>

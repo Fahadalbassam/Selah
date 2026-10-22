@@ -12,6 +12,7 @@ import { StatTile } from "@/components/stat-tile";
 import { EmptyState } from "@/components/empty-state";
 import { Users } from "@/components/animate-ui/icons/users";
 import { PeopleAdmin } from "./people-admin";
+import { SectionHeader } from "@/components/section-header";
 
 export default async function TeamPage() {
   const { team, people, load, me, role, reviewDays } = await withPrincipal(async (tx, principal) => {
@@ -45,7 +46,7 @@ export default async function TeamPage() {
       ) : team.length === 0 ? (
         <EmptyState icon={<Users animateOnView />} description={t("empty")} />
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -92,18 +93,17 @@ async function Workload({ load }: { load: Load }) {
   }[];
   return (
     <section className="space-y-4 pt-4">
-      <h2 className="text-lg font-semibold">{t("totals")}</h2>
+      <SectionHeader title={t("totals")} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label={t("reviewsDone")} value={n(load.totals?.reviews) ?? 0} />
         <StatTile label={t("medianReview")} value={median === null ? "—" : t("days", { n: median })} />
         <StatTile label={t("waiting")} value={n(load.totals?.awaiting_review) ?? 0} />
         <StatTile label={t("overdue")} value={n(load.totals?.overdue) ?? 0} hint={t("overdueHint")} />
       </div>
-      <div className="space-y-1 pt-2">
-        <h2 className="text-lg font-semibold">{t("team")}</h2>
-        <p className="text-sm text-muted-foreground">{t("teamHint")}</p>
+      <div className="pt-2">
+        <SectionHeader title={t("team")} description={t("teamHint")} />
       </div>
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="overflow-hidden rounded-xl border bg-card">
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>
