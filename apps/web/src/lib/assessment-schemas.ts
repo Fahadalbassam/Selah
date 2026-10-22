@@ -47,8 +47,8 @@ export const questionBody = z.object({
   gapMaxPoints: z.number().int().min(0).max(30).nullable().optional(),
   // Legal requirement and regulator guidance come only from legalFor and guidanceFor, per client.
   basis: z.enum(OWN_BASES),
-  legalFor: z.array(z.enum(LEGAL_FORMS)).max(6).nullable().optional(),
-  guidanceFor: z.array(z.enum(LEGAL_FORMS)).max(6).nullable().optional(),
+  legalFor: z.array(z.enum(LEGAL_FORMS)).max(LEGAL_FORMS.length).nullable().optional(),
+  guidanceFor: z.array(z.enum(LEGAL_FORMS)).max(LEGAL_FORMS.length).nullable().optional(),
   citation: optionalText(500),
   locator: optionalText(200),
   citationVerified: z.boolean().optional(),

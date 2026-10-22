@@ -7,14 +7,15 @@ import type { OwnBasis, ChoiceOption, LegalForm, QuestionType } from "@/lib/asse
 // legal forms it is binding, or regulator guidance, instead. Source map:
 // research thread, 2026-10-21 (docs/assessments.md lists the sources).
 //
-// Article numbers: the CMA Corporate Governance Regulations were renumbered
-// in 2023. Only Art. 16, 41 and 43 are confirmed in the current text; the
-// rest is cited by chapter until checked against the official text.
+// Article and section numbers were checked against full copies of the texts
+// on 2026-10-22 (assessment source map, section 6): the CMA regulations as
+// amended in 2023, the OECD 2023 principles, the IFC handbook, Companies Law
+// Art. 11(2), the MoC 2018 decision record and SAMA's key principles.
 
-// Citations not yet checked against the source's current text: chapter-level
-// references, the Companies Law family charter article, and the MoC rules.
-// The MoC family charter (2.1-2.4) is known only as a reported draft.
-export const UNVERIFIED_CITATIONS = new Set(["2.1", "2.2", "2.3", "2.4", "3.3", "3.4", "6.4", "7.3", "7.4"]);
+// Citations not yet checked against the source's current text. The MoC
+// family charter is known only as a reported draft, so 2.3's chapter stays
+// unverified; 3.4 because the MoC 2018 rules set no confirmed meeting count.
+export const UNVERIFIED_CITATIONS = new Set(["2.3", "3.4"]);
 
 export interface StarterQuestion {
   ref: string;
@@ -36,11 +37,16 @@ const DD = "Deep Dive methodology session (2026)";
 const IFC = "IFC Family Business Governance Handbook (2nd ed., 2008)";
 const OECD = "G20/OECD Principles of Corporate Governance (2023)";
 const CMA = "CMA Corporate Governance Regulations (listed companies; as amended 2023)";
-const MOC = "Ministry of Commerce governance regulations for non-listed joint stock companies (2018; to verify)";
+const MOC = "Ministry of Commerce governance regulations for non-listed joint stock companies (2018, guidance)";
+const SAMA = "SAMA Key Principles of Governance in Financial Institutions (2021)";
+const CL = "Companies Law (2022)";
 // Regulator guidance, non-binding unless the family adopts a charter under the
 // Companies Law. Reported as "the proposed draft" (Okaz, 18 May 2018), so it is
 // cited by chapter only and the questions keep their good_practice basis.
 const MOC_FC = "MoC Guiding Charter for Saudi Family Businesses (2018, regulator guidance, non-binding)";
+
+// The family ownership questions apply only to a family-owned or family-controlled company.
+const FAMILY = { ref: "0.1", values: ["family"] };
 
 export const STARTER_TEMPLATE = {
   name: "Family business governance: starter assessment",
@@ -50,6 +56,28 @@ export const STARTER_TEMPLATE = {
   descriptionAr:
     "أسئلة مبدئية مقترحة من الفريق في ثمانية محاور للحوكمة، كل سؤال مستند إلى مصدر مذكور. عدّلها قبل النشر. النتائج مؤشرات وليست شهادة امتثال نظامي.",
   sections: [
+    {
+      title: "Company profile",
+      titleAr: "بيانات الشركة",
+      questions: [
+        {
+          ref: "0.1",
+          prompt: "Is the company family-owned or family-controlled?",
+          promptAr: "هل الشركة مملوكة لعائلة أو تسيطر عليها عائلة؟",
+          // Not scored (every option scores 0): it only decides whether the family questions apply.
+          type: "multiple_choice",
+          options: [
+            { value: "family", label: "Yes", labelAr: "نعم", points: 0 },
+            { value: "not_family", label: "No", labelAr: "لا", points: 0 },
+          ],
+          basis: "team_proposed",
+          citation: null,
+          locator: null,
+          guidance: "Not scored. The family ownership questions (2.1 to 2.5 and 5.2) apply only when the answer is yes.",
+          guidanceAr: "لا يُحتسب في النتيجة. أسئلة الملكية العائلية (من 2.1 إلى 2.5 و5.2) تنطبق فقط عند الإجابة بنعم.",
+        },
+      ],
+    },
     {
       title: "Governance structure and accountability",
       titleAr: "هيكل الحوكمة والمساءلة",
@@ -77,14 +105,19 @@ export const STARTER_TEMPLATE = {
       title: "Family ownership and decision-making",
       titleAr: "الملكية العائلية واتخاذ القرار",
       questions: [
-        q(
-          "2.1",
-          "Does the family have a written family charter?",
-          "هل لدى العائلة ميثاق عائلي مكتوب؟",
-          "good_practice",
-          `${IFC}; Companies Law (2022), family charter: binding once adopted, not required; ${MOC_FC}`,
-          "IFC Sec. II; Companies Law family charter article (reported as Art. 11, to verify); MoC-FC, whole charter",
-        ),
+        {
+          ...q(
+            "2.1",
+            "Does the family have a written family charter?",
+            "هل لدى العائلة ميثاق عائلي مكتوب؟",
+            "good_practice",
+            `${IFC}; ${CL}, family charter: binding once adopted, not required; ${MOC_FC}`,
+            "IFC Sec. II.1; Companies Law Art. 11(2); MoC-FC, whole charter (reported draft)",
+          ),
+          guidance: "A gap here can be answered with a recommendation to draft a family charter, which the firm can deliver.",
+          guidanceAr: "يمكن معالجة الفجوة هنا بتوصية بإعداد ميثاق عائلي، ويمكن للمكتب إعداده.",
+          appliesIf: FAMILY,
+        },
         {
           ref: "2.2",
           prompt: "Which family governance bodies exist?",
@@ -98,24 +131,31 @@ export const STARTER_TEMPLATE = {
           ],
           basis: "good_practice",
           citation: `${IFC}; ${MOC_FC}`,
-          locator: "IFC Sec. II; MoC-FC, family council chapter",
+          locator: "IFC Sec. II.2; MoC-FC, family council chapter",
+          appliesIf: FAMILY,
         },
-        q(
-          "2.3",
-          "Is there a written policy on employing family members?",
-          "هل توجد سياسة مكتوبة لتوظيف أفراد العائلة؟",
-          "good_practice",
-          `${IFC}; ${MOC_FC}`,
-          "IFC Sec. II; MoC-FC, company work policy chapter",
-        ),
-        q(
-          "2.4",
-          "Are the rules for share transfers, exits and profit distribution among family owners written down?",
-          "هل قواعد نقل الحصص والتخارج وتوزيع الأرباح بين الملاك من العائلة مكتوبة؟",
-          "good_practice",
-          `${IFC}; Companies Law (2022), scope of a family charter; ${MOC_FC}`,
-          "IFC Sec. II; MoC-FC, share disposal and exit chapter",
-        ),
+        {
+          ...q(
+            "2.3",
+            "Is there a written policy on employing family members?",
+            "هل توجد سياسة مكتوبة لتوظيف أفراد العائلة؟",
+            "good_practice",
+            `${IFC}; ${MOC_FC}`,
+            "IFC Sec. II.1.1; MoC-FC, company work policy chapter (to verify)",
+          ),
+          appliesIf: FAMILY,
+        },
+        {
+          ...q(
+            "2.4",
+            "Are the rules for share transfers, exits and profit distribution among family owners written down?",
+            "هل قواعد نقل الحصص والتخارج وتوزيع الأرباح بين الملاك من العائلة مكتوبة؟",
+            "good_practice",
+            `${IFC}; ${CL}, scope of a family charter; ${MOC_FC}`,
+            "IFC Sec. II.1.2; Companies Law Art. 11; MoC-FC, share disposal and exit chapter",
+          ),
+          appliesIf: FAMILY,
+        },
         {
           ref: "2.5",
           prompt: "How are major decisions made today?",
@@ -129,6 +169,7 @@ export const STARTER_TEMPLATE = {
           basis: "firm_method",
           citation: DD,
           locator: "pp. 8, 16 (decision-making baseline)",
+          appliesIf: FAMILY,
         },
       ],
     },
@@ -156,33 +197,37 @@ export const STARTER_TEMPLATE = {
             "Does the board include independent or non-family members?",
             "هل يضم المجلس أعضاء مستقلين أو من خارج العائلة؟",
             "good_practice",
-            `${IFC}; ${CMA}`,
-            "IFC Sec. III; CMA Art. 16 (board composition)",
+            `${IFC}; ${CMA}; ${OECD}; ${SAMA}`,
+            "IFC Sec. III.3; CMA Art. 16; OECD V.E; SAMA Art. 7 (financial institutions)",
           ),
           guidance:
             'For a listed company, "yes" does not confirm CMA Art. 16: at least two independent directors or one-third of the board, whichever is greater, and a non-executive majority. Check the numbers.',
           guidanceAr:
             "في الشركة المدرجة، الإجابة بنعم لا تؤكد الالتزام بالمادة 16 من لائحة حوكمة الشركات: عضوان مستقلان على الأقل أو ثلث المجلس أيهما أكثر، وأغلبية غير تنفيذية. تحقق من الأعداد.",
-          legalFor: ["listed_jsc"],
+          legalFor: ["listed_jsc", "bank_or_finance_company"],
           appliesIf: { ref: "3.1", values: ["advisory_board", "board"] },
         },
-        q(
-          "3.3",
-          "Are the board's and executive management's responsibilities separated in writing?",
-          "هل مسؤوليات المجلس والإدارة التنفيذية مفصولة كتابيًا؟",
-          "good_practice",
-          `${IFC}; ${OECD}`,
-          "IFC Sec. III–IV; OECD chapter on the responsibilities of the board",
-        ),
+        {
+          ...q(
+            "3.3",
+            "Are the board's and executive management's responsibilities separated in writing?",
+            "هل مسؤوليات المجلس والإدارة التنفيذية مفصولة كتابيًا؟",
+            "good_practice",
+            `${IFC}; ${OECD}; ${CMA}`,
+            "IFC Sec. III.2 and IV; OECD V (V.D.4); CMA Art. 23(b) when listed (the chair may not be CEO)",
+          ),
+          // Art. 23(b) binds the separation of chair and CEO, not this written split as a whole.
+        },
         {
           ...q(
             "3.4",
             "Does the board or management committee meet on a fixed schedule with minutes kept?",
             "هل يجتمع المجلس أو لجنة الإدارة بانتظام وتُحفظ محاضر الاجتماعات؟",
             "good_practice",
-            `${IFC}; ${MOC}`,
-            "IFC Sec. III; MoC regulations (article to verify)",
+            `${CMA}; ${SAMA}; ${IFC}; ${MOC}`,
+            "CMA Art. 30(b) and 35 when listed; SAMA Art. 22 for banks and finance companies; IFC Sec. III.2 otherwise; MoC 2018: guidance; periodic meetings",
           ),
+          legalFor: ["listed_jsc", "bank_or_finance_company"],
           guidanceFor: ["closed_jsc"],
           appliesIf: { ref: "3.1", values: ["advisory_board", "board"] },
         },
@@ -227,22 +272,28 @@ export const STARTER_TEMPLATE = {
       title: "Succession planning",
       titleAr: "التخطيط للتعاقب",
       questions: [
-        q(
-          "5.1",
-          "Is there a written succession plan for the CEO and other key roles?",
-          "هل توجد خطة تعاقب مكتوبة للرئيس التنفيذي والأدوار الرئيسية؟",
-          "good_practice",
-          IFC,
-          "Sec. IV",
-        ),
-        q(
-          "5.2",
-          "Are there agreed rules for preparing the next generation and for how they join the business?",
-          "هل توجد قواعد متفق عليها لإعداد الجيل القادم وطريقة انضمامه إلى العمل؟",
-          "good_practice",
-          IFC,
-          "Introduction; Sec. II",
-        ),
+        {
+          ...q(
+            "5.1",
+            "Is there a written succession plan for the CEO and other key roles?",
+            "هل توجد خطة تعاقب مكتوبة للرئيس التنفيذي والأدوار الرئيسية؟",
+            "good_practice",
+            `${IFC}; ${OECD}; ${SAMA}`,
+            "IFC Sec. IV.2; OECD V.D.4; SAMA Arts. 39 and 87(a) (financial institutions)",
+          ),
+          legalFor: ["bank_or_finance_company"],
+        },
+        {
+          ...q(
+            "5.2",
+            "Are there agreed rules for preparing the next generation and for how they join the business?",
+            "هل توجد قواعد متفق عليها لإعداد الجيل القادم وطريقة انضمامه إلى العمل؟",
+            "good_practice",
+            IFC,
+            "Introduction; Sec. II",
+          ),
+          appliesIf: FAMILY,
+        },
       ],
     },
     {
@@ -280,10 +331,11 @@ export const STARTER_TEMPLATE = {
             "Is there a written conflict-of-interest policy?",
             "هل توجد سياسة مكتوبة لتعارض المصالح؟",
             "good_practice",
-            `${CMA}; ${OECD}`,
-            "CMA Art. 41; OECD chapter on the responsibilities of the board",
+            `${CMA}; ${OECD}; ${MOC}; ${SAMA}`,
+            "CMA Art. 41; OECD V.D.7; MoC 2018 ch. 6 (guidance); SAMA Art. 43",
           ),
-          legalFor: ["listed_jsc"],
+          legalFor: ["listed_jsc", "bank_or_finance_company"],
+          guidanceFor: ["closed_jsc"],
         },
       ],
     },
@@ -313,7 +365,7 @@ export const STARTER_TEMPLATE = {
           "هل يتلقى الملاك المعلومات المالية ومعلومات الحوكمة بشكل دوري منتظم؟",
           "good_practice",
           OECD,
-          "Chapter on disclosure and transparency",
+          "II.A.3; IV.A.1",
         ),
         {
           ...q(
@@ -321,11 +373,10 @@ export const STARTER_TEMPLATE = {
             "Are dealings with related parties disclosed and approved before they happen?",
             "هل يُفصح عن التعاملات مع الأطراف ذات العلاقة وتُعتمد قبل حدوثها؟",
             "good_practice",
-            `${CMA}; ${OECD}`,
-            "CMA chapter on conflicts of interest (related-party article to verify); OECD chapter on disclosure",
+            `${CMA}; ${OECD}; ${SAMA}`,
+            "CMA Arts. 40, 41(6) and 28(14); OECD II.F.1 and IV.A.7; SAMA Art. 43(f)",
           ),
-          // Not marked binding for listed companies until the CMA article on
-          // approving related-party dealings is checked.
+          legalFor: ["listed_jsc", "bank_or_finance_company"],
         },
       ],
     },

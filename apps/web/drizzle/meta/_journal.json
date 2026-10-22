@@ -295,6 +295,20 @@
       "when": 1792626721208,
       "tag": "0041_ai_sources_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792636793324,
+      "tag": "0042_legal_forms_financial",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792636803252,
+      "tag": "0043_assessment_scores_firm_only",
+      "breakpoints": true
     }
   ]
 }

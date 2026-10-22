@@ -798,6 +798,8 @@
         "llc": "Limited liability company",
         "closed_jsc": "Closed joint stock company",
         "listed_jsc": "Listed joint stock company",
+        "bank_or_finance_company": "Bank or finance company",
+        "capital_market_institution": "Capital market institution",
         "non_profit": "Non-profit",
         "other": "Other"
       },
