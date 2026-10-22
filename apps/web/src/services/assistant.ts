@@ -3,6 +3,7 @@ import { and, cosineDistance, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
+import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import { answer, embed, type Passage } from "./ai-client";
 import { audit } from "./audit";
@@ -50,7 +51,7 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const passages: Passage[] = chunks.map((c, i) => ({
     id: `P${i + 1}`,
     text: c.content,
-    source: `${c.sourceType} v${c.sourceVersion}`,
+    source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}`,
   }));
   const byPassageId = new Map(passages.map((p, i) => [p.id, chunks[i]!]));
 
@@ -71,15 +72,21 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     sourceType: c.sourceType,
     sourceId: c.sourceId,
     version: c.sourceVersion,
+    page: c.page,
   }));
 
   const conversationId = input.conversationId
     ? await ownConversation(tx, principal, input.conversationId, eng.id)
     : await newConversation(tx, principal, eng.id);
-  await tx.insert(aiMessages).values([
-    { conversationId, userId: principal.userId, role: "user", content: input.question },
-    { conversationId, userId: principal.userId, role: "assistant", content: text, citations },
-  ]);
+  // Each message is stored once, in its own language; the other comes from the translation cache.
+  const answerLang = input.language === "auto" ? detectLang(text) : input.language;
+  const saved = await tx
+    .insert(aiMessages)
+    .values([
+      { conversationId, userId: principal.userId, role: "user", content: input.question, lang: detectLang(input.question) },
+      { conversationId, userId: principal.userId, role: "assistant", content: text, lang: answerLang, citations },
+    ])
+    .returning({ id: aiMessages.id, role: aiMessages.role });
 
   await audit(tx, {
     actorId: principal.userId,
@@ -91,7 +98,9 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     meta: { passages: passages.length, cited: citations.length, grounded },
   });
 
-  return { conversationId, answer: text, grounded, citations };
+  // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").
+  const messageId = saved.find((m) => m.role === "assistant")!.id;
+  return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations };
 }
 
 /** The permission filter lives in this WHERE clause, never after it. */
@@ -103,6 +112,7 @@ export function retrieve(tx: Tx, scope: RetrievalScope, vector: number[]) {
       sourceType: aiChunks.sourceType,
       sourceId: aiChunks.sourceId,
       sourceVersion: aiChunks.sourceVersion,
+      page: aiChunks.page,
     })
     .from(aiChunks)
     .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)))

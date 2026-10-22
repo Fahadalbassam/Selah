@@ -371,6 +371,8 @@ describe("departments", () => {
     const doc = await upload(U.lead, ACME, { dept: DEPT.hr });
     expect(await sees(U.hr, "documents", doc)).toBe(true);
     expect(await sees(U.fin, "documents", doc)).toBe(false);
+    // Passages are read only while their file is open to the assistant (drizzle/0041).
+    await owner.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [doc]);
     await owner.query(
       `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)
        VALUES ($1,$2,'document',$3,'shared',0,'canary: HR salary bands', array_fill(0.1, ARRAY[1024])::vector)`,

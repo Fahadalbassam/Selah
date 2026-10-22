@@ -10,6 +10,8 @@ export const TRANSLATABLE = {
   meeting_decision: ["text"],
   progress_update: ["body"],
   assessment_answer: ["comment"],
+  // An assistant answer, for its owner only.
+  ai_message: ["content"],
 } as const;
 
 export type TranslatableType = keyof typeof TRANSLATABLE;

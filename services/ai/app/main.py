@@ -15,12 +15,15 @@ from .config import Settings, get_settings
 from .llm import LLM, make_llm
 from .prompt import (
     ANSWER_SCHEMA,
+    SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
     Answer,
     Passage,
     build_messages,
+    build_summary_messages,
     build_translation_messages,
     check_answer,
+    check_summary,
     check_translation,
 )
 
@@ -70,6 +73,27 @@ class TranslateResponse(BaseModel):
     model: str
 
 
+class SummaryPage(BaseModel):
+    n: int = Field(ge=1)
+    text: str = Field(max_length=20000)
+
+
+class SummarizeRequest(BaseModel):
+    pages: list[SummaryPage] = Field(min_length=1, max_length=200)
+    lang: Literal["ar", "en"]
+    max_lines: int = Field(default=8, ge=1, le=20)
+
+
+class SummaryPoint(BaseModel):
+    text: str
+    pages: list[int]
+
+
+class SummarizeResponse(BaseModel):
+    points: list[SummaryPoint]
+    model: str
+
+
 @app.get("/health")
 async def health() -> dict[str, bool]:
     return {"ok": True}
@@ -112,3 +136,17 @@ async def translate(
     if text is None:
         raise HTTPException(status_code=502, detail="the model gave no translation")
     return TranslateResponse(text=text, model=settings.llm_model)
+
+
+@app.post("/v1/summarize", dependencies=[Depends(require_token)])
+async def summarize(
+    req: SummarizeRequest,
+    llm: Annotated[LLM, Depends(get_llm)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SummarizeResponse:
+    pages = [(p.n, p.text) for p in req.pages]
+    system, user = build_summary_messages(pages, req.lang, req.max_lines)
+    points = check_summary(await llm.chat_json(system, user, SUMMARY_SCHEMA), {n for n, _ in pages}, req.max_lines)
+    if points is None:
+        raise HTTPException(status_code=502, detail="the model gave no summary")
+    return SummarizeResponse(points=[SummaryPoint(text=t, pages=c) for t, c in points], model=settings.llm_model)
