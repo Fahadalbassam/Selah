@@ -74,6 +74,22 @@ Nobody reviews or closes an action they own or submitted evidence for. Since `00
 
 Client roles do not get the assistant yet: that is an open decision in the spec. To enable client managers, add `client_manager: "any"` to `assistant.query` in `policy.ts`; nothing else changes. Action owners stay excluded because their document access is per-user shares, which the index does not carry.
 
+## File explorer
+
+The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists documents from the database, never from the bucket. Rows come back filtered by RLS (project, label, department, someone else's unsubmitted evidence), then each passes `authorize("document.download")` with its per-user shares. So the explorer shows exactly the files a person could already open elsewhere:
+
+| Who | Sees |
+|---|---|
+| Firm admin | Every file of every client the firm runs, and internal work. Never a client-private file. |
+| Consultant | Files of the projects they are staffed on (all of a client's projects when they lead it). Never client-private files. |
+| Client admin | All of the company's files, including client-private ones. Nothing of the firm or other clients. |
+| Client manager | The company's files outside departments, and their own department's. |
+| Action owner | Their own uploads and files shared with them one by one. |
+
+Files are grouped client, then project, then source (evidence by action, deliverables, client documents, meetings, assessments). Only the latest version is listed; downloads go through the usual one-minute signed link.
+
+**Reusing a file as evidence** (`POST /api/actions/:id/evidence/existing`) copies the stored object under a new random key and records a new evidence document. The original keeps its label, department and history; the copy follows the evidence rules. It is refused unless the person can submit evidence on the action and download the original, and the original belongs to the same client, is `shared` (never firm-only or private) and was cleared by the virus scan. Tests: `tests/db/files.test.ts`.
+
 ## Adding a new record type (checklist)
 
 1. Add the table in `src/db/schema/app.ts` with `project_id`, `org_id` (via `scoped()` and `scopedFk()`) and, if it can be private, `visibility`.
