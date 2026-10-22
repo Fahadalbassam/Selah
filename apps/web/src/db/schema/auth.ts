@@ -10,6 +10,8 @@ export const user = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    // The name in the other language ("Reem Al-Harbi" for "ريم الحربي"), so it is masked in files written in either (drizzle/0050).
+    nameAlt: text("name_alt"),
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),

@@ -4,6 +4,7 @@ import { deleteContact, updateContact } from "@/services/accounts";
 
 const body = z.object({
   name: z.string().trim().min(1).max(120).optional(),
+  nameAlt: z.string().trim().min(2).max(200).nullable().optional(),
   title: z.string().trim().max(120).nullable().optional(),
   email: z.email().max(254).nullable().optional(),
   phone: z

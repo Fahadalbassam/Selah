@@ -126,7 +126,14 @@
     "consultants": "Assigned consultants",
     "projects": "Projects",
     "none": "None",
-    "empty": "No clients are assigned to you."
+    "empty": "No clients are assigned to you.",
+    "shortNames": {
+      "title": "Short names",
+      "hint": "How people write this company in files and messages. The assistant hides them, like the full name, before a hosted model sees the text.",
+      "editHint": "One per line, in Arabic or English, for example Al-Nukhba or النخبة. Up to 6.",
+      "field": "Short names",
+      "none": "None yet."
+    }
   },
   "team": {
     "title": "Team",
@@ -179,7 +186,8 @@
       "action": "Action",
       "finding": "Finding",
       "meeting": "Meeting",
-      "document": "File"
+      "document": "File",
+      "project": "Project"
     },
     "rename": "Rename chat",
     "keep": "Keep (don't archive)",
@@ -1443,7 +1451,10 @@
     "submitReview": "Record the review",
     "clientPeople": "Client's people",
     "clientPeopleHint": "Invite and manage the client's own accounts.",
-    "manage": "Manage people"
+    "manage": "Manage people",
+    "nameAlt": "Name in the other language",
+    "nameAltHint": "For example Reem Al-Harbi for ريم الحربي. The assistant hides both spellings before a hosted model sees the text. Leave empty to clear.",
+    "save": "Save"
   },
   "settings": {
     "title": "Firm settings",

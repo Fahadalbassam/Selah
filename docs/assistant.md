@@ -45,6 +45,8 @@ When passages disagree (an approved version and a newer draft, say), the model g
 
 Hosted APIs don't all honour `response_format` (Ollama's cloud accepts it and ignores it), so the prompt asks for JSON too, and the AI service takes the JSON object out of the reply (a code fence or words around it are fine) and asks once more if there is none.
 
+**Status questions.** Search finds what files say, not which actions are late. A question about the state of the work ("what is overdue?", "what is blocked?", "awaiting review", "due this week", "what is still open", and the Arabic forms such as "المتأخرة", "المتعثرة", "بانتظار المراجعة", "هذا الأسبوع", "لم تنجز") is noticed by `statusIntent` (`src/lib/assistant-search.ts`), and `statusRecords` then reads the project's actions under the person's row-level security: a count as of today (open, overdue, blocked, awaiting review, sent back, due in 7 days), up to 8 matching actions with their due date, days overdue, owner and blocked reason, and up to 3 recommendations past their date with open work. These go to the model as records it can cite (the count cites the project), and only 4 file passages go beside them. Other questions are unchanged. Draft, verified and closed actions are not counted as open. Found in the GPT-OSS run, where "what is overdue?" was answered from a file's dates instead of the actions.
+
 A follow-up gets the chat's last 8 messages as context (`history`). They are never sources: the model is told not to cite them, and every turn searches again under the person's rights as they are now. Messages can't be edited by anyone (`UPDATE` is revoked).
 
 ## Chats
@@ -84,7 +86,9 @@ The firm should confirm the numbers with its own legal adviser before real clien
 
 When the model runs outside our server (`LLM_PROVIDER=openai_compat`, for example GPT-OSS on Ollama's cloud), the web app replaces known names with placeholders before anything leaves, and puts the names back in what comes back (`AI_MASKING=auto`, the default; `on` and `off` force it). People always see real names; only the model sees placeholders.
 
-- **What is masked:** the project's client and the firm (name, Arabic name, alias), their people and the client's contacts (full names, and name parts of 4+ letters), the client's departments (`app_mask_terms`, for a project the caller can see), main Saudi cities, email addresses and phone numbers. Longest name first; Latin names as whole words; Arabic names also after a prefix such as و or ل, with short vowels ignored. All the names of one record share one placeholder (migration 0048), so "Al-Nukhba Holding" and "شركة النخبة القابضة" are both `[ORG_1]`; before that the model took them for two companies.
+- **What is masked:** the project's client and the firm (name, Arabic name, alias, short names), their people and the client's contacts (full names, the optional name in the other language, and name parts of 4+ letters), client people named only as an action's owner, the client's departments, and, for firm staff, the names of the firm's other clients (`app_mask_terms`, for a project the caller can see), main Saudi cities, email addresses and phone numbers. Longest name first; Latin names as whole words; Arabic names also after a prefix such as و or ل, with short vowels ignored. All the names of one record share one placeholder (migration 0048), so "Al-Nukhba Holding" and "شركة النخبة القابضة" are both `[ORG_1]`; before that the model took them for two companies.
+- **Names in two languages (migration 0050).** A person or client contact can have a name in the other language (`name_alt`, set by the admins who may change their address, logged, cleared on erasure), and a client up to 6 short names ("Al-Nukhba", "النخبة"), set by the firm admin on the client page. Latin names match however they are written: "Al Harbi", "Al-Harbi", "Alharbi" and "el-Harbi" are one name, and "Al-Harbi" also covers "Harbi" alone.
+- **Other clients.** A consultant who types another client's name into a question has it masked too. Firm staff already see every client's name (they may ask to join a client), so the list shows them nothing new; other clients' people are not in it, and a client's own people never get other clients' names.
 - **Where:** the question, every passage and record, the chat history, translations and file summaries. Embeddings are made locally and don't leave the server.
 - **When:** at the moment of sending, from the current names, so a person or department added later is masked without re-indexing. The mapping lives only in that request.
 - **Proven by** `tests/db/assistant-chats.test.ts`: no known name reaches the model's payload, and placeholders in the answer come back as the names.
@@ -92,8 +96,8 @@ When the model runs outside our server (`LLM_PROVIDER=openai_compat`, for exampl
 Limits, to state plainly in the report:
 
 - It reduces what leaves; it doesn't guarantee anonymity. A name that isn't in Selah (a person mentioned only inside a file) is not masked, and unusual details can still identify a client.
-- Selah keeps one name per person. Someone registered in Arabic ("ريم الحربي") is not masked where a file spells them in English ("Reem Al-Harbi"), and a short form of a company name ("Al-Nukhba") is masked only if it is the company's alias.
-- The masking knows the project's own client. Another client's name typed into the question is sent as typed (nothing of that client is retrieved).
+- A spelling Selah doesn't hold is not matched: someone registered as "ريم الحربي" with no English name is not masked where a file writes "Reem Al-Harbi". The admin adds the second name on the Team page.
+- Another client's people, typed into a question, are sent as typed (nothing of that client is retrieved).
 - Under PDPL, pseudonymised data can still be personal data. Sending it abroad still needs the firm's approval.
 - The real fix is a model that runs on our server or is hosted in Saudi Arabia. The service already supports a local Ollama model; masking turns off by itself when it is used.
 

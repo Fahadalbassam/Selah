@@ -15,7 +15,7 @@ import { loadPrincipal } from "@/services/principal";
 
 // What the model was sent, and what it answers.
 const sent: { question: string; passages: { id: string; text: string; source: string }[]; history: unknown[] }[] = [];
-let reply: (passages: { id: string; text: string }[]) => { answer: string; cited_ids: string[]; grounded: boolean } = (p) => ({
+let reply: (passages: { id: string; text: string; source: string }[]) => { answer: string; cited_ids: string[]; grounded: boolean } = (p) => ({
   answer: "Answer.",
   cited_ids: p.slice(0, 1).map((x) => x.id),
   grounded: true,
@@ -199,7 +199,7 @@ describe("hybrid search", () => {
 describe("asking", () => {
   it("starts a titled chat, adds the case and the records behind the files, and cites records", async () => {
     reply = (p) => ({ answer: "See the action.", cited_ids: [p[p.length - 1]!.id], grounded: true });
-    const first = await ask(U.cons, { question: "  What is   still open on the board charter?  ", case: { type: "action", id: ACT } });
+    const first = await ask(U.cons, { question: "  What is   pending on the board charter?  ", case: { type: "action", id: ACT } });
     const passages = sent[0]!.passages;
     const records = passages.filter((p) => ["action", "recommendation", "finding", "meeting"].includes(p.source));
     // The case first, then the recommendation behind the charter (through its finding).
@@ -211,7 +211,7 @@ describe("asking", () => {
     ]);
 
     const chat = await svc(U.cons, (tx, p) => A.getConversation(tx, p, first.conversationId, "en"));
-    expect(chat).toMatchObject({ title: "What is still open on the board charter?", caseType: "action", caseId: ACT });
+    expect(chat).toMatchObject({ title: "What is pending on the board charter?", caseType: "action", caseId: ACT });
     expect(chat.caseLabel).toBe("Update the audit committee mandate");
     expect(chat.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
     expect(chat.messages[1]!.citations[0]).toMatchObject({ label: "Adopt the board charter", available: true });
@@ -219,7 +219,7 @@ describe("asking", () => {
     // A follow-up gets the earlier turns as context, oldest first, and searches again.
     await ask(U.cons, { question: "And who owns it?", conversationId: first.conversationId });
     expect(sent[1]!.history).toEqual([
-      { role: "user", content: "  What is   still open on the board charter?  ".replace(/\s+/g, " ").trim() },
+      { role: "user", content: "  What is   pending on the board charter?  ".replace(/\s+/g, " ").trim() },
       { role: "assistant", content: "See the action." },
     ]);
     expect(sent[1]!.passages.length).toBeGreaterThan(0);
@@ -253,6 +253,59 @@ describe("asking", () => {
     const r = await ask(U.cons, { question: "Is it compliant?" });
     expect(r.answer).toMatch(/can't confirm/);
     expect(r.citations).toEqual([]);
+  });
+});
+
+describe("status questions", () => {
+  const LATE = id(301);
+  const STUCK = id(302);
+  const OTHER = id(303);
+  const P2_REC = id(304);
+  beforeAll(async () => {
+    const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'HR rec',$4)`, [P2_REC, P2, ACME, U.other]);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, status, due_date, owner_name, blocked_reason, created_by) VALUES
+         ($1,$5,$6,$8,'File the related-party register','assigned',current_date - 12,'Hind',NULL,$9),
+         ($2,$5,$6,$8,'Appoint the board secretary','blocked',current_date + 20,NULL,'No candidate yet',$9),
+         ($3,$7,$6,$4,'HR overdue secret','assigned',current_date - 3,NULL,NULL,$9)`,
+      [LATE, STUCK, OTHER, P2_REC, P1, ACME, P2, REC, U.cons],
+    );
+  });
+  afterAll(async () => {
+    await owner.query(`DELETE FROM actions WHERE id = ANY($1)`, [[LATE, STUCK, OTHER]]);
+    await owner.query(`DELETE FROM recommendations WHERE id = $1`, [P2_REC]);
+  });
+
+  it("answers from the project's action records, counted as of today, and cites them", async () => {
+    reply = (p) => ({ answer: "One is late.", cited_ids: p.filter((x) => x.source === "project" || (x.source === "action" && x.text.includes("register"))).map((x) => x.id), grounded: true });
+    const r = await ask(U.cons, { question: "What is overdue?" });
+    const passages = sent[0]!.passages;
+    const summary = passages.find((p) => p.source === "project")!;
+    expect(summary.text).toMatch(/as of \d{4}-\d{2}-\d{2}/);
+    expect(summary.text).toContain("1 overdue");
+    expect(summary.text).toContain("1 blocked");
+    const late = passages.find((p) => p.source === "action" && p.text.includes("File the related-party register"))!;
+    expect(late.text).toContain("12 days overdue");
+    expect(late.text).toContain("owner Hind");
+    // Only what was asked about, and nothing from another project.
+    expect(passages.filter((p) => p.source === "action").map((p) => p.text).join()).not.toContain("Appoint the board secretary");
+    expect(JSON.stringify(passages)).not.toContain("HR overdue secret");
+    expect(r.citations.map((c) => c.sourceType).sort()).toEqual(["action", "project"]);
+    const chat = await svc(U.cons, (tx, p) => A.getConversation(tx, p, r.conversationId, "en"));
+    expect(chat.messages[1]!.citations.find((c) => c.sourceType === "project")).toMatchObject({ label: "Board governance", available: true });
+  });
+
+  it("works in Arabic and says why an action is blocked", async () => {
+    reply = (p) => ({ answer: "x", cited_ids: [p[0]!.id], grounded: true });
+    await ask(U.cons, { question: "ما الإجراءات المتعثرة؟", language: "ar" });
+    const stuck = sent[0]!.passages.find((p) => p.source === "action" && p.text.includes("Appoint the board secretary"))!;
+    expect(stuck.text).toContain('Blocked because: "No candidate yet"');
+  });
+
+  it("leaves other questions to search", async () => {
+    await ask(U.cons, { question: "What does the charter say about the chair?" });
+    expect(sent[0]!.passages.some((p) => p.source === "project")).toBe(false);
   });
 });
 
@@ -425,6 +478,58 @@ describe("masking names before the model", () => {
     } finally {
       delete process.env.LLM_PROVIDER;
     }
+  });
+
+  it("masks second-language names, short names and Latin spellings", async () => {
+    process.env.AI_MASKING = "on";
+    await owner.query(`UPDATE "user" SET name_alt = 'Khalid Al-Otaibi' WHERE id = $1`, [U.cmgr]);
+    await owner.query(`UPDATE organizations SET short_names = ARRAY['Nukhba Co','النخبة'] WHERE id = $1`, [ACME]);
+    try {
+      await ask(U.cons, { question: "Did Khalid AlOtaibi from Nukhba Co meet Reem Alharbi?" });
+      expect(sent[0]!.question).toBe("Did [PERSON_1] from [ORG_1] meet [PERSON_2]?");
+      // The other-language name is the same person as the registered one.
+      await ask(U.cons, { question: "Is خالد العتيبي Khalid Al-Otaibi?" });
+      expect(sent[1]!.question).toBe("Is [PERSON_1] [PERSON_1]?");
+      // A client person with no account, named as an action's owner, without the role.
+      await owner.query(`UPDATE actions SET owner_name = 'Hind Bakr (CFO)' WHERE id = $1`, [ACT]);
+      await ask(U.cons, { question: "Has Hind Bakr replied?" });
+      expect(sent[2]!.question).toBe("Has [PERSON_1] replied?");
+    } finally {
+      await owner.query(`UPDATE actions SET owner_name = NULL WHERE id = $1`, [ACT]);
+      await owner.query(`UPDATE "user" SET name_alt = NULL WHERE id = $1`, [U.cmgr]);
+      await owner.query(`UPDATE organizations SET short_names = '{}' WHERE id = $1`, [ACME]);
+    }
+  });
+
+  it("masks the firm's other clients for its staff, but never lists them to a client", async () => {
+    process.env.AI_MASKING = "on";
+    await ask(U.cons, { question: "Does Rawdah Group have the same charter?" });
+    expect(sent[0]!.question).toBe("Does [ORG_1] have the same charter?");
+    const terms = async (uid: string) => (await sqlAs(uid, `SELECT term FROM app_mask_terms($1)`, [P1])).rows.map((r) => r.term);
+    expect(await terms(U.cons)).toContain("Rawdah Group");
+    expect(await terms(U.cmgr)).not.toContain("Rawdah Group");
+    expect(await terms(U.cmgr)).toContain("Al-Nukhba Holding");
+  });
+
+  it("lets only an admin set a second-language name or short names, and erasure clears the name", async () => {
+    const logs = async () =>
+      (await owner.query(`SELECT 1 FROM audit_log WHERE action = 'user.name_alt' AND resource_id = $1`, [U.other])).rowCount;
+    const before = await logs();
+    await expect(sqlAs(U.cons, `SELECT app_set_name_alt($1, 'Omar')`, [U.other])).rejects.toThrow(/not allowed/);
+    await sqlAs(U.admin, `SELECT app_set_name_alt($1, '  Omar F.  ')`, [U.other]);
+    expect((await owner.query(`SELECT name_alt FROM "user" WHERE id = $1`, [U.other])).rows[0].name_alt).toBe("Omar F.");
+    expect(await logs()).toBe(before! + 1);
+
+    const E = await import("@/services/engagement");
+    await expect(svc(U.cons, (tx, p) => E.setShortNames(tx, p, ACME, "Nukhba"))).rejects.toThrow();
+    await svc(U.admin, (tx, p) => E.setShortNames(tx, p, ACME, "Nukhba, النخبة\nNukhba"));
+    expect((await owner.query(`SELECT short_names FROM organizations WHERE id = $1`, [ACME])).rows[0].short_names).toEqual(["Nukhba", "النخبة"]);
+    await expect(svc(U.admin, (tx, p) => E.setShortNames(tx, p, ACME, "a,b,c,d,e,f,g"))).rejects.toThrow();
+    await svc(U.admin, (tx, p) => E.setShortNames(tx, p, ACME, ""));
+
+    await owner.query(`UPDATE "user" SET email = 'erased-x@erased.invalid' WHERE id = $1`, [U.other]);
+    expect((await owner.query(`SELECT name_alt FROM "user" WHERE id = $1`, [U.other])).rows[0].name_alt).toBeNull();
+    await owner.query(`UPDATE "user" SET email = 'other@example.test' WHERE id = $1`, [U.other]);
   });
 
   it("gives the names only for a project the caller can see", async () => {

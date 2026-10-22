@@ -60,3 +60,25 @@ export function chatTitle(question: string): string {
   const line = question.replace(/\s+/g, " ").trim();
   return line.length <= 60 ? line : `${line.slice(0, 59).trimEnd()}…`;
 }
+
+export type StatusKind = "overdue" | "blocked" | "review" | "revision" | "due_soon" | "open";
+
+// Status words in both languages. Arabic patterns allow a prefix (ال، و، ب) and a feminine ending.
+const STATUS: [StatusKind, RegExp][] = [
+  ["overdue", /\b(overdue|late|past due|behind schedule|missed (the )?deadline)\b|متأخر|تأخر|فات موعد|تجاوز\S* (ال)?موعد/iu],
+  ["blocked", /\b(blocked|stuck|on hold)\b|متعثر|معلق|متوقف|عالق/iu],
+  ["review", /\b(awaiting|pending|waiting for|needs?|ready for) (my |our |a )?review\b|بانتظار (ال)?مراجع|تنتظر (ال)?مراجع|قيد (ال)?مراجع/iu],
+  ["revision", /\b(revision|sent back|rework)\b|طلب (ال)?تعديل|أعيد\S* للتعديل|إعادة (ال)?عمل/iu],
+  ["due_soon", /\bdue (this|next) week\b|\bdue soon\b|\bupcoming (deadline|due)|مستحق\S* (هذا|خلال|في) (ال)?أسبوع|(هذا|الأسبوع) (ال)?(أسبوع|القادم)|المواعيد القادمة/iu],
+  ["open", /\b(still open|outstanding|not (yet )?(done|finished|complete)|what'?s left|remaining (work|actions))\b|لم (ت|ي)نج?ز|المفتوحة|المتبقية|غير المكتمل/iu],
+];
+
+/**
+ * Whether a question asks about the state of the work rather than what a file
+ * says ("what is overdue?", "ما الإجراءات المتعثرة؟"). Search can't see status,
+ * so these are answered from the project's records (docs/assistant.md).
+ */
+export function statusIntent(question: string): Set<StatusKind> {
+  const q = question.replace(/\p{M}/gu, "");
+  return new Set(STATUS.filter(([, re]) => re.test(q)).map(([k]) => k));
+}

@@ -3,7 +3,7 @@ import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, or,
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
-import { chatTitle, fuse, keywordQuery } from "@/lib/assistant-search";
+import { chatTitle, fuse, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
@@ -15,6 +15,10 @@ const TOP_K = 8;
 const CANDIDATES = 20;
 // Linked records added after the search (the case first, then hops).
 const MAX_RECORDS = 3;
+// Actions listed for a status question ("what is overdue?").
+const MAX_STATUS_ACTIONS = 8;
+// Document passages kept beside them: status lives in records, not files.
+const STATUS_TOP_K = 4;
 // Earlier turns of the same chat given as context. Never as sources.
 const HISTORY_MESSAGES = 8;
 const CANNOT_CONFIRM = {
@@ -53,7 +57,8 @@ export interface Citation {
  *   2. The scope goes INSIDE both search queries' WHERE clause, and they also
  *      run under RLS, so other tenants' chunks are never scored.
  *   3. Linked records (the chat's case, and the recommendations and actions
- *      behind the files found) are read under the same RLS.
+ *      behind the files found) are read under the same RLS. A status question
+ *      ("what is overdue?") also gets the project's matching actions first.
  *   4. Only surviving passages go to the AI service, each with a short id.
  *      Earlier turns of the chat go as context, never as sources.
  *   5. Cited ids are checked against the ids we supplied.
@@ -77,8 +82,13 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
 
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
-  const chunks = await retrieve(tx, scope, vector, { query: input.question, case: caseRef });
-  const records = await linkedRecords(tx, caseRef, chunks);
+  const kinds = statusIntent(input.question);
+  const status = kinds.size ? await statusRecords(tx, eng.id, kinds) : [];
+  const found = await retrieve(tx, scope, vector, { query: input.question, case: caseRef });
+  const chunks = status.length ? found.slice(0, STATUS_TOP_K) : found;
+  // The case and its links keep their fuller text when a status row repeats one.
+  const linked = await linkedRecords(tx, caseRef, chunks);
+  const records = [...linked, ...status.filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
 
   const sources = [
     ...chunks.map((c) => ({
@@ -105,7 +115,8 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     const result = await answer(
       masker.mask(input.question),
       passages.map((p) => ({ ...p, text: masker.mask(p.text) })),
-      input.language,
+      // "auto" is settled here: with Arabic records and an English question the model drifted to Arabic.
+      input.language === "auto" ? detectLang(input.question) : input.language,
       history.map((h) => ({ ...h, content: masker.mask(h.content) })),
     );
     result.answer = masker.unmask(result.answer);
@@ -138,6 +149,7 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     meta: {
       passages: chunks.length,
       records: records.length,
+      ...(kinds.size ? { status: [...kinds].join(",") } : {}),
       cited: citations.length,
       grounded,
       turns: history.length / 2,
@@ -211,7 +223,7 @@ function scopeFilter(scope: RetrievalScope) {
 // ------------------------------------------------------- linked records
 
 interface RecordPassage {
-  type: "recommendation" | "action" | "finding" | "meeting";
+  type: "recommendation" | "action" | "finding" | "meeting" | "project";
   id: string;
   text: string;
 }
@@ -260,6 +272,8 @@ export async function linkedRecords(tx: Tx, caseRef: CaseRef | null, chunks: { s
 
 async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promise<string | null> {
   switch (type) {
+    case "project":
+      return null;
     case "recommendation": {
       const [r] = (
         await tx.execute<{ title: string; priority: string; due_date: string | null }>(
@@ -327,6 +341,122 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
       }.`;
     }
   }
+}
+
+// ------------------------------------------------------ status questions
+
+const DONE = sql`('verified_complete', 'closed', 'draft')`;
+const STATUS_WHERE: Record<StatusKind, SQL> = {
+  overdue: sql`a.due_date < current_date`,
+  blocked: sql`a.status = 'blocked'`,
+  review: sql`a.status = 'awaiting_review'`,
+  revision: sql`a.status = 'revision_requested'`,
+  due_soon: sql`a.due_date BETWEEN current_date AND current_date + 7`,
+  open: sql`true`,
+};
+
+/**
+ * The state of the work, for a status question: search finds what files say,
+ * not which actions are late. A count of the project's open actions as of
+ * today, then the matching actions (most overdue first) and the
+ * recommendations past their date with work still open. Read under the
+ * person's own row-level security, so a client person sees only what the
+ * action screens show them.
+ */
+export async function statusRecords(tx: Tx, projectId: string, kinds: Set<StatusKind>): Promise<RecordPassage[]> {
+  const [c] = (
+    await tx.execute<{
+      today: string;
+      week_end: string;
+      open: number;
+      overdue: number;
+      blocked: number;
+      review: number;
+      revision: number;
+      due_soon: number;
+    }>(sql`
+      SELECT current_date::text AS today, (current_date + 7)::text AS week_end, count(*)::int AS open,
+        count(*) FILTER (WHERE ${STATUS_WHERE.overdue})::int AS overdue,
+        count(*) FILTER (WHERE ${STATUS_WHERE.blocked})::int AS blocked,
+        count(*) FILTER (WHERE ${STATUS_WHERE.review})::int AS review,
+        count(*) FILTER (WHERE ${STATUS_WHERE.revision})::int AS revision,
+        count(*) FILTER (WHERE ${STATUS_WHERE.due_soon})::int AS due_soon
+      FROM actions a WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE}`)
+  ).rows;
+  if (!c) return [];
+
+  const match = sql.join(
+    [...kinds].map((k) => sql`(${STATUS_WHERE[k]})`),
+    sql` OR `,
+  );
+  const acts = (
+    await tx.execute<{
+      id: string;
+      title: string;
+      status: string;
+      due_date: string | null;
+      late: number | null;
+      blocked_reason: string | null;
+      owner: string | null;
+      rec: string;
+    }>(sql`
+      SELECT a.id, a.title, a.status, a.due_date, current_date - a.due_date AS late, a.blocked_reason,
+        coalesce(u.name, a.owner_name) AS owner, r.title AS rec
+      FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
+      LEFT JOIN "user" u ON u.id = a.owner_user_id
+      WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE} AND (${match})
+      ORDER BY a.due_date ASC NULLS LAST, a.created_at LIMIT ${MAX_STATUS_ACTIONS}`)
+  ).rows;
+  const recs = (
+    await tx.execute<{ id: string; title: string; due_date: string; open: number }>(sql`
+      SELECT r.id, r.title, r.due_date, count(a.id)::int AS open
+      FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status NOT IN ${DONE}
+      WHERE r.project_id = ${projectId} AND r.due_date < current_date
+      GROUP BY r.id ORDER BY r.due_date LIMIT 3`)
+  ).rows;
+
+  // Which recommendations the late actions belong to, so "which recommendations are late?" has an answer.
+  const lateUnder = (
+    await tx.execute<{ title: string; n: number }>(sql`
+      SELECT r.title, count(*)::int AS n FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
+      WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE} AND ${STATUS_WHERE.overdue}
+      GROUP BY r.title ORDER BY n DESC LIMIT 3`)
+  ).rows;
+
+  const out: RecordPassage[] = [
+    {
+      type: "project",
+      id: projectId,
+      text:
+        `Status of the project's actions as of ${c.today} (from the action records, not files): ${c.open} open, ` +
+        `${c.overdue} overdue (past their due date), ${c.blocked} blocked, ${c.review} awaiting review, ` +
+        `${c.revision} sent back for revision, ${c.due_soon} due from today to ${c.week_end}. ` +
+        (recs.length
+          ? `${recs.length} recommendation(s) are past their own due date with open actions. `
+          : "No recommendation is past its own due date. ") +
+        (lateUnder.length
+          ? `The overdue actions belong to ${lateUnder.map((r) => `recommendation "${clip(r.title, 120)}" (${r.n})`).join(", ")}.`
+          : "") +
+        (acts.length ? "" : " No open action matches the question."),
+    },
+    ...acts.map((a) => ({
+      type: "action" as const,
+      id: a.id,
+      text: [
+        `Action "${clip(a.title, 200)}": status ${a.status}`,
+        a.due_date ? `, due ${day(a.due_date)}${a.late && a.late > 0 ? ` (${a.late} days overdue)` : ""}` : ", no due date",
+        a.owner ? `, owner ${clip(a.owner, 80)}` : ", no owner",
+        `. Recommendation "${clip(a.rec, 160)}".`,
+        a.status === "blocked" && a.blocked_reason ? ` Blocked because: "${clip(a.blocked_reason, 300)}"` : "",
+      ].join(""),
+    })),
+    ...recs.map((r) => ({
+      type: "recommendation" as const,
+      id: r.id,
+      text: `Recommendation "${clip(r.title, 200)}" was due ${day(r.due_date)} and still has ${r.open} open action(s).`,
+    })),
+  ];
+  return out;
 }
 
 async function actionList(tx: Tx, recommendationId: string) {
@@ -533,6 +663,7 @@ async function citationLabels(tx: Tx, cites: Citation[]) {
     ["action", sql`SELECT id, title, NULL::int AS version FROM actions`],
     ["finding", sql`SELECT id, title, NULL::int AS version FROM findings`],
     ["meeting", sql`SELECT id, title, NULL::int AS version FROM meetings`],
+    ["project", sql`SELECT id, title, NULL::int AS version FROM projects`],
   ];
   for (const [type, select] of tables) {
     const xs = ids(type);
