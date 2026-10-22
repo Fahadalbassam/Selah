@@ -8,9 +8,10 @@ import { Translatable } from "@/components/translatable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
-import { actionFollowThrough } from "@/services/follow-through";
+import { actionClosure, actionFollowThrough } from "@/services/follow-through";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
+import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
 import { DeadlineRequests, EvidenceList } from "./follow-through-panels";
 
@@ -25,9 +26,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, follow } = await withPrincipal(async (tx, principal) => ({
+  const { data, follow, closing } = await withPrincipal(async (tx, principal) => ({
     data: await getActionDetail(tx, principal, id),
     follow: await actionFollowThrough(tx, principal, id),
+    closing: await actionClosure(tx, principal, id),
   }));
   const [t, tTable, format] = await Promise.all([getTranslations("action"), getTranslations("table"), getFormatter()]);
   const ar = (await getLocale()) === "ar";
@@ -49,11 +51,38 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">
+          {closing.closure ? (
+            <div className="space-y-1 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <p className="font-medium">
+                {t("closure.closedAs", { outcome: t(`closure.outcomes.${closing.closure.outcome ?? "not_applicable"}`) })}
+              </p>
+              {closing.closure.note ? <p className="whitespace-pre-wrap">{closing.closure.note}</p> : null}
+              {closing.closure.supersededBy ? (
+                <p>
+                  {t("closure.replacedBy")}:{" "}
+                  <Link href={`/actions/${closing.closure.supersededBy.id}`} className="text-primary hover:underline">
+                    {closing.closure.supersededBy.title}
+                  </Link>
+                </p>
+              ) : null}
+              {closing.closure.at ? (
+                <p className="text-xs text-muted-foreground">
+                  {closing.closure.by ? t("closure.by", { name: closing.closure.by, date: when(closing.closure.at) }) : when(closing.closure.at)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {action.status === "blocked" && action.blockedReason ? (
             <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{t("blocked", { reason: action.blockedReason })}</p>
           ) : null}
 
-          <ActionPanel actionId={action.id} status={action.status} moves={data.moves} can={data.can} />
+          <ActionPanel
+            actionId={action.id}
+            status={action.status}
+            moves={data.moves}
+            can={data.can}
+            close={closing.can.close ? { signed: closing.signed, replacements: closing.replacements } : undefined}
+          />
 
           <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} canSubmit={data.can.submitEvidence} />
 
@@ -133,6 +162,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           canRequest={follow.can.requestDeadline}
           canDecide={follow.can.decideDeadline}
         />
+        <RiskAcceptances actionId={action.id} items={closing.acceptances} canSign={closing.can.sign} />
         </div>
       </div>
     </>

@@ -36,6 +36,7 @@ An action ends one of two ways:
 
 - A CHECK ties `status = 'closed'` to a closure outcome. The trigger records `closed_by` and `closed_at`.
 - The firm can reopen a verified or closed action (→ In Progress). Reopening clears the closure; the history stays in `activity_events`. Nobody closes an action they own.
+- On the action page (`actionClosure`): the firm's Close dialog asks for the outcome and a note. "Risk accepted" stays locked until a signature counts, and "superseded" offers the project's other open actions. Reopen asks for a reason. A client admin or manager gets a Risk acceptance card to sign a statement, which they must tick to confirm. Signatures from before the last reopen are shown as no longer counting. A closed action shows how it ended, who closed it, and what replaced it.
 
 ## Evidence lists
 
