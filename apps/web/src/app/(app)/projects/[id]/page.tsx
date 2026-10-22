@@ -14,12 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
+import { getHandover } from "@/services/handover";
 import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { getProject, isOverdue } from "@/services/queries";
 import { getProjectTeam } from "@/services/staffing";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
+import { HandoverCard } from "./handover-card";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ProgressTab } from "./progress-tab";
 
@@ -28,7 +30,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace } = await withPrincipal(async (tx, principal) => {
+  const { data, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -57,6 +59,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       // The deviation rules, for the firm.
       deviations: await projectDeviations(tx, principal, id).catch(() => null),
       trace: await projectTrace(tx, principal, id).catch(() => null),
+      handover: await getHandover(tx, principal, id),
     };
   });
   const [t, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, format] = await Promise.all([
@@ -229,7 +232,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         ) : null}
 
         {metrics ? (
-          <TabsContent value="progress">
+          <TabsContent value="progress" className="space-y-6">
+            <HandoverCard projectId={project.id} data={handover} />
             <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} />
           </TabsContent>
         ) : null}

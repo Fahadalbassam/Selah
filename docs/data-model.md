@@ -117,6 +117,7 @@ Rules: `drizzle/0015_handover_rules.sql`. Tests: `tests/db/handover.test.ts`.
 
 - **Client sponsor** (`projects.client_sponsor_user_id`): an active admin or manager of the project's client. They are added at escalation level 3.
 - **Check-ins.** Setting `projects.handover_on` creates follow-ups at 30, 60 and 90 days (`firm_settings.checkin_days`). They are due at 09:00 Riyadh time, assigned to the client's lead consultant, and firm-private. Moving the handover date moves the check-ins still open.
+- **On the project page** (Progress tab, `getHandover`/`setHandover`, `PATCH /api/projects/:id/handover`): everyone who sees progress sees the handover date and the sponsor. The firm admin sets both. Firm staff also see the check-ins, and the assignee or firm staff mark each one done.
 - **Deviations** (`v_deviations`, under the caller's RLS). One row per open action or KPI and the rule it breaks. AI may summarise the rows later; the rules decide what counts.
 
 | Rule | Meaning |

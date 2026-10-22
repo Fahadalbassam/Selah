@@ -1520,5 +1520,25 @@
       "recorded": "recorded by a consultant",
       "seeBelow": "(see under its finding)"
     }
+  },
+  "handover": {
+    "title": "Handover",
+    "hint": "When the report is delivered, set the handover date. The firm then checks in with the client on the days in the firm's settings (30, 60 and 90 by default).",
+    "hintDone": "The report was delivered. The firm checks in with the client on the days below.",
+    "set": "Set handover",
+    "change": "Change",
+    "date": "Handover date",
+    "notYet": "Not handed over yet",
+    "sponsor": "Client sponsor",
+    "noSponsor": "No sponsor named",
+    "sponsorHint": "An admin or manager at the client who is told when an overdue action reaches the last escalation level.",
+    "checkins": "Check-ins",
+    "checkin": "Check-in after {n} days",
+    "unassigned": "No lead consultant",
+    "markDone": "Mark done",
+    "reopen": "Reopen",
+    "dialogHint": "Setting or moving the date creates or moves the check-ins that are still open.",
+    "hintAfter": "The report was delivered. The firm will check in with you over the following months.",
+    "hintPending": "The report hasn't been handed over yet."
   }
 }
