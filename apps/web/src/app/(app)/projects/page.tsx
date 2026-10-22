@@ -1,4 +1,6 @@
-import { Building2, Lock, Plus } from "lucide-react";
+import { Building2 } from "lucide-react";
+import { Lock } from "@/components/animate-ui/icons/lock";
+import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";

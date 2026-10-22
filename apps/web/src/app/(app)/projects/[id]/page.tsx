@@ -1,4 +1,10 @@
-import { Bot, CalendarDays, CalendarPlus, ClipboardList, Crown, Eye, EyeOff, FileText, Lock, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, UserPlus } from "lucide-react";
+import { Bot } from "@/components/animate-ui/icons/bot";
+import { Crown } from "@/components/animate-ui/icons/crown";
+import { Eye } from "@/components/animate-ui/icons/eye";
+import { EyeOff } from "@/components/animate-ui/icons/eye-off";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Lock } from "@/components/animate-ui/icons/lock";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -80,11 +86,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <PageHeader title={project.title} description={project.description ?? undefined}>
-        <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
-          {tKind(project.kind)}
-          {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
-        </Badge>
+      <PageHeader
+        title={project.title}
+        description={project.description ?? undefined}
+        meta={
+          <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
+            {tKind(project.kind)}
+            {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
+          </Badge>
+        }
+      >
         {team?.can.watch ? (
           <ApiButton
             endpoint={`/api/projects/${project.id}/watch`}
@@ -171,7 +182,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             {meetings.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("noMeetings")}</p>
             ) : (
-              <ul className="divide-y rounded-lg border bg-card">
+              <ul className="divide-y rounded-xl border bg-card">
                 {meetings.map((m) => (
                   <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
                     <CalendarDays className="size-4 text-muted-foreground" />
@@ -204,7 +215,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             {assessments.length === 0 ? (
               <p className="text-sm text-muted-foreground">{firmStaff ? t("noAssessments") : t("noAssessmentsClient")}</p>
             ) : (
-              <ul className="divide-y rounded-lg border bg-card">
+              <ul className="divide-y rounded-xl border bg-card">
                 {assessments.map((x) => (
                   <li key={x.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
                     <ClipboardList className="size-4 text-muted-foreground" />
@@ -253,7 +264,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {data.documents.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noDocs")}</p>
           ) : (
-            <ul className="divide-y rounded-lg border bg-card">
+            <ul className="divide-y rounded-xl border bg-card">
               {data.documents.map((d) => (
                 <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
                   <FileText className="size-4 text-muted-foreground" />
@@ -263,7 +274,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   <span className="text-xs text-muted-foreground">
                     {t("version")} {d.version}
                   </span>
-                  <Badge variant={d.visibility === "shared" ? "outline" : "secondary"} className="ms-auto">
+                  <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className="ms-auto">
                     {tVis(d.visibility)}
                   </Badge>
                   {d.aiIndexable ? (

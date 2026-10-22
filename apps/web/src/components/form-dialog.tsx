@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export interface Field {
   name: string;
@@ -191,8 +192,9 @@ export function ApiButton(props: {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
   async function run() {
-    if (props.confirm && !window.confirm(props.confirm)) return;
+    if (props.confirm && !(await confirm(props.confirm))) return;
     setBusy(true);
     setError(null);
     const r = await callApi(props.endpoint, props.method ?? "POST", props.body);
@@ -207,6 +209,7 @@ export function ApiButton(props: {
         {props.label}
       </Button>
       {error ? <span className="text-xs text-destructive">{t(`errors.${error}`)}</span> : null}
+      {confirmDialog}
     </span>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { FileText, Link2, MessageSquareQuote, X } from "lucide-react";
+import { Link2, MessageSquareQuote } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";

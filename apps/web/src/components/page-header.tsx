@@ -1,13 +1,31 @@
 import type { ReactNode } from "react";
 
-export function PageHeader({ title, description, children }: { title: string; description?: string; children?: ReactNode }) {
+/**
+ * The one page title block. `meta` holds badges that describe the page's
+ * subject (kind, status, visibility) next to the title; `children` are the
+ * page's actions and always sit together at the end of the row.
+ */
+export function PageHeader({
+  title,
+  description,
+  meta,
+  children,
+}: {
+  title: string;
+  description?: string;
+  meta?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          {meta}
+        </div>
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
-      {children}
+      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
     </div>
   );
 }

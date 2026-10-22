@@ -39,14 +39,14 @@ function Section(props: { id: string; title: string; description: string; childr
     if (ok) toast.success(t("saved"));
   }
   return (
-    <Card id={props.id}>
+    <Card id={props.id} className="gap-4 py-5 shadow-xs">
       <form onSubmit={submit} className="contents">
-        <CardHeader>
-          <CardTitle>{props.title}</CardTitle>
+        <CardHeader className="px-5">
+          <CardTitle className="text-base">{props.title}</CardTitle>
           <CardDescription>{props.description}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-5">{props.children}</CardContent>
-        <CardFooter className="justify-end">
+        <CardContent className="grid gap-5 px-5">{props.children}</CardContent>
+        <CardFooter className="justify-end px-5">
           <Button type="submit" size="sm" disabled={busy}>
             {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {t("save")}

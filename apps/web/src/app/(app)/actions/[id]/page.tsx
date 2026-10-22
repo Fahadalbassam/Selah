@@ -1,4 +1,9 @@
-import { ArrowLeft, CheckCircle2, FileText, MessageSquare, RotateCcw, XCircle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { MessageSquare } from "@/components/animate-ui/icons/message-square";
+import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
+import { CircleX } from "@/components/animate-ui/icons/circle-x";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -42,9 +47,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
-      <PageHeader title={action.title}>
-        <StatusBadge status={action.status} />
-      </PageHeader>
+      <PageHeader title={action.title} meta={<StatusBadge status={action.status} />} />
       {action.description ? (
         <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />
       ) : null}
@@ -95,7 +98,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
               <ol className="space-y-5">
                 {data.timeline.map((e, i) => {
                   const Icon =
-                    e.kind === "update" ? MessageSquare : e.kind === "evidence" ? FileText : e.outcome === "accept" ? CheckCircle2 : e.outcome === "revise" ? RotateCcw : XCircle;
+                    e.kind === "update" ? MessageSquare : e.kind === "evidence" ? FileText : e.outcome === "accept" ? CircleCheck : e.outcome === "revise" ? RotateCcw : CircleX;
                   const tone =
                     e.kind === "review" ? (e.outcome === "accept" ? "text-success" : "text-destructive") : "text-muted-foreground";
                   return (
@@ -112,7 +115,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                         ) : null}
                         {e.kind === "review" && e.reason ? <p className="text-sm whitespace-pre-wrap">{e.reason}</p> : null}
                         {e.kind === "evidence" ? (
-                          <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
                             <FileText className="size-4 text-muted-foreground" />
                             <span className="truncate text-sm">{e.evidence.documentTitle}</span>
                             <span className="text-xs text-muted-foreground tabular-nums">

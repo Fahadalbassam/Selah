@@ -1,9 +1,12 @@
-import { ArrowLeft, CheckCircle2, Circle, MinusCircle, NotebookPen, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Circle, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
+import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,9 +94,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
       <PageHeader
         title={(ar ? q.orgNameAr : null) ?? q.orgName ?? q.publicRef}
         description={`${q.publicRef} · ${t("received")} ${when(q.createdAt)}`}
-      >
-        <Badge variant={q.status === "new" ? "default" : "outline"}>{status(q.status)}</Badge>
-      </PageHeader>
+        meta={<ToneBadge tone={q.status === "new" ? "new" : "open"}>{status(q.status)}</ToneBadge>}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">
@@ -172,7 +174,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
                   {SELF_CHECKS.map((k) => {
                     const v = selfCheck[snake(k)] ?? selfCheck[k];
-                    const Icon = v === true ? CheckCircle2 : v === false ? MinusCircle : Circle;
+                    const Icon = v === true ? CircleCheck : v === false ? MinusCircle : Circle;
                     return (
                       <li key={k} className="flex items-center gap-2">
                         <Icon className="size-4 shrink-0 text-muted-foreground" />

@@ -14,7 +14,7 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-1 rounded-lg border bg-card px-4 py-3", className)}>
+    <div className={cn("space-y-1 rounded-xl border bg-card px-4 py-3", className)}>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

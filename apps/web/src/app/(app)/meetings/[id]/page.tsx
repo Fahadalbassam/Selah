@@ -1,4 +1,5 @@
-import { ArrowLeft, Ban, CalendarPlus, Pencil, Send, Video } from "lucide-react";
+import { ArrowLeft, Ban, CalendarPlus, Pencil, Video } from "lucide-react";
+import { Send } from "@/components/animate-ui/icons/send";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -22,6 +23,7 @@ import {
 } from "./record-panels";
 import { SummarySources } from "./summary-sources";
 import { TranscriptPanel } from "./transcript-panel";
+import { ToneBadge } from "@/components/tone-badge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,15 +77,18 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
-      <PageHeader title={meeting.title}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={meeting.status === "cancelled" ? "destructive" : held ? "secondary" : "outline"}>
-            {t(`status.${meeting.status}`)}
-          </Badge>
-          <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
-          <Badge variant="outline">{tVis(meeting.visibility)}</Badge>
-        </div>
-      </PageHeader>
+      <PageHeader
+        title={meeting.title}
+        meta={
+          <>
+            <ToneBadge tone={meeting.status === "cancelled" ? "problem" : held ? "neutral" : "open"}>
+              {t(`status.${meeting.status}`)}
+            </ToneBadge>
+            <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
+            <Badge variant="outline">{tVis(meeting.visibility)}</Badge>
+          </>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">
