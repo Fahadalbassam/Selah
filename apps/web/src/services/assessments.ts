@@ -862,7 +862,13 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
         const x = byQuestion.get(q.id)!;
         const r = resultOf.get(x.id);
         return {
-          ...q,
+          // Clients get no weights, thresholds or option points, from which the scores could be rebuilt.
+          ...(firm
+            ? q
+            : {
+                ...omit(q, "weight", "gapMaxPoints", "options"),
+                options: q.options?.map((o) => ({ value: o.value, label: o.label, labelAr: o.labelAr })) ?? null,
+              }),
           // The basis worked out for this client when the assessment was made.
           basis: x.basis,
           basisLabel: BASIS_LABELS[x.basis],
@@ -875,10 +881,14 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
             ...(firm ? { answeredBy: x.answeredBy, firmNote: noteOf.get(x.id) ?? null } : {}),
           },
           applicable: r?.applicable ?? true,
-          points: firm ? (r?.points ?? null) : null,
-          maxPoints: firm ? (r?.max_points ?? null) : null,
-          isGap: firm ? (r?.is_gap ?? false) : false,
-          findingId: firm ? (r?.finding_id ?? null) : null,
+          ...(firm
+            ? {
+                points: r?.points ?? null,
+                maxPoints: r?.max_points ?? null,
+                isGap: r?.is_gap ?? false,
+                findingId: r?.finding_id ?? null,
+              }
+            : {}),
           evidence: evidence.filter((e) => e.answerId === x.id).map((e) => omit(e, "answerId")),
         };
       }),

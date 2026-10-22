@@ -530,9 +530,23 @@ describe("assessments", () => {
     // Scores are the firm's: the client gets answers, not points, percentages or gaps.
     expect(seen.total).toMatchObject({ earned: null, possible: null, pct: null, gaps: null });
     expect(seen.sections.every((s) => s.pct === null && s.earned === null)).toBe(true);
-    expect(seen.sections.flatMap((s) => s.questions).every((x) => x.points === null && x.maxPoints === null && !x.isGap)).toBe(
-      true,
-    );
+    // Nor anything to rebuild them from: no points, weights or gap thresholds anywhere in the response.
+    const keys = new Set<string>();
+    const walk = (v: unknown): void => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object" && !(v instanceof Date))
+        for (const [k, x] of Object.entries(v)) {
+          keys.add(k);
+          walk(x);
+        }
+    };
+    walk(seen);
+    expect([...keys].filter((k) => ["points", "maxPoints", "weight", "gapMaxPoints", "isGap"].includes(k))).toEqual([]);
+    expect(seen.sections.flatMap((s) => s.questions).find((x) => x.ref === "2.2")!.options![0]).toEqual({
+      value: "none",
+      label: "None",
+      labelAr: "لا يوجد",
+    });
     expect((await svc(U.cmgr, (tx, p) => A.listAssessments(tx, p, P.acme))).map((x) => x.total)).toEqual([null]);
     expect((await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme))).total.possible).toBeGreaterThan(0);
     // The database refuses them too, whoever asks it directly.

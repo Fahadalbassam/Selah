@@ -71,7 +71,7 @@ Fixed and visible (`app_assessment_results`, `app_assessment_scores`):
 - Section % = points earned ÷ points possible. The total is the same over all sections. No hidden weights.
 - A gap is an applicable scored answer at or below the threshold (default: half the maximum, rounded down, so "partly" and "no", or a rating of 1–2).
 
-Percentages are indicative and firm-only. A client reading a shared assessment, the project's assessment list or a comparison sees the answers, comments and confirmed findings, but no points, percentages or totals (the service blanks them for any non-firm caller, and the database refuses `app_assessment_scores` to a client and returns no points or suggested gaps from `app_assessment_results` or `app_assessment_compare`).
+Percentages are indicative and firm-only. A client reading a shared assessment, the project's assessment list or a comparison sees the answers, comments and confirmed findings, but no points, percentages or totals (the service blanks them for any non-firm caller, and the database refuses `app_assessment_scores` to a client and returns no points or suggested gaps from `app_assessment_results` or `app_assessment_compare`). The API also leaves out each question's weight, gap threshold and option points for a client, so the scores can't be rebuilt from the answers. The database itself still lets a client's admins and managers read the template questions of an assessment shared with them, scoring fields included; nothing in the app reads them that way, and a column-level split is left for later.
 
 ## Retake and compare
 
