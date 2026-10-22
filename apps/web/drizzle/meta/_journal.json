@@ -309,6 +309,13 @@
       "when": 1792636803252,
       "tag": "0043_assessment_scores_firm_only",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792674018546,
+      "tag": "0044_firm_settings_rules",
+      "breakpoints": true
     }
   ]
 }
