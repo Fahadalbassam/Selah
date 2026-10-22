@@ -2,8 +2,15 @@
 // real Postgres: who keeps a profile, and what app_suggest_leads() offers.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Principal } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { expertiseOverview } from "@/services/expertise";
+import { suggestClientLeads } from "@/services/inquiries";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -43,6 +50,15 @@ async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, c
   }
 }
 const run = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params), true);
+const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+  as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    },
+    true,
+  );
 const attempt = (userId: string | null, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params));
 
 async function profile(uid: string, languages: string[], services: string[], sectors: string[] = [], accepting = true) {
@@ -158,6 +174,40 @@ describe("lead suggestions", () => {
     await expect(suggest(U.cmgr)).rejects.toThrow(/not allowed/);
     await owner.query(`INSERT INTO firm_settings (org_id, suggestions_enabled) VALUES ($1, false)`, [FIRM]);
     expect((await suggest(U.admin)).rowCount).toBe(0);
+    await owner.query(`UPDATE firm_settings SET suggestions_enabled = true WHERE org_id = $1`, [FIRM]);
+  });
+});
+
+describe("the expertise screen", () => {
+  it("lists every active consultant by name, set up or not, and who may edit what", async () => {
+    await owner.query(`DELETE FROM consultant_profiles WHERE user_id = $1`, [U.ghada]);
+    const all = await svc(U.admin, (tx, p) => expertiseOverview(tx, p));
+    expect(all.consultants.map((c) => [c.name, c.profile ? c.profile.services.length : null, c.canEdit])).toEqual([
+      ["amal", 2, "all"],
+      ["badr", 1, "all"],
+      ["dana", 1, "all"],
+      ["faisal", 2, "all"],
+      ["ghada", null, "all"],
+    ]);
+    expect(all.services.length).toBeGreaterThan(0);
+    const mine = await svc(U.badr, (tx, p) => expertiseOverview(tx, p));
+    expect(mine.canManage).toBe(false);
+    expect(mine.consultants.filter((c) => c.canEdit).map((c) => [c.name, c.canEdit])).toEqual([["badr", "own"]]);
+    await expect(svc(U.cmgr, (tx, p) => expertiseOverview(tx, p))).rejects.toThrow();
+  });
+
+  it("suggests leads for a client from the inquiry it came from, and none without one", async () => {
+    expect(await svc(U.admin, (tx, p) => suggestClientLeads(tx, p, ACME))).toEqual({ enabled: true, inquiry: null, leads: [] });
+    // As if the inquiry had been won and converted into this client.
+    await owner.query(`ALTER TABLE inquiries DISABLE TRIGGER USER`);
+    await owner.query(`UPDATE inquiries SET status = 'won', client_org_id = $1 WHERE id = $2`, [ACME, INQ]);
+    await owner.query(`ALTER TABLE inquiries ENABLE TRIGGER USER`);
+    const out = await svc(U.admin, (tx, p) => suggestClientLeads(tx, p, ACME));
+    expect(out.inquiry?.id).toBe(INQ);
+    expect(out.leads.map((l) => l.name)).toEqual(["amal", "badr", "faisal"]);
+    await expect(svc(U.amal, (tx, p) => suggestClientLeads(tx, p, ACME))).rejects.toThrow();
+    await owner.query(`UPDATE firm_settings SET suggestions_enabled = false WHERE org_id = $1`, [FIRM]);
+    expect(await svc(U.admin, (tx, p) => suggestClientLeads(tx, p, ACME))).toMatchObject({ enabled: false, leads: [] });
     await owner.query(`UPDATE firm_settings SET suggestions_enabled = true WHERE org_id = $1`, [FIRM]);
   });
 });

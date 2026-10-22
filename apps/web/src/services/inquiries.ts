@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   discoverySessions,
+  firmSettings,
   inquiries,
   inquiryEvents,
   inquiryServices,
@@ -251,6 +252,34 @@ export async function suggestLeads(tx: Tx, principal: Principal, id: string) {
     acceptingNewClients: r.accepting_new_clients,
     activeClients: r.active_clients,
   }));
+}
+
+/**
+ * Lead suggestions for a client that is already with the firm: matched
+ * against the inquiry it came from (its services, sector and language).
+ * None without one. A suggestion only, for the firm admin.
+ */
+export async function suggestClientLeads(tx: Tx, principal: Principal, clientOrgId: string) {
+  firmStaff(principal);
+  assertAllowed(principal, "lead_suggestion.read", {
+    type: "inquiry",
+    orgId: principal.orgId,
+    firmOrgId: principal.orgId,
+    projectId: null,
+  });
+  const [latest] = await tx
+    .select({ id: inquiries.id, publicRef: inquiries.publicRef })
+    .from(inquiries)
+    .where(and(eq(inquiries.clientOrgId, clientOrgId), eq(inquiries.firmOrgId, principal.orgId)))
+    .orderBy(desc(inquiries.createdAt))
+    .limit(1);
+  const [settings] = await tx
+    .select({ on: firmSettings.suggestionsEnabled })
+    .from(firmSettings)
+    .where(eq(firmSettings.orgId, principal.orgId));
+  const enabled = settings?.on ?? true;
+  if (!latest || !enabled) return { enabled, inquiry: latest ?? null, leads: [] };
+  return { enabled, inquiry: latest, leads: await suggestLeads(tx, principal, latest.id) };
 }
 
 export interface Conversion {

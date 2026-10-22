@@ -12,26 +12,47 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LEGAL_FORMS } from "@/lib/assessments";
 import { withPrincipal } from "@/server/page";
+import { getEngagement } from "@/services/engagement";
+import { suggestClientLeads } from "@/services/inquiries";
+import { intakeOptions } from "@/services/intake";
 import { getClientTeam } from "@/services/staffing";
+import { EngagementCard } from "./engagement-card";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) =>
-    principal.orgKind === "firm" ? { ...(await getClientTeam(tx, principal, id)), admin: principal.role === "firm_admin" } : null,
-  );
+  const data = await withPrincipal(async (tx, principal) => {
+    if (principal.orgKind !== "firm") return null;
+    const team = await getClientTeam(tx, principal, id);
+    const admin = principal.role === "firm_admin";
+    const engagement = await getEngagement(tx, principal, id);
+    return {
+      ...team,
+      admin,
+      engagement,
+      // Who fits this client, from the inquiry it came from. The admin decides.
+      suggestions: admin ? await suggestClientLeads(tx, principal, id) : null,
+      services: admin ? (await intakeOptions(tx)).services : [],
+    };
+  });
   if (!data) notFound();
-  const [t, tc, tq, tp, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
     getTranslations("people"),
+    getTranslations("inbox"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
   const { client, can } = data;
+  const onTeam = new Set(data.team.map((m) => m.userId));
+  const serviceName = (code: string) => {
+    const x = data.services.find((o) => o.code === code);
+    return x ? (ar ? x.nameAr : x.nameEn) : code;
+  };
 
   return (
     <>
@@ -123,6 +144,47 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </CardContent>
           </Card>
 
+          {data.suggestions?.enabled ? (
+            <Card className="gap-4 py-5 shadow-xs">
+              <CardHeader className="px-5">
+                <CardTitle className="text-base">{ti("leads")}</CardTitle>
+                <CardDescription>
+                  {data.suggestions.inquiry ? t("suggestionsHint", { ref: data.suggestions.inquiry.publicRef }) : t("suggestionsNoInquiry")}
+                </CardDescription>
+              </CardHeader>
+              {data.suggestions.inquiry ? (
+                <CardContent className="divide-y px-5 text-sm">
+                  {data.suggestions.leads.length === 0 ? <p className="py-2 text-muted-foreground">{ti("noLeads")}</p> : null}
+                  {data.suggestions.leads.map((l) => (
+                    <div key={l.userId} className="flex flex-wrap items-center gap-3 py-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="font-medium">{l.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            l.matchedServices.length
+                              ? ti("matched", { services: l.matchedServices.map(serviceName).join(ar ? "، " : ", ") })
+                              : null,
+                            l.sectorMatch ? ti("sectorMatch") : null,
+                            l.speaksLanguage ? ti("speaks") : null,
+                            l.acceptingNewClients ? null : ti("notAccepting"),
+                            ti("activeClients", { n: l.activeClients }),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      {onTeam.has(l.userId) ? (
+                        <span className="text-xs text-muted-foreground">{t("onTeam")}</span>
+                      ) : can.manage ? (
+                        <ApiButton endpoint={`/api/clients/${client.id}/consultants`} body={{ userId: l.userId }} label={t("add")} icon={<UserPlus />} />
+                      ) : null}
+                    </div>
+                  ))}
+                </CardContent>
+              ) : null}
+            </Card>
+          ) : null}
+
           {can.decide ? (
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="px-5">
@@ -151,6 +213,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </div>
 
         <div className="space-y-6">
+        <EngagementCard
+          data={{
+            id: client.id,
+            engagementMode: data.engagement.engagementMode,
+            departmentsEnabled: data.engagement.departmentsEnabled,
+            minimalRecords: data.engagement.minimalRecords,
+            displayAlias: data.engagement.displayAlias,
+            departmentCount: data.engagement.departments.filter((d) => d.active).length,
+            canChangeMode: data.engagement.canChangeMode,
+            fit: data.engagement.fit,
+          }}
+        />
         <Card className="h-fit gap-4 py-5 shadow-xs">
           <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
             <div className="space-y-1.5">

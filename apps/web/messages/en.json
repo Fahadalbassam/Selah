@@ -19,7 +19,10 @@
     "team": "Team",
     "templates": "Assessment templates",
     "inquiries": "Inquiries",
-    "settings": "Settings"
+    "settings": "Settings",
+    "people": "People",
+    "expertise": "Expertise",
+    "departments": "Departments"
   },
   "header": {
     "language": "العربية",
@@ -418,7 +421,10 @@
     "unwatch": "Stop watching",
     "watchHint": "Get the team's notifications for this project without being staffed on it.",
     "watchClientHint": "Get the team's notifications for all of this client's projects.",
-    "clientLeadBadge": "Client lead · sees all projects"
+    "clientLeadBadge": "Client lead · sees all projects",
+    "suggestionsHint": "Matched against inquiry {ref}, from each consultant's declared expertise. A suggestion only; you choose.",
+    "suggestionsNoInquiry": "This client did not come through an inquiry, so there is nothing to match consultants against.",
+    "onTeam": "On the team"
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -1542,5 +1548,134 @@
     "dialogHint": "Setting or moving the date creates or moves the check-ins that are still open.",
     "hintAfter": "The report was delivered. The firm will check in with you over the following months.",
     "hintPending": "The report hasn't been handed over yet."
+  },
+  "engagement": {
+    "title": "How the client takes part",
+    "hint": "Decides who at the client signs in and who records their progress.",
+    "change": "Change",
+    "changeTitle": "Change how the client takes part",
+    "changeHint": "Only the firm admin changes this. Each change is in the audit log.",
+    "current": "Current",
+    "nothingDeleted": "Nothing is deleted. Accounts that don't fit the new mode must be switched off first.",
+    "on": "On",
+    "off": "Off",
+    "modes": {
+      "full": {
+        "label": "Full",
+        "hint": "The client's people sign in, record their progress and upload evidence."
+      },
+      "restricted": {
+        "label": "Restricted",
+        "hint": "Only the client's admins sign in. Their uploads stay private from the firm until they share them."
+      },
+      "consultant_managed": {
+        "label": "Consultant-managed",
+        "hint": "The client has no accounts. The firm's consultants record progress and evidence for it."
+      }
+    },
+    "blockers": {
+      "accounts": "{n, plural, one {Switch off its 1 account first.} other {Switch off its # accounts first.}}",
+      "nonAdmins": "{n, plural, one {1 account is not a client admin. Switch it off first.} other {# accounts are not client admins. Switch them off first.}}",
+      "tooMany": "A restricted client has at most {n} admin accounts. Switch some off first.",
+      "minimal": "Switch off minimal records first.",
+      "where": "Accounts are switched off on the client's <link>people page</link>."
+    },
+    "minimal": {
+      "title": "Minimal records",
+      "onHint": "Shown in Selah as “{alias}”. Free text is cleared after handover.",
+      "offHint": "For clients who want the firm to keep as little as possible.",
+      "switchOn": "Keep minimal records",
+      "switchOff": "Switch off minimal records",
+      "offConfirm": "Switch off minimal records? The client keeps its alias as its name, and what was cleared does not come back.",
+      "blocked": "Only before anything is filed: this client already has contacts or files.",
+      "dialogTitle": "Keep minimal records for this client",
+      "dialogHint": "This cannot be undone for what it clears. Use it only when the client asked for it.",
+      "effects": {
+        "name": "The alias replaces the client's name everywhere in Selah.",
+        "inquiry": "The inquiry it came from loses its names, contact details, message and notes. Its statistics stay.",
+        "files": "No files, client contacts or assistant indexing for this client. Evidence is recorded as progress.",
+        "purge": "Free text is cleared a while after the project's handover. Titles, statuses and dates stay."
+      },
+      "alias": "Alias",
+      "aliasHint": "A neutral label, such as “Family office A”. Not the client's name."
+    },
+    "departments": {
+      "title": "Departments",
+      "hint": "Optional. When on, work filed under a department is seen only by its people, the client's admins, the firm and the action's owner.",
+      "hintClient": "Optional. When on, work filed under a department is seen only by its people, your admins, the firm's team and the action's owner.",
+      "count": "{n, plural, =0 {No departments} one {1 department} other {# departments}}",
+      "open": "Departments",
+      "switch": "Use departments",
+      "switchHint": "Switched off, everyone on a project sees all of its work again. Departments and what is filed under them are kept.",
+      "onConfirm": "Use departments? Work already filed under a department becomes visible only to its people, the admins, the firm and the owner.",
+      "offConfirm": "Stop using departments? Everyone on each project will see all of its work again.",
+      "list": "Departments",
+      "listHintOn": "The firm files actions under a department on the action page.",
+      "listHintOff": "Departments are off, so they don't limit who sees what yet.",
+      "add": "Add",
+      "addHint": "A department cuts across projects, such as HR or finance.",
+      "create": "Create",
+      "nameAr": "Name in Arabic",
+      "nameEn": "Name in English (optional)",
+      "rename": "Rename",
+      "switchOff": "Switch off",
+      "switchOn": "Switch on",
+      "switchOffConfirm": "Switch off this department? What is filed under it stays there, but nothing new can be filed under it.",
+      "switchedOff": "Switched off",
+      "noMembers": "Nobody yet.",
+      "head": "Head",
+      "makeHead": "Make head",
+      "notHead": "Not head",
+      "remove": "Remove",
+      "removeConfirm": "Remove {name} from this department? They stop seeing its work, unless they can see it another way.",
+      "addPerson": "Add a person",
+      "addPersonHint": "Active people of the client. The head also gets the second reminder for the department's overdue actions.",
+      "person": "Person",
+      "everyoneIn": "Everyone at the client is already in this department.",
+      "empty": "No departments yet.",
+      "emptyManage": "No departments yet. Add one, then add its people.",
+      "department": "Department",
+      "fileUnder": "File under a department",
+      "none": "No department"
+    },
+    "errors": {
+      "accounts": "Switch off the client's accounts before the firm manages the engagement.",
+      "nonAdmins": "A restricted client has admin accounts only. Switch the others off first.",
+      "tooMany": "A restricted client has too many admin accounts. Switch some off first.",
+      "minimal": "Switch off minimal records before leaving consultant-managed mode.",
+      "alias": "Give the client an alias.",
+      "filed": "Remove the client's contacts and files before switching to minimal records.",
+      "member": "Only active people of the client can join a department.",
+      "notMember": "That person is not in this department.",
+      "inactive": "That department is switched off."
+    }
+  },
+  "expertise": {
+    "title": "Expertise",
+    "hint": "What each consultant can lead. Used only to suggest a lead for a new inquiry or client; you always choose.",
+    "hintOwn": "What each consultant can lead. The firm admin records services and sectors; you keep your own languages and availability.",
+    "name": "Name",
+    "services": "Services",
+    "sectors": "Sectors",
+    "languages": "Languages",
+    "availability": "Taking new clients",
+    "availabilityHint": "Switch off when too busy for a new client. Suggestions still list you, marked as not taking new clients.",
+    "accepting": "Yes",
+    "notAccepting": "Not now",
+    "edit": "Edit",
+    "editFor": "Expertise: {name}",
+    "setUpFor": "Set up expertise: {name}",
+    "notSetUp": "Not set up. Without it, they are never suggested.",
+    "notSetUpAsk": "Not set up yet. The firm admin sets it up.",
+    "you": "You",
+    "dialogHint": "Services and sectors they can lead, the languages they can run an engagement in, and whether they take new clients.",
+    "dialogHintOwn": "Your languages and whether you take new clients. The firm admin records your services and sectors.",
+    "needLanguage": "Choose at least one language.",
+    "lang": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "empty": "No active consultants yet.",
+    "footnote": "Sorted by name. This is for allocation, not a rating."
   }
 }

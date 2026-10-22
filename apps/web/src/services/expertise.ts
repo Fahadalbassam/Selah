@@ -1,8 +1,16 @@
 import "server-only";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { consultantProfiles, consultantSectors, consultantServiceAreas, sectors, serviceAreas, user } from "@/db/schema";
-import { assertAllowed, type Principal, type Resource } from "@/authz";
+import {
+  consultantProfiles,
+  consultantSectors,
+  consultantServiceAreas,
+  orgMemberships,
+  sectors,
+  serviceAreas,
+  user,
+} from "@/db/schema";
+import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
@@ -54,6 +62,38 @@ export async function listProfiles(tx: Tx, principal: Principal) {
     services: services.filter((s) => s.userId === p.userId).map((s) => s.code),
     sectors: sectorRows.filter((s) => s.userId === p.userId).map((s) => s.code),
   }));
+}
+
+/**
+ * The expertise screen: every active consultant, with their profile when
+ * the admin has set one up, and the lists to choose from. Sorted by name;
+ * there is no score.
+ */
+export async function expertiseOverview(tx: Tx, principal: Principal) {
+  const profiles = await listProfiles(tx, principal);
+  const consultants = await tx
+    .select({ userId: user.id, name: user.name, email: user.email })
+    .from(orgMemberships)
+    .innerJoin(user, eq(user.id, orgMemberships.userId))
+    .where(and(eq(orgMemberships.orgId, principal.orgId), eq(orgMemberships.active, true), eq(orgMemberships.role, "consultant")))
+    .orderBy(asc(user.name));
+  const option = (t: typeof serviceAreas | typeof sectors) =>
+    tx.select({ code: t.code, nameAr: t.nameAr, nameEn: t.nameEn }).from(t).where(eq(t.active, true)).orderBy(asc(t.sortOrder));
+  const manage = authorize(principal, "consultant_profile.manage", profileOf(principal, principal.userId)).allowed;
+  return {
+    consultants: consultants.map((c) => {
+      const profile = profiles.find((p) => p.userId === c.userId) ?? null;
+      return {
+        ...c,
+        profile,
+        // The admin edits everything; a consultant their own languages and availability, once set up.
+        canEdit: manage ? ("all" as const) : c.userId === principal.userId && profile ? ("own" as const) : null,
+      };
+    }),
+    services: await option(serviceAreas),
+    sectors: await option(sectors),
+    canManage: manage,
+  };
 }
 
 export interface ProfileInput {

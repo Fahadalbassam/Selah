@@ -58,3 +58,10 @@ Some family offices want the firm to keep as little as possible. `PATCH /api/org
   - Blanked: progress updates, firm notes on actions, meeting agendas, notes, decisions and summaries, finding descriptions, recommendation rationale, target outcome and required evidence, action descriptions, closure notes and blocked reasons, and assessment answers' written text and comments.
   - Kept: titles (of the project, findings, recommendations, actions and meetings), owner job titles, statuses, dates, and who did what. Consultants write titles without names or sensitive detail.
 - **Not for a client who forbids any record.** Minimal records keeps less, for less long, but Selah still stores the work while it runs. A client who does not allow its information to be stored at all should not be managed in Selah. An alias does not change that: the firm still holds the record.
+
+## Screens
+
+- **The client page** (`/clients/:id`) has a "How the client takes part" card for firm staff. The firm admin changes the mode there. Before saving, the dialog says what stands in the way of each mode: the number of active accounts, the accounts that are not client admins, the restricted limit, or minimal records being on (`getEngagement` returns this as `fit`, for the firm admin only). The database still decides, and its refusals are shown in the person's language (`engagementError` in `src/lib/engagement.ts`). Minimal records are switched on there too, with an alias, and only while the client has no contacts or files.
+- **Departments**: `/clients/:id/departments` for the firm, and `/departments` for the client's admins and managers. Admins (the firm admin or the client admin) switch departments on or off, add, rename and switch off departments, and add or remove people and heads. Managers see the list.
+- **The action page** shows the action's department while the client uses departments. Firm staff who can change the plan file it under a department there, or under none.
+- Files are not filed under a department from a screen yet. Evidence takes its action's department.
