@@ -11,10 +11,12 @@ import * as schema from "@/db/schema";
 import { loadPrincipal } from "@/services/principal";
 
 const copied: [string, string][] = [];
+const stored: string[] = [];
 vi.mock("@/services/storage", () => ({
   copyObject: async (from: string, to: string) => void copied.push([from, to]),
+  putObject: async (key: string) => void stored.push(key),
 }));
-const { attachExistingEvidence, listFiles } = await import("@/services/files");
+const { attachExistingEvidence, listFiles, uploadProjectDocument, uploadTargets } = await import("@/services/files");
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -49,7 +51,7 @@ const D = {
   firmPrivate: id(54),
   hrEvidence: id(55), // HR evidence on an HR action
   toOwner: id(56), // HR manager's file shared with the owner one by one
-  finance: id(61), // Finance department file
+  finance: id(61), // Finance department file, also shared with the HR owner
   ownerDraft: id(57), // the owner's unsubmitted evidence
   beta: id(58),
   internal: id(59),
@@ -207,6 +209,7 @@ beforeAll(async () => {
   await doc(D.toOwner, { ...acme, by: U.hrMgr, ownerOrg: ACME, title: "hr sheet", dept: DEPT.hr });
   await q(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [D.toOwner, U.owner, U.hrMgr]);
   await doc(D.finance, { ...acme, by: U.finMgr, ownerOrg: ACME, title: "finance sheet", dept: DEPT.fin });
+  await q(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [D.finance, U.owner, U.finMgr]);
   await doc(D.ownerDraft, { ...acme, by: U.owner, ownerOrg: ACME, title: "owner draft", purpose: "evidence", state: "draft" });
   await doc(D.infected, { ...acme, by: U.cadmin, ownerOrg: ACME, title: "not cleared", scan: "pending" });
   await doc(D.beta, { project: P.beta, org: BETA, by: U.betaCons, ownerOrg: FIRM, title: "beta file", purpose: "deliverable" });
@@ -215,6 +218,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   copied.length = 0;
+  stored.length = 0;
 });
 
 afterAll(async () => {
@@ -251,8 +255,9 @@ describe("who sees which files", () => {
     expect(await titles(U.finMgr)).toEqual(["client private", "finance sheet", "not cleared", "plan v2"]);
   });
 
-  it("an action owner sees only their own uploads and files shared with them", async () => {
-    expect(await titles(U.owner)).toEqual(["hr sheet", "owner draft"]);
+  it("an action owner sees their own uploads, their department teammates' files, and files shared with them", async () => {
+    // hr evidence and hr sheet: HR teammates. finance sheet: another department, shared with them one by one.
+    expect(await titles(U.owner)).toEqual(["finance sheet", "hr evidence", "hr sheet", "owner draft"]);
   });
 
   it("someone else's unsubmitted evidence stays with its uploader", async () => {
@@ -299,7 +304,7 @@ describe("using an existing file as evidence", () => {
 
   it("refuses a file the person cannot open", async () => {
     await expect(attach(U.owner, D.sharedV2)).rejects.toThrow(/forbidden/);
-    await expect(attach(U.owner, D.hrEvidence)).rejects.toThrow(/forbidden/);
+    await expect(attach(U.owner, D.clientPrivate)).rejects.toThrow(/forbidden/);
     await expect(attach(U.hrMgr, D.finance)).rejects.toThrow(/not found/);
     expect(copied).toEqual([]);
   });
@@ -318,5 +323,62 @@ describe("using an existing file as evidence", () => {
     await expect(attach(U.cadmin, D.sharedV2)).rejects.toThrow(/forbidden/);
     await expect(attach(U.cons, D.sharedV2)).rejects.toThrow(/forbidden/);
     await expect(attach(U.betaAdmin, D.beta, A.hr)).rejects.toThrow(/not found/);
+  });
+});
+
+describe("adding a file to a project from the Files card", () => {
+  const file = (name: string) => ({
+    bytes: new Uint8Array([1, 2, 3]),
+    fileName: name,
+    contentType: "application/pdf",
+    sha256: "def",
+    scanned: true,
+    scanMs: 1,
+  });
+  const upload = (userId: string, project: string, name: string, visibility: "shared" | "firm_private" | "client_private", departmentId?: string) =>
+    svc(userId, (tx, p) => uploadProjectDocument(tx, p, project, { file: file(name), visibility, departmentId }));
+
+  it("offers each side only its own labels, and nothing to an action owner or an unstaffed consultant", async () => {
+    const forCons = await svc(U.cons, (tx, p) => uploadTargets(tx, p));
+    expect(forCons.projects.map((x) => [x.title, x.visibilities])).toEqual([
+      ["Acme governance", ["firm_private", "shared"]],
+      ["Firm methods", ["firm_private"]],
+    ]);
+    const forMgr = await svc(U.hrMgr, (tx, p) => uploadTargets(tx, p));
+    expect(forMgr.projects.map((x) => [x.title, x.visibilities])).toEqual([["Acme governance", ["shared", "client_private"]]]);
+    expect(forMgr.projects[0]!.departments.map((d) => d.nameEn)).toEqual(["HR"]);
+    const forAdmin = await svc(U.cadmin, (tx, p) => uploadTargets(tx, p));
+    expect(forAdmin.projects[0]!.departments.map((d) => d.nameEn).sort()).toEqual(["Finance", "HR"]);
+    expect((await svc(U.owner, (tx, p) => uploadTargets(tx, p))).projects).toEqual([]);
+    expect((await svc(U.bench, (tx, p) => uploadTargets(tx, p))).projects).toEqual([]);
+  });
+
+  it("a consultant's working file stays with the firm, and the firm admin sees it", async () => {
+    await upload(U.cons, P.acme, "working draft", "firm_private");
+    expect(stored).toHaveLength(1);
+    expect(await titles(U.admin)).toContain("working draft");
+    for (const u of [U.cadmin, U.hrMgr, U.owner]) expect(await titles(u)).not.toContain("working draft");
+    const row = (await owner.query(`SELECT purpose, owner_org_id, uploaded_by FROM documents WHERE title = 'working draft'`)).rows[0];
+    expect(row).toEqual({ purpose: "deliverable", owner_org_id: FIRM, uploaded_by: U.cons });
+  });
+
+  it("a manager's file filed under their department reaches their team and not another department", async () => {
+    await upload(U.hrMgr, P.acme, "hr handbook", "shared", DEPT.hr);
+    expect(await titles(U.owner)).toContain("hr handbook");
+    expect(await titles(U.cons)).toContain("hr handbook");
+    expect(await titles(U.finMgr)).not.toContain("hr handbook");
+    const files = await svc(U.owner, (tx, p) => listFiles(tx, p));
+    expect(files.find((f) => f.title === "hr handbook")!.uploaderName).toBe("hrMgr");
+  });
+
+  it("refuses labels, departments and projects outside the person's reach", async () => {
+    await expect(upload(U.cons, P.acme, "x", "client_private")).rejects.toThrow(/label/);
+    await expect(upload(U.hrMgr, P.acme, "x", "firm_private")).rejects.toThrow(/label/);
+    await expect(upload(U.cons, P.internal, "x", "shared")).rejects.toThrow(/label/);
+    await expect(upload(U.hrMgr, P.acme, "x", "shared", DEPT.fin)).rejects.toThrow(/departments/);
+    await expect(upload(U.owner, P.acme, "x", "shared")).rejects.toThrow(/not found/);
+    await expect(upload(U.bench, P.acme, "x", "firm_private")).rejects.toThrow(/not found/);
+    await expect(upload(U.betaCons, P.acme, "x", "firm_private")).rejects.toThrow(/not found/);
+    expect(stored).toEqual([]);
   });
 });

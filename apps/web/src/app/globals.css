@@ -126,6 +126,35 @@
   --skeleton-shine: oklch(0.27 0 0);
 }
 
+/* Floating surfaces (the Files card): one charcoal grey in both themes, so the
+   card reads clearly against the light page and the near-black dark page
+   alike. Everything inside picks up these tokens, so buttons, badges and
+   fields stay readable without per-component colours. */
+.surface-floating {
+  --background: oklch(0.3 0 0);
+  --foreground: oklch(0.97 0 0);
+  --popover: oklch(0.3 0 0);
+  --popover-foreground: oklch(0.97 0 0);
+  --card: oklch(0.355 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.95 0 0);
+  --primary-foreground: oklch(0.2 0 0);
+  --secondary: oklch(0.4 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.255 0 0);
+  --muted-foreground: oklch(0.8 0 0);
+  --accent: oklch(0.42 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.77 0.11 25);
+  --success: oklch(0.78 0.07 155);
+  --warning: oklch(0.8 0.08 80);
+  --border: oklch(1 0 0 / 16%);
+  --input: oklch(1 0 0 / 20%);
+  --field: oklch(1 0 0 / 50%);
+  --ring: oklch(0.75 0 0);
+  color-scheme: dark;
+}
+
 /* One motion vocabulary for the whole app. Components use these instead of
    their own timings so the sidebar, menus, pages and skeletons feel alike. */
 :root {

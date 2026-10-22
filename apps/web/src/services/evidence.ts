@@ -28,7 +28,11 @@ export interface PreparedUpload {
  * route()'s `prepare`), so a slow scan never holds a pooled connection.
  * Infected files are audited here because no transaction exists yet.
  */
-export async function prepareUpload(userId: string, actionId: string, file: File): Promise<PreparedUpload> {
+export async function prepareUpload(
+  userId: string,
+  target: { type: "action" | "project"; id: string },
+  file: File,
+): Promise<PreparedUpload> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const check = checkUpload(file.name, file.type, bytes.byteLength, bytes.subarray(0, 512));
   if (!check.ok) throw new BadRequestError(`file rejected: ${check.reason}`);
@@ -40,9 +44,9 @@ export async function prepareUpload(userId: string, actionId: string, file: File
     if (err instanceof BadRequestError) {
       await auditDetached({
         actorId: userId,
-        action: "evidence.submit",
-        resourceType: "action",
-        resourceId: actionId,
+        action: target.type === "action" ? "evidence.submit" : "document.upload",
+        resourceType: target.type,
+        resourceId: target.id,
         outcome: "deny",
         reason: "infected",
         meta: { sizeBytes: bytes.byteLength, scanMs: elapsed() },

@@ -42,7 +42,7 @@ Do not edit `components/ui/*` for a single screen. Change the look of one usage 
 | `BrandMark`, `BrandWordmark`, `SidebarBrand`, `BrandLoader` | The logo and the branded spinner. Use `BrandLoader` inside busy buttons. |
 | `Translatable` | User-written text that may be shown in the other language on demand. |
 | `AnimatedNumber`, `MetricHistory`, `PeopleStack`, `Topography` | Counting numbers, the progress trend chart, stacked avatars, and the animated contour background. |
-| `FilesSidebarItem`, `FileBrowser` | The file explorer: the animated folder at the bottom of the sidebar opens a sheet (from the sidebar's side) with search, the file tree and the selected file's details. `FileBrowser` with `pick` is the same tree inside the evidence dialog, to reuse a file instead of uploading it again. |
+| `FilesSidebarItem`, `FileBrowser` | The file explorer: the animated folder at the bottom of the sidebar opens a floating card (not modal) with search, the file tree, the selected file's details and "Add a file". The card is dragged by its header or moved with the arrow keys when the header has focus, stays inside the window, remembers its position per browser, and closes with Escape. `FileBrowser` with `pick` is the same tree inside the evidence dialog, to reuse a file instead of uploading it again. |
 | `FileTree` (`components/ui/file-tree.tsx`) | AI Elements File Tree, adapted: monochrome icons, logical spacing, a chevron that flips in RTL, and a `meta` slot for counts and version badges. Use it for any folder-like list. |
 
 ### Icons
@@ -182,6 +182,8 @@ All colour comes from the CSS variables in `app/globals.css`. Never use Tailwind
 
 (Values are OKLCH lightness; all neutrals have zero chroma.)
 
+**Floating surfaces.** The Files card adds the `surface-floating` class, which redefines the tokens above inside it to one charcoal grey that is the same in both themes (`popover` 0.3, `card` 0.355, `muted` 0.255, `accent` 0.42, `foreground` 0.97, `muted-foreground` 0.8, `border` white 16%). The card then stands out from the light page and from the near-black dark page alike, and everything inside it (buttons, badges, fields) stays readable without per-component colours. Use it only for floating, movable panels. Dialogs and menus opened from inside are portalled out and keep the normal theme.
+
 ### 5.2 Measured contrast (WCAG 2.2 AA)
 
 AA needs 4.5:1 for text, 3:1 for large text and for the boundaries of form controls. Measured from the tokens:
@@ -197,6 +199,8 @@ AA needs 4.5:1 for text, 3:1 for large text and for the boundaries of form contr
 | `foreground` on `warning/15` | 16.0 | 12.4 |
 | `warning` text on `card` | 4.9 | 8.6 |
 | `field` border on `background` | 3.2 | 3.1 |
+
+Inside `surface-floating` (same in both themes): `foreground` on `popover` 12.5, `muted-foreground` on `popover` 7.3, on `card` 5.9, on `accent` 4.5; `destructive` text on `card` 5.1; `field` border on `card` 6.0.
 
 Rules that keep it that way:
 

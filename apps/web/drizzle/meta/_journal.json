@@ -320,15 +320,22 @@
     {
       "idx": 45,
       "version": "7",
-      "when": 1792690609419,
-      "tag": "0045_assistant_chats",
+      "when": 1792689603910,
+      "tag": "0045_document_shares_cross_department",
       "breakpoints": true
     },
     {
       "idx": 46,
       "version": "7",
+      "when": 1792690609419,
+      "tag": "0046_assistant_chats",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
       "when": 1792690624000,
-      "tag": "0046_assistant_chats_rules",
+      "tag": "0047_assistant_chats_rules",
       "breakpoints": true
     }
   ]

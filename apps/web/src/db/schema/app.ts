@@ -207,7 +207,7 @@ export const projects = pgTable(
     // Set when a minimal-records client's free text was purged.
     minimalPurgedAt: ts("minimal_purged_at"),
     // Set by the database when the state becomes closed, cleared on reopening.
-    // Assistant chats are deleted a while after it (drizzle/0046).
+    // Assistant chats are deleted a while after it (drizzle/0047).
     closedAt: ts("closed_at"),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
@@ -830,7 +830,7 @@ export const firmSettings = pgTable("firm_settings", {
   minimalPurgeDays: integer("minimal_purge_days").notNull().default(90),
   // Days a meeting transcript is kept after its summary is confirmed.
   transcriptKeepDays: integer("transcript_keep_days").notNull().default(30),
-  // Assistant chats (drizzle/0046): archived after this many idle days, and
+  // Assistant chats (drizzle/0047): archived after this many idle days, and
   // deleted this many days after the project closes or after the last
   // message, whichever comes first.
   chatArchiveDays: integer("chat_archive_days").notNull().default(30),
@@ -1296,7 +1296,7 @@ export const aiChunks = pgTable(
 );
 
 // One chat, about one project and optionally one record in it (the case).
-// Archiving and deleting follow drizzle/0046 (docs/assistant.md).
+// Archiving and deleting follow drizzle/0047 (docs/assistant.md).
 export const chatCaseType = pgEnum("chat_case_type", ["recommendation", "action", "finding", "meeting", "document"]);
 export const aiConversations = pgTable(
   "ai_conversations",

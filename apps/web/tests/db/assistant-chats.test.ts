@@ -1,4 +1,4 @@
-// Assistant chats (migration 0046) against a real Postgres: hybrid search,
+// Assistant chats (migration 0047) against a real Postgres: hybrid search,
 // linked records, chats that close when their owner leaves the project,
 // titles and cases, masking of names before the model, and retention.
 // The model and the embeddings are faked; no AI is called.
