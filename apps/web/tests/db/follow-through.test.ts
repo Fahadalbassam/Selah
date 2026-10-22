@@ -11,6 +11,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { runFollowUps } from "@/jobs/follow-ups";
 import * as F from "@/services/follow-through";
+import * as N from "@/services/notifications";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -579,6 +580,29 @@ describe("the action page's evidence list and date requests", () => {
 
     // Someone outside the project gets nothing.
     await expect(svc(U.outsider, (tx, p) => F.actionFollowThrough(tx, p, aid))).rejects.toThrow();
+  });
+});
+
+describe("notifications", () => {
+  it("each person reads and clears only their own, with what they are about", async () => {
+    const aid = await action({ due: "2099-01-01" });
+    await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Board minutes" }));
+    const mine = await svc(U.cowner, (tx, p) => N.listNotifications(tx, p));
+    const item = mine.items.find((n) => n.entityId === aid && n.kind === "evidence.requested")!;
+    expect(item).toMatchObject({ href: `/actions/${aid}`, readAt: null });
+    expect(item.title).toBeTruthy();
+    expect(mine.unread).toBeGreaterThan(0);
+
+    // Someone else clearing theirs leaves this one unread; nobody else sees it.
+    await svc(U.cons, (tx, p) => N.markRead(tx, p));
+    expect((await svc(U.cons, (tx, p) => N.listNotifications(tx, p))).items.map((n) => n.id)).not.toContain(item.id);
+    await svc(U.cons, (tx, p) => N.markRead(tx, p, [item.id]));
+    const before = await svc(U.cowner, (tx, p) => N.unreadCount(tx, p));
+    expect(before).toBe(mine.unread);
+
+    const after = await svc(U.cowner, (tx, p) => N.markRead(tx, p, [item.id]));
+    expect(after.unread).toBe(before - 1);
+    expect((await svc(U.cowner, (tx, p) => N.markRead(tx, p))).unread).toBe(0);
   });
 });
 

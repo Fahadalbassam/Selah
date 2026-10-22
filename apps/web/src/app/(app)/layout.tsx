@@ -1,10 +1,12 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
+import { NotificationBell } from "@/components/notifications";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import type { Role } from "@/authz";
 import { withPrincipal } from "@/server/page";
+import { unreadCount } from "@/services/notifications";
 import { getViewer } from "@/services/queries";
 
 function navFor(role: Role, t: (key: string) => string): NavGroup[] {
@@ -55,7 +57,10 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
 }
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const viewer = await withPrincipal((tx, principal) => getViewer(tx, principal));
+  const { viewer, unread } = await withPrincipal(async (tx, principal) => ({
+    viewer: await getViewer(tx, principal),
+    unread: await unreadCount(tx, principal),
+  }));
   const locale = await getLocale();
   const [tNav, tRole, tHeader, tApp] = await Promise.all([
     getTranslations("nav"),
@@ -86,6 +91,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <SidebarTrigger className="-ms-1" />
           <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
           <span className="text-sm text-muted-foreground">{tApp("tagline")}</span>
+          <div className="ms-auto">
+            <NotificationBell unread={unread} />
+          </div>
         </header>
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
       </SidebarInset>

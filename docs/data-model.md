@@ -73,6 +73,16 @@ Each project sets `remind_days_before` (3), `escalate_level2_days` (7) and `esca
 
 For now each send is an in-app notification (`follow_up.overdue.2`, etc.). Email is a later step.
 
+## Notifications
+
+Reminders, escalations and workflow events (actions moving, evidence items, date requests, staffing, inquiries, access reviews) are written to `notifications`. Each person can read and update only their own rows (RLS).
+
+- `GET /api/notifications` returns the newest 30 and the unread count.
+- Each item carries what it is about and a link. Both are read under the caller's rights, so something they can no longer open shows without a title or link.
+- `POST /api/notifications/read` marks the given `ids` read, or all of them when there are none.
+- Screens: the bell in the header shows the unread count and the newest ten, and `/notifications` shows the last 100. Opening one marks it read.
+- Email reminders are not built yet.
+
 ## Implementation progress
 
 `app_project_progress(project, as_of)` runs with the caller's row-level security, so nobody gets numbers for actions they cannot see. Draft actions are not counted.
