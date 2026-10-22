@@ -18,6 +18,7 @@ from .prompt import (
     SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
     Answer,
+    HistoryTurn,
     Passage,
     build_messages,
     build_summary_messages,
@@ -60,6 +61,7 @@ class AnswerRequest(BaseModel):
     question: str = Field(min_length=1)
     passages: list[Passage]
     language: Literal["ar", "en", "auto"] = "auto"
+    history: list[HistoryTurn] = Field(default_factory=list, max_length=8)
 
 
 class TranslateRequest(BaseModel):
@@ -118,7 +120,7 @@ async def answer(
     if not req.passages:
         return Answer(answer="", cited_ids=[], grounded=False)
 
-    system, user = build_messages(req.question, req.passages, req.language)
+    system, user = build_messages(req.question, req.passages, req.language, req.history)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
 

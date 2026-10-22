@@ -9,12 +9,19 @@ import { loadProject } from "./staffing";
 // Handover (drizzle/0015_handover_rules.sql): the day the report was
 // delivered and the client's sponsor. Setting the date creates the firm's
 // check-ins (firm_settings.checkin_days); moving it moves the open ones.
-// The firm admin sets both; the database checks the sponsor.
+// The firm admin sets both; the database checks the sponsor. The firm admin
+// also closes the project when the engagement is over.
 
 export async function getHandover(tx: Tx, principal: Principal, projectId: string) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   const [row] = await tx
-    .select({ handoverOn: projects.handoverOn, sponsorId: projects.clientSponsorUserId, sponsorName: user.name })
+    .select({
+      handoverOn: projects.handoverOn,
+      sponsorId: projects.clientSponsorUserId,
+      sponsorName: user.name,
+      state: projects.state,
+      closedAt: projects.closedAt,
+    })
     .from(projects)
     .leftJoin(user, eq(user.id, projects.clientSponsorUserId))
     .where(eq(projects.id, projectId));
@@ -59,6 +66,8 @@ export async function getHandover(tx: Tx, principal: Principal, projectId: strin
   return {
     kind: project.kind,
     handoverOn: row?.handoverOn ?? null,
+    state: row?.state ?? "planned",
+    closedAt: row?.closedAt ?? null,
     sponsor: row?.sponsorId ? { id: row.sponsorId, name: row.sponsorName } : null,
     checkins: checkins.map(({ assigneeUserId, ...c }) => ({
       ...c,
@@ -92,5 +101,25 @@ export async function setHandover(
       meta: { fields: Object.keys(input).join(",") },
     });
   }
+  return getHandover(tx, principal, projectId);
+}
+
+/**
+ * Firm admin: close a project when the engagement is over, or reopen it.
+ * The database stamps closed_at; assistant chats about the project are
+ * deleted a while after it (firm_settings.chat_after_close_days).
+ */
+export async function setProjectState(tx: Tx, principal: Principal, projectId: string, state: "active" | "closed") {
+  const { resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "project.update", resource);
+  await tx.update(projects).set({ state }).where(eq(projects.id, projectId));
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: state === "closed" ? "project.close" : "project.reopen",
+    resourceType: "project",
+    resourceId: projectId,
+    outcome: "allow",
+  });
   return getHandover(tx, principal, projectId);
 }

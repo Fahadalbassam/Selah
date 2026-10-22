@@ -206,6 +206,9 @@ export const projects = pgTable(
     clientSponsorUserId: uuid("client_sponsor_user_id").references(() => user.id),
     // Set when a minimal-records client's free text was purged.
     minimalPurgedAt: ts("minimal_purged_at"),
+    // Set by the database when the state becomes closed, cleared on reopening.
+    // Assistant chats are deleted a while after it (drizzle/0046).
+    closedAt: ts("closed_at"),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -827,6 +830,12 @@ export const firmSettings = pgTable("firm_settings", {
   minimalPurgeDays: integer("minimal_purge_days").notNull().default(90),
   // Days a meeting transcript is kept after its summary is confirmed.
   transcriptKeepDays: integer("transcript_keep_days").notNull().default(30),
+  // Assistant chats (drizzle/0046): archived after this many idle days, and
+  // deleted this many days after the project closes or after the last
+  // message, whichever comes first.
+  chatArchiveDays: integer("chat_archive_days").notNull().default(30),
+  chatAfterCloseDays: integer("chat_after_close_days").notNull().default(90),
+  chatIdleDeleteDays: integer("chat_idle_delete_days").notNull().default(180),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1286,16 +1295,37 @@ export const aiChunks = pgTable(
   ],
 );
 
-export const aiConversations = pgTable("ai_conversations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  projectId: uuid("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  createdAt: createdAt(),
-});
+// One chat, about one project and optionally one record in it (the case).
+// Archiving and deleting follow drizzle/0046 (docs/assistant.md).
+export const chatCaseType = pgEnum("chat_case_type", ["recommendation", "action", "finding", "meeting", "document"]);
+export const aiConversations = pgTable(
+  "ai_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // The first question, cut short, until the owner renames it.
+    title: text("title").notNull().default(""),
+    caseType: chatCaseType("case_type"),
+    caseId: uuid("case_id"),
+    // Set by the database on each new message.
+    lastMessageAt: ts("last_message_at").notNull().defaultNow(),
+    archivedAt: ts("archived_at"),
+    // Kept out of auto-archiving. Never out of deletion.
+    keep: boolean("keep").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("ai_conversations_user_idx").on(t.userId, t.lastMessageAt),
+    index("ai_conversations_case_idx").on(t.caseType, t.caseId),
+    check("ai_conversation_case", sql`(${t.caseType} IS NULL) = (${t.caseId} IS NULL)`),
+    check("ai_conversation_title", sql`length(${t.title}) <= 120`),
+  ],
+);
 
 export const aiMessages = pgTable(
   "ai_messages",
@@ -1313,7 +1343,10 @@ export const aiMessages = pgTable(
     // comes from the translation cache (content_translations).
     lang: text("lang").notNull(),
     citations:
-      jsonb("citations").$type<Array<{ chunkId: string; sourceType: string; sourceId: string; version: number; page?: number | null }>>(),
+      // A record (not a file passage) has no chunk.
+      jsonb("citations").$type<
+        Array<{ chunkId: string | null; sourceType: string; sourceId: string; version: number; page?: number | null }>
+      >(),
     createdAt: createdAt(),
   },
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],

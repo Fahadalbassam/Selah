@@ -29,6 +29,11 @@ const schema = z.object({
   TWO_FACTOR_REQUIRED: z.enum(["true", "false"]).default("true"),
   AI_SERVICE_URL: z.url(),
   AI_SERVICE_TOKEN: z.string().min(32),
+  // Which model the AI service calls (its own setting, repeated here), and
+  // whether names are masked before text goes to it. "auto" masks whenever
+  // the model is hosted outside our server (docs/assistant.md).
+  LLM_PROVIDER: z.enum(["ollama", "openai_compat"]).default("ollama"),
+  AI_MASKING: z.enum(["auto", "on", "off"]).default("auto"),
 });
 
 export type Env = z.infer<typeof schema>;

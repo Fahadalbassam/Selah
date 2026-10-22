@@ -5,6 +5,7 @@ import { aiChunks, documentSummaries, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "@/server/errors";
 import { summarizePages, type SummaryPoint } from "./ai-client";
+import { projectMasker } from "./masking";
 
 // File summaries (drizzle/0041_ai_sources_rules.sql). One per file version
 // and language, made the first time someone asks and then kept. It is made
@@ -98,8 +99,14 @@ export async function summarizeDocument(
   if ((failedUntil.get(attempt) ?? 0) > Date.now())
     throw new UnavailableError("this file could not be summarised, try again later");
   let made: Awaited<ReturnType<Summarizer>>;
+  // A hosted model gets placeholders for known names (docs/assistant.md).
+  const masker = await projectMasker(tx, doc.projectId);
   try {
-    made = await summarizer(pages, lang);
+    made = await summarizer(
+      pages.map((p) => ({ ...p, text: masker.mask(p.text) })),
+      lang,
+    );
+    made = { ...made, points: made.points.map((p) => ({ ...p, text: masker.unmask(p.text) })) };
   } catch {
     failed(attempt);
     throw new UnavailableError("summaries are not available right now");

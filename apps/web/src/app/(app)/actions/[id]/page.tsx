@@ -7,6 +7,7 @@ import { CircleX } from "@/components/animate-ui/icons/circle-x";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { AskAbout } from "@/components/ask-about";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Translatable } from "@/components/translatable";
@@ -62,7 +63,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
-      <PageHeader title={action.title} meta={<StatusBadge status={action.status} />} />
+      <PageHeader title={action.title} meta={<StatusBadge status={action.status} />}>
+        {data.firmStaff ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
+      </PageHeader>
       {action.description ? (
         <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />
       ) : null}
