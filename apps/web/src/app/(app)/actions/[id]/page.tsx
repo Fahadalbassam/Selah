@@ -8,9 +8,11 @@ import { Translatable } from "@/components/translatable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
+import { actionFollowThrough } from "@/services/follow-through";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
 import { DownloadButton } from "./download-button";
+import { DeadlineRequests, EvidenceList } from "./follow-through-panels";
 
 function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -23,7 +25,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const data = await withPrincipal((tx, principal) => getActionDetail(tx, principal, id));
+  const { data, follow } = await withPrincipal(async (tx, principal) => ({
+    data: await getActionDetail(tx, principal, id),
+    follow: await actionFollowThrough(tx, principal, id),
+  }));
   const [t, tTable, format] = await Promise.all([getTranslations("action"), getTranslations("table"), getFormatter()]);
   const ar = (await getLocale()) === "ar";
   const { action, context } = data;
@@ -49,6 +54,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           ) : null}
 
           <ActionPanel actionId={action.id} status={action.status} moves={data.moves} can={data.can} />
+
+          <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} canSubmit={data.can.submitEvidence} />
 
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">
@@ -95,6 +102,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           </Card>
         </div>
 
+        <div className="space-y-6">
         <Card className="h-fit gap-0 py-0 shadow-xs">
           <dl className="divide-y text-sm">
             {[
@@ -118,6 +126,14 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             ))}
           </dl>
         </Card>
+        <DeadlineRequests
+          actionId={action.id}
+          dueDate={action.dueDate}
+          requests={follow.deadlines}
+          canRequest={follow.can.requestDeadline}
+          canDecide={follow.can.decideDeadline}
+        />
+        </div>
       </div>
     </>
   );

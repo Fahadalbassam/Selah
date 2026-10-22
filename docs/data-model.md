@@ -45,12 +45,14 @@ An action ends one of two ways:
 - Uploading a file with `evidenceRequestId` links it to the item. The database checks the item belongs to the same action and marks it `submitted`.
 - Only a file that passed the virus scan answers an item.
 - Each item moves `open → submitted → accepted / rejected`; only a submitted item can be accepted. The firm can waive an item, with a note saying why. A rejected item can be opened again. Accepted and waived items are final. The decider and time are recorded.
+- On the action page the client sends a file against each open or rejected item, and the firm adds items, accepts, rejects (with a reason the client sees), waives or asks again. Items stop changing once the action is verified or closed.
 
 ## Deadline change requests
 
 - The action owner, a client manager or admin, or the firm asks for a new due date (a different date, not in the past) with a reason; one request at a time per action.
 - The firm approves or rejects, once. Approval moves the action's due date in the same transaction.
 - Requests are never deleted. Finished actions take no new requests.
+- The action page shows the requests beside the due date. The client asks from there while none is pending, and the firm approves or declines in place.
 
 ## Reminders and escalation
 

@@ -3,9 +3,15 @@
 // change requests, the reminder ladder and the implementation progress.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Principal } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
 import { runFollowUps } from "@/jobs/follow-ups";
+import * as F from "@/services/follow-through";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -534,6 +540,44 @@ describe("deadline change requests", () => {
   it("finished actions take no new deadline", async () => {
     const aid = await action({ status: "closed", closure: "not_applicable" });
     await expect(request(aid, U.cowner)).rejects.toThrow(/open actions/);
+  });
+});
+
+describe("the action page's evidence list and date requests", () => {
+  const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+    as(
+      userId,
+      async (c) => {
+        const tx = drizzle(c, { schema }) as unknown as Tx;
+        return fn(tx, (await loadPrincipal(tx, userId))!);
+      },
+      true,
+    );
+
+  it("show each side what it may see and do", async () => {
+    const aid = await action({ due: "2099-01-01" });
+    await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Signed policy", dueDate: "2099-01-15" }));
+    const client = await svc(U.cowner, (tx, p) => F.actionFollowThrough(tx, p, aid));
+    expect(client.items.map((i) => [i.title, i.status, i.files])).toEqual([["Signed policy", "open", []]]);
+    expect(client.can).toEqual({ manageItems: false, requestDeadline: true, decideDeadline: false });
+    expect((await svc(U.cons, (tx, p) => F.actionFollowThrough(tx, p, aid))).can).toMatchObject({
+      manageItems: true,
+      decideDeadline: true,
+    });
+
+    await svc(U.cowner, (tx, p) =>
+      F.requestDeadlineChange(tx, p, aid, { proposedDueDate: "2099-02-01", reason: "Board meets late" }),
+    );
+    const waiting = await svc(U.cowner, (tx, p) => F.actionFollowThrough(tx, p, aid));
+    expect(waiting.deadlines.map((d) => [d.proposedDueDate, d.status])).toEqual([["2099-02-01", "pending"]]);
+    // One request waits at a time.
+    expect(waiting.can.requestDeadline).toBe(false);
+    await svc(U.cons, (tx, p) => F.decideDeadlineChange(tx, p, waiting.deadlines[0]!.id, { approve: true }));
+    expect((await statusOf(aid)).due_date).toEqual(new Date("2099-02-01T00:00:00"));
+    expect((await svc(U.cowner, (tx, p) => F.actionFollowThrough(tx, p, aid))).can.requestDeadline).toBe(true);
+
+    // Someone outside the project gets nothing.
+    await expect(svc(U.outsider, (tx, p) => F.actionFollowThrough(tx, p, aid))).rejects.toThrow();
   });
 });
 
