@@ -6,6 +6,12 @@
 import { createHash } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { Principal } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { listPeople } from "@/services/accounts";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -108,6 +114,28 @@ describe("addresses", () => {
     expect(seen).not.toContain(U.betaMgr);
     expect(seen).not.toContain(U.other);
     expect(seen).toContain(U.cowner);
+  });
+});
+
+describe("the people screen", () => {
+  const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+    as(userId, async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    });
+
+  it("lists the organisation, who has two-factor on, and whether erasure is offered", async () => {
+    await owner.query(`UPDATE "user" SET two_factor_enabled = true WHERE id = $1`, [U.cmgr]);
+    const mine = await svc(U.cadmin, (tx, p) => listPeople(tx, p, ACME));
+    expect(mine.organization).toMatchObject({ id: ACME, kind: "client", name: "Acme" });
+    expect(mine.people.find((x) => x.userId === U.cmgr)).toMatchObject({ twoFactor: true, personalEmail: true });
+    expect(mine.people.find((x) => x.userId === U.cowner)!.twoFactor).toBe(false);
+    expect(mine.can.erase).toBe(false);
+    expect((await svc(U.admin, (tx, p) => listPeople(tx, p, ACME))).can.erase).toBe(true);
+    expect((await svc(U.admin, (tx, p) => listPeople(tx, p, FIRM))).organization.kind).toBe("firm");
+    await expect(svc(U.lead, (tx, p) => listPeople(tx, p, ACME))).rejects.toThrow();
+    await expect(svc(U.cadmin, (tx, p) => listPeople(tx, p, BETA))).rejects.toThrow();
+    await owner.query(`UPDATE "user" SET two_factor_enabled = false WHERE id = $1`, [U.cmgr]);
   });
 });
 

@@ -86,6 +86,12 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 
 **Pages the mails link to:** `/invite/:token` (create the account), `/confirm-email/:token` (a button, because mail scanners open links), `/reset-password/:token`, and `/team` for access reviews.
 
+## Screens
+
+- `/team` is where an admin manages their own organisation. The firm's admins and a client's admins get the same screen: invite (only roles that fit the organisation; a consultant-managed client has no logins), open invitations with revoke, and a menu per person to change the address, reset two-factor sign-in, switch off with a reason, switch back on, or erase (firm admins only). The same screen also covers the email domains and the access review, where everyone ticked stays and each unticked person needs a reason.
+- `/clients/:id/people` gives the firm's admins that screen for a client, reached from the client page.
+- `listPeople` returns the organisation's kind and engagement mode, who has two-factor on (through `app_two_factor_status`, so only admins see it), and `can.erase`. The server checks every action again.
+
 ## Known limits
 
 - An invitation or address change to an address that already has an account is refused, and that reveals to an admin that the address is in use somewhere. Unique addresses make this unavoidable. The refusal names no organisation.
