@@ -175,30 +175,41 @@ describe("the starter template", () => {
     expect(v.status).toBe("draft");
     expect(v.sections.map((s) => s.titleAr)).toEqual(STARTER_TEMPLATE.sections.map((s) => s.titleAr));
     const questions = v.sections.flatMap((s) => s.questions);
-    expect(questions).toHaveLength(28);
-    // Every question names its source and where in it, in both languages.
+    expect(questions).toHaveLength(29);
+    // The first question only describes the client: every option scores 0, and it gates the family questions.
+    const family = questions.find((q) => q.ref === "0.1")!;
+    expect(family.options!.map((o) => o.points)).toEqual([0, 0]);
+    expect(questions.filter((q) => q.appliesIfQuestionId === family.id).map((q) => q.ref)).toEqual([
+      "2.1",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "5.2",
+    ]);
+    // Every other question names its source and where in it, in both languages.
     for (const q of questions) {
+      expect(q.promptAr, q.ref!).toBeTruthy();
+      if (q.ref === "0.1") continue;
       expect(q.citation, q.ref!).toBeTruthy();
       expect(q.locator, q.ref!).toBeTruthy();
-      expect(q.promptAr, q.ref!).toBeTruthy();
     }
     // Nothing is a legal requirement by default, and no text claims compliance.
     expect(questions.filter((q) => q.basis === "legal_requirement")).toEqual([]);
     const all = JSON.stringify(STARTER_TEMPLATE);
     expect(all).not.toMatch(/non-compliant|required by law|\bmust\b/i);
-    expect(questions.filter((q) => q.legalFor?.includes("listed_jsc")).map((q) => q.ref)).toEqual(["3.2", "6.4"]);
-    // Citations not yet checked against the source say so.
-    expect(questions.filter((q) => !q.citationVerified).map((q) => q.ref)).toEqual([
-      "2.1",
-      "2.2",
-      "2.3",
-      "2.4",
-      "3.3",
+    // CMA rules bind listed companies; SAMA's principles bind banks and finance companies.
+    expect(questions.filter((q) => q.legalFor?.includes("listed_jsc")).map((q) => q.ref)).toEqual(["3.2", "3.4", "6.4", "7.4"]);
+    expect(questions.filter((q) => q.legalFor?.includes("bank_or_finance_company")).map((q) => q.ref)).toEqual([
+      "3.2",
       "3.4",
+      "5.1",
       "6.4",
-      "7.3",
       "7.4",
     ]);
+    expect(questions.filter((q) => q.legalFor?.includes("capital_market_institution"))).toEqual([]);
+    // Citations not yet checked against the source say so.
+    expect(questions.filter((q) => q.citation && !q.citationVerified).map((q) => q.ref)).toEqual(["2.3", "3.4"]);
     await svc(U.author, (tx, p) => A.publishVersion(tx, p, starter.versionId));
     const logged = await owner.query(`SELECT meta FROM audit_log WHERE action = 'template.publish'`);
     expect(logged.rows[0].meta).toEqual({ template_id: starter.id, version: 1 });
@@ -230,7 +241,7 @@ describe("published versions", () => {
     const draft = await svc(U.author, (tx, p) => A.getTemplateVersion(tx, p, draftVersionId));
     expect([draft.version, draft.status]).toEqual([2, "draft"]);
     const copied = draft.sections.flatMap((s) => s.questions);
-    expect(copied).toHaveLength(28);
+    expect(copied).toHaveLength(29);
     // Conditions point at the copies, not the originals.
     const c32 = copied.find((q) => q.ref === "3.2")!;
     expect(c32.appliesIfQuestionId).toBe(copied.find((q) => q.ref === "3.1")!.id);
@@ -250,13 +261,13 @@ describe("published versions", () => {
     expect(
       (await owner.query(`SELECT count(*)::int AS n FROM template_questions WHERE version_id = $1`, [starter.versionId])).rows[0]
         .n,
-    ).toBe(28);
+    ).toBe(29);
   });
 
   it("are duplicated into a new template's draft, and archived templates are kept off new assessments", async () => {
     const dup = await svc(U.author, (tx, p) => A.duplicateTemplate(tx, p, starter.id, { name: "Copy" }));
     const v = await svc(U.author, (tx, p) => A.getTemplateVersion(tx, p, dup.draftVersionId));
-    expect([v.template.name, v.version, v.sections.flatMap((s) => s.questions).length]).toEqual(["Copy", 1, 28]);
+    expect([v.template.name, v.version, v.sections.flatMap((s) => s.questions).length]).toEqual(["Copy", 1, 29]);
     await svc(U.author, (tx, p) => A.publishVersion(tx, p, dup.draftVersionId));
     await svc(U.author, (tx, p) => A.updateTemplate(tx, p, dup.id, { archived: true }));
     await expect(
@@ -404,8 +415,8 @@ describe("assessments", () => {
     expect(await bases(listed)).toEqual([
       "legal_requirement",
       "legal_requirement",
-      "good_practice", // 7.4 waits for the CMA article to be checked
-      "good_practice",
+      "legal_requirement",
+      "legal_requirement",
       "firm_method",
     ]);
     // A later change of legal form leaves the assessment as it was made.
@@ -420,6 +431,7 @@ describe("assessments", () => {
   });
 
   it("score yes/partly/no, ratings and choices, skip questions whose condition is not met, and show gaps", async () => {
+    await answer(acme, "0.1", "family"); // describes the client only: never scored, never a gap
     await answer(acme, "1.1", "yes");
     await answer(acme, "1.2", "partly");
     await answer(acme, "1.3", "no");
@@ -430,13 +442,15 @@ describe("assessments", () => {
     await answer(acme, "4.1", "no"); // 4.2 and 4.3 then do not apply
     await answer(acme, "6.3", "3"); // 2 of 3
     const a = await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme));
-    const s1 = a.sections[0]!;
+    expect([a.sections[0]!.earned, a.sections[0]!.possible, a.sections[0]!.gaps]).toEqual([0, 0, 0]);
+    const s1 = a.sections[1]!;
     expect([s1.earned, s1.possible, s1.pct, s1.gaps]).toEqual([3, 6, 50, 2]);
     const qs = a.sections.flatMap((s) => s.questions);
     const by = (ref: string) => qs.find((q) => q.ref === ref)!;
     expect([by("1.1").points, by("1.1").isGap, by("1.2").isGap, by("1.3").isGap]).toEqual([2, false, true, true]);
     expect([by("2.2").points, by("2.2").maxPoints, by("2.2").isGap]).toEqual([1, 3, true]);
     expect([by("6.3").points, by("6.3").maxPoints, by("6.3").isGap]).toEqual([2, 3, false]);
+    expect([by("0.1").points, by("0.1").maxPoints, by("0.1").isGap]).toEqual([null, null, false]);
     expect([by("3.2").applicable, by("3.4").applicable, by("4.2").applicable, by("4.3").applicable]).toEqual([
       false,
       false,
@@ -446,7 +460,7 @@ describe("assessments", () => {
     expect(by("3.2").basisLabel.en).toBe("Good practice (voluntary)");
     // "Not applicable" is left out of the score.
     await answer(acme, "5.1", "na");
-    expect((await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme))).sections[4]!.possible).toBe(0);
+    expect((await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme))).sections[5]!.possible).toBe(0);
   });
 
   it("are finalised once every applicable question is answered, and are then kept as they are", async () => {
@@ -506,13 +520,13 @@ describe("assessments", () => {
       (await sqlAs(uid, `SELECT count(*)::int AS n FROM assessment_answers WHERE assessment_id = $1`, [acme])).rows[0].n;
     expect(await visible(U.cmgr)).toBe(0);
     await svc(U.cons, (tx, p) => A.shareAssessment(tx, p, acme, true));
-    expect(await visible(U.cmgr)).toBe(28);
-    expect(await visible(U.cadmin)).toBe(28);
+    expect(await visible(U.cmgr)).toBe(29);
+    expect(await visible(U.cadmin)).toBe(29);
     expect(await visible(U.cowner)).toBe(0); // action owners are not shown assessments
     expect(await visible(U.other)).toBe(0); // another client
     const seen = await svc(U.cmgr, (tx, p) => A.getAssessment(tx, p, acme));
     expect(seen.canConduct).toBe(false);
-    expect(seen.sections.flatMap((s) => s.questions)).toHaveLength(28);
+    expect(seen.sections.flatMap((s) => s.questions)).toHaveLength(29);
     // Scores are the firm's: the client gets answers, not points, percentages or gaps.
     expect(seen.total).toMatchObject({ earned: null, possible: null, pct: null, gaps: null });
     expect(seen.sections.every((s) => s.pct === null && s.earned === null)).toBe(true);
@@ -521,6 +535,16 @@ describe("assessments", () => {
     );
     expect((await svc(U.cmgr, (tx, p) => A.listAssessments(tx, p, P.acme))).map((x) => x.total)).toEqual([null]);
     expect((await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme))).total.possible).toBeGreaterThan(0);
+    // The database refuses them too, whoever asks it directly.
+    await expect(sqlAs(U.cmgr, `SELECT * FROM app_assessment_scores($1)`, [acme])).rejects.toThrow(/firm only/);
+    const direct = (await sqlAs(U.cmgr, `SELECT points, max_points, is_gap, applicable FROM app_assessment_results($1)`, [acme]))
+      .rows;
+    expect(direct).toHaveLength(29);
+    expect(direct.every((r) => r.points === null && r.max_points === null && !r.is_gap)).toBe(true);
+    expect(direct.some((r) => r.applicable)).toBe(true);
+    expect((await sqlAs(U.cons, `SELECT count(*)::int AS n FROM app_assessment_scores($1)`, [acme])).rows[0].n).toBe(
+      STARTER_TEMPLATE.sections.length,
+    );
     // The firm's notes and firm-private files stay with the firm.
     const q = seen.sections.flatMap((s) => s.questions).find((x) => x.ref === "2.1")!;
     expect(q.answer).not.toHaveProperty("firmNote");
@@ -727,7 +751,8 @@ describe("retake and compare", () => {
     expect(out.earlier.id).toBe(acme);
     expect(out.later).toMatchObject({ id: again, title: "Follow-up 2027", status: "draft" });
     expect(out.sections).toHaveLength(STARTER_TEMPLATE.sections.length);
-    const first = out.sections[0]!;
+    const first = out.sections[1]!;
+    expect(out.sections[0]!.changes).toEqual([]);
     expect(first.changes).toEqual([
       expect.objectContaining({ ref: "1.1", change: "answer", before: expect.objectContaining({ value: before }) }),
     ]);

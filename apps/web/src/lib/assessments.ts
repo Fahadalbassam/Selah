@@ -1,6 +1,15 @@
 // Shared by the assessment routes and services (drizzle/0029_assessments_rules.sql).
 
-export const LEGAL_FORMS = ["sole_proprietorship", "llc", "closed_jsc", "listed_jsc", "non_profit", "other"] as const;
+export const LEGAL_FORMS = [
+  "sole_proprietorship",
+  "llc",
+  "closed_jsc",
+  "listed_jsc",
+  "bank_or_finance_company",
+  "capital_market_institution",
+  "non_profit",
+  "other",
+] as const;
 export type LegalForm = (typeof LEGAL_FORMS)[number];
 
 export const QUESTION_TYPES = ["yes_no", "multiple_choice", "rating", "text"] as const;

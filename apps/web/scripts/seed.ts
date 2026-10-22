@@ -267,7 +267,7 @@ const tx = db as unknown as Tx;
 const starter = await installStarterTemplate(tx, adminPrincipal, { publish: true });
 const baseline = await createAssessment(tx, adminPrincipal, board!.id, { templateId: starter.id, title: "التقييم المبدئي ٢٠٢٦" });
 const seeded = await getAssessment(tx, adminPrincipal, baseline.id);
-const sample: Record<string, string> = { "1.1": "yes", "1.2": "partly", "1.3": "no", "2.1": "no", "2.2": "informal", "4.1": "partly", "4.3": "2" };
+const sample: Record<string, string> = { "0.1": "family", "1.1": "yes", "1.2": "partly", "1.3": "no", "2.1": "no", "2.2": "informal", "4.1": "partly", "4.3": "2" };
 for (const q of seeded.sections.flatMap((x) => x.questions)) {
   if (q.ref && sample[q.ref]) await answerQuestion(tx, adminPrincipal, q.answer.id, { value: sample[q.ref]! });
 }

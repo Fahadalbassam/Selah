@@ -442,7 +442,7 @@ export async function installStarterTemplate(tx: Tx, principal: Principal, opts:
         sectionId,
         position: j + 1,
         weight: 1,
-        citationVerified: !UNVERIFIED_CITATIONS.has(q.ref),
+        citationVerified: q.citation !== null && !UNVERIFIED_CITATIONS.has(q.ref),
         appliesIfQuestionId: appliesIf ? byRef.get(appliesIf.ref)! : null,
         appliesIfValues: appliesIf ? appliesIf.values : null,
       });
@@ -802,13 +802,16 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
   const answers = await tx.select().from(assessmentAnswers).where(eq(assessmentAnswers.assessmentId, assessmentId));
   const { rows: results } = await tx.execute<{
     answer_id: string;
+    section_id: string;
+    type: QuestionType;
+    value: string | null;
     applicable: boolean;
     points: number | null;
     max_points: number | null;
     is_gap: boolean;
     finding_id: string | null;
   }>(
-    sql`select answer_id, applicable, points, max_points, is_gap, finding_id from app_assessment_results(${assessmentId}::uuid)`,
+    sql`select answer_id, section_id, type, value, applicable, points, max_points, is_gap, finding_id from app_assessment_results(${assessmentId}::uuid)`,
   );
   // Row-level security on documents leaves out files the caller cannot see.
   const evidence = await tx
@@ -833,9 +836,13 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
   const byQuestion = new Map(answers.map((x) => [x.questionId, x]));
   const resultOf = new Map(results.map((r) => [r.answer_id, r]));
   const firm = principal.orgKind === "firm";
-  const score = await scores(tx, assessmentId);
   // Clients see the questions, answers, comments and evidence, but no points, percentages or gaps.
+  // The database refuses them the scores (drizzle/0043_assessment_scores_firm_only.sql).
+  const score = firm ? await scores(tx, assessmentId) : null;
   const hidden = { earned: null, possible: null, pct: null, gaps: null, confirmed: null };
+  const toAnswer = (sectionId?: string) =>
+    results.filter((r) => r.applicable && r.type !== "text" && r.value === null && (!sectionId || r.section_id === sectionId))
+      .length;
   return {
     id: a.id,
     projectId: a.projectId,
@@ -845,12 +852,12 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
     sharedWithClient: a.sharedWithClient,
     finalisedAt: a.finalisedAt,
     canConduct: authorize(principal, "assessment.conduct", resource).allowed,
-    total: firm ? score.total : { ...hidden, toAnswer: score.total.toAnswer },
+    total: score ? score.total : { ...hidden, toAnswer: toAnswer() },
     sections: content.sections.map((s) => ({
       ...s,
-      ...(firm
+      ...(score
         ? omit(score.sections.find((x) => x.sectionId === s.id)!, "sectionId", "position", "title", "titleAr")
-        : { ...hidden, toAnswer: score.sections.find((x) => x.sectionId === s.id)!.toAnswer }),
+        : { ...hidden, toAnswer: toAnswer(s.id) }),
       questions: s.questions.map((q) => {
         const x = byQuestion.get(q.id)!;
         const r = resultOf.get(x.id);

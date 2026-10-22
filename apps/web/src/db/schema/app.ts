@@ -110,12 +110,15 @@ export const engagementMode = pgEnum("engagement_mode", ["full", "restricted", "
 export const recordSource = pgEnum("record_source", ["client_portal", "consultant_recorded", "internal"]);
 export const receivedVia = pgEnum("received_via", ["meeting", "email", "phone", "document"]);
 // A client's legal form. It decides which assessment criteria are legal
-// requirements for that client (CMA governance rules bind listed companies).
+// requirements for that client (CMA governance rules bind listed companies,
+// SAMA's governance principles bind banks and finance companies).
 export const legalForm = pgEnum("legal_form", [
   "sole_proprietorship",
   "llc",
   "closed_jsc",
   "listed_jsc",
+  "bank_or_finance_company",
+  "capital_market_institution",
   "non_profit",
   "other",
 ]);
