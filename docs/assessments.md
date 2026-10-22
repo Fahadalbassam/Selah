@@ -68,7 +68,7 @@ Fixed and visible (`app_assessment_results`, `app_assessment_scores`):
 - Section % = points earned ÷ points possible. The total is the same over all sections. No hidden weights.
 - A gap is an applicable scored answer at or below the threshold (default: half the maximum, rounded down, so "partly" and "no", or a rating of 1–2).
 
-Percentages are indicative. They are shown to firm staff, and to the client only when the firm shares the assessment.
+Percentages are indicative and firm-only. A client reading a shared assessment, the project's assessment list or a comparison sees the answers, comments and confirmed findings, but no points, percentages or totals (the service blanks them for any non-firm caller).
 
 ## Retake and compare
 
@@ -80,6 +80,14 @@ A client is assessed again by retaking a final assessment (`POST /api/assessment
 - A reference names one question in a version (enforced). Questions without one that share the same wording are matched in order. A question reworded under the same reference is flagged (`wordingChanged`), so the two answers aren't read as like for like.
 - Each section shows points earned and possible in both assessments, from the same per-question points as the assessment itself, plus the questions whose answer changed.
 - Questions the later assessment hasn't answered yet are counted, not listed as changes.
+
+## Screens
+
+- **Assessment templates** (sidebar): the template list; install the starter template. A template page shows one version at a time (`?v=`), the open draft by default. Authors add and edit sections and questions, set each question's legal form labels, source, locator and verified flag, and publish.
+- **Project, Assessments tab**: the project's assessments with totals (firm only); start one from a published template.
+- **Assessment page**: each question with its source labels per legal form and its basis. Answers save as they are given, with a client-visible comment and a firm-only note. After finalising, each gap is shown as a suggested gap and a consultant confirms it as a finding. The page also shares the assessment, retakes it and opens the comparison.
+- **Compare**: per-section points before and after (firm only) and each changed answer, with reworded questions flagged.
+- The client's legal form is set on the client page.
 
 ## Who sees what
 
@@ -124,6 +132,5 @@ Minimal-records clients: written answers, comments and firm notes are blanked wi
 ## Open questions for the sponsor
 
 - Whether their Deep Dive baseline items should be the first section, as their own method.
-- Which client legal forms they serve most (this decides the legal labels).
-- Whether a family charter is something they deliver or only recommend.
-- Whether a score may be shown to clients, or kept firm-only at first and labelled indicative.
+
+Answered 2026-10-21: legal forms are not limited (family and financial companies are served); family charters may be delivered; scores stay firm-only.

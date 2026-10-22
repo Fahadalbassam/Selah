@@ -513,6 +513,14 @@ describe("assessments", () => {
     const seen = await svc(U.cmgr, (tx, p) => A.getAssessment(tx, p, acme));
     expect(seen.canConduct).toBe(false);
     expect(seen.sections.flatMap((s) => s.questions)).toHaveLength(28);
+    // Scores are the firm's: the client gets answers, not points, percentages or gaps.
+    expect(seen.total).toMatchObject({ earned: null, possible: null, pct: null, gaps: null });
+    expect(seen.sections.every((s) => s.pct === null && s.earned === null)).toBe(true);
+    expect(seen.sections.flatMap((s) => s.questions).every((x) => x.points === null && x.maxPoints === null && !x.isGap)).toBe(
+      true,
+    );
+    expect((await svc(U.cmgr, (tx, p) => A.listAssessments(tx, p, P.acme))).map((x) => x.total)).toEqual([null]);
+    expect((await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme))).total.possible).toBeGreaterThan(0);
     // The firm's notes and firm-private files stay with the firm.
     const q = seen.sections.flatMap((s) => s.questions).find((x) => x.ref === "2.1")!;
     expect(q.answer).not.toHaveProperty("firmNote");
@@ -725,7 +733,7 @@ describe("retake and compare", () => {
     ]);
     expect(first.changes[0]!.after!.value).toBe(before === "yes" ? "no" : "yes");
     // Section and total points add up from the same per-question points as the assessment.
-    expect(out.earlier.earned).toBe(out.sections.reduce((n, s) => n + s.before.earned, 0));
+    expect(out.earlier.earned).toBe(out.sections.reduce((n, s) => n + s.before!.earned, 0));
     const scored = await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme), true);
     expect(out.earlier.earned).toBe(scored.total.earned);
     expect(out.earlier.possible).toBe(scored.total.possible);
