@@ -8,7 +8,7 @@ import { audit } from "./audit";
 import { downloadable } from "./scan";
 import { DOWNLOAD_TTL_SECONDS, signedDownloadUrl } from "./storage";
 
-async function loadDocument(tx: Tx, id: string) {
+export async function loadDocument(tx: Tx, id: string) {
   const [row] = await tx
     .select({ doc: documents, firmOrgId: projects.firmOrgId })
     .from(documents)

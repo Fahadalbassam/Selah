@@ -249,7 +249,8 @@
       "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner.",
       "pastDate": "The new date is in the past.",
       "sameDate": "That's already the due date.",
-      "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened."
+      "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened.",
+      "notShared": "Only files shared between the client and the firm can be used as evidence."
     },
     "entry": {
       "update": "posted an update",
@@ -345,7 +346,9 @@
       "statementPlaceholder": "Why your organisation accepts not doing this, and what it will do instead.",
       "agree": "I accept the risk of not finishing this action, on behalf of my organisation.",
       "signButton": "Sign"
-    }
+    },
+    "pickExisting": "Choose from Selah files",
+    "uploadNew": "Upload a new file"
   },
   "common": {
     "cancel": "Cancel",
@@ -1677,5 +1680,47 @@
     },
     "empty": "No active consultants yet.",
     "footnote": "Sorted by name. This is for allocation, not a rating."
+  },
+  "files": {
+    "title": "Files",
+    "descriptionFirm": "Every file you can open in Selah, by client, project and where it came from.",
+    "descriptionClient": "Every file you can open in Selah, by project and where it came from.",
+    "search": "Search files, projects or people",
+    "empty": "No files yet. Files appear here once they are uploaded to an action, a meeting or a project.",
+    "emptyPick": "No files of this client that you can open yet.",
+    "noMatch": "No files match your search.",
+    "loadFailed": "The files could not be loaded. Try again.",
+    "internal": "Internal work",
+    "source": {
+      "evidence": "Evidence",
+      "deliverable": "Deliverables",
+      "client_document": "Client documents",
+      "meeting": "Meetings",
+      "assessment": "Assessments"
+    },
+    "unnamed": {
+      "evidence": "Other evidence",
+      "deliverable": "Deliverables",
+      "client_document": "Client documents",
+      "meeting": "A meeting",
+      "assessment": "An assessment"
+    },
+    "uploadedBy": "Uploaded by",
+    "you": "You",
+    "version": "Version",
+    "department": "Department",
+    "sharing": "Who can see it",
+    "visibility": {
+      "shared": "Client and firm",
+      "firm_private": "Firm only",
+      "client_private": "Your company only",
+      "user_private": "Only the uploader"
+    },
+    "notCleared": "This file is still being checked for viruses and can't be opened yet.",
+    "download": "Download",
+    "downloadFailed": "This file can't be downloaded right now.",
+    "useFile": "Use this file",
+    "pickHint": "Pick a file you already have in Selah. A copy is attached as evidence; the original stays where it is.",
+    "notShared": "Only files shared between your company and the firm can be used as evidence."
   }
 }

@@ -94,6 +94,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         orgName={orgName}
         roleLabel={tRole(viewer.role)}
         groups={navFor(viewer.role, (k) => tNav(k))}
+        orgKind={viewer.orgKind}
         user={{
           name: viewer.name,
           email: viewer.email,

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { BrandLoader } from "@/components/brand";
+import { FileBrowser } from "@/components/file-explorer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,10 +21,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
+import type { FileEntry } from "@/services/files";
 
 interface Props {
   actionId: string;
@@ -50,6 +53,7 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("rejected: infected")) return { ok: false, error: "infected" };
   if (m.includes("rejected")) return { ok: false, error: "type" };
   if (m.includes("submit evidence")) return { ok: false, error: "needEvidence" };
+  if (m.includes("shared with the firm")) return { ok: false, error: "notShared" };
   if (m.includes("in the past")) return { ok: false, error: "pastDate" };
   if (m.includes("already the due date")) return { ok: false, error: "sameDate" };
   if (m.includes("not signed a risk acceptance")) return { ok: false, error: "notSigned" };
@@ -346,7 +350,11 @@ export function ReasonDialog(props: {
   );
 }
 
-/** Attach a file to the action; with evidenceRequestId, it answers that item of the evidence list. */
+/**
+ * Attach a file to the action; with evidenceRequestId, it answers that item of
+ * the evidence list. The file is either uploaded now or picked from the files
+ * the person can already open in Selah (a copy is attached; see services/files).
+ */
 export function EvidenceDialog(props: {
   actionId: string;
   submit: boolean;
@@ -357,49 +365,95 @@ export function EvidenceDialog(props: {
 }) {
   const t = useTranslations("action");
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"upload" | "pick">("upload");
+  const [note, setNote] = useState("");
   const { busy, error, go } = useRun(props.onDone);
+  function close(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setMode("upload");
+      setNote("");
+    }
+  }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Picking sends on "Use this file"; Enter in the search box sends nothing.
+    if (mode === "pick") return;
     const form = new FormData(e.currentTarget);
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) {
       form.delete("file");
       // Sending for review without a new file works only if evidence was attached earlier.
       if (props.submit) {
-        go(() => send(`/api/actions/${props.actionId}/transition`, json({ to: "awaiting_review" })), () => setOpen(false));
+        go(() => send(`/api/actions/${props.actionId}/transition`, json({ to: "awaiting_review" })), () => close(false));
       }
       return;
     }
     form.set("submitForReview", String(props.submit));
     if (props.evidenceRequestId) form.set("evidenceRequestId", props.evidenceRequestId);
-    go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => setOpen(false));
+    go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => close(false));
   }
+  function pick(file: FileEntry) {
+    go(
+      () =>
+        send(
+          `/api/actions/${props.actionId}/evidence/existing`,
+          json({
+            documentId: file.id,
+            note: note.trim() || undefined,
+            submitForReview: props.submit,
+            evidenceRequestId: props.evidenceRequestId,
+          }),
+        ),
+      () => close(false),
+    );
+  }
+  const noteField = (
+    <div className="grid gap-2">
+      <Label htmlFor="note">{t("note")}</Label>
+      <Textarea id="note" name="note" maxLength={4000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+    </div>
+  );
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className={cn(mode === "pick" && "max-h-[85vh] overflow-y-auto sm:max-w-2xl")}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{props.title ?? (props.submit ? t("move.awaiting_review") : t("evidenceTitle"))}</DialogTitle>
             <DialogDescription>{t("evidenceHint")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="file">{t("file")}</Label>
-            <Input id="file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required={!props.submit} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="note">{t("note")}</Label>
-            <Textarea id="note" name="note" maxLength={4000} rows={3} />
-          </div>
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "upload" | "pick")}>
+            <TabsList className="w-full">
+              <TabsTrigger value="upload">{t("uploadNew")}</TabsTrigger>
+              <TabsTrigger value="pick">{t("pickExisting")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {mode === "upload" ? (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="file">{t("file")}</Label>
+                <Input id="file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required={!props.submit} />
+              </div>
+              {noteField}
+            </>
+          ) : (
+            <>
+              {noteField}
+              <FileBrowser className="max-h-[50vh]" pick={{ actionId: props.actionId, onPick: pick, busy }} />
+            </>
+          )}
           <ErrorText error={error} />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => close(false)}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={busy}>
-              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-              {busy ? t("saving") : props.submit ? t("sendForReview") : t("upload")}
-            </Button>
+            {mode === "upload" ? (
+              <Button type="submit" disabled={busy}>
+                {busy ? <BrandLoader tone="current" className="size-4" /> : null}
+                {busy ? t("saving") : props.submit ? t("sendForReview") : t("upload")}
+              </Button>
+            ) : null}
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,5 +1,5 @@
 import "server-only";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/env";
 
@@ -52,4 +52,10 @@ export async function putObject(storageKey: string, body: Uint8Array, contentTyp
       ChecksumSHA256: Buffer.from(sha256Hex, "hex").toString("base64"),
     }),
   );
+}
+
+/** Copy a stored file to a new random key inside the bucket (a file reused as evidence). */
+export async function copyObject(fromKey: string, toKey: string): Promise<void> {
+  const bucket = env().S3_BUCKET;
+  await s3().send(new CopyObjectCommand({ Bucket: bucket, CopySource: `${bucket}/${fromKey}`, Key: toKey }));
 }
