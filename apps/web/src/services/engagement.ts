@@ -12,7 +12,9 @@ import {
   user,
 } from "@/db/schema";
 import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
+import { parseShortNames } from "@/lib/masking";
 import { BadRequestError, NotFoundError } from "@/server/errors";
+import { audit } from "./audit";
 
 // How a client takes part, and its optional departments
 // (drizzle/0025_engagement_rules.sql). The database holds every rule: which
@@ -116,6 +118,30 @@ export async function setEngagement(
   await clientOrg(tx, orgId);
   await tx.update(organizations).set(input).where(eq(organizations.id, orgId));
   return clientOrg(tx, orgId);
+}
+
+/**
+ * The short forms people write for a company, in either language ("Al-Nukhba",
+ * "النخبة"), so they are masked before a hosted model sees them. Firm admin
+ * only; the database checks that and the limits (drizzle/0050).
+ */
+export async function setShortNames(tx: Tx, principal: Principal, orgId: string, text: string) {
+  assertAllowed(principal, "organization.engagement", orgRecord(principal, "organization", orgId));
+  const shortNames = parseShortNames(text);
+  if (shortNames.length > 6) throw new BadRequestError("up to 6 short names");
+  if (shortNames.some((n) => n.length < 2 || n.length > 100)) throw new BadRequestError("each short name is 2 to 100 characters");
+  const [row] = await tx.update(organizations).set({ shortNames }).where(eq(organizations.id, orgId)).returning({ id: organizations.id });
+  if (!row) throw new NotFoundError("organization");
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "organization.short_names",
+    resourceType: "organization",
+    resourceId: orgId,
+    outcome: "allow",
+    meta: { count: shortNames.length },
+  });
+  return { shortNames };
 }
 
 export interface DepartmentInput {

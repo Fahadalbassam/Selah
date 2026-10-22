@@ -148,6 +148,8 @@ export const organizations = pgTable("organizations", {
   // is purged after handover (drizzle/0027_insight_rules.sql).
   minimalRecords: boolean("minimal_records").notNull().default(false),
   displayAlias: text("display_alias"),
+  // Short forms people write, in either language ("Al-Nukhba", "النخبة"). Masked before a hosted model sees them (drizzle/0050).
+  shortNames: text("short_names").array().notNull().default(sql`'{}'::text[]`),
   // Clients only. Needed before the client is assessed (drizzle/0029).
   legalForm: legalForm("legal_form"),
   createdAt: createdAt(),
@@ -1459,6 +1461,8 @@ export const clientContacts = pgTable(
       .notNull()
       .references(() => organizations.id),
     name: text("name").notNull(),
+    // The name in the other language, for masking (drizzle/0050).
+    nameAlt: text("name_alt"),
     title: text("title"),
     email: text("email"),
     phone: text("phone"),

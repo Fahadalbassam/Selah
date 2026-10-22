@@ -4,6 +4,8 @@ import { createContact, listContacts } from "@/services/accounts";
 
 const body = z.object({
   name: z.string().trim().min(1).max(120),
+  // The name in the other language, for masking before a hosted model.
+  nameAlt: z.string().trim().min(2).max(200).optional(),
   title: z.string().trim().max(120).optional(),
   email: z.email().max(254).optional(),
   phone: z

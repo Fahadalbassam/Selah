@@ -67,6 +67,7 @@ export async function listPeople(tx: Tx, principal: Principal, orgId: string) {
     .select({
       userId: user.id,
       name: user.name,
+      nameAlt: user.nameAlt,
       email: user.email,
       role: orgMemberships.role,
       active: orgMemberships.active,
@@ -187,6 +188,18 @@ export async function setActive(tx: Tx, principal: Principal, userId: string, in
   return { changed: changed.length > 0 };
 }
 
+/**
+ * The person's name in the other language ("Reem Al-Harbi" for "ريم الحربي"),
+ * so it is masked in files written in either before a hosted model sees them.
+ * The same admins as an address change; the database checks it and logs it.
+ */
+export async function setNameAlt(tx: Tx, principal: Principal, userId: string, nameAlt: string) {
+  const m = await membershipOf(tx, userId);
+  assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
+  await tx.execute(sql`select app_set_name_alt(${userId}, ${nameAlt})`);
+  return { ok: true };
+}
+
 /** Start an address change; the new address confirms it from a link. */
 export async function requestEmailChange(tx: Tx, principal: Principal, userId: string, newEmail: string) {
   const m = await membershipOf(tx, userId);
@@ -272,6 +285,7 @@ export async function listContacts(tx: Tx, principal: Principal, clientOrgId: st
     .select({
       id: clientContacts.id,
       name: clientContacts.name,
+      nameAlt: clientContacts.nameAlt,
       title: clientContacts.title,
       email: clientContacts.email,
       phone: clientContacts.phone,
@@ -283,6 +297,8 @@ export async function listContacts(tx: Tx, principal: Principal, clientOrgId: st
 
 export interface ContactInput {
   name: string;
+  /** The name in the other language, for masking. */
+  nameAlt?: string | null;
   title?: string | null;
   email?: string | null;
   phone?: string | null;

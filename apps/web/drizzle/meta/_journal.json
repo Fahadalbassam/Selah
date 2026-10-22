@@ -344,6 +344,20 @@
       "when": 1792699000000,
       "tag": "0048_mask_terms_entities",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792699100000,
+      "tag": "0049_name_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792699200000,
+      "tag": "0050_name_variants_rules",
+      "breakpoints": true
     }
   ]
 }

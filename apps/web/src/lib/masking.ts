@@ -55,17 +55,47 @@ const PLACEHOLDER = /\[(ORG|PERSON|DEPT|PLACE|EMAIL|PHONE)_(\d+)\]/g;
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalise = (s: string) => s.replace(/\p{M}/gu, "").replace(/\s+/g, " ").trim();
+// Between the parts of a Latin name: "Al-Harbi", "Al Harbi", "Alharbi" and "Al‑Harbi" are one name.
+const SEP = /[\s\-\u2010-\u2015'\u2019`\u02BF]+/g;
+const SEP_RE = "[\\s\\-\\u2010-\\u2015'\\u2019`\\u02BF]*";
+
+/** How names are compared: marks gone, lower case; a Latin name also without separators, with "el" read as "al". */
+function keyOf(s: string) {
+  const n = normalise(s).toLowerCase();
+  if (ARABIC.test(n)) return n;
+  return n
+    .split(SEP)
+    .map((t) => t.replace(/^el(?=\p{L}{3})|^el$/u, "al"))
+    .join("");
+}
+
+/** The pattern for one Latin name, allowing the spellings keyOf() treats as the same. */
+function latinPattern(term: string) {
+  return term
+    .toLowerCase()
+    .split(SEP)
+    .filter(Boolean)
+    .map((t) => {
+      const al = /^(?:al|el)(?=\p{L}{3})|^(?:al|el)$/u.exec(t);
+      return al ? `[ae]l${SEP_RE}${escape(t.slice(2))}` : escape(t);
+    })
+    .join(SEP_RE);
+}
 
 /** The masking a request uses. Without terms (masking off) both directions leave text as it is. */
 export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {}): Masker {
   const kindOf = new Map<string, MaskKind>();
+  // One written form of each name, to build its pattern from.
+  const formOf = new Map<string, string>();
   // The record each name belongs to, so "Al-Nukhba Holding" and "شركة النخبة القابضة" are one [ORG_n].
   const entityOf = new Map<string, string>();
   const add = (kind: MaskKind, raw: string, entity?: string | null) => {
     const term = normalise(raw);
-    if (term.length < 3 || kindOf.has(term.toLowerCase())) return;
-    kindOf.set(term.toLowerCase(), kind);
-    if (entity) entityOf.set(term.toLowerCase(), entity);
+    const key = keyOf(term);
+    if (term.length < 3 || key.length < 3 || kindOf.has(key)) return;
+    kindOf.set(key, kind);
+    formOf.set(key, term.toLowerCase());
+    if (entity) entityOf.set(key, entity);
   };
   for (const t of terms) {
     const kind = (["ORG", "PERSON", "DEPT", "PLACE"].includes(t.kind) ? t.kind : "ORG") as MaskKind;
@@ -74,6 +104,9 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
     if (kind === "PERSON") {
       for (const part of normalise(t.term).split(/\s+/)) {
         if (part.length >= 4 && !NAME_PARTS_KEPT.has(part.toLowerCase())) add("PERSON", part, t.entity);
+        // "Al-Harbi" is also written "Harbi".
+        const bare = /^(?:al|el)[-\u2010-\u2015](\p{L}{4,})$/iu.exec(part)?.[1];
+        if (bare) add("PERSON", bare, t.entity);
       }
     }
   }
@@ -81,14 +114,15 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
 
   // Longest first, so "Al-Nukhba Holding" wins over "Al-Nukhba". Latin names
   // need whole words; Arabic ones may carry a prefix (و، ب، ل، ال) before them.
-  const names = [...kindOf.keys()].sort((a, b) => b.length - a.length);
+  const names = [...kindOf.keys()].sort((a, b) => b.length - a.length).map((k) => formOf.get(k)!);
   const pattern = names.length
     ? new RegExp(
         names
-          .map((n) => {
-            const body = escape(n).replace(/ /g, "\\s+");
-            return ARABIC.test(n) ? `${body}(?![\\p{L}])` : `(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`;
-          })
+          .map((n) =>
+            ARABIC.test(n)
+              ? `${escape(n).replace(/ /g, "\\s+")}(?![\\p{L}])`
+              : `(?<![\\p{L}\\p{N}])${latinPattern(n)}(?![\\p{L}\\p{N}])`,
+          )
           .join("|"),
         "giu",
       )
@@ -98,7 +132,7 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
   const original = new Map<string, string>();
   const counts = new Map<MaskKind, number>();
   const placeholder = (kind: MaskKind, surface: string) => {
-    const name = normalise(surface).toLowerCase();
+    const name = keyOf(surface);
     const key = entityOf.get(name) ?? `${kind}:${name}`;
     let p = placeholderOf.get(key);
     if (!p) {
@@ -119,7 +153,7 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
         .replace(/\p{M}/gu, "")
         .replace(EMAIL, (m) => placeholder("EMAIL", m))
         .replace(PHONE, (m) => placeholder("PHONE", m))
-        .replace(pattern, (m) => placeholder(kindOf.get(normalise(m).toLowerCase()) ?? "ORG", m));
+        .replace(pattern, (m) => placeholder(kindOf.get(keyOf(m)) ?? "ORG", m));
     },
     unmask(text) {
       return text.replace(PLACEHOLDER, (m) => original.get(m) ?? m);
@@ -128,4 +162,13 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
       return original.size;
     },
   };
+}
+
+/** Split what the admin typed into short names: one per line or comma (Arabic comma too). */
+export function parseShortNames(text: string): string[] {
+  const names = text
+    .split(/[\n,،]+/)
+    .map((n) => n.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return [...new Set(names)];
 }
