@@ -189,7 +189,7 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
           onClose();
         }
       }}
-      className="fixed z-50 flex h-[min(38rem,calc(100vh-2rem))] w-[min(26rem,calc(100vw-2rem))] animate-page-in flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-lg"
+      className="fixed z-50 flex h-[min(38rem,calc(100vh-2rem))] w-[min(26rem,calc(100vw-2rem))] animate-page-in flex-col overflow-hidden surface-floating rounded-xl border bg-popover text-popover-foreground shadow-2xl"
       style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, visibility: pos ? "visible" : "hidden" }}
     >
       <div
@@ -203,7 +203,7 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onKeyDown={onHandleKey}
-        className="flex cursor-grab touch-none items-start gap-2 border-b bg-muted/40 px-4 py-3 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset active:cursor-grabbing"
+        className="flex cursor-grab touch-none items-start gap-2 border-b bg-muted px-4 py-3 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset active:cursor-grabbing"
       >
         <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
