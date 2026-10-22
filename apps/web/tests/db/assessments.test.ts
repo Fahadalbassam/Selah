@@ -190,6 +190,8 @@ describe("the starter template", () => {
     // Citations not yet checked against the source say so.
     expect(questions.filter((q) => !q.citationVerified).map((q) => q.ref)).toEqual([
       "2.1",
+      "2.2",
+      "2.3",
       "2.4",
       "3.3",
       "3.4",
@@ -701,5 +703,50 @@ describe("minimal records", () => {
       await owner.query(`SELECT value, comment FROM assessment_answers WHERE id = $1`, [(await answerOf(aid, "1.1")).id])
     ).rows[0];
     expect(x).toEqual({ value: "partly", comment: "—" });
+  });
+});
+
+describe("retake and compare", () => {
+  it("retakes a final assessment on the same template and shows what changed, section by section", async () => {
+    await expect(svc(U.cons, (tx, p) => A.retakeAssessment(tx, p, listed), true)).rejects.toThrow(/finalise/);
+    const { id: again } = await svc(U.cons, (tx, p) => A.retakeAssessment(tx, p, acme, { title: "Follow-up 2027" }));
+    const before = (await owner.query(`SELECT value FROM assessment_answers WHERE id = $1`, [(await answerOf(acme, "1.1")).id]))
+      .rows[0].value as string;
+    await answer(again, "1.1", before === "yes" ? "no" : "yes");
+
+    // Either order: the earlier one comes first.
+    const out = await svc(U.cons, (tx, p) => A.compareAssessments(tx, p, again, acme), true);
+    expect(out.earlier.id).toBe(acme);
+    expect(out.later).toMatchObject({ id: again, title: "Follow-up 2027", status: "draft" });
+    expect(out.sections).toHaveLength(STARTER_TEMPLATE.sections.length);
+    const first = out.sections[0]!;
+    expect(first.changes).toEqual([
+      expect.objectContaining({ ref: "1.1", change: "answer", before: expect.objectContaining({ value: before }) }),
+    ]);
+    expect(first.changes[0]!.after!.value).toBe(before === "yes" ? "no" : "yes");
+    // Section and total points add up from the same per-question points as the assessment.
+    expect(out.earlier.earned).toBe(out.sections.reduce((n, s) => n + s.before.earned, 0));
+    const scored = await svc(U.cons, (tx, p) => A.getAssessment(tx, p, acme), true);
+    expect(out.earlier.earned).toBe(scored.total.earned);
+    expect(out.earlier.possible).toBe(scored.total.possible);
+  });
+
+  it("only compares the same client on the same template, and only what the caller can read", async () => {
+    const again = (await owner.query(`SELECT id FROM assessments WHERE title = 'Follow-up 2027'`)).rows[0].id as string;
+    await expect(svc(U.cons, (tx, p) => A.compareAssessments(tx, p, acme, listed), true)).rejects.toThrow(/same client/);
+    await expect(svc(U.cons, (tx, p) => A.compareAssessments(tx, p, acme, acme), true)).rejects.toThrow(/two different/);
+    // The retake is still a draft: the client can't read it, so can't compare with it.
+    await expect(svc(U.cmgr, (tx, p) => A.compareAssessments(tx, p, acme, again), true)).rejects.toThrow(/not found/);
+    await expect(svc(U.outsider, (tx, p) => A.compareAssessments(tx, p, acme, again), true)).rejects.toThrow(/not found/);
+    await expect(sqlAs(U.cmgr, `SELECT * FROM app_assessment_compare($1, $2)`, [acme, again])).rejects.toThrow(/not found/);
+  });
+
+  it("matches questions by a reference that names one question in its version", async () => {
+    await as(U.author, async (c) => {
+      const draft = (await c.query(`SELECT app_copy_template_version($1, $2) AS id`, [starter.versionId, starter.id])).rows[0].id;
+      await expect(
+        c.query(`UPDATE template_questions SET ref = ' 1.1 ' WHERE version_id = $1 AND ref = '1.2'`, [draft]),
+      ).rejects.toThrow(/template_questions_ref_once/);
+    });
   });
 });

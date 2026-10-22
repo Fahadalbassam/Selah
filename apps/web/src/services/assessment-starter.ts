@@ -13,7 +13,8 @@ import type { OwnBasis, ChoiceOption, LegalForm, QuestionType } from "@/lib/asse
 
 // Citations not yet checked against the source's current text: chapter-level
 // references, the Companies Law family charter article, and the MoC rules.
-export const UNVERIFIED_CITATIONS = new Set(["2.1", "2.4", "3.3", "3.4", "6.4", "7.3", "7.4"]);
+// The MoC family charter (2.1-2.4) is known only as a reported draft.
+export const UNVERIFIED_CITATIONS = new Set(["2.1", "2.2", "2.3", "2.4", "3.3", "3.4", "6.4", "7.3", "7.4"]);
 
 export interface StarterQuestion {
   ref: string;
@@ -36,6 +37,10 @@ const IFC = "IFC Family Business Governance Handbook (2nd ed., 2008)";
 const OECD = "G20/OECD Principles of Corporate Governance (2023)";
 const CMA = "CMA Corporate Governance Regulations (listed companies; as amended 2023)";
 const MOC = "Ministry of Commerce governance regulations for non-listed joint stock companies (2018; to verify)";
+// Regulator guidance, non-binding unless the family adopts a charter under the
+// Companies Law. Reported as "the proposed draft" (Okaz, 18 May 2018), so it is
+// cited by chapter only and the questions keep their good_practice basis.
+const MOC_FC = "MoC Guiding Charter for Saudi Family Businesses (2018, regulator guidance, non-binding)";
 
 export const STARTER_TEMPLATE = {
   name: "Family business governance: starter assessment",
@@ -77,8 +82,8 @@ export const STARTER_TEMPLATE = {
           "Does the family have a written family charter?",
           "هل لدى العائلة ميثاق عائلي مكتوب؟",
           "good_practice",
-          `${IFC}; Companies Law (2022), family charter: binding once adopted, not required`,
-          "IFC Sec. II; Companies Law family charter article (reported as Art. 11, to verify)",
+          `${IFC}; Companies Law (2022), family charter: binding once adopted, not required; ${MOC_FC}`,
+          "IFC Sec. II; Companies Law family charter article (reported as Art. 11, to verify); MoC-FC, whole charter",
         ),
         {
           ref: "2.2",
@@ -92,24 +97,24 @@ export const STARTER_TEMPLATE = {
             { value: "council", label: "Family council", labelAr: "مجلس عائلة", points: 3 },
           ],
           basis: "good_practice",
-          citation: IFC,
-          locator: "Sec. II",
+          citation: `${IFC}; ${MOC_FC}`,
+          locator: "IFC Sec. II; MoC-FC, family council chapter",
         },
         q(
           "2.3",
           "Is there a written policy on employing family members?",
           "هل توجد سياسة مكتوبة لتوظيف أفراد العائلة؟",
           "good_practice",
-          IFC,
-          "Sec. II",
+          `${IFC}; ${MOC_FC}`,
+          "IFC Sec. II; MoC-FC, company work policy chapter",
         ),
         q(
           "2.4",
           "Are the rules for share transfers, exits and profit distribution among family owners written down?",
           "هل قواعد نقل الحصص والتخارج وتوزيع الأرباح بين الملاك من العائلة مكتوبة؟",
           "good_practice",
-          `${IFC}; Companies Law (2022), scope of a family charter`,
-          "IFC Sec. II",
+          `${IFC}; Companies Law (2022), scope of a family charter; ${MOC_FC}`,
+          "IFC Sec. II; MoC-FC, share disposal and exit chapter",
         ),
         {
           ref: "2.5",

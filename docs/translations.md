@@ -13,6 +13,7 @@ Selah is used in Arabic and English, and people write in either. Text is stored 
 | Meeting decision | text |
 | Progress update | body |
 | Assessment answer | comment |
+| Assistant answer | content (its owner only; see docs/assistant.md) |
 
 The list lives in `app_translation_source()` and `src/lib/translations.ts`. Anything else is refused. The language of a text is told from its script: Arabic when it has at least as many Arabic letters as Latin ones.
 
@@ -43,5 +44,4 @@ The text is sent as data inside `<text>` tags, escaped so it can't close them, a
 ## Not done yet
 
 - No model has been run for this here: tests use a fake translator, and the live check used a stub service. The quality of Arabic from a small local model (qwen3:4b) is unknown and should be checked on sample text before relying on it.
-- AI assistant answers are not routed through this yet.
 - Meeting and assessment screens don't exist yet, so their translate buttons will come with those screens.

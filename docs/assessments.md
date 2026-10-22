@@ -55,8 +55,9 @@ These are **the team's proposed questions**, from the research thread's source m
 - **CMA Corporate Governance Regulations** (listed companies, as amended 2023). Only Art. 16, 41 and 43 are confirmed in the current numbering; everything else is cited by chapter until checked against the official text.
 - **Ministry of Commerce governance regulations for non-listed joint stock companies (2018)**: guidance, to verify.
 - **Companies Law (2022)**: a family charter binds once adopted but is not required. The article (reported as Art. 11) is to verify.
+- **MoC Guiding Charter for Saudi Family Businesses (الميثاق الاسترشادي للشركات العائلية, May 2018)**: regulator guidance, non-binding unless the family adopts a charter under the Companies Law. Cited by chapter on 2.1 to 2.4. Press coverage calls it "the proposed draft", so the final text may differ. These questions stay good practice.
 
-For a non-listed family company nothing in the starter template is a legal requirement. Two questions (board independence, CMA Art. 16; conflict-of-interest policy, Art. 41) become legal requirements for a listed company, and the board-meetings question is regulator guidance for a non-listed joint stock company. Related-party dealings (7.4) stay good practice for everyone until the CMA article is checked. On 3.2 the guidance says that "yes" does not confirm the Art. 16 thresholds. Seven citations are marked as not yet verified: 2.1, 2.4, 3.3, 3.4, 6.4, 7.3 and 7.4.
+For a non-listed family company nothing in the starter template is a legal requirement. Two questions (board independence, CMA Art. 16; conflict-of-interest policy, Art. 41) become legal requirements for a listed company, and the board-meetings question is regulator guidance for a non-listed joint stock company. Related-party dealings (7.4) stay good practice for everyone until the CMA article is checked. On 3.2 the guidance says that "yes" does not confirm the Art. 16 thresholds. Nine citations are marked as not yet verified: 2.1 to 2.4 (the MoC charter is known only as a reported draft), 3.3, 3.4, 6.4, 7.3 and 7.4.
 
 ## Scoring
 
@@ -68,6 +69,17 @@ Fixed and visible (`app_assessment_results`, `app_assessment_scores`):
 - A gap is an applicable scored answer at or below the threshold (default: half the maximum, rounded down, so "partly" and "no", or a rating of 1–2).
 
 Percentages are indicative. They are shown to firm staff, and to the client only when the firm shares the assessment.
+
+## Retake and compare
+
+A client is assessed again by retaking a final assessment (`POST /api/assessments/:id/retake`). The new assessment is on the same template's latest published version.
+
+`GET /api/assessments/compare?a=&b=` compares two assessments of the same client on the same template (`app_assessment_compare`). It runs with the caller's rights, so a client can compare only assessments shared with it.
+
+- Questions are matched by their reference ("2.1"), or by their wording when they have none, because a template can change between versions. A question only in the later assessment is shown as added, and one only in the earlier assessment as dropped.
+- A reference names one question in a version (enforced). Questions without one that share the same wording are matched in order. A question reworded under the same reference is flagged (`wordingChanged`), so the two answers aren't read as like for like.
+- Each section shows points earned and possible in both assessments, from the same per-question points as the assessment itself, plus the questions whose answer changed.
+- Questions the later assessment hasn't answered yet are counted, not listed as changes.
 
 ## Who sees what
 
@@ -102,6 +114,8 @@ Minimal-records clients: written answers, comments and firm notes are blanked wi
 | `PUT /api/assessments/:id/share` | share with the client, or stop |
 | `GET /api/assessments/:id/follow-up` | each confirmed gap and the work on it |
 | `POST /api/assessments/:id/report` | a report from a final assessment |
+| `POST /api/assessments/:id/retake` | assess again on the same template |
+| `GET /api/assessments/compare?a=&b=` | per-section points and changed answers between two assessments |
 | `PATCH /api/assessment-answers/:id` | answer, comment (shown to the client when shared) |
 | `PUT /api/assessment-answers/:id/note` | the firm's own note, never shown to the client |
 | `PUT/DELETE /api/assessment-answers/:id/evidence/:documentId` | attach or remove a file |
