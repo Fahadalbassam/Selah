@@ -1261,5 +1261,44 @@
       "restricted": "محدودة: يدخل مديرو العميل فقط",
       "consultant_managed": "يديرها المستشار: يسجّل المكتب نيابة عن العميل"
     }
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "open": "الإشعارات",
+    "unread": "{n, plural, =0 {لا إشعارات غير مقروءة} one {إشعار واحد غير مقروء} two {إشعاران غير مقروءين} few {# إشعارات غير مقروءة} many {# إشعاراً غير مقروء} other {# إشعار غير مقروء}}",
+    "markAll": "تحديد الكل كمقروء",
+    "seeAll": "عرض الكل",
+    "empty": "لا جديد.",
+    "gone": "تحديث عن شيء لم يعد بإمكانك فتحه",
+    "kinds": {
+      "action_assigned": "أُسند إليك الإجراء {title}",
+      "action_in_progress": "بدأ العمل على {title}",
+      "action_blocked": "تعثّر الإجراء {title}",
+      "action_awaiting_review": "{title} بانتظار المراجعة",
+      "action_verified_complete": "قُبل الإجراء {title} وتم التحقق منه",
+      "action_revision_requested": "طُلبت تعديلات على {title}",
+      "action_closed": "أُغلق الإجراء {title}",
+      "evidence_requested": "طُلب دليل جديد للإجراء {title}",
+      "evidence_request_accepted": "قُبل دليلك للإجراء {title}",
+      "evidence_request_rejected": "لم يُقبل دليلك للإجراء {title}",
+      "evidence_request_waived": "لم يعد أحد أدلة {title} مطلوباً",
+      "evidence_request_open": "طُلب أحد أدلة {title} مجدداً",
+      "risk_accepted": "تم قبول مخاطرة في {title}",
+      "deadline_requested": "طُلب موعد جديد للإجراء {title}",
+      "deadline_approved": "تمت الموافقة على موعدك الجديد للإجراء {title}",
+      "deadline_rejected": "رُفض موعدك الجديد للإجراء {title}",
+      "follow_up_due_soon": "اقترب موعد {title}",
+      "follow_up_overdue": "تأخر الإجراء {title}",
+      "follow_up_escalated": "تأخر الإجراء {title} وصُعّد (المستوى {level})",
+      "client_assigned": "أُضفت إلى فريق {title}",
+      "client_lead": "أصبحت المستشار الرئيسي لعميل {title}",
+      "join_request_approved": "قُبل طلبك للانضمام إلى {title}",
+      "join_request_declined": "رُفض طلبك للانضمام إلى {title}",
+      "project_staffed": "أُضفت إلى مشروع {title}",
+      "inquiry_new": "طلب جديد من {title}",
+      "inquiry_assigned": "أُسند إليك طلب {title}",
+      "access_review_due": "حان وقت مراجعة صلاحيات الدخول في {title}",
+      "other": "حدث تغيير في {title}"
+    }
   }
 }
