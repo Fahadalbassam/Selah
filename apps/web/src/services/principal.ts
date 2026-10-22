@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { clientAssignments, orgMemberships, organizations, projectMembers } from "@/db/schema";
+import { clientAssignments, departmentMembers, orgMemberships, organizations, projectMembers } from "@/db/schema";
 import type { Principal } from "@/authz";
 
 /**
@@ -31,6 +31,12 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
           .where(eq(clientAssignments.userId, userId))
       : [];
 
+  // A client user's team: the departments they belong to.
+  const departments =
+    membership.orgKind === "client"
+      ? await tx.select({ id: departmentMembers.departmentId }).from(departmentMembers).where(eq(departmentMembers.userId, userId))
+      : [];
+
   return {
     userId,
     orgId: membership.orgId,
@@ -40,5 +46,6 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     assignedClientIds: new Set(assignments.map((a) => a.clientOrgId)),
     leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
     leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
+    departmentIds: new Set(departments.map((d) => d.id)),
   };
 }

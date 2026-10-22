@@ -12,7 +12,7 @@ import type { Decision, Principal, Resource } from "./types";
  *   3. Membership   - is the user a member of the record's project, or (for
  *                     consultants) assigned to its client?
  *   4. Assignment   - does the grant's scope (assigned / own / shared /
- *                     owner_org) cover this record?
+ *                     owner_org / lead / team) cover this record?
  *   5. Label        - does the visibility label allow this user?
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
@@ -96,6 +96,12 @@ function scopeCovers(scope: Scope, p: Principal, r: Resource): boolean {
       return r.createdBy === p.userId || (r.sharedWith?.includes(p.userId) ?? false);
     case "owner_org":
       return r.ownerOrgId === p.orgId;
+    case "team":
+      return (
+        r.createdBy === p.userId ||
+        (r.sharedWith?.includes(p.userId) ?? false) ||
+        (r.departmentId != null && p.departmentIds.has(r.departmentId))
+      );
     case "lead":
       return p.leadClientIds.has(r.clientOrgId ?? r.orgId) || (r.projectId !== null && p.leadProjectIds.has(r.projectId));
   }

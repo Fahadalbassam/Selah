@@ -23,7 +23,7 @@ export const POST = route(
     prepare: ({ userId, params, files }) => {
       const file = files.get("file");
       if (!file || files.size !== 1) throw new BadRequestError("attach exactly one file");
-      return prepareUpload(userId, params.id, file);
+      return prepareUpload(userId, { type: "action", id: params.id }, file);
     },
   },
   ({ tx, principal, params, body, prepared }) =>

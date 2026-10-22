@@ -30,6 +30,7 @@ export async function loadDocument(tx: Tx, id: string) {
     createdBy: row.doc.uploadedBy,
     sharedWith: shares.map((s) => s.userId),
     ownerOrgId: row.doc.ownerOrgId,
+    departmentId: row.doc.departmentId,
   };
   return { doc: row.doc, resource };
 }

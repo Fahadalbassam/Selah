@@ -26,7 +26,8 @@ import { audit } from "./audit";
 import { loadDocument } from "./documents";
 import { receivedFor } from "./progress";
 import { downloadable } from "./scan";
-import { copyObject } from "./storage";
+import type { PreparedUpload } from "./evidence";
+import { copyObject, putObject } from "./storage";
 
 // The file explorer. It lists documents from the database, never the bucket:
 // rows come back filtered by RLS (project, label, department, unsubmitted
@@ -89,6 +90,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         purpose: documents.purpose,
         scanStatus: documents.scanStatus,
         ownerOrgId: documents.ownerOrgId,
+        departmentId: documents.departmentId,
         orgId: documents.orgId,
         projectId: documents.projectId,
       },
@@ -137,6 +139,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       createdBy: r.doc.uploadedBy,
       sharedWith: (sharesOf.get(r.doc.id) ?? []).map((s) => s.userId),
       ownerOrgId: r.doc.ownerOrgId,
+      departmentId: r.doc.departmentId,
     };
     return authorize(principal, "document.download", resource).allowed;
   });
@@ -305,4 +308,128 @@ export async function attachExistingEvidence(tx: Tx, principal: Principal, actio
 
   await copyObject(source.doc.storageKey, storageKey);
   return { id: submission!.id, documentId: doc!.id };
+}
+
+// ------------------------------------------------------------ uploading
+
+export type UploadVisibility = "shared" | "firm_private" | "client_private";
+
+/** Where the person can add a file from the Files card, and the labels they can choose. */
+export async function uploadTargets(tx: Tx, principal: Principal) {
+  const rows = await tx
+    .select({
+      id: projects.id,
+      title: projects.title,
+      kind: projects.kind,
+      orgId: projects.orgId,
+      firmOrgId: projects.firmOrgId,
+      orgName: organizations.name,
+      orgNameAr: organizations.nameAr,
+      mode: organizations.engagementMode,
+      minimal: organizations.minimalRecords,
+      departmentsEnabled: organizations.departmentsEnabled,
+    })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .where(ne(projects.state, "closed"))
+    .orderBy(projects.title);
+  const allowed = rows.filter(
+    (r) =>
+      !r.minimal &&
+      authorize(principal, "document.upload", {
+        type: "document",
+        orgId: r.orgId,
+        firmOrgId: r.firmOrgId,
+        projectId: r.id,
+        projectKind: r.kind,
+        engagementMode: r.mode,
+      }).allowed,
+  );
+
+  // A client admin files under any of the company's departments; a manager under their own.
+  let departmentChoices: { id: string; nameAr: string; nameEn: string | null }[] = [];
+  if (principal.orgKind === "client" && allowed.some((r) => r.departmentsEnabled)) {
+    const all = await tx
+      .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+      .from(departments)
+      .where(and(eq(departments.orgId, principal.orgId), eq(departments.active, true)))
+      .orderBy(departments.nameAr);
+    departmentChoices = principal.role === "client_admin" ? all : all.filter((d) => principal.departmentIds.has(d.id));
+  }
+
+  return {
+    projects: allowed.map((r) => ({
+      id: r.id,
+      title: r.title,
+      kind: r.kind,
+      org: { id: r.orgId, name: r.orgName, nameAr: r.orgNameAr },
+      // Internal work never leaves the firm; a restricted client's own files start private.
+      visibilities: (r.kind === "internal"
+        ? ["firm_private"]
+        : principal.orgKind === "firm"
+          ? ["firm_private", "shared"]
+          : r.mode === "restricted"
+            ? ["client_private"]
+            : ["shared", "client_private"]) as UploadVisibility[],
+      departments: r.departmentsEnabled ? departmentChoices : [],
+    })),
+  };
+}
+
+export interface ProjectUploadInput {
+  file: PreparedUpload;
+  visibility: UploadVisibility;
+  departmentId?: string;
+}
+
+/**
+ * Add a file to a project from the Files card: a firm deliverable or working
+ * file, or a client's own document. It is checked and scanned like evidence,
+ * stored under a random key, and labelled by the uploader within what their
+ * side may choose (uploadTargets). The database applies the same label,
+ * department and minimal-records rules as for any other file.
+ */
+export async function uploadProjectDocument(tx: Tx, principal: Principal, projectId: string, input: ProjectUploadInput) {
+  const target = (await uploadTargets(tx, principal)).projects.find((p) => p.id === projectId);
+  if (!target) throw new NotFoundError("project");
+  if (!target.visibilities.includes(input.visibility)) throw new BadRequestError("that label is not available here");
+  if (input.departmentId && !target.departments.some((d) => d.id === input.departmentId)) {
+    throw new BadRequestError("file it under one of your departments");
+  }
+
+  const { bytes, sha256 } = input.file;
+  const storageKey = randomUUID();
+  const [doc] = await tx
+    .insert(documents)
+    .values({
+      projectId,
+      orgId: target.org.id,
+      ownerOrgId: principal.orgId,
+      uploadedBy: principal.userId,
+      purpose: principal.orgKind === "firm" ? "deliverable" : "client_document",
+      state: "submitted",
+      title: input.file.fileName,
+      visibility: input.visibility,
+      departmentId: input.departmentId ?? null,
+      storageKey,
+      contentType: input.file.contentType,
+      sizeBytes: bytes.byteLength,
+      sha256,
+      scanStatus: input.file.scanned ? "clean" : "skipped",
+      scannedAt: input.file.scanned ? new Date() : null,
+    })
+    .returning({ id: documents.id });
+  // Audited, but kept off the project's activity feed: the feed is seen by
+  // both sides, and a firm-only or client-private file must not show there.
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "document.upload",
+    resourceType: "document",
+    resourceId: doc!.id,
+    outcome: "allow",
+    meta: { projectId, sizeBytes: bytes.byteLength, scanned: input.file.scanned, scanMs: input.file.scanMs },
+  });
+  await putObject(storageKey, bytes, input.file.contentType, sha256);
+  return { id: doc!.id };
 }
