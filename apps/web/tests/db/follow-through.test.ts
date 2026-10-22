@@ -543,17 +543,18 @@ describe("deadline change requests", () => {
   });
 });
 
-describe("the action page's evidence list and date requests", () => {
-  const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
-    as(
-      userId,
-      async (c) => {
-        const tx = drizzle(c, { schema }) as unknown as Tx;
-        return fn(tx, (await loadPrincipal(tx, userId))!);
-      },
-      true,
-    );
+/** Runs a service as the user, committed. */
+const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+  as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    },
+    true,
+  );
 
+describe("the action page's evidence list and date requests", () => {
   it("show each side what it may see and do", async () => {
     const aid = await action({ due: "2099-01-01" });
     await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Signed policy", dueDate: "2099-01-15" }));
@@ -672,6 +673,28 @@ describe("implementation progress", () => {
     );
     await expect(attempt(U.cons, `DELETE FROM reports WHERE id = $1`, [rid])).rejects.toThrow(/cannot change/);
     await attempt(U.cons, `UPDATE reports SET visibility = 'shared', shared_at = now() WHERE id = $1`, [rid]);
+  });
+
+  it("a report stays with the firm until it is shared, once", async () => {
+    const { id: rid } = await svc(U.cons, (tx, p) =>
+      F.snapshotReport(tx, p, PROJ, { title: "Quarter", periodStart: "2026-07-01", periodEnd: "2026-09-30" }),
+    );
+    const titles = (userId: string) => svc(userId, async (tx, p) => (await F.listReports(tx, p, PROJ)).reports.map((r) => r.id));
+    expect(await titles(U.cons)).toContain(rid);
+    expect(await titles(U.cmgr)).not.toContain(rid);
+    await expect(svc(U.cmgr, (tx, p) => F.getReport(tx, p, rid))).rejects.toThrow(/not found/i);
+    await expect(svc(U.cmgr, (tx, p) => F.shareReport(tx, p, rid))).rejects.toThrow(/not found/i);
+    expect((await svc(U.cmgr, (tx, p) => F.listReports(tx, p, PROJ))).can.write).toBe(false);
+
+    expect((await svc(U.cons, (tx, p) => F.getReport(tx, p, rid))).can.share).toBe(true);
+    await svc(U.cons, (tx, p) => F.shareReport(tx, p, rid));
+    await expect(svc(U.cons, (tx, p) => F.shareReport(tx, p, rid))).rejects.toThrow(/already shared/);
+    const seen = await svc(U.cmgr, (tx, p) => F.getReport(tx, p, rid));
+    expect(seen.report.visibility).toBe("shared");
+    expect(seen.can.share).toBe(false);
+    expect(await titles(U.cmgr)).toContain(rid);
+    // Action owners don't read reports.
+    await expect(svc(U.cowner, (tx, p) => F.listReports(tx, p, PROJ))).rejects.toThrow();
   });
 
   it("counts verified over what still applies, as the caller sees it", async () => {

@@ -377,6 +377,95 @@ export async function snapshotReport(
   return { id: row!.id, metrics };
 }
 
+function reportResource(resource: Resource, row: { id: string; visibility: Resource["visibility"]; generatedBy: string }): Resource {
+  return { ...resource, type: "report", id: row.id, visibility: row.visibility, createdBy: row.generatedBy };
+}
+
+/** The project's reports, newest first. Clients see only the ones shared with them. */
+export async function listReports(tx: Tx, principal: Principal, projectId: string) {
+  const { resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "report.read", { ...resource, type: "report" });
+  const rows = await tx
+    .select({
+      id: reports.id,
+      title: reports.title,
+      periodStart: reports.periodStart,
+      periodEnd: reports.periodEnd,
+      visibility: reports.visibility,
+      sharedAt: reports.sharedAt,
+      createdAt: reports.createdAt,
+      generatedBy: reports.generatedBy,
+      author: user.name,
+    })
+    .from(reports)
+    .leftJoin(user, eq(user.id, reports.generatedBy))
+    .where(eq(reports.projectId, projectId))
+    .orderBy(desc(reports.createdAt));
+  const visible = rows.filter((r) => authorize(principal, "report.read", reportResource(resource, r)).allowed);
+  return {
+    reports: visible.map(({ generatedBy, ...r }) => (void generatedBy, r)),
+    can: { write: authorize(principal, "report.write", { ...resource, type: "report" }).allowed },
+  };
+}
+
+/** One report with its frozen numbers. */
+export async function getReport(tx: Tx, principal: Principal, id: string) {
+  const [row] = await tx
+    .select({
+      id: reports.id,
+      projectId: reports.projectId,
+      title: reports.title,
+      bodyMd: reports.bodyMd,
+      periodStart: reports.periodStart,
+      periodEnd: reports.periodEnd,
+      visibility: reports.visibility,
+      sharedAt: reports.sharedAt,
+      createdAt: reports.createdAt,
+      generatedBy: reports.generatedBy,
+      author: user.name,
+      metrics: reports.metrics,
+    })
+    .from(reports)
+    .leftJoin(user, eq(user.id, reports.generatedBy))
+    .where(eq(reports.id, id))
+    .limit(1);
+  if (!row) throw new NotFoundError("report");
+  const { resource } = await loadProject(tx, principal, row.projectId);
+  const rr = reportResource(resource, row);
+  if (!authorize(principal, "report.read", rr).allowed) throw new NotFoundError("report");
+  const { generatedBy, metrics, ...report } = row;
+  void generatedBy;
+  return {
+    report: { ...report, metrics: metrics as Progress | null },
+    can: { share: row.visibility !== "shared" && authorize(principal, "report.share", rr).allowed },
+  };
+}
+
+/** Share a firm-private report with the client. One way: a shared report stays shared. */
+export async function shareReport(tx: Tx, principal: Principal, id: string) {
+  const [row] = await tx
+    .select({ id: reports.id, projectId: reports.projectId, visibility: reports.visibility, generatedBy: reports.generatedBy })
+    .from(reports)
+    .where(eq(reports.id, id))
+    .limit(1);
+  if (!row) throw new NotFoundError("report");
+  const { resource } = await loadProject(tx, principal, row.projectId);
+  const rr = reportResource(resource, row);
+  if (!authorize(principal, "report.read", rr).allowed) throw new NotFoundError("report");
+  assertAllowed(principal, "report.share", rr);
+  if (row.visibility === "shared") throw new ConflictError("the report is already shared");
+  await tx.update(reports).set({ visibility: "shared", sharedAt: new Date() }).where(eq(reports.id, id));
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "report.share",
+    resourceType: "report",
+    resourceId: id,
+    outcome: "allow",
+  });
+  return { id, visibility: "shared" as const };
+}
+
 // -------------------------------------------- implementation metrics
 
 /** The project's live metrics (docs/metrics.md) and its monthly history. */
