@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { accessReviews, clientContacts, invitations, orgMemberships, organizations, user } from "@/db/schema";
-import { assertAllowed, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -52,7 +52,14 @@ async function membershipOf(tx: Tx, userId: string) {
 export async function listPeople(tx: Tx, principal: Principal, orgId: string) {
   assertAllowed(principal, "org_user.manage", peopleOf(principal, orgId));
   const [org] = await tx
-    .select({ id: organizations.id, name: organizations.name, allowedEmailDomains: organizations.allowedEmailDomains })
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      nameAr: organizations.nameAr,
+      kind: organizations.kind,
+      engagementMode: organizations.engagementMode,
+      allowedEmailDomains: organizations.allowedEmailDomains,
+    })
     .from(organizations)
     .where(eq(organizations.id, orgId));
   if (!org) throw new NotFoundError("organization");
@@ -87,11 +94,17 @@ export async function listPeople(tx: Tx, principal: Principal, orgId: string) {
     .where(eq(accessReviews.orgId, orgId))
     .orderBy(desc(accessReviews.createdAt))
     .limit(1);
+  // Who has two-factor sign-in on; the database decides who may ask.
+  const { rows: twoFactor } = await tx.execute<{ user_id: string; enabled: boolean }>(
+    sql`select user_id, enabled from app_two_factor_status(${orgId})`,
+  );
+  const on = new Map(twoFactor.map((r) => [r.user_id, r.enabled]));
   return {
     organization: org,
-    people: people.map((p) => ({ ...p, personalEmail: isPersonalEmail(p.email) })),
+    people: people.map((p) => ({ ...p, personalEmail: isPersonalEmail(p.email), twoFactor: on.get(p.userId) ?? false })),
     invitations: open,
     lastAccessReview: lastReview?.at ?? null,
+    can: { erase: authorize(principal, "org_user.erase", peopleOf(principal, orgId)).allowed },
   };
 }
 
