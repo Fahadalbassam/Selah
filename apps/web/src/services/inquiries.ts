@@ -13,7 +13,7 @@ import {
   serviceAreas,
   user,
 } from "@/db/schema";
-import { assertAllowed, type EngagementMode, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { createClient, setLead } from "./staffing";
@@ -99,7 +99,7 @@ export async function listInquiries(tx: Tx, principal: Principal) {
 }
 
 export async function getInquiry(tx: Tx, principal: Principal, id: string) {
-  const { row } = await loadInquiry(tx, principal, id);
+  const { row, resource } = await loadInquiry(tx, principal, id);
   const [sector] = await tx.select({ code: sectors.code }).from(sectors).where(eq(sectors.id, row.sectorId));
   const events = await tx
     .select({
@@ -122,14 +122,23 @@ export async function getInquiry(tx: Tx, principal: Principal, id: string) {
     .where(eq(discoverySessions.inquiryId, id))
     .orderBy(asc(discoverySessions.scheduledAt));
   // The hashes are for the rate limit, not for people.
-  const inquiry: Partial<typeof row> = { ...row };
-  delete inquiry.ipHash;
-  delete inquiry.userAgentHash;
-  delete inquiry.sectorId;
+  const { ipHash, userAgentHash, sectorId, ...inquiry } = row;
+  void [ipHash, userAgentHash, sectorId];
   return {
     inquiry: { ...inquiry, sector: sector!.code, services: (await serviceCodes(tx, [id])).get(id) ?? [] },
     events,
     discoverySessions: sessions,
+    can: {
+      work: authorize(principal, "inquiry.work", resource).allowed,
+      decide: authorize(principal, "inquiry.decide", resource).allowed,
+      /** Moving forward, as the owner may; null once there is no next step. */
+      forward: FORWARD[row.status] ?? null,
+      convert:
+        authorize(principal, "inquiry.decide", resource).allowed &&
+        !row.clientOrgId &&
+        ["discovery_done", "proposal_sent"].includes(row.status) &&
+        ["clear", "waived"].includes(row.conflictStatus),
+    },
   };
 }
 

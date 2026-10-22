@@ -9,6 +9,8 @@ import { auth } from "@/auth/auth";
 import * as s from "@/db/schema";
 import type { Tx } from "@/db/client";
 import { answerQuestion, createAssessment, getAssessment, installStarterTemplate } from "@/services/assessments";
+import { submitInquiry } from "@/services/intake";
+import { PRIVACY_NOTICE_VERSION } from "@/lib/intake";
 
 if (process.env.NODE_ENV === "production") throw new Error("seed refuses to run in production");
 const password = process.env.SEED_PASSWORD;
@@ -271,6 +273,48 @@ const sample: Record<string, string> = { "0.1": "family", "1.1": "yes", "1.2": "
 for (const q of seeded.sections.flatMap((x) => x.questions)) {
   if (q.ref && sample[q.ref]) await answerQuestion(tx, adminPrincipal, q.answer.id, { value: sample[q.ref]! });
 }
+
+// Two inquiries from the public form, waiting in the firm's inbox.
+const no = { hasStrategy: false, hasOrgChart: true, hasDelegationMatrix: false, hasPolicies: false, hasSops: false, hasKpis: false };
+const inquiry = { consent: true as const, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, selfCheck: no };
+await submitInquiry(
+  tx,
+  {
+    ...inquiry,
+    orgName: "Al-Fajr Trading Co.",
+    orgNameAr: "شركة الفجر التجارية",
+    sector: "trade_distribution",
+    employeeBand: "50-249",
+    ownershipType: "family_multi_partner",
+    contactName: "سلمان الدوسري",
+    contactRole: "General manager",
+    email: "salman@alfajr.example",
+    preferredLanguage: "ar",
+    services: ["family_business_governance", "delegation_matrix"],
+    message: "The second generation is joining the business and we want clear rules before then.",
+    urgency: "within_3_months",
+    heardFrom: "referral",
+  },
+  null,
+  null,
+);
+await submitInquiry(
+  tx,
+  {
+    ...inquiry,
+    orgName: "Bayan Training Institute",
+    sector: "training",
+    employeeBand: "10-49",
+    ownershipType: "llc",
+    contactName: "Mona Al-Harbi",
+    email: "mona@bayan.example",
+    preferredLanguage: "en",
+    services: ["strategic_plan"],
+    urgency: "exploring",
+  },
+  null,
+  null,
+);
 
 await pool.end();
 console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. sara@mizan.example (firm admin), khalid@mizan.example (consultant), reem@nukhba.example (client manager)");

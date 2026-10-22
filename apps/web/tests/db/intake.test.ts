@@ -4,6 +4,11 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { getInquiry } from "@/services/inquiries";
+import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -211,6 +216,35 @@ describe("the workflow", () => {
       expect.arrayContaining(["submitted", "owner_changed", "status_changed", "note", "conflict_checked", "converted"]),
     );
     await expect(owner.query(`DELETE FROM inquiry_events WHERE inquiry_id = $1`, [iid])).rejects.toThrow(/append-only/);
+  });
+});
+
+describe("the inquiry page", () => {
+  const detail = (uid: string, iid: string) =>
+    as(uid, async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return getInquiry(tx, (await loadPrincipal(tx, uid))!, iid);
+    });
+
+  it("tells each person what they may do, and never shows the rate-limit hashes", async () => {
+    const iid = (await byRef(await submit(form()))).id;
+    await run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.cons]);
+    const admin = await detail(U.admin, iid);
+    expect(admin.can).toEqual({ work: true, decide: true, forward: "triaged", convert: false });
+    expect(admin.inquiry).not.toHaveProperty("ipHash");
+    expect(admin.inquiry).not.toHaveProperty("userAgentHash");
+    expect((await detail(U.cons, iid)).can).toEqual({ work: true, decide: false, forward: "triaged", convert: false });
+    await expect(detail(U.other, iid)).rejects.toThrow(/not found/i);
+
+    // After discovery and a clear check, the admin may make it a client.
+    await run(U.cons, `UPDATE inquiries SET status = 'triaged' WHERE id = $1`, [iid]);
+    await run(U.cons, `UPDATE inquiries SET status = 'discovery_scheduled' WHERE id = $1`, [iid]);
+    await run(U.cons, `INSERT INTO discovery_sessions (inquiry_id, scheduled_at, mode, created_by) VALUES ($1, now(), 'video', $2)`, [iid, U.cons]);
+    await run(U.cons, `UPDATE inquiries SET status = 'discovery_done' WHERE id = $1`, [iid]);
+    expect((await detail(U.admin, iid)).can.convert).toBe(false);
+    await run(U.admin, `UPDATE inquiries SET conflict_status = 'clear' WHERE id = $1`, [iid]);
+    expect((await detail(U.admin, iid)).can).toMatchObject({ convert: true, forward: "proposal_sent" });
+    expect((await detail(U.cons, iid)).can.convert).toBe(false);
   });
 });
 

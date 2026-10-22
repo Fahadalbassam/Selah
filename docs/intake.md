@@ -34,6 +34,13 @@ The firm's side lives under `/api/intake` and needs a session.
 - `POST /api/intake/inquiries/:id/notes` adds a note to the history.
 - `POST /api/intake/inquiries/:id/discovery` books the discovery session and moves the inquiry to discovery scheduled. `PATCH /api/intake/discovery/:id` records when it was held, the notes and the outcome. The first outcome moves the inquiry to discovery done.
 
+**Screens.**
+- `/inquiries` is the inbox, split into open, won and closed.
+- `/inquiries/:id` shows the request, the self-check answers, discovery sessions and history.
+- The owner can mark the inquiry triaged or proposal sent, book discovery, record its outcome and add notes.
+- The admin also assigns the owner, records the conflict check, closes or reopens the inquiry, sees the possible leads, and makes it a client.
+- The detail response includes `can` (`work`, `decide`, `forward`, `convert`) so the screen offers only what the server allows.
+
 ## Who could lead it
 
 The admin records what each consultant can lead: service areas and sectors (`PUT /api/consultants/:id/profile`, list with `GET /api/consultants`). A consultant keeps their own languages and says whether they can take a new client, but cannot change their expertise.
