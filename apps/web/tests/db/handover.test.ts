@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { getHandover, setHandover } from "@/services/handover";
 import { projectDeviations } from "@/services/insight";
 import { loadPrincipal } from "@/services/principal";
 
@@ -56,6 +57,16 @@ async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>, commit =
 }
 const run = (userId: string, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params), true);
 const attempt = (userId: string, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params));
+/** Runs a service as the user, committed. */
+const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
+  as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    },
+    true,
+  );
 
 async function action(fields: { status?: string; due?: string; owner?: string; updatedAt?: string } = {}) {
   const aid = next();
@@ -176,6 +187,43 @@ describe("check-ins after handover", () => {
   });
 });
 
+describe("the handover card", () => {
+  it("shows the date and sponsor to the client, the check-ins to the firm, and lets only the firm admin change them", async () => {
+    const firm = await svc(U.admin, (tx, p) => getHandover(tx, p, PROJ));
+    expect(firm).toMatchObject({ handoverOn: "2026-11-11", sponsor: { id: U.cadmin }, can: { edit: true } });
+    expect(firm.checkins.map((c) => [c.day, c.status, c.canComplete])).toEqual([
+      [30, "done", true],
+      [60, "open", true],
+      [90, "open", true],
+    ]);
+    expect(firm.sponsors.map((x) => x.id).sort()).toEqual([U.cadmin, U.cmgr].sort());
+
+    const client = await svc(U.cmgr, (tx, p) => getHandover(tx, p, PROJ));
+    expect(client).toMatchObject({
+      handoverOn: "2026-11-11",
+      sponsor: { id: U.cadmin, name: "cadmin" },
+      checkins: [],
+      sponsors: [],
+    });
+    expect(client.can.edit).toBe(false);
+    // The lead completes their own check-ins but can't change the handover.
+    expect((await svc(U.lead, (tx, p) => getHandover(tx, p, PROJ))).can.edit).toBe(false);
+    await expect(svc(U.lead, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-12-01" }))).rejects.toThrow();
+    await expect(svc(U.cadmin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: null }))).rejects.toThrow();
+
+    const moved = await svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-11-21", sponsorUserId: U.cmgr }));
+    expect(moved).toMatchObject({ handoverOn: "2026-11-21", sponsor: { id: U.cmgr } });
+    expect(
+      moved.checkins
+        .find((c) => c.day === 60)!
+        .dueAt!.toISOString()
+        .slice(0, 10),
+    ).toBe("2027-01-20");
+    await expect(svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: U.cowner }))).rejects.toThrow(/sponsor/);
+    await svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: U.cadmin }));
+  });
+});
+
 describe("deviations", () => {
   const rules = async (uid: string, entity: string) =>
     (await attempt(uid, `SELECT rule FROM v_deviations WHERE entity_id = $1 ORDER BY rule`, [entity])).rows.map((r) => r.rule);
@@ -224,11 +272,6 @@ describe("deviations", () => {
   });
 
   it("are listed for the firm on the project page, most pressing first", async () => {
-    const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
-      as(userId, async (c) => {
-        const tx = drizzle(c, { schema }) as unknown as Tx;
-        return fn(tx, (await loadPrincipal(tx, userId))!);
-      });
     const late = await action({ due: "2020-01-01", updatedAt: "2020-01-01" });
     const rows = await svc(U.cons, (tx, p) => projectDeviations(tx, p, PROJ));
     const mine = rows.filter((r) => r.entityId === late);
