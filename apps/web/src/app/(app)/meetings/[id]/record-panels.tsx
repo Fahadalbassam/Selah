@@ -1,6 +1,10 @@
 "use client";
 
-import { Check, Plus, RotateCcw, UserPlus, X } from "lucide-react";
+import { UserPlus } from "lucide-react";
+import { Check } from "@/components/animate-ui/icons/check";
+import { Plus } from "@/components/animate-ui/icons/plus";
+import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
+import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -15,6 +19,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { meetingError } from "@/lib/meetings";
+import { useConfirm } from "@/components/confirm-dialog";
 
 type Visibility = "shared" | "firm_private";
 
@@ -138,20 +143,24 @@ export function AddAttendee(props: { meetingId: string; options: { value: string
 export function RemoveAttendee({ meetingId, attendeeId, name }: { meetingId: string; attendeeId: string; name: string }) {
   const t = useTranslations("meeting.form");
   const { busy, run } = useCall();
+  const [confirm, confirmDialog] = useConfirm();
   return (
-    <Button
-      size="icon"
-      variant="ghost"
-      className="size-7"
-      disabled={busy}
-      aria-label={t("remove", { name })}
-      title={t("remove", { name })}
-      onClick={() =>
-        window.confirm(t("removeConfirm", { name })) && run(`/api/meetings/${meetingId}/attendees/${attendeeId}`, "DELETE")
-      }
-    >
-      <X />
-    </Button>
+    <>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="size-7"
+        disabled={busy}
+        aria-label={t("remove", { name })}
+        title={t("remove", { name })}
+        onClick={async () =>
+          (await confirm(t("removeConfirm", { name }))) && run(`/api/meetings/${meetingId}/attendees/${attendeeId}`, "DELETE")
+        }
+      >
+        <X />
+      </Button>
+      {confirmDialog}
+    </>
   );
 }
 
@@ -269,7 +278,7 @@ export function DecisionForm(props: {
     if (ok) setOpen(false);
   }
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-md border p-3">
+    <form onSubmit={submit} className="grid gap-3 rounded-lg border p-3">
       <div className="grid gap-2">
         <Label htmlFor="decision-text">{t("decision")}</Label>
         <Textarea id="decision-text" name="text" rows={3} minLength={2} maxLength={4000} required dir="auto" />
@@ -357,7 +366,7 @@ export function FollowUpForm(props: {
     setAssignee("");
   }
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-md border p-3">
+    <form onSubmit={submit} className="grid gap-3 rounded-lg border p-3">
       <div className="grid gap-2">
         <Label htmlFor="fu-title">{t("followUp")}</Label>
         <Input id="fu-title" name="title" minLength={2} maxLength={300} required dir="auto" />

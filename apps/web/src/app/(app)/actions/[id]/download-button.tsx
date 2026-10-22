@@ -1,6 +1,6 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download } from "@/components/animate-ui/icons/download";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 

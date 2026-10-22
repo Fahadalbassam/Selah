@@ -1,6 +1,10 @@
 "use client";
 
-import { CheckCircle2, FileSearch, GitCompare, Paperclip, RotateCcw, Save, Send } from "lucide-react";
+import { FileSearch, GitCompare, Save } from "lucide-react";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
+import { Paperclip } from "@/components/animate-ui/icons/paperclip";
+import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
+import { Send } from "@/components/animate-ui/icons/send";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -23,6 +27,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { answerValues, assessmentError, type ChoiceOption, type QuestionType } from "@/lib/assessments";
+import { useConfirm } from "@/components/confirm-dialog";
 
 /** Runs one call, says what went wrong in the assessment screens' words where it can, and refreshes. */
 function useCall() {
@@ -227,7 +232,7 @@ export function ConfirmGap(props: { answerId: string; prompt: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <CheckCircle2 />
+          <CircleCheck />
           {t("confirmGap")}
         </Button>
       </DialogTrigger>
@@ -277,24 +282,28 @@ export function AssessmentButton(props: {
   const router = useRouter();
   const { busy, run } = useCall();
   const { kind, assessmentId: id } = props;
+  const [confirm, confirmDialog] = useConfirm();
   async function go() {
     if (kind === "finalise") {
-      if (!window.confirm(t("finaliseConfirm"))) return;
+      if (!(await confirm(t("finaliseConfirm")))) return;
       await run(`/api/assessments/${id}/finalise`, "POST", undefined, t("finalised"));
     } else if (kind === "share" || kind === "unshare") {
       await run(`/api/assessments/${id}/share`, "PUT", { shared: kind === "share" });
     } else {
-      if (!window.confirm(t("retakeConfirm"))) return;
+      if (!(await confirm(t("retakeConfirm")))) return;
       const made = (await run(`/api/assessments/${id}/retake`, "POST", {})) as { id?: string } | undefined;
       if (made?.id) router.push(`/assessments/${made.id}`);
     }
   }
-  const icon = { finalise: <CheckCircle2 />, share: <Send />, unshare: <Send />, retake: <RotateCcw /> }[kind];
+  const icon = { finalise: <CircleCheck />, share: <Send />, unshare: <Send />, retake: <RotateCcw /> }[kind];
   return (
-    <Button size="sm" variant={kind === "finalise" ? "default" : "outline"} onClick={go} disabled={busy}>
-      <Busy busy={busy} icon={icon} />
-      {t(kind)}
-    </Button>
+    <>
+      <Button size="sm" variant={kind === "finalise" ? "default" : "outline"} onClick={go} disabled={busy}>
+        <Busy busy={busy} icon={icon} />
+        {t(kind)}
+      </Button>
+      {confirmDialog}
+    </>
   );
 }
 

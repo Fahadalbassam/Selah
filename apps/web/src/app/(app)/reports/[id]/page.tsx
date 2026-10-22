@@ -41,12 +41,14 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             ? t("period", { start: day(report.periodStart), end: day(report.periodEnd) })
             : undefined
         }
+        meta={
+          firm ? (
+            <Badge variant={report.visibility === "shared" ? "secondary" : "outline"}>
+              {report.visibility === "shared" && report.sharedAt ? t("sharedOn", { date: day(report.sharedAt) }) : t("firmOnly")}
+            </Badge>
+          ) : null
+        }
       >
-        {firm ? (
-          <Badge variant={report.visibility === "shared" ? "secondary" : "outline"}>
-            {report.visibility === "shared" && report.sharedAt ? t("sharedOn", { date: day(report.sharedAt) }) : t("firmOnly")}
-          </Badge>
-        ) : null}
         {can.share ? (
           <ApiButton
             endpoint={`/api/reports/${report.id}/share`}

@@ -561,7 +561,7 @@ function StepNav({ step, reached, onPick }: { step: number; reached: number; onP
               >
                 <span
                   className={cn(
-                    "flex size-6 items-center justify-center rounded-full border bg-background text-[11px] tabular-nums transition-colors",
+                    "flex size-6 items-center justify-center rounded-full border bg-background text-xs tabular-nums transition-colors",
                     i < step && "border-foreground bg-foreground text-background",
                     i === step && "border-foreground",
                   )}

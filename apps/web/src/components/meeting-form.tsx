@@ -137,7 +137,7 @@ export function MeetingForm(props: {
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{editing ? t("editTitle") : t("bookTitle")}</DialogTitle>
@@ -269,7 +269,7 @@ export function MeetingForm(props: {
           ) : null}
 
           {!editing && props.invitees ? (
-            <fieldset className="grid gap-3 rounded-md border p-3">
+            <fieldset className="grid gap-3 rounded-lg border p-3">
               <legend className="px-1 text-sm font-medium">{t("attendees")}</legend>
               {firmPeople.length + clientPeople.length + contactList.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("noInvitees")}</p>

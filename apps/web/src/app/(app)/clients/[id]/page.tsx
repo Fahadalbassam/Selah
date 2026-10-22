@@ -1,4 +1,7 @@
-import { ArrowLeft, Crown, Eye, EyeOff, Pencil, UserPlus, UsersRound } from "lucide-react";
+import { ArrowLeft, Pencil, UserPlus, UsersRound } from "lucide-react";
+import { Crown } from "@/components/animate-ui/icons/crown";
+import { Eye } from "@/components/animate-ui/icons/eye";
+import { EyeOff } from "@/components/animate-ui/icons/eye-off";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
