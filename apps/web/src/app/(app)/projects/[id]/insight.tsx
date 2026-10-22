@@ -1,6 +1,11 @@
 "use client";
 
-import { FileText, Gauge, ListChecks, Search, Target, Lightbulb, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
+import { Gauge, ListChecks, Target, Lightbulb } from "lucide-react";
+import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Search } from "@/components/animate-ui/icons/search";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
+import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
+import { CircleX } from "@/components/animate-ui/icons/circle-x";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
@@ -94,7 +99,7 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
     <div className="space-y-4">
       <p className="max-w-3xl text-sm text-muted-foreground">{t("hint")}</p>
       {rows.length === 0 ? (
-        <p className="rounded-lg border bg-card px-4 py-6 text-center text-sm text-muted-foreground">{t("none")}</p>
+        <p className="rounded-xl border bg-card px-4 py-6 text-center text-sm text-muted-foreground">{t("none")}</p>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
@@ -105,7 +110,7 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
               </Badge>
             ))}
           </div>
-          <div className="overflow-hidden rounded-lg border bg-card">
+          <div className="overflow-hidden rounded-xl border bg-card">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
@@ -198,7 +203,7 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
 
   function Node({ n, depth, refOnly }: { n: TraceNode; depth: number; refOnly?: boolean }): ReactNode {
     if (n.nodeType === "review") {
-      const Icon = n.state === "accept" ? CheckCircle2 : n.state === "revise" ? RotateCcw : XCircle;
+      const Icon = n.state === "accept" ? CircleCheck : n.state === "revise" ? RotateCcw : CircleX;
       return (
         <li className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
           <Icon className={cn("size-4", n.state === "accept" ? "text-success" : "text-destructive")} />

@@ -1,6 +1,10 @@
 "use client";
 
-import { ChevronsUpDown, Languages, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
+import { ChevronsUpDown, Languages } from "lucide-react";
+import { LogOut } from "@/components/animate-ui/icons/log-out";
+import { Moon } from "@/components/animate-ui/icons/moon";
+import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
+import { Sun } from "@/components/animate-ui/icons/sun";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useTransition } from "react";

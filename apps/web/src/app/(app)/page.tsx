@@ -12,6 +12,7 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/comp
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { dashboard, isOverdue } from "@/services/queries";
+import { SectionHeader } from "@/components/section-header";
 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
@@ -59,7 +60,7 @@ export default async function OverviewPage() {
         </Alert>
       ) : null}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">{firm ? t("attentionFirm") : t("attentionClient")}</h2>
+        <SectionHeader title={firm ? t("attentionFirm") : t("attentionClient")} />
         <ActionsTable rows={stats.attention.map((r) => ({ ...r, overdue: isOverdue(r) }))} empty={t("empty")} />
       </section>
       <p className="text-xs leading-relaxed text-muted-foreground">{t("claimNote")}</p>

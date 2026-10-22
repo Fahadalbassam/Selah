@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, Circle } from "lucide-react";
+import { Circle } from "lucide-react";
+import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
@@ -104,13 +105,13 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
         {data.checkins.length ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">{t("checkins")}</p>
-            <ul className="divide-y rounded-md border">
+            <ul className="divide-y rounded-lg border">
               {data.checkins.map((c) => {
                 const done = c.status === "done";
                 return (
                   <li key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                     {done ? (
-                      <CheckCircle2 className="size-4 text-success" />
+                      <CircleCheck className="size-4 text-success" />
                     ) : (
                       <Circle className="size-4 text-muted-foreground" />
                     )}

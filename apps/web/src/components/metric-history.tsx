@@ -40,7 +40,7 @@ export function MetricHistory({ points }: { points: HistoryPoint[] }) {
           {[0, 50, 100].map((v) => (
             <g key={v}>
               <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="stroke-border" strokeWidth={1} />
-              <text x={PAD.left - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground text-[11px]">
+              <text x={PAD.left - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground text-xs">
                 {v}%
               </text>
             </g>
@@ -53,7 +53,7 @@ export function MetricHistory({ points }: { points: HistoryPoint[] }) {
                 x={x(i)}
                 y={H - 6}
                 textAnchor={points.length === 1 ? "middle" : i === 0 ? "start" : "end"}
-                className="fill-muted-foreground text-[11px]"
+                className="fill-muted-foreground text-xs"
               >
                 {day(points[i]!.asOf)}
               </text>

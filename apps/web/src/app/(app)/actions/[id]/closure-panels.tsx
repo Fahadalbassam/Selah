@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
@@ -50,7 +50,7 @@ export function RiskAcceptances({ actionId, items, canSign }: { actionId: string
         {items.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
         <ul className="space-y-3">
           {items.map((a) => (
-            <li key={a.id} className={cn("space-y-1 rounded-md border px-3 py-2.5", !a.current && "opacity-60")}>
+            <li key={a.id} className={cn("space-y-1 rounded-lg border px-3 py-2.5", !a.current && "opacity-60")}>
               <p className="flex items-center gap-2 text-sm font-medium">
                 <ShieldCheck className="size-4 text-muted-foreground" />
                 {a.by}

@@ -1,6 +1,8 @@
 "use client";
 
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { Plus } from "@/components/animate-ui/icons/plus";
+import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
@@ -169,7 +171,7 @@ export function QuestionDialog(props: {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{q ? t("edit") : t("add")}</DialogTitle>

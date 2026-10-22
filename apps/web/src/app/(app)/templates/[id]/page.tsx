@@ -1,4 +1,7 @@
-import { Archive, ArchiveRestore, ArrowLeft, Copy, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { Copy } from "@/components/animate-ui/icons/copy";
+import { Plus } from "@/components/animate-ui/icons/plus";
+import { Send } from "@/components/animate-ui/icons/send";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -70,10 +73,9 @@ export default async function TemplatePage({
       <PageHeader
         title={(ar ? template.nameAr : null) ?? template.name}
         description={((ar ? template.descriptionAr : null) ?? template.description) || undefined}
+        meta={template.archivedAt ? <Badge variant="secondary">{t("archived")}</Badge> : null}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          {template.archivedAt ? <Badge variant="secondary">{t("archived")}</Badge> : null}
-          {template.canAuthor ? (
+        {template.canAuthor ? (
             <>
               <FormDialog
                 trigger={
@@ -127,7 +129,6 @@ export default async function TemplatePage({
               />
             </>
           ) : null}
-        </div>
       </PageHeader>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
