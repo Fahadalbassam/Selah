@@ -18,8 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
+import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
 
 interface Props {
@@ -28,6 +31,8 @@ interface Props {
   /** Moves the server allows this user right now (from canTransition). */
   moves: ActionStatus[];
   can: { addUpdate: boolean; submitEvidence: boolean };
+  /** For closing: whether the client has signed a risk acceptance, and the actions that could replace this one. */
+  close?: { signed: boolean; replacements: { id: string; title: string }[] };
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -47,6 +52,7 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("submit evidence")) return { ok: false, error: "needEvidence" };
   if (m.includes("in the past")) return { ok: false, error: "pastDate" };
   if (m.includes("already the due date")) return { ok: false, error: "sameDate" };
+  if (m.includes("not signed a risk acceptance")) return { ok: false, error: "notSigned" };
   return { ok: false, error: "generic" };
 }
 
@@ -56,7 +62,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -78,15 +84,37 @@ export function ActionPanel({ actionId, status, moves, can }: Props) {
           trigger={<Button variant={to === "blocked" ? "outline" : "destructive"}>{t(`move.${to}`)}</Button>}
         />,
       );
-    } else if (to === "verified_complete" || to === "closed") {
+    } else if (to === "verified_complete") {
       buttons.push(
         <ConfirmDialog
           key={to}
           title={t(`move.${to}`)}
-          hint={to === "closed" ? t("closeHint") : t("acceptHint")}
+          hint={t("acceptHint")}
           run={() => transition(to)}
           onDone={done}
-          trigger={<Button variant={to === "closed" ? "outline" : "default"}>{t(`move.${to}`)}</Button>}
+          trigger={<Button>{t(`move.${to}`)}</Button>}
+        />,
+      );
+    } else if (to === "closed") {
+      buttons.push(
+        <CloseDialog
+          key={to}
+          actionId={actionId}
+          signed={close?.signed ?? false}
+          replacements={close?.replacements ?? []}
+          onDone={done}
+          trigger={<Button variant="outline">{t("move.closed")}</Button>}
+        />,
+      );
+    } else if (to === "in_progress" && (status === "closed" || status === "verified_complete")) {
+      buttons.push(
+        <ReasonDialog
+          key={to}
+          title={t("reopen")}
+          hint={t("reopenHint")}
+          run={(reason) => transition(to, reason)}
+          onDone={done}
+          trigger={<Button variant="outline">{t("reopen")}</Button>}
         />,
       );
     } else {
@@ -182,6 +210,93 @@ function ConfirmDialog(props: { title: string; hint: string; trigger: ReactNode;
             {busy ? t("saving") : t("confirm")}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const OUTCOMES = ["partially_implemented", "risk_accepted", "not_applicable", "superseded"] as const;
+type Outcome = (typeof OUTCOMES)[number];
+
+/** End the action without verification: how it ended, and a note everyone on the project sees. */
+function CloseDialog(props: {
+  actionId: string;
+  signed: boolean;
+  replacements: { id: string; title: string }[];
+  trigger: ReactNode;
+  onDone: () => void;
+}) {
+  const t = useTranslations("action");
+  const [open, setOpen] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [note, setNote] = useState("");
+  const [successor, setSuccessor] = useState("");
+  const { busy, error, go, setError } = useRun(props.onDone);
+  const ready = outcome && note.trim() && (outcome !== "superseded" || successor) && (outcome !== "risk_accepted" || props.signed);
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!ready) return;
+    const closure = { outcome, note: note.trim(), ...(outcome === "superseded" ? { supersededBy: successor } : {}) };
+    go(() => send(`/api/actions/${props.actionId}/transition`, json({ to: "closed", closure })), () => setOpen(false));
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
+      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
+      <DialogContent>
+        <form onSubmit={submit} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>{t("move.closed")}</DialogTitle>
+            <DialogDescription>{t("closeHint")}</DialogDescription>
+          </DialogHeader>
+          <RadioGroup value={outcome ?? ""} onValueChange={(v) => setOutcome(v as Outcome)} className="gap-3" aria-label={t("closure.outcome")}>
+            {OUTCOMES.map((o) => {
+              const locked = o === "risk_accepted" && !props.signed;
+              const none = o === "superseded" && props.replacements.length === 0;
+              return (
+                <label key={o} className={cn("flex items-start gap-3 text-sm", (locked || none) && "opacity-60")}>
+                  <RadioGroupItem value={o} disabled={locked || none} className="mt-0.5" />
+                  <span className="space-y-0.5">
+                    <span className="block font-medium">{t(`closure.outcomes.${o}`)}</span>
+                    <span className="block text-muted-foreground">
+                      {locked ? t("closure.needsSignature") : none ? t("closure.noReplacement") : t(`closure.hints.${o}`)}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </RadioGroup>
+          {outcome === "superseded" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="close-successor">{t("closure.replacedBy")}</Label>
+              <Select value={successor} onValueChange={setSuccessor}>
+                <SelectTrigger id="close-successor" className="w-full">
+                  <SelectValue placeholder={t("closure.chooseAction")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {props.replacements.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          <div className="grid gap-2">
+            <Label htmlFor="close-note">{t("closure.note")}</Label>
+            <Textarea id="close-note" required maxLength={4000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <ErrorText error={error} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !ready}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
+              {busy ? t("saving") : t("move.closed")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -10,6 +10,7 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { runFollowUps } from "@/jobs/follow-ups";
+import { transitionAction } from "@/services/actions";
 import * as F from "@/services/follow-through";
 import * as N from "@/services/notifications";
 import { loadPrincipal } from "@/services/principal";
@@ -580,6 +581,46 @@ describe("the action page's evidence list and date requests", () => {
 
     // Someone outside the project gets nothing.
     await expect(svc(U.outsider, (tx, p) => F.actionFollowThrough(tx, p, aid))).rejects.toThrow();
+  });
+});
+
+describe("the action page's closing and risk acceptance", () => {
+  it("offer signing to the client, closing to the firm, and show how it ended", async () => {
+    const aid = await action({ due: "2099-01-01" });
+    const other = await action({ due: "2099-01-01" });
+    const firm = await svc(U.cons, (tx, p) => F.actionClosure(tx, p, aid));
+    expect(firm).toMatchObject({ closure: null, acceptances: [], signed: false, can: { sign: false, close: true } });
+    expect(firm.replacements.map((a) => a.id)).toContain(other);
+    expect(firm.replacements.map((a) => a.id)).not.toContain(aid);
+    const client = await svc(U.cmgr, (tx, p) => F.actionClosure(tx, p, aid));
+    expect(client.can).toEqual({ sign: true, close: false });
+    expect(client.replacements).toEqual([]);
+    expect((await svc(U.cowner, (tx, p) => F.actionClosure(tx, p, aid))).can.sign).toBe(false);
+
+    const close = (outcome: "risk_accepted" | "superseded", extra = {}) =>
+      svc(U.cons, (tx, p) =>
+        transitionAction(tx, p, aid, { to: "closed", closure: { outcome, note: "Board decided", ...extra } }),
+      );
+    await expect(close("risk_accepted")).rejects.toThrow(/not signed a risk acceptance/);
+    await svc(U.cmgr, (tx, p) => F.signRiskAcceptance(tx, p, aid, { statement: "We accept the risk for this year." }));
+    expect((await svc(U.cons, (tx, p) => F.actionClosure(tx, p, aid))).signed).toBe(true);
+    await close("risk_accepted");
+    const closed = await svc(U.cowner, (tx, p) => F.actionClosure(tx, p, aid));
+    expect(closed.closure).toMatchObject({ outcome: "risk_accepted", note: "Board decided", supersededBy: null });
+    expect(closed.closure!.by).toBeTruthy();
+    expect(closed.acceptances.map((a) => a.current)).toEqual([true]);
+    expect((await svc(U.cons, (tx, p) => F.actionClosure(tx, p, aid))).can).toEqual({ sign: false, close: false });
+
+    // After a reopen the old signature no longer counts, and the action can be replaced instead.
+    await svc(U.cons, (tx, p) => transitionAction(tx, p, aid, { to: "in_progress", reason: "Client changed its mind" }));
+    const reopened = await svc(U.cons, (tx, p) => F.actionClosure(tx, p, aid));
+    expect(reopened.signed).toBe(false);
+    expect(reopened.acceptances.map((a) => a.current)).toEqual([false]);
+    await close("superseded", { supersededBy: other });
+    expect((await svc(U.cmgr, (tx, p) => F.actionClosure(tx, p, aid))).closure!.supersededBy).toEqual({
+      id: other,
+      title: "Write the policy",
+    });
   });
 });
 
