@@ -219,8 +219,8 @@
     "reasonRequired": "A reason is required.",
     "blockHint": "Explain what is blocking this action. The consultant will see it.",
     "reviseHint": "Tell the owner what is missing. They will see this reason.",
-    "acceptHint": "Accepting marks this action as verified complete. It cannot be undone; a correction needs a new action.",
-    "closeHint": "Closing stops work on this action and takes it off everyone's list. A consultant can reopen it later.",
+    "acceptHint": "Accepting marks this action as verified complete. A consultant can reopen it later, with a reason.",
+    "closeHint": "Closing ends work on this action without verification. Choose how it ended; the note is shown on the action.",
     "evidenceTitle": "Submit evidence",
     "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images and text, up to 20 MB. Files are scanned for viruses.",
     "file": "File",
@@ -245,7 +245,8 @@
       "scanner": "The virus scanner is unavailable, so uploads are paused. Try again shortly.",
       "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner.",
       "pastDate": "The new date is in the past.",
-      "sameDate": "That's already the due date."
+      "sameDate": "That's already the due date.",
+      "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened."
     },
     "entry": {
       "update": "posted an update",
@@ -304,6 +305,43 @@
       },
       "approve": "Approve",
       "reject": "Decline"
+    },
+    "reopen": "Reopen",
+    "reopenHint": "Reopening puts the action back in progress. Say why; everyone on the project sees it. A risk acceptance signed before now no longer counts.",
+    "closure": {
+      "outcome": "How it ended",
+      "outcomes": {
+        "partially_implemented": "Partially implemented",
+        "risk_accepted": "Risk accepted",
+        "not_applicable": "Not applicable",
+        "superseded": "Replaced by another action"
+      },
+      "hints": {
+        "partially_implemented": "Some of it was done, and the rest won't be.",
+        "risk_accepted": "The client has signed that they accept the risk of not doing it.",
+        "not_applicable": "It no longer applies to the client. It leaves the progress figures.",
+        "superseded": "Another action in this project covers it. It leaves the progress figures."
+      },
+      "needsSignature": "Needs a client admin or manager to sign a risk acceptance on this action first.",
+      "noReplacement": "There is no other open action in this project.",
+      "replacedBy": "Replaced by",
+      "chooseAction": "Choose an action",
+      "note": "Note",
+      "closedAs": "Closed: {outcome}",
+      "by": "By {name}, {date}"
+    },
+    "risk": {
+      "title": "Risk acceptance",
+      "hint": "The client's signed statements that they accept the risk of not finishing this action. With one, the action can be closed as risk accepted.",
+      "hintClient": "If your organisation decides not to finish this action, sign here that you accept the risk. The firm can then close it as risk accepted.",
+      "none": "Nothing signed yet.",
+      "beforeReopen": "signed before the action was reopened",
+      "sign": "Accept the risk",
+      "signHint": "Your name, this statement and the time are kept with the action and can't be changed or removed.",
+      "statement": "Statement",
+      "statementPlaceholder": "Why your organisation accepts not doing this, and what it will do instead.",
+      "agree": "I accept the risk of not finishing this action, on behalf of my organisation.",
+      "signButton": "Sign"
     }
   },
   "common": {

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, notInArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actionNotes,
@@ -11,6 +11,7 @@ import {
   metricSnapshots,
   notifications,
   reports,
+  actions,
   riskAcceptances,
   user,
 } from "@/db/schema";
@@ -168,6 +169,50 @@ export async function listRiskAcceptances(tx: Tx, principal: Principal, actionId
     .innerJoin(user, eq(user.id, riskAcceptances.acceptedBy))
     .where(eq(riskAcceptances.actionId, actionId))
     .orderBy(asc(riskAcceptances.createdAt));
+}
+
+/**
+ * How the action ended (when it was closed), the client's signed risk
+ * acceptances, and what this user may do: sign one, or close the action
+ * (with the actions in the project that could replace it).
+ */
+export async function actionClosure(tx: Tx, principal: Principal, actionId: string) {
+  const { action, resource } = await actionFor(tx, principal, actionId, "risk_acceptance");
+  const acceptances = await listRiskAcceptances(tx, principal, actionId);
+  // Only a signature since the last reopen counts (drizzle/0011).
+  const reopened = action.reopenedAt;
+  const signed = acceptances.some((a) => !reopened || a.at >= reopened);
+  const [closedBy] = action.closedBy ? await tx.select({ name: user.name }).from(user).where(eq(user.id, action.closedBy)) : [];
+  const [successor] = action.supersededBy
+    ? await tx.select({ id: actions.id, title: actions.title }).from(actions).where(eq(actions.id, action.supersededBy))
+    : [];
+  const canClose = !FINISHED.has(action.status) && authorize(principal, "action.close", { ...resource, type: "action" }).allowed;
+  const replacements = canClose
+    ? await tx
+        .select({ id: actions.id, title: actions.title })
+        .from(actions)
+        .where(and(eq(actions.projectId, action.projectId), ne(actions.id, actionId), notInArray(actions.status, ["closed"])))
+        .orderBy(asc(actions.title))
+    : [];
+  return {
+    closure:
+      action.status === "closed"
+        ? {
+            outcome: action.closureOutcome,
+            note: action.closureNote,
+            by: closedBy?.name ?? null,
+            at: action.closedAt,
+            supersededBy: successor ?? null,
+          }
+        : null,
+    acceptances: acceptances.map((a) => ({ ...a, current: !reopened || a.at >= reopened })),
+    signed,
+    replacements,
+    can: {
+      sign: !FINISHED.has(action.status) && authorize(principal, "risk.accept", resource).allowed,
+      close: canClose,
+    },
+  };
 }
 
 // --------------------------------------------------- firm notes
