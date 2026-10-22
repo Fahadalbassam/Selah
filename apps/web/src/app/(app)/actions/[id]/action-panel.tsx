@@ -30,10 +30,10 @@ interface Props {
   can: { addUpdate: boolean; submitEvidence: boolean };
 }
 
-type Result = { ok: true } | { ok: false; error: string };
+export type Result = { ok: true } | { ok: false; error: string };
 
 /** Map an API error to a message key; the API never returns internals. */
-async function send(url: string, init: RequestInit): Promise<Result> {
+export async function send(url: string, init: RequestInit): Promise<Result> {
   const res = await fetch(url, init);
   if (res.ok) return { ok: true };
   const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
@@ -45,10 +45,12 @@ async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("rejected: infected")) return { ok: false, error: "infected" };
   if (m.includes("rejected")) return { ok: false, error: "type" };
   if (m.includes("submit evidence")) return { ok: false, error: "needEvidence" };
+  if (m.includes("in the past")) return { ok: false, error: "pastDate" };
+  if (m.includes("already the due date")) return { ok: false, error: "sameDate" };
   return { ok: false, error: "generic" };
 }
 
-const json = (body: unknown): RequestInit => ({
+export const json = (body: unknown): RequestInit => ({
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
@@ -76,15 +78,15 @@ export function ActionPanel({ actionId, status, moves, can }: Props) {
           trigger={<Button variant={to === "blocked" ? "outline" : "destructive"}>{t(`move.${to}`)}</Button>}
         />,
       );
-    } else if (to === "verified_complete") {
+    } else if (to === "verified_complete" || to === "closed") {
       buttons.push(
         <ConfirmDialog
           key={to}
-          title={t("move.verified_complete")}
-          hint={t("acceptHint")}
+          title={t(`move.${to}`)}
+          hint={to === "closed" ? t("closeHint") : t("acceptHint")}
           run={() => transition(to)}
           onDone={done}
-          trigger={<Button>{t("move.verified_complete")}</Button>}
+          trigger={<Button variant={to === "closed" ? "outline" : "default"}>{t(`move.${to}`)}</Button>}
         />,
       );
     } else {
@@ -113,7 +115,7 @@ export function ActionPanel({ actionId, status, moves, can }: Props) {
   );
 }
 
-function useRun(onDone: () => void) {
+export function useRun(onDone: () => void) {
   const tc = useTranslations("common");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +138,7 @@ function useRun(onDone: () => void) {
   return { busy, error, go, setError };
 }
 
-function ErrorText({ error }: { error: string | null }) {
+export function ErrorText({ error }: { error: string | null }) {
   const t = useTranslations("action.errors");
   return error ? (
     <p role="alert" className="text-sm text-destructive">
@@ -145,7 +147,7 @@ function ErrorText({ error }: { error: string | null }) {
   ) : null;
 }
 
-function RunButton({ label, run, onDone }: { label: string; run: () => Promise<Result>; onDone: () => void }) {
+export function RunButton({ label, run, onDone }: { label: string; run: () => Promise<Result>; onDone: () => void }) {
   const { busy, error, go } = useRun(onDone);
   return (
     <div className="space-y-1">
@@ -185,7 +187,7 @@ function ConfirmDialog(props: { title: string; hint: string; trigger: ReactNode;
   );
 }
 
-function ReasonDialog(props: {
+export function ReasonDialog(props: {
   title: string;
   hint: string;
   trigger: ReactNode;
@@ -229,7 +231,15 @@ function ReasonDialog(props: {
   );
 }
 
-function EvidenceDialog(props: { actionId: string; submit: boolean; trigger: ReactNode; onDone: () => void }) {
+/** Attach a file to the action; with evidenceRequestId, it answers that item of the evidence list. */
+export function EvidenceDialog(props: {
+  actionId: string;
+  submit: boolean;
+  trigger: ReactNode;
+  onDone: () => void;
+  evidenceRequestId?: string;
+  title?: string;
+}) {
   const t = useTranslations("action");
   const [open, setOpen] = useState(false);
   const { busy, error, go } = useRun(props.onDone);
@@ -246,6 +256,7 @@ function EvidenceDialog(props: { actionId: string; submit: boolean; trigger: Rea
       return;
     }
     form.set("submitForReview", String(props.submit));
+    if (props.evidenceRequestId) form.set("evidenceRequestId", props.evidenceRequestId);
     go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => setOpen(false));
   }
   return (
@@ -254,7 +265,7 @@ function EvidenceDialog(props: { actionId: string; submit: boolean; trigger: Rea
       <DialogContent>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>{props.submit ? t("move.awaiting_review") : t("evidenceTitle")}</DialogTitle>
+            <DialogTitle>{props.title ?? (props.submit ? t("move.awaiting_review") : t("evidenceTitle"))}</DialogTitle>
             <DialogDescription>{t("evidenceHint")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
