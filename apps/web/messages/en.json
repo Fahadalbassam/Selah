@@ -239,6 +239,7 @@
     "backupCode": "Backup code",
     "backupHint": "One of the codes you saved when you set it up. Each works once.",
     "codeError": "That code didn't work. Try the newest one.",
+    "limited": "Too many tries. Wait a minute and try again.",
     "verify": "Continue",
     "useBackup": "Use a backup code instead",
     "useApp": "Use the authenticator app"

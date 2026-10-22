@@ -15,7 +15,8 @@ export function SignInForm() {
   const t = useTranslations("signIn");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // "wrong" for a bad password or code, "limited" after too many tries.
+  const [failed, setFailed] = useState<false | "wrong" | "limited">(false);
   // After the password: the code from the authenticator app, or a backup code.
   const [step, setStep] = useState<"password" | "totp" | "backup">("password");
 
@@ -36,7 +37,7 @@ export function SignInForm() {
     setBusy(false);
     if (error) {
       // Same message for every failure, so it doesn't reveal which accounts exist.
-      setFailed(true);
+      setFailed(error.status === 429 ? "limited" : "wrong");
       return;
     }
     if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) return setStep("totp");
@@ -51,7 +52,7 @@ export function SignInForm() {
     const { error } =
       step === "totp" ? await authClient.twoFactor.verifyTotp({ code }) : await authClient.twoFactor.verifyBackupCode({ code });
     setBusy(false);
-    if (error) return setFailed(true);
+    if (error) return setFailed(error.status === 429 ? "limited" : "wrong");
     done();
   }
 
@@ -76,7 +77,7 @@ export function SignInForm() {
                 className="text-center font-mono tracking-widest"
               />
             </div>
-            {failed ? <p className="text-sm text-destructive">{t("codeError")}</p> : null}
+            {failed ? <p className="text-sm text-destructive">{t(failed === "limited" ? "limited" : "codeError")}</p> : null}
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {t("verify")}
@@ -118,7 +119,7 @@ export function SignInForm() {
             </div>
             <Input id="password" name="password" type="password" autoComplete="current-password" dir="ltr" required />
           </div>
-          {failed ? <p className="text-sm text-destructive">{t("error")}</p> : null}
+          {failed ? <p className="text-sm text-destructive">{t(failed === "limited" ? "limited" : "error")}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {busy ? t("submitting") : t("submit")}
