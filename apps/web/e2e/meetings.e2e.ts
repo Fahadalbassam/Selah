@@ -36,7 +36,7 @@ test("the invite mail reaches the client with a calendar file", async () => {
   let msgId = "";
   await expect
     .poll(async () => {
-      const r = await api.get(`http://localhost:8025/api/v1/search?query=${encodeURIComponent('to:"reem@nukhba.example"')}`);
+      const r = await api.get(`http://localhost:8025/api/v1/search?query=${encodeURIComponent('to:"reem@nukhba.example" subject:"Meeting invitation"')}`);
       msgId = ((await r.json()).messages ?? [])[0]?.ID ?? "";
       return msgId;
     }, { timeout: 60_000 })

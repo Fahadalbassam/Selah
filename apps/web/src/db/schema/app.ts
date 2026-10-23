@@ -1255,6 +1255,8 @@ export const notifications = pgTable(
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     readAt: ts("read_at"),
+    // Set by the trigger that mails action events (drizzle/0051_action_mail.sql).
+    mailedAt: ts("mailed_at"),
     createdAt: createdAt(),
   },
   (t) => [index("notifications_user_idx").on(t.userId, t.createdAt)],

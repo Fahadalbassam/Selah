@@ -172,6 +172,79 @@ describe("the sender", () => {
   });
 });
 
+describe("action mail", () => {
+  const REC = id(31);
+  const notify = (by: string, to: string, kind: string, act: string) =>
+    as(by, (c) => c.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,$2,'action',$3)`, [to, kind, act]));
+  let n = 40;
+  const action = async (ownerId: string, status: string) => {
+    const aid = id(++n);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Sign the charter',$5,$6,'2026-12-01',$7)`,
+      [aid, PROJ, ACME, REC, ownerId, status, U.cons],
+    );
+    return aid;
+  };
+
+  beforeAll(async () => {
+    await owner.query(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'Charter',$4)`, [
+      REC,
+      PROJ,
+      ACME,
+      U.cons,
+    ]);
+  });
+
+  it("mails the owner a link, never the title, when the app tells them about their action", async () => {
+    const aid = await action(U.cmgr, "assigned");
+    await notify(U.cons, U.cmgr, "action.assigned", aid);
+    expect(await queue()).toMatchObject([{ to_email: "cmgr@example.test", kind: "action.assigned", link: `/actions/${aid}` }]);
+    const sent: OutgoingMail[] = [];
+    await runMail(owner, async (m) => void sent.push(m), SITE);
+    expect(sent[0]!.text).toContain(`${SITE}/actions/${aid}`);
+    expect(sent[0]!.text).not.toContain("Sign the charter");
+    expect(sent[0]!.subject).toBe("إجراء جديد مُسند إليك | An action is assigned to you");
+  });
+
+  it("mails each event once an hour at most", async () => {
+    const aid = await action(U.cmgr, "revision_requested");
+    await notify(U.cons, U.cmgr, "action.revision_requested", aid);
+    await notify(U.cons, U.cmgr, "action.revision_requested", aid);
+    expect(await queue()).toHaveLength(1);
+  });
+
+  it("mails nothing for a notification that doesn't match the action", async () => {
+    const aid = await action(U.cmgr, "assigned");
+    // Not verified, so no "verified" mail; not the owner, so nothing to the consultant.
+    await notify(U.cons, U.cmgr, "action.verified_complete", aid);
+    await notify(U.cmgr, U.cons, "action.assigned", aid);
+    // Evidence asked for only while an item is open.
+    await notify(U.cons, U.cmgr, "evidence.requested", aid);
+    // Kinds that aren't action events never mail.
+    await notify(U.cons, U.cmgr, "action.in_progress", aid);
+    expect(await queue()).toEqual([]);
+
+    await owner.query(
+      `INSERT INTO evidence_requests (project_id, org_id, action_id, title, created_by) VALUES ($1,$2,$3,'Signed copy',$4)`,
+      [PROJ, ACME, aid, U.cons],
+    );
+    await notify(U.cons, U.cmgr, "evidence.requested", aid);
+    expect(await queue()).toMatchObject([{ kind: "evidence.requested", link: `/actions/${aid}` }]);
+  });
+
+  it("mails nobody who has been switched off", async () => {
+    const aid = await action(U.cmgr, "verified_complete");
+    await owner.query(`UPDATE org_memberships SET active = false WHERE user_id = $1`, [U.cmgr]);
+    try {
+      await notify(U.cons, U.cmgr, "action.verified_complete", aid);
+      expect(await queue()).toEqual([]);
+    } finally {
+      await owner.query(`UPDATE org_memberships SET active = true WHERE user_id = $1`, [U.cmgr]);
+    }
+  });
+});
+
 describe("password reset", () => {
   it("queues a link for an active member, and only the auth role can ask", async () => {
     expect((await reset(U.cmgr)).rows[0].ok).toBe(true);
