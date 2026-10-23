@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
+import { headers } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/providers";
@@ -13,12 +14,14 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
+  // From src/proxy.ts: the theme script runs before the page, so it needs the nonce too.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const dir = isLocale(locale) ? direction(locale) : "rtl";
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <body className="min-h-svh font-sans">
         <NextIntlClientProvider>
-          <Providers dir={dir}>{children}</Providers>
+          <Providers dir={dir} nonce={nonce}>{children}</Providers>
         </NextIntlClientProvider>
       </body>
     </html>

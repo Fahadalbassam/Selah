@@ -8,7 +8,7 @@ import { isOverdue, listActions } from "@/services/queries";
 export default async function ReviewPage() {
   const rows = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
-    return (await listActions(tx, principal)).filter((r) => r.status === "awaiting_review");
+    return listActions(tx, principal, { status: ["awaiting_review"] });
   });
   if (!rows) notFound();
   const t = await getTranslations("reviewPage");

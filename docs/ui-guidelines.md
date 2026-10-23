@@ -36,6 +36,7 @@ Do not edit `components/ui/*` for a single screen. Change the look of one usage 
 | `ToneBadge`, `StatusBadge` | Every coloured badge. `StatusBadge` maps action states to tones; `ToneBadge` takes a tone directly (section 5.3). |
 | `EmptyState` | Every empty list or panel (shadcn `Empty`): a quiet icon, one line, an optional action. |
 | `ActionsTable` | Any list of actions (title, project, owner, due date, status). |
+| `ListPager` | Previous and next links under a long list, with "1–50 of 230". Hidden when everything fits on one page. Pages are a `?page=` link, so they survive a reload; read the value with `pageParam()`. |
 | `ExportButton` | Downloads an export (Excel or PDF) from a GET route in the reader's language, with a busy state and an inline error (the PDF service being down is said plainly). |
 | `FormDialog`, `ApiButton` | A dialog that posts a form, and a button that calls one API route. Both refresh the page and show errors in the person's language. |
 | `useConfirm` | Every "are you sure?" step (shadcn `AlertDialog`). Never use `window.confirm`: it ignores the theme and the reading direction. |

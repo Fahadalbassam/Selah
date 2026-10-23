@@ -26,3 +26,11 @@ export class UnavailableError extends Error {
     this.name = "UnavailableError";
   }
 }
+
+/** Too many of something from one person in a short time; they can try again later. */
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}

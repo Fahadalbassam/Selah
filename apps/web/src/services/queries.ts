@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -70,23 +70,50 @@ export async function listProjects(tx: Tx, principal: Principal) {
 
   // Counts come from the actions this user may read, so an action owner
   // does not learn how many actions other people have.
-  const readable = allowed.length ? await listActions(tx, principal) : [];
-  return allowed.map((p) => {
-    const mine = readable.filter((a) => a.projectId === p.id);
-    return {
-      ...p,
-      actionCount: mine.length,
-      verifiedCount: mine.filter((a) => a.status === "verified_complete").length,
-      awaitingReviewCount: mine.filter((a) => a.status === "awaiting_review").length,
-    };
-  });
+  const counts = allowed.length ? await actionCounts(tx, principal) : [];
+  const count = (projectId: string, status?: ActionStatus) =>
+    counts.filter((c) => c.projectId === projectId && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
+  return allowed.map((p) => ({
+    ...p,
+    actionCount: count(p.id),
+    verifiedCount: count(p.id, "verified_complete"),
+    awaitingReviewCount: count(p.id, "awaiting_review"),
+  }));
 }
 
-export async function listActions(tx: Tx, principal: Principal, filter: { projectId?: string; mineOnly?: boolean } = {}) {
+export interface ActionFilter {
+  projectId?: string;
+  mineOnly?: boolean;
+  status?: ActionStatus[];
+  /** Overdue ones, or ones in these states. */
+  attention?: ActionStatus[];
+}
+
+/**
+ * The SQL side of what a person may read. RLS lets an action owner read every
+ * action in their projects, but authorize() lets them read only their own
+ * ("assigned"), so that is narrowed here too. Counts and pages then agree with
+ * the rows each person could open; visible() still checks every row.
+ */
+function actionConditions(principal: Principal, filter: ActionFilter) {
   const conditions = [];
   if (filter.projectId) conditions.push(eq(actions.projectId, filter.projectId));
-  if (filter.mineOnly) conditions.push(eq(actions.ownerUserId, principal.userId));
-  const rows = await tx
+  if (filter.mineOnly || principal.role === "action_owner") conditions.push(eq(actions.ownerUserId, principal.userId));
+  if (filter.status) conditions.push(inArray(actions.status, filter.status));
+  if (filter.attention) {
+    conditions.push(
+      or(
+        and(inArray(actions.status, [...OPEN_STATUSES]), lt(actions.dueDate, firmToday())),
+        inArray(actions.status, filter.attention),
+      ),
+    );
+  }
+  return conditions.length ? and(...conditions) : undefined;
+}
+
+/** Actions by due date. With `page`, one page of `PAGE_SIZE`; with `limit`, the first few; otherwise all of them. */
+export async function listActions(tx: Tx, principal: Principal, filter: ActionFilter & { page?: number; limit?: number } = {}) {
+  const query = tx
     .select({
       id: actions.id,
       title: actions.title,
@@ -109,8 +136,15 @@ export async function listActions(tx: Tx, principal: Principal, filter: { projec
     .innerJoin(projects, eq(projects.id, actions.projectId))
     .innerJoin(recommendations, eq(recommendations.id, actions.recommendationId))
     .leftJoin(user, eq(user.id, actions.ownerUserId))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(actions.dueDate));
+    .where(actionConditions(principal, filter))
+    // The id breaks ties, so pages never repeat or skip a row.
+    .orderBy(sql`${actions.dueDate} ASC NULLS LAST`, asc(actions.id))
+    .$dynamic();
+  const rows = await (filter.page
+    ? query.limit(PAGE_SIZE).offset((filter.page - 1) * PAGE_SIZE)
+    : filter.limit
+      ? query.limit(filter.limit)
+      : query);
   return visible(principal, "action.read", rows, (r) => ({
     type: "action",
     id: r.id,
@@ -120,6 +154,25 @@ export async function listActions(tx: Tx, principal: Principal, filter: { projec
     createdBy: r.createdBy,
     assignees: r.ownerUserId ? [r.ownerUserId] : [],
   }));
+}
+
+export const PAGE_SIZE = 50;
+
+/** How many actions there are by status (and how many are overdue), per project, counted in the database. */
+export async function actionCounts(tx: Tx, principal: Principal, filter: ActionFilter = {}) {
+  const today = firmToday();
+  const rows = await tx
+    .select({
+      projectId: actions.projectId,
+      status: actions.status,
+      n: sql<number>`count(*)::int`,
+      overdue: sql<number>`(count(*) FILTER (WHERE ${actions.dueDate} < ${today}::date))::int`,
+    })
+    .from(actions)
+    .where(actionConditions(principal, filter))
+    .groupBy(actions.projectId, actions.status);
+  const open = OPEN_STATUSES as readonly string[];
+  return rows.map((r) => ({ ...r, overdue: open.includes(r.status) ? r.overdue : 0 }));
 }
 
 export function isOverdue(row: Pick<ActionRow, "status" | "dueDate">, today = firmToday()) {
@@ -132,22 +185,19 @@ export function isOverdue(row: Pick<ActionRow, "status" | "dueDate">, today = fi
  * "in progress" or "submitted" is never counted as done.
  */
 export async function dashboard(tx: Tx, principal: Principal) {
-  const mineOnly = principal.role === "action_owner";
-  const rows = await listActions(tx, principal, { mineOnly });
-  const by = (s: string) => rows.filter((r) => r.status === s).length;
-  const attention = rows.filter(
-    (r) =>
-      isOverdue(r) ||
-      (principal.orgKind === "firm" ? r.status === "awaiting_review" : ["revision_requested", "blocked"].includes(r.status)),
-  );
+  const counts = await actionCounts(tx, principal);
+  const by = (s: ActionStatus) => counts.filter((c) => c.status === s).reduce((n, c) => n + c.n, 0);
+  // What needs this person: overdue work, and what waits on their side.
+  const waiting: ActionStatus[] = principal.orgKind === "firm" ? ["awaiting_review"] : ["revision_requested", "blocked"];
+  const attention = await listActions(tx, principal, { attention: waiting, limit: 10 });
   return {
-    total: rows.length,
+    total: counts.reduce((n, c) => n + c.n, 0),
     inProgress: by("in_progress") + by("assigned") + by("revision_requested"),
     blocked: by("blocked"),
     awaitingReview: by("awaiting_review"),
     verified: by("verified_complete"),
-    overdue: rows.filter((r) => isOverdue(r)).length,
-    attention: attention.slice(0, 10),
+    overdue: counts.reduce((n, c) => n + c.overdue, 0),
+    attention,
   };
 }
 
