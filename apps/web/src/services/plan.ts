@@ -7,6 +7,7 @@ import {
   departments,
   evidenceRequests,
   findings,
+  notifications,
   orgMemberships,
   organizations,
   projectMembers,
@@ -237,6 +238,10 @@ export async function createAction(tx: Tx, principal: Principal, recommendationI
     event: "created",
     toState: input.release ? "assigned" : "draft",
   });
+  // Released straight to someone: tell them (and mail them, drizzle/0051_action_mail.sql).
+  if (input.release && input.ownerUserId && input.ownerUserId !== principal.userId) {
+    await tx.insert(notifications).values({ userId: input.ownerUserId, kind: "action.assigned", entityType: "action", entityId: id });
+  }
   return { id };
 }
 
@@ -289,5 +294,9 @@ export async function updateAction(
     event: "updated",
     meta: { fields: Object.keys(input) },
   });
+  // A released action handed to someone new: they hear it's theirs. A draft waits for its release.
+  if (patch.ownerUserId && patch.ownerUserId !== action.ownerUserId && patch.ownerUserId !== principal.userId && action.status !== "draft") {
+    await tx.insert(notifications).values({ userId: patch.ownerUserId, kind: "action.assigned", entityType: "action", entityId: id });
+  }
   return { id };
 }

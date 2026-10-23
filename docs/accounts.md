@@ -74,7 +74,9 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 
 ## Mail
 
-`outbound_emails` is a queue of links only, never content: the reader signs in to see anything. Only database functions write to it, so no app bug can send mail to an arbitrary address. The kinds are invitation, address-change confirmation and notice, access review due, meeting invite and cancellation, and password reset and its notice.
+`outbound_emails` is a queue of links only, never content: the reader signs in to see anything. Only database functions write to it, so no app bug can send mail to an arbitrary address. The kinds are invitation, address-change confirmation and notice, access review due, meeting invite and cancellation, password reset and its notice, two-factor reset, new inquiry, and the action events below.
+
+**Action events** (migration 0051): an action's owner gets a mail when the action is released or handed to them, sent back for revision, verified, or given a new item of evidence to send. The mail follows the in-app notification: a trigger on `notifications` queues it only when the notice matches the action as it stands (the person is its owner and it is in that state), only for someone still active, and at most once an hour per person, action and event (`notifications.mailed_at`). It carries a line and a link to `/actions/:id`, never the action's title. Owners named only by name (consultant-managed clients) have no address and get nothing; their reminders go to the lead consultant.
 
 **The sender** (`npm run job:mail`, as the schema owner; `src/jobs/mail.ts`) sends each mail in Arabic, then English, because the queue doesn't know the reader's language.
 

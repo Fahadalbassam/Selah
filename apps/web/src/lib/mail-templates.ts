@@ -14,6 +14,10 @@ export const MAIL_KINDS = [
   "password_reset.notice",
   "two_factor.reset",
   "inquiry.new",
+  "action.assigned",
+  "action.revision_requested",
+  "action.verified_complete",
+  "evidence.requested",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -130,6 +134,43 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       subject: "New inquiry",
       lines: ["A new inquiry came in through the website form. Sign in to read it."],
       action: "Open the inquiry",
+    },
+  },
+  // Action events (drizzle/0051_action_mail.sql): to the action's owner, never with its title.
+  "action.assigned": {
+    ar: { subject: "إجراء جديد مُسند إليك", lines: ["أُسند إليك إجراء في صلة.", "سجّل الدخول لترى ما المطلوب وموعد التسليم."], action: "فتح الإجراء" },
+    en: {
+      subject: "An action is assigned to you",
+      lines: ["An action in Selah is now yours.", "Sign in to see what it needs and when it's due."],
+      action: "Open the action",
+    },
+  },
+  "action.revision_requested": {
+    ar: {
+      subject: "طُلب تعديل على إجراء",
+      lines: ["راجع المستشار ما أرسلته وطلب تعديلاً.", "سجّل الدخول لقراءة السبب."],
+      action: "فتح الإجراء",
+    },
+    en: {
+      subject: "A revision was requested",
+      lines: ["The consultant reviewed what you sent and asked for a change.", "Sign in to read why."],
+      action: "Open the action",
+    },
+  },
+  "action.verified_complete": {
+    ar: { subject: "تم التحقق من إنجاز إجراء", lines: ["تحقق المستشار من إنجاز أحد إجراءاتك، ولم يعد مطلوباً منك فيه شيء."], action: "فتح الإجراء" },
+    en: {
+      subject: "An action was verified",
+      lines: ["The consultant verified one of your actions as complete. Nothing more is needed on it."],
+      action: "Open the action",
+    },
+  },
+  "evidence.requested": {
+    ar: { subject: "مطلوب دليل على إجراء", lines: ["طلب المستشار دليلاً إضافياً على أحد إجراءاتك.", "سجّل الدخول لترى ما المطلوب."], action: "فتح الإجراء" },
+    en: {
+      subject: "Evidence requested",
+      lines: ["The consultant asked for another piece of evidence on one of your actions.", "Sign in to see what's needed."],
+      action: "Open the action",
     },
   },
 };

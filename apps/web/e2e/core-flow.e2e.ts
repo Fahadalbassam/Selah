@@ -161,17 +161,32 @@ test("consultant approves the date and verifies the action (English)", async ({ 
   await page.context().close();
 });
 
-// Bug #17: action events only notify in the app, so no mail reaches the owner.
-// Marked as an expected failure; it starts failing (and should be flipped) once mail is sent.
-test("the owner gets a mail about the revision request (bug #17)", async () => {
-  test.fail();
+// Bug #17, built: the owner hears about each step by mail too, with a link
+// to the action and never its title (drizzle/0051_action_mail.sql).
+test("the owner gets a mail when the action is released, sent back and verified", async () => {
   const api = await request.newContext();
+  type Msg = { ID: string; Subject: string };
+  let mine: Msg[] = [];
   await expect
-    .poll(async () => {
-      const r = await api.get("http://localhost:8025/api/v1/search?query=" + encodeURIComponent(`to:abdullah@nukhba.example`));
-      // Meeting invites from meetings.e2e.ts go to the same person; leave them out.
-      const { messages = [] } = (await r.json()) as { messages?: { Subject: string }[] };
-      return messages.filter((m) => !m.Subject.includes("Meeting invitation")).length;
-    }, { timeout: 15_000 })
-    .toBeGreaterThan(0);
+    .poll(
+      async () => {
+        const r = await api.get("http://localhost:8025/api/v1/search?query=" + encodeURIComponent(`to:"abdullah@nukhba.example" actions/${actionId}`));
+        mine = ((await r.json()) as { messages?: Msg[] }).messages ?? [];
+        return mine.map((m) => m.Subject).sort();
+      },
+      { timeout: 60_000, message: "action mail to the owner" },
+    )
+    .toEqual(
+      [
+        "إجراء جديد مُسند إليك | An action is assigned to you",
+        "طُلب تعديل على إجراء | A revision was requested",
+        "تم التحقق من إنجاز إجراء | An action was verified",
+      ].sort(),
+    );
+  for (const m of mine) {
+    const msg = (await (await api.get(`http://localhost:8025/api/v1/message/${m.ID}`)).json()) as { Text: string; HTML: string };
+    expect(msg.Text).toMatch(new RegExp(`https?://\\S+/actions/${actionId}`));
+    expect(msg.Text + msg.HTML).not.toContain(actTitle);
+    expect(msg.HTML).toContain('dir="rtl"');
+  }
 });
