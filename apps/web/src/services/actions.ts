@@ -60,7 +60,7 @@ export async function roundSubmitters(tx: Tx, actionId: string): Promise<string[
     .selectDistinct({ userId: evidenceSubmissions.submittedBy })
     .from(evidenceSubmissions)
     .where(and(eq(evidenceSubmissions.actionId, actionId), previous ? gt(evidenceSubmissions.submittedAt, previous.at) : undefined));
-  // Progress recorded on the client's behalf counts too (drizzle/0025).
+  // Progress recorded on the client's behalf counts too (baseline: Engagement).
   const recorders = await tx
     .selectDistinct({ userId: progressUpdates.authorId })
     .from(progressUpdates)
@@ -118,7 +118,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   if (from === "blocked") patch.blockedReason = null;
 
   // Ending without verification. The database re-checks each rule
-  // (drizzle/0011_follow_through_rules.sql) and records who closed it.
+  // (baseline: Follow-through) and records who closed it.
   if (input.to === "closed") {
     const closure = input.closure;
     if (!closure) throw new BadRequestError("closing needs an outcome and a note");
@@ -221,7 +221,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
 
   // Work waiting for review goes to the project's firm-side audience: the
   // client's lead and the staff on the project (an internal project's leads),
-  // plus admins watching it (drizzle/0008_staffed_visibility.sql).
+  // plus admins watching it (baseline: Staffed visibility).
   if (input.to === "awaiting_review") {
     const skip = `{${action.ownerUserId ?? ""}}`; // uuid[] literal: the owner was told above
     await tx.execute(sql`select app_notify_project_team(${id}::uuid, 'action.awaiting_review', ${skip}::uuid[])`);

@@ -1,4 +1,4 @@
-// Accounts and identity (migrations 0020-0021) against a real Postgres:
+// Accounts and identity (baseline: Accounts) against a real Postgres:
 // email rules, invitations, address changes, deactivation, access reviews,
 // contacts without a login, and erasure.
 //

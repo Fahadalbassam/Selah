@@ -1,6 +1,6 @@
 # Translations
 
-Selah is used in Arabic and English, and people write in either. Text is stored once, in the language it was written in. The other language is made only when someone asks for it, then kept, so a model is called once per text and language, and never for text nobody reads in the other language. Migrations 0033 (table) and 0034 (rules); `src/services/translations.ts`; the AI service's `POST /v1/translate`.
+Selah is used in Arabic and English, and people write in either. Text is stored once, in the language it was written in. The other language is made only when someone asks for it, then kept, so a model is called once per text and language, and never for text nobody reads in the other language. Rules in the Translations section of `drizzle/0000_baseline.sql`; `src/services/translations.ts`; the AI service's `POST /v1/translate`.
 
 ## What can be translated
 

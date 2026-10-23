@@ -1,4 +1,4 @@
-// What can be translated (drizzle/0034_translations_rules.sql keeps the same
+// What can be translated (the baseline's Translations section keeps the same
 // list), and how the language of a text is told. Shared by the service, the
 // routes and the screens.
 

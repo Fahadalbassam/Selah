@@ -1,5 +1,5 @@
 // Archive idle assistant chats and delete those whose time is up
-// (drizzle/0047, app_purge_chats). Run daily as the schema owner.
+// (baseline: Assistant chats, app_purge_chats). Run daily as the schema owner.
 // Usage: npm run job:purge-chats [-- YYYY-MM-DD]
 import { Pool } from "pg";
 import { firmToday } from "../src/lib/dates";

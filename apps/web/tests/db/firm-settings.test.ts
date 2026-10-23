@@ -1,4 +1,4 @@
-// Firm settings (migration 0044) against a real Postgres: only the firm's
+// Firm settings (baseline: Firm settings) against a real Postgres: only the firm's
 // admins change them, the database keeps every value in range, and the
 // intake address gets one link per new inquiry.
 //

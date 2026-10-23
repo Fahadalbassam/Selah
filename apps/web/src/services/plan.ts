@@ -23,7 +23,7 @@ import { loadProject } from "./staffing";
 // The consultants' plan for a project: findings, the recommendations that
 // answer them (or board decisions and compliance items), and the actions that
 // carry each recommendation out. Clients read it; only the firm writes it
-// (drizzle/0011_follow_through_rules.sql enforces the same).
+// (the baseline's Follow-through section enforces the same).
 
 type Label = Extract<Visibility, "shared" | "firm_private">;
 
@@ -238,7 +238,7 @@ export async function createAction(tx: Tx, principal: Principal, recommendationI
     event: "created",
     toState: input.release ? "assigned" : "draft",
   });
-  // Released straight to someone: tell them (and mail them, drizzle/0051_action_mail.sql).
+  // Released straight to someone: tell them (and mail them, baseline: Action mail).
   if (input.release && input.ownerUserId && input.ownerUserId !== principal.userId) {
     await tx.insert(notifications).values({ userId: input.ownerUserId, kind: "action.assigned", entityType: "action", entityId: id });
   }

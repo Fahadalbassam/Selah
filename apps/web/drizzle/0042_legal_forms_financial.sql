@@ -1,2 +1,0 @@
-ALTER TYPE "public"."legal_form" ADD VALUE 'bank_or_finance_company' BEFORE 'non_profit';--> statement-breakpoint
-ALTER TYPE "public"."legal_form" ADD VALUE 'capital_market_institution' BEFORE 'non_profit';

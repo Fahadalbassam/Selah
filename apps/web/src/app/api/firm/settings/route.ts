@@ -2,7 +2,7 @@ import { z } from "zod";
 import { route } from "@/server/http";
 import { getFirmSettings, updateFirmSettings } from "@/services/firm-settings";
 
-// Ranges match the database's checks (migration 0044 and earlier).
+// Ranges match the database's checks (baseline: Firm settings, and the sections of each setting's feature).
 const days = (min: number, max: number) => z.number().int().min(min).max(max);
 const body = z
   .object({

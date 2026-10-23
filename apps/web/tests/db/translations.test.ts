@@ -1,4 +1,4 @@
-// On-demand translations (migrations 0033-0034) against a real Postgres:
+// On-demand translations (baseline: Translations) against a real Postgres:
 // readable and makeable only with the source, retired when the source
 // changes, reviewed by firm staff only, capped per person. The model is
 // faked; no AI is called.

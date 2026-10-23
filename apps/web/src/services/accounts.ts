@@ -8,7 +8,7 @@ import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
-// Accounts (drizzle/0021_accounts_rules.sql): who belongs to an
+// Accounts (baseline: Accounts): who belongs to an
 // organisation, how they are invited, switched off, re-addressed and
 // reviewed. The database enforces every rule; these checks give clear
 // errors and keep the audit trail. Mail is queued by database functions

@@ -7,7 +7,7 @@ import { tokenHash } from "./accounts";
 
 // The public end of accounts: an invited person sets up their account, and
 // a new address confirms a change. The token in the link is the only proof,
-// and the database checks it (drizzle/0021_accounts_rules.sql).
+// and the database checks it (baseline: Accounts).
 
 export async function openInvitation(tx: Tx, token: string) {
   const { rows } = await tx.execute<{ email: string; name: string; role: string; org_name: string; org_name_ar: string | null }>(

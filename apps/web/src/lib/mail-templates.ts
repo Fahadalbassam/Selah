@@ -136,7 +136,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       action: "Open the inquiry",
     },
   },
-  // Action events (drizzle/0051_action_mail.sql): to the action's owner, never with its title.
+  // Action events (baseline: Action mail): to the action's owner, never with its title.
   "action.assigned": {
     ar: { subject: "إجراء جديد مُسند إليك", lines: ["أُسند إليك إجراء في صلة.", "سجّل الدخول لترى ما المطلوب وموعد التسليم."], action: "فتح الإجراء" },
     en: {

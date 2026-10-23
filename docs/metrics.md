@@ -2,7 +2,7 @@
 
 Three layers, agreed with Fahad on 2026-10-20. Every number is computed from the workflow or reported by a named person; nothing is estimated. There are no per-consultant scores or rankings, and nothing is labelled "compliance".
 
-Rules: `apps/web/drizzle/0013_metrics_rules.sql`. Tests: `apps/web/tests/db/metrics.test.ts`.
+Rules: the Metrics section of `apps/web/drizzle/0000_baseline.sql`. Tests: `apps/web/tests/db/metrics.test.ts`.
 
 ## 1. Implementation metrics (per project)
 
@@ -60,7 +60,7 @@ Not built, by design: automatic KPI pulls from client systems, consultant rankin
 
 ## Verified on whose evidence
 
-A verification is only as strong as what it rests on, so verified actions are counted by basis, never mixed silently (migration 0027):
+A verification is only as strong as what it rests on, so verified actions are counted by basis, never mixed silently (baseline: Insight):
 
 - `app_verified_basis(action)`: `client_evidence` (everything the accepting review covered came from the client in Selah), `consultant_recorded` (all of it was recorded by a consultant for a consultant-managed client), `mixed`, or `internal`. The review covers the submissions it names, or else those of its round; with no evidence at all, the round's progress updates. Null until verified.
 - `v_project_metrics` adds `verified_client_evidence`, `verified_consultant_recorded` and `verified_mixed`, and monthly snapshots keep them.

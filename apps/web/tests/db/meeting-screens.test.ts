@@ -1,5 +1,5 @@
 // Booking with attendees, whom a booker can invite, and follow-ups out of a
-// meeting (migrations 0037-0038) against a real Postgres.
+// meeting (baseline: Meeting follow-ups) against a real Postgres.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";

@@ -481,7 +481,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       departmentId: action.departmentId,
       orgId: action.orgId,
       // Verified on the client's evidence or on what a consultant recorded
-      // (drizzle/0027); null until verified.
+      // (baseline: Insight); null until verified.
       verifiedBasis: from === "verified_complete" ? (verifiedBasis ?? null) : null,
       overdue: isOverdue({ status: from, dueDate: action.dueDate }),
     },

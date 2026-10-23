@@ -27,7 +27,7 @@ apps/web/            Next.js app: both portals and the API (TypeScript)
   src/app/           Pages: (app) is the signed-in shell, (auth) is sign-in
   src/components/    App sidebar, tables, badges; components/ui is shadcn/ui
   messages/          Arabic and English strings (next-intl)
-  drizzle/           SQL migrations, incl. 0001_security.sql (row-level security)
+  drizzle/           SQL migrations: 0000_baseline.sql holds the whole schema, incl. row-level security
   tests/             Unit tests, route guard, and Postgres RLS tests (tests/db)
 services/ai/         Python FastAPI service: cited answers via a swappable LLM provider
 db/init/             Creates database roles on first start

@@ -1,4 +1,4 @@
-// Handover continuity and deviations (migrations 0014-0015) against a real
+// Handover continuity and deviations (baseline: Handover) against a real
 // Postgres: the client's sponsor, check-ins after handover, the deviation
 // rules, and the AI draft log.
 //

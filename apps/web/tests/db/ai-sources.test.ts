@@ -1,4 +1,4 @@
-// The assistant's sources (migrations 0040-0041, 0052) against a real Postgres:
+// The assistant's sources (baseline: AI sources and Record passages) against a real Postgres:
 // the search index never returns a passage the person can't open, file
 // summaries are kept once and read with the file's rights, meeting summary
 // lines point at their sources, and answers translate through the cache.
@@ -568,7 +568,7 @@ describe("assistant answers in the other language", () => {
   });
 });
 
-// Recommendations and actions as passages (drizzle/0052): found like file
+// Recommendations and actions as passages (baseline: Record passages): found like file
 // passages, but each read only by someone who can read the record itself.
 describe("the plan's records as passages", () => {
   const R = { shared: id(201), firm: id(202) };

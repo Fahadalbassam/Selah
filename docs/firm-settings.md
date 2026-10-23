@@ -18,6 +18,6 @@
 | `chat_after_close_days` | 90         | 0 to 365                           | Days after a project closes before its assistant chats are deleted.                                                                                              |
 | `chat_idle_delete_days` | 180        | 30 to 730, more than archive days  | Days after a chat's last message before it is deleted, even while the project is open.                                                                           |
 
-The ranges are database checks (migrations 0044 and 0047, and earlier), and the API checks the same ranges first so the page can say what is wrong. The firm's email domains are set on `/team` with its people.
+The ranges are database checks (the Firm settings section of `drizzle/0000_baseline.sql`, and the sections of each setting's feature), and the API checks the same ranges first so the page can say what is wrong. The firm's email domains are set on `/team` with its people.
 
 Not here yet: a switch for client access to the assistant. That waits for the client AI layer and its security review.
