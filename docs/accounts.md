@@ -82,9 +82,10 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 
 - It joins the link to `APP_URL` and clears the link once the mail is sent, so tokens don't stay in the database.
 - Meeting mails carry the `.ics` built when the mail is sent, so an invite queued before a change goes out with the new time.
-- Rows are claimed with `SKIP LOCKED`, so two senders never send the same mail. A failure is retried after 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours, with the error kept in `last_error`. After 8 tries the row is marked `failed_at`.
+- Rows are claimed with `SKIP LOCKED`, so two senders never send the same mail, and each batch goes out oldest first. A failure is retried after 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours, with the error kept in `last_error`. After 8 tries the row is marked `failed_at`.
 - With `--watch` it runs as a service: it wakes on each new mail (`LISTEN outbound_email`) and checks every 30 seconds for retries. `docker compose` runs it as the `mail` service.
-- `SMTP_URL` (e.g. `smtps://user:password@mail.example.com:465`) and `MAIL_FROM` set the relay. Without `SMTP_URL`, in development only, mails are printed instead of sent.
+- `SMTP_URL` (e.g. `smtps://user:password@mail.example.com:465`) and `MAIL_FROM` set the relay. Without `SMTP_URL`, in development only, mails are printed instead of sent. A relay that stops answering fails the mail after 20 seconds (60 mid-send) and it is retried, so it can't hold the sender.
+- `npm run mail:check -- you@example.com [kind ...]` signs in to the relay and sends each template once with dummy links, without the database. Run it when setting up or changing the relay.
 
 **Pages the mails link to:** `/invite/:token` (create the account), `/confirm-email/:token` (a button, because mail scanners open links), `/reset-password/:token`, and `/team` for access reviews.
 
@@ -98,4 +99,4 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 
 - An invitation or address change to an address that already has an account is refused, and that reveals to an admin that the address is in use somewhere. Unique addresses make this unavoidable. The refusal names no organisation.
 - Not built yet: single sign-on.
-- The sender has been tested against the database with a fake relay, not against a real SMTP server.
+- The sender has been tested against the database with a fake relay. Real delivery to Gmail was checked through Resend (2026-10-23) with its shared test sender `onboarding@resend.dev`; production needs a sender on the firm's own domain with SPF, DKIM and DMARC set.
