@@ -135,6 +135,8 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | Meeting mail points at its meeting, and only meeting mail does | `outbound_emails.outbound_meeting` | database only | `tests/db/meetings.test.ts` |
 | Send attempts are never negative | `outbound_emails.outbound_attempts` | database only | `tests/db/mail.test.ts` |
 | An action owner is mailed (a line and a link) when their action needs them, at most hourly | `mail_action_notification()` | database only | `tests/db/mail.test.ts` |
+| Reminder recipients get one summary mail a day (a line and a link), unless switched off, erased or opted out | the job's query, as the schema owner (migration 0003) | `src/jobs/follow-ups.ts` (`runFollowUps()`) | `tests/db/follow-through.test.ts` |
+| Each person reads and changes only their own mail preferences | row-level security on mail_preferences (migration 0003) | `src/services/notifications.ts` | `tests/db/follow-through.test.ts` |
 
 ### Meetings
 

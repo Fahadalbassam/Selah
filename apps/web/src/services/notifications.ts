@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, notifications, organizations, projects } from "@/db/schema";
+import { actions, inquiries, mailPreferences, notifications, organizations, projects } from "@/db/schema";
 import type { Principal } from "@/authz";
 
 // A person's own notifications. Row-level security already limits every
@@ -121,4 +121,24 @@ export async function markRead(tx: Tx, principal: Principal, only?: string[]) {
     .set({ readAt: new Date() })
     .where(only ? and(mine, inArray(notifications.id, only)) : mine);
   return { unread: await unreadCount(tx, principal) };
+}
+
+/** The caller's mail choices; no row means the defaults. */
+export async function getMailPreferences(tx: Tx, principal: Principal) {
+  const [row] = await tx
+    .select({ followUpDigest: mailPreferences.followUpDigest })
+    .from(mailPreferences)
+    .where(eq(mailPreferences.userId, principal.userId));
+  return { followUpDigest: row?.followUpDigest ?? true };
+}
+
+export async function setMailPreferences(tx: Tx, principal: Principal, input: { followUpDigest: boolean }) {
+  await tx
+    .insert(mailPreferences)
+    .values({ userId: principal.userId, followUpDigest: input.followUpDigest })
+    .onConflictDoUpdate({
+      target: mailPreferences.userId,
+      set: { followUpDigest: input.followUpDigest, updatedAt: new Date() },
+    });
+  return getMailPreferences(tx, principal);
 }
