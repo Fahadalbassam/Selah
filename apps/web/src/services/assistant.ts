@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
@@ -11,10 +11,14 @@ import { audit } from "./audit";
 import { projectMasker } from "./masking";
 
 const TOP_K = 8;
+// Recommendations and actions found by the search (drizzle/0052), searched
+// apart from files so they never take a file passage's place.
+const RECORD_HITS = 3;
 // Each list of the hybrid search; the merge keeps TOP_K.
 const CANDIDATES = 20;
-// Linked records added after the search (the case first, then hops).
-const MAX_RECORDS = 3;
+// Records given after the search: the case, the recommendations and actions
+// the search found, then those behind the files found.
+const MAX_RECORDS = 4;
 // Actions listed for a status question ("what is overdue?").
 const MAX_STATUS_ACTIONS = 8;
 // Document passages kept beside them: status lives in records, not files.
@@ -56,8 +60,9 @@ export interface Citation {
  *   1. authorize() decides the retrieval scope (same check as the rest of the app).
  *   2. The scope goes INSIDE both search queries' WHERE clause, and they also
  *      run under RLS, so other tenants' chunks are never scored.
- *   3. Linked records (the chat's case, and the recommendations and actions
- *      behind the files found) are read under the same RLS. A status question
+ *   3. Records (the chat's case, the recommendations and actions the search
+ *      found, and those behind the files found) are read under the same RLS,
+ *      as they stand now. A status question
  *      ("what is overdue?") also gets the project's matching actions first.
  *   4. Only surviving passages go to the AI service, each with a short id.
  *      Earlier turns of the chat go as context, never as sources.
@@ -84,10 +89,13 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
   const status = kinds.size ? await statusRecords(tx, eng.id, kinds) : [];
-  const found = await retrieve(tx, scope, vector, { query: input.question, case: caseRef });
+  const found = await retrieve(tx, scope, vector, { query: input.question, case: caseRef, sources: "files" });
+  // A recommendation or action found by the search goes as the record itself
+  // (status, due date, last review), never as its indexed text.
+  const hits = await retrieve(tx, scope, vector, { query: input.question, case: caseRef, sources: "records" });
   const chunks = status.length ? found.slice(0, STATUS_TOP_K) : found;
   // The case and its links keep their fuller text when a status row repeats one.
-  const linked = await linkedRecords(tx, caseRef, chunks);
+  const linked = await linkedRecords(tx, caseRef, chunks, hits);
   const records = [...linked, ...status.filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
 
   const sources = [
@@ -167,6 +175,8 @@ export interface RetrieveOptions {
   query?: string;
   /** Passages of this record rank higher. */
   case?: CaseRef | null;
+  /** Only files' passages, or only recommendations and actions (RECORD_HITS of them); both when left out. */
+  sources?: "files" | "records";
 }
 
 /**
@@ -188,7 +198,13 @@ export async function retrieve(tx: Tx, scope: RetrievalScope, vector: number[], 
       .select(fields)
       .from(aiChunks)
       .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)));
-  const where = (extra?: SQL) => and(scopeFilter(scope), extra);
+  const only =
+    opts.sources === "records"
+      ? inArray(aiChunks.sourceType, ["recommendation", "action"])
+      : opts.sources === "files"
+        ? notInArray(aiChunks.sourceType, ["recommendation", "action"])
+        : undefined;
+  const where = (extra?: SQL) => and(scopeFilter(scope), only, extra);
 
   const byMeaning = await base().where(where()).orderBy(cosineDistance(aiChunks.embedding, vector)).limit(CANDIDATES);
   const words = opts.query ? keywordQuery(opts.query) : null;
@@ -200,7 +216,8 @@ export async function retrieve(tx: Tx, scope: RetrievalScope, vector: number[], 
         .limit(CANDIDATES)
     : [];
   const c = opts.case;
-  return fuse([byMeaning, byWords], TOP_K, c ? (r) => r.sourceType === c.type && r.sourceId === c.id : undefined);
+  const keep = opts.sources === "records" ? RECORD_HITS : TOP_K;
+  return fuse([byMeaning, byWords], keep, c ? (r) => r.sourceType === c.type && r.sourceId === c.id : undefined);
 }
 
 /** The retrieval scope as SQL, mirroring row-level security on ai_chunks. */
@@ -217,6 +234,10 @@ function scopeFilter(scope: RetrievalScope) {
       ne(aiChunks.sourceType, "document"),
       and(eq(documents.aiIndexable, true), ne(documents.state, "archived"), eq(documents.version, aiChunks.sourceVersion)),
     ),
+    // A record's passage only while the person can read the record (drizzle/0052), as in row-level security.
+    sql`(${aiChunks.sourceType} NOT IN ('recommendation', 'action')
+      OR (${aiChunks.sourceType} = 'recommendation' AND EXISTS (SELECT 1 FROM recommendations r WHERE r.id = ${aiChunks.sourceId}))
+      OR (${aiChunks.sourceType} = 'action' AND EXISTS (SELECT 1 FROM actions a WHERE a.id = ${aiChunks.sourceId})))`,
   );
 }
 
@@ -235,14 +256,21 @@ const clip = (s: string | null | undefined, n: number) => {
 };
 
 /**
- * What the firm did about what was found: the chat's case, then the
+ * What the firm did about what was found: the chat's case, the
+ * recommendations and actions the search found in their own words, then the
  * recommendations (through their findings) and actions (through their
  * evidence) that point at the files found. Read under the person's own
  * row-level security, a few rows each, so the model never gets the whole project.
  */
-export async function linkedRecords(tx: Tx, caseRef: CaseRef | null, chunks: { sourceType: string; sourceId: string }[]) {
+export async function linkedRecords(
+  tx: Tx,
+  caseRef: CaseRef | null,
+  chunks: { sourceType: string; sourceId: string }[],
+  hits: { sourceType: string; sourceId: string }[] = [],
+) {
   const wanted: { type: RecordPassage["type"]; id: string }[] = [];
   if (caseRef && caseRef.type !== "document") wanted.push({ type: caseRef.type, id: caseRef.id });
+  for (const h of hits) wanted.push({ type: h.sourceType as "recommendation" | "action", id: h.sourceId });
 
   const docIds = [...new Set(chunks.filter((c) => c.sourceType === "document").map((c) => c.sourceId))].slice(0, 3);
   if (docIds.length) {
@@ -276,12 +304,25 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
       return null;
     case "recommendation": {
       const [r] = (
-        await tx.execute<{ title: string; priority: string; due_date: string | null }>(
-          sql`SELECT title, priority, due_date FROM recommendations WHERE id = ${id}`,
-        )
+        await tx.execute<{
+          title: string;
+          priority: string;
+          due_date: string | null;
+          rationale: string | null;
+          target_outcome: string | null;
+          required_evidence: string | null;
+        }>(sql`SELECT title, priority, due_date, rationale, target_outcome, required_evidence FROM recommendations WHERE id = ${id}`)
       ).rows;
       if (!r) return null;
-      return `Recommendation "${clip(r.title, 200)}" (priority ${r.priority}${r.due_date ? `, due ${day(r.due_date)}` : ""}). Actions: ${await actionList(tx, id)}.`;
+      return [
+        `Recommendation "${clip(r.title, 200)}" (priority ${r.priority}${r.due_date ? `, due ${day(r.due_date)}` : ""}).`,
+        r.rationale ? `Why: "${clip(r.rationale, 300)}"` : "",
+        r.target_outcome ? `Expected outcome: "${clip(r.target_outcome, 300)}"` : "",
+        r.required_evidence ? `Evidence required: "${clip(r.required_evidence, 300)}"` : "",
+        `Actions: ${await actionList(tx, id)}.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
     }
     case "action": {
       const [a] = (

@@ -1897,7 +1897,7 @@
       "addItem": "Add an item",
       "removeItem": "Remove item {n}",
       "release": "Release to the owner now",
-      "releaseHint": "They're told straight away. Otherwise it stays a draft that only the firm sees.",
+      "releaseHint": "They're told straight away. Otherwise it stays a draft: the owner isn't told, and only the firm can release it later.",
       "save": "Add the action",
       "released": "Action released to its owner",
       "drafted": "Saved as a draft"
