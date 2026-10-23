@@ -33,6 +33,10 @@ const securityHeaders = [
 const config: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  // The PDF export reads its fonts from disk (services/pdf.ts); make sure the standalone build carries them.
+  outputFileTracingIncludes: {
+    "/api/reports/[id]/pdf": ["./node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-{arabic,latin}-{400,600}-normal.woff2"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

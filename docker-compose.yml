@@ -57,6 +57,32 @@ services:
       timeout: 10s
       start_period: 300s
 
+  # Draws PDF exports: Chromium in its own container (Gotenberg), apart from
+  # the web app, like the virus scanner. JavaScript is off, downloads and
+  # webhooks are off, and it sits on an internal network with no route out,
+  # so it can only render the HTML and fonts the web app sends it. No port is
+  # published. The web app refuses PDF exports while it is down.
+  pdf:
+    image: gotenberg/gotenberg:8.38.1-chromium
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-deny-public-ips=true
+      - --chromium-deny-private-ips=true
+      - --chromium-max-queue-size=10
+      - --api-disable-download-from=true
+      - --webhook-disable=true
+      - --pdfengines-disable-routes=true
+      - --prometheus-disable-collect=true
+      - --api-timeout=60s
+      - --log-level=warn
+    networks: [pdf]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+
   ollama:
     image: ollama/ollama:0.40.6
     volumes: [ollama-models:/root/.ollama]
@@ -123,10 +149,13 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       AI_MASKING: ${AI_MASKING:-auto}
       CLAMD_HOST: clamav
+      PDF_SERVICE_URL: http://pdf:3000
     depends_on:
       clamav: { condition: service_healthy }
       setup: { condition: service_completed_successfully }
       ai: { condition: service_started }
+      pdf: { condition: service_started }
+    networks: [default, pdf]
     ports: ["127.0.0.1:3000:3000"]
 
   # Sends queued mail through the server's relay, waking on each new mail.
@@ -162,6 +191,11 @@ services:
       setup: { condition: service_completed_successfully }
       ai: { condition: service_started }
     restart: unless-stopped
+
+networks:
+  # No route out: only the web app reaches the PDF renderer, and it reaches nothing.
+  pdf:
+    internal: true
 
 volumes:
   db-data:
