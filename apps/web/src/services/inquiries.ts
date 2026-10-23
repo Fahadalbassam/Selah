@@ -21,7 +21,7 @@ import { createClient, setLead } from "./staffing";
 
 // The firm's side of intake: triage, discovery, and turning a won inquiry
 // into a client. The database holds the same rules
-// (drizzle/0017_intake_rules.sql); these checks give clear errors.
+// (baseline: Intake); these checks give clear errors.
 
 type Status = (typeof inquiries.$inferSelect)["status"];
 

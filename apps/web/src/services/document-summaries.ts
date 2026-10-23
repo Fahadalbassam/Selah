@@ -7,7 +7,7 @@ import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from 
 import { summarizePages, type SummaryPoint } from "./ai-client";
 import { projectMasker } from "./masking";
 
-// File summaries (drizzle/0041_ai_sources_rules.sql). One per file version
+// File summaries (baseline: AI sources). One per file version
 // and language, made the first time someone asks and then kept. It is made
 // from the same page text the assistant searches, read with the caller's own
 // rights, and every line cites its pages. The database decides who reads it

@@ -1,4 +1,4 @@
-// Follow-through rules (migration 0011) against a real Postgres: who may
+// Follow-through rules (baseline: Follow-through) against a real Postgres: who may
 // write the plan, how actions close and reopen, evidence lists, deadline
 // change requests, the reminder ladder and the implementation progress.
 //

@@ -17,7 +17,7 @@ import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
 // How a client takes part, and its optional departments
-// (drizzle/0025_engagement_rules.sql). The database holds every rule: which
+// (baseline: Engagement). The database holds every rule: which
 // accounts a mode allows, who may change it, who sees a department's work.
 // Mode and department switches are written to the audit log by the database.
 
@@ -74,7 +74,7 @@ export async function getEngagement(tx: Tx, principal: Principal, orgId: string)
 
 /**
  * What stands in the way of each mode, so the screen can say so before the
- * firm admin tries. The database still decides (drizzle/0025, 0027).
+ * firm admin tries. The database still decides (baseline: Engagement and Insight).
  */
 async function modeFit(tx: Tx, principal: Principal, orgId: string) {
   const active = and(eq(orgMemberships.orgId, orgId), eq(orgMemberships.active, true));
@@ -123,7 +123,7 @@ export async function setEngagement(
 /**
  * The short forms people write for a company, in either language ("Al-Nukhba",
  * "النخبة"), so they are masked before a hosted model sees them. Firm admin
- * only; the database checks that and the limits (drizzle/0050).
+ * only; the database checks that and the limits (baseline: Name variants).
  */
 export async function setShortNames(tx: Tx, principal: Principal, orgId: string, text: string) {
   assertAllowed(principal, "organization.engagement", orgRecord(principal, "organization", orgId));

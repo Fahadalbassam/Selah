@@ -120,7 +120,7 @@ export function recordText(r: { title: string; parts: (string | null)[] }): stri
 
 /**
  * Index recommendations and actions that have no passage yet: new ones, and
- * ones whose passage a change dropped (drizzle/0052_record_passages.sql).
+ * ones whose passage a change dropped (baseline: Record passages).
  * Each passage takes its recommendation's label; who may read it is decided
  * by the record's own row-level security. Returns how many were indexed.
  */

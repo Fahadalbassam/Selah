@@ -6,7 +6,7 @@ import { publicRoute } from "@/server/http";
 import { submitInquiry } from "@/services/intake";
 
 // The public inquiry form. No session. The database validates again and
-// limits each address to 5 an hour (submit_inquiry, drizzle/0017).
+// limits each address to 5 an hour (submit_inquiry, baseline: Intake).
 const text = (max: number) => z.string().trim().max(max);
 const optional = (max: number) => text(max).optional().transform((v) => v || undefined);
 const body = z.object({

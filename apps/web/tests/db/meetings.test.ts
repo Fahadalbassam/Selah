@@ -1,4 +1,4 @@
-// Meetings (migrations 0022-0023) against a real Postgres: call links,
+// Meetings (baseline: Meetings) against a real Postgres: call links,
 // calendar sequence, who books and sees what, attendees, decisions,
 // summaries, invites and the schedule.
 //

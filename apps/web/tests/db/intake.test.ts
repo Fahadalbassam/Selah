@@ -1,4 +1,4 @@
-// Client intake (migrations 0016-0017) against a real Postgres: the public
+// Client intake (baseline: Intake) against a real Postgres: the public
 // submit path, who sees an inquiry, its workflow, and anonymisation.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db

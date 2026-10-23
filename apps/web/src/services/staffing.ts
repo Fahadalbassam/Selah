@@ -23,8 +23,8 @@ import { audit } from "./audit";
 // see client names only and may ask to join; the admin or the lead decides.
 // Being on a client's team makes a consultant eligible; the lead (or the
 // admin) then staffs them on each project, and they see only those projects.
-// Every rule here is also enforced by RLS (drizzle/0003_staffing_security.sql,
-// 0008_staffed_visibility.sql).
+// Every rule here is also enforced by RLS (baseline: Staffing and
+// Staffed visibility).
 
 const firmRecord = (p: Principal): Resource => ({ type: "organization", orgId: p.orgId, firmOrgId: p.orgId, projectId: null });
 

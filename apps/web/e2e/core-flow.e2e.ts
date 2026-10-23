@@ -162,7 +162,7 @@ test("consultant approves the date and verifies the action (English)", async ({ 
 });
 
 // Bug #17, built: the owner hears about each step by mail too, with a link
-// to the action and never its title (drizzle/0051_action_mail.sql).
+// to the action and never its title (baseline: Action mail).
 test("the owner gets a mail when the action is released, sent back and verified", async () => {
   const api = await request.newContext();
   type Msg = { ID: string; Subject: string };

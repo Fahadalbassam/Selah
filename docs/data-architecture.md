@@ -1,6 +1,6 @@
 # Data architecture
 
-Where Selah keeps its data, how firm and client data are kept apart, how files are stored and opened, and what the assistant can reach. Sections marked **[Built]** describe the code as of migration 0044. Sections marked **[Proposed]** are recommendations that are not built yet.
+Where Selah keeps its data, how firm and client data are kept apart, how files are stored and opened, and what the assistant can reach. Sections marked **[Built]** describe the code as of the 2026-10-23 baseline (`drizzle/0000_baseline.sql`). Sections marked **[Proposed]** are recommendations that are not built yet.
 
 ## Summary
 
@@ -258,7 +258,7 @@ A question can't widen this. "Show me the other client's charter" still runs the
 | **AI flag** (`documents.ai_indexable`, off by default) | A file is indexed only if its owner turns the flag on. The organization that owns the file controls the flag (`owner_org` scope), so a client decides whether its own documents are searchable. Turning the flag off deletes the file's passages at once (trigger). |
 | **Scan and archive** | Only clean, non-archived files are indexed. Archiving deletes the passages. |
 | **Visibility label** | Passages carry the file's label. A `firm_private` passage reaches firm staff only, `client_private` only that client, `user_private` only its creator. Changing the label deletes the passages and queues a re-index. |
-| **The file's own rights** (migration 0041, `with_file`) | A restrictive RLS policy: a passage from a file is returned only if the person can open that file right now, whatever the passage's own label says. |
+| **The file's own rights** (baseline: AI sources, `with_file`) | A restrictive RLS policy: a passage from a file is returned only if the person can open that file right now, whatever the passage's own label says. |
 | **Department** | Passages copy the file's department, and `app_dept_ok` applies to them as it does to the file. Refiling drops and re-indexes. |
 | **Records** | Recommendations, actions, progress updates, reviews and meeting notes can also be passages, each under the same RLS as the record. |
 | **Who may ask** | Firm admins and consultants today (`assistant.query`). Client managers are an open decision. Action owners stay out, because their file access comes from per-person shares, which the index does not carry. |

@@ -1,4 +1,4 @@
-// Consultant expertise and lead suggestions (migrations 0018-0019) against a
+// Consultant expertise and lead suggestions (baseline: Expertise) against a
 // real Postgres: who keeps a profile, and what app_suggest_leads() offers.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db

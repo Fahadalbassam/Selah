@@ -7,7 +7,7 @@ There are two layers. Both must allow a request.
 | Layer | Where | What it decides |
 |---|---|---|
 | `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission |
-| Row-level security | `apps/web/drizzle/0001_security.sql` | Backstop: tenant, project and label isolation, plus "only firm can review" |
+| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) | Backstop: tenant, project and label isolation, plus "only firm can review" |
 
 ## The five questions
 
@@ -36,7 +36,7 @@ Decided with the product owner on 2026-10-20:
 - Any firm member can create an **internal project** and becomes its lead (`project_members.is_lead`).
 - On internal projects firm staff do the work themselves (`INTERNAL_POLICY` in `policy.ts`), and **nobody reviews their own action** (`workflow:self-review`, mirrored in the `reviews` insert policy).
 
-RLS for all of this is in `drizzle/0003_staffing_security.sql` and `drizzle/0008_staffed_visibility.sql`.
+RLS for all of this is in the Staffing and Staffed visibility sections of `drizzle/0000_baseline.sql`.
 
 The `Principal` is built from the session and the database (`services/principal.ts`), never from anything the browser sends.
 
@@ -66,7 +66,7 @@ A denial returns **404**, the same as a missing record, so ids cannot be probed,
 
 The database trigger `check_action_transition` holds the same list and also requires an `accept` review before Verified Complete. Only firm staff can insert reviews (RLS). So a client claim can never become "verified".
 
-Nobody reviews or closes an action they own or submitted evidence for. Since `0011_follow_through_rules.sql` the trigger also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Client managers and admins may change the owner. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
+Nobody reviews or closes an action they own or submitted evidence for. The trigger (Follow-through section of the baseline) also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Client managers and admins may change the owner. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
 
 ## AI retrieval
 
@@ -86,7 +86,7 @@ The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists doc
 | Client manager | The company's files outside departments, and their own department's. |
 | Action owner | Their own uploads, their department teammates' files (decided 2026-10-22: the team sees each other's work, the manager and client admin see everything below), and files shared with them one by one. |
 
-A file shared with someone one by one reaches them even when it is filed under another department (`0045_document_shares_cross_department.sql`).
+A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments).
 
 Files are grouped client, then project, then source (evidence by action, deliverables, client documents, meetings, assessments). Only the latest version is listed; downloads go through the usual one-minute signed link.
 

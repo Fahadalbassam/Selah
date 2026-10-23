@@ -1,5 +1,5 @@
 // How a client takes part, and how the firm heard what it records for a
-// consultant-managed client (drizzle/0025_engagement_rules.sql).
+// consultant-managed client (baseline: Engagement).
 export const ENGAGEMENT_MODES = ["full", "restricted", "consultant_managed"] as const;
 export const RECEIVED_VIA = ["meeting", "email", "phone", "document"] as const;
 

@@ -1,4 +1,4 @@
-// Shared by the assessment routes and services (drizzle/0029_assessments_rules.sql).
+// Shared by the assessment routes and services (baseline: Assessments).
 
 export const LEGAL_FORMS = [
   "sole_proprietorship",

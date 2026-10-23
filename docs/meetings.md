@@ -1,6 +1,6 @@
 # Meetings and the schedule
 
-Migrations 0022 (tables) and 0023 (rules). Selah records meetings and links to the call. It never hosts a call. Invites are standard `.ics` files (RFC 5545), which work in Google, Outlook and Apple calendars without connecting any account.
+Tables in `src/db/schema`, rules in the Meetings section of `drizzle/0000_baseline.sql`. Selah records meetings and links to the call. It never hosts a call. Invites are standard `.ics` files (RFC 5545), which work in Google, Outlook and Apple calendars without connecting any account.
 
 ## Booking
 
@@ -36,13 +36,13 @@ Selah doesn't create Meet links (that needs a Google Workspace connection). The 
 
 - **Decisions** (`POST /api/meetings/:id/decisions`) are append-only. A correction is a new decision that supersedes one from the same meeting. Follow-ups can point at the decision they follow.
 - **The summary** (`PUT /api/meetings/:id/summary`) can be written only once the meeting is held. Whoever saves it confirms it, and it starts firm-private.
-- **Follow-ups** (`POST /api/meetings/:id/follow-ups`, `PATCH /api/follow-ups/:id`, migrations 0037-0038) come out of a meeting and can follow up one of its decisions. They show on the schedule. They stay in the meeting's project and are never more visible than the meeting. The person assigned must be able to open the project, and must be firm staff for a firm-only follow-up. The firm writes and edits them; the assignee, client side included, can only mark their own one done or open it again.
+- **Follow-ups** (`POST /api/meetings/:id/follow-ups`, `PATCH /api/follow-ups/:id`, baseline: Meeting follow-ups) come out of a meeting and can follow up one of its decisions. They show on the schedule. They stay in the meeting's project and are never more visible than the meeting. The person assigned must be able to open the project, and must be firm staff for a firm-only follow-up. The firm writes and edits them; the assignee, client side included, can only mark their own one done or open it again.
 - Summaries and decisions can be translated on demand (docs/translations.md).
 - Not built yet: the AI draft of the summary from a transcript. Meet has no Arabic transcripts, so the summary is written by hand by default.
 
 ## Transcripts
 
-A transcript is personal data (PDPL), so Selah keeps it only as long as it takes to write the summary. Migrations 0035 (table) and 0036 (rules).
+A transcript is personal data (PDPL), so Selah keeps it only as long as it takes to write the summary. Rules in the Transcripts section of `drizzle/0000_baseline.sql`.
 
 - **Consent first.** A transcript can be imported only when the meeting records that participants were told it may be transcribed (`transcript_consent`, with who noted it and when), and only once the meeting is held. Switching consent off deletes the transcript at once.
 - **Firm only.** The firm's people who run the meeting import, read and delete it (`PUT/GET/DELETE /api/meetings/:id/transcript`). Clients never see it, not even that one exists.

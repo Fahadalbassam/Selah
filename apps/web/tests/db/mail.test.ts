@@ -1,4 +1,4 @@
-// The mail sender and password reset (migrations 0030-0031) against a real
+// The mail sender and password reset (baseline: Mail) against a real
 // Postgres: claiming, retries, giving up, clearing links, meeting invites,
 // and the reset queue's rules.
 //

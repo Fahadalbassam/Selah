@@ -1,4 +1,4 @@
-// Meeting transcripts (migrations 0035-0036) against a real Postgres:
+// Meeting transcripts (baseline: Transcripts) against a real Postgres:
 // consent and held status before import, firm-only, never changed, deleted
 // on withdrawn consent and on schedule, logged without the text.
 //

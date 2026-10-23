@@ -1,4 +1,4 @@
-// Two-factor sign-in rules (migration 0032) against a real Postgres: who
+// Two-factor sign-in rules (baseline: Two-factor) against a real Postgres: who
 // must use it, that they can't switch it off, who may reset it, and who
 // sees whether it is on.
 //

@@ -8,7 +8,7 @@
 // Tenant rule: every project-scoped row carries both project_id and org_id
 // (the project's owning org). A composite foreign key to projects(id, org_id)
 // makes it impossible for the two to disagree, and the row-level security
-// policies (drizzle/0001_security.sql) key on them.
+// policies (baseline: Security) key on them.
 //
 // Visibility labels come from the Scope, Permissions and AI Access Spec:
 //   shared          - everyone in the project who passes the other checks
@@ -100,7 +100,7 @@ export const chunkSource = pgEnum("chunk_source", [
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const auditOutcome = pgEnum("audit_outcome", ["allow", "deny", "error"]);
-// How a client takes part (drizzle/0025_engagement_rules.sql):
+// How a client takes part (baseline: Engagement):
 //   full               - the client's people use Selah and record their own work
 //   restricted         - client admins only; their uploads stay private to them until shared
 //   consultant_managed - no client accounts; the firm records what it hears from the client
@@ -145,12 +145,12 @@ export const organizations = pgTable("organizations", {
   departmentsEnabled: boolean("departments_enabled").notNull().default(false),
   // Consultant-managed clients only: keep as little as possible. The org is
   // known by an alias, nothing is uploaded, no contacts or AI, and free text
-  // is purged after handover (drizzle/0027_insight_rules.sql).
+  // is purged after handover (baseline: Insight).
   minimalRecords: boolean("minimal_records").notNull().default(false),
   displayAlias: text("display_alias"),
-  // Short forms people write, in either language ("Al-Nukhba", "النخبة"). Masked before a hosted model sees them (drizzle/0050).
+  // Short forms people write, in either language ("Al-Nukhba", "النخبة"). Masked before a hosted model sees them (baseline: Name variants).
   shortNames: text("short_names").array().notNull().default(sql`'{}'::text[]`),
-  // Clients only. Needed before the client is assessed (drizzle/0029).
+  // Clients only. Needed before the client is assessed (baseline: Assessments).
   legalForm: legalForm("legal_form"),
   createdAt: createdAt(),
 });
@@ -203,13 +203,13 @@ export const projects = pgTable(
     escalateLevel2Days: integer("escalate_level2_days").notNull().default(7),
     escalateLevel3Days: integer("escalate_level3_days").notNull().default(14),
     // Handover: the day the report was delivered (check-ins follow), and the
-    // client's sponsor, who is told at the last escalation level. drizzle/0015.
+    // client's sponsor, who is told at the last escalation level. baseline: Handover.
     handoverOn: date("handover_on"),
     clientSponsorUserId: uuid("client_sponsor_user_id").references(() => user.id),
     // Set when a minimal-records client's free text was purged.
     minimalPurgedAt: ts("minimal_purged_at"),
     // Set by the database when the state becomes closed, cleared on reopening.
-    // Assistant chats are deleted a while after it (drizzle/0047).
+    // Assistant chats are deleted a while after it (baseline: Assistant chats).
     closedAt: ts("closed_at"),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
@@ -408,7 +408,7 @@ export const findings = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     sourceDocumentId: uuid("source_document_id"),
-    // A gap a consultant confirmed in an assessment (drizzle/0029). At most one finding per answer.
+    // A gap a consultant confirmed in an assessment (baseline: Assessments). At most one finding per answer.
     assessmentAnswerId: uuid("assessment_answer_id").references((): AnyPgColumn => assessmentAnswers.id),
     visibility: visibility("visibility").notNull().default("shared"),
     createdBy: uuid("created_by")
@@ -474,14 +474,14 @@ export const actions = pgTable(
     blockedReason: text("blocked_reason"),
     // Set by the database: when the action last entered Awaiting Review (a
     // verification needs a review after it) and when it was last reopened
-    // (a risk acceptance must be signed after it). drizzle/0011.
+    // (a risk acceptance must be signed after it). baseline: Follow-through.
     awaitingReviewAt: ts("awaiting_review_at"),
     // The due date agreed when the action was released. Frozen afterwards
     // (approved deadline changes move due_date only), so "on time" is
-    // measured against what was agreed. drizzle/0013.
+    // measured against what was agreed. baseline: Metrics.
     baselineDueDate: date("baseline_due_date"),
     reopenedAt: ts("reopened_at"),
-    // Set when status is "closed" (see drizzle/0011_follow_through_rules.sql).
+    // Set when status is "closed" (see baseline: Follow-through).
     closureOutcome: closureOutcome("closure_outcome"),
     closureNote: text("closure_note"),
     closedBy: uuid("closed_by").references(() => user.id),
@@ -832,7 +832,7 @@ export const firmSettings = pgTable("firm_settings", {
   minimalPurgeDays: integer("minimal_purge_days").notNull().default(90),
   // Days a meeting transcript is kept after its summary is confirmed.
   transcriptKeepDays: integer("transcript_keep_days").notNull().default(30),
-  // Assistant chats (drizzle/0047): archived after this many idle days, and
+  // Assistant chats (baseline: Assistant chats): archived after this many idle days, and
   // deleted this many days after the project closes or after the last
   // message, whichever comes first.
   chatArchiveDays: integer("chat_archive_days").notNull().default(30),
@@ -994,7 +994,7 @@ export const aiDrafts = pgTable(
 // -------------------------------------------------------------- intake
 
 // How a new client reaches the firm: a public inquiry form. Submitted only
-// through submit_inquiry() (drizzle/0017); read by firm admins and the
+// through submit_inquiry() (baseline: Intake); read by firm admins and the
 // consultant qualifying it. Lost, declined, spam and withdrawn inquiries are
 // anonymised after a while (PDPL data minimisation).
 
@@ -1255,7 +1255,7 @@ export const notifications = pgTable(
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     readAt: ts("read_at"),
-    // Set by the trigger that mails action events (drizzle/0051_action_mail.sql).
+    // Set by the trigger that mails action events (baseline: Action mail).
     mailedAt: ts("mailed_at"),
     createdAt: createdAt(),
   },
@@ -1300,7 +1300,7 @@ export const aiChunks = pgTable(
 );
 
 // One chat, about one project and optionally one record in it (the case).
-// Archiving and deleting follow drizzle/0047 (docs/assistant.md).
+// Archiving and deleting: baseline, Assistant chats (docs/assistant.md).
 export const chatCaseType = pgEnum("chat_case_type", ["recommendation", "action", "finding", "meeting", "document"]);
 export const aiConversations = pgTable(
   "ai_conversations",
@@ -1357,7 +1357,7 @@ export const aiMessages = pgTable(
 );
 
 // A summary of one file, made once per version and language and then kept
-// (drizzle/0041). Keyed by the file's hash, so a new version never reuses an
+// (baseline: AI sources). Keyed by the file's hash, so a new version never reuses an
 // old summary; read with the file's own rights.
 export const documentSummaries = pgTable(
   "document_summaries",
@@ -1463,7 +1463,7 @@ export const clientContacts = pgTable(
       .notNull()
       .references(() => organizations.id),
     name: text("name").notNull(),
-    // The name in the other language, for masking (drizzle/0050).
+    // The name in the other language, for masking (baseline: Name variants).
     nameAlt: text("name_alt"),
     title: text("title"),
     email: text("email"),
@@ -1498,7 +1498,7 @@ export const outboundEmails = pgTable("outbound_emails", {
 // ------------------------------------------------------------- meetings
 
 // Selah records meetings and links to the call; it never hosts one.
-// Invites go out as .ics files (RFC 5545). drizzle/0023_meetings_rules.sql.
+// Invites go out as .ics files (RFC 5545). baseline: Meetings.
 export const meetingKind = pgEnum("meeting_kind", ["kickoff", "status", "steering", "workshop", "handover", "other"]);
 export const meetingLocation = pgEnum("meeting_location", ["online", "in_person", "phone"]);
 export const meetingProvider = pgEnum("meeting_provider", ["google_meet", "teams", "zoom"]);
@@ -1637,7 +1637,7 @@ export const meetingSummarySources = pgTable(
 // when the meeting records that participants were told (transcript_consent).
 // Firm-only, never changed, and deleted on delete_after: a set time after
 // the summary is confirmed (firm_settings.transcript_keep_days), or 90 days
-// after import at the latest. drizzle/0036_transcripts_rules.sql.
+// after import at the latest. baseline: Transcripts.
 export const meetingTranscripts = pgTable(
   "meeting_transcripts",
   {
@@ -1659,7 +1659,7 @@ export const meetingTranscripts = pgTable(
 
 // ------------------------------------------------------------ assessments
 //
-// The firm's assessment templates (drizzle/0029_assessments_rules.sql). A
+// The firm's assessment templates (baseline: Assessments). A
 // template has numbered versions; a published version never changes, and an
 // edit is a new draft. An assessment of a client project points at one
 // published version. Gaps become findings, and from there the existing
@@ -1773,7 +1773,7 @@ export const templateSections = pgTable(
   ],
 );
 
-// Scoring, kept visible (drizzle/0029): yes 2, partly 1, no 0; a rating of
+// Scoring, kept visible (baseline: Assessments): yes 2, partly 1, no 0; a rating of
 // 1-4 is 0-3 points; a multiple-choice option carries its own points; text
 // is not scored; "na" is left out. Points are multiplied by the weight (1-3).
 // An answer at or below gap_max_points (default: half the maximum, rounded
@@ -1950,7 +1950,7 @@ export const assessmentEvidence = pgTable(
 
 // ------------------------------------------------------- translations
 
-// On-demand translations of people's text (drizzle/0034_translations_rules.sql).
+// On-demand translations of people's text (baseline: Translations).
 // Text is stored once, in the language it was written in; the other language
 // is made the first time someone asks, then kept here. A translation is tied
 // to a hash of the text it came from, so an edit retires it. It is labelled
