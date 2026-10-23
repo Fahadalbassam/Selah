@@ -84,7 +84,7 @@ jobs:
     defaults: { run: { working-directory: services/ai } }
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.13" }
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
