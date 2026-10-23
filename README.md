@@ -104,3 +104,5 @@ CI runs all of these on every pull request. ClamAV needs at least 3 GiB of free 
 See [docs/security.md](docs/security.md) for the OWASP ASVS 5.0 and OWASP LLM Top 10 mapping.
 
 See [docs/data-architecture.md](docs/data-architecture.md) for how the database, file storage and the assistant's access fit together.
+
+See [docs/rules.md](docs/rules.md) for every business rule: where the database enforces it, the TypeScript that checks it first, and its test. A rule change touches all of them in one PR.

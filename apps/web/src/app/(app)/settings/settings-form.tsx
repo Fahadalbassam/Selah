@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { CHECKIN_DAYS, FIRM_SETTING_RANGES, type FirmSettingRange } from "@/lib/firm-settings";
 
 export interface Settings {
   intakeEmail: string | null;
@@ -100,22 +101,25 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
       return true;
     };
 
-  const days = (k: Key, id: string, min: number, max: number) => (
-    <div className="flex items-center gap-2">
-      <Input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        required
-        className="w-24 tabular-nums"
-        dir="ltr"
-        value={String(s[k])}
-        onChange={(e) => set(k, Number(e.target.value) as never)}
-      />
-      <span className="text-sm text-muted-foreground">{t("days")}</span>
-    </div>
-  );
+  const days = (k: FirmSettingRange, id: string) => {
+    const [min, max] = FIRM_SETTING_RANGES[k];
+    return (
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          type="number"
+          min={min}
+          max={max}
+          required
+          className="w-24 tabular-nums"
+          dir="ltr"
+          value={String(s[k])}
+          onChange={(e) => set(k, Number(e.target.value) as never)}
+        />
+        <span className="text-sm text-muted-foreground">{t("days")}</span>
+      </div>
+    );
+  };
   const err = (section: string) =>
     error[section] ? (
       <p role="alert" className="text-sm text-destructive">
@@ -161,7 +165,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
           <Switch id="s-kpis" checked={s.clientKpisEnabled} onCheckedChange={(v) => set("clientKpisEnabled", v)} />
         </Row>
         <Row id="s-grace" label={t("kpis.grace")} hint={t("kpis.graceHint")}>
-          {days("kpiGraceDays", "s-grace", 0, 90)}
+          {days("kpiGraceDays", "s-grace")}
         </Row>
         {err("kpis")}
       </Section>
@@ -175,7 +179,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
             .split(/[,\s،]+/)
             .filter(Boolean)
             .map(Number);
-          if (list.some((n) => !Number.isInteger(n) || n < 1 || n > 730) || list.length > 6) {
+          if (list.some((n) => !Number.isInteger(n) || n < CHECKIN_DAYS.min || n > CHECKIN_DAYS.max) || list.length > CHECKIN_DAYS.count) {
             setError((e) => ({ ...e, follow: t("follow.checkinsInvalid") }));
             return false;
           }
@@ -183,7 +187,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         }}
       >
         <Row id="s-stale" label={t("follow.stale")} hint={t("follow.staleHint")}>
-          {days("staleDays", "s-stale", 1, 365)}
+          {days("staleDays", "s-stale")}
         </Row>
         <Row id="s-checkins" label={t("follow.checkins")} hint={t("follow.checkinsHint")}>
           <Input
@@ -205,14 +209,14 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         send={save("accounts", ["accessReviewDays", "restrictedMaxAdmins"])}
       >
         <Row id="s-review" label={t("accounts.review")} hint={t("accounts.reviewHint")}>
-          {days("accessReviewDays", "s-review", 7, 365)}
+          {days("accessReviewDays", "s-review")}
         </Row>
         <Row id="s-admins" label={t("accounts.restricted")} hint={t("accounts.restrictedHint")}>
           <Input
             id="s-admins"
             type="number"
-            min={1}
-            max={10}
+            min={FIRM_SETTING_RANGES.restrictedMaxAdmins[0]}
+            max={FIRM_SETTING_RANGES.restrictedMaxAdmins[1]}
             required
             className="w-24 tabular-nums"
             dir="ltr"
@@ -236,10 +240,10 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         send={save("records", ["minimalPurgeDays", "transcriptKeepDays"])}
       >
         <Row id="s-purge" label={t("records.purge")} hint={t("records.purgeHint")}>
-          {days("minimalPurgeDays", "s-purge", 0, 3650)}
+          {days("minimalPurgeDays", "s-purge")}
         </Row>
         <Row id="s-transcripts" label={t("records.transcripts")} hint={t("records.transcriptsHint")}>
-          {days("transcriptKeepDays", "s-transcripts", 1, 90)}
+          {days("transcriptKeepDays", "s-transcripts")}
         </Row>
         {err("records")}
       </Section>
@@ -251,13 +255,13 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         send={save("chats", ["chatArchiveDays", "chatAfterCloseDays", "chatIdleDeleteDays"])}
       >
         <Row id="s-chat-archive" label={t("chats.archive")} hint={t("chats.archiveHint")}>
-          {days("chatArchiveDays", "s-chat-archive", 7, 365)}
+          {days("chatArchiveDays", "s-chat-archive")}
         </Row>
         <Row id="s-chat-close" label={t("chats.afterClose")} hint={t("chats.afterCloseHint")}>
-          {days("chatAfterCloseDays", "s-chat-close", 0, 365)}
+          {days("chatAfterCloseDays", "s-chat-close")}
         </Row>
         <Row id="s-chat-idle" label={t("chats.idle")} hint={t("chats.idleHint")}>
-          {days("chatIdleDeleteDays", "s-chat-idle", 30, 730)}
+          {days("chatIdleDeleteDays", "s-chat-idle")}
         </Row>
         {err("chats")}
       </Section>

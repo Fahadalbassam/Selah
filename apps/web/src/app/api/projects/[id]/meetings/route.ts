@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SPOKEN_LANGS } from "@/lib/meetings";
 import { route } from "@/server/http";
 import { bookMeeting, listMeetings } from "@/services/meetings";
 
@@ -11,7 +12,7 @@ const body = z
     location: z.enum(["online", "in_person", "phone"]),
     joinUrl: z.url().max(500).optional(),
     locationText: z.string().trim().max(300).optional(),
-    spokenLang: z.enum(["ar", "en", "mixed"]).optional(),
+    spokenLang: z.enum(SPOKEN_LANGS).optional(),
     visibility: z.enum(["shared", "firm_private"]).optional(),
     attendees: z
       .array(z.object({ userId: z.uuid().optional(), contactId: z.uuid().optional(), optional: z.boolean().optional() }))

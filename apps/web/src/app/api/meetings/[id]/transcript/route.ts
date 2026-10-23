@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { TRANSCRIPT_MAX_CHARS } from "@/lib/transcripts";
+import { SPOKEN_LANGS } from "@/lib/meetings";
+import { TRANSCRIPT_FORMATS, TRANSCRIPT_MAX_CHARS } from "@/lib/transcripts";
 import { route } from "@/server/http";
 import { deleteTranscript, getTranscript, importTranscript } from "@/services/meetings";
 
@@ -12,8 +13,8 @@ const body = z.object({
     .string()
     .min(1)
     .max(TRANSCRIPT_MAX_CHARS * 2),
-  format: z.enum(["text", "vtt", "srt"]),
-  lang: z.enum(["ar", "en", "mixed"]),
+  format: z.enum(TRANSCRIPT_FORMATS),
+  lang: z.enum(SPOKEN_LANGS),
 });
 
 export const GET = route({ params }, ({ tx, principal, params }) => getTranscript(tx, principal, params.id));

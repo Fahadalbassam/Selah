@@ -19,8 +19,10 @@ test("consultant answers the remaining questions and finalises (English)", async
     const g = groups.nth(i);
     if ((await g.getByRole("radio", { checked: true }).count()) > 0) continue;
     if (!(await g.isVisible())) continue;
+    // Listen before clicking: a fast save can answer before a later listener exists.
+    const saved = page.waitForResponse((r) => r.url().includes("/api/assessment-answers/") && r.request().method() !== "GET");
     await g.getByRole("radio").first().click();
-    await page.waitForResponse((r) => r.url().includes("/api/assessment-answers/") && r.request().method() !== "GET");
+    await saved;
   }
   await page.reload();
   // Some questions only appear after another answer (family ownership); answer those too.
@@ -29,8 +31,9 @@ test("consultant answers the remaining questions and finalises (English)", async
     for (let i = 0; i < (await g2.count()); i++) {
       const g = g2.nth(i);
       if ((await g.getByRole("radio", { checked: true }).count()) > 0 || !(await g.isVisible())) continue;
+      const saved = page.waitForResponse((r) => r.url().includes("/api/assessment-answers/") && r.request().method() !== "GET");
       await g.getByRole("radio").first().click();
-      await page.waitForResponse((r) => r.url().includes("/api/assessment-answers/"));
+      await saved;
     }
     await page.reload();
   }

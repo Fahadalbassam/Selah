@@ -19,6 +19,7 @@ import {
 } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource } from "@/authz";
 import { buildIcs } from "@/lib/ics";
+import type { SpokenLang } from "@/lib/meetings";
 import { parseTranscript, TRANSCRIPT_MAX_CHARS, type TranscriptFormat } from "@/lib/transcripts";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -49,7 +50,7 @@ export interface MeetingInput {
   location: "online" | "in_person" | "phone";
   joinUrl?: string | null;
   locationText?: string | null;
-  spokenLang?: "ar" | "en" | "mixed";
+  spokenLang?: SpokenLang;
   visibility?: Visibility;
 }
 
@@ -377,7 +378,7 @@ export async function importTranscript(
   tx: Tx,
   principal: Principal,
   id: string,
-  input: { text: string; format: TranscriptFormat; lang: "ar" | "en" | "mixed" },
+  input: { text: string; format: TranscriptFormat; lang: SpokenLang },
 ) {
   const { meeting } = await loadForTranscript(tx, principal, id);
   if (!meeting.transcriptConsent)

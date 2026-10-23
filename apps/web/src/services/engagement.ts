@@ -12,6 +12,7 @@ import {
   user,
 } from "@/db/schema";
 import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
+import { SHORT_NAMES } from "@/lib/engagement";
 import { parseShortNames } from "@/lib/masking";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -128,8 +129,9 @@ export async function setEngagement(
 export async function setShortNames(tx: Tx, principal: Principal, orgId: string, text: string) {
   assertAllowed(principal, "organization.engagement", orgRecord(principal, "organization", orgId));
   const shortNames = parseShortNames(text);
-  if (shortNames.length > 6) throw new BadRequestError("up to 6 short names");
-  if (shortNames.some((n) => n.length < 2 || n.length > 100)) throw new BadRequestError("each short name is 2 to 100 characters");
+  if (shortNames.length > SHORT_NAMES.count) throw new BadRequestError(`up to ${SHORT_NAMES.count} short names`);
+  if (shortNames.some((n) => n.length < SHORT_NAMES.min || n.length > SHORT_NAMES.max))
+    throw new BadRequestError(`each short name is ${SHORT_NAMES.min} to ${SHORT_NAMES.max} characters`);
   const [row] = await tx.update(organizations).set({ shortNames }).where(eq(organizations.id, orgId)).returning({ id: organizations.id });
   if (!row) throw new NotFoundError("organization");
   await audit(tx, {

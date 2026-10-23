@@ -3,6 +3,9 @@
 // and the placeholders become the names again in what comes back. The
 // mapping lives only in this request; people always see the real text.
 
+/** Lengths of a name in the other language (name_alt), as the database checks them. */
+export const NAME_ALT_LENGTH = { person: [2, 120], contact: [2, 200] } as const;
+
 export type MaskKind = "ORG" | "PERSON" | "DEPT" | "PLACE" | "EMAIL" | "PHONE";
 
 export interface MaskTerm {
