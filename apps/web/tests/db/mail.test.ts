@@ -108,6 +108,17 @@ describe("the sender", () => {
     expect(new Set(seen).size).toBe(30);
   });
 
+  it("sends the oldest first, so related mails arrive in order", async () => {
+    await owner.query(
+      `INSERT INTO outbound_emails (to_email, kind, created_at)
+       SELECT 'o' || g || '@example.test', 'email_change.notice', now() - make_interval(secs => g) FROM generate_series(1, 12) g`,
+    );
+    const seen: string[] = [];
+    await runMail(owner, async (m) => void seen.push(m.to), SITE);
+    // Inserted newest first, so the table's own order is the wrong one.
+    expect(seen).toEqual(Array.from({ length: 12 }, (_, i) => `o${12 - i}@example.test`));
+  });
+
   it("retries a failure later with the error kept, and gives up after 8 tries", async () => {
     await owner.query(`INSERT INTO outbound_emails (to_email, kind) VALUES ('x@example.test','password_reset.notice')`);
     const fail = async () => {

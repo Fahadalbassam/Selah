@@ -28,6 +28,7 @@ interface Row {
   link: string | null;
   meeting_id: string | null;
   attempts: number;
+  created_at: Date;
 }
 
 export interface MailRunResult {
@@ -43,9 +44,11 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
        WHERE sent_at IS NULL AND failed_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
        ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED
      )
-     RETURNING id, to_email, kind, link, meeting_id, attempts`,
+     RETURNING id, to_email, kind, link, meeting_id, attempts, created_at`,
     [batch],
   );
+  // RETURNING has no order; send oldest first so related mails arrive in order.
+  rows.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
 
   const result: MailRunResult = { sent: 0, failed: 0 };
   for (const row of rows) {
