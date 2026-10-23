@@ -12,6 +12,8 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { engagementError } from "@/lib/engagement";
+import { firmToday } from "@/lib/dates";
+import { statusRecords } from "@/services/assistant";
 import { departmentChoices, getEngagement, setEngagement } from "@/services/engagement";
 import { planOptions } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
@@ -249,6 +251,21 @@ describe("consultant-managed", () => {
     // Saying how and when the client told the firm is required.
     await expect(record(U.lead, MANAGED, aid, null, null)).rejects.toThrow(/progress_updates_received/);
     await expect(record(U.lead, MANAGED, aid, "phone", "2999-01-01")).rejects.toThrow(/future/);
+    // "Today" is the firm's (Riyadh) day, not the database session's: where the
+    // session's date is still yesterday, the firm's today is not "in the future".
+    const late = await as(
+      U.lead,
+      async (c) => {
+        await c.query(`SET LOCAL TIME ZONE 'Pacific/Pago_Pago'`);
+        return c.query(
+          `INSERT INTO progress_updates (project_id, org_id, action_id, author_id, body, source, received_via, received_on)
+           VALUES ($1,$2,$3,$4,'Told us on the phone','client_portal','phone',(now() AT TIME ZONE 'Asia/Riyadh')::date) RETURNING source`,
+          [projectOf[MANAGED], MANAGED, aid, U.lead],
+        );
+      },
+      true,
+    );
+    expect(late.rows[0].source).toBe("consultant_recorded");
     // In a full engagement the client records its own work.
     const full = await action(ACME, { owner: U.hr });
     await expect(record(U.lead, ACME, full)).rejects.toThrow(/client records its own/);
@@ -526,5 +543,16 @@ describe("the engagement screens", () => {
     } finally {
       await owner.query(`UPDATE org_memberships SET active = true WHERE user_id = $1 AND org_id = $2`, [U.fin, ACME]);
     }
+  });
+  it("the assistant's status answer counts late work by the firm's day, as the action screens do", async () => {
+    const today = firmToday();
+    const dueToday = await action(MANAGED, { ownerName: "Majed (finance manager)", due: today });
+    // A session whose date is already tomorrow: due today is not overdue yet.
+    const passages = await as(U.lead, async (c) => {
+      await c.query(`SET LOCAL TIME ZONE 'Pacific/Kiritimati'`);
+      return statusRecords(drizzle(c, { schema }) as unknown as Tx, P.managed, new Set(["overdue"]));
+    });
+    expect(passages.some((p) => p.type === "action" && p.id === dueToday)).toBe(false);
+    expect(passages.find((p) => p.type === "project")?.text).toContain(today);
   });
 });

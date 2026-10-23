@@ -2,8 +2,9 @@ import "server-only";
 import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
-import { ForbiddenError, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
+import { ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
 import { chatTitle, fuse, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
+import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
@@ -386,15 +387,17 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
 
 // ------------------------------------------------------ status questions
 
-const DONE = sql`('verified_complete', 'closed', 'draft')`;
-const STATUS_WHERE: Record<StatusKind, SQL> = {
-  overdue: sql`a.due_date < current_date`,
+// The open states and "today" are the app's own (OPEN_STATUSES, firmToday()), so the
+// assistant counts what the action screens show. The database's current_date is UTC.
+const OPEN = sql`(${sql.join(OPEN_STATUSES.map((s) => sql`${s}`), sql`, `)})`;
+const statusWhere = (today: SQL): Record<StatusKind, SQL> => ({
+  overdue: sql`a.due_date < ${today}`,
   blocked: sql`a.status = 'blocked'`,
   review: sql`a.status = 'awaiting_review'`,
   revision: sql`a.status = 'revision_requested'`,
-  due_soon: sql`a.due_date BETWEEN current_date AND current_date + 7`,
+  due_soon: sql`a.due_date BETWEEN ${today} AND ${today} + 7`,
   open: sql`true`,
-};
+});
 
 /**
  * The state of the work, for a status question: search finds what files say,
@@ -405,6 +408,8 @@ const STATUS_WHERE: Record<StatusKind, SQL> = {
  * action screens show them.
  */
 export async function statusRecords(tx: Tx, projectId: string, kinds: Set<StatusKind>): Promise<RecordPassage[]> {
+  const today = sql`${firmToday()}::date`;
+  const STATUS_WHERE = statusWhere(today);
   const [c] = (
     await tx.execute<{
       today: string;
@@ -416,13 +421,13 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
       revision: number;
       due_soon: number;
     }>(sql`
-      SELECT current_date::text AS today, (current_date + 7)::text AS week_end, count(*)::int AS open,
+      SELECT ${today}::text AS today, (${today} + 7)::text AS week_end, count(*)::int AS open,
         count(*) FILTER (WHERE ${STATUS_WHERE.overdue})::int AS overdue,
         count(*) FILTER (WHERE ${STATUS_WHERE.blocked})::int AS blocked,
         count(*) FILTER (WHERE ${STATUS_WHERE.review})::int AS review,
         count(*) FILTER (WHERE ${STATUS_WHERE.revision})::int AS revision,
         count(*) FILTER (WHERE ${STATUS_WHERE.due_soon})::int AS due_soon
-      FROM actions a WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE}`)
+      FROM actions a WHERE a.project_id = ${projectId} AND a.status IN ${OPEN}`)
   ).rows;
   if (!c) return [];
 
@@ -441,18 +446,18 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
       owner: string | null;
       rec: string;
     }>(sql`
-      SELECT a.id, a.title, a.status, a.due_date, current_date - a.due_date AS late, a.blocked_reason,
+      SELECT a.id, a.title, a.status, a.due_date, ${today} - a.due_date AS late, a.blocked_reason,
         coalesce(u.name, a.owner_name) AS owner, r.title AS rec
       FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
       LEFT JOIN "user" u ON u.id = a.owner_user_id
-      WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE} AND (${match})
+      WHERE a.project_id = ${projectId} AND a.status IN ${OPEN} AND (${match})
       ORDER BY a.due_date ASC NULLS LAST, a.created_at LIMIT ${MAX_STATUS_ACTIONS}`)
   ).rows;
   const recs = (
     await tx.execute<{ id: string; title: string; due_date: string; open: number }>(sql`
       SELECT r.id, r.title, r.due_date, count(a.id)::int AS open
-      FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status NOT IN ${DONE}
-      WHERE r.project_id = ${projectId} AND r.due_date < current_date
+      FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status IN ${OPEN}
+      WHERE r.project_id = ${projectId} AND r.due_date < ${today}
       GROUP BY r.id ORDER BY r.due_date LIMIT 3`)
   ).rows;
 
@@ -460,7 +465,7 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
   const lateUnder = (
     await tx.execute<{ title: string; n: number }>(sql`
       SELECT r.title, count(*)::int AS n FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
-      WHERE a.project_id = ${projectId} AND a.status NOT IN ${DONE} AND ${STATUS_WHERE.overdue}
+      WHERE a.project_id = ${projectId} AND a.status IN ${OPEN} AND ${STATUS_WHERE.overdue}
       GROUP BY r.title ORDER BY n DESC LIMIT 3`)
   ).rows;
 
