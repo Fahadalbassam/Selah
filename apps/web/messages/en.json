@@ -1618,6 +1618,7 @@
       "goals": "Objectives and KPIs",
       "goalsHint": "Each objective's KPIs, and the recommendations meant to move them.",
       "types": {
+        "assessment": "Assessment",
         "objective": "Objective",
         "kpi": "KPI",
         "finding": "Finding",

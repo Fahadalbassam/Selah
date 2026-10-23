@@ -266,9 +266,9 @@ describe("status questions", () => {
     await q(`INSERT INTO recommendations (id, project_id, org_id, title, created_by) VALUES ($1,$2,$3,'HR rec',$4)`, [P2_REC, P2, ACME, U.other]);
     await q(
       `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, status, due_date, owner_name, blocked_reason, created_by) VALUES
-         ($1,$5,$6,$8,'File the related-party register','assigned',current_date - 12,'Hind',NULL,$9),
-         ($2,$5,$6,$8,'Appoint the board secretary','blocked',current_date + 20,NULL,'No candidate yet',$9),
-         ($3,$7,$6,$4,'HR overdue secret','assigned',current_date - 3,NULL,NULL,$9)`,
+         ($1,$5,$6,$8,'File the related-party register','assigned',app_firm_today() - 12,'Hind',NULL,$9),
+         ($2,$5,$6,$8,'Appoint the board secretary','blocked',app_firm_today() + 20,NULL,'No candidate yet',$9),
+         ($3,$7,$6,$4,'HR overdue secret','assigned',app_firm_today() - 3,NULL,NULL,$9)`,
       [LATE, STUCK, OTHER, P2_REC, P1, ACME, P2, REC, U.cons],
     );
   });
