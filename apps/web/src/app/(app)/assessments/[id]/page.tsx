@@ -12,12 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ChoiceOption, QuestionType } from "@/lib/assessments";
+import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { assessmentFollowUp, getAssessment, listAssessments } from "@/services/assessments";
 import { getProject } from "@/services/queries";
 import { AddEvidence, AnswerControl, AssessmentButton, ComparePicker, ConfirmGap, NoteEditor } from "./assessment-panels";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A section's number as its questions' refs give it ("0.1" → 0), so the two agree; else its position. */
 function sectionNumber(questions: { ref: string | null }[], index: number) {
@@ -27,7 +26,7 @@ function sectionNumber(questions: { ref: string | null }[], index: number) {
 
 export default async function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     const a = await getAssessment(tx, principal, id);
     const project = await getProject(tx, principal, a.projectId);

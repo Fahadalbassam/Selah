@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { authorize } from "@/authz";
+import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listClients } from "@/services/queries";
 import { clientDirectory, myPendingRequests, pendingRequestCounts } from "@/services/staffing";
@@ -32,7 +33,7 @@ export default async function ClientsPage() {
   if (!data) notFound();
   const [t, tc] = await Promise.all([getTranslations("staffing"), getTranslations("clients")]);
   const ar = (await getLocale()) === "ar";
-  const name = (c: { name: string; nameAr: string | null }) => (ar ? c.nameAr : null) ?? c.name;
+  const name = (c: { name: string; nameAr: string | null }) => localName(c, ar);
 
   return (
     <>

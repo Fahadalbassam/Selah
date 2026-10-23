@@ -36,6 +36,8 @@ interface Props {
   can: { addUpdate: boolean; submitEvidence: boolean };
   /** For closing: whether the client has signed a risk acceptance, and the actions that could replace this one. */
   close?: { signed: boolean; replacements: { id: string; title: string }[] };
+  /** The evidence list's open items: a file sent for review answers one of them. */
+  openItems?: { id: string; title: string }[];
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -68,7 +70,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close, openItems = [] }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -78,7 +80,9 @@ export function ActionPanel({ actionId, status, moves, can, close }: Props) {
   const buttons: ReactNode[] = [];
   for (const to of moves) {
     if (to === "awaiting_review") {
-      buttons.push(<EvidenceDialog key={to} actionId={actionId} submit onDone={done} trigger={<Button>{t("move.awaiting_review")}</Button>} />);
+      buttons.push(
+        <EvidenceDialog key={to} actionId={actionId} submit items={openItems} onDone={done} trigger={<Button>{t("move.awaiting_review")}</Button>} />,
+      );
     } else if (to === "blocked" || to === "revision_requested") {
       buttons.push(
         <ReasonDialog
@@ -359,6 +363,8 @@ export function ReasonDialog(props: {
  * Attach a file to the action; with evidenceRequestId, it answers that item of
  * the evidence list. The file is either uploaded now or picked from the files
  * the person can already open in Selah (a copy is attached; see services/files).
+ * Sent for review, a file answers the only open item on its own (the server
+ * picks it); with several open items (`items`), the person says which.
  */
 export function EvidenceDialog(props: {
   actionId: string;
@@ -366,10 +372,14 @@ export function EvidenceDialog(props: {
   trigger: ReactNode;
   onDone: () => void;
   evidenceRequestId?: string;
+  items?: { id: string; title: string }[];
   title?: string;
 }) {
   const t = useTranslations("action");
   const [open, setOpen] = useState(false);
+  const choose = props.submit && !props.evidenceRequestId && (props.items?.length ?? 0) > 1;
+  const [item, setItem] = useState("");
+  const itemId = props.evidenceRequestId ?? (choose && item !== NO_ITEM ? item || undefined : undefined);
   const [mode, setMode] = useState<"upload" | "pick">("upload");
   const [note, setNote] = useState("");
   const { busy, error, go } = useRun(props.onDone);
@@ -378,6 +388,7 @@ export function EvidenceDialog(props: {
     if (!next) {
       setMode("upload");
       setNote("");
+      setItem("");
     }
   }
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -385,6 +396,7 @@ export function EvidenceDialog(props: {
     // Picking sends on "Use this file"; Enter in the search box sends nothing.
     if (mode === "pick") return;
     const form = new FormData(e.currentTarget);
+    form.delete("item");
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) {
       form.delete("file");
@@ -395,7 +407,7 @@ export function EvidenceDialog(props: {
       return;
     }
     form.set("submitForReview", String(props.submit));
-    if (props.evidenceRequestId) form.set("evidenceRequestId", props.evidenceRequestId);
+    if (itemId) form.set("evidenceRequestId", itemId);
     go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => close(false));
   }
   function pick(file: FileEntry) {
@@ -407,12 +419,32 @@ export function EvidenceDialog(props: {
             documentId: file.id,
             note: note.trim() || undefined,
             submitForReview: props.submit,
-            evidenceRequestId: props.evidenceRequestId,
+            evidenceRequestId: itemId,
           }),
         ),
       () => close(false),
     );
   }
+  const itemField = choose ? (
+    <div className="grid gap-2">
+      <Label htmlFor="item">{t("answersItem")}</Label>
+      <Select name="item" value={item} onValueChange={setItem} required>
+        <SelectTrigger id="item" className="w-full">
+          <SelectValue placeholder={t("answersItemPick")} />
+        </SelectTrigger>
+        <SelectContent>
+          {props.items!.map((i) => (
+            <SelectItem key={i.id} value={i.id}>
+              {i.title}
+            </SelectItem>
+          ))}
+          <SelectItem value={NO_ITEM}>{t("answersNone")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  ) : null;
+  // Picking a file sends it at once, so the item must be chosen first.
+  const needItem = choose && !item;
   const noteField = (
     <div className="grid gap-2">
       <Label htmlFor="note">{t("note")}</Label>
@@ -434,6 +466,7 @@ export function EvidenceDialog(props: {
               <TabsTrigger value="pick">{t("pickExisting")}</TabsTrigger>
             </TabsList>
           </Tabs>
+          {itemField}
           {mode === "upload" ? (
             <>
               <div className="grid gap-2">
@@ -445,7 +478,7 @@ export function EvidenceDialog(props: {
           ) : (
             <>
               {noteField}
-              <FileBrowser className="max-h-[50vh]" pick={{ actionId: props.actionId, onPick: pick, busy }} />
+              <FileBrowser className="max-h-[50vh]" pick={{ actionId: props.actionId, onPick: pick, busy: busy || needItem }} />
             </>
           )}
           <ErrorText error={error} />
@@ -454,7 +487,7 @@ export function EvidenceDialog(props: {
               {t("cancel")}
             </Button>
             {mode === "upload" ? (
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" disabled={busy || needItem}>
                 {busy ? <BrandLoader tone="current" className="size-4" /> : null}
                 {busy ? t("saving") : props.submit ? t("sendForReview") : t("upload")}
               </Button>
@@ -465,6 +498,8 @@ export function EvidenceDialog(props: {
     </Dialog>
   );
 }
+
+const NO_ITEM = "none";
 
 function UpdateForm({ actionId, onDone }: { actionId: string; onDone: () => void }) {
   const t = useTranslations("action");

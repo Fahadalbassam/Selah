@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isUuid } from "@/lib/ids";
+import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
@@ -39,11 +41,9 @@ import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
 import { ProgressTab } from "./progress-tab";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const { data, plan, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
@@ -397,7 +397,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               <div className="flex justify-end">
                 <StartAssessment
                   projectId={project.id}
-                  templates={templates.map((x) => ({ id: x.id, label: (ar ? x.nameAr : null) ?? x.name }))}
+                  templates={templates.map((x) => ({ id: x.id, label: localName(x, ar) }))}
                 />
               </div>
             ) : null}

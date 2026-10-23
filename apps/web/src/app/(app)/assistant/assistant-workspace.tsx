@@ -347,7 +347,7 @@ function ChatList(props: {
         {groups.length === 0 ? <p className="px-2 text-xs text-muted-foreground">{f ? t("noMatch") : t("noChats")}</p> : null}
         {groups.map((g) => (
           <div key={g.label} className="space-y-1">
-            <p className="truncate px-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{g.label}</p>
+            <p className="truncate px-2 text-xs font-medium text-muted-foreground">{g.label}</p>
             <ul className="space-y-0.5">{g.rows.map(row)}</ul>
           </div>
         ))}

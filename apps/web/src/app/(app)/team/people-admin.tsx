@@ -1,10 +1,13 @@
 import { UserPlus } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
+import { PageHeader } from "@/components/page-header";
+import { SectionHeader } from "@/components/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { localName } from "@/lib/names";
 import type { listPeople } from "@/services/accounts";
 import { AccessReview, DomainsDialog, PersonMenu } from "./people-panels";
 
@@ -27,14 +30,18 @@ export async function PeopleAdmin({
   me,
   myRole,
   reviewDays,
+  asPage = false,
 }: {
   data: People;
   me: string;
   myRole: string;
   reviewDays: number | null;
+  /** On a page of its own (a client's people), the heading is the page's title. */
+  asPage?: boolean;
 }) {
   const [t, tRole, format] = await Promise.all([getTranslations("people"), getTranslations("role"), getFormatter()]);
   const ar = (await getLocale()) === "ar";
+  const Heading = asPage ? PageHeader : SectionHeader;
   const org = data.organization;
   const firm = org.kind === "firm";
   const roles = firm ? ROLES.firm : ROLES[org.engagementMode ?? "full"];
@@ -43,14 +50,10 @@ export async function PeopleAdmin({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">{t("title")}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t("hint", { org: (ar ? org.nameAr : null) ?? org.name })}
-            {org.engagementMode === "restricted" ? ` ${t("restrictedHint")}` : ""}
-          </p>
-        </div>
+      <Heading
+        title={t("title")}
+        description={`${t("hint", { org: localName(org, ar) })}${org.engagementMode === "restricted" ? ` ${t("restrictedHint")}` : ""}`}
+      >
         {roles.length ? (
           <FormDialog
             trigger={
@@ -78,7 +81,7 @@ export async function PeopleAdmin({
         ) : (
           <p className="max-w-sm text-sm text-muted-foreground">{t("cannotInvite")}</p>
         )}
-      </div>
+      </Heading>
 
       <div className="overflow-hidden rounded-xl border bg-card">
         <Table>

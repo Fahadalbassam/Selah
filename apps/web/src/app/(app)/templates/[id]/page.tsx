@@ -11,11 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { answerValues, BASIS_LABELS, type ChoiceOption, type OwnBasis, type QuestionType } from "@/lib/assessments";
+import { isUuid } from "@/lib/ids";
+import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getTemplateVersion, templateOverview } from "@/services/assessments";
 import { QuestionDialog, type EditableQuestion } from "./question-dialog";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function TemplatePage({
   params,
@@ -26,7 +26,7 @@ export default async function TemplatePage({
 }) {
   const { id } = await params;
   const { v } = await searchParams;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
     const template = await templateOverview(tx, principal, id);
@@ -71,7 +71,7 @@ export default async function TemplatePage({
         {t("title")}
       </Link>
       <PageHeader
-        title={(ar ? template.nameAr : null) ?? template.name}
+        title={localName(template, ar)}
         description={((ar ? template.descriptionAr : null) ?? template.description) || undefined}
         meta={template.archivedAt ? <Badge variant="secondary">{t("archived")}</Badge> : null}
       >
