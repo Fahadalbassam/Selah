@@ -27,6 +27,9 @@ const schema = z.object({
   // Two-factor sign-in for firm admins, consultants and client admins.
   // "false" is for local development only and refused in production.
   TWO_FACTOR_REQUIRED: z.enum(["true", "false"]).default("true"),
+  // The PDF renderer (Gotenberg, its own container). Without it, PDF exports
+  // are refused and the export buttons say the service is unavailable.
+  PDF_SERVICE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.url().optional()),
   AI_SERVICE_URL: z.url(),
   AI_SERVICE_TOKEN: z.string().min(32),
   // Which model the AI service calls (its own setting, repeated here), and
