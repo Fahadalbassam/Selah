@@ -9,8 +9,17 @@
  * counts. Two-factor codes are already capped at 5 per sign-in by Better Auth,
  * so this cap on sign-ins also caps code guesses.
  */
-export function createAttemptLimiter({ max, windowSeconds }: { max: number; windowSeconds: number }) {
-  const windows = new Map<string, { start: number; count: number }>();
+export function createAttemptLimiter({
+  max,
+  windowSeconds,
+  onLock,
+}: {
+  max: number;
+  windowSeconds: number;
+  /** Called once per window, on the first try refused, so a lockout can be recorded. */
+  onLock?: (key: string) => void;
+}) {
+  const windows = new Map<string, { start: number; count: number; locked?: boolean }>();
   const windowMs = windowSeconds * 1000;
 
   return {
@@ -24,7 +33,13 @@ export function createAttemptLimiter({ max, windowSeconds }: { max: number; wind
         windows.set(key, { start: now, count: 1 });
         return null;
       }
-      if (w.count >= max) return Math.ceil((w.start + windowMs - now) / 1000);
+      if (w.count >= max) {
+        if (!w.locked) {
+          w.locked = true;
+          onLock?.(key);
+        }
+        return Math.ceil((w.start + windowMs - now) / 1000);
+      }
       w.count += 1;
       return null;
     },

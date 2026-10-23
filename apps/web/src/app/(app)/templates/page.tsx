@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { authorCandidates, listTemplateAuthors, listTemplates } from "@/services/assessments";
 
@@ -81,7 +82,7 @@ export default async function TemplatesPage() {
                   <TableRow key={tp.id}>
                     <TableCell className="font-medium">
                       <Link href={`/templates/${tp.id}`} className="hover:underline">
-                        {(ar ? tp.nameAr : null) ?? tp.name}
+                        {localName(tp, ar)}
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">

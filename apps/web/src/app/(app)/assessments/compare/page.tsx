@@ -5,14 +5,13 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { compareAssessments } from "@/services/assessments";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function ComparePage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string }> }) {
   const { a, b } = await searchParams;
-  if (!a || !b || !UUID.test(a) || !UUID.test(b)) notFound();
+  if (!a || !b || !isUuid(a) || !isUuid(b)) notFound();
   const data = await withPrincipal(async (tx, principal) => ({
     out: await compareAssessments(tx, principal, a, b),
     firm: principal.orgKind === "firm",

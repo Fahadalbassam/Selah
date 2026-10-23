@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
+import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { DEFAULT_LOCALE, isLocale, LOCALE_COOKIE } from "./config";
 
 // Arabic first. The language is a cookie, not part of the URL, so links and
@@ -10,6 +11,6 @@ export default getRequestConfig(async () => {
   return {
     locale,
     messages: (await import(`../../messages/${locale}.json`)).default,
-    timeZone: "Asia/Riyadh",
+    timeZone: FIRM_TIME_ZONE,
   };
 });

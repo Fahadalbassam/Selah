@@ -337,7 +337,7 @@
     "someone": "Someone",
     "items": {
       "title": "Evidence list",
-      "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button (a file sent with \"Submit for review\" doesn't answer an item). The consultant accepts it or says what's missing.",
+      "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button. A file sent with \"Submit for review\" answers the only open item, or the one you choose when several are open. The consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
       "none": "No items yet.",
       "due": "Due {date}",
@@ -427,7 +427,10 @@
       "add": "Add a note",
       "label": "Note",
       "placeholder": "Context for the firm team: calls, concerns, what to check next."
-    }
+    },
+    "answersItem": "Answers which item on the evidence list?",
+    "answersItemPick": "Choose the item",
+    "answersNone": "Not an item on the list"
   },
   "common": {
     "cancel": "Cancel",

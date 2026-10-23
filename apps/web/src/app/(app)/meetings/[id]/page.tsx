@@ -11,6 +11,7 @@ import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { getMeeting, meetingInvitees } from "@/services/meetings";
 import {
@@ -26,11 +27,9 @@ import { SummarySources } from "./summary-sources";
 import { TranscriptPanel } from "./transcript-panel";
 import { ToneBadge } from "@/components/tone-badge";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function MeetingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const { data, invitees, firm, started } = await withPrincipal(async (tx, principal) => {
     const data = await getMeeting(tx, principal, id);
     return {

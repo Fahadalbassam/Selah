@@ -192,8 +192,11 @@ export async function confirmImport(tx: Tx, principal: Principal, projectId: str
     resourceType: "project",
     resourceId: projectId,
     outcome: "allow",
+    // The rows are the reviewed ones (people fix rows before confirming), read
+    // from the file with this hash: not the file imported word for word.
     meta: {
       sha256: file.sha256,
+      source: "reviewed rows",
       findings: check.counts.findings,
       recommendations: check.counts.recommendations,
       actions: check.counts.actions,

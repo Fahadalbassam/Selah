@@ -7,8 +7,9 @@
 // Run: TEST_DATABASE_OWNER_URL=... npm run test:db
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { TRANSITIONS } from "@/authz/workflow";
+import { OPEN_STATUSES, TRANSITIONS } from "@/authz/workflow";
 import { actionStatus, evidenceRequestStatus } from "@/db/schema";
+import { FIRM_TIME_ZONE, firmToday } from "@/lib/dates";
 import { SHORT_NAMES } from "@/lib/engagement";
 import { CHECKIN_DAYS, FIRM_SETTING_RANGES } from "@/lib/firm-settings";
 import { MAIL_KINDS } from "@/lib/mail-templates";
@@ -102,6 +103,31 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await owner.end();
+});
+
+describe("the firm's day and open actions", () => {
+  it("app_firm_tz() and app_firm_today() are FIRM_TIME_ZONE and firmToday()", async () => {
+    const { rows } = await owner.query(`SELECT app_firm_tz() AS tz, app_firm_today()::text AS today`);
+    expect(rows[0].tz).toBe(FIRM_TIME_ZONE);
+    expect(rows[0].today).toBe(firmToday());
+  });
+
+  it("app_action_open() is true for exactly the OPEN_STATUSES", async () => {
+    const { rows } = await owner.query(`SELECT s::text AS s FROM unnest(enum_range(NULL::action_status)) s WHERE app_action_open(s)`);
+    expect(rows.map((r) => r.s).sort()).toEqual([...OPEN_STATUSES].sort());
+  });
+
+  it("no function or view spells out the zone or the open states again", async () => {
+    const { rows } = await owner.query(
+      `SELECT p.proname AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' AND p.proname NOT IN ('app_firm_tz', 'app_action_open')
+         AND (p.prosrc LIKE '%Asia/Riyadh%' OR p.prosrc LIKE '%NOT IN (''draft'', ''verified_complete'', ''closed'')%')
+       UNION ALL
+       SELECT viewname FROM pg_views WHERE schemaname = 'public'
+         AND (definition LIKE '%Asia/Riyadh%' OR definition LIKE '%verified_complete%closed%draft%')`,
+    );
+    expect(rows.map((r) => r.name)).toEqual([]);
+  });
 });
 
 describe("action workflow", () => {

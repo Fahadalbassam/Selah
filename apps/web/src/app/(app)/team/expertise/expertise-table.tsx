@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+import { localLabel } from "@/lib/names";
 type Option = { code: string; nameAr: string; nameEn: string };
 type Lang = "ar" | "en";
 const LANGS: Lang[] = ["ar", "en"];
@@ -38,7 +39,7 @@ export function ExpertiseTable({ data, me }: { data: ExpertiseData; me: string }
   const [editing, setEditing] = useState<ExpertiseData["consultants"][number] | null>(null);
   const label = (list: Option[], code: string) => {
     const x = list.find((o) => o.code === code);
-    return x ? (ar ? x.nameAr : x.nameEn) : code;
+    return x ? localLabel(x, ar) : code;
   };
   const chips = (list: Option[], codes: string[]) =>
     codes.length ? (

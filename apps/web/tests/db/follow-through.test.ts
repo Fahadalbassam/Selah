@@ -11,6 +11,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { runFollowUps } from "@/jobs/follow-ups";
 import { transitionAction } from "@/services/actions";
+import { itemAnswered } from "@/services/evidence";
 import * as F from "@/services/follow-through";
 import * as N from "@/services/notifications";
 import { loadPrincipal } from "@/services/principal";
@@ -557,6 +558,19 @@ const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
   );
 
 describe("the action page's evidence list and date requests", () => {
+  it("a file sent for review answers the only open item, and only then", async () => {
+    const aid = await action({ due: "2099-01-01" });
+    const pick = (input: { evidenceRequestId?: string; submitForReview: boolean }) =>
+      svc(U.cowner, (tx) => itemAnswered(tx, aid, input));
+    expect(await pick({ submitForReview: true })).toBeUndefined(); // no items
+    const one = await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Signed policy" }));
+    expect(await pick({ submitForReview: true })).toBe(one.id);
+    expect(await pick({ submitForReview: false })).toBeUndefined(); // a plain upload answers nothing by itself
+    const two = await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Board minutes" }));
+    expect(await pick({ submitForReview: true })).toBeUndefined(); // several: the screen asks
+    expect(await pick({ submitForReview: true, evidenceRequestId: two.id })).toBe(two.id);
+  });
+
   it("show each side what it may see and do", async () => {
     const aid = await action({ due: "2099-01-01" });
     await svc(U.cons, (tx, p) => F.addEvidenceRequest(tx, p, aid, { title: "Signed policy", dueDate: "2099-01-15" }));

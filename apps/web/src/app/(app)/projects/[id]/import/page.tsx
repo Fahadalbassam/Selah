@@ -4,17 +4,16 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
 import { PageHeader } from "@/components/page-header";
+import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { importContext } from "@/services/plan-import";
 import { getProject } from "@/services/queries";
 import { ImportWizard } from "./import-wizard";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Import findings, recommendations and actions from Excel or Word: firm staff who can write the plan. */
 export default async function ImportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const { project, ctx } = await withPrincipal(async (tx, principal) => ({
     project: (await getProject(tx, principal, id)).project,
     ctx: await importContext(tx, principal, id),
