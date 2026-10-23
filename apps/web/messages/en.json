@@ -447,6 +447,12 @@
       "invalid": "Please check what you entered."
     }
   },
+  "pager": {
+    "label": "Pages",
+    "showing": "{from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next"
+  },
   "staffing": {
     "subtitle": "Your clients and who works on them.",
     "subtitleAdmin": "Every client of the firm and who works on them.",
@@ -1396,6 +1402,8 @@
     "seeAll": "See all",
     "empty": "Nothing new.",
     "gone": "An update about something you can no longer open",
+    "digest": "Email me a daily summary",
+    "digestHint": "On days with new reminders about your actions, get one mail with a link here. It never includes titles or details.",
     "kinds": {
       "action_assigned": "{title} was released to you",
       "action_in_progress": "Work started on {title}",
@@ -2100,6 +2108,7 @@
     "downloadPdf": "Download as PDF",
     "preparing": "Preparing…",
     "unavailable": "The PDF service is unavailable. Try again shortly.",
+    "tooMany": "You've downloaded a lot of PDFs in the last few minutes. Try again in a little while.",
     "failed": "The download didn't work. Try again."
   },
   "reportPdf": {

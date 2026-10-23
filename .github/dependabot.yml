@@ -1,0 +1,30 @@
+# Weekly update pull requests for every dependency Selah ships. Each one runs
+# the full CI before it can merge. Minor and patch updates of the web app's
+# packages come as one grouped pull request, so the queue stays short.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: pip
+    directory: /services/ai
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directories: [/apps/web, /services/ai]
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
