@@ -35,7 +35,8 @@ for (const [u, locale, theme] of combos) {
     let current = "";
     const note = (kind: string, detail: string) => findings.push({ user: u, locale, theme, path: current, kind, detail: detail.slice(0, 500) });
     page.on("pageerror", (e) => note("pageerror", e.message));
-    page.on("console", (m) => { if (m.type() === "error") note("console", m.text()); });
+    // A script the page's nonce-based CSP blocked (src/proxy.ts) is a broken page, not noise.
+    page.on("console", (m) => { if (m.type() === "error") note(/Content Security Policy/i.test(m.text()) ? "csp" : "console", m.text()); });
     page.on("response", (r) => { if (r.status() >= 500) note("http5xx", `${r.status()} ${r.url()}`); });
 
     const seen = new Set<string>();
@@ -91,6 +92,6 @@ for (const [u, locale, theme] of combos) {
     }
     writeFileSync(`${OUT}/${u}-${locale}-${theme}.json`, JSON.stringify({ pages: [...seen], findings: findings.filter((f) => f.user === u && f.locale === locale) }, null, 2));
     await ctx.close();
-    expect(findings.filter((f) => f.user === u && f.locale === locale && ["pageerror", "http5xx", "status"].includes(f.kind))).toEqual([]);
+    expect(findings.filter((f) => f.user === u && f.locale === locale && ["pageerror", "http5xx", "status", "csp"].includes(f.kind))).toEqual([]);
   });
 }

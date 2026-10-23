@@ -447,6 +447,12 @@
       "invalid": "Please check what you entered."
     }
   },
+  "pager": {
+    "label": "Pages",
+    "showing": "{from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next"
+  },
   "staffing": {
     "subtitle": "Your clients and who works on them.",
     "subtitleAdmin": "Every client of the firm and who works on them.",
@@ -2102,6 +2108,7 @@
     "downloadPdf": "Download as PDF",
     "preparing": "Preparing…",
     "unavailable": "The PDF service is unavailable. Try again shortly.",
+    "tooMany": "You've downloaded a lot of PDFs in the last few minutes. Try again in a little while.",
     "failed": "The download didn't work. Try again."
   },
   "reportPdf": {

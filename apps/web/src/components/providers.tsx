@@ -8,9 +8,9 @@ import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-export function Providers({ dir, children }: { dir: "rtl" | "ltr"; children: ReactNode }) {
+export function Providers({ dir, nonce, children }: { dir: "rtl" | "ltr"; nonce?: string; children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" nonce={nonce} defaultTheme="system" enableSystem disableTransitionOnChange>
       <Direction.Provider dir={dir}>
         {/* Every animation follows the OS "reduce motion" setting. */}
         <MotionConfig reducedMotion="user">

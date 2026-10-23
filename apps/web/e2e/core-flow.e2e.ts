@@ -94,6 +94,8 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   await page.getByRole("button", { name: t("action.sendForReview") }).click();
   await toastSaved(page);
   await expect(page.getByText(t("action.awaitingNote"))).toBeVisible();
+  // Bug 12: with one evidence item open, the file sent for review answers it.
+  expect(one(`select count(*) from evidence_submissions where action_id='${actionId}' and evidence_request_id is not null`)).toBe("1");
   await page.screenshot({ path: "e2e-results/shots/owner-ar-awaiting.png", fullPage: true });
   await page.context().close();
 });
@@ -129,12 +131,11 @@ test("owner is notified, asks for a later date and resubmits (Arabic)", async ({
   // After a revision request the owner resumes work before sending again.
   await page.getByRole("button", { name: t("action.resume") }).click();
   await toastSaved(page);
-  // Answer the evidence-list item with the signed file, then send for review.
-  await page.getByRole("button", { name: t("action.items.answer") }).click();
-  await page.locator("#file").setInputFiles({ name: "minutes-signed.pdf", mimeType: "application/pdf", buffer: pdf("signed") });
-  await page.getByRole("dialog").getByRole("button", { name: t("action.upload") }).click();
-  await toastSaved(page);
+  // The first file already answered the only evidence item (bug 12), so the
+  // item waits for the consultant; the signed file goes with the resubmission.
+  await expect(page.getByRole("button", { name: t("action.items.answer") })).toHaveCount(0);
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
+  await page.locator("#file").setInputFiles({ name: "minutes-signed.pdf", mimeType: "application/pdf", buffer: pdf("signed") });
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await expect(page.getByText(t("action.awaitingNote"))).toBeVisible();
   await page.context().close();

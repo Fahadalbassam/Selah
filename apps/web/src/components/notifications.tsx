@@ -200,7 +200,7 @@ export function DigestSwitch({ initial }: { initial: boolean }) {
     setBusy(false);
     if (!r.ok) {
       setOn(!next);
-      return toast.error(tc(`errors.${r.error}`));
+      return toast.error(tc.has(`errors.${r.error}`) ? tc(`errors.${r.error}`) : tc("errors.generic"));
     }
     toast.success(tc("saved"));
   }

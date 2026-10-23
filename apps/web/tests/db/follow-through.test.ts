@@ -14,6 +14,7 @@ import { transitionAction } from "@/services/actions";
 import { itemAnswered } from "@/services/evidence";
 import * as F from "@/services/follow-through";
 import * as N from "@/services/notifications";
+import * as Q from "@/services/queries";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -658,6 +659,48 @@ describe("notifications", () => {
     const after = await svc(U.cowner, (tx, p) => N.markRead(tx, p, [item.id]));
     expect(after.unread).toBe(before - 1);
     expect((await svc(U.cowner, (tx, p) => N.markRead(tx, p))).unread).toBe(0);
+  });
+});
+
+describe("action lists, pages and counts", () => {
+  it("pages, counts and the full list agree, for every role", async () => {
+    for (let i = 0; i < Q.PAGE_SIZE + 5; i++) await action({ due: `2098-01-${String((i % 28) + 1).padStart(2, "0")}` });
+    const someoneElses = await action({ due: "2098-02-01" });
+    await owner.query(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [someoneElses, U.cmgr]);
+
+    for (const who of [U.admin, U.lead, U.cons, U.outsider, U.cadmin, U.cmgr, U.cowner]) {
+      const all = await svc(who, (tx, p) => Q.listActions(tx, p));
+      const counts = await svc(who, (tx, p) => Q.actionCounts(tx, p));
+      expect(counts.reduce((n, c) => n + c.n, 0)).toBe(all.length);
+      const paged = [];
+      for (let page = 1; page <= Math.ceil(all.length / Q.PAGE_SIZE); page++) {
+        paged.push(...(await svc(who, (tx, p) => Q.listActions(tx, p, { page }))));
+      }
+      expect(paged.map((r) => r.id)).toEqual(all.map((r) => r.id));
+      const projects = await svc(who, (tx, p) => Q.listProjects(tx, p));
+      expect(projects.reduce((n, p) => n + p.actionCount, 0)).toBe(all.length);
+    }
+    // An action owner counts only their own, never the others in the project.
+    const mine = await svc(U.cowner, (tx, p) => Q.listActions(tx, p));
+    expect(mine.every((r) => r.ownerUserId === U.cowner)).toBe(true);
+    expect(mine.map((r) => r.id)).not.toContain(someoneElses);
+    expect((await svc(U.cons, (tx, p) => Q.listActions(tx, p))).map((r) => r.id)).toContain(someoneElses);
+  });
+
+  it("the dashboard counts in the database and lists at most ten that need attention", async () => {
+    await action({ due: "2001-01-01" });
+    await action({ status: "awaiting_review", due: "2099-01-01" });
+    for (const who of [U.cons, U.cowner, U.cmgr]) {
+      const d = await svc(who, (tx, p) => Q.dashboard(tx, p));
+      const all = await svc(who, (tx, p) => Q.listActions(tx, p));
+      expect(d.total).toBe(all.length);
+      expect(d.overdue).toBe(all.filter((r) => Q.isOverdue(r)).length);
+      expect(d.awaitingReview).toBe(all.filter((r) => r.status === "awaiting_review").length);
+      const p = await svc(who, async (_tx, p) => p);
+      const waiting = p.orgKind === "firm" ? ["awaiting_review"] : ["revision_requested", "blocked"];
+      const expected = all.filter((r) => Q.isOverdue(r) || waiting.includes(r.status)).slice(0, 10);
+      expect(d.attention.map((r) => r.id)).toEqual(expected.map((r) => r.id));
+    }
   });
 });
 

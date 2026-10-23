@@ -8,7 +8,7 @@ import { asAnonymous, asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { auditDetached } from "@/services/audit";
 import { loadPrincipal } from "@/services/principal";
-import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "./errors";
+import { BadRequestError, ConflictError, NotFoundError, RateLimitError, UnavailableError } from "./errors";
 
 /**
  * The only way to write an API route. Every handler built with route():
@@ -226,6 +226,7 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
   if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
+  if (err instanceof RateLimitError) return json({ error: "rate_limited" }, 429);
   // A database rule refused the write (the app's own checks should have
   // caught it first). Row-level security answers like a missing record.
   const pg = pgError(err);
