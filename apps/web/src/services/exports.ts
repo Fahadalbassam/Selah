@@ -243,7 +243,7 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
     t: (key, values) => t(`reportPdf.${key}` as "reportPdf.title", values as Record<string, string | number>),
     outcome: (key) => t(`metrics.outcome.${key}` as "metrics.outcome.verified"),
   });
-  const bytes = await renderPdf(html, { locale, footer: t("reportPdf.footer", { date: today }) });
+  const bytes = await renderPdf(html, { locale, footer: t("reportPdf.footer", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`)) }) });
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,

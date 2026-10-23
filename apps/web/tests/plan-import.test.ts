@@ -253,7 +253,10 @@ describe("checking rows", () => {
     expect(check.counts).toMatchObject({ findings: 0, recommendations: 0, actions: 3 });
     expect(codes(check.rows[0]!)).toEqual({ errors: [], warnings: ["actionExists"], notes: ["findingExists", "recommendationExists"] });
     expect(codes(check.rows[2]!).warnings).toEqual(["actionRepeated"]);
-    expect(leaveOutDuplicates(rows, existing, options).map((r) => r.include)).toEqual([false, true, true]);
+    expect(leaveOutDuplicates(rows, existing).map((r) => r.include)).toEqual([false, true, true]);
+    // A row fixed on screen and imported before is still caught while the file keeps its mistake.
+    const stale = [row(5, { recommendation: "Adopt a charter", action: "Draft it", dueDate: "2027-13-40" })];
+    expect(leaveOutDuplicates(stale, existing).map((r) => r.include)).toEqual([false]);
   });
 
   it("keeps a recommendation's first details and says when later rows differ", () => {

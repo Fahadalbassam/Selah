@@ -22,8 +22,9 @@ function loadFonts() {
 /** Page numbers at the bottom of each page (Chromium fills in the two spans). */
 function footerHtml(text: string, rtl: boolean): string {
   return `<!doctype html><html dir="${rtl ? "rtl" : "ltr"}"><head><meta charset="utf-8"><style>
-body{margin:0 15mm;font-family:sans-serif;font-size:8pt;color:#6b6b6b;width:100%;display:flex;justify-content:space-between;}
-</style></head><body><span>${escapeHtml(text)}</span><span dir="ltr"><span class="pageNumber"></span> / <span class="totalPages"></span></span></body></html>`;
+html,body{margin:0;padding:0;width:100%;}
+.row{box-sizing:border-box;width:100%;padding:0 15mm;display:flex;justify-content:space-between;font-family:sans-serif;font-size:8pt;color:#6b6b6b;}
+</style></head><body><div class="row" dir="${rtl ? "rtl" : "ltr"}"><span>${escapeHtml(text)}</span><span dir="ltr"><span class="pageNumber"></span> / <span class="totalPages"></span></span></div></body></html>`;
 }
 
 export async function renderPdf(html: string, options: { locale: "ar" | "en"; footer: string }): Promise<Uint8Array> {

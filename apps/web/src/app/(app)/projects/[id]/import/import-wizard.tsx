@@ -146,7 +146,7 @@ export function ImportWizard({ projectId, ctx }: { projectId: string; ctx: Impor
     const next = source.kind === "outline" ? outlineRows(source.blocks, mode) : applyMapping(source.rows, headerRow, mapping);
     if (!next.length) return setError("noRows");
     setError(null);
-    setRows(leaveOutDuplicates(next, ctx, options));
+    setRows(leaveOutDuplicates(next, ctx));
     setStep("review");
   }
 
