@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge, ListChecks, Target, Lightbulb } from "lucide-react";
+import { ClipboardCheck, Gauge, ListChecks, Target, Lightbulb } from "lucide-react";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Search } from "@/components/animate-ui/icons/search";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { traceRoots } from "@/lib/trace";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
 
@@ -157,7 +158,7 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
 }
 
 export interface TraceNode {
-  nodeType: "objective" | "kpi" | "finding" | "recommendation" | "action" | "evidence" | "review";
+  nodeType: "objective" | "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
   nodeId: string;
   parentType: TraceNode["nodeType"] | null;
   parentId: string | null;
@@ -167,6 +168,7 @@ export interface TraceNode {
 
 const ICON = {
   objective: Target,
+  assessment: ClipboardCheck,
   kpi: Gauge,
   finding: Search,
   recommendation: Lightbulb,
@@ -175,8 +177,8 @@ const ICON = {
 };
 
 /**
- * The project as one tree, from findings to the evidence and reviews that
- * close them, and from objectives to KPIs and the recommendations meant to
+ * The project as one tree, from assessments and findings to the evidence
+ * and reviews that close them, and from objectives to KPIs and the recommendations meant to
  * move them. A recommendation under a KPI is a cross-reference; it is shown
  * in full under its finding.
  */
@@ -190,7 +192,7 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
     children.set(k, [...(children.get(k) ?? []), r]);
   }
   const kids = (n: TraceNode) => children.get(`${n.nodeType}:${n.nodeId}`) ?? [];
-  const roots = (type: TraceNode["nodeType"]) => rows.filter((r) => r.nodeType === type && !r.parentId);
+  const roots = (type: TraceNode["nodeType"]) => traceRoots(rows).filter((r) => r.nodeType === type);
   // Recommendations whose only parent is a KPI still belong at the top of the work tree.
   const withFinding = new Set(
     rows.filter((r) => r.nodeType === "recommendation" && r.parentType === "finding").map((r) => r.nodeId),
@@ -220,8 +222,8 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
         <div className="flex items-center gap-2 text-sm">
           <Icon className="size-4 shrink-0 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{t(`types.${n.nodeType}`)}</span>
-          {n.nodeType === "action" ? (
-            <Link href={`/actions/${n.nodeId}`} className="min-w-0 truncate font-medium hover:underline">
+          {n.nodeType === "action" || n.nodeType === "assessment" ? (
+            <Link href={`/${n.nodeType === "action" ? "actions" : "assessments"}/${n.nodeId}`} className="min-w-0 truncate font-medium hover:underline">
               {label}
             </Link>
           ) : (
@@ -248,9 +250,10 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
     );
   }
 
-  const findings = roots("finding");
+  const assessments = roots("assessment");
+  const findings = [...assessments, ...roots("finding")];
   const objectives = roots("objective");
-  const orphanKpis = rows.filter((r) => r.nodeType === "kpi" && !r.parentId);
+  const orphanKpis = roots("kpi");
   if (!findings.length && !objectives.length && !loose.length && !orphanKpis.length) {
     return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
   }
