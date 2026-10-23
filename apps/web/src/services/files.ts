@@ -26,7 +26,7 @@ import { audit } from "./audit";
 import { loadDocument } from "./documents";
 import { receivedFor } from "./progress";
 import { downloadable } from "./scan";
-import type { PreparedUpload } from "./evidence";
+import { itemAnswered, type PreparedUpload } from "./evidence";
 import { copyObject, putObject } from "./storage";
 
 // The file explorer. It lists documents from the database, never the bucket:
@@ -276,7 +276,7 @@ export async function attachExistingEvidence(tx: Tx, principal: Principal, actio
       documentId: doc!.id,
       submittedBy: principal.userId,
       note: input.note,
-      evidenceRequestId: input.evidenceRequestId,
+      evidenceRequestId: await itemAnswered(tx, actionId, input),
       ...received,
     })
     .returning({ id: evidenceSubmissions.id });

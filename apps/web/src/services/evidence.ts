@@ -1,7 +1,8 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { Tx } from "@/db/client";
-import { activityEvents, documents, evidenceSubmissions } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { activityEvents, documents, evidenceRequests, evidenceSubmissions } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
 import type { Received } from "@/lib/engagement";
 import { checkUpload } from "@/lib/upload-rules";
@@ -80,6 +81,22 @@ export interface EvidenceInput {
 const OPEN_FOR_EVIDENCE = new Set(["in_progress", "revision_requested"]);
 
 /**
+ * The evidence item a file answers. A file sent for review with no item named
+ * answers the action's only open item, so verification isn't refused for an
+ * item left waiting (bug register 12, decided 2026-10-23). With several open
+ * items the screen asks which one; with none named, the file answers none.
+ */
+export async function itemAnswered(tx: Tx, actionId: string, input: { evidenceRequestId?: string; submitForReview: boolean }) {
+  if (input.evidenceRequestId || !input.submitForReview) return input.evidenceRequestId;
+  const open = await tx
+    .select({ id: evidenceRequests.id })
+    .from(evidenceRequests)
+    .where(and(eq(evidenceRequests.actionId, actionId), eq(evidenceRequests.status, "open")))
+    .limit(2);
+  return open.length === 1 ? open[0]!.id : undefined;
+}
+
+/**
  * Attach evidence to an action. The file was already checked (type, bytes,
  * size) and scanned for malware; here it is authorized, stored under a random
  * key, and recorded as a document visible to the client and the firm
@@ -127,7 +144,7 @@ export async function submitEvidence(tx: Tx, principal: Principal, actionId: str
       submittedBy: principal.userId,
       note: input.note,
       // The database checks the item is open on this action and marks it submitted.
-      evidenceRequestId: input.evidenceRequestId,
+      evidenceRequestId: await itemAnswered(tx, actionId, input),
       ...received,
     })
     .returning({ id: evidenceSubmissions.id });
