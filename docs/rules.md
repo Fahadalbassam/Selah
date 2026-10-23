@@ -32,17 +32,10 @@ Two things are deliberately held twice and not merged:
 | Translation length | `TRANSLATION_MAX_CHARS` in `src/lib/translations.ts` | `src/app/api/translations/[id]/route.ts` | `content_translations.translation_text` | `tests/db/rule-parity.test.ts` |
 | Other-language name length | `NAME_ALT_LENGTH` in `src/lib/masking.ts` | name-alt and contact routes | `user.user_name_alt_len`, `client_contacts.contact_name_alt_len` | `tests/db/rule-parity.test.ts` |
 | Client short names | `SHORT_NAMES` in `src/lib/engagement.ts` | `setShortNames()` | `check_short_names()` | `tests/db/rule-parity.test.ts` |
+| The firm's time zone and "today" | `FIRM_TIME_ZONE`, `firmToday()` in `src/lib/dates.ts` | every service, job and the date formatting | `app_firm_tz()`, `app_firm_today()`, `app_firm_date()` (migration 0002), used by every function and view that needs the day. Never current_date, which is the database's UTC day | `tests/db/rule-parity.test.ts` (also fails if a function or view spells out the zone again) |
+| Open actions (released, not finished) | `OPEN_STATUSES` in `src/authz/workflow.ts` | `isOverdue()`, the assistant's status answer | `app_action_open()` (migration 0002), used by the deviation, reminder, mail and metrics functions | `tests/db/rule-parity.test.ts` |
 
 Enums (`action_status`, `role`, `visibility` and the rest) and the check constraints declared in `src/db/schema` have one source already: the Drizzle schema, from which part 1 of the baseline is generated.
-
-### Still written on both sides, without a parity test
-
-Found by the second review (2026-10-23). Each is the same meaning written in SQL and in TypeScript; a change to one must change the other.
-
-| Meaning | TypeScript | Database |
-|---|---|---|
-| The firm's "today" is the Riyadh day | `firmToday()` in `src/lib/dates.ts` (every service and job) | `(now() AT TIME ZONE 'Asia/Riyadh')::date`, written out in each view and function that needs it. Never the database session's current_date: the database's day is UTC (0001 fixed the last trigger that used it) |
-| An open action is assigned, in progress, blocked, awaiting review or sent back | `OPEN_STATUSES` in `src/authz/workflow.ts` (`isOverdue()`, the assistant's status answer) | `status NOT IN ('draft', 'verified_complete', 'closed')` in the deviation, reminder, mail and metrics functions |
 
 ## Rules by area
 

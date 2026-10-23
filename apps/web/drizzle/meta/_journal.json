@@ -15,6 +15,13 @@
       "when": 1792772000000,
       "tag": "0001_firm_day_for_received_on",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792790000000,
+      "tag": "0002_firm_day_functions",
+      "breakpoints": true
     }
   ]
 }

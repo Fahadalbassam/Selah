@@ -10,6 +10,7 @@ import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { SELF_CHECKS } from "@/lib/intake";
 import { withPrincipal } from "@/server/page";
 import { getInquiry, suggestLeads } from "@/services/inquiries";
@@ -47,7 +48,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     return x ? (ar ? x.nameAr : x.nameEn) : code;
   };
   const when = (d: Date | string) =>
-    format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Riyadh" });
+    format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short", timeZone: FIRM_TIME_ZONE });
   const closed = (CLOSED as readonly string[]).includes(q.status);
   const status = (s: string | null) => (s ? t(`statuses.${s}`) : "—");
   const selfCheck = q.selfCheck as Record<string, boolean | undefined>;
