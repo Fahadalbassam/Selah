@@ -72,7 +72,7 @@ Each project sets `remind_days_before` (3), `escalate_level2_days` (7) and `esca
 - `follow_up_log` records each send, keyed by action, kind, level and due date. A run is safe to repeat, and a new due date re-arms the reminders.
 - The app role cannot call the function or read the log.
 
-For now each send is an in-app notification (`follow_up.overdue.2`, etc.). Email is a later step.
+Each send is an in-app notification (`follow_up.overdue.2`, etc.). On top of that, each recipient gets at most one summary mail a day (`follow_up.digest`). It says only that there are new reminders and links to `/notifications`. It skips anyone switched off or erased, and anyone who turned it off.
 
 ## Notifications
 
@@ -82,7 +82,7 @@ Reminders, escalations and workflow events (actions moving, evidence items, date
 - Each item carries what it is about and a link. Both are read under the caller's rights, so something they can no longer open shows without a title or link.
 - `POST /api/notifications/read` marks the given `ids` read, or all of them when there are none.
 - Screens: the bell in the header shows the unread count and the newest ten, and `/notifications` shows the last 100. Opening one marks it read.
-- Email reminders are not built yet.
+- `GET` and `PUT /api/notifications/mail` read and set the caller's own `mail_preferences` (for now just `followUpDigest`, on by default). No row means the defaults. The switch is under the list on `/notifications`.
 
 ## Implementation progress
 

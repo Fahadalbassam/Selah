@@ -10,6 +10,8 @@ import { localName } from "@/lib/names";
 import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderReportHtml } from "@/lib/report-html";
+import { createAttemptLimiter } from "@/auth/attempts";
+import { RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
 import { getReport } from "./follow-through";
 import { renderPdf } from "./pdf";
@@ -19,6 +21,9 @@ import { getProject, isOverdue, listActions } from "./queries";
 // Every export reads through the same services as the screens, under the
 // person's row-level security and authorize() checks, so a file holds
 // exactly what that person could already open. Each one is audited.
+
+// Ten PDFs per person per ten minutes (src/auth/attempts.ts keeps the counts in memory).
+const pdfsPerPerson = createAttemptLimiter({ max: 10, windowSeconds: 10 * 60 });
 
 export interface ExportFile {
   bytes: Uint8Array;
@@ -244,6 +249,8 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
     t: (key, values) => t(`reportPdf.${key}` as "reportPdf.title", values as Record<string, string | number>),
     outcome: (key) => t(`metrics.outcome.${key}` as "metrics.outcome.verified"),
   });
+  // The renderer handles about ten pages at once for everybody, so one person can't fill it.
+  if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
   const bytes = await renderPdf(html, { locale, footer: t("reportPdf.footer", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`)) }) });
   await audit(tx, {
     actorId: principal.userId,

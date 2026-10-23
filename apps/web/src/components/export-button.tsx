@@ -34,7 +34,7 @@ export function ExportButton({ endpoint, label, title, variant = "outline" }: { 
     setError(null);
     try {
       const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}lang=${locale}`);
-      if (!res.ok) return setError(res.status === 503 ? t("unavailable") : t("failed"));
+      if (!res.ok) return setError(res.status === 503 ? t("unavailable") : res.status === 429 ? t("tooMany") : t("failed"));
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
       a.href = url;

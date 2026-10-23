@@ -22,6 +22,13 @@
       "when": 1792790000000,
       "tag": "0002_firm_day_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792790100000,
+      "tag": "0003_mail_preferences",
+      "breakpoints": true
     }
   ]
 }

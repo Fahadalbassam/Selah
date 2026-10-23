@@ -14,6 +14,7 @@ import { transitionAction } from "@/services/actions";
 import { itemAnswered } from "@/services/evidence";
 import * as F from "@/services/follow-through";
 import * as N from "@/services/notifications";
+import * as Q from "@/services/queries";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -661,6 +662,48 @@ describe("notifications", () => {
   });
 });
 
+describe("action lists, pages and counts", () => {
+  it("pages, counts and the full list agree, for every role", async () => {
+    for (let i = 0; i < Q.PAGE_SIZE + 5; i++) await action({ due: `2098-01-${String((i % 28) + 1).padStart(2, "0")}` });
+    const someoneElses = await action({ due: "2098-02-01" });
+    await owner.query(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [someoneElses, U.cmgr]);
+
+    for (const who of [U.admin, U.lead, U.cons, U.outsider, U.cadmin, U.cmgr, U.cowner]) {
+      const all = await svc(who, (tx, p) => Q.listActions(tx, p));
+      const counts = await svc(who, (tx, p) => Q.actionCounts(tx, p));
+      expect(counts.reduce((n, c) => n + c.n, 0)).toBe(all.length);
+      const paged = [];
+      for (let page = 1; page <= Math.ceil(all.length / Q.PAGE_SIZE); page++) {
+        paged.push(...(await svc(who, (tx, p) => Q.listActions(tx, p, { page }))));
+      }
+      expect(paged.map((r) => r.id)).toEqual(all.map((r) => r.id));
+      const projects = await svc(who, (tx, p) => Q.listProjects(tx, p));
+      expect(projects.reduce((n, p) => n + p.actionCount, 0)).toBe(all.length);
+    }
+    // An action owner counts only their own, never the others in the project.
+    const mine = await svc(U.cowner, (tx, p) => Q.listActions(tx, p));
+    expect(mine.every((r) => r.ownerUserId === U.cowner)).toBe(true);
+    expect(mine.map((r) => r.id)).not.toContain(someoneElses);
+    expect((await svc(U.cons, (tx, p) => Q.listActions(tx, p))).map((r) => r.id)).toContain(someoneElses);
+  });
+
+  it("the dashboard counts in the database and lists at most ten that need attention", async () => {
+    await action({ due: "2001-01-01" });
+    await action({ status: "awaiting_review", due: "2099-01-01" });
+    for (const who of [U.cons, U.cowner, U.cmgr]) {
+      const d = await svc(who, (tx, p) => Q.dashboard(tx, p));
+      const all = await svc(who, (tx, p) => Q.listActions(tx, p));
+      expect(d.total).toBe(all.length);
+      expect(d.overdue).toBe(all.filter((r) => Q.isOverdue(r)).length);
+      expect(d.awaitingReview).toBe(all.filter((r) => r.status === "awaiting_review").length);
+      const p = await svc(who, async (_tx, p) => p);
+      const waiting = p.orgKind === "firm" ? ["awaiting_review"] : ["revision_requested", "blocked"];
+      const expected = all.filter((r) => Q.isOverdue(r) || waiting.includes(r.status)).slice(0, 10);
+      expect(d.attention.map((r) => r.id)).toEqual(expected.map((r) => r.id));
+    }
+  });
+});
+
 describe("reminders and the escalation ladder", () => {
   const TODAY = "2027-03-20";
   const due = async (ids: string[]) =>
@@ -713,6 +756,54 @@ describe("reminders and the escalation ladder", () => {
     await runFollowUps(owner, TODAY);
     await Promise.all([runFollowUps(owner, TODAY), runFollowUps(owner, TODAY)]);
     expect(await notes()).toEqual([{ user_id: U.cowner, kind: "follow_up.overdue.1" }]);
+  });
+
+  // Summary mails queued today. Each test starts from an empty queue, since earlier runs mailed too.
+  const digests = async () =>
+    (
+      await owner.query(
+        `SELECT to_email, link FROM outbound_emails WHERE kind = 'follow_up.digest' AND app_firm_date(created_at) = app_firm_today() ORDER BY to_email`,
+      )
+    ).rows;
+  const clearDigests = () => owner.query(`DELETE FROM outbound_emails WHERE kind = 'follow_up.digest'`);
+
+  it("mails each recipient one summary a day, with a link and no titles", async () => {
+    const DAY = "2027-04-20";
+    await clearDigests();
+    await action({ due: "2027-04-19" });
+    const result = await runFollowUps(owner, DAY);
+    const mails = await digests();
+    expect(result.mailed).toBe(mails.length);
+    expect(mails.filter((m) => m.to_email === "cowner@example.test")).toEqual([
+      { to_email: "cowner@example.test", link: "/notifications" },
+    ]);
+
+    // A later reminder the same day adds a notification, not a second mail.
+    const another = await action({ due: "2027-04-21" });
+    const again = await runFollowUps(owner, DAY);
+    expect(again.sent).toBeGreaterThan(0);
+    expect(again.mailed).toBe(0);
+    expect((await digests()).filter((m) => m.to_email === "cowner@example.test")).toHaveLength(1);
+    expect((await owner.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [another])).rowCount).toBe(1);
+  });
+
+  it("skips people who turned the summary off, and nobody can change another's choice", async () => {
+    expect(await svc(U.cmgr, (tx, p) => N.getMailPreferences(tx, p))).toEqual({ followUpDigest: true });
+    expect(await svc(U.cmgr, (tx, p) => N.setMailPreferences(tx, p, { followUpDigest: false }))).toEqual({ followUpDigest: false });
+    await expect(
+      attempt(U.cons, `INSERT INTO mail_preferences (user_id, follow_up_digest) VALUES ($1, true)`, [U.cmgr]),
+    ).rejects.toThrow(/row-level security/);
+    expect((await attempt(U.cons, `SELECT * FROM mail_preferences`)).rows).toEqual([]);
+    expect((await attempt(U.cons, `UPDATE mail_preferences SET follow_up_digest = true`)).rowCount).toBe(0);
+
+    await clearDigests();
+    await action({ due: "2027-05-05" }); // level 2: the owner, the client's manager and the lead
+    await runFollowUps(owner, "2027-05-20");
+    const to = (await digests()).map((m) => m.to_email);
+    expect(to).toContain("cowner@example.test");
+    expect(to).toContain("lead@example.test");
+    expect(to).not.toContain("cmgr@example.test");
+    expect(to).not.toContain("former@example.test");
   });
 
   it("only the job runs it; the app role cannot read the log", async () => {
