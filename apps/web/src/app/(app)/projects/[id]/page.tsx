@@ -6,6 +6,7 @@ import { EyeOff } from "@/components/animate-ui/icons/eye-off";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { Upload } from "@/components/animate-ui/icons/upload";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -14,6 +15,7 @@ import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
 import { AskAbout } from "@/components/ask-about";
 import { EmptyState } from "@/components/empty-state";
+import { ExportButton } from "@/components/export-button";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { Translatable } from "@/components/translatable";
@@ -76,7 +78,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       handover: await getHandover(tx, principal, id),
     };
   });
-  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, format] = await Promise.all([
+  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("plan"),
     getTranslations("staffing"),
@@ -88,6 +90,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("assessment.run"),
     getTranslations("metrics"),
     getTranslations("insight"),
+    getTranslations("exports"),
+    getTranslations("planImport"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -233,19 +237,32 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
           <section className="space-y-3">
             <SectionHeader title={t("recommendations")}>
-              {plan?.can.recommendation && data.recommendations.length ? (
-                <RecommendationDialog
-                  projectId={project.id}
-                  client={project.kind === "client"}
-                  findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
-                  trigger={
-                    <Button size="sm">
-                      <Plus />
-                      {tPlan("rec.add")}
-                    </Button>
-                  }
-                />
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {data.recommendations.length || data.findings.length ? (
+                  <ExportButton endpoint={`/api/projects/${project.id}/export`} label={tExport("excel")} title={tExport("downloadExcel")} />
+                ) : null}
+                {plan?.can.finding && plan.can.recommendation && plan.can.action ? (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/projects/${project.id}/import`}>
+                      <Upload />
+                      {tImport("button")}
+                    </Link>
+                  </Button>
+                ) : null}
+                {plan?.can.recommendation && data.recommendations.length ? (
+                  <RecommendationDialog
+                    projectId={project.id}
+                    client={project.kind === "client"}
+                    findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                    trigger={
+                      <Button size="sm">
+                        <Plus />
+                        {tPlan("rec.add")}
+                      </Button>
+                    }
+                  />
+                ) : null}
+              </div>
             </SectionHeader>
             {data.recommendations.length === 0 ? (
               <EmptyState
