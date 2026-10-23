@@ -15,6 +15,9 @@ export const TRANSLATABLE = {
 } as const;
 
 export type TranslatableType = keyof typeof TRANSLATABLE;
+
+/** The longest translation kept; the database checks the same. */
+export const TRANSLATION_MAX_CHARS = 40_000;
 export const TRANSLATABLE_TYPES = Object.keys(TRANSLATABLE) as TranslatableType[];
 
 export function isTranslatable(entityType: string, field: string): boolean {

@@ -5,6 +5,9 @@ export const RECEIVED_VIA = ["meeting", "email", "phone", "document"] as const;
 
 export type ReceivedVia = (typeof RECEIVED_VIA)[number];
 
+/** A client's short names, for masking: how many, and how long each (the database checks the same). */
+export const SHORT_NAMES = { count: 6, min: 2, max: 100 } as const;
+
 /** How the client told the firm, for work recorded on its behalf. */
 export interface Received {
   receivedVia: ReceivedVia;

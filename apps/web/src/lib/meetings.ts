@@ -34,6 +34,10 @@ export function localParts(d: Date): { date: string; time: string } {
 
 export const DURATIONS = [30, 45, 60, 90, 120] as const;
 
+/** The language a meeting (or its transcript) is held in; the database checks the same list. */
+export const SPOKEN_LANGS = ["ar", "en", "mixed"] as const;
+export type SpokenLang = (typeof SPOKEN_LANGS)[number];
+
 /** A data rule's words (see callApi) as one of the meeting screens' messages. */
 export function meetingError(message: string | undefined): string | null {
   if (!message) return null;

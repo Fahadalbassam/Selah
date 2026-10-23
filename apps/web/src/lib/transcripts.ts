@@ -4,7 +4,9 @@
 //   vtt  - WebVTT captions (Meet, Teams and Zoom recordings)
 //   srt  - SubRip captions
 
-export type TranscriptFormat = "text" | "vtt" | "srt";
+// The database checks the same formats and length (tests/db/rule-parity.test.ts).
+export const TRANSCRIPT_FORMATS = ["text", "vtt", "srt"] as const;
+export type TranscriptFormat = (typeof TRANSCRIPT_FORMATS)[number];
 export const TRANSCRIPT_MAX_CHARS = 500_000;
 
 const TIMING = /^\s*(\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{3}\s*-->\s*(\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{3}/;
