@@ -9,6 +9,7 @@
 import nodemailer from "nodemailer";
 import { Client, Pool } from "pg";
 import { runMail, type Deliver } from "../src/jobs/mail";
+import { smtpTransport, toMessage } from "../src/lib/smtp";
 
 const url = process.env.DATABASE_OWNER_URL;
 const appUrl = process.env.APP_URL;
@@ -19,18 +20,9 @@ const from = process.env.MAIL_FROM;
 if (process.env.NODE_ENV === "production" && (!smtpUrl || !from))
   throw new Error("SMTP_URL and MAIL_FROM are required in production");
 
-const transport = smtpUrl ? nodemailer.createTransport(smtpUrl) : nodemailer.createTransport({ jsonTransport: true });
+const transport = smtpUrl ? smtpTransport(smtpUrl) : nodemailer.createTransport({ jsonTransport: true });
 const deliver: Deliver = async (mail) => {
-  const info = await transport.sendMail({
-    from: from ?? "Selah <no-reply@localhost>",
-    to: mail.to,
-    subject: mail.subject,
-    text: mail.text,
-    html: mail.html,
-    ...(mail.icalEvent
-      ? { icalEvent: { method: mail.icalEvent.method, content: mail.icalEvent.content, filename: "invite.ics" } }
-      : {}),
-  });
+  const info = await transport.sendMail(toMessage(mail, from ?? "Selah <no-reply@localhost>"));
   if (!smtpUrl) console.log(`[not sent, no SMTP_URL] ${mail.to}: ${mail.subject}\n${mail.text}`);
   else if (info.rejected?.length) throw new Error(`rejected: ${info.rejected.join(", ")}`);
 };
