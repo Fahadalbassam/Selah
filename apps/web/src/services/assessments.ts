@@ -25,7 +25,7 @@ import { snapshotReport } from "./follow-through";
 import { loadProject } from "./staffing";
 import { STARTER_TEMPLATE, UNVERIFIED_CITATIONS } from "./assessment-starter";
 
-// Assessment templates and assessments (drizzle/0029_assessments_rules.sql,
+// Assessment templates and assessments (baseline: Assessments,
 // docs/assessments.md). The database holds the rules: who authors, that a
 // published version never changes, the scoring, and that a finding comes
 // from a gap of a final assessment. Gaps become findings in the existing
@@ -837,7 +837,7 @@ export async function getAssessment(tx: Tx, principal: Principal, assessmentId: 
   const resultOf = new Map(results.map((r) => [r.answer_id, r]));
   const firm = principal.orgKind === "firm";
   // Clients see the questions, answers, comments and evidence, but no points, percentages or gaps.
-  // The database refuses them the scores (drizzle/0043_assessment_scores_firm_only.sql).
+  // The database refuses them the scores (baseline: Assessments).
   const score = firm ? await scores(tx, assessmentId) : null;
   const hidden = { earned: null, possible: null, pct: null, gaps: null, confirmed: null };
   const toAnswer = (sectionId?: string) =>

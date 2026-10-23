@@ -81,7 +81,7 @@ function createAuth() {
     // Two-factor sign-in (TOTP). Firm admins, consultants and client admins
     // must use it: src/server/http.ts and page.ts refuse them everything but
     // /security until it is on, and they can't switch it off. The database
-    // refuses that too (drizzle/0032_two_factor_rules.sql); this hook gives
+    // refuses that too (baseline: Two-factor); this hook gives
     // a clear answer instead of an error.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {

@@ -1,4 +1,4 @@
-// Engagement modes and departments (migrations 0024-0025) against a real
+// Engagement modes and departments (baseline: Engagement) against a real
 // Postgres: which accounts each mode allows, recording on the client's
 // behalf, client-private files in a restricted engagement, departments,
 // and mode changes that keep the data.
@@ -388,7 +388,7 @@ describe("departments", () => {
     const doc = await upload(U.lead, ACME, { dept: DEPT.hr });
     expect(await sees(U.hr, "documents", doc)).toBe(true);
     expect(await sees(U.fin, "documents", doc)).toBe(false);
-    // Passages are read only while their file is open to the assistant (drizzle/0041).
+    // Passages are read only while their file is open to the assistant (baseline: AI sources).
     await owner.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [doc]);
     await owner.query(
       `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)

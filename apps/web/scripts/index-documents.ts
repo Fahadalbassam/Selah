@@ -53,7 +53,7 @@ for (const d of rows) {
   if (n) done.searchable++;
   else done.notSearchable++;
 }
-// Recommendations and actions, new or changed since (drizzle/0052_record_passages.sql).
+// Recommendations and actions, new or changed since (baseline: Record passages).
 const records = await indexRecords(pool, embed);
 await pool.end();
 console.log(

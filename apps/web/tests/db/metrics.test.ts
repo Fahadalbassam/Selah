@@ -1,4 +1,4 @@
-// Metrics (migrations 0012-0013) against a real Postgres: the agreed
+// Metrics (baseline: Metrics) against a real Postgres: the agreed
 // baseline date, implementation metrics under row-level security, the team
 // view without rankings, and the optional client KPIs.
 //

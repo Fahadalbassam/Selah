@@ -38,7 +38,7 @@ test("consultant asks in Arabic and gets a sourced answer, then switches to Engl
 });
 
 // Bug #21, built: a plain question about the plan finds the recommendation
-// itself (drizzle/0052), and the answer cites it with what it needs.
+// itself (baseline: Record passages), and the answer cites it with what it needs.
 test("a question about a recommendation is answered from the recommendation (English)", async ({ browser }) => {
   const rec = one(`select id from recommendations where title = 'اعتماد ميثاق مجلس الإدارة'`);
   // The jobs service indexes records every two minutes.

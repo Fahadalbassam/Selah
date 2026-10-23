@@ -7,7 +7,7 @@ import { env } from "@/env";
 import { EMPLOYEE_BANDS, HEARD_FROM, OWNERSHIP_TYPES, PRIVACY_NOTICE_VERSION, URGENCIES } from "@/lib/intake";
 
 // The public side of intake. The database does the real checks in
-// submit_inquiry() (drizzle/0017_intake_rules.sql); this module only shapes
+// submit_inquiry() (baseline: Intake); this module only shapes
 // the request and keeps raw addresses out of the database.
 
 export interface InquiryInput {

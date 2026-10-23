@@ -1,6 +1,6 @@
 # Engagement modes and departments
 
-How much a client takes part in Selah, and the optional departments that narrow who at the client sees what. Migrations 0024 (tables) and 0025 (rules). Every rule below is enforced in Postgres; `src/services/engagement.ts` gives clear errors. These modes are the team's proposal from earlier discussions, not confirmed requirements of any one firm, and all three run in the same platform.
+How much a client takes part in Selah, and the optional departments that narrow who at the client sees what. Tables in `src/db/schema`, rules in the Engagement section of `drizzle/0000_baseline.sql`. Every rule below is enforced in Postgres; `src/services/engagement.ts` gives clear errors. These modes are the team's proposal from earlier discussions, not confirmed requirements of any one firm, and all three run in the same platform.
 
 ## The three modes
 
@@ -48,7 +48,7 @@ Optional and off by default (`organizations.departments_enabled`). Nobody is tur
 
 ## Minimal records (consultant-managed only)
 
-Some family offices want the firm to keep as little as possible. `PATCH /api/orgs/:id/engagement` with `minimalRecords: true` and a `displayAlias` (firm admin only; migrations 0026–0027):
+Some family offices want the firm to keep as little as possible. `PATCH /api/orgs/:id/engagement` with `minimalRecords: true` and a `displayAlias` (firm admin only; baseline: Insight):
 
 - The alias replaces the client's name in Selah. Switching it on also clears the inquiry the client came from: the organisation's name and CR number, the requester's contact details and message, the discovery session's attendees and notes, and the notes in the inquiry's history. The inquiry keeps its link to the client and its statistics (sector, services, size, ownership, dates). Audit entries hold ids, not names.
 - It is switched on before anything is filed: the client must have no contacts or files yet.

@@ -1,6 +1,6 @@
 # Governance assessments
 
-Reusable assessment templates, assessments of client projects, and the path from a gap to verified work. Migrations 0028 (tables) and 0029 (rules). Every rule below is enforced in Postgres; `src/services/assessments.ts` gives clear errors. The scope is the controlled MVP agreed on 2026-10-21 (Option B, template builder): no branching logic beyond one simple condition, no certification, no weighted engine beyond a visible 1–3 weight, and no drag-and-drop designer.
+Reusable assessment templates, assessments of client projects, and the path from a gap to verified work. Tables in `src/db/schema`, rules in the Assessments section of `drizzle/0000_baseline.sql`. Every rule below is enforced in Postgres; `src/services/assessments.ts` gives clear errors. The scope is the controlled MVP agreed on 2026-10-21 (Option B, template builder): no branching logic beyond one simple condition, no certification, no weighted engine beyond a visible 1–3 weight, and no drag-and-drop designer.
 
 **What Selah does not claim.** An assessment measures a client against the template's criteria. It is not a certification of legal compliance, and Selah never says "compliant" or "non-compliant". A gap is "a gap against good practice", "against the firm's method" or, only where the criterion binds this client, "against a legal requirement".
 

@@ -14,7 +14,7 @@ import { assertAllowed, authorize, type Principal, type Resource } from "@/authz
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
-// What each consultant can lead (drizzle/0019_expertise_rules.sql). The
+// What each consultant can lead (baseline: Expertise). The
 // admin records services and sectors; a consultant keeps their own
 // languages and availability. Used only to suggest a lead for an inquiry.
 

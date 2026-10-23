@@ -6,7 +6,7 @@ import { assertAllowed, authorize, type Principal } from "@/authz";
 import { audit } from "./audit";
 import { loadProject } from "./staffing";
 
-// Handover (drizzle/0015_handover_rules.sql): the day the report was
+// Handover (baseline: Handover): the day the report was
 // delivered and the client's sponsor. Setting the date creates the firm's
 // check-ins (firm_settings.checkin_days); moving it moves the open ones.
 // The firm admin sets both; the database checks the sponsor. The firm admin

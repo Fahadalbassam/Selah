@@ -1,6 +1,6 @@
 # Accounts
 
-Who belongs to an organisation, and how people are invited, re-addressed, switched off, reviewed and erased. Migrations 0020 (tables) and 0021 (rules). Every rule below is enforced in Postgres; the services in `src/services/accounts.ts` and `src/services/onboarding.ts` give clear errors and keep the audit trail.
+Who belongs to an organisation, and how people are invited, re-addressed, switched off, reviewed and erased. Tables in `src/db/schema`, rules in the Accounts section of `drizzle/0000_baseline.sql`. Every rule below is enforced in Postgres; the services in `src/services/accounts.ts` and `src/services/onboarding.ts` give clear errors and keep the audit trail.
 
 People sign in with their own address. Selah never issues mailboxes. Each person has one membership (`org_memberships.user_id` is unique), and addresses are unique whatever their case (`user_email_lower_uq`).
 
@@ -76,7 +76,7 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 
 `outbound_emails` is a queue of links only, never content: the reader signs in to see anything. Only database functions write to it, so no app bug can send mail to an arbitrary address. The kinds are invitation, address-change confirmation and notice, access review due, meeting invite and cancellation, password reset and its notice, two-factor reset, new inquiry, and the action events below.
 
-**Action events** (migration 0051): an action's owner gets a mail when the action is released or handed to them, sent back for revision, verified, or given a new item of evidence to send. The mail follows the in-app notification: a trigger on `notifications` queues it only when the notice matches the action as it stands (the person is its owner and it is in that state), only for someone still active, and at most once an hour per person, action and event (`notifications.mailed_at`). It carries a line and a link to `/actions/:id`, never the action's title. Owners named only by name (consultant-managed clients) have no address and get nothing; their reminders go to the lead consultant.
+**Action events** (baseline: Action mail): an action's owner gets a mail when the action is released or handed to them, sent back for revision, verified, or given a new item of evidence to send. The mail follows the in-app notification: a trigger on `notifications` queues it only when the notice matches the action as it stands (the person is its owner and it is in that state), only for someone still active, and at most once an hour per person, action and event (`notifications.mailed_at`). It carries a line and a link to `/actions/:id`, never the action's title. Owners named only by name (consultant-managed clients) have no address and get nothing; their reminders go to the lead consultant.
 
 **The sender** (`npm run job:mail`, as the schema owner; `src/jobs/mail.ts`) sends each mail in Arabic, then English, because the queue doesn't know the reader's language.
 

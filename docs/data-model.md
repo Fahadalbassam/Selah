@@ -2,7 +2,7 @@
 
 What happens after the consultants hand over their report. The goal: the firm knows, without calling the client, whether each recommendation was carried out, and the client is reminded and escalated before work goes stale.
 
-Tables live in `apps/web/src/db/schema/app.ts`. The rules are in Postgres (`drizzle/0011_follow_through_rules.sql`) and tested in `tests/db/follow-through.test.ts`; the services repeat them for clear errors (`src/services/plan.ts`, `src/services/follow-through.ts`).
+Tables live in `apps/web/src/db/schema/app.ts`. The rules are in Postgres (the Follow-through section of `drizzle/0000_baseline.sql`) and tested in `tests/db/follow-through.test.ts`; the services repeat them for clear errors (`src/services/plan.ts`, `src/services/follow-through.ts`).
 
 ## The plan
 
@@ -113,7 +113,7 @@ It also returns open and overdue counts. A periodic report (`POST /api/projects/
 
 ## Handover and deviations
 
-Rules: `drizzle/0015_handover_rules.sql`. Tests: `tests/db/handover.test.ts`.
+Rules: the Handover section of `drizzle/0000_baseline.sql`. Tests: `tests/db/handover.test.ts`.
 
 - **Client sponsor** (`projects.client_sponsor_user_id`): an active admin or manager of the project's client. They are added at escalation level 3.
 - **Check-ins.** Setting `projects.handover_on` creates follow-ups at 30, 60 and 90 days (`firm_settings.checkin_days`). They are due at 09:00 Riyadh time, assigned to the client's lead consultant, and firm-private. Moving the handover date moves the check-ins still open.

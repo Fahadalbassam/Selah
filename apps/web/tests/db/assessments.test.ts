@@ -1,4 +1,4 @@
-// Assessment templates and assessments (migrations 0028-0029) against a real
+// Assessment templates and assessments (baseline: Assessments) against a real
 // Postgres, through the services and, where the database is the last line,
 // with direct SQL: authors, stable published versions, tenant isolation,
 // the basis per legal form, scoring and conditions, evidence, gaps becoming

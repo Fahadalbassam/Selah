@@ -1,4 +1,4 @@
-// Research section 11 (migrations 0026-0027) against a real Postgres:
+// Research section 11 (baseline: Insight) against a real Postgres:
 // verified counts by the source of their evidence, minimal records for
 // consultant-managed clients, the trace, and "since your last visit".
 //

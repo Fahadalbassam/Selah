@@ -4,7 +4,7 @@ import type { Tx } from "@/db/client";
 import { assertAllowed, type Principal } from "@/authz";
 import { loadProject } from "./staffing";
 
-// Read-only views over a project (drizzle/0027_insight_rules.sql). Both run
+// Read-only views over a project (baseline: Insight). Both run
 // with the caller's rights, so what they cannot see is simply not there.
 
 export interface TraceRow {

@@ -11,7 +11,7 @@ import { audit } from "./audit";
 import { projectMasker } from "./masking";
 
 const TOP_K = 8;
-// Recommendations and actions found by the search (drizzle/0052), searched
+// Recommendations and actions found by the search (baseline: Record passages), searched
 // apart from files so they never take a file passage's place.
 const RECORD_HITS = 3;
 // Each list of the hybrid search; the merge keeps TOP_K.
@@ -227,14 +227,14 @@ function scopeFilter(scope: RetrievalScope) {
     eq(aiChunks.orgId, scope.orgId),
     inArray(aiChunks.visibility, [...scope.labels]),
     or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
-    // The department rule (drizzle/0025), as in row-level security.
+    // The department rule (baseline: Engagement), as in row-level security.
     sql`app_dept_ok(${aiChunks.departmentId}, ${aiChunks.orgId})`,
     // Document chunks must still be indexable, live and the current version.
     or(
       ne(aiChunks.sourceType, "document"),
       and(eq(documents.aiIndexable, true), ne(documents.state, "archived"), eq(documents.version, aiChunks.sourceVersion)),
     ),
-    // A record's passage only while the person can read the record (drizzle/0052), as in row-level security.
+    // A record's passage only while the person can read the record (baseline: Record passages), as in row-level security.
     sql`(${aiChunks.sourceType} NOT IN ('recommendation', 'action')
       OR (${aiChunks.sourceType} = 'recommendation' AND EXISTS (SELECT 1 FROM recommendations r WHERE r.id = ${aiChunks.sourceId}))
       OR (${aiChunks.sourceType} = 'action' AND EXISTS (SELECT 1 FROM actions a WHERE a.id = ${aiChunks.sourceId})))`,

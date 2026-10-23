@@ -24,7 +24,7 @@ import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { loadProject } from "./staffing";
 
-// Meetings (drizzle/0023_meetings_rules.sql). Selah records the meeting and
+// Meetings (baseline: Meetings). Selah records the meeting and
 // links to the call; invites are .ics files. The database checks call links,
 // keeps the calendar UID and sequence, decides who may attend, and keeps
 // firm-private records from clients. These checks give clear errors.

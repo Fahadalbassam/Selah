@@ -8,7 +8,7 @@ import { BadRequestError, NotFoundError, UnavailableError } from "@/server/error
 import { translateText } from "./ai-client";
 import { projectMasker } from "./masking";
 
-// On-demand translations (drizzle/0034_translations_rules.sql). The database
+// On-demand translations (baseline: Translations). The database
 // lets a person read or make a translation only while they can read the
 // original and it is unchanged; this service finds the original, returns the
 // kept translation if there is one, or asks the model once and keeps it.

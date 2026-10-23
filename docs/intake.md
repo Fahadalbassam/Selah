@@ -1,6 +1,6 @@
 # Intake
 
-How a prospective client reaches the firm. Migrations 0016 (tables) and 0017 (rules).
+How a prospective client reaches the firm. Tables in `src/db/schema`, rules in the Intake section of `drizzle/0000_baseline.sql`.
 
 ## The public form
 

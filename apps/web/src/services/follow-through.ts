@@ -25,7 +25,7 @@ import { loadProject } from "./staffing";
 // What happens after the report is handed over: the evidence list for each
 // action, the client's signed risk acceptances, the firm's own notes,
 // deadline change requests, and the implementation progress. The database holds
-// the same rules (drizzle/0011_follow_through_rules.sql); these checks give
+// the same rules (baseline: Follow-through); these checks give
 // clear errors and keep the audit trail.
 
 const isoDate = (d: Date | string) => (typeof d === "string" ? d : d.toISOString().slice(0, 10));
@@ -179,7 +179,7 @@ export async function listRiskAcceptances(tx: Tx, principal: Principal, actionId
 export async function actionClosure(tx: Tx, principal: Principal, actionId: string) {
   const { action, resource } = await actionFor(tx, principal, actionId, "risk_acceptance");
   const acceptances = await listRiskAcceptances(tx, principal, actionId);
-  // Only a signature since the last reopen counts (drizzle/0011).
+  // Only a signature since the last reopen counts (baseline: Follow-through).
   const reopened = action.reopenedAt;
   const signed = acceptances.some((a) => !reopened || a.at >= reopened);
   const [closedBy] = action.closedBy ? await tx.select({ name: user.name }).from(user).where(eq(user.id, action.closedBy)) : [];

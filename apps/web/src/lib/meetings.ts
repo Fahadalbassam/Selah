@@ -1,5 +1,5 @@
 // Shared by the meeting screens. The database is the real check
-// (drizzle/0023_meetings_rules.sql); these give an answer before saving.
+// (baseline: Meetings); these give an answer before saving.
 
 /** Call links Selah accepts: https on Google Meet, Teams or Zoom. */
 export function callProvider(url: string): "google_meet" | "teams" | "zoom" | null {
