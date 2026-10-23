@@ -2,11 +2,13 @@ import { ArrowLeft, Share2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
+import { ExportButton } from "@/components/export-button";
 import { ApiButton } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Meter, StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { env } from "@/env";
 import { withPrincipal } from "@/server/page";
 import { getReport } from "@/services/follow-through";
 import { getProject } from "@/services/queries";
@@ -21,7 +23,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     const { project } = await getProject(tx, principal, r.report.projectId);
     return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm" };
   });
-  const [t, format] = await Promise.all([getTranslations("metrics"), getFormatter()]);
+  const [t, tExport, format] = await Promise.all([getTranslations("metrics"), getTranslations("exports"), getFormatter()]);
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
   const m = report.metrics;
 
@@ -49,6 +51,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           ) : null
         }
       >
+        {env().PDF_SERVICE_URL ? (
+          <ExportButton endpoint={`/api/reports/${report.id}/pdf`} label={tExport("pdf")} title={tExport("downloadPdf")} />
+        ) : null}
         {can.share ? (
           <ApiButton
             endpoint={`/api/reports/${report.id}/share`}

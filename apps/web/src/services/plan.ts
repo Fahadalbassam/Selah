@@ -47,7 +47,7 @@ export async function planOptions(tx: Tx, principal: Principal, projectId: strin
 
   // The same rule as assertOwner: on the project team and an active member of the project's organization.
   const owners = await tx
-    .select({ userId: user.id, name: user.name })
+    .select({ userId: user.id, name: user.name, email: user.email })
     .from(projectMembers)
     .innerJoin(user, eq(user.id, projectMembers.userId))
     .innerJoin(
@@ -188,7 +188,14 @@ export interface ActionInput {
   release: boolean;
 }
 
-export async function createAction(tx: Tx, principal: Principal, recommendationId: string, input: ActionInput) {
+export async function createAction(
+  tx: Tx,
+  principal: Principal,
+  recommendationId: string,
+  input: ActionInput,
+  /** Where it came from, for the activity record (e.g. an import). */
+  origin?: { import: true },
+) {
   const [rec] = await tx.select().from(recommendations).where(eq(recommendations.id, recommendationId)).limit(1);
   if (!rec) throw new NotFoundError("recommendation");
   const { resource } = await loadProject(tx, principal, rec.projectId);
@@ -237,6 +244,7 @@ export async function createAction(tx: Tx, principal: Principal, recommendationI
     entityId: id,
     event: "created",
     toState: input.release ? "assigned" : "draft",
+    meta: origin,
   });
   // Released straight to someone: tell them (and mail them, baseline: Action mail).
   if (input.release && input.ownerUserId && input.ownerUserId !== principal.userId) {

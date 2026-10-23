@@ -1,6 +1,6 @@
 # End-to-end tests
 
-Playwright against the whole stack in Docker: the web app, Postgres with pgvector, RustFS, clamd, the mail job with Mailpit as the SMTP server, the scheduled jobs, and the AI service (local bge-m3, the configured chat model).
+Playwright against the whole stack in Docker: the web app, Postgres with pgvector, RustFS, clamd, the PDF renderer (Gotenberg), the mail job with Mailpit as the SMTP server, the scheduled jobs, and the AI service (local bge-m3, the configured chat model).
 
 ```sh
 # From the repo root: the stack, then sample data.
@@ -27,6 +27,7 @@ The first run signs in every seeded user once, sets up two-factor sign-in for th
 | `reports.e2e.ts` | A frozen report, shared with the client, hidden from other clients |
 | `assistant.e2e.ts` | A sourced Arabic answer from the real model, the language switch, who can ask |
 | `files.e2e.ts` | clamd, file type checks, signed links, the private bucket, reuse as evidence |
+| `import-export.e2e.ts` | Excel import (title row, merged cells, Hijri date, a row fixed in review, release), the same file again adding nothing, a Word outline as firm-only, Excel exports per role, a report as Arabic PDF, and the denials |
 | `api-probes.e2e.ts` | Cross-tenant and role probes through the HTTP API |
 | `crawl.e2e.ts` | Every reachable screen per role in Arabic (light) and English (dark): errors, direction, sideways scroll at 1440 and 1024 px, axe WCAG AA |
 
