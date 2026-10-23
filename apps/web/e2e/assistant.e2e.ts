@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ids } from "./support/db";
+import { ids, one } from "./support/db";
 import { open } from "./support/ui";
 
 // The assistant through the browser, with the real model (gpt-oss on
@@ -35,6 +35,31 @@ test("consultant asks in Arabic and gets a sourced answer, then switches to Engl
   // Only the latest answer is translated automatically; the question stays as asked.
   await expect.poll(async () => /500/.test(await page.locator("main main").innerText()) && /[A-Za-z]{4,} [A-Za-z]{4,} [A-Za-z]{3,}/.test(await page.locator("main main").innerText()), { timeout: 60_000 }).toBe(true);
   await page.screenshot({ path: "e2e-results/shots/assistant-en-switched.png", fullPage: true });
+});
+
+// Bug #21, built: a plain question about the plan finds the recommendation
+// itself (drizzle/0052), and the answer cites it with what it needs.
+test("a question about a recommendation is answered from the recommendation (English)", async ({ browser }) => {
+  const rec = one(`select id from recommendations where title = 'اعتماد ميثاق مجلس الإدارة'`);
+  // The jobs service indexes records every two minutes.
+  await expect
+    .poll(() => one(`select count(*) from ai_chunks where source_type = 'recommendation' and source_id = '${rec}'`), { timeout: 150_000 })
+    .toBe("1");
+  const page = await open(browser, "khalid", "en");
+  await page.goto("/assistant");
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: /حوكمة مجلس الإدارة/ }).click();
+  const box = page.getByRole("textbox").last();
+  await box.fill("What does approving the board charter need?");
+  await box.press("Enter");
+  const res = await page.waitForResponse((r) => r.url().includes("/api/assistant/query") && r.request().method() === "POST", { timeout: 90_000 });
+  const body = (await res.json()) as { grounded: boolean; answer: string; citations: { sourceType: string; sourceId: string }[] };
+  console.log("answer:", body.answer);
+  expect(body.grounded).toBe(true);
+  expect(body.citations).toContainEqual(expect.objectContaining({ sourceType: "recommendation", sourceId: rec }));
+  expect(body.answer).toMatch(/minutes|PDF|محضر/i);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: "e2e-results/shots/assistant-en-recommendation.png", fullPage: true });
 });
 
 test("a consultant who isn't staffed can't pick the client's project; client roles get no assistant", async ({ browser }) => {
