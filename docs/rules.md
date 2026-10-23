@@ -41,7 +41,7 @@ Found by the second review (2026-10-23). Each is the same meaning written in SQL
 
 | Meaning | TypeScript | Database |
 |---|---|---|
-| The firm's "today" is the Riyadh day | `firmToday()` in `src/lib/dates.ts` (every service and job) | `(now() AT TIME ZONE 'Asia/Riyadh')::date`, written out in each view and function that needs it. Never `current_date`: the database's day is UTC (0001 fixed the last trigger that used it) |
+| The firm's "today" is the Riyadh day | `firmToday()` in `src/lib/dates.ts` (every service and job) | `(now() AT TIME ZONE 'Asia/Riyadh')::date`, written out in each view and function that needs it. Never the database session's current_date: the database's day is UTC (0001 fixed the last trigger that used it) |
 | An open action is assigned, in progress, blocked, awaiting review or sent back | `OPEN_STATUSES` in `src/authz/workflow.ts` (`isOverdue()`, the assistant's status answer) | `status NOT IN ('draft', 'verified_complete', 'closed')` in the deviation, reminder, mail and metrics functions |
 
 ## Rules by area
