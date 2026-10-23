@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LEGAL_FORMS } from "@/lib/assessments";
+import { isUuid } from "@/lib/ids";
+import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listContacts } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
@@ -20,11 +22,9 @@ import { intakeOptions } from "@/services/intake";
 import { getClientTeam } from "@/services/staffing";
 import { EngagementCard } from "./engagement-card";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
     const team = await getClientTeam(tx, principal, id);
@@ -63,7 +63,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   ];
   const serviceName = (code: string) => {
     const x = data.services.find((o) => o.code === code);
-    return x ? (ar ? x.nameAr : x.nameEn) : code;
+    return x ? localLabel(x, ar) : code;
   };
 
   return (
@@ -72,7 +72,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
-      <PageHeader title={(ar ? client.nameAr : null) ?? client.name} description={ar ? client.name : (client.nameAr ?? undefined)}>
+      <PageHeader title={localName(client, ar)} description={ar ? client.name : (client.nameAr ?? undefined)}>
         {can.watch ? (
           <ApiButton
             endpoint={`/api/clients/${client.id}/watch`}

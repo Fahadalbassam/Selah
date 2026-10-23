@@ -10,9 +10,34 @@ import { Pool } from "pg";
 import { env } from "@/env";
 import { accountKey, createAttemptLimiter } from "@/auth/attempts";
 import { account, session, twoFactor as twoFactorTable, user, verification } from "@/db/schema/auth";
+import { auditDetached } from "@/services/audit";
 
 // Ten sign-ins per account per 15 minutes, from any address (src/auth/attempts.ts).
-const signInsPerAccount = createAttemptLimiter({ max: 10, windowSeconds: 15 * 60 });
+// Anyone who knows an address can use this to lock the account for the rest
+// of the window (the price of a cap that can't be dodged), so each lockout is
+// recorded in the audit log under the account, never the address.
+const signInsPerAccount = createAttemptLimiter({ max: 10, windowSeconds: 15 * 60, onLock: (email) => void recordLockout(email) });
+
+// Better Auth's own pool (set in createAuth()), the only role that may read accounts by address.
+let accountsDb: ReturnType<typeof drizzle> | undefined;
+
+async function recordLockout(email: string) {
+  if (!accountsDb) return;
+  try {
+    const { rows } = await accountsDb.execute<{ id: string }>(sql`select id from "user" where lower(email) = ${email}`);
+    await auditDetached({
+      actorId: null,
+      action: "auth.sign_in.locked",
+      resourceType: "user",
+      resourceId: rows[0]?.id,
+      outcome: "deny",
+      reason: "too many sign-in attempts",
+      meta: { knownAccount: !!rows[0] },
+    });
+  } catch {
+    // Recording must never break signing in.
+  }
+}
 
 function createAuth() {
   const e = env();
@@ -20,6 +45,7 @@ function createAuth() {
   // Separate pool and database role: Better Auth can reach the auth tables
   // only, and the app role can never read password hashes or sessions.
   const authDb = drizzle(new Pool({ connectionString: e.DATABASE_AUTH_URL, max: 5 }));
+  accountsDb = authDb;
 
   return betterAuth({
     appName: "Selah",

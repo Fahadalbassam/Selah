@@ -24,4 +24,16 @@ describe("sign-in attempts per account", () => {
     expect(accountKey("")).toBeNull();
     expect(accountKey(undefined)).toBeNull();
   });
+
+  it("reports a lockout once per window, so it can be recorded", () => {
+    const locked: string[] = [];
+    const limit = createAttemptLimiter({ max: 1, windowSeconds: 60, onLock: (k) => locked.push(k) });
+    limit.take("a@x", 0);
+    limit.take("a@x", 1);
+    limit.take("a@x", 2);
+    expect(locked).toEqual(["a@x"]);
+    limit.take("a@x", 60_000); // a new window
+    limit.take("a@x", 60_001);
+    expect(locked).toEqual(["a@x", "a@x"]);
+  });
 });

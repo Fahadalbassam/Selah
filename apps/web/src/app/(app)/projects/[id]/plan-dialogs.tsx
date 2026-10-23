@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 // it out. The server checks every rule; these dialogs only collect the input
 // and turn its refusals into messages (messages/*.json "plan.errors").
 
+import { localLabel } from "@/lib/names";
 const NONE = "none";
 
 /** A refusal from the plan routes as a "plan.errors" key, or null for the common messages. */
@@ -370,7 +371,7 @@ export function ActionDialog(props: { recommendationId: string; recommendationTi
                   <SelectItem value={NONE}>{t("noDepartment")}</SelectItem>
                   {departments.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
-                      {(ar ? d.nameAr : d.nameEn) ?? d.nameAr}
+                      {localLabel(d, ar)}
                     </SelectItem>
                   ))}
                 </SelectContent>

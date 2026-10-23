@@ -11,21 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FIRM_TIME_ZONE } from "@/lib/dates";
+import { isUuid } from "@/lib/ids";
 import { SELF_CHECKS } from "@/lib/intake";
+import { localLabel } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getInquiry, suggestLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
 import { listClients, listTeam } from "@/services/queries";
 import { BookDiscovery, ConvertDialog } from "./inquiry-panels";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLOSED = ["lost", "declined", "spam", "withdrawn"] as const;
 // The self-check keys as the database stores them.
 const snake = (k: string) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
 export default async function InquiryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
     const detail = await getInquiry(tx, principal, id);
@@ -45,7 +46,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
   const { inquiry: q, can } = data;
   const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
     const x = list.find((o) => o.code === code);
-    return x ? (ar ? x.nameAr : x.nameEn) : code;
+    return x ? localLabel(x, ar) : code;
   };
   const when = (d: Date | string) =>
     format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short", timeZone: FIRM_TIME_ZONE });

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { localLabel } from "@/lib/names";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { listInquiries } from "@/services/inquiries";
@@ -27,7 +28,7 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
   const ar = (await getLocale()) === "ar";
   const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
     const x = list.find((o) => o.code === code);
-    return x ? (ar ? x.nameAr : x.nameEn) : code;
+    return x ? localLabel(x, ar) : code;
   };
   const rows = data.rows.filter((r) => inView(r.status, view));
 

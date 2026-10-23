@@ -16,6 +16,8 @@ import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { isUuid } from "@/lib/ids";
+import { localLabel } from "@/lib/names";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { departmentChoices } from "@/services/engagement";
@@ -33,11 +35,9 @@ function fileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const { data, follow, closing, depts, firmView, notes } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
@@ -227,7 +227,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                       data.can.fileDepartment && depts!.enabled ? (
                         <DepartmentPicker key="dp" actionId={action.id} value={action.departmentId} departments={depts!.departments} />
                       ) : dept ? (
-                        (ar ? dept.nameAr : (dept.nameEn ?? dept.nameAr))
+                        localLabel(dept, ar)
                       ) : (
                         tEng("none")
                       ),

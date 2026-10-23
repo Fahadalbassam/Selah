@@ -8,6 +8,7 @@ import { callApi } from "@/components/form-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { engagementError } from "@/lib/engagement";
 
+import { localLabel } from "@/lib/names";
 const NONE = "none";
 
 /**
@@ -49,7 +50,7 @@ export function DepartmentPicker(props: {
         <SelectItem value={NONE}>{t("departments.none")}</SelectItem>
         {options.map((d) => (
           <SelectItem key={d.id} value={d.id} disabled={!d.active}>
-            {ar ? d.nameAr : (d.nameEn ?? d.nameAr)}
+            {localLabel(d, ar)}
           </SelectItem>
         ))}
       </SelectContent>

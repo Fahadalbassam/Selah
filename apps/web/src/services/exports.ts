@@ -6,6 +6,7 @@ import { actions, departments, evidenceRequests, organizations } from "@/db/sche
 import type { Principal } from "@/authz";
 import type { Locale } from "@/i18n/config";
 import { firmToday } from "@/lib/dates";
+import { localName } from "@/lib/names";
 import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderReportHtml } from "@/lib/report-html";
@@ -213,7 +214,7 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
   const today = firmToday();
   const t = await getTranslations({ locale });
   const ar = locale === "ar";
-  const name = (n: { name: string; nameAr: string | null } | undefined) => (n ? ((ar ? n.nameAr : null) ?? n.name) : "");
+  const name = (n: { name: string; nameAr: string | null } | undefined) => (n ? (localName(n, ar)) : "");
 
   const html = renderReportHtml({
     locale,

@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { engagementError } from "@/lib/engagement";
 
+import { localLabel } from "@/lib/names";
 export interface DepartmentsData {
   id: string;
   departmentsEnabled: boolean;
@@ -60,7 +61,7 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
     router.refresh();
   }
 
-  const name = (d: DepartmentsData["departments"][number]) => (ar ? d.nameAr : (d.nameEn ?? d.nameAr));
+  const name = (d: DepartmentsData["departments"][number]) => localLabel(d, ar);
 
   return (
     <div className="space-y-6">
