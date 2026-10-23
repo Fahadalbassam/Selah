@@ -35,6 +35,15 @@ Two things are deliberately held twice and not merged:
 
 Enums (`action_status`, `role`, `visibility` and the rest) and the check constraints declared in `src/db/schema` have one source already: the Drizzle schema, from which part 1 of the baseline is generated.
 
+### Still written on both sides, without a parity test
+
+Found by the second review (2026-10-23). Each is the same meaning written in SQL and in TypeScript; a change to one must change the other.
+
+| Meaning | TypeScript | Database |
+|---|---|---|
+| The firm's "today" is the Riyadh day | `firmToday()` in `src/lib/dates.ts` (every service and job) | `(now() AT TIME ZONE 'Asia/Riyadh')::date`, written out in each view and function that needs it. Never `current_date`: the database's day is UTC (0001 fixed the last trigger that used it) |
+| An open action is assigned, in progress, blocked, awaiting review or sent back | `OPEN_STATUSES` in `src/authz/workflow.ts` (`isOverdue()`, the assistant's status answer) | `status NOT IN ('draft', 'verified_complete', 'closed')` in the deviation, reminder, mail and metrics functions |
+
 ## Rules by area
 
 Database names are trigger functions (`name()`) or check constraints (`table.name`). "Checked first in" is the TypeScript that gives the clear answer, or "database only" when nothing in the app writes the row in a way that could break the rule. "Tests" names the database test files that run the rule. For every trigger function this was checked on 2026-10-23 from Postgres's own call counts (`pg_stat_user_functions`) per test file. For a check constraint, the file writes that column; several constraints are only exercised on their passing side.
