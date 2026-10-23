@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SPOKEN_LANGS } from "@/lib/meetings";
 import { route } from "@/server/http";
 import { getMeeting, updateMeeting } from "@/services/meetings";
 
@@ -11,7 +12,7 @@ const body = z.object({
   location: z.enum(["online", "in_person", "phone"]).optional(),
   joinUrl: z.url().max(500).nullable().optional(),
   locationText: z.string().trim().max(300).nullable().optional(),
-  spokenLang: z.enum(["ar", "en", "mixed"]).optional(),
+  spokenLang: z.enum(SPOKEN_LANGS).optional(),
   status: z.enum(["held", "cancelled"]).optional(),
   transcriptConsent: z.boolean().optional(),
 });
