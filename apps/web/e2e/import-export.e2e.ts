@@ -111,20 +111,20 @@ test("consultant imports an Arabic Excel plan: map, fix, release, confirm", asyn
   await page.getByRole("button", { name: t("planImport.review.import"), exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button").last().click();
   await page.waitForURL(`**/projects/${board}`);
-  await expect(page.getByText(rec1)).toBeVisible();
+  await expect(page.getByText(rec1).first()).toBeVisible();
   await shot(page, "import-ar-4-project");
 
   // Two actions with an owner and a date were sent; the one without an owner stays a draft.
   const actions = sql<string[]>(
-    `select a.title, a.status, coalesce(u.email,'') from actions a join recommendations r on r.id=a.recommendation_id left join "user" u on u.id=a.owner_user_id where r.title in ('${rec1}','${rec2}') order by a.created_at`,
+    `select a.title, a.status, coalesce(u.email,'-') from actions a join recommendations r on r.id=a.recommendation_id left join "user" u on u.id=a.owner_user_id where r.title in ('${rec1}','${rec2}') order by a.created_at`,
   );
   expect(actions).toEqual([
     ["إعداد مسودة السياسة", "assigned", "reem@nukhba.example"],
     ["اعتماد السياسة من المجلس", "assigned", "abdullah@nukhba.example"],
-    ["تسمية أعضاء اللجنة", "draft", ""],
+    ["تسمية أعضاء اللجنة", "draft", "-"],
   ]);
-  expect(one(`select due_date from actions where title='اعتماد السياسة من المجلس' order by created_at desc limit 1`)).toBe("2027-02-22");
-  expect(one(`select count(*) from evidence_requests e join actions a on a.id=e.action_id where a.title='إعداد مسودة السياسة'`)).toBe("2");
+  expect(one(`select a.due_date from actions a join recommendations r on r.id=a.recommendation_id where a.title='اعتماد السياسة من المجلس' and r.title in ('${rec1}','${rec2}')`)).toBe("2027-02-22");
+  expect(one(`select count(*) from evidence_requests e join actions a on a.id=e.action_id join recommendations r on r.id=a.recommendation_id where a.title='إعداد مسودة السياسة' and r.title='${rec1}'`)).toBe("2");
   expect(one(`select priority from recommendations where title='${rec2}'`)).toBe("critical");
   expect(one(`select count(*) from activity_events where meta->>'import'='true' and entity_id in (select a.id from actions a join recommendations r on r.id=a.recommendation_id where r.title in ('${rec1}','${rec2}'))`)).toBe("3");
   expect(one(`select meta->>'actions' from audit_log where action='plan.import' and resource_id='${board}' order by created_at desc limit 1`)).toBe("3");
@@ -203,7 +203,7 @@ test("a report downloads as PDF in Arabic, for those who can read it", async ({ 
   const board = ids.board();
   const khalid = await as("khalid");
   const created = await khalid.post(`/api/projects/${board}/reports`, {
-    data: { title: `تقرير الربع ${stamp}`, periodStart: "2026-07-01", periodEnd: "2026-09-30", bodyMd: "ملاحظات <b>الفترة</b>" },
+    data: { title: `تقرير الربع ${stamp}`, periodStart: "2026-07-01", periodEnd: "2026-09-30", bodyMd: "<b>bold</b> ملاحظات الفترة" },
   });
   expect(created.status()).toBe(200);
   const reportId = ((await created.json()) as { id: string }).id;
@@ -216,9 +216,10 @@ test("a report downloads as PDF in Arabic, for those who can read it", async ({ 
   const bytes = readFileSync(file);
   expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
   // The text is real, searchable Arabic (shaped and extractable), and nothing written in it ran as HTML.
-  const text = execFileSync("pdftotext", ["-layout", file, "-"], { encoding: "utf8" });
+  const text = execFileSync("pdftotext", ["-layout", file, "-"], { encoding: "utf8" }).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
   expect(text).toContain(stamp);
-  expect(text).toContain("<b>الفترة</b>");
+  expect(text).toContain("حوكمة مجلس");
+  expect(text).toContain("<b>bold");
   execFileSync("pdftoppm", ["-png", "-r", "60", "-f", "1", "-l", "1", file, "e2e-results/shots/report-ar-pdf"]);
   await shot(page, "report-ar-pdf-button");
 

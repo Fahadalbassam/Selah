@@ -666,9 +666,18 @@ export function checkImport(rows: ImportRow[], ctx: ImportContext, options: Impo
   };
 }
 
-/** Rows that duplicate an action already in the project start left out, so a re-import adds nothing twice. */
-export function leaveOutDuplicates(rows: ImportRow[], ctx: ImportContext, options: ImportOptions): ImportRow[] {
-  const check = checkImport(rows, ctx, options);
-  const dup = new Set(check.rows.filter((r) => r.warnings.some((w) => w.code === "actionExists")).map((r) => r.line));
-  return rows.map((r) => (dup.has(r.line) ? { ...r, include: false } : r));
+/**
+ * Rows that duplicate an action already in the project start left out, so a
+ * re-import adds nothing twice. Matched on the values alone, so a row that a
+ * person fixed and imported before is caught even when the file still holds
+ * the mistake.
+ */
+export function leaveOutDuplicates(rows: ImportRow[], ctx: ImportContext): ImportRow[] {
+  const recId = new Map(ctx.recommendations.map((r) => [normText(r.title), r.id]));
+  const existing = new Set(ctx.actions.map((a) => `${a.recommendationId}\u0000${normText(a.title)}`));
+  return rows.map((r) => {
+    const id = r.values.recommendation ? recId.get(normText(r.values.recommendation)) : undefined;
+    const dup = !!id && !!r.values.action && existing.has(`${id}\u0000${normText(r.values.action)}`);
+    return dup ? { ...r, include: false } : r;
+  });
 }
