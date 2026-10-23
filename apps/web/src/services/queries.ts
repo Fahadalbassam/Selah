@@ -17,7 +17,7 @@ import {
   reviews,
   user,
 } from "@/db/schema";
-import { authorize, canTransition, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
+import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
 import { loadAction, roundSubmitters } from "./actions";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
@@ -29,8 +29,6 @@ import { NotFoundError } from "@/server/errors";
 function visible<T>(principal: Principal, permission: Permission, rows: T[], toResource: (row: T) => Resource): T[] {
   return rows.filter((row) => authorize(principal, permission, toResource(row)).allowed);
 }
-
-const OPEN_STATUSES = ["assigned", "in_progress", "blocked", "awaiting_review", "revision_requested"] as const;
 
 export type ActionRow = Awaited<ReturnType<typeof listActions>>[number];
 
