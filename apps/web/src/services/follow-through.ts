@@ -101,6 +101,17 @@ export async function addEvidenceRequest(
 
 export type EvidenceRequestDecision = "accepted" | "rejected" | "waived" | "open";
 
+/**
+ * The firm's decisions on an evidence item, and the states each may be made
+ * from. check_evidence_request() allows the same moves (tests/db/rule-parity.test.ts).
+ */
+export const EVIDENCE_REQUEST_MOVES: Record<EvidenceRequestDecision, readonly string[]> = {
+  accepted: ["submitted"],
+  rejected: ["submitted"],
+  waived: ["open", "submitted", "rejected"],
+  open: ["rejected"],
+};
+
 /** Accept, reject or waive an item; "open" asks again after a rejection. */
 export async function decideEvidenceRequest(
   tx: Tx,
@@ -115,13 +126,7 @@ export async function decideEvidenceRequest(
   if ((input.status === "rejected" || input.status === "waived") && !input.note) {
     throw new BadRequestError("say why the item was rejected or waived");
   }
-  const allowed: Record<EvidenceRequestDecision, string[]> = {
-    accepted: ["submitted"],
-    rejected: ["submitted"],
-    waived: ["open", "submitted", "rejected"],
-    open: ["rejected"],
-  };
-  if (!allowed[input.status].includes(item.status)) throw new ConflictError(`the item is ${item.status}`);
+  if (!EVIDENCE_REQUEST_MOVES[input.status].includes(item.status)) throw new ConflictError(`the item is ${item.status}`);
   await tx
     .update(evidenceRequests)
     .set({ status: input.status, decisionNote: input.note ?? null })
