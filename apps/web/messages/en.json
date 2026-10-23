@@ -1396,6 +1396,8 @@
     "seeAll": "See all",
     "empty": "Nothing new.",
     "gone": "An update about something you can no longer open",
+    "digest": "Email me a daily summary",
+    "digestHint": "On days with new reminders about your actions, get one mail with a link here. It never includes titles or details.",
     "kinds": {
       "action_assigned": "{title} was released to you",
       "action_in_progress": "Work started on {title}",

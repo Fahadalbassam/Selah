@@ -18,6 +18,7 @@ export const MAIL_KINDS = [
   "action.revision_requested",
   "action.verified_complete",
   "evidence.requested",
+  "follow_up.digest",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -171,6 +172,22 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       subject: "Evidence requested",
       lines: ["The consultant asked for another piece of evidence on one of your actions.", "Sign in to see what's needed."],
       action: "Open the action",
+    },
+  },
+  // The reminder job's daily summary (src/jobs/follow-ups.ts): no titles, no counts.
+  "follow_up.digest": {
+    ar: {
+      subject: "تذكيرات اليوم في صلة",
+      lines: ["لديك تذكيرات جديدة بإجراءات قرب موعدها أو تأخرت.", "سجّل الدخول لتراها. يمكنك إيقاف هذه الرسالة من صفحة الإشعارات."],
+      action: "فتح الإشعارات",
+    },
+    en: {
+      subject: "Today's reminders in Selah",
+      lines: [
+        "You have new reminders about actions that are due soon or overdue.",
+        "Sign in to see them. You can turn this mail off on the notifications page.",
+      ],
+      action: "Open notifications",
     },
   },
 };

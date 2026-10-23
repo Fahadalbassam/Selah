@@ -1262,6 +1262,17 @@ export const notifications = pgTable(
   (t) => [index("notifications_user_idx").on(t.userId, t.createdAt)],
 );
 
+// What a person wants by email beyond the mails every account gets. No row
+// means the defaults. Each person reads and changes only their own (migration 0003).
+export const mailPreferences = pgTable("mail_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // One mail a day on days the reminder job has something for them (src/jobs/follow-ups.ts).
+  followUpDigest: boolean("follow_up_digest").notNull().default(true),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 // ------------------------------------------------------------------- AI
 
 // One row per indexed passage. Each chunk copies its source's tenant,
