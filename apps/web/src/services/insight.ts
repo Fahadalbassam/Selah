@@ -8,7 +8,7 @@ import { loadProject } from "./staffing";
 // with the caller's rights, so what they cannot see is simply not there.
 
 export interface TraceRow {
-  nodeType: "objective" | "kpi" | "finding" | "recommendation" | "action" | "evidence" | "review";
+  nodeType: "objective" | "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
   nodeId: string;
   parentType: TraceRow["nodeType"] | null;
   parentId: string | null;
