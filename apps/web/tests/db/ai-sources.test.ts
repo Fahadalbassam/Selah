@@ -1,4 +1,4 @@
-// The assistant's sources (migrations 0040-0041) against a real Postgres:
+// The assistant's sources (migrations 0040-0041, 0052) against a real Postgres:
 // the search index never returns a passage the person can't open, file
 // summaries are kept once and read with the file's rights, meeting summary
 // lines point at their sources, and answers translate through the cache.
@@ -11,7 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { retrievalScope, type Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { indexDocument, pagesFromText, type Embed } from "@/jobs/index-documents";
+import { indexDocument, indexRecords, pagesFromText, type Embed } from "@/jobs/index-documents";
 import { loadPrincipal } from "@/services/principal";
 
 vi.mock("@/services/ai-client", () => ({
@@ -23,7 +23,7 @@ vi.mock("@/services/ai-client", () => ({
     throw new Error("not in tests");
   },
 }));
-const { retrieve } = await import("@/services/assistant");
+const { linkedRecords, retrieve } = await import("@/services/assistant");
 const { getDocumentSummary, summarizeDocument } = await import("@/services/document-summaries");
 const M = await import("@/services/meetings");
 const T = await import("@/services/translations");
@@ -565,5 +565,108 @@ describe("assistant answers in the other language", () => {
     await expect(svc(U.cons, (tx, p) => T.translate(tx, p, { ...r, entityId: questionId, to: "en" }))).rejects.toThrow(
       /not found/,
     );
+  });
+});
+
+// Recommendations and actions as passages (drizzle/0052): found like file
+// passages, but each read only by someone who can read the record itself.
+describe("the plan's records as passages", () => {
+  const R = { shared: id(201), firm: id(202) };
+  const A = { draft: id(211), open: id(212), finance: id(213) };
+  const recordChunks = async (uid: string) =>
+    (
+      await sqlAs(uid, `SELECT source_id FROM ai_chunks WHERE project_id = $1 AND source_type IN ('recommendation', 'action') ORDER BY source_id`, [
+        P1,
+      ])
+    ).rows.map((r) => r.source_id);
+  const readable = async (uid: string) =>
+    (
+      await sqlAs(
+        uid,
+        `SELECT id FROM recommendations WHERE project_id = $1 UNION SELECT id FROM actions WHERE project_id = $1 ORDER BY id`,
+        [P1],
+      )
+    ).rows.map((r) => r.id);
+
+  beforeAll(async () => {
+    const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
+    await q(
+      `INSERT INTO recommendations (id, project_id, org_id, title, rationale, required_evidence, visibility, created_by) VALUES
+        ($1,$3,$4,'Approve the board charter','No written charter','The signed charter','shared',$5),
+        ($2,$3,$4,'Replace the CFO','Firm view only',NULL,'firm_private',$5)`,
+      [R.shared, R.firm, P1, ACME, U.cons],
+    );
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, department_id, status, due_date, created_by) VALUES
+        ($1,$4,$5,$6,'Draft the charter',NULL,NULL,'draft',NULL,$7),
+        ($2,$4,$5,$6,'Present the charter to the board',$8,NULL,'assigned','2026-12-01',$7),
+        ($3,$4,$5,$6,'Budget the board secretary',$8,$9,'assigned','2026-12-01',$7)`,
+      [A.draft, A.open, A.finance, P1, ACME, R.shared, U.cons, U.actionOwner, DEPT.fin],
+    );
+    expect(await indexRecords(owner, embed)).toBe(5);
+    expect(await indexRecords(owner, embed)).toBe(0);
+  });
+
+  afterAll(async () => {
+    await owner.query(`DELETE FROM recommendations WHERE id = ANY($1)`, [Object.values(R)]);
+  });
+
+  it("are read only by whoever can read the record: no firm-only work for the client, departments kept", async () => {
+    for (const uid of Object.values(U)) {
+      const records = await readable(uid);
+      for (const c of await recordChunks(uid)) expect(records, `${uid} reads the passage of ${c}`).toContain(c);
+    }
+    expect(await recordChunks(U.cons)).toEqual(Object.values({ ...R, ...A }).sort());
+    // Clients read the plan, drafts included (docs/data-model.md), but not the firm's own recommendations.
+    expect(await recordChunks(U.cadmin)).toEqual([R.shared, A.draft, A.open, A.finance].sort());
+    expect(await recordChunks(U.cmgr)).toEqual([R.shared, A.draft, A.open].sort());
+    expect(await recordChunks(U.bmgr)).toEqual([]);
+  });
+
+  it("never come back from a search for someone who can't read them, even with a forged scope", async () => {
+    const ALL = ["shared", "firm_private", "client_private", "user_private"] as const;
+    for (const uid of [U.cmgr, U.hr, U.bmgr, U.other]) {
+      const got = await as(uid, async (c) => {
+        const tx = drizzle(c, { schema }) as unknown as Tx;
+        return retrieve(tx, { projectId: P1, orgId: ACME, labels: ALL, userId: uid }, QUERY, { query: "charter board CFO" });
+      });
+      const ids = got.map((r) => r.sourceId);
+      const hidden = uid === U.cmgr || uid === U.hr ? [R.firm, A.finance] : Object.values({ ...R, ...A });
+      for (const h of hidden) expect(ids, uid).not.toContain(h);
+    }
+  });
+
+  it("are found by their words, and reach the model as the live record", async () => {
+    const out = await svc(U.cons, async (tx, p) => {
+      const scope = retrievalScope(p, { type: "project", id: P1, orgId: ACME, firmOrgId: FIRM, projectId: P1 })!;
+      const hits = await retrieve(tx, scope, QUERY, { query: "What does approving the board charter need?", sources: "records" });
+      // Searched apart from files, so files never lose their places to records.
+      const files = await retrieve(tx, scope, QUERY, { query: "What does approving the board charter need?", sources: "files" });
+      expect(files.every((f) => f.sourceType === "document")).toBe(true);
+      expect(hits.length).toBeLessThanOrEqual(3);
+      return { hits, records: await linkedRecords(tx, null, [], hits) };
+    });
+    expect(out.hits.map((h) => h.sourceId)).toContain(R.shared);
+    const rec = out.records.find((r) => r.id === R.shared)!;
+    expect(rec.text).toContain('Evidence required: "The signed charter"');
+    expect(rec.text).toContain('"Present the charter to the board" assigned');
+  });
+
+  it("are written again after a real change, and kept through a save that changes nothing", async () => {
+    await owner.query(`UPDATE recommendations SET title = title, rationale = rationale WHERE id = $1`, [R.shared]);
+    expect(await indexRecords(owner, embed)).toBe(0);
+    await owner.query(`UPDATE recommendations SET title = 'Approve and publish the board charter' WHERE id = $1`, [R.shared]);
+    // The recommendation and its three actions (they carry its title).
+    expect(await indexRecords(owner, embed)).toBe(4);
+    const [{ content }] = (
+      await owner.query(`SELECT content FROM ai_chunks WHERE source_type = 'action' AND source_id = $1`, [A.open])
+    ).rows;
+    expect(content).toContain("Approve and publish the board charter");
+    // Two runs at once still leave one passage per record.
+    await owner.query(`UPDATE actions SET title = 'Present the charter to the full board' WHERE id = $1`, [A.open]);
+    await Promise.all([indexRecords(owner, embed), indexRecords(owner, embed)]);
+    expect((await owner.query(`SELECT 1 FROM ai_chunks WHERE source_id = $1`, [A.open])).rowCount).toBe(1);
+    await owner.query(`DELETE FROM actions WHERE id = $1`, [A.draft]);
+    expect((await owner.query(`SELECT 1 FROM ai_chunks WHERE source_id = $1`, [A.draft])).rowCount).toBe(0);
   });
 });

@@ -14,6 +14,8 @@ One index (`ai_chunks`), built from each file's original text in whatever langua
 - A file with no readable text (an image, a scan without a text layer) is marked **not searchable**, so the screen can say so instead of the file quietly missing from answers.
 - PDF and Office files wait, still pending, for a text extractor in the AI service.
 
+**Recommendations and actions** (migration 0052) are indexed by the same job, one passage each: a recommendation's title, rationale, expected outcome and required evidence; an action's title, description and its recommendation's title. The passage takes its recommendation's label, and is read only by someone who can read the record itself (the `with_source` policy), so a client never finds a firm-only recommendation and a department's action stays in it. A change to that text, a change of label, or deleting the record drops the passage, and the next run writes it again; a save that changes nothing keeps it. One passage per record, even when two runs overlap.
+
 Only the job sets a file's text status. Turning the AI flag on, a change of visibility and refiling to another department drop the file's passages and set it back to pending, so it is indexed again.
 
 ## Searching
@@ -23,7 +25,8 @@ Hybrid search, in Postgres only. No graph database and no graph RAG: Selah's lin
 1. **By meaning:** the 20 nearest passages to the question's vector (`ai_chunks.embedding`, HNSW).
 2. **By words:** the 20 best keyword matches (`ai_chunks.tsv`, GIN, the `simple` configuration so Arabic words are kept as written). The question becomes an OR of its distinctive words (`keywordQuery()`), letters and digits only, so nothing typed can change the query's syntax. This finds exact terms the vectors blur: an article number, a policy code, a name.
 3. **Merged** by reciprocal rank fusion (`fuse()`), keeping 8. Passages of the chat's case come first.
-4. **Linked records** (`linkedRecords()`): the chat's case, then the recommendations (through their findings' source file) and actions (through their evidence) behind the files found. At most 3, each a few lines: status, due date, last review, last progress update. They go to the model as passages like the others and can be cited (a citation with no `chunkId`).
+4. **Records found by the search**: the same two searches over recommendation and action passages only, keeping 3, so a record never takes a file passage's place. What the model gets is the record as it stands now, not the indexed text.
+5. **Linked records** (`linkedRecords()`): the chat's case, the records the search found, then the recommendations (through their findings' source file) and actions (through their evidence) behind the files found. At most 4, each a few lines: a recommendation's priority, due date, rationale, expected outcome, required evidence and actions; an action's status, due date, last review and last progress update. They go to the model as passages like the others and can be cited (a citation with no `chunkId`).
 
 Both searches carry the full permission filter in their `WHERE`; the linked records are read under row-level security.
 
