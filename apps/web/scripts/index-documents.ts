@@ -1,5 +1,6 @@
 // Index files for the assistant: every file with the AI flag on, scanned,
-// and not indexed yet. Runs as the schema owner.
+// and not indexed yet; then the plan's recommendations and actions. Runs as
+// the schema owner.
 // Usage: npm run job:index-documents
 //
 // Text files are read here (a form feed starts a page). Images have no text
@@ -7,7 +8,7 @@
 // extractor in the AI service and stay pending.
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Pool } from "pg";
-import { indexDocument, pagesFromText, type Embed } from "../src/jobs/index-documents";
+import { indexDocument, indexRecords, pagesFromText, type Embed } from "../src/jobs/index-documents";
 
 const need = (k: string) =>
   process.env[k] ??
@@ -52,5 +53,9 @@ for (const d of rows) {
   if (n) done.searchable++;
   else done.notSearchable++;
 }
+// Recommendations and actions, new or changed since (drizzle/0052_record_passages.sql).
+const records = await indexRecords(pool, embed);
 await pool.end();
-console.log(`indexed ${done.searchable}, not searchable ${done.notSearchable}, waiting for an extractor ${done.waiting}`);
+console.log(
+  `indexed ${done.searchable}, not searchable ${done.notSearchable}, waiting for an extractor ${done.waiting}; records ${records}`,
+);
