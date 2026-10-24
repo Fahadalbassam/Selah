@@ -1313,7 +1313,9 @@
       "converted": "made it a client",
       "note": "added a note",
       "anonymised": "removed the personal details (retention)",
-      "owner_assigned": "handed it to {name}"
+      "owner_assigned": "handed it to {name}",
+      "acknowledged": "sent the requester an acknowledgement with the reference",
+      "decline_mailed": "sent the requester a courteous decline"
     },
     "public": "The public form",
     "back": "Back to inquiries",
@@ -1393,7 +1395,10 @@
       "full": "Full: the client's people work in Selah",
       "restricted": "Restricted: only the client's admins sign in",
       "consultant_managed": "Consultant-managed: the firm records for the client"
-    }
+    },
+    "declineMail": "Send a courteous decline",
+    "declineMailHint": "A short bilingual mail with the reference, thanking them and saying the firm can't take the request forward. Sent once.",
+    "declineMailConfirm": "Send the decline mail to {email}? It can only be sent once."
   },
   "notifications": {
     "title": "Notifications",

@@ -14,6 +14,8 @@ export const MAIL_KINDS = [
   "password_reset.notice",
   "two_factor.reset",
   "inquiry.new",
+  "inquiry.received",
+  "inquiry.declined",
   "action.assigned",
   "action.revision_requested",
   "action.verified_complete",
@@ -138,6 +140,41 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     },
   },
   // Action events (baseline: Action mail): to the action's owner, never with its title.
+  // To the person who sent an inquiry. {ref} is its reference; nothing else of it.
+  "inquiry.received": {
+    ar: {
+      subject: "استلمنا طلبك",
+      lines: [
+        "شكرًا لتواصلك معنا. استلمنا طلبك، ورقمه المرجعي {ref}.",
+        "سيتواصل معك أحد أعضاء فريقنا قريبًا. نرجو ألّا ترسل أي مستندات سرية قبل توقيع اتفاقية عدم إفصاح.",
+        "إن لم تكن أنت من أرسل هذا الطلب فيمكنك تجاهل هذه الرسالة.",
+      ],
+    },
+    en: {
+      subject: "We received your request",
+      lines: [
+        "Thank you for getting in touch. We received your request; its reference is {ref}.",
+        "Someone from our team will contact you soon. Please don't send confidential documents before a non-disclosure agreement is signed.",
+        "If you didn't send this request, you can ignore this mail.",
+      ],
+    },
+  },
+  "inquiry.declined": {
+    ar: {
+      subject: "بخصوص طلبك",
+      lines: [
+        "شكرًا لاهتمامك بخدماتنا. راجعنا طلبك ذا الرقم المرجعي {ref}، ونعتذر عن عدم قدرتنا على المضيّ فيه في الوقت الحالي.",
+        "نتمنى لكم التوفيق، ويسعدنا تواصلكم معنا مستقبلًا.",
+      ],
+    },
+    en: {
+      subject: "About your request",
+      lines: [
+        "Thank you for your interest in our services. We reviewed your request {ref} and are sorry that we can't take it forward at this time.",
+        "We wish you every success and would be glad to hear from you in the future.",
+      ],
+    },
+  },
   "action.assigned": {
     ar: { subject: "إجراء جديد مُسند إليك", lines: ["أُسند إليك إجراء في صلة.", "سجّل الدخول لترى ما المطلوب وموعد التسليم."], action: "فتح الإجراء" },
     en: {
@@ -200,9 +237,10 @@ export interface RenderedMail {
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** `link` is the path stored in the queue; it is joined to the site's address. */
-export function renderMail(kind: MailKind, link: string | null, appUrl: string): RenderedMail {
-  const copy = COPY[kind];
+/** `link` is the path stored in the queue; it is joined to the site's address. `reference` fills {ref}. */
+export function renderMail(kind: MailKind, link: string | null, appUrl: string, reference: string | null = null): RenderedMail {
+  const fill = (c: Copy): Copy => ({ ...c, lines: c.lines.map((l) => l.replace("{ref}", reference ?? "")) });
+  const copy = { ar: fill(COPY[kind].ar), en: fill(COPY[kind].en) };
   const url = link ? new URL(link, appUrl).toString() : null;
   const subject = `${copy.ar.subject} | ${copy.en.subject}`;
 

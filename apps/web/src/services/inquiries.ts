@@ -137,6 +137,13 @@ export async function getInquiry(tx: Tx, principal: Principal, id: string) {
       decide: authorize(principal, "inquiry.decide", resource).allowed,
       /** Moving forward, as the owner may; null once there is no next step. */
       forward: FORWARD[row.status] ?? null,
+      // A courteous decline mail, once, for an inquiry closed as lost or declined (N10).
+      declineMail:
+        authorize(principal, "inquiry.decide", resource).allowed &&
+        (row.status === "lost" || row.status === "declined") &&
+        !row.anonymisedAt &&
+        !!row.contactEmail &&
+        !events.some((e) => e.event === "decline_mailed"),
       convert:
         authorize(principal, "inquiry.decide", resource).allowed &&
         !row.clientOrgId &&
@@ -179,6 +186,22 @@ export async function updateInquiry(tx: Tx, principal: Principal, id: string, ch
     resourceId: id,
     outcome: "allow",
     meta: Object.fromEntries(Object.entries(change).filter(([k, v]) => k !== "conflictNote" && v !== undefined)),
+  });
+  return { ok: true };
+}
+
+/** Queue the courteous decline mail to the requester (N10). The database allows it once. */
+export async function mailDecline(tx: Tx, principal: Principal, id: string) {
+  const { resource } = await loadInquiry(tx, principal, id);
+  assertAllowed(principal, "inquiry.decide", resource);
+  await tx.execute(sql`select app_mail_inquiry_decline(${id})`);
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "inquiry.decline_mailed",
+    resourceType: "inquiry",
+    resourceId: id,
+    outcome: "allow",
   });
   return { ok: true };
 }

@@ -28,7 +28,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [ ] **J01.1** Enter a referral or tender by hand — lane: firm · map: wave 1 · covered by: F08 · wave: 1
 - [x] **J01.2** Approach a prospect ourselves — lane: firm · map: missing · covered by: N4 · wave: 1
-- [ ] **J01.3** Inquiry arrives (firm: Admins notified; client: Gets acknowledgement mail) — lane: shared · map: wave 1 · covered by: F08 · wave: 1
+- [~] **J01.3** Inquiry arrives (firm: Admins notified; client: Gets acknowledgement mail) — lane: shared · map: wave 1 · covered by: F08 · wave: 1 · pr: #68 (open)
 - [x] **J01.4** Fills the /inquiry form — lane: client · map: exists · wave: — · pr: #4
 
 ### J02 · Qualify and check conflicts · التأهيل وفحص التعارض
@@ -36,7 +36,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J02.1** Hand inquiry to a consultant — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J02.2** Record conflict status — lane: firm · map: exists · wave: — · pr: #18
 - [ ] **J02.3** Search for conflicts — lane: firm · map: wave 1 · covered by: F08 · wave: 1
-- [ ] **J02.4** Gets a courteous decline — lane: client · map: missing · covered by: N10 · wave: 1
+- [~] **J02.4** Gets a courteous decline — lane: client · map: missing · covered by: N10 · wave: 1 · pr: #68 (open)
 
 ### J03 · NDA and discovery · السرية والاستكشاف
 
@@ -56,7 +56,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J05.1** Convert inquiry to client — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J05.2** Add a client directly — lane: firm · map: exists · wave: — · pr: #20
-- [~] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
+- [x] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
 - [x] **J05.4** A project per phase — lane: firm · map: wave 1 · covered by: F02 · wave: 1 · pr: #59
 - [ ] **J05.5** First sign-in (firm: Invites the client admin; client: Accepts terms and AI notice) — lane: shared · map: wave 1 · covered by: R1 · wave: 1
 - [x] **J05.6** Accepts invite, sets 2FA — lane: client · map: exists · wave: — · pr: #7, #8
@@ -151,8 +151,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 - [x] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64
 - [x] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66
-- [~] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67 (open)
-- [ ] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3
+- [x] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67
+- [~] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (open, acknowledgement mail; more PRs follow)
 - [ ] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4
 
 ### Tier 3 · The client takes part
@@ -215,7 +215,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
 - [ ] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03
 - [ ] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25
-- [ ] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08
+- [~] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68 (open)
 
 ## Decisions still waiting
 

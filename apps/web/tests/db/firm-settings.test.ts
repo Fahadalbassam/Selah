@@ -128,11 +128,12 @@ describe("firm settings", () => {
 
   it("send each new inquiry to the intake address as a link, and nothing when it is empty", async () => {
     await submit();
-    const mails = (await owner.query(`SELECT to_email, kind, link FROM outbound_emails`)).rows;
+    // The requester's acknowledgement is tested with intake.
+    const mails = (await owner.query(`SELECT to_email, kind, link FROM outbound_emails WHERE kind = 'inquiry.new'`)).rows;
     const [inq] = (await owner.query(`SELECT id FROM inquiries`)).rows;
     expect(mails).toEqual([{ to_email: "inquiries@firm.example", kind: "inquiry.new", link: `/inquiries/${inq.id}` }]);
     await svc(U.admin, (tx, p) => updateFirmSettings(tx, p, { intakeEmail: "" }));
     await submit();
-    expect((await owner.query(`SELECT count(*)::int AS n FROM outbound_emails`)).rows[0].n).toBe(1);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM outbound_emails WHERE kind = 'inquiry.new'`)).rows[0].n).toBe(1);
   });
 });
