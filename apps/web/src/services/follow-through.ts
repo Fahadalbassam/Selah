@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
+import type { LadderAudience } from "@/lib/mail-choices";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
 import { audit } from "./audit";
@@ -542,4 +543,51 @@ export async function teamMetrics(tx: Tx, principal: Principal, since: string) {
   const workload = await tx.execute(sql`select * from app_team_workload()`);
   const totals = await tx.execute(sql`select * from app_team_metrics(${since}::date)`);
   return { workload: workload.rows, totals: totals.rows[0] };
+}
+
+export interface LadderStep {
+  kind: "due_soon" | "overdue";
+  level: number;
+  onDate: string;
+  audience: LadderAudience[];
+  sentAt: Date | null;
+}
+
+/**
+ * The reminder ladder of an action for its current due date (migration
+ * 0016): each step, the day it fires, who it reaches and when it went out.
+ * Empty when the action has no due date or nobody to remind.
+ */
+export async function actionLadder(tx: Tx, principal: Principal, actionId: string) {
+  await loadAction(tx, actionId);
+  const { rows } = await tx.execute<{
+    kind: LadderStep["kind"];
+    level: number;
+    on_date: string;
+    audience: LadderAudience[];
+    sent_at: Date | string | null;
+    running: boolean;
+  }>(sql`SELECT kind, level, on_date::text, audience, sent_at, running FROM app_action_ladder(${actionId})`);
+  return {
+    running: rows[0]?.running ?? false,
+    steps: rows.map(
+      (r): LadderStep => ({
+        kind: r.kind,
+        level: r.level,
+        onDate: r.on_date,
+        audience: r.audience,
+        sentAt: r.sent_at ? new Date(r.sent_at) : null,
+      }),
+    ),
+  };
+}
+
+/** People whose mail isn't getting through, for firm staff (empty for anyone else). */
+export async function mailFailing(tx: Tx, principal: Principal, userIds: string[]) {
+  const ids = [...new Set(userIds)];
+  if (principal.orgKind !== "firm" || ids.length === 0) return new Map<string, Date>();
+  const { rows } = await tx.execute<{ user_id: string; since: Date | string }>(
+    sql`SELECT user_id, since FROM app_mail_failing(${`{${ids.join(",")}}`}::uuid[])`,
+  );
+  return new Map(rows.map((r) => [r.user_id, new Date(r.since)]));
 }

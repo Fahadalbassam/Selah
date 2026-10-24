@@ -111,7 +111,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [ ] **J11.4** Audit-log screen — lane: firm · map: wave 1 · covered by: R2 · wave: 1
 - [x] **J11.5** Shared report (firm: Freezes and shares it; client: Reads it, downloads PDF) — lane: shared · map: exists · wave: — · pr: #17, #41
 - [x] **J11.6** Daily digest mail — lane: client · map: exists · wave: — · pr: #44
-- [ ] **J11.7** Picks mail frequency — lane: client · map: wave 1 · covered by: F12 · wave: 1
+- [x] **J11.7** Picks mail frequency — lane: client · map: wave 1 · covered by: F12 · wave: 1 · pr: #78
 
 ### J12 · Close and hand over · الإغلاق والتسليم
 
@@ -159,7 +159,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 - [ ] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6
 - [ ] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6
-- [ ] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7
+- [x] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7 · pr: #78
 - [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: frozen
 - [ ] **F14** Magic-link sign-in and no-login upload links — tier: 3 · size: M · wave: 2 · decision: D6 D7
 

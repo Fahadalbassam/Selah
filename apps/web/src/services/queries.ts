@@ -561,6 +561,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       dueDate: action.dueDate,
       blockedReason: action.blockedReason,
       projectId: action.projectId,
+      ownerUserId: action.ownerUserId,
       ownerName: owner?.name ?? action.ownerName,
       departmentId: action.departmentId,
       orgId: action.orgId,

@@ -5,13 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export interface NotificationRow {
@@ -186,35 +183,3 @@ export function NotificationBell({ unread }: { unread: number }) {
   );
 }
 
-/** The caller's own mail choice for the daily reminder summary. */
-export function DigestSwitch({ initial }: { initial: boolean }) {
-  const t = useTranslations("notifications");
-  const tc = useTranslations("common");
-  const [on, setOn] = useState(initial);
-  const [busy, setBusy] = useState(false);
-
-  async function change(next: boolean) {
-    setBusy(true);
-    setOn(next);
-    const r = await callApi("/api/notifications/mail", "PUT", { followUpDigest: next });
-    setBusy(false);
-    if (!r.ok) {
-      setOn(!next);
-      return toast.error(tc.has(`errors.${r.error}`) ? tc(`errors.${r.error}`) : tc("errors.generic"));
-    }
-    toast.success(tc("saved"));
-  }
-
-  return (
-    <div className="flex items-start justify-between gap-6 rounded-xl border bg-card p-4">
-      <div className="space-y-1">
-        <Label htmlFor="mail-digest">{t("digest")}</Label>
-        <p className="text-sm text-muted-foreground">{t("digestHint")}</p>
-      </div>
-      {/* Radix's hidden form input beside a switch shifts the page sideways in RTL; keep it in this box. */}
-      <div className="relative shrink-0 [&>input]:!start-0 [&>input]:![transform:none]">
-        <Switch id="mail-digest" checked={on} disabled={busy} onCheckedChange={change} />
-      </div>
-    </div>
-  );
-}

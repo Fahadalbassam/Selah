@@ -444,7 +444,32 @@
     },
     "answersItem": "Answers which item on the evidence list?",
     "answersItemPick": "Choose the item",
-    "answersNone": "Not an item on the list"
+    "answersNone": "Not an item on the list",
+    "ladder": {
+      "title": "Reminders",
+      "hint": "Who is reminded, and when, if the action is still open.",
+      "paused": "Paused while the action waits on the firm, is finished, or the project is not active.",
+      "steps": {
+        "0": "Reminder",
+        "1": "Overdue",
+        "2": "Escalation",
+        "3": "Final escalation"
+      },
+      "sent": "Sent {date}",
+      "due": "{date}",
+      "audience": {
+        "owner": "Owner",
+        "client_managers": "Client managers",
+        "department_head": "Department head",
+        "client_lead": "Lead consultant",
+        "project_lead": "Project lead",
+        "sponsor": "Sponsor",
+        "client_admins": "Client admins",
+        "watching_firm_admins": "Firm admins watching"
+      }
+    },
+    "mailFailing": "Mail to this person isn't getting through",
+    "mailFailingHint": "Our last mail to {name} could not be delivered. Check the address with them."
   },
   "common": {
     "cancel": "Cancel",
@@ -1534,8 +1559,6 @@
     "seeAll": "See all",
     "empty": "Nothing new.",
     "gone": "An update about something you can no longer open",
-    "digest": "Email me a daily summary",
-    "digestHint": "On days with new reminders about your actions, get one mail with a link here. It never includes titles or details.",
     "kinds": {
       "action_assigned": "{title} was released to you",
       "action_in_progress": "Work started on {title}",
@@ -1572,6 +1595,39 @@
       "info_request_not_applicable": "The client marked a requested item not applicable on {title}",
       "info_request_due_soon": "Requested documents are due soon on {title}",
       "info_request_overdue": "Requested documents are overdue on {title}"
+    },
+    "mail": {
+      "section": "Mail",
+      "sectionHint": "In-app notifications always arrive. These choices only change what reaches your inbox, and when.",
+      "title": "Mail choices",
+      "hint": "Every mail is a short line and a link: titles and details stay in Selah.",
+      "updates": "Updates on your actions",
+      "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence.",
+      "reminders": "Reminders and escalations",
+      "remindersHint": "Due-soon and overdue reminders, and requested documents, gathered into one summary.",
+      "cadence": {
+        "instant": "Right away",
+        "daily": "Daily summary",
+        "weekly": "Weekly, on Sunday",
+        "off": "Off"
+      },
+      "quiet": "Quiet hours",
+      "quietHint": "Work mail waits until these hours end (Riyadh time).",
+      "to": "to",
+      "saturday": "Mail on Saturday",
+      "saturdayHint": "Off by default: Saturday mail waits for Sunday.",
+      "ramadan": "Ramadan hours",
+      "ramadanHint": "During Ramadan ({starts} to {ends}) work mail goes out only between {from} and {to}.",
+      "ramadanUnset": "During Ramadan, work mail goes out only in the firm's Ramadan hours. The firm hasn't set this year's dates yet.",
+      "always": "Nothing is sent on Friday. Invitations, password and address mails, and meeting invites always go at once.",
+      "next": "With these choices, a work mail queued now goes out {when}.",
+      "muted": "Muted actions",
+      "mutedHint": "No mail about these actions. Their notifications still appear here.",
+      "mutedNone": "You haven't muted any action.",
+      "mute": "Mute mail",
+      "unmute": "Unmute",
+      "mutedDone": "No more mail about this action.",
+      "unmuted": "Mail about this action is back on."
     }
   },
   "people": {
@@ -1691,6 +1747,16 @@
       "afterCloseHint": "Days after a project is closed before its chats are deleted. 0 deletes them the next night.",
       "idle": "Delete after the last message",
       "idleHint": "Days after a chat's last message before it is deleted, even if the project is still open. From 30 to 730, and more than the archive days."
+    },
+    "ramadan": {
+      "title": "Ramadan",
+      "hint": "This year's Ramadan dates and the hours work mail goes out during it. People can turn the Ramadan hours off for themselves.",
+      "starts": "First day",
+      "ends": "Last day",
+      "from": "Mail from",
+      "to": "until",
+      "clear": "Clear",
+      "span": "Ramadan lasts 29 or 30 days. Check the first and last day."
     }
   },
   "insight": {
