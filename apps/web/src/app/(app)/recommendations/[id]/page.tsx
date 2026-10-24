@@ -71,7 +71,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
           </>
         }
       >
-        {data.firmStaff && !r.withdrawnAt ? <AskAbout projectId={r.projectId} type="recommendation" id={r.id} /> : null}
+        {data.askAssistant && !r.withdrawnAt ? <AskAbout projectId={r.projectId} type="recommendation" id={r.id} /> : null}
       </PageHeader>
       {r.withdrawnAt ? (
         <p className="-mt-3 max-w-3xl text-sm text-muted-foreground">

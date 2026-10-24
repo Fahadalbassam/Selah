@@ -29,6 +29,12 @@ export interface Principal {
   departmentIds: ReadonlySet<string>;
   /** Client users only: their client is archived and in its grace period, so they can only read. */
   readOnly?: boolean;
+  /**
+   * Client users only: the firm switched the assistant on for their role and
+   * their admin consented (app_client_ai_on). Without it a client person is
+   * refused the assistant whatever the policy grants.
+   */
+  clientAssistant?: boolean;
 }
 
 export type ResourceType =

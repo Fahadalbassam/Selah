@@ -4,6 +4,7 @@ import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
 import { chatTitle, fuse, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
+import { CLIENT_REFUSAL, clientAnswerProblem, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
@@ -83,6 +84,9 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const scope = retrievalScope(principal, resource);
   if (!scope) throw new ForbiddenError("assistant.query", resource, "retrieval:no-scope");
 
+  // Counted before the search; a client person past their daily limit is refused (OWASP LLM10).
+  await tx.execute(sql`select app_count_ai_question(${firmToday()}::date)`);
+
   const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId, eng.id) : null;
   const caseRef = chat ? chat.caseRef : (input.case ?? null);
 
@@ -127,6 +131,7 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
       // "auto" is settled here: with Arabic records and an English question the model drifted to Arabic.
       input.language === "auto" ? detectLang(input.question) : input.language,
       history.map((h) => ({ ...h, content: masker.mask(h.content) })),
+      scope.client ? "client" : "staff",
     );
     result.answer = masker.unmask(result.answer);
     citations = result.cited_ids.flatMap((pid) => byPassageId.get(pid) ?? []);
@@ -135,6 +140,19 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     if (!grounded) citations = [];
   } else {
     text = cannotConfirm(input.language, input.question);
+  }
+
+  // Every answer to a client passes the client filter before it is shown or kept.
+  let filtered: FilterReason | null = null;
+  if (scope.client && grounded) {
+    filtered = await clientFilter(tx, text);
+    if (filtered) {
+      const lang = input.language === "auto" ? detectLang(input.question) : input.language;
+      // Another client's name gets the plain "can't confirm": a refusal must not say who else the firm serves.
+      text = filtered === "other_client" ? cannotConfirm(input.language, input.question) : CLIENT_REFUSAL[filtered][lang];
+      citations = [];
+      grounded = false;
+    }
   }
 
   const conversationId = chat?.id ?? (await newConversation(tx, principal, eng.id, input.question, input.case));
@@ -163,6 +181,8 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
       grounded,
       turns: history.length / 2,
       masked: masker.replaced,
+      // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
+      ...(scope.client ? { sent: chunks.map((c) => c.id).join(","), ...(filtered ? { filtered } : {}) } : {}),
     },
   });
 
@@ -221,9 +241,19 @@ export async function retrieve(tx: Tx, scope: RetrievalScope, vector: number[], 
   return fuse([byMeaning, byWords], keep, c ? (r) => r.sourceType === c.type && r.sourceId === c.id : undefined);
 }
 
+/** Why an answer may not go to a client person, or null. */
+export async function clientFilter(tx: Tx, text: string): Promise<FilterReason | null> {
+  const problem = clientAnswerProblem(text);
+  if (problem) return problem;
+  const { rows } = await tx.execute<{ hit: boolean }>(sql`select app_names_other_client(${text}) as hit`);
+  return rows[0]?.hit ? "other_client" : null;
+}
+
 /** The retrieval scope as SQL, mirroring row-level security on ai_chunks. */
 function scopeFilter(scope: RetrievalScope) {
   return and(
+    // A client person searches files, recommendations and actions only.
+    scope.client ? inArray(aiChunks.sourceType, ["document", "recommendation", "action"]) : undefined,
     eq(aiChunks.projectId, scope.projectId),
     eq(aiChunks.orgId, scope.orgId),
     inArray(aiChunks.visibility, [...scope.labels]),

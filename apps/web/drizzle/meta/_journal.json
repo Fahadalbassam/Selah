@@ -337,6 +337,13 @@
       "when": 1792873176416,
       "tag": "0060_help",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792873655504,
+      "tag": "0061_client_assistant",
+      "breakpoints": true
     }
   ]
 }

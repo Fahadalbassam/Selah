@@ -48,8 +48,10 @@ export function answer(
   passages: Passage[],
   language: "ar" | "en" | "auto",
   history: HistoryTurn[] = [],
+  /** "client": the client rules are added to the prompt (wave 3, F39). */
+  audience: "staff" | "client" = "staff",
 ): Promise<Answer> {
-  return call("/v1/answer", { question, passages, language, history }, answerSchema);
+  return call("/v1/answer", { question, passages, language, history, audience }, answerSchema);
 }
 
 export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {

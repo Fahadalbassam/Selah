@@ -36,6 +36,8 @@ import { clientOverview } from "@/services/client-overview";
 import { listExportPacks } from "@/services/export-pack";
 import { getOffboarding } from "@/services/offboarding";
 import { OffboardingCard } from "./offboarding-card";
+import { ClientAiCard } from "./client-ai-card";
+import { getClientAi } from "@/services/client-ai";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -68,6 +70,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       // Leaving (F27): archived or not, what blocks it, holds and retention.
       offboarding: await getOffboarding(tx, principal, id),
       packs: await listExportPacks(tx, principal, id),
+      // The client assistant (F39): the firm admin offers it, the client's admin consents.
+      clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
     };
   });
   if (!data) notFound();
@@ -600,6 +604,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </CardContent>
         </Card>
+        {data.clientAi ? <ClientAiCard clientId={client.id} view={{ ...data.clientAi, canManage: data.clientAi.canManage && open }} /> : null}
         {client.prospect ? null : <OffboardingCard clientId={client.id} view={data.offboarding} packs={data.packs} />}
         {data.admin && client.prospect ? (
           <Card className="h-fit gap-4 py-5 shadow-xs">

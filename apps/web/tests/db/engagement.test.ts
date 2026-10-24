@@ -415,7 +415,9 @@ describe("departments", () => {
       [P.acme, ACME, doc],
     );
     const chunks = (uid: string) => attempt(uid, `SELECT department_id FROM ai_chunks WHERE content LIKE 'canary:%'`);
-    expect((await chunks(U.hr)).rows).toEqual([{ department_id: DEPT.hr }]);
+    // Action owners never read passages: they don't get the client assistant (wave 3). The
+    // department rule on the client side is in tests/db/client-assistant.test.ts.
+    expect((await chunks(U.hr)).rowCount).toBe(0);
     expect((await chunks(U.fin)).rowCount).toBe(0);
     expect((await chunks(U.lead)).rowCount).toBe(1);
     // Refiling the document takes its chunks out until it is indexed again.

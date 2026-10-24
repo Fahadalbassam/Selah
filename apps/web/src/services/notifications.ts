@@ -120,6 +120,9 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   // Reported problems: the firm admin reads them below the notifications, the reporter on the help page.
   if (kind === "support.requested") return "/notifications#support";
   if (kind === "support.handled") return "/help";
+  // The client assistant (F39): the client's admin reads the notice; the firm sees the client page's card.
+  if (kind === "client_ai.offered") return "/assistant";
+  if (kind.startsWith("client_ai.")) return `/clients/${entityId}`;
   // The closing pulse is answered, and read, on the project's closing tab.
   if (kind.startsWith("pulse.") || kind.startsWith("case_study.")) return `/projects/${entityId}?tab=closing`;
   // A client confirmed receiving its export pack: the firm admin sees it on the client page.

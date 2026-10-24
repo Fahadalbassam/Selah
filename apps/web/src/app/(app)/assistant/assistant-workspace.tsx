@@ -149,7 +149,8 @@ export function AssistantWorkspace({
     case: initialCase,
   });
   const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  // "limit": the person asked their questions for today (the client assistant's daily limit).
+  const [failed, setFailed] = useState<false | "error" | "limit">(false);
 
   // Loaded again when the interface language changes, to pick up kept translations.
   const chatKey = chatId ? `${chatId}:${locale}:${chatVersion}` : null;
@@ -210,7 +211,7 @@ export function AssistantWorkspace({
     const r = await callApi("/api/assistant/query", "POST", body);
     setPending(null);
     if (!r.ok) {
-      setFailed(true);
+      setFailed(r.status === 429 ? "limit" : "error");
       return false;
     }
     const { conversationId } = r.data as { conversationId: string };
@@ -535,7 +536,7 @@ function ChatHeader({
 
 // ------------------------------------------------------------- messages
 
-function Thread({ chat, loading, pending, failed }: { chat: Chat | null; loading: boolean; pending: string | null; failed: boolean }) {
+function Thread({ chat, loading, pending, failed }: { chat: Chat | null; loading: boolean; pending: string | null; failed: false | "error" | "limit" }) {
   const t = useTranslations("assistant");
   const locale = useLocale();
   const messages = chat?.messages ?? [];
@@ -596,7 +597,7 @@ function Thread({ chat, loading, pending, failed }: { chat: Chat | null; loading
             ) : null}
             {failed ? (
               <Bubble variant="destructive">
-                <BubbleContent role="alert">{t("error")}</BubbleContent>
+                <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
               </Bubble>
             ) : null}
           </MessageScrollerContent>

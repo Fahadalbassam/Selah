@@ -151,6 +151,8 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
       onBehalf: principal.orgKind === "firm",
     },
     firmStaff: principal.orgKind === "firm",
+    // "Ask about this": firm staff, and a client's people once their assistant is on (F39).
+    askAssistant: authorize(principal, "assistant.query", resource).allowed,
   };
 }
 

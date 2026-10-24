@@ -662,6 +662,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     moves,
     // Firm staff may mark a translation of this page's text reviewed.
     firmStaff: principal.orgKind === "firm",
+    // "Ask about this": firm staff, and a client's people once their assistant is on (F39).
+    askAssistant: authorize(principal, "assistant.query", resource).allowed,
     can: {
       addUpdate: authorize(principal, "progress_update.create", resource).allowed && from !== "verified_complete",
       submitEvidence:

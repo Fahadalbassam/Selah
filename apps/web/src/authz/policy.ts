@@ -272,10 +272,18 @@ export const POLICY = {
   "support_request.read": { firm_admin: "any", client_admin: "own", client_manager: "own", action_owner: "own" },
   "support_request.handle": { firm_admin: "any" },
 
-  // AI assistant. Whether client users get it is an open decision in the
-  // spec; until it is made, only firm staff do. To enable client managers,
-  // add `client_manager: "any"` here; retrieval rules stay the same.
-  "assistant.query": { ...STAFF },
+  // AI assistant. Firm staff ask about any project they can see. Client
+  // people get it only where the firm admin switched it on for their role
+  // and their admin consented (wave 3, F39): authorize() also checks
+  // principal.clientAssistant, and the database checks app_client_ai_on().
+  // Retrieval reads exactly what each person can open. Not action owners:
+  // they see only their own work, and the index has no per-person filter.
+  "assistant.query": { ...STAFF, client_admin: "any", client_manager: "any" },
+  // Who switches the client assistant on (the firm admin) and who consents for the client (its admin).
+  "client_ai.manage": { firm_admin: "any" },
+  "client_ai.consent": { client_admin: "any" },
+  // File summaries stay with firm staff.
+  "document.summarize": { ...STAFF },
   "ai_conversation.read": {
     firm_admin: "own",
     consultant: "own",

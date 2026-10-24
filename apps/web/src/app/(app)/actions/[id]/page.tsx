@@ -92,7 +92,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       <PageHeader title={action.title} meta={<StatusBadge status={action.status} />}>
         {leads && thread.can.write ? <AskConsultant /> : null}
         <MuteButton actionId={action.id} muted={muted} />
-        {data.firmStaff ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
+        {data.askAssistant ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
       </PageHeader>
       {action.description ? (
         <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />

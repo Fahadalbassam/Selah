@@ -29,6 +29,11 @@ export function authorize(principal: Principal, permission: Permission, resource
   const scope = grantFor(permission, principal.role, resource.projectKind, resource.engagementMode);
   if (!scope) return deny(`role:${principal.role} lacks ${permission}`);
 
+  // The client assistant is off unless the firm switched it on for this role and the client consented.
+  if (permission === "assistant.query" && principal.orgKind === "client" && !principal.clientAssistant) {
+    return deny("assistant:client-off");
+  }
+
   const membership = checkMembership(principal, resource);
   if (!membership.allowed) return membership;
 

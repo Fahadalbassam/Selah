@@ -332,7 +332,12 @@
     "newerVersion": "newer version uploaded",
     "sourceGone": "Source no longer available to you",
     "sourceGoneHint": "You can't open this source any more, so its name isn't shown.",
-    "askAbout": "Ask the assistant"
+    "askAbout": "Ask the assistant",
+    "clientSubtitle": "Answers questions about your work from the files and records you can already open, with sources.",
+    "clientUsage": "Questions today: {used} of {limit}.",
+    "clientDisclaimer": "The assistant reads only what you can already open, and it never rules on the law or compliance or speaks for the firm. For a decision, ask your consultant.",
+    "clientNotForYou": "You agreed to the assistant for your company. The firm offered it to: {roles}.",
+    "dailyLimit": "You have asked today's questions. You can ask again tomorrow, or ask your consultant."
   },
   "signIn": {
     "title": "Sign in",
@@ -1803,7 +1808,10 @@
       "pulse_low_score": "A client gave a low score in the closing pulse for {title}",
       "case_study_revoked": "The client withdrew its case-study consent for {title}",
       "support_requested": "Someone at {title} reported a technical problem",
-      "support_handled": "The firm handled the problem you reported"
+      "support_handled": "The firm handled the problem you reported",
+      "client_ai_offered": "The firm offered your company the assistant. Read the notice to switch it on",
+      "client_ai_consented": "{title} agreed to the client assistant",
+      "client_ai_withdrawn": "{title} switched off the client assistant"
     },
     "mail": {
       "section": "Mail",
@@ -3668,7 +3676,12 @@
       "info_request_link_opened": "Upload link opened",
       "info_request_link_upload": "File sent through an upload link",
       "support_request_create": "Technical problem reported",
-      "support_request_handle": "Reported problem marked handled"
+      "support_request_handle": "Reported problem marked handled",
+      "client_ai_settings": "Changed the client assistant",
+      "client_ai_consent": "Agreed to the client assistant",
+      "client_ai_withdraw": "Switched off the client assistant",
+      "client_ai_manage": "Change the client assistant",
+      "document_summarize": "Summarize a file"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4488,6 +4501,49 @@
       "open": "Open",
       "handled": "Handled",
       "handle": "Mark handled"
+    }
+  },
+  "clientAi": {
+    "title": "Client assistant",
+    "hint": "Lets the client's people ask questions about their own work. Off until you offer it and the client's admin agrees.",
+    "change": "Change",
+    "status": {
+      "off": "Off",
+      "waiting": "Waiting for the client",
+      "on": "On"
+    },
+    "offHint": "The client's people don't have the assistant.",
+    "waitingHint": "Offered. The client's admin has to read the notice and agree before anyone uses it.",
+    "onHint": "{name} agreed on {date}.",
+    "notEligible": "Not available for this client: it needs an active client whose people sign in, with full records.",
+    "roles": "Who can use it",
+    "limit": "Questions per person per day",
+    "perDay": "{n} a day",
+    "history": "Consent history",
+    "given": "{name} agreed on {date}",
+    "ended": "ended by {name} on {date}",
+    "dialogTitle": "Client assistant",
+    "dialogHint": "It answers only from records and files each person can already open. It never sees firm-only material, assessment scores, firm notes or other clients. Every change is in the audit log.",
+    "offer": "Offer the assistant to this client",
+    "offerHint": "The client's admin is told and has to agree first.",
+    "ownersOut": "Action owners can't have it: they see only their own work.",
+    "limitHint": "Between {min} and {max}.",
+    "endsConsent": "This ends the client admin's agreement. They'll be asked to agree again.",
+    "notice": {
+      "title": "Before you switch on the assistant",
+      "hint": "Your consultants' firm offered your company an assistant that answers questions about your work. Read what it does, then agree to switch it on.",
+      "sees": "It answers only from files and records that the person asking can already open in Selah, and it shows where each answer comes from.",
+      "never": "It never sees the firm's internal notes, assessment scores, other clients or anything kept private to someone else.",
+      "rules": "It doesn't rule on the law or compliance, doesn't guess what the firm intends, and doesn't make decisions. For those, ask your consultant.",
+      "stored": "Questions and answers are kept as chats, visible only to the person who asked, and deleted on the same schedule as other chats. Each question is recorded in the audit log.",
+      "people": "Who at your company can use it: {roles}.",
+      "withdraw": "Switch off the assistant",
+      "version": "Notice version {version}.",
+      "confirm": "I have read this and agree for my company.",
+      "agree": "Agree and switch on",
+      "agreed": "The assistant is on for your company.",
+      "withdrawConfirm": "Switch off the assistant for everyone at your company? Their chats stay hidden. The firm can offer it again.",
+      "withdrawn": "The assistant is off for your company."
     }
   }
 }

@@ -13,13 +13,17 @@ export interface RetrievalScope {
   /** Labels the user may read. user_private chunks also need ownerUserId = userId. */
   labels: readonly Visibility[];
   userId: string;
+  /** A client person: only files, recommendations and actions are searched (no meeting notes or reviews). */
+  client?: boolean;
 }
 
 export function retrievalScope(principal: Principal, project: Resource & { type: "project" }): RetrievalScope | null {
   if (!authorize(principal, "assistant.query", project).allowed) return null;
-  // Action owners only see documents shared with them one by one. Chunks are
-  // not indexed per user, so they cannot use retrieval even if the
-  // assistant is later opened to client roles.
+  // Action owners see only their own actions and the files shared with them,
+  // narrower than row-level security, and passages are not indexed per
+  // person, so they never get retrieval. A client admin or manager reads
+  // what row-level security gives them, which is what their screens show
+  // (tests/db/client-assistant.test.ts).
   if (principal.role === "action_owner") return null;
 
   const labels: Visibility[] =
@@ -30,5 +34,6 @@ export function retrievalScope(principal: Principal, project: Resource & { type:
     orgId: project.orgId,
     labels,
     userId: principal.userId,
+    client: principal.orgKind === "client",
   };
 }
