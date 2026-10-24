@@ -21,11 +21,13 @@ import { isUuid } from "@/lib/ids";
 import { localLabel } from "@/lib/names";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
+import { actionThread } from "@/services/comments";
 import { departmentChoices } from "@/services/engagement";
 import { actionClosure, actionFollowThrough, actionLadder, listActionNotes, mailFailing } from "@/services/follow-through";
 import { isActionMuted } from "@/services/notifications";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
+import { CommentThread } from "./comment-thread";
 import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
 import { DepartmentPicker } from "./department-picker";
@@ -41,7 +43,7 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       ladder: await actionLadder(tx, principal, id),
@@ -54,6 +56,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       closing: await actionClosure(tx, principal, id),
       // Firm-only notes; anyone who may not read them (every client role) gets null.
       notes: await listActionNotes(tx, principal, id).catch(() => null),
+      thread: await actionThread(tx, principal, id),
       // Internal projects have no departments.
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
     };
@@ -123,6 +126,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           />
 
           <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} firmView={firmView} canSubmit={data.can.submitEvidence} />
+
+          <CommentThread actionId={action.id} comments={thread.comments} people={thread.people} canWrite={thread.can.write} firmView={firmView} />
 
           {notes ? (
             <Card className="gap-4 py-5 shadow-xs">

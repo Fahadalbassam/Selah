@@ -13,6 +13,7 @@ export type BlockerKind = (typeof BLOCKER_KINDS)[number];
 
 /** The tables a closed project freezes (the project_open trigger, check_project_open()). */
 export const FROZEN_TABLES = [
+  "action_comments",
   "action_notes",
   "actions",
   "assessment_answers",

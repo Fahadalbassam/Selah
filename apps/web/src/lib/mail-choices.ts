@@ -26,7 +26,15 @@ export const RAMADAN_DEFAULTS = { mailFrom: "10:00", mailTo: "15:00" } as const;
 export const RAMADAN_SPAN_DAYS = [28, 29] as const;
 
 /** Mail about a person's own action, sent at once or batched into the summary. */
-export const UPDATE_MAIL_KINDS = ["action.assigned", "action.revision_requested", "action.verified_complete", "evidence.requested"] as const;
+export const UPDATE_MAIL_KINDS = [
+  "action.assigned",
+  "action.revision_requested",
+  "action.verified_complete",
+  "evidence.requested",
+  // The thread on an action (F11): to whoever the comment reached, not only the owner.
+  "action.commented",
+  "action.mentioned",
+] as const;
 
 /**
  * Mail held through quiet hours, Friday, Saturday and outside Ramadan hours.

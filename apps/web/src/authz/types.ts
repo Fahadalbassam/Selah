@@ -39,6 +39,7 @@ export type ResourceType =
   | "recommendation"
   | "action"
   | "action_note"
+  | "action_comment"
   | "evidence_request"
   | "info_request"
   | "risk_acceptance"
