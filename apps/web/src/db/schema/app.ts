@@ -324,10 +324,16 @@ export const projectMembers = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     // The lead of an internal project manages its members.
     isLead: boolean("is_lead").notNull().default(false),
+    // A colleague who reads and comments but changes nothing (wave 1, N6).
+    observer: boolean("observer").notNull().default(false),
     addedBy: uuid("added_by").references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("project_members_user_idx").on(t.userId)],
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    index("project_members_user_idx").on(t.userId),
+    check("project_member_observer_not_lead", sql`NOT (${t.observer} AND ${t.isLead})`),
+  ],
 );
 
 // Who is who on the client's side of a project (wave 1, item 6): the sponsor,

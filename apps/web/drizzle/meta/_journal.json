@@ -211,6 +211,13 @@
       "when": 1792819950068,
       "tag": "0033_export_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792822197123,
+      "tag": "0034_observers",
+      "breakpoints": true
     }
   ]
 }
