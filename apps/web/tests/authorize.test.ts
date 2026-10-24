@@ -624,7 +624,7 @@ describe("a client leaving", () => {
     for (const p of [lead, principal("client_manager", [ACME_PROJ_1]), principal("action_owner", [ACME_PROJ_1])]) {
       expect(authorize(p, "organization.export", org).allowed, p.role).toBe(false);
     }
-    expect([...OPEN_WHEN_ARCHIVED].sort()).toEqual(["assistant.query", "case_study.revoke", "organization.export"]);
+    expect([...OPEN_WHEN_ARCHIVED].sort()).toEqual(["assistant.query", "case_study.revoke", "organization.export", "support_request.create"]);
   });
 
   it("the people of an archived client in its grace period only read", () => {

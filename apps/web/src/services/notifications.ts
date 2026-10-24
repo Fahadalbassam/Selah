@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations } from "@/db/schema";
+import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations, supportRequests } from "@/db/schema";
 import type { Principal } from "@/authz";
 import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
 import { BadRequestError, NotFoundError } from "@/server/errors";
@@ -88,6 +88,17 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     for (const q of found) titles.set(q.id, { title: q.name ?? q.ref, titleAr: q.nameAr });
   }
 
+  // A reported problem (F13) is titled with its client: the firm admin reads which one, the reporter their own.
+  const supportIds = ids(rows, "support_request");
+  if (supportIds.length) {
+    const found = await tx
+      .select({ id: supportRequests.id, name: organizations.name, nameAr: organizations.nameAr })
+      .from(supportRequests)
+      .innerJoin(organizations, eq(organizations.id, supportRequests.orgId))
+      .where(inArray(supportRequests.id, supportIds));
+    for (const s of found) titles.set(s.id, { title: s.name, titleAr: s.nameAr });
+  }
+
   const items: NotificationItem[] = rows.map((r) => {
     const t = titles.get(r.entityId);
     return {
@@ -106,6 +117,9 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   // A drafted status pack waits on the project's progress tab; a quiet client shows on the oversight page.
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
   if (kind === "project.client_quiet") return "/oversight";
+  // Reported problems: the firm admin reads them below the notifications, the reporter on the help page.
+  if (kind === "support.requested") return "/notifications#support";
+  if (kind === "support.handled") return "/help";
   // The closing pulse is answered, and read, on the project's closing tab.
   if (kind.startsWith("pulse.") || kind.startsWith("case_study.")) return `/projects/${entityId}?tab=closing`;
   // A client confirmed receiving its export pack: the firm admin sees it on the client page.

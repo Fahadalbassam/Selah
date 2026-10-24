@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Inbox,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
   Network,
   ScrollText,
@@ -81,6 +82,8 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   orgKind: "firm" | "client";
   /** Accessible name of the thin rail that toggles the sidebar. */
   railLabel: string;
+  /** Client side (F13): the help page, always in the same place at the foot of the menu. */
+  help?: { title: string; href: string };
 }
 
 /**
@@ -88,7 +91,7 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
  * (sub-menus). The menu only reflects what the server decided this user may
  * open; it is not the access control.
  */
-export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, railLabel, ...props }: AppSidebarProps) {
+export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, railLabel, help, ...props }: AppSidebarProps) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const current = search ? `${pathname}?${search}` : pathname;
@@ -164,6 +167,18 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
           </SidebarGroup>
         ))}
         <SidebarGroup className="mt-auto">
+          {help ? (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip={help.title} isActive={isActive(help.href)}>
+                  <Link href={help.href}>
+                    <LifeBuoy />
+                    <span>{help.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : null}
           <FilesSidebarItem orgKind={orgKind} side={props.side === "right" ? "right" : "left"} />
         </SidebarGroup>
       </SidebarContent>

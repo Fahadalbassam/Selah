@@ -339,7 +339,7 @@ Who: client admin, client manager, action owner.
 
 **Purpose of the UI:** know what is asked of you, do it, and prove it. Fewer choices, plainer words.
 
-- **Navigation:** client admins and managers get Overview, Projects, Actions and Team; action owners get Overview, My actions and Projects. No firm tools (inquiries, templates, review queue, assistant) appear.
+- **Navigation:** client admins and managers get Overview, Projects, Actions and Team; action owners get Overview, My actions and Projects. No firm tools (inquiries, templates, review queue, assistant) appear. Help (`/help`, F13) is always in the same place for every client role: at the foot of the sidebar above Files, and in the user menu (WCAG 2.2, 3.2.6 consistent help).
 - **Overview:** the same summary cards as the firm side, so both sides talk about the same numbers, then "Needs your follow-up".
 - **Action page first:** the action page is the client's main screen. The next step sits at the top of the main column, the evidence list below it, the history last; the side panel shows project, recommendation, owner, due date and the evidence the consultant expects.
 - **Language:** say what to do next ("Upload the signed charter"), not system states. Avoid firm jargon (triage, conflict check, RLS).

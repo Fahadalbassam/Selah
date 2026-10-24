@@ -64,7 +64,8 @@ export type ResourceType =
   | "department"
   | "assessment_template"
   | "assessment"
-  | "engagement";
+  | "engagement"
+  | "support_request";
 
 /**
  * The attributes of a record that the check needs. Services load these from

@@ -27,6 +27,7 @@ export const MAIL_KINDS = [
   "pulse.requested",
   "sign_in_link",
   "info_request.upload_link",
+  "support.requested",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -326,6 +327,20 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
         "If you weren't expecting this mail, ignore it.",
       ],
       action: "Send the document",
+    },
+  },
+  // F13: to the firm's admins, when someone at a client reports a technical
+  // problem from the help page. The text is read in Selah, not in the mail.
+  "support.requested": {
+    ar: {
+      subject: "بلاغ عن مشكلة تقنية من أحد العملاء",
+      lines: ["أبلغ شخص لدى أحد العملاء عن مشكلة تقنية في صلة.", "اقرأ البلاغ في صلة، وعلّمه بأنه عولج بعد الرد على صاحبه."],
+      action: "قراءة البلاغ",
+    },
+    en: {
+      subject: "A client reported a technical problem",
+      lines: ["Someone at a client reported a technical problem in Selah.", "Read the report in Selah, and mark it handled once you have answered them."],
+      action: "Read the report",
     },
   },
 };

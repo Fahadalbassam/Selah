@@ -46,7 +46,7 @@ export const AUDIT_AREAS = {
     "activity",
     "schedule",
   ],
-  people: ["membership", "org_user", "access_review", "client_assignment", "join_request", "consultant_profile", "client_contact"],
+  people: ["membership", "org_user", "access_review", "client_assignment", "join_request", "consultant_profile", "client_contact", "help", "support_request"],
   clients: ["client", "client_group", "organization", "client_profile", "client_report", "client_directory", "inquiry", "conflict", "lead_suggestion"],
   assistant: ["assistant", "ai_conversation"],
   settings: ["firm_settings", "audit_log"],

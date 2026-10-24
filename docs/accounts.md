@@ -105,6 +105,15 @@ Everyone accepts the terms of use, the privacy notice and the AI-use notice befo
 - `/clients/:id/people` gives the firm's admins that screen for a client, reached from the client page.
 - `listPeople` returns the organisation's kind and engagement mode, who has two-factor on (through `app_two_factor_status`, so only admins see it), and `can.erase`. The server checks every action again.
 
+## Help for client people
+
+`/help` (F13, migration `0058_help.sql`) is for the client's people only: it sits at the foot of the client sidebar and in the user menu, and firm staff get a 404. It has two doors.
+
+- **Ask your consultant**, for a question about a piece of work: it goes in that action's discussion (F11), so the answer stays with the work. Each client action page has an "Ask your consultant" button that scrolls to the thread, focuses it, and mentions the client's lead (or the deputy) when they can see the action. It is hidden when the person cannot write there (a closed project, an archived client). The page lists the person's own open actions.
+- **Technical problem**, for something in Selah that doesn't work: `POST /api/help/problems` with up to 2000 characters, at most five in 24 hours per person (`app_report_problem()`; over the limit answers 429 and is audited as a denial). It is stored in `support_requests` and reaches the firm's active admins as a notification and a work mail (`support.requested`), neither of which carries the text. The admins read it under "Problems reported by clients" on `/notifications`, answer by mail, and mark it handled (`POST /api/support-requests/:id/handle`), which tells the author. Only the author and the firm's admins read a report. People of an archived client can still report one during the grace period. Both steps are audited (`support_request.create`, `support_request.handle`); the text never goes in the audit log.
+
+The page also names the person's consultants: the client's lead and deputy, and the firm people staffed on each project they can open (not observers, not switched-off accounts), with name and work address (`app_my_consultants()`). Client people could already read these through `app_can_see_user()`; showing the work address of the consultants serving them is deliberate, so a question that fits no action still has a route. It opens with three first steps for the person's role (a restricted client's admin gets their own) and ends with answers to common questions about action states.
+
 ## Known limits
 
 - An invitation or address change to an address that already has an account is refused, and that reveals to an admin that the address is in use somewhere. Unique addresses make this unavoidable. The refusal names no organisation.
