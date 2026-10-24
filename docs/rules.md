@@ -266,6 +266,7 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | Rule | Database | Checked first in | Tests |
 |---|---|---|---|
 | Roles that require two-factor sign-in cannot switch it off | `check_two_factor_off()` | `src/authz/two-factor.ts`, `src/auth/auth.ts` | `tests/db/two-factor.test.ts` |
+| A sign-in link is mailed only to an active client manager or action owner of an active client, with a verified address and no two-factor sign-in, while the firm allows links; at most five an hour per address; everyone gets the same answer, and the link is refused at use if that stopped being true (single use and 15 minutes are Better Auth's) | `app_link_sign_in_refusal()`, `app_queue_sign_in_link()` | `src/auth/auth.ts` (the magicLink plugin and the verify hook) | `tests/db/sign-in-links.test.ts` |
 | A queued mail wakes the sender | `notify_outbound_email()` | database only | `tests/db/mail.test.ts` |
 | Only known mail kinds are queued | `outbound_emails.outbound_kind` | `src/lib/mail-templates.ts` (`MAIL_KINDS`) | `tests/db/mail.test.ts`, `tests/db/rule-parity.test.ts` |
 | Only an inquiry's mails carry a reference, and it is cleared once sent | `outbound_emails.outbound_reference` | `src/jobs/mail.ts` | `tests/db/intake.test.ts` |

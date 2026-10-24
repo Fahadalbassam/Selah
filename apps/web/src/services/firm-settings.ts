@@ -30,6 +30,8 @@ export const FIRM_SETTING_DEFAULTS = {
   ramadanMailFrom: RAMADAN_DEFAULTS.mailFrom as string,
   ramadanMailTo: RAMADAN_DEFAULTS.mailTo as string,
   auditKeepMonths: 12,
+  // Client managers and action owners may sign in by a mailed link (F14).
+  signInLinksEnabled: true,
 };
 export type FirmSettings = typeof FIRM_SETTING_DEFAULTS;
 export type FirmSettingsPatch = Partial<FirmSettings>;

@@ -3,12 +3,14 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { twoFactor } from "better-auth/plugins";
+import { magicLink, twoFactor } from "better-auth/plugins";
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "@/env";
 import { accountKey, createAttemptLimiter } from "@/auth/attempts";
+import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-links";
 import { account, session, twoFactor as twoFactorTable, user, verification } from "@/db/schema/auth";
 import { auditDetached } from "@/services/audit";
 
@@ -52,6 +54,7 @@ async function recordAuthEvent(entry: {
   actorId?: string | null;
   email?: unknown;
   ip: string | null;
+  reason?: string;
   meta?: Record<string, string | number | boolean | null>;
 }) {
   try {
@@ -69,12 +72,30 @@ async function recordAuthEvent(entry: {
       resourceType: "user",
       resourceId: entry.actorId ?? resourceId,
       outcome: entry.outcome,
+      reason: entry.reason,
       ip: entry.ip,
       meta: entry.meta,
     });
   } catch {
     // Recording must never break signing in.
   }
+}
+
+/** Where Better Auth keeps a sign-in link: its token's SHA-256 (storeToken: "hashed"). */
+const linkIdentifier = (token: string) => `magic-link:${createHash("sha256").update(token).digest("base64url")}`;
+
+/**
+ * Why a sign-in link may not be used, or null when it may (or when the token
+ * is unknown or expired, which Better Auth refuses itself).
+ */
+async function linkRefusal(db: ReturnType<typeof drizzle>, token: string) {
+  const identifier = linkIdentifier(token);
+  const { rows } = await db.execute<{ refusal: string | null }>(sql`
+    select app_link_sign_in_refusal(u.id) as refusal
+    from verification v left join "user" u on lower(u.email) = lower(v.value::jsonb ->> 'email')
+    where v.identifier = ${identifier} and v.expires_at > now()`);
+  const refusal = rows[0]?.refusal ?? null;
+  return refusal ? { identifier, refusal } : null;
 }
 
 const TWO_FACTOR_CHECKS = new Set(["/two-factor/verify-totp", "/two-factor/verify-backup-code", "/two-factor/verify-otp"]);
@@ -133,6 +154,8 @@ function createAuth() {
         // Per address. An office behind one address shares it, so it is
         // looser than the per-account limit in the hook below.
         "/sign-in/email": { window: 60, max: 20 },
+        "/sign-in/magic-link": { window: 60, max: 5 },
+        "/magic-link/verify": { window: 60, max: 10 },
         "/two-factor/*": { window: 60, max: 5 },
         "/request-password-reset": { window: 60, max: 3 },
         "/reset-password": { window: 60, max: 5 },
@@ -151,13 +174,31 @@ function createAuth() {
     // a clear answer instead of an error.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path === "/sign-in/email") {
+        // Asking for a sign-in link counts as a sign-in attempt on the account.
+        if (ctx.path === "/sign-in/email" || ctx.path === "/sign-in/magic-link") {
           const key = accountKey((ctx.body as { email?: unknown } | undefined)?.email);
           const wait = key ? signInsPerAccount.take(key) : null;
           if (wait !== null) {
             throw new APIError("TOO_MANY_REQUESTS", { message: "too many sign-in attempts" }, { "X-Retry-After": String(wait) });
           }
           return;
+        }
+        // A link works only while its person may still sign in this way: their
+        // role or two-factor sign-in may have changed since it was sent. They
+        // see the same answer as for a used or expired link.
+        if (ctx.path === "/magic-link/verify") {
+          const token = (ctx.query as { token?: unknown } | undefined)?.token;
+          const refused = typeof token === "string" ? await linkRefusal(authDb, token) : null;
+          if (!refused) return;
+          await authDb.execute(sql`delete from verification where identifier = ${refused.identifier}`);
+          await recordAuthEvent({
+            action: "auth.sign_in.failed",
+            outcome: "deny",
+            ip: ipOf(ctx.headers),
+            reason: refused.refusal,
+            meta: { method: "link" },
+          });
+          throw ctx.redirect(new URL("/sign-in?error=INVALID_TOKEN", e.APP_URL).toString());
         }
         if (ctx.path === "/sign-out") {
           // Before the session is gone, so the event has its person.
@@ -179,10 +220,18 @@ function createAuth() {
         const signedIn = ctx.context.newSession?.user.id ?? null;
         if (ctx.path === "/sign-in/email") {
           const body = ctx.body as { email?: unknown } | undefined;
-          if (failed) await recordAuthEvent({ action: "auth.sign_in.failed", outcome: "deny", email: body?.email, ip });
-          else if (signedIn) await recordAuthEvent({ action: "auth.sign_in", outcome: "allow", actorId: signedIn, ip });
+          const meta = { method: "password" };
+          if (failed) await recordAuthEvent({ action: "auth.sign_in.failed", outcome: "deny", email: body?.email, ip, meta });
+          else if (signedIn) await recordAuthEvent({ action: "auth.sign_in", outcome: "allow", actorId: signedIn, ip, meta });
           // Right password, two-factor code still to come.
-          else await recordAuthEvent({ action: "auth.sign_in.password_ok", outcome: "allow", email: body?.email, ip });
+          else await recordAuthEvent({ action: "auth.sign_in.password_ok", outcome: "allow", email: body?.email, ip, meta });
+          return;
+        }
+        // Both answers are redirects, so success shows as a new session.
+        if (ctx.path === "/magic-link/verify") {
+          const meta = { method: "link" };
+          if (signedIn) await recordAuthEvent({ action: "auth.sign_in", outcome: "allow", actorId: signedIn, ip, meta });
+          else await recordAuthEvent({ action: "auth.sign_in.failed", outcome: "deny", ip, reason: "link used, expired or unknown", meta });
           return;
         }
         if (TWO_FACTOR_CHECKS.has(ctx.path)) {
@@ -207,7 +256,28 @@ function createAuth() {
         }
       }),
     },
-    plugins: [twoFactor({ issuer: "Selah" }), nextCookies()],
+    plugins: [
+      twoFactor({ issuer: "Selah" }),
+      // Sign-in links (F14, decision D7): single use, 15 minutes, the token
+      // kept only as a hash, never a new account. The database queues the
+      // mail only for client managers and action owners
+      // (app_queue_sign_in_link); anyone else gets the same answer and no
+      // mail. The mail opens /sign-in/link/<token>, a page with a button, so
+      // a mail scanner that follows links does not use the link up.
+      magicLink({
+        expiresIn: SIGN_IN_LINK_MINUTES * 60,
+        storeToken: "hashed",
+        disableSignUp: true,
+        sendMagicLink: async ({ email, token }) => {
+          const { rows } = await authDb.execute<{ queued: boolean }>(
+            sql`select app_queue_sign_in_link(${email}, ${token}) as queued`,
+          );
+          // No mail went out, so the token can never be used: don't keep it.
+          if (!rows[0]?.queued) await authDb.execute(sql`delete from verification where identifier = ${linkIdentifier(token)}`);
+        },
+      }),
+      nextCookies(),
+    ],
   });
 }
 

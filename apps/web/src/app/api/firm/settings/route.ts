@@ -27,6 +27,7 @@ const body = z
     ramadanMailFrom: z.string().refine(isClockTime),
     ramadanMailTo: z.string().refine(isClockTime),
     auditKeepMonths: days(R.auditKeepMonths),
+    signInLinksEnabled: z.boolean(),
   })
   .partial()
   .strict();

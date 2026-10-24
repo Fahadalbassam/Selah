@@ -43,6 +43,7 @@ export interface Settings {
   ramadanMailFrom: string;
   ramadanMailTo: string;
   auditKeepMonths: number;
+  signInLinksEnabled: boolean;
 }
 type Key = keyof Settings;
 
@@ -221,7 +222,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         id="accounts"
         title={t("accounts.title")}
         description={t("accounts.hint")}
-        send={save("accounts", ["accessReviewDays", "restrictedMaxAdmins"])}
+        send={save("accounts", ["accessReviewDays", "restrictedMaxAdmins", "signInLinksEnabled"])}
       >
         <Row id="s-review" label={t("accounts.review")} hint={t("accounts.reviewHint")}>
           {days("accessReviewDays", "s-review")}
@@ -238,6 +239,9 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
             value={String(s.restrictedMaxAdmins)}
             onChange={(e) => set("restrictedMaxAdmins", Number(e.target.value))}
           />
+        </Row>
+        <Row id="s-links" label={t("accounts.signInLinks")} hint={t("accounts.signInLinksHint")}>
+          <Switch id="s-links" checked={s.signInLinksEnabled} onCheckedChange={(v) => set("signInLinksEnabled", v)} />
         </Row>
         <p className="text-sm text-muted-foreground">
           {t("accounts.domains")}{" "}
