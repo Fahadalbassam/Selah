@@ -589,3 +589,32 @@ describe("closing a project", () => {
     expect(authorize(principal("action_owner", [ACME_PROJ_1]), "closure.request", r).allowed).toBe(false);
   });
 });
+
+describe("a client leaving", () => {
+  const permissions = Object.keys(POLICY) as Permission[];
+
+  it("only the firm admin archives a client or places a legal hold", () => {
+    const org: Resource = { type: "organization", orgId: ACME, firmOrgId: FIRM, projectId: null };
+    expect(authorize(principal("firm_admin"), "organization.archive", org).allowed).toBe(true);
+    expect(authorize(principal("firm_admin"), "organization.hold", org).allowed).toBe(true);
+    const lead = principal("consultant", [ACME_PROJ_1], undefined, [], { clients: [ACME] });
+    for (const p of [lead, principal("client_admin", [ACME_PROJ_1])]) {
+      expect(authorize(p, "organization.archive", org).allowed, p.role).toBe(false);
+      expect(authorize(p, "organization.hold", org).allowed, p.role).toBe(false);
+    }
+  });
+
+  it("the people of an archived client in its grace period only read", () => {
+    for (const role of ["client_admin", "client_manager", "action_owner"] as Role[]) {
+      const p = principal(role, [ACME_PROJ_1]);
+      const archived = { ...p, readOnly: true };
+      for (const perm of permissions) {
+        const r = acmeRecord("action", { assignees: [p.userId], createdBy: p.userId, ownerOrgId: p.orgId, projectKind: "client" });
+        const before = authorize(p, perm, r).allowed;
+        const after = authorize(archived, perm, r);
+        if (/\.(read|download)$/.test(perm) || perm === "assistant.query") expect(after.allowed, `${role} ${perm}`).toBe(before);
+        else expect(after.allowed, `${role} ${perm}`).toBe(false);
+      }
+    }
+  });
+});

@@ -130,11 +130,11 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 ### J14 · Offboarding · إنهاء العلاقة
 
-- [ ] **J14.1** Archive the client — lane: firm · map: wave 1 · covered by: F27 · wave: 1
-- [ ] **J14.2** Export pack, legal hold — lane: firm · map: wave 1 · covered by: F27 · wave: 1
+- [x] **J14.1** Archive the client — lane: firm · map: wave 1 · covered by: F27 · wave: 1 · pr: #83
+- [~] **J14.2** Export pack, legal hold — lane: firm · map: wave 1 · covered by: F27 · wave: 1 · pr: #83 (legal hold; export pack next)
 - [ ] **J14.3** Reassign leavers' work — lane: firm · map: wave 1 · covered by: F26 · wave: 1
 - [ ] **J14.4** Exit handover (firm: Hands over export; client: Receives it, signs receipt) — lane: shared · map: wave 1 · covered by: F27 · wave: 1
-- [ ] **J14.5** Read-only grace period — lane: client · map: wave 1 · covered by: F27 · wave: 1
+- [x] **J14.5** Read-only grace period — lane: client · map: wave 1 · covered by: F27 · wave: 1 · pr: #83
 
 ## Full-picture items
 
@@ -180,7 +180,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 - [~] **F25** Closing is a gate — tier: 5 · size: M · wave: 1 · journey: J12.3, J12.4 · pr: #79 (dispositions, sustainers, lessons, read-only, reopen with reason, closure report PDF; still open: closing pulse survey and case-study consent)
 - [ ] **F26** When people leave or change — tier: 5 · size: M · wave: 1 · journey: J14.3
-- [ ] **F27** A client can leave cleanly — tier: 5 · size: M · wave: 1 · journey: J14.1, J14.2, J14.4, J14.5
+- [~] **F27** A client can leave cleanly — tier: 5 · size: M · wave: 1 · journey: J14.1, J14.2, J14.4, J14.5 · pr: #83 (archive, grace period, restore, legal hold, 10-year retention, purge with deletion record; export pack and receipt next)
 - [ ] **F28** Pause and follow-on projects — tier: 5 · size: M · wave: frozen · journey: J13.3 · decision: D2
 - [ ] **F29** After-care and re-verification — tier: 5 · size: M · wave: frozen · journey: J13.2, J13.4
 

@@ -2,7 +2,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import { Megaphone } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { PeopleStack } from "@/components/people-stack";
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { authorize } from "@/authz";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
+import { listDeletions } from "@/services/offboarding";
 import { listClients } from "@/services/queries";
 import { clientDirectory, myPendingRequests, pendingRequestCounts } from "@/services/staffing";
 import { EmptyState } from "@/components/empty-state";
@@ -30,10 +31,19 @@ export default async function ClientsPage() {
       directory: principal.role === "consultant" ? (await clientDirectory(tx, principal)).filter((c) => !c.assigned) : [],
       mine: await myPendingRequests(tx, principal),
       requests: await pendingRequestCounts(tx, principal),
+      // Clients deleted after their retention period: only this record remains (firm admin).
+      deletions: await listDeletions(tx, principal),
     };
   });
   if (!data) notFound();
-  const [t, tc, tE] = await Promise.all([getTranslations("staffing"), getTranslations("clients"), getTranslations("engagements")]);
+  const [t, tc, tE, tOff, format] = await Promise.all([
+    getTranslations("staffing"),
+    getTranslations("clients"),
+    getTranslations("engagements"),
+    getTranslations("offboarding"),
+    getFormatter(),
+  ]);
+  const day = (d: Date | string | null) => (d ? format.dateTime(new Date(d), { dateStyle: "medium" }) : "—");
   const ar = (await getLocale()) === "ar";
   const name = (c: { name: string; nameAr: string | null }) => localName(c, ar);
 
@@ -108,6 +118,11 @@ export default async function ClientsPage() {
                           {tE("prospect")}
                         </ToneBadge>
                       ) : null}
+                      {c.status === "archived" ? (
+                        <ToneBadge tone="neutral" className="ms-2">
+                          {tOff("archived")}
+                        </ToneBadge>
+                      ) : null}
                       {pending ? (
                         <ToneBadge tone="waiting" className="ms-2">
                           {t("requests", { count: pending })}
@@ -161,6 +176,46 @@ export default async function ClientsPage() {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {data.deletions.length ? (
+        <Card className="gap-4 py-5 shadow-xs">
+          <CardHeader className="px-5">
+            <CardTitle className="text-base">{tOff("deletions.title")}</CardTitle>
+            <CardDescription>{tOff("deletions.hint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="px-5">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{tOff("deletions.client")}</TableHead>
+                  <TableHead>{tOff("deletions.archived")}</TableHead>
+                  <TableHead>{tOff("deletions.kept")}</TableHead>
+                  <TableHead>{tOff("deletions.deleted")}</TableHead>
+                  <TableHead>{tOff("deletions.what")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.deletions.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium">{name(d)}</TableCell>
+                    <TableCell className="tabular-nums">{day(d.archivedAt)}</TableCell>
+                    <TableCell className="tabular-nums">{day(d.retainUntil)}</TableCell>
+                    <TableCell className="tabular-nums">{day(d.deletedAt)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {tOff("deletions.counts", {
+                        projects: d.counts.projects ?? 0,
+                        actions: d.counts.actions ?? 0,
+                        documents: d.counts.documents ?? 0,
+                        people: d.counts.people ?? 0,
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       ) : null}

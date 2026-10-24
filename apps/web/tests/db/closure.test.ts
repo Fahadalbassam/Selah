@@ -22,6 +22,7 @@ import {
   writeLessons,
 } from "@/services/closure";
 import { loadPrincipal } from "@/services/principal";
+import { dashboard } from "@/services/queries";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -365,6 +366,18 @@ describe("visibility", () => {
     expect(await due()).toContain(a);
     await svc(U.cons, (tx, p) => disposeAction(tx, p, PROJ, a, { disposition: "deferred", note: "Next phase" }));
     expect(await due()).not.toContain(a);
+  });
+
+  it("a closed project's open actions are never overdue or waiting on the overview", async () => {
+    const a = await action(PROJ, { status: "blocked" });
+    await owner.query(`UPDATE actions SET due_date = '2026-01-10' WHERE id = $1`, [a]);
+    const view = () => svc(U.cadmin, (tx, p) => dashboard(tx, p));
+    expect((await view()).overdue).toBe(1);
+    expect((await view()).attention.map((r) => r.id)).toContain(a);
+    await owner.query(`UPDATE projects SET state = 'closed' WHERE id = $1`, [PROJ]);
+    expect((await view()).overdue).toBe(0);
+    expect((await view()).attention.map((r) => r.id)).not.toContain(a);
+    expect((await view()).blocked).toBe(1);
   });
 });
 

@@ -1,4 +1,5 @@
-import { getLocale, getTranslations } from "next-intl/server";
+import { Archive } from "lucide-react";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
 import { NotificationBell } from "@/components/notifications";
@@ -7,6 +8,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import type { Role } from "@/authz";
 import { withPrincipal } from "@/server/page";
 import { unreadCount } from "@/services/notifications";
+import { myOffboarding } from "@/services/offboarding";
 import { getViewer } from "@/services/queries";
 
 function navFor(role: Role, t: (key: string) => string): NavGroup[] {
@@ -81,16 +83,20 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
 }
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { viewer, unread } = await withPrincipal(async (tx, principal) => ({
+  const { viewer, unread, leaving } = await withPrincipal(async (tx, principal) => ({
     viewer: await getViewer(tx, principal),
     unread: await unreadCount(tx, principal),
+    // The people of an archived client read until their grace period ends (F27).
+    leaving: await myOffboarding(tx, principal),
   }));
   const locale = await getLocale();
-  const [tNav, tRole, tHeader, tApp] = await Promise.all([
+  const [tNav, tRole, tHeader, tApp, tOff, format] = await Promise.all([
     getTranslations("nav"),
     getTranslations("role"),
     getTranslations("header"),
     getTranslations("app"),
+    getTranslations("offboarding"),
+    getFormatter(),
   ]);
   const rtl = locale === "ar";
   const orgName = (rtl ? viewer.orgNameAr : null) ?? viewer.orgName;
@@ -122,7 +128,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <NotificationBell unread={unread} />
           </div>
         </header>
-        <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
+        <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">
+          {leaving ? (
+            <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+              <Archive className="size-4 shrink-0" />
+              {tOff("clientBanner", { date: format.dateTime(leaving.graceUntil, { dateStyle: "long" }) })}
+            </p>
+          ) : null}
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
