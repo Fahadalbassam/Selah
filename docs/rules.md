@@ -63,6 +63,16 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | A project continues an earlier project of the same client, never itself or one that continues it | `check_project_follows()` | `src/services/staffing.ts` (`createClientProject()`, `updateProject()`) | `tests/db/projects.test.ts` |
 | A join request is decided once; only the decision changes | `check_join_request_update()` | `src/services/staffing.ts` (`decideRequest()`) | `tests/db/rls.test.ts` |
 
+### Signed engagements and draft projects
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| An engagement is between the firm and one of its clients and stays with that client; signature and data-agreement dates are not in the future; the inquiry it came from belongs to that client | `check_engagement()`, `engagements.engagement_period` | `src/services/engagements.ts` (`recordEngagement()`, `updateEngagement()`), `src/lib/engagements.ts` | `tests/db/engagements.test.ts` |
+| Who reads an engagement: firm admins, consultants assigned to the client, and the client's admin; only the firm admin writes | `app_can_see_engagement()` | `src/authz/policy.ts` (`engagement.read`, `engagement.write`) | `tests/db/engagements.test.ts` |
+| A deliverable belongs to a project its engagement covers | `check_engagement_deliverable()` | `src/services/engagements.ts` (`addDeliverable()`) | `tests/db/engagements.test.ts` |
+| A client project no signed engagement covers is a draft; covering it makes it planned; only the firm admin covers it, with an engagement of the same client; a covered project keeps it and is never a draft again; internal projects are never drafts | `check_project_engagement()` | `src/services/engagements.ts` (`coverProjects()`), `src/services/staffing.ts` (`createClientProject()`) | `tests/db/engagements.test.ts`, `tests/db/projects.test.ts` |
+| The client never sees a draft project, and its people join only once it is covered | `app_can_see_project()`, `check_draft_member()` | `src/services/staffing.ts` | `tests/db/engagements.test.ts` |
+
 ### Evidence and review integrity
 
 | Rule | Database | Checked first in | Tests |

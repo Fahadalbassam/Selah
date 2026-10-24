@@ -130,7 +130,8 @@ describe("a client with several projects", () => {
     );
     phase2 = r.id;
     const { rows } = await owner.query(`SELECT kind, state, org_id, sequence, planned_working_days, follows_project_id, created_by FROM projects WHERE id = $1`, [phase2]);
-    expect(rows[0]).toMatchObject({ kind: "client", state: "planned", org_id: ACME, sequence: 2, planned_working_days: 20, follows_project_id: PROJ, created_by: U.lead });
+    // No engagement covers it yet, so it is a draft (0008).
+    expect(rows[0]).toMatchObject({ kind: "client", state: "draft", org_id: ACME, sequence: 2, planned_working_days: 20, follows_project_id: PROJ, created_by: U.lead });
     expect(await canSee(U.lead, phase2)).toBe(true);
     // A consultant on the team but not staffed doesn't see the new project.
     expect(await canSee(U.cons, phase2)).toBe(false);

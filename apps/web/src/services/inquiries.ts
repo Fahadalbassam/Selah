@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
+  clientContacts,
   discoverySessions,
   firmSettings,
   inquiries,
@@ -16,7 +17,9 @@ import {
 } from "@/db/schema";
 import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
+import type { EngagementInput } from "@/lib/engagements";
 import { audit } from "./audit";
+import { recordEngagement } from "./engagements";
 import { createClient, setLead } from "./staffing";
 
 // The firm's side of intake: triage, discovery, and turning a won inquiry
@@ -287,15 +290,20 @@ export interface Conversion {
   /** A new client starts in the engagement mode chosen here (full by default); an existing one keeps its own. */
   client: { name: string; nameAr?: string; engagementMode?: EngagementMode } | { existingClientId: string };
   leadUserId?: string;
-  /** Starts the first engagement, planned, when given. */
+  /** What the client signed. An inquiry is won when the engagement letter is signed. */
+  engagement: EngagementInput;
+  /** The first project, covered by the engagement (planned), when given. */
   projectTitle?: string;
 }
 
 /**
  * Win the inquiry and make it a client, in one transaction: the client
- * organisation (or an existing one), its lead, and optionally the first
- * project. The database refuses it unless the conflict check is clear or
- * waived. Inviting the client's people is a separate step.
+ * organisation (or an existing one), its lead, the signed engagement, and
+ * optionally the first project. What the requester told us carries over:
+ * the engagement keeps the inquiry (its sector, size, ownership, self-check
+ * and services show from there), and the contact becomes a client contact.
+ * The database refuses it unless the conflict check is clear or waived.
+ * Inviting the client's people is a separate step.
  */
 export async function convertInquiry(tx: Tx, principal: Principal, id: string, input: Conversion) {
   const { row, resource } = await loadInquiry(tx, principal, id);
@@ -319,6 +327,25 @@ export async function convertInquiry(tx: Tx, principal: Principal, id: string, i
     clientOrgId = (await createClient(tx, principal, input.client)).id;
   }
   if (input.leadUserId) await setLead(tx, principal, clientOrgId, input.leadUserId);
+  const engagement = await recordEngagement(tx, principal, clientOrgId, { ...input.engagement, inquiryId: id });
+  // The person who wrote to us, unless the client already has them.
+  if (row.contactName && row.contactEmail) {
+    const [known] = await tx
+      .select({ id: clientContacts.id })
+      .from(clientContacts)
+      .where(and(eq(clientContacts.orgId, clientOrgId), eq(clientContacts.email, row.contactEmail.trim().toLowerCase())))
+      .limit(1);
+    const [org] = await tx.select({ minimal: organizations.minimalRecords }).from(organizations).where(eq(organizations.id, clientOrgId)).limit(1);
+    if (!known && !org?.minimal) {
+      await tx.insert(clientContacts).values({
+        orgId: clientOrgId,
+        name: row.contactName,
+        title: row.contactRole,
+        email: row.contactEmail,
+        phone: row.contactPhone,
+      });
+    }
+  }
 
   let projectId: string | undefined;
   if (input.projectTitle) {
@@ -337,6 +364,7 @@ export async function convertInquiry(tx: Tx, principal: Principal, id: string, i
       firmOrgId: principal.orgId,
       title: input.projectTitle,
       state: "planned",
+      engagementId: engagement.id,
       createdBy: principal.userId,
     });
   }
@@ -348,7 +376,7 @@ export async function convertInquiry(tx: Tx, principal: Principal, id: string, i
     resourceType: "inquiry",
     resourceId: id,
     outcome: "allow",
-    meta: { clientOrgId, projectId: projectId ?? null },
+    meta: { clientOrgId, engagementId: engagement.id, projectId: projectId ?? null },
   });
-  return { clientOrgId, projectId };
+  return { clientOrgId, engagementId: engagement.id, projectId };
 }

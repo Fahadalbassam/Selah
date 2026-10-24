@@ -56,7 +56,7 @@ export const visibility = pgEnum("visibility", [
   "user_private",
 ]);
 export const projectKind = pgEnum("project_kind", ["internal", "client"]);
-export const projectState = pgEnum("project_state", ["planned", "active", "closed"]);
+export const projectState = pgEnum("project_state", ["planned", "active", "closed", "draft"]);
 export const priority = pgEnum("priority", ["low", "medium", "high", "critical"]);
 export const actionStatus = pgEnum("action_status", [
   "draft",
@@ -217,6 +217,10 @@ export const projects = pgTable(
     sequence: integer("sequence"),
     plannedWorkingDays: integer("planned_working_days"),
     followsProjectId: uuid("follows_project_id").references((): AnyPgColumn => projects.id, { onDelete: "set null" }),
+    // The signed engagement that covers this project. A client project
+    // without one is a draft (a pitch): the client never sees it, and it
+    // becomes planned when an engagement covers it. baseline: Engagements (0008).
+    engagementId: uuid("engagement_id").references((): AnyPgColumn => engagements.id),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -1168,6 +1172,70 @@ export const discoverySessions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("discovery_sessions_inquiry_idx").on(t.inquiryId)],
+);
+
+// ------------------------------------------------------- engagements
+
+// What the client signed (wave 1, item 5): the record of the engagement
+// letter, kept in Selah though the letter itself is negotiated outside it.
+// One client has many over the years; each covers one or more projects
+// (its phases). The firm admin records it; the client's admin reads it.
+// No fees. baseline: Engagements (0008).
+export const engagements = pgTable(
+  "engagements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    clientOrgId: uuid("client_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    // The inquiry it was won from, when there was one.
+    inquiryId: uuid("inquiry_id")
+      .unique()
+      .references(() => inquiries.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    signedOn: date("signed_on").notNull(),
+    // The letter's own reference number.
+    contractRef: text("contract_ref"),
+    scope: text("scope").notNull(),
+    exclusions: text("exclusions"),
+    // When the data processing agreement was signed. The client controls its
+    // people's data and the firm processes it, in every mode (PDPL), so it
+    // is needed every time; empty means not recorded yet.
+    dataAgreementOn: date("data_agreement_on"),
+    startsOn: date("starts_on"),
+    endsOn: date("ends_on"),
+    // Implementation follow-up continues after the last phase.
+    retainerFollows: boolean("retainer_follows").notNull().default(false),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("engagements_client_idx").on(t.clientOrgId),
+    check("engagement_period", sql`${t.endsOn} IS NULL OR ${t.startsOn} IS NULL OR ${t.endsOn} >= ${t.startsOn}`),
+  ],
+);
+
+// What the engagement promises to deliver, each with how the client will
+// accept it, and optionally the project (phase) that delivers it.
+export const engagementDeliverables = pgTable(
+  "engagement_deliverables",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    engagementId: uuid("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    acceptanceCriteria: text("acceptance_criteria"),
+    dueOn: date("due_on"),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("engagement_deliverables_engagement_idx").on(t.engagementId)],
 );
 
 // ------------------------------------------------- consultant expertise

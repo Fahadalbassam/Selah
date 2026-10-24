@@ -55,6 +55,10 @@ export const POLICY = {
   "project.create_internal": { ...STAFF }, // the creator becomes its lead
   "project.update": { firm_admin: "any" },
   "project.manage_members": { firm_admin: "any", client_admin: "any", consultant: "lead" },
+  // The signed engagement (what the client agreed): the client's consultants
+  // and its admin read it; the firm admin records it. baseline: Engagements.
+  "engagement.read": { ...STAFF, client_admin: "any" },
+  "engagement.write": { firm_admin: "any" },
   // Oversight without being staffed: the admin follows a client or project.
   "project.watch": { firm_admin: "any" },
 
