@@ -211,12 +211,20 @@ export const projects = pgTable(
     // Set by the database when the state becomes closed, cleared on reopening.
     // Assistant chats are deleted a while after it (baseline: Assistant chats).
     closedAt: ts("closed_at"),
+    // A client contracts in phases, each its own project (decided 2026-10-24,
+    // option B): the phase's place in the client's order, the working days
+    // agreed for it, and the project it continues. baseline: Phases (0004).
+    sequence: integer("sequence"),
+    plannedWorkingDays: integer("planned_working_days"),
+    followsProjectId: uuid("follows_project_id").references((): AnyPgColumn => projects.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
   (t) => [
     unique("projects_id_org_uq").on(t.id, t.orgId),
     index("projects_org_idx").on(t.orgId),
+    check("projects_sequence_range", sql`${t.sequence} BETWEEN 1 AND 99`),
+    check("projects_planned_days_range", sql`${t.plannedWorkingDays} BETWEEN 1 AND 1000`),
   ],
 );
 

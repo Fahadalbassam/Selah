@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ClipboardList, SearchCheck, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, Pencil, SearchCheck, UserPlus } from "lucide-react";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -33,7 +33,9 @@ import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insi
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { planOptions } from "@/services/plan";
 import { getProject, isOverdue } from "@/services/queries";
-import { getProjectTeam } from "@/services/staffing";
+import { getProjectPeople, getProjectTeam } from "@/services/staffing";
+import { NO_PREVIOUS } from "@/lib/phases";
+import { ProjectPeople } from "./project-people";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
 import { HandoverCard } from "./handover-card";
@@ -44,7 +46,7 @@ import { ProgressTab } from "./progress-tab";
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -59,6 +61,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       // What this user may add to the plan, with the choices for a new action; null for clients.
       plan: await planOptions(tx, principal, id),
       team: await getProjectTeam(tx, principal, id),
+      // The client's own people on the project: the firm, and the client's admin.
+      people: await getProjectPeople(tx, principal, id),
       firmStaff: principal.orgKind === "firm",
       // Roles that can't read meetings simply get no tab.
       meetings: await listMeetings(tx, principal, id).catch(() => null),
@@ -78,7 +82,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       handover: await getHandover(tx, principal, id),
     };
   });
-  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, format] = await Promise.all([
+  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("plan"),
     getTranslations("staffing"),
@@ -92,6 +96,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("insight"),
     getTranslations("exports"),
     getTranslations("planImport"),
+    getTranslations("phases"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -109,6 +114,44 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </Badge>
         }
       >
+        {team?.can.edit ? (
+          <FormDialog
+            trigger={
+              <Button size="sm" variant="outline">
+                <Pencil />
+                {tPh("edit")}
+              </Button>
+            }
+            title={tPh("edit")}
+            endpoint={`/api/projects/${project.id}`}
+            method="PATCH"
+            sendEmptyAsNull
+            fields={[
+              { name: "title", label: tPh("title"), required: true, maxLength: 200, defaultValue: project.title },
+              { name: "description", label: tPh("description"), type: "textarea", maxLength: 2000, defaultValue: project.description ?? undefined },
+              ...(project.kind === "client"
+                ? [
+                    { name: "sequence", label: tPh("sequence"), maxLength: 2, dir: "ltr" as const, defaultValue: project.sequence?.toString() },
+                    { name: "plannedWorkingDays", label: tPh("plannedDays"), maxLength: 4, dir: "ltr" as const, defaultValue: project.plannedWorkingDays?.toString() },
+                  ]
+                : []),
+              { name: "startDate", label: tPh("start"), type: "date" as const, defaultValue: project.startDate ?? undefined },
+              { name: "endDate", label: tPh("end"), type: "date" as const, defaultValue: project.endDate ?? undefined },
+              ...(project.kind === "client" && team.siblings.length
+                ? [
+                    {
+                      name: "followsProjectId",
+                      label: tPh("followsField"),
+                      type: "select" as const,
+                      defaultValue: project.followsProjectId ?? NO_PREVIOUS,
+                      options: [{ value: NO_PREVIOUS, label: tPh("followsNone") }, ...team.siblings.map((p) => ({ value: p.id, label: p.title }))],
+                    },
+                  ]
+                : []),
+            ]}
+            submitLabel={tPh("save")}
+          />
+        ) : null}
         {team?.can.watch ? (
           <ApiButton
             endpoint={`/api/projects/${project.id}/watch`}
@@ -145,7 +188,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
-          {team ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
+          {team || people ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="recs" className="space-y-6">
@@ -498,8 +541,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </ol>
           )}
         </TabsContent>
-        {team ? (
+        {team || people ? (
           <TabsContent value="team" className="grid gap-6 lg:grid-cols-2">
+            {team ? (
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
                 <div className="space-y-1.5">
@@ -575,22 +619,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                 ))}
               </CardContent>
             </Card>
-            {project.kind === "client" ? (
-              <Card className="h-fit gap-4 py-5 shadow-xs">
-                <CardHeader className="px-5">
-                  <CardTitle className="text-base">{ts("clientUsers")}</CardTitle>
-                </CardHeader>
-                <CardContent className="divide-y px-5">
-                  {team.client.length === 0 ? <p className="py-2 text-sm text-muted-foreground">{ts("noStaff")}</p> : null}
-                  {team.client.map((m) => (
-                    <div key={m.userId} className="py-3">
-                      <p className="text-sm font-medium">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{m.email}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
             ) : null}
+            {people ? <ProjectPeople projectId={project.id} clientId={project.orgId} firm={firmStaff} data={people} /> : null}
           </TabsContent>
         ) : null}
       </Tabs>

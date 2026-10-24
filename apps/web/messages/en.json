@@ -501,7 +501,6 @@
     "description": "Description (optional)",
     "projectTeam": "Team",
     "firmStaff": "Firm staff",
-    "clientUsers": "Client users",
     "staff": "Staff on project",
     "staffHintClient": "Choose from the client's team. Staffed consultants see this project; others on the team do not.",
     "staffHintInternal": "Add firm colleagues to this internal project.",
@@ -1432,7 +1431,8 @@
       "inquiry_new": "New inquiry from {title}",
       "inquiry_assigned": "The inquiry from {title} was handed to you",
       "access_review_due": "It's time to review who has access at {title}",
-      "other": "Something changed on {title}"
+      "other": "Something changed on {title}",
+      "project_added": "You were added to {title}"
     }
   },
   "people": {
@@ -2134,5 +2134,52 @@
     "noActions": "No actions.",
     "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact.",
     "footer": "Selah · exported {date}"
+  },
+  "phases": {
+    "hint": "Each phase or separately agreed scope is its own project, in the order agreed with the client.",
+    "new": "New project",
+    "newHint": "A phase, a follow-on scope or a retainer for this client. It starts as planned; staff it and add the client's people from its Team tab.",
+    "create": "Create project",
+    "edit": "Edit details",
+    "save": "Save",
+    "title": "Title",
+    "titlePlaceholder": "For example: Phase 2, governance framework",
+    "description": "Description (optional)",
+    "sequence": "Phase number (optional)",
+    "plannedDays": "Planned working days (optional)",
+    "start": "Start date (optional)",
+    "end": "End date (optional)",
+    "followsField": "Continues from",
+    "followsNone": "No earlier project",
+    "numbered": "{n}. {title}",
+    "days": "{n, plural, one {# working day} other {# working days}}",
+    "follows": "after {title}",
+    "noDates": "No dates yet",
+    "states": {
+      "planned": "Planned",
+      "active": "Active",
+      "closed": "Closed"
+    }
+  },
+  "projectPeople": {
+    "title": "Client people on this project",
+    "hint": {
+      "full": "Client managers and action owners see only the projects they're on, and only people on the project can own its actions. Client admins see every project.",
+      "restricted": "Restricted: only the client's admins have accounts. They see every project; add them here so they can own its actions.",
+      "consultant_managed": "Consultant-managed: the client has no accounts in Selah."
+    },
+    "managed": "Name each action's owner on the action instead, and keep the people you deal with in the client's contacts.",
+    "contactsLink": "Open client contacts",
+    "add": "Add a person",
+    "addHint": "They get a notification and see this project from now on.",
+    "addButton": "Add",
+    "person": "Person",
+    "none": "Nobody from the client yet.",
+    "noCandidates": "Everyone at the client is already on this project.",
+    "remove": "Remove",
+    "removeConfirm": "Take {name} off this project? They stop seeing it, unless they are a client admin.",
+    "owns": "{n, plural, one {owns # open action} other {owns # open actions}}",
+    "reassignFirst": "Reassign their actions first",
+    "switchedOff": "switched off"
   }
 }

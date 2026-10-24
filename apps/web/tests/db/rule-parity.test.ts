@@ -15,6 +15,7 @@ import { CHECKIN_DAYS, FIRM_SETTING_RANGES } from "@/lib/firm-settings";
 import { MAIL_KINDS } from "@/lib/mail-templates";
 import { NAME_ALT_LENGTH } from "@/lib/masking";
 import { callProvider, SPOKEN_LANGS } from "@/lib/meetings";
+import { PHASE_LIMITS } from "@/lib/phases";
 import { TRANSCRIPT_FORMATS, TRANSCRIPT_MAX_CHARS } from "@/lib/transcripts";
 import { TRANSLATABLE, TRANSLATION_MAX_CHARS } from "@/lib/translations";
 import { FIRM_SETTING_DEFAULTS } from "@/services/firm-settings";
@@ -332,5 +333,12 @@ describe("names for masking", () => {
       expect(await set([word(SHORT_NAMES.min - 1)])).not.toBeNull();
       expect(await set([word(SHORT_NAMES.max + 1)])).not.toBeNull();
     });
+  });
+
+  it("PHASE_LIMITS are the database's", async () => {
+    const seq = numbers(await constraintDef("projects", "projects_sequence_range"));
+    const days = numbers(await constraintDef("projects", "projects_planned_days_range"));
+    expect([Math.min(...seq), Math.max(...seq)]).toEqual([PHASE_LIMITS.sequence.min, PHASE_LIMITS.sequence.max]);
+    expect([Math.min(...days), Math.max(...days)]).toEqual([PHASE_LIMITS.plannedWorkingDays.min, PHASE_LIMITS.plannedWorkingDays.max]);
   });
 });
