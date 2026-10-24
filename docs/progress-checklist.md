@@ -90,7 +90,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J09.2** Edit or withdraw it — lane: firm · map: missing · covered by: N1 · wave: 1 · pr: #76
 - [x] **J09.3** Release an action — lane: firm · map: exists · wave: — · pr: #35
 - [x] **J09.4** Evidence review (firm: Verifies or asks revision; client: Submits progress, evidence) — lane: shared · map: exists · wave: — · pr: #1, #22
-- [ ] **J09.5** Responds to recommendation — lane: client · map: wave 1 · covered by: F10 · wave: 1
+- [x] **J09.5** Responds to recommendation — lane: client · map: wave 1 · covered by: F10 · wave: 1 · pr: #96
 - [ ] **J09.6** Comment thread on action — lane: client · map: wave 1 · covered by: F11 · wave: 1
 - [x] **J09.7** Update, block, submit — lane: client · map: exists · wave: — · pr: #16
 
@@ -101,7 +101,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [ ] **J10.3** Scope change log — lane: firm · map: missing · covered by: F20 · wave: frozen
 - [x] **J10.4** Deadline request (firm: Approves or rejects; client: Asks for a new date) — lane: shared · map: exists · wave: — · pr: #16
 - [x] **J10.5** Signs a risk acceptance — lane: client · map: exists · wave: — · pr: #22
-- [ ] **J10.6** Disagrees on record — lane: client · map: wave 1 · covered by: F10 · wave: 1
+- [x] **J10.6** Disagrees on record — lane: client · map: wave 1 · covered by: F10 · wave: 1 · pr: #96
 
 ### J11 · Oversight and reporting · الإشراف والتقارير
 
@@ -157,7 +157,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 ### Tier 3 · The client takes part
 
-- [ ] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6
+- [x] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6 · pr: #96
 - [ ] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6
 - [x] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7 · pr: #78
 - [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: frozen
