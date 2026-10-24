@@ -16,6 +16,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { indexDocument, indexRecords, pagesFromText, type Embed } from "@/jobs/index-documents";
 import { CLIENT_AI_VERSION, CLIENT_REFUSAL, clientAnswerProblem } from "@/lib/client-ai";
+import { firmToday } from "@/lib/dates";
 import { loadPrincipal } from "@/services/principal";
 
 const ONE = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
@@ -404,7 +405,7 @@ describe("limits and the answer filter", () => {
     await ask(U.cmgr);
     await ask(U.cmgr);
     await expect(ask(U.cmgr)).rejects.toThrow();
-    await expect(sqlAs(U.cmgr, `SELECT app_count_ai_question(CURRENT_DATE)`)).rejects.toMatchObject({ code: "SL429" });
+    await expect(sqlAs(U.cmgr, `SELECT app_count_ai_question($1::date)`, [firmToday()])).rejects.toMatchObject({ code: "SL429" });
     // A refused question isn't counted; another person has their own count.
     expect((await owner.query(`SELECT queries FROM ai_usage WHERE user_id = $1`, [U.cmgr])).rows[0].queries).toBe(2);
     await ask(U.fin);

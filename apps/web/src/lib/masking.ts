@@ -53,7 +53,8 @@ const NAME_PARTS_KEPT = new Set(["al", "bin", "bint", "ibn", "abu", "abd", "abdu
 const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
 // Saudi and international numbers: +966 5x xxx xxxx, 05xxxxxxxx, 011 xxx xxxx.
 const PHONE = /(?<![\p{N}])(?:\+|00)?\d(?:[\s-]?\d){8,13}(?![\p{N}])/gu;
-const PLACEHOLDER = /\[(ORG|PERSON|DEPT|PLACE|EMAIL|PHONE)_(\d+)\]/g;
+// The model sometimes drops the brackets ("PERSON_2"), so they are optional on the way back.
+const PLACEHOLDER = /\[?(?<![\p{L}\p{N}_])(ORG|PERSON|DEPT|PLACE|EMAIL|PHONE)_(\d+)(?![\p{N}])\]?/gu;
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -159,7 +160,7 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
         .replace(pattern, (m) => placeholder(kindOf.get(keyOf(m)) ?? "ORG", m));
     },
     unmask(text) {
-      return text.replace(PLACEHOLDER, (m) => original.get(m) ?? m);
+      return text.replace(PLACEHOLDER, (m, kind: string, n: string) => original.get(`[${kind}_${n}]`) ?? m);
     },
     get replaced() {
       return original.size;

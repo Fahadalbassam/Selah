@@ -261,9 +261,10 @@ await probe("P3", "Action owner (Al-Nukhba) asks the assistant", "refused", () =
 await probe("P4", "Client manager reads passages of the firm-only notes directly (RLS)", "0 rows", () =>
   asUser(U.reem, async (tx) => (await tx.execute((await import("drizzle-orm")).sql`SELECT count(*)::int n FROM ai_chunks WHERE source_id = ${D.notes_private}`)).rows[0]),
   (g) => g.includes('"n":0'));
-await probe("P5", "Client manager reads shared passages of their own project (RLS)", "rows > 0 (control)", () =>
+// Since the client assistant (wave 3), a client reads no passages at all until it is on for them; client-run.ts covers it switched on.
+await probe("P5", "Client manager reads shared passages of their own project while the client assistant is off (RLS)", "0 rows", () =>
   asUser(U.reem, async (tx) => (await tx.execute((await import("drizzle-orm")).sql`SELECT count(*)::int n FROM ai_chunks WHERE source_id = ${D.minutes_en}`)).rows[0]),
-  (g) => /"n":[1-9]/.test(g));
+  (g) => g.includes('"n":0'));
 await probe("P6", "Consultant continues an Al-Nukhba chat but names the Waha project", "refused", () =>
   askAs(U.khalid, { projectId: P.waha, question: "and the family council?", conversationId: chats.get("E1"), language: "auto" }), denied);
 await probe("P7", "Consultant not staffed on Rawdah asks about Rawdah's project", "refused", () =>
