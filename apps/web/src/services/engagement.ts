@@ -79,16 +79,15 @@ export async function getEngagement(tx: Tx, principal: Principal, orgId: string)
  */
 async function modeFit(tx: Tx, principal: Principal, orgId: string) {
   const active = and(eq(orgMemberships.orgId, orgId), eq(orgMemberships.active, true));
-  const [[accounts], [nonAdmin], [settings], [contacts], [files]] = await Promise.all([
-    tx.select({ n: count() }).from(orgMemberships).where(active),
-    tx
-      .select({ n: count() })
-      .from(orgMemberships)
-      .where(and(active, ne(orgMemberships.role, "client_admin"))),
-    tx.select({ max: firmSettings.restrictedMaxAdmins }).from(firmSettings).where(eq(firmSettings.orgId, principal.orgId)),
-    tx.select({ n: count() }).from(clientContacts).where(eq(clientContacts.orgId, orgId)),
-    tx.select({ n: count() }).from(documents).where(eq(documents.orgId, orgId)),
-  ]);
+  // One after another: a transaction's connection runs one query at a time.
+  const [accounts] = await tx.select({ n: count() }).from(orgMemberships).where(active);
+  const [nonAdmin] = await tx
+    .select({ n: count() })
+    .from(orgMemberships)
+    .where(and(active, ne(orgMemberships.role, "client_admin")));
+  const [settings] = await tx.select({ max: firmSettings.restrictedMaxAdmins }).from(firmSettings).where(eq(firmSettings.orgId, principal.orgId));
+  const [contacts] = await tx.select({ n: count() }).from(clientContacts).where(eq(clientContacts.orgId, orgId));
+  const [files] = await tx.select({ n: count() }).from(documents).where(eq(documents.orgId, orgId));
   return {
     activeAccounts: accounts!.n,
     nonAdminAccounts: nonAdmin!.n,

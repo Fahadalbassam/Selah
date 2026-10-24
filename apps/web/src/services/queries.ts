@@ -86,6 +86,8 @@ export async function listProjects(tx: Tx, principal: Principal) {
 
 export interface ActionFilter {
   projectId?: string;
+  /** Every client project of this client. */
+  clientOrgId?: string;
   mineOnly?: boolean;
   status?: ActionStatus[];
   /** Overdue ones, or ones in these states. */
@@ -101,6 +103,7 @@ export interface ActionFilter {
 function actionConditions(principal: Principal, filter: ActionFilter) {
   const conditions = [];
   if (filter.projectId) conditions.push(eq(actions.projectId, filter.projectId));
+  if (filter.clientOrgId) conditions.push(eq(actions.orgId, filter.clientOrgId), sql`exists (select 1 from projects p where p.id = ${actions.projectId} and p.kind = 'client')`);
   if (filter.mineOnly || principal.role === "action_owner") conditions.push(eq(actions.ownerUserId, principal.userId));
   if (filter.status) conditions.push(inArray(actions.status, filter.status));
   if (filter.attention) {
