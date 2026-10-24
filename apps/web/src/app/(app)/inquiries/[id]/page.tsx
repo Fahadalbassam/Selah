@@ -1,11 +1,13 @@
-import { ArrowLeft, Circle, Mail, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
+import { ArrowLeft, Circle, FileSignature, Gauge, Mail, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
+import { Search } from "@/components/animate-ui/icons/search";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { ConflictMatches } from "@/components/conflict-matches";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { isUuid } from "@/lib/ids";
 import { SELF_CHECKS } from "@/lib/intake";
+import { SIGNALS } from "@/lib/qualification";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getInquiry, suggestLeads } from "@/services/inquiries";
@@ -41,7 +44,12 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     };
   });
   if (!data) notFound();
-  const [t, ti, format] = await Promise.all([getTranslations("inbox"), getTranslations("inquiry"), getFormatter()]);
+  const [t, ti, tq, format] = await Promise.all([
+    getTranslations("inbox"),
+    getTranslations("inquiry"),
+    getTranslations("qualification"),
+    getFormatter(),
+  ]);
   const ar = (await getLocale()) === "ar";
   const { inquiry: q, can } = data;
   const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
@@ -54,6 +62,16 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
   const status = (s: string | null) => (s ? t(`statuses.${s}`) : "—");
   const selfCheck = q.selfCheck as Record<string, boolean | undefined>;
   const nameOf = (userId: string | null | undefined) => data.team.find((m) => m.id === userId)?.name;
+  const day = (d: string) => format.dateTime(new Date(`${d}T12:00:00Z`), { dateStyle: "medium", timeZone: FIRM_TIME_ZONE });
+  const open = !closed && !q.clientOrgId;
+  const rating = data.qualification;
+  // A client the last search found by the same name or mail domain is probably the same client coming back.
+  const returning =
+    q.source === "existing_client" && q.sourceClientOrgId
+      ? q.sourceClientOrgId
+      : (data.conflictSearch?.matches.find(
+          (m) => m.kind === "client" && m.status !== "prospect" && (m.reasons.includes("same_name") || m.reasons.includes("domain")),
+        )?.id ?? null);
 
   const rows: [string, React.ReactNode][] = [
     [
@@ -318,9 +336,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                               ? t("events.conflict_checked", {
                                   status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
                                 })
-                              : ["submitted", "entered", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
-                                ? t(`events.${e.event}`)
-                                : e.event}
+                              : e.event === "nda_signed"
+                                ? t("events.nda_signed", { date: day(String(e.meta.signed_on)) })
+                                : ["submitted", "entered", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                                  ? t(`events.${e.event}`)
+                                  : e.event}
                       </span>{" "}
                       <span className="ms-1 text-xs text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
                     </p>
@@ -385,6 +405,19 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               ) : (
                 <p className="text-muted-foreground">{t("conflictHint")}</p>
               )}
+              {can.decide ? (
+                <div className="border-t pt-3">
+                  <ConflictMatches search={data.conflictSearch} />
+                </div>
+              ) : null}
+              {can.decide && !q.clientOrgId ? (
+                <ApiButton
+                  endpoint={`/api/intake/inquiries/${q.id}/conflict-search`}
+                  label={data.conflictSearch ? t("searchAgain") : t("runSearch")}
+                  icon={<Search />}
+                  variant="outline"
+                />
+              ) : null}
               {can.decide && !q.clientOrgId ? (
                 <FormDialog
                   trigger={
@@ -402,8 +435,12 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                       label: t("conflict"),
                       type: "select",
                       required: true,
-                      defaultValue: q.conflictStatus === "not_checked" ? "clear" : q.conflictStatus,
-                      options: (["clear", "flagged", "waived"] as const).map((s) => ({ value: s, label: t(`conflicts.${s}`) })),
+                      defaultValue: q.conflictStatus === "not_checked" ? (data.conflictSearch ? "clear" : "flagged") : q.conflictStatus,
+                      // Clearing needs a search first (check_conflict_cleared).
+                      options: (data.conflictSearch ? (["clear", "flagged", "waived"] as const) : (["flagged", "waived"] as const)).map((s) => ({
+                        value: s,
+                        label: t(`conflicts.${s}`),
+                      })),
                     },
                     {
                       name: "conflictNote",
@@ -414,6 +451,95 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     },
                   ]}
                   submitLabel={t("recordConflict")}
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-3 py-5 shadow-xs">
+            <CardHeader className="px-5">
+              <CardDescription>{tq("title")}</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Gauge className="size-4 text-muted-foreground" />
+                {rating ? tq("score", { n: SIGNALS.reduce((n, k) => n + rating[k], 0), of: SIGNALS.length * 3 }) : tq("notRated")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 px-5 text-sm">
+              {rating ? (
+                <>
+                  <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+                    {SIGNALS.map((k) => (
+                      <div key={k} className="contents">
+                        <dt className="text-muted-foreground">{tq(`signals.${k}`)}</dt>
+                        <dd>
+                          <ToneBadge tone={rating[k] === 3 ? "active" : rating[k] === 1 ? "open" : "neutral"}>{tq(`levels.${rating[k]}`)}</ToneBadge>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {rating.note ? (
+                    <p className="whitespace-pre-wrap" dir="auto">
+                      {rating.note}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">{tq.rich("ratedBy", { name: rating.raterName ?? "—", when: when(rating.ratedAt), who: (c) => <bdi>{c}</bdi> })}</p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">{tq("hint")}</p>
+              )}
+              {can.work && open ? (
+                <FormDialog
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      {rating ? tq("rerate") : tq("rate")}
+                    </Button>
+                  }
+                  title={tq("title")}
+                  description={tq("hint")}
+                  endpoint={`/api/intake/inquiries/${q.id}/qualification`}
+                  method="PUT"
+                  sendEmptyAsNull
+                  fields={[
+                    ...SIGNALS.map((k) => ({
+                      name: k,
+                      label: tq(`signals.${k}`),
+                      type: "select" as const,
+                      required: true,
+                      // Unrated, each signal starts empty so nothing is rated by accident.
+                      defaultValue: rating ? String(rating[k]) : "",
+                      placeholder: tq("choose"),
+                      options: [1, 2, 3].map((n) => ({ value: String(n), label: `${tq(`levels.${n}`)}: ${tq(`guides.${k}.${n}`)}` })),
+                    })),
+                    { name: "note", label: tq("note"), type: "textarea" as const, maxLength: 1000, defaultValue: rating?.note ?? undefined },
+                  ]}
+                  submitLabel={tq("save")}
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-3 py-5 shadow-xs">
+            <CardHeader className="px-5">
+              <CardDescription>{t("nda")}</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileSignature className="size-4 text-muted-foreground" />
+                {q.ndaSignedOn ? t("ndaSigned", { date: day(q.ndaSignedOn) }) : t("ndaNone")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 px-5 text-sm">
+              {q.ndaSignedOn ? null : <p className="text-muted-foreground">{t("ndaHint")}</p>}
+              {can.work && open ? (
+                <FormDialog
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      {q.ndaSignedOn ? t("ndaCorrect") : t("ndaMark")}
+                    </Button>
+                  }
+                  title={t("ndaMark")}
+                  description={t("ndaMarkHint")}
+                  endpoint={`/api/intake/inquiries/${q.id}/nda`}
+                  fields={[{ name: "signedOn", label: t("ndaDate"), type: "date", required: true, defaultValue: q.ndaSignedOn ?? undefined }]}
+                  submitLabel={t("ndaMark")}
                 />
               ) : null}
             </CardContent>
@@ -433,6 +559,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("convert")}</CardTitle>
                 <CardDescription>{can.convert ? t("convertHint") : t("convertBlocked")}</CardDescription>
+                {can.convert && returning ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("returning", { name: data.clients.find((c) => c.id === returning)?.name ?? "—" })}
+                  </p>
+                ) : null}
               </CardHeader>
               {can.convert ? (
                 <CardContent className="px-5">
@@ -441,7 +572,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     orgName={q.orgName ?? ""}
                     orgNameAr={q.orgNameAr ?? null}
                     clients={data.clients}
-                    existingClientId={q.source === "existing_client" ? q.sourceClientOrgId : null}
+                    existingClientId={returning}
                     consultants={[
                       ...(data.leads ?? []).map((l) => ({ id: l.userId, name: l.name })),
                       ...data.team.filter((m) => m.role === "consultant" && !data.leads?.some((l) => l.userId === m.id)),
