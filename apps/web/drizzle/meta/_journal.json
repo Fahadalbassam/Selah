@@ -43,6 +43,13 @@
       "when": 1792803016281,
       "tag": "0005_file_controls",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792804255610,
+      "tag": "0006_private_recommendation_actions",
+      "breakpoints": true
     }
   ]
 }

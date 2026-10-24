@@ -51,6 +51,8 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | A project pairs the firm with one client (an internal project belongs to the firm) | `check_project_orgs()` | `src/services/staffing.ts` | `tests/db/rls.test.ts` |
 | Action workflow: allowed moves, clients only move their own work, only the firm releases, reviews, closes and reopens, verified needs an accept of this round and every evidence item settled, risk acceptance needs a current client signature, reopening clears the closure | `check_action_transition()` | `src/authz/workflow.ts` (`TRANSITIONS`, `canTransition()`), `src/services/actions.ts` | `tests/db/follow-through.test.ts`, `tests/db/rule-parity.test.ts`, `tests/authorize.test.ts` |
 | A document's passages leave the AI index when it is unshared, relabelled, archived, deleted or its AI flag goes off | `drop_document_chunks()` | database only | `tests/db/rls.test.ts`, `tests/db/ai-sources.test.ts` |
+| An action takes its recommendation's label: under a firm-only recommendation the action and everything under it (progress, evidence, reviews, risk acceptances, deadline requests, notes, follow-ups) are firm-only, for reads and writes | `app_recommendation_label_ok()`, `app_action_label_ok()` (restrictive policies on each table) | `src/services/actions.ts` (`loadAction()`) | `tests/db/private-recommendations.test.ts` |
+| Nobody is notified, or mailed, about an action they can't see; a meeting's agenda lists only actions under shared recommendations | `drop_hidden_action_notification()`, `app_meeting_agenda()` | `src/jobs/follow-ups.ts` | `tests/db/private-recommendations.test.ts` |
 
 ### Staffing
 

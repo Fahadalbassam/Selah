@@ -10,6 +10,7 @@ import {
   organizations,
   progressUpdates,
   projects,
+  recommendations,
   reviews,
   riskAcceptances,
 } from "@/db/schema";
@@ -27,9 +28,16 @@ import { audit } from "./audit";
 
 export async function loadAction(tx: Tx, id: string) {
   const [row] = await tx
-    .select({ action: actions, firmOrgId: projects.firmOrgId, projectKind: projects.kind, engagementMode: organizations.engagementMode })
+    .select({
+      action: actions,
+      firmOrgId: projects.firmOrgId,
+      projectKind: projects.kind,
+      engagementMode: organizations.engagementMode,
+      label: recommendations.visibility,
+    })
     .from(actions)
     .innerJoin(projects, eq(projects.id, actions.projectId))
+    .innerJoin(recommendations, eq(recommendations.id, actions.recommendationId))
     .leftJoin(organizations, eq(organizations.id, actions.orgId))
     .where(eq(actions.id, id))
     .limit(1);
@@ -44,6 +52,9 @@ export async function loadAction(tx: Tx, id: string) {
     engagementMode: row.engagementMode,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],
+    // An action takes its recommendation's label: a firm-only recommendation
+    // keeps its actions firm-only (0006).
+    visibility: row.label,
   };
   return { action: row.action, resource };
 }
