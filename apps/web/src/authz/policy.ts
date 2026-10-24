@@ -103,6 +103,11 @@ export const POLICY = {
   "client_assignment.set_deputy": { firm_admin: "any" },
   "join_request.create": { consultant: "any" },
   "join_request.decide": { firm_admin: "any", consultant: "lead" },
+  // Holding groups (F34): the firm admin keeps them; a consultant reads a
+  // group through the member clients they are assigned to (the database
+  // decides which: app_sees_client_group).
+  "client_group.read": { ...STAFF },
+  "client_group.manage": { firm_admin: "any" },
 
   // Findings and recommendations
   "finding.read": { ...ALL_BUT_OWNER },

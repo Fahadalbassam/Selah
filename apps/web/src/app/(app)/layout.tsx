@@ -31,7 +31,15 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
               { title: t("internalProjects"), href: "/projects?kind=internal" },
             ],
           },
-          { title: t("clients"), href: "/clients", icon: "clients" },
+          {
+            title: t("clients"),
+            href: "/clients",
+            icon: "clients",
+            items: [
+              { title: t("allClients"), href: "/clients" },
+              { title: t("clientGroups"), href: "/clients/groups" },
+            ],
+          },
           { title: t("inquiries"), href: "/inquiries", icon: "inquiries" },
           { title: t("actions"), href: "/actions", icon: "actions" },
           { title: t("reviewQueue"), href: "/review", icon: "review" },

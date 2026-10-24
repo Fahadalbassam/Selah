@@ -322,6 +322,16 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | An action takes its recommendation's department and is refiled with it | `check_action_department()`, `recommendation_refiled()` | `src/app/(app)/projects/[id]/plan-dialogs.tsx` (`ActionDialog`) | `tests/db/engagement.test.ts` |
 | A department's meeting gets that department's agenda, and keeps its department | `meeting_department()`, `app_meeting_agenda()` | `src/components/meeting-form.tsx` | `tests/db/engagement.test.ts` |
 
+### Client groups
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| Only the firm admin creates, edits and removes a group and links or unlinks its clients, and each change is logged; a group keeps its firm and its creator (F34) | `check_client_group()`, the admin_insert, admin_update and admin_delete policies on client_groups and client_group_members | `src/services/client-groups.ts` (`createGroup()`, `updateGroup()`, `deleteGroup()`, `addMember()`, `removeMember()`) | `tests/db/client-groups.test.ts` |
+| A group's linked members are clients, each in one group at most (the client is the key); removing a group leaves its clients and their data as they were (F34) | `check_client_group_member()` | `src/services/client-groups.ts` (`addMember()`) | `tests/db/client-groups.test.ts` |
+| A company kept inside a client is one of its departments marked by the firm admin, only while the client is in a group; the client's admin keeps naming departments but can't mark or unmark one; a client that leaves its group turns its companies back into departments (F34) | `check_department_company()`, `client_left_group()` | `src/services/client-groups.ts` (`setCompany()`) | `tests/db/client-groups.test.ts` |
+| The firm admin sees every group; a consultant sees a group only while assigned to one of its clients, and only those clients and their numbers; the client side reads none of it (F34) | `app_sees_client_group()`, `app_firm_works_with()` | `src/services/client-groups.ts` (`groupOverview()`) | `tests/db/client-groups.test.ts` |
+| A group's numbers pool its member companies' counts from `app_client_progress()` under the reader's row-level security, a company inside a client counted from its department and the client's own row from the rest, the percentage worked out again from the pooled counts (F34) | `app_client_progress()` | `src/services/client-groups.ts` (`groupCompanies()`) | `tests/db/client-groups.test.ts` |
+
 ### Minimal records and insight
 
 | Rule | Database | Checked first in | Tests |

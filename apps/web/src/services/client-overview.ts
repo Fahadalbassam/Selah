@@ -27,7 +27,7 @@ export interface ClientNumbers {
   implementedPct: number | null;
 }
 
-const EMPTY: ClientNumbers = {
+export const EMPTY: ClientNumbers = {
   total: 0,
   verified: 0,
   partially: 0,
@@ -41,9 +41,9 @@ const EMPTY: ClientNumbers = {
   implementedPct: null,
 };
 
-type Row = Record<string, string | number | null>;
+export type Row = Record<string, string | number | null>;
 
-const numbers = (r: Row): ClientNumbers => ({
+export const numbers = (r: Row): ClientNumbers => ({
   total: Number(r.total),
   verified: Number(r.verified),
   partially: Number(r.partially),

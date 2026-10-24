@@ -423,6 +423,10 @@ export const departments = pgTable(
     nameAr: text("name_ar").notNull(),
     nameEn: text("name_en"),
     active: boolean("active").notNull().default(true),
+    // A member company of the client's group kept inside this client (F34):
+    // it shares the client's people and files, and its numbers roll up into
+    // the client's. Marked by the firm admin, only while the client is in a group.
+    isCompany: boolean("is_company").notNull().default(false),
     createdBy: uuid("created_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -444,6 +448,47 @@ export const departmentMembers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index("department_members_user_idx").on(t.userId)],
+);
+
+// ---------------------------------------------------------- client groups
+
+// A holding group (F34, decision D4): a record of its own, kept by the firm
+// admin. Each member company is either its own linked client (a member row
+// here: its data stays apart, as for a listed subsidiary) or a unit inside
+// one member client (departments.is_company: shared people and files). The
+// client stays the tenant boundary; the group only pools counts.
+export const clientGroups = pgTable(
+  "client_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    nameAr: text("name_ar").notNull(),
+    nameEn: text("name_en"),
+    // The firm's own notes; never shown to the client.
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("client_groups_name_uq").on(t.firmOrgId, t.nameAr)],
+);
+
+// A linked client in a group. A client belongs to at most one group.
+export const clientGroupMembers = pgTable(
+  "client_group_members",
+  {
+    clientOrgId: uuid("client_org_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => clientGroups.id, { onDelete: "cascade" }),
+    addedBy: uuid("added_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("client_group_members_group_idx").on(t.groupId)],
 );
 
 // A row's department belongs to the row's own org.

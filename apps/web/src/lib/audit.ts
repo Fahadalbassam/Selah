@@ -45,7 +45,7 @@ export const AUDIT_AREAS = {
     "schedule",
   ],
   people: ["membership", "org_user", "access_review", "client_assignment", "join_request", "consultant_profile", "client_contact"],
-  clients: ["client", "organization", "client_profile", "client_report", "client_directory", "inquiry", "conflict", "lead_suggestion"],
+  clients: ["client", "client_group", "organization", "client_profile", "client_report", "client_directory", "inquiry", "conflict", "lead_suggestion"],
   assistant: ["assistant", "ai_conversation"],
   settings: ["firm_settings", "audit_log"],
 } as const satisfies Record<string, readonly string[]>;
