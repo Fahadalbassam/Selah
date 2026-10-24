@@ -72,9 +72,9 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 ### J07 · Kickoff (first 14 days) · الانطلاق
 
 - [x] **J07.1** Book kickoff with Meet link — lane: firm · map: exists · wave: — · pr: #11
-- [ ] **J07.2** Send a request list — lane: firm · map: wave 1 · covered by: F09 · wave: 1
+- [~] **J07.2** Send a request list — lane: firm · map: wave 1 · covered by: F09 · wave: 1 · pr: #72 (open)
 - [x] **J07.3** Kickoff meeting (firm: Runs it, sends .ics; client: Attends, answers the invite) — lane: shared · map: exists · wave: — · pr: #11
-- [ ] **J07.4** Sends requested documents — lane: client · map: wave 1 · covered by: F09 · wave: 1
+- [~] **J07.4** Sends requested documents — lane: client · map: wave 1 · covered by: F09 · wave: 1 · pr: #72 (open)
 
 ### J08 · Delivery and sign-off · التسليم والاعتماد
 
@@ -152,8 +152,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64
 - [x] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66
 - [x] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67
-- [~] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (acknowledgement mail), #69 (staff entry), #70 (conflict search, qualification, NDA, returning client), #71 (open: public form changes and marketing consent)
-- [ ] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4
+- [x] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (acknowledgement mail), #69 (staff entry), #70 (conflict search, qualification, NDA, returning client), #71 (public form changes and marketing consent)
+- [~] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4 · pr: #72 (open: list, templates, answering, review; reminders follow)
 
 ### Tier 3 · The client takes part
 

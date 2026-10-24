@@ -252,6 +252,36 @@ await db.insert(s.documents).values([
   },
 ]);
 
+// The kickoff request list for the board project: some from the starting
+// list, one of the firm's own, one already sent by the client.
+const requested = await db
+  .insert(s.infoRequests)
+  .values([
+    { ...scope, area: "legal", templateKey: "legal.articles", title: "Articles of association and their amendments", ownerUserId: u.nukhbaAdmin, dueDate: day(7), createdBy: u.consultant },
+    { ...scope, area: "governance", templateKey: "governance.board_charter", title: "Board charter and committee charters", ownerUserId: u.nukhbaManager, dueDate: day(-3), createdBy: u.consultant },
+    { ...scope, area: "governance", templateKey: "governance.minutes", title: "Board minutes for the last two years", sensitivity: "confidential", ownerUserId: u.nukhbaAdmin, dueDate: day(10), createdBy: u.consultant },
+    { ...scope, area: "governance", title: "محاضر الجمعية العامة الأخيرة", description: "آخر جمعيتين عاديتين وأي جمعية غير عادية", ownerUserId: u.nukhbaManager, createdBy: u.consultant },
+  ])
+  .returning({ id: s.infoRequests.id });
+const [sentFile] = await db
+  .insert(s.documents)
+  .values({
+    ...scope,
+    ownerOrgId: nukhba!.id,
+    uploadedBy: u.nukhbaManager,
+    purpose: "client_document",
+    state: "submitted",
+    title: "لائحة مجلس الإدارة.pdf",
+    visibility: "shared",
+    storageKey: crypto.randomUUID(),
+    contentType: "application/pdf",
+    sizeBytes: 1024,
+    sha256: "0".repeat(64),
+    scanStatus: "clean",
+  })
+  .returning({ id: s.documents.id });
+await db.insert(s.infoRequestFiles).values({ requestId: requested[1]!.id, documentId: sentFile!.id, attachedBy: u.nukhbaManager });
+
 // The starter governance template, published, with Khalid as an author, and
 // a baseline assessment of Al-Nukhba under way.
 await db.insert(s.templateAuthors).values({ firmOrgId: firm!.id, userId: u.consultant, grantedBy: u.admin });

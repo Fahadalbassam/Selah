@@ -113,6 +113,13 @@ export const POLICY = {
   // The evidence list: what the firm needs to see to verify an action.
   "evidence_request.read": { ...READ_WORK },
   "evidence_request.manage": { ...STAFF },
+  // The project's information request list (item 9). Everyone on the project
+  // reads it (an action owner only their own items: the database filters);
+  // the firm writes it; the client answers with files or says an item does
+  // not apply, and the firm may answer for a client that sent things by mail.
+  "info_request.read": { ...ALL_BUT_OWNER, action_owner: "any" },
+  "info_request.manage": { ...STAFF },
+  "info_request.answer": { ...STAFF, client_admin: "any", client_manager: "any", action_owner: "assigned" },
   // The firm's private notes on an action.
   "action_note.read": { ...STAFF },
   "action_note.create": { ...STAFF },
