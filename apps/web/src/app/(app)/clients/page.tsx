@@ -1,4 +1,5 @@
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { Megaphone } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -24,6 +25,7 @@ export default async function ClientsPage() {
     return {
       admin: principal.role === "firm_admin",
       canAdd: authorize(principal, "organization.create", firm).allowed,
+      canPitch: authorize(principal, "organization.pitch", firm).allowed,
       clients: await listClients(tx, principal),
       directory: principal.role === "consultant" ? (await clientDirectory(tx, principal)).filter((c) => !c.assigned) : [],
       mine: await myPendingRequests(tx, principal),
@@ -31,13 +33,33 @@ export default async function ClientsPage() {
     };
   });
   if (!data) notFound();
-  const [t, tc] = await Promise.all([getTranslations("staffing"), getTranslations("clients")]);
+  const [t, tc, tE] = await Promise.all([getTranslations("staffing"), getTranslations("clients"), getTranslations("engagements")]);
   const ar = (await getLocale()) === "ar";
   const name = (c: { name: string; nameAr: string | null }) => localName(c, ar);
 
   return (
     <>
       <PageHeader title={tc("title")} description={data.admin ? t("subtitleAdmin") : t("subtitle")}>
+        {data.canPitch ? (
+          <FormDialog
+            trigger={
+              <Button variant={data.canAdd ? "outline" : "default"}>
+                <Megaphone />
+                {tE("startPitch")}
+              </Button>
+            }
+            title={tE("startPitch")}
+            description={tE("startPitchHint")}
+            endpoint="/api/clients/pitch"
+            fields={[
+              { name: "name", label: t("nameEn"), required: true, maxLength: 200, dir: "ltr" },
+              { name: "nameAr", label: t("nameAr"), maxLength: 200, dir: "rtl" },
+              { name: "projectTitle", label: tE("pitchProject"), required: true, maxLength: 200, placeholder: tE("pitchProjectPlaceholder") },
+            ]}
+            submitLabel={tE("startPitchButton")}
+            redirectTo="/clients/:id"
+          />
+        ) : null}
         {data.canAdd ? (
           <FormDialog
             trigger={
@@ -81,6 +103,11 @@ export default async function ClientsPage() {
                       <Link href={`/clients/${c.id}`} className="hover:underline">
                         {name(c)}
                       </Link>
+                      {c.prospect ? (
+                        <ToneBadge tone="waiting" className="ms-2">
+                          {tE("prospect")}
+                        </ToneBadge>
+                      ) : null}
                       {pending ? (
                         <ToneBadge tone="waiting" className="ms-2">
                           {t("requests", { count: pending })}

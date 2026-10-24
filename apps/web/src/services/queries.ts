@@ -355,7 +355,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
 export async function listClients(tx: Tx, principal: Principal) {
   if (principal.orgKind !== "firm") return [];
   const orgs = await tx
-    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, status: organizations.status })
+    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, status: organizations.status, prospect: organizations.prospect })
     .from(organizations)
     .where(eq(organizations.kind, "client"))
     .orderBy(asc(organizations.name));

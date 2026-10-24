@@ -1,6 +1,7 @@
 #!/bin/sh
 # The scheduled jobs, for a single-machine install (docker compose service
-# "jobs"). Indexes new files for the assistant every few minutes; once a day
+# "jobs"). Indexes new files for the assistant and removes the bytes of
+# deleted files every few minutes; once a day
 # (Riyadh date) sends follow-up reminders and runs the retention purges; on
 # the 1st of each month takes the metrics snapshot. A failing job is logged
 # and retried on the next round; it never stops the others.
@@ -11,6 +12,7 @@ last_month=""
 run() { npm run --silent "$1" || echo "jobs: $1 failed, retrying next round" >&2; }
 while :; do
   run job:index-documents
+  run job:delete-objects
   day=$(TZ=Asia/Riyadh date +%F)
   if [ "$day" != "$last_day" ]; then
     for j in job:follow-ups job:purge-chats job:purge-inquiries job:purge-minimal job:purge-transcripts; do run "$j"; done
