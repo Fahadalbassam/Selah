@@ -25,6 +25,8 @@ Rules: the Metrics section of `apps/web/drizzle/0000_baseline.sql`. Tests: `apps
 
 **Baseline due date.** `actions.baseline_due_date` is set from the due date when the action is released, and a trigger keeps it from changing afterwards. An approved deadline change moves `due_date` (what reminders use) but not the baseline, so on-time is measured against what was agreed, and each move counts as a slip.
 
+**Slip history and aging (F17).** Every move of a released action's due date is kept in `action_due_changes`, whether a request or a plan edit moved it. `app_action_slips()` gives each action's extensions (moves later), the days slipped past the baseline, and, while it is open, how long it is past the baseline, in the buckets 1–30, 31–60, 61–90 and over 90 days. `app_project_progress()` adds the counts (`extended`, `extended_twice`, `slip_days`, `late_d1_30`…`late_d90_plus`), so a frozen report keeps them; reports frozen before F17 don't have them and the report page leaves them out. The third move later needs the client's lead consultant or a firm admin.
+
 **History.** `npm run job:metrics` (monthly, as the schema owner) copies each active project's metrics into `metric_snapshots`, one row per metric per day. The table is append-only and read under the same project rules.
 
 API: `GET /api/projects/:id/metrics` returns `{ live, history }`. Readers: the firm, and the client's admins and managers.

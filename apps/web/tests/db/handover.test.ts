@@ -235,13 +235,8 @@ describe("deviations", () => {
     const stale = await action({ updatedAt: "2020-01-01" });
     const orphan = await action({ owner: U.former });
     const slipped = await action();
-    for (let i = 0; i < 2; i++) {
-      await owner.query(
-        `INSERT INTO deadline_change_requests (project_id, org_id, action_id, requested_by, proposed_due_date, reason, status)
-         VALUES ($1,$2,$3,$4,'2099-06-01','again','approved')`,
-        [PROJ, ACME, slipped, U.cowner],
-      );
-    }
+    // Moved later twice (F17 counts every move kept in action_due_changes).
+    for (const due of ["2099-06-01", "2099-07-01"]) await owner.query(`UPDATE actions SET due_date = $2 WHERE id = $1`, [slipped, due]);
     const churn = await action();
     for (let i = 0; i < 2; i++) {
       await owner.query(

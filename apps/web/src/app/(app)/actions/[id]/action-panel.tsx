@@ -50,6 +50,7 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   const m = body.message ?? "";
   // A data rule's refusal is a 409 too; say which rule before falling back to "someone changed it".
   if (m.includes("every evidence request")) return { ok: false, error: "openEvidence" };
+  if (m.includes("needs the lead")) return { ok: false, error: "needsLead" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
   if (m.includes("too large")) return { ok: false, error: "too_large" };

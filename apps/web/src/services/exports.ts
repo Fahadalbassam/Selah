@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import type { Tx } from "@/db/client";
 import { actions, departments, evidenceRequests, organizations, projects } from "@/db/schema";
@@ -225,6 +225,11 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
   const ar = locale === "ar";
   const name = (n: { name: string; nameAr: string | null } | undefined) => (n ? (localName(n, ar)) : "");
 
+  // How often each action's date moved later, as of today (F17).
+  const { rows: slips } = await tx.execute<{ action_id: string; extensions: number }>(
+    sql`select action_id, extensions from app_action_slips(${report.projectId}::uuid)`,
+  );
+  const moved = new Map(slips.map((r) => [r.action_id, Number(r.extensions)]));
   const html = renderReportHtml({
     locale,
     firmName: name(firmOrg),
@@ -248,6 +253,7 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
       dueDate: a.dueDate,
       status: t(`status.${a.status}` as "status.draft"),
       overdue: isOverdue(a, today),
+      extensions: moved.get(a.id) ?? 0,
     })),
     exportedOn: today,
     t: (key, values) => t(`reportPdf.${key}` as "reportPdf.title", values as Record<string, string | number>),

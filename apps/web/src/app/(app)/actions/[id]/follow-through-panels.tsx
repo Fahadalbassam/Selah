@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { firmToday } from "@/lib/dates";
+import type { AgingBucket } from "@/lib/slips";
 import { DownloadButton } from "./download-button";
 import { ErrorText, EvidenceDialog, json, ReasonDialog, RunButton, send, useRun } from "./action-panel";
 
@@ -44,8 +45,21 @@ export interface DeadlineRequest {
   proposedDueDate: string;
   reason: string;
   status: "pending" | "approved" | "rejected";
+  dueDateThen: string | null;
+  raisedLate: boolean;
   requestedBy: string | null;
   createdAt: string | Date;
+}
+
+/** Where the action stands against the date agreed at release (F17, services/slips.ts). */
+export interface Slip {
+  baseline: string | null;
+  extensions: number;
+  slipDays: number;
+  daysLate: number | null;
+  bucket: AgingBucket | null;
+  history: { id: string; from: string | null; to: string | null; by: string | null; viaRequest: boolean; at: string | Date }[];
+  canExtend: boolean;
 }
 
 const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
@@ -243,15 +257,20 @@ export function DeadlineRequests(props: {
   actionId: string;
   dueDate: string | null;
   requests: DeadlineRequest[];
+  slip: Slip;
   canRequest: boolean;
   canDecide: boolean;
 }) {
   const t = useTranslations("action.deadline");
+  const tm = useTranslations("metrics.aging");
   const format = useFormatter();
   const router = useRouter();
   const done = () => router.refresh();
-  if (!props.requests.length && !props.canRequest) return null;
+  const { slip } = props;
+  if (!props.requests.length && !props.canRequest && !slip.history.length) return null;
   const day = (d: string) => format.dateTime(new Date(d), { dateStyle: "medium" });
+  // Approving this would move the date later once too often for this person (app_can_extend).
+  const needsLead = (r: DeadlineRequest) => !slip.canExtend && (!props.dueDate || r.proposedDueDate > props.dueDate);
 
   return (
     <Card className="gap-3 py-5 shadow-xs">
@@ -262,6 +281,20 @@ export function DeadlineRequests(props: {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 px-5 text-sm">
+        {slip.baseline && (slip.extensions > 0 || slip.daysLate) ? (
+          <div className="space-y-1 rounded-md bg-muted/50 px-3 py-2">
+            <p>{t("original", { date: day(slip.baseline) })}</p>
+            {slip.extensions > 0 ? (
+              <p className="text-muted-foreground">{t("slipped", { count: slip.extensions, days: slip.slipDays })}</p>
+            ) : null}
+            {slip.daysLate && slip.bucket ? (
+              <p className="flex flex-wrap items-center gap-2 font-medium text-destructive">
+                {t("late", { days: slip.daysLate })}
+                <Badge variant="outline">{tm(slip.bucket)}</Badge>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {props.requests.length === 0 ? <p className="text-muted-foreground">{t("none")}</p> : null}
         {props.canRequest ? <AskForDate actionId={props.actionId} dueDate={props.dueDate} onDone={done} /> : null}
         {props.requests.map((r) => (
@@ -269,18 +302,28 @@ export function DeadlineRequests(props: {
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium tabular-nums">{t("to", { date: day(r.proposedDueDate) })}</span>
               <Badge variant={r.status === "pending" ? "outline" : "secondary"}>{t(`status.${r.status}`)}</Badge>
+              {r.raisedLate ? (
+                <Badge variant="outline" title={r.dueDateThen ? t("raisedLateHint", { date: day(r.dueDateThen) }) : undefined}>
+                  {t("raisedLate")}
+                </Badge>
+              ) : null}
               <span className="text-xs text-muted-foreground">
                 {t("by", { who: r.requestedBy ?? "—", date: format.dateTime(new Date(r.createdAt), { dateStyle: "medium" }) })}
               </span>
             </div>
             <p className="whitespace-pre-wrap text-muted-foreground">{r.reason}</p>
+            {props.canDecide && r.status === "pending" && needsLead(r) ? (
+              <p className="text-xs text-muted-foreground">{t("needsLead")}</p>
+            ) : null}
             {props.canDecide && r.status === "pending" ? (
               <div className="flex flex-wrap gap-2">
-                <RunButton
-                  label={t("approve")}
-                  run={() => send(`/api/deadline-requests/${r.id}`, patch({ approve: true }))}
-                  onDone={done}
-                />
+                {needsLead(r) ? null : (
+                  <RunButton
+                    label={t("approve")}
+                    run={() => send(`/api/deadline-requests/${r.id}`, patch({ approve: true }))}
+                    onDone={done}
+                  />
+                )}
                 <RunButton
                   label={t("reject")}
                   run={() => send(`/api/deadline-requests/${r.id}`, patch({ approve: false }))}
@@ -290,6 +333,25 @@ export function DeadlineRequests(props: {
             ) : null}
           </div>
         ))}
+        {slip.history.length ? (
+          <div className="grid gap-2 border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground">{t("history")}</p>
+            <ol className="grid gap-1.5">
+              {slip.history.map((h) => (
+                <li key={h.id} className="grid gap-0.5">
+                  <span className="tabular-nums">
+                    {t("moved", { from: h.from ? day(h.from) : "—", to: h.to ? day(h.to) : "—" })}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {h.by
+                      ? t(h.viaRequest ? "movedByRequest" : "movedByPlan", { who: h.by, date: format.dateTime(new Date(h.at), { dateStyle: "medium" }) })
+                      : t("movedOn", { date: format.dateTime(new Date(h.at), { dateStyle: "medium" }) })}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

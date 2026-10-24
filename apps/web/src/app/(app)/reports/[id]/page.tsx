@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
 import { ApiButton } from "@/components/form-dialog";
+import { LateAgainstOriginal } from "@/components/late-against-original";
 import { PageHeader } from "@/components/page-header";
 import { Meter, StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
@@ -93,9 +94,16 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <StatTile key={k} label={t(`outcome.${k}`)} value={m[k]} />
             ))}
             <StatTile label={t("overdue")} value={m.overdue} hint={t("overdueHint")} />
+            {m.extended !== undefined ? (
+              <>
+                <StatTile label={t("extended")} value={m.extended} hint={t("extendedHint", { twice: m.extendedTwice ?? 0 })} />
+                <StatTile label={t("slipDays")} value={m.slipDays ?? 0} hint={t("slipDaysHint")} />
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
+      {m?.late ? <LateAgainstOriginal late={m.late} /> : null}
 
       {report.bodyMd ? (
         <Card className="gap-3 py-5 shadow-xs">
