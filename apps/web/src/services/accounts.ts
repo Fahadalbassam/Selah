@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { accessReviews, clientContacts, invitations, orgMemberships, organizations, user } from "@/db/schema";
-import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, ForbiddenError, type Principal, type Resource } from "@/authz";
 import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -358,6 +358,31 @@ export async function listContacts(tx: Tx, principal: Principal, clientOrgId: st
     .orderBy(asc(clientContacts.name));
 }
 
+/**
+ * Whether this user may add, edit or remove the client's contacts: firm staff
+ * on the client, except a consultant who only observes its projects (review
+ * M05). An observer writes nothing; staffed on any of the client's projects,
+ * or on its team without a project yet, they keep the contacts up to date.
+ */
+export async function canWriteContacts(tx: Tx, principal: Principal, clientOrgId: string) {
+  if (!authorize(principal, "client_contact.write", contactsOf(principal, clientOrgId)).allowed) return false;
+  if (principal.role !== "consultant" || !principal.observedProjectIds?.size) return true;
+  const rows = await tx.execute<{ observes: boolean; works: boolean }>(sql`
+    select
+      exists (select 1 from project_members pm join projects p on p.id = pm.project_id
+              where p.org_id = ${clientOrgId} and pm.user_id = ${principal.userId} and pm.observer) as observes,
+      exists (select 1 from project_members pm join projects p on p.id = pm.project_id
+              where p.org_id = ${clientOrgId} and pm.user_id = ${principal.userId} and not pm.observer) as works`);
+  const r = rows.rows[0];
+  return !r?.observes || !!r.works;
+}
+
+async function assertContactWriter(tx: Tx, principal: Principal, clientOrgId: string) {
+  const resource = contactsOf(principal, clientOrgId);
+  assertAllowed(principal, "client_contact.write", resource);
+  if (!(await canWriteContacts(tx, principal, clientOrgId))) throw new ForbiddenError("client_contact.write", resource, "project:observer");
+}
+
 export interface ContactInput {
   name: string;
   /** The name in the other language, for masking. */
@@ -368,7 +393,7 @@ export interface ContactInput {
 }
 
 export async function createContact(tx: Tx, principal: Principal, clientOrgId: string, input: ContactInput) {
-  assertAllowed(principal, "client_contact.write", contactsOf(principal, clientOrgId));
+  await assertContactWriter(tx, principal, clientOrgId);
   const [row] = await tx
     .insert(clientContacts)
     .values({ orgId: clientOrgId, ...input, createdBy: principal.userId })
@@ -383,13 +408,13 @@ async function contactOrg(tx: Tx, id: string) {
 }
 
 export async function updateContact(tx: Tx, principal: Principal, id: string, input: Partial<ContactInput>) {
-  assertAllowed(principal, "client_contact.write", contactsOf(principal, await contactOrg(tx, id)));
+  await assertContactWriter(tx, principal, await contactOrg(tx, id));
   await tx.update(clientContacts).set(input).where(eq(clientContacts.id, id));
   return { ok: true };
 }
 
 export async function deleteContact(tx: Tx, principal: Principal, id: string) {
-  assertAllowed(principal, "client_contact.write", contactsOf(principal, await contactOrg(tx, id)));
+  await assertContactWriter(tx, principal, await contactOrg(tx, id));
   await tx.delete(clientContacts).where(eq(clientContacts.id, id));
   return { ok: true };
 }

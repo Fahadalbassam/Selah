@@ -10,6 +10,7 @@ import { authorize, type Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { OBSERVER_READ_ONLY_TABLES } from "@/lib/observers";
+import { canWriteContacts, createContact } from "@/services/accounts";
 import { loadPrincipal } from "@/services/principal";
 import { getProjectTeam, staffProject } from "@/services/staffing";
 
@@ -220,6 +221,13 @@ describe("what an observer does", () => {
       [PROJ, ACME, ACT, U.obs],
     );
     expect(r.rowCount).toBe(1);
+  });
+
+  it("keeps the client's contacts as they are: no add, edit or remove (review M05)", async () => {
+    expect(await svc(U.obs, (tx, p) => canWriteContacts(tx, p, ACME))).toBe(false);
+    await expect(svc(U.obs, (tx, p) => createContact(tx, p, ACME, { name: "Board secretary" }))).rejects.toThrow(/forbidden/);
+    // Someone working on the client's projects still can.
+    expect(await svc(U.cons, (tx, p) => canWriteContacts(tx, p, ACME))).toBe(true);
   });
 
   it("the same consultant writes freely on a project they work on", async () => {

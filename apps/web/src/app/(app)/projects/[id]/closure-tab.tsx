@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { env } from "@/env";
 import { BLOCKER_KINDS, CLOSURE_LIMITS, DISPOSITIONS, type Disposition } from "@/lib/closure";
 import type { ClosureView } from "@/services/closure";
 
@@ -91,7 +92,7 @@ export async function ClosureTab({
             {data.can.close && data.blockers.length === 0 ? (
               <ApiButton endpoint={base} body={{ step: "close" }} label={t("close")} variant="default" icon={<Lock />} confirm={t("closeConfirm")} />
             ) : null}
-            {closed ? <ExportButton endpoint={`${base}/report`} label={t("reportPdf")} title={t("report")} /> : null}
+            {closed && env().PDF_SERVICE_URL ? <ExportButton endpoint={`${base}/report`} label={t("reportPdf")} title={t("report")} /> : null}
             {data.can.reopen ? (
               <FormDialog
                 trigger={

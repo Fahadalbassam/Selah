@@ -182,13 +182,53 @@ const created = await db
   ])
   .returning();
 
-// The verified action has its accept review on record.
+// Every action past "in progress" has the evidence its state implies (review
+// M13): the one awaiting review and the one sent back each have a submitted
+// file, the one sent back has the consultant's reason, and the verified one
+// has the file its accept review covers.
+const evidenceFor = async (actionId: string, title: string, by: string) => {
+  const [doc] = await db
+    .insert(s.documents)
+    .values({
+      ...scope,
+      ownerOrgId: nukhba!.id,
+      uploadedBy: by,
+      purpose: "evidence",
+      state: "submitted",
+      title,
+      visibility: "shared",
+      storageKey: crypto.randomUUID(),
+      contentType: "application/pdf",
+      sizeBytes: 1024,
+      sha256: "0".repeat(64),
+      scanStatus: "clean",
+    })
+    .returning();
+  const [sub] = await db.insert(s.evidenceSubmissions).values({ ...scope, actionId, documentId: doc!.id, submittedBy: by }).returning();
+  return { doc: doc!, sub: sub! };
+};
+await evidenceFor(created[2]!.id, "الميثاق المعتمد.pdf", u.nukhbaOwner);
+const sentBack = await evidenceFor(created[4]!.id, "مسودة لائحة اللجنة.pdf", u.nukhbaOwner);
+await db.insert(s.reviews).values({
+  ...scope,
+  actionId: created[4]!.id,
+  reviewerId: u.consultant,
+  outcome: "revise",
+  reason: "اللائحة لا تذكر صلاحيات اللجنة ولا دورية اجتماعاتها.",
+  evidenceSubmissionId: sentBack.sub.id,
+  evidenceSubmissionIds: [sentBack.sub.id],
+  evidenceSha256: [sentBack.doc.sha256],
+});
+const published = await evidenceFor(created[5]!.id, "قرار التشكيل المنشور.pdf", u.nukhbaManager);
 await db.insert(s.reviews).values({
   ...scope,
   actionId: created[5]!.id,
   reviewerId: u.consultant,
   outcome: "accept",
   reason: "القرار موقع ومنشور.",
+  evidenceSubmissionId: published.sub.id,
+  evidenceSubmissionIds: [published.sub.id],
+  evidenceSha256: [published.doc.sha256],
 });
 
 const [internalRec] = await db

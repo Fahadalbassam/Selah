@@ -5,6 +5,7 @@ import { Meter, StatTile } from "@/components/stat-tile";
 import { ToneBadge } from "@/components/tone-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { env } from "@/env";
 import { localLabel } from "@/lib/names";
 import type { ClientNumbers, ClientOverview } from "@/services/client-overview";
 
@@ -61,7 +62,8 @@ export async function ClientProgress({
           <CardTitle className="text-base">{scope === "client" ? t("title") : t("departmentTitle")}</CardTitle>
           <CardDescription>{scope === "client" ? t("hint") : t("departmentHint")}</CardDescription>
         </div>
-        {scope === "client" ? (
+        {/* No PDF service, no PDF button (review M10). */}
+        {scope === "client" && env().PDF_SERVICE_URL ? (
           <ExportButton endpoint={`/api/clients/${data.client.id}/report`} label={tExport("pdf")} title={t("downloadReport")} />
         ) : null}
       </CardHeader>

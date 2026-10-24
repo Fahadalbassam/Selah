@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { authorize } from "@/authz";
 import { firmSettings } from "@/db/schema";
 import { firmToday } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
@@ -15,9 +17,17 @@ import { PeopleAdmin } from "./people-admin";
 import { SectionHeader } from "@/components/section-header";
 
 export default async function TeamPage() {
-  const { team, people, load, me, role, reviewDays } = await withPrincipal(async (tx, principal) => {
+  const data = await withPrincipal(async (tx, principal) => {
     const since = new Date(`${firmToday()}T00:00:00Z`);
     since.setUTCDate(since.getUTCDate() - 90);
+    // Who may not read the team list gets not-found, like every other blocked page (review L09).
+    const readable = authorize(principal, "org_user.read", {
+      type: "org_user",
+      orgId: principal.orgId,
+      firmOrgId: principal.orgKind === "firm" ? principal.orgId : undefined,
+      projectId: null,
+    }).allowed;
+    if (!readable) return null;
     const admin = principal.role === "firm_admin" || principal.role === "client_admin";
     const [settings] =
       principal.orgKind === "firm"
@@ -37,6 +47,8 @@ export default async function TeamPage() {
       reviewDays: settings?.days ?? (principal.orgKind === "firm" ? 90 : null),
     };
   });
+  if (!data) notFound();
+  const { team, people, load, me, role, reviewDays } = data;
   const [t, tRole] = await Promise.all([getTranslations("team"), getTranslations("role")]);
   return (
     <>
