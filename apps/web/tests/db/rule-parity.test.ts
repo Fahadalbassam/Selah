@@ -23,6 +23,7 @@ import {
   WEEKLY_DAY,
   WORK_MAIL_KINDS,
 } from "@/lib/mail-choices";
+import { LEGAL_VERSIONS } from "@/lib/legal";
 import { MAIL_KINDS } from "@/lib/mail-templates";
 import { NAME_ALT_LENGTH } from "@/lib/masking";
 import { callProvider, SPOKEN_LANGS } from "@/lib/meetings";
@@ -313,6 +314,13 @@ describe("mail choices", () => {
     const def = (await owner.query(`SELECT pg_get_functiondef('app_action_ladder(uuid)'::regprocedure) AS d`)).rows[0].d as string;
     const named = [...def.matchAll(/THEN '([a-z_]+)'/g)].map((m) => m[1]!);
     expect(sorted(new Set(named))).toEqual(sorted(LADDER_AUDIENCES));
+  });
+});
+
+describe("terms and notices", () => {
+  it("LEGAL_VERSIONS are app_legal_version() for every document the database knows", async () => {
+    const { rows } = await owner.query(`SELECT d::text AS doc, app_legal_version(d) AS v FROM unnest(enum_range(NULL::legal_doc)) d`);
+    expect(Object.fromEntries(rows.map((r) => [r.doc, r.v]))).toEqual(LEGAL_VERSIONS);
   });
 });
 

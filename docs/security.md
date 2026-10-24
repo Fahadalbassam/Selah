@@ -56,4 +56,6 @@ What it holds, who reads it and how it shows tampering (R2, migration `0023_audi
 
 ## Known gaps before real data
 
+The terms of use, privacy notice, AI-use notice and data processing agreement template (`/legal/*`, see `docs/accounts.md`) are drafts written for the product; the firm's counsel reviews them before real client data is used.
+
 Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; backups and HTTPS still need to be set up there.
