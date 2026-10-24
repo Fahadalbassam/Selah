@@ -107,7 +107,7 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
   if (kind === "project.client_quiet") return "/oversight";
   // The closing pulse is answered, and read, on the project's closing tab.
-  if (kind.startsWith("pulse.")) return `/projects/${entityId}?tab=closing`;
+  if (kind.startsWith("pulse.") || kind.startsWith("case_study.")) return `/projects/${entityId}?tab=closing`;
   // A client confirmed receiving its export pack: the firm admin sees it on the client page.
   if (kind === "client.pack_received") return `/clients/${entityId}`;
   // Archiving and restoring reach the client's admins, who have no client page.

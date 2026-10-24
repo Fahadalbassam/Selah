@@ -22,7 +22,16 @@ const DISPOSITION_TONE: Record<Disposition, Tone> = { handed_over: "active", def
  * left to settle, the decision on each open action, the firm's lessons and
  * the client's request to close. Every button is one the database will take.
  */
-export async function ClosureTab({ projectId, data }: { projectId: string; data: ClosureView }) {
+export async function ClosureTab({
+  projectId,
+  data,
+  caseStudyNotAsked = false,
+}: {
+  projectId: string;
+  data: ClosureView;
+  /** No case-study consent recorded yet (F37): said while closing, never a blocker. */
+  caseStudyNotAsked?: boolean;
+}) {
   const t = await getTranslations("closure");
   const format = await getFormatter();
   const day = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium" });
@@ -135,6 +144,7 @@ export async function ClosureTab({ projectId, data }: { projectId: string; data:
               </div>
             )
           ) : null}
+          {closing && firm && caseStudyNotAsked ? <p className="text-xs text-muted-foreground">{t("caseStudyNotAsked")}</p> : null}
         </CardContent>
       </Card>
 

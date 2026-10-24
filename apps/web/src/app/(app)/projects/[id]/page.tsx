@@ -34,6 +34,7 @@ import { listReports, projectMetrics, projectProgress } from "@/services/follow-
 import { listClientRoles } from "@/services/client-roles";
 import { getClosure } from "@/services/closure";
 import { getPulse } from "@/services/pulse";
+import { getCaseStudyConsent } from "@/services/case-study";
 import { getHandover } from "@/services/handover";
 import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
@@ -48,6 +49,7 @@ import { DocumentSummary, TextStatusBadge } from "./document-summary";
 import { ClientRolesCard } from "./client-roles-card";
 import { ClosureTab } from "./closure-tab";
 import { PulseSection } from "./pulse-section";
+import { CaseStudySection } from "./case-study-section";
 import { HandoverCard } from "./handover-card";
 import { InfoRequestsTab } from "./info-requests-tab";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
@@ -62,7 +64,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // A link may open a tab (a notification about a request opens the list).
   const { tab } = await searchParams;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests, closure, pulse } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests, closure, pulse, caseStudy } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -112,6 +114,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             ),
       // The closing pulse (F36): the client people asked answer it; the firm admin and the lead read it.
       pulse: client && data.project.state !== "draft" ? await getPulse(tx, principal, id) : null,
+      // Case-study consent (F37): on a closing or closed client project, for everyone on it.
+      caseStudy: client && data.project.state !== "draft" ? await getCaseStudyConsent(tx, principal, id) : null,
     };
   });
   const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, tE, tClose, format] = await Promise.all([
@@ -609,7 +613,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <TabsContent value="closing" className="space-y-6">
             {/* The client sees the pulse first, as the one thing asked of them; the firm after the closing record. */}
             {pulse && !firmStaff ? <PulseSection projectId={project.id} data={pulse} /> : null}
-            <ClosureTab projectId={project.id} data={closure} />
+            <ClosureTab projectId={project.id} data={closure} caseStudyNotAsked={caseStudy !== null && caseStudy.latest === null} />
+            {caseStudy ? <CaseStudySection projectId={project.id} data={caseStudy} /> : null}
             {pulse && firmStaff ? <PulseSection projectId={project.id} data={pulse} /> : null}
           </TabsContent>
         ) : null}
