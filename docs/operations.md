@@ -1,6 +1,6 @@
 # Operations
 
-Running Selah on the firm's server: backups, restoring, and what to do when something goes wrong (readiness item R3). Everything here runs on the server, from the repository folder that holds `docker-compose.yml` and `.env`.
+Running Selah on the firm's server: backups, restoring, knowing it is up, upgrading, and what to do when something goes wrong (readiness items R3 and R4). Everything here runs on the server, from the repository folder that holds `docker-compose.yml` and `.env`.
 
 ## Backups
 
@@ -47,6 +47,29 @@ It exits non-zero on any failure. Run it monthly (the crontab above), and once a
 On a new server: install Docker, check out the same commit (the manifest names it), fill `.env` with the same role passwords, `docker compose up -d db storage`, `docker compose run --rm setup`, then `ops/restore.sh`. Work done after the backup is lost; say so to the clients affected.
 
 Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the machine instead of the containers.
+
+## Knowing it is up
+
+**Probes.** `/api/health` answers 200 while the web app runs (liveness). `/api/ready` checks what the web app needs: the database, the bucket and the virus scanner are critical, the PDF renderer and the AI service only switch features off. It answers 200 with `{"status":"ok"}` or `"degraded"`, and 503 with `"down"` when a critical one fails. The public sees only that word; with `Authorization: Bearer $OPS_TOKEN` it lists each check with its time and error. Results are reused for 10 seconds, so the probe can't be used to load the server. An outside uptime monitor can poll `/api/ready` through the tunnel.
+
+**Alerts.** The jobs container runs `job:ops-check` every two minutes. It reads the probe's checks (with `OPS_TOKEN`) and adds three that need the schema owner: mail that keeps failing to send (or was given up on today), the audit chain's nightly check (missing for 30 hours or failed) and sealing (entries waiting over an hour). It alerts when something starts failing, every six hours while it keeps failing, and once when everything recovers; the first round after the jobs start only takes note, so a restart doesn't page anyone. Alerts are in Arabic and English and go to `OPS_ALERT_EMAIL` straight through `SMTP_URL` (not the mail queue, which may be what is broken) and to `OPS_ALERT_WEBHOOK` if set (a POST with `{"text": ...}`, which Slack, Teams and ntfy accept).
+
+**On the server.** `ops/readiness.sh` shows everything at once: the probe's checks, the containers, the newest backup (under 26 hours), the newest restore drill (passed, under 35 days) and disk use (under 90%) where the data and the backups live. It exits 1 if anything fails. From cron with `--alert` it also posts failures to `OPS_ALERT_WEBHOOK`, which covers the jobs container itself being down:
+
+```
+*/10 * * * *  cd /srv/selah && BACKUP_ROOT=/backup/selah OPS_ALERT_WEBHOOK=https://... ops/readiness.sh --alert > /dev/null
+```
+
+## Upgrading
+
+`ops/upgrade.sh [REF]` moves to a newer version (a tag or commit; `origin/main` by default):
+
+1. refuses if the checkout has local changes, and shows the commits coming;
+2. takes a backup and notes it, with the current commit, in `backups/last-upgrade`;
+3. checks out the new version, rebuilds the images, runs the migrations (the `setup` service) and starts everything;
+4. waits up to five minutes for `/api/ready`, and if it doesn't pass, says how to go back.
+
+`ops/upgrade.sh --rollback` goes back: the previous commit, rebuilt, with the database restored from the backup taken before the upgrade (migrations only go forward). Work done since the upgrade is lost, so roll back soon or not at all. Upgrade outside working hours, and run `ops/readiness.sh` afterwards.
 
 ## When something goes wrong
 

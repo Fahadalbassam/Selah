@@ -5,7 +5,7 @@
 # environment); that is how they are tested without Docker.
 set -eu
 umask 077
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT="${SELAH_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 DB="${SELAH_DB:-selah}"
 export PGOPTIONS="-c client_min_messages=warning"
 BACKUP_ROOT="${BACKUP_ROOT:-$ROOT/backups}"
