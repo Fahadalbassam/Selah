@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ENGAGEMENT_MODES } from "@/lib/engagement";
+import { engagementInput } from "@/lib/engagements";
 import { route } from "@/server/http";
 import { convertInquiry } from "@/services/inquiries";
 
@@ -13,6 +14,7 @@ const body = z.object({
     z.object({ existingClientId: z.uuid() }),
   ]),
   leadUserId: z.uuid().optional(),
+  engagement: engagementInput,
   projectTitle: z.string().trim().min(2).max(200).optional(),
 });
 

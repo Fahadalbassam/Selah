@@ -49,7 +49,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [-] **J04.1** Proposal and fees — lane: firm · map: outside Selah · wave: —
 - [x] **J04.2** Mark the inquiry won — lane: firm · map: exists · wave: — · pr: #18
-- [ ] **J04.3** Signing (firm: Records what was signed; client: Signs the engagement letter) — lane: shared · map: wave 1 · covered by: F05 · wave: 1
+- [~] **J04.3** Signing (firm: Records what was signed; client: Signs the engagement letter) — lane: shared · map: wave 1 · covered by: F05 · wave: 1
 - [-] **J04.4** Signs — lane: client · map: outside Selah · wave: —
 
 ### J05 · Enrol the client · تسجيل العميل
@@ -145,11 +145,11 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F01** Put client people on a project — tier: 1 · size: S · wave: 1 · journey: J06.2, J06.5 · pr: #59
 - [x] **F02** More than one project per client — tier: 1 · size: S · wave: 1 · journey: J05.4 · decision: D2 · pr: #59
 - [x] **F03** File controls: share, AI flag, new version — tier: 1 · size: S–M · wave: 1 · journey: J08.3 · pr: #61
-- [~] **F04** Assistant reads PDF and Word files — tier: 1 · size: M · wave: 1 · pr: #63 (open)
+- [x] **F04** Assistant reads PDF and Word files — tier: 1 · size: M · wave: 1 · pr: #63
 
 ### Tier 2 · The enrolment spine
 
-- [ ] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3
+- [~] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64 (open)
 - [ ] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3
 - [ ] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3
 - [ ] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3
@@ -208,7 +208,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 
 - [ ] **N1** Edit, withdraw and release recommendations and findings — wave: 1 · journey: J09.2
 - [x] **N2** Actions under a firm-only recommendation stay firm-only (test first) — wave: 1 · pr: #62
-- [ ] **N3** A draft project state the client never sees — wave: 1
+- [~] **N3** A draft project state the client never sees — wave: 1 · pr: #64 (open)
 - [ ] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2
 - [ ] **N5** The lead of an internal project can close it — wave: 1
 - [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26

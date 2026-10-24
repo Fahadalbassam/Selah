@@ -189,6 +189,8 @@ export function ApiButton(props: {
   icon?: ReactNode;
   /** Tooltip text. */
   title?: string;
+  /** Where to go once it worked (after a delete, the page is gone). */
+  redirectTo?: string;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
@@ -201,8 +203,10 @@ export function ApiButton(props: {
     setError(null);
     const r = await callApi(props.endpoint, props.method ?? "POST", props.body);
     setBusy(false);
-    if (r.ok) router.refresh();
-    else setError(r.error);
+    if (r.ok) {
+      if (props.redirectTo) router.push(props.redirectTo);
+      else router.refresh();
+    } else setError(r.error);
   }
   return (
     <span className="inline-flex flex-col items-start gap-1">

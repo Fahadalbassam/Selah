@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { BrandLoader } from "@/components/brand";
+import { EngagementFields, engagementBody, engagementError } from "@/components/engagement-form";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -143,6 +144,8 @@ export function ConvertDialog(props: {
   consultants: { id: string; name: string }[];
 }) {
   const t = useTranslations("inbox");
+  const te = useTranslations("engagements");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"new" | "existing">("new");
@@ -162,8 +165,11 @@ export function ConvertDialog(props: {
         client,
         ...(lead && lead !== "none" ? { leadUserId: lead } : {}),
         ...(get("projectTitle") ? { projectTitle: get("projectTitle") } : {}),
+        // What the client signed; the first project starts under it.
+        engagement: Object.fromEntries(Object.entries(engagementBody(form)).filter(([, v]) => v !== undefined)),
       }),
     );
+    if (!r.ok) setError(engagementError(te, tc, r));
     if (r.ok) {
       setOpen(false);
       router.push(`/clients/${(r.data as { clientOrgId: string }).clientOrgId}`);
@@ -178,7 +184,7 @@ export function ConvertDialog(props: {
           {t("convert")}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("convert")}</DialogTitle>
@@ -263,6 +269,14 @@ export function ConvertDialog(props: {
             <Label htmlFor="c-project">{t("projectTitle")}</Label>
             <Input id="c-project" name="projectTitle" minLength={2} maxLength={200} />
           </div>
+          <fieldset className="grid gap-4 border-t pt-4">
+            <legend className="sr-only">{te("signedSection")}</legend>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{te("signedSection")}</p>
+              <p className="text-xs text-muted-foreground">{te("signedSectionHint")}</p>
+            </div>
+            <EngagementFields prefix="cv" />
+          </fieldset>
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
