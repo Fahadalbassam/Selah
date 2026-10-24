@@ -178,7 +178,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 ### Tier 5 · Closing and leaving
 
-- [~] **F25** Closing is a gate — tier: 5 · size: M · wave: 1 · journey: J12.3, J12.4 · pr: #79 (dispositions, sustainers, lessons, read-only, reopen with reason, closure report PDF; still open: closing pulse survey and case-study consent)
+- [x] **F25** Closing is a gate — tier: 5 · size: M · wave: 1 · journey: J12.3, J12.4 · pr: #79 (dispositions, sustainers, lessons, read-only, reopen with reason, closure report PDF; the closing survey and case-study consent moved to F36 and F37)
 - [x] **F26** When people leave or change — tier: 5 · size: M · wave: 1 · journey: J14.3 · pr: #81
 - [x] **F27** A client can leave cleanly — tier: 5 · size: M · wave: 1 · journey: J14.1, J14.2, J14.4, J14.5 · pr: #83 (archive, grace period, retention, legal hold, purge), #89 (export pack and receipt)
 - [ ] **F28** Pause and follow-on projects — tier: 5 · size: M · wave: frozen · journey: J13.3 · decision: D2
@@ -192,6 +192,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4
 - [ ] **F35** Company and department KPIs — tier: 6 · size: L · wave: frozen · waiting on: supervisor (D8) · decision: D8
+- [ ] **F36** Closing pulse survey: the client rates the engagement when a project closes — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, the comparable-platforms study lists evaluation and NPS as a common practice; against, it is a firm-improvement tool rather than part of connecting consultant and client, and nobody has asked for it yet
+- [ ] **F37** Case-study consent: the client agrees, per project, that the firm may cite the work — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, it keeps a record of a permission firms otherwise get by email; against, it is rare and is handled outside Selah today
 ## Readiness before real client data
 
 - [x] **R1** Terms, consent records, AI notice, data agreement — size: S · wave: 1 · journey: J05.5 · pr: #84
