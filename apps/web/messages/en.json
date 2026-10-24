@@ -2997,7 +2997,9 @@
       "overdueMark": "(overdue)",
       "pooledNote": "The totals count the actions of all projects together; they are not an average of percentages.",
       "claimNote": "Claimed progress is not verification: only a consultant's review marks an action verified complete."
-    }
+    },
+    "departmentTitle": "This department across projects",
+    "departmentHint": "This department's actions in every project you can open, counted together, with each project beside the total."
   },
   "audit": {
     "title": "Audit log",
@@ -3438,5 +3440,13 @@
       "what": "What was deleted",
       "counts": "{projects, plural, one {# project} other {# projects}}, {actions, plural, one {# action} other {# actions}}, {documents, plural, one {# file} other {# files}}, {people, plural, one {# account} other {# accounts}}"
     }
+  },
+  "departmentPage": {
+    "backFirm": "{client}: departments",
+    "people": "People",
+    "peopleHint": "Who is in this department. They see its work; others at the client don't.",
+    "openTitle": "Open actions",
+    "openHint": "This department's actions still in progress, across every project, earliest due first.",
+    "openEmpty": "No open actions in this department."
   }
 }

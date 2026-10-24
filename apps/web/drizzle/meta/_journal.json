@@ -183,6 +183,13 @@
       "when": 1792819828068,
       "tag": "0025_client_offboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792820409514,
+      "tag": "0031_department_page",
+      "breakpoints": true
     }
   ]
 }
