@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MailWarning } from "lucide-react";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { MessageSquare } from "@/components/animate-ui/icons/message-square";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { AskAbout } from "@/components/ask-about";
+import { MuteButton } from "@/components/mail-choices";
 import { FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -21,13 +22,15 @@ import { localLabel } from "@/lib/names";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { departmentChoices } from "@/services/engagement";
-import { actionClosure, actionFollowThrough, listActionNotes } from "@/services/follow-through";
+import { actionClosure, actionFollowThrough, actionLadder, listActionNotes, mailFailing } from "@/services/follow-through";
+import { isActionMuted } from "@/services/notifications";
 import { getActionDetail } from "@/services/queries";
 import { ActionPanel } from "./action-panel";
 import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
 import { DepartmentPicker } from "./department-picker";
 import { DeadlineRequests, EvidenceList } from "./follow-through-panels";
+import { ReminderLadder } from "./reminder-ladder";
 
 function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -38,9 +41,13 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
+      ladder: await actionLadder(tx, principal, id),
+      muted: await isActionMuted(tx, principal, id),
+      // Firm staff see when mail to the owner isn't getting through.
+      failing: data.action.ownerUserId ? (await mailFailing(tx, principal, [data.action.ownerUserId])).get(data.action.ownerUserId) ?? null : null,
       data,
       firmView: principal.orgKind === "firm",
       follow: await actionFollowThrough(tx, principal, id),
@@ -72,6 +79,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         {t("back")}
       </Link>
       <PageHeader title={action.title} meta={<StatusBadge status={action.status} />}>
+        <MuteButton actionId={action.id} muted={muted} />
         {data.firmStaff ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
       </PageHeader>
       {action.description ? (
@@ -212,7 +220,18 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             {[
               [tTable("project"), <Link key="p" href={`/projects/${action.projectId}`} className="text-primary hover:underline">{context.projectTitle}</Link>],
               [t("recommendation"), context.recommendationTitle],
-              [t("owner"), action.ownerName ?? tTable("unassigned")],
+              [
+                t("owner"),
+                <span key="o" className="space-y-1">
+                  <span className="block">{action.ownerName ?? tTable("unassigned")}</span>
+                  {failing ? (
+                    <span className="flex items-center gap-1.5 text-xs text-destructive" title={t("mailFailingHint", { name: action.ownerName ?? "" })}>
+                      <MailWarning className="size-3.5 shrink-0" />
+                      {t("mailFailing")}
+                    </span>
+                  ) : null}
+                </span>,
+              ],
               [
                 t("due"),
                 <span key="d" className={cn("tabular-nums", action.overdue && "font-medium text-destructive")}>
@@ -251,6 +270,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           canRequest={follow.can.requestDeadline}
           canDecide={follow.can.decideDeadline}
         />
+        <ReminderLadder running={ladder.running} steps={ladder.steps} />
         <RiskAcceptances actionId={action.id} items={closing.acceptances} canSign={closing.can.sign} />
         </div>
       </div>

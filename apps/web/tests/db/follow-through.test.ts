@@ -788,13 +788,13 @@ describe("reminders and the escalation ladder", () => {
   });
 
   it("skips people who turned the summary off, and nobody can change another's choice", async () => {
-    expect(await svc(U.cmgr, (tx, p) => N.getMailPreferences(tx, p))).toEqual({ followUpDigest: true });
-    expect(await svc(U.cmgr, (tx, p) => N.setMailPreferences(tx, p, { followUpDigest: false }))).toEqual({ followUpDigest: false });
+    expect((await svc(U.cmgr, (tx, p) => N.getMailPreferences(tx, p))).reminders).toBe("daily");
+    expect((await svc(U.cmgr, (tx, p) => N.setMailPreferences(tx, p, { reminders: "off" }))).reminders).toBe("off");
     await expect(
-      attempt(U.cons, `INSERT INTO mail_preferences (user_id, follow_up_digest) VALUES ($1, true)`, [U.cmgr]),
+      attempt(U.cons, `INSERT INTO mail_preferences (user_id, reminders) VALUES ($1, 'daily')`, [U.cmgr]),
     ).rejects.toThrow(/row-level security/);
     expect((await attempt(U.cons, `SELECT * FROM mail_preferences`)).rows).toEqual([]);
-    expect((await attempt(U.cons, `UPDATE mail_preferences SET follow_up_digest = true`)).rowCount).toBe(0);
+    expect((await attempt(U.cons, `UPDATE mail_preferences SET reminders = 'daily'`)).rowCount).toBe(0);
 
     await clearDigests();
     await action({ due: "2027-05-05" }); // level 2: the owner, the client's manager and the lead

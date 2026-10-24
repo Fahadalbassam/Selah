@@ -211,6 +211,9 @@ describe("action mail", () => {
     const aid = await action(U.cmgr, "assigned");
     await notify(U.cons, U.cmgr, "action.assigned", aid);
     expect(await queue()).toMatchObject([{ to_email: "cmgr@example.test", kind: "action.assigned", link: `/actions/${aid}` }]);
+    // Work mail waits for the person's sending time (quiet hours, Friday;
+    // tests/db/mail-choices.test.ts); send it now regardless of today's clock.
+    await owner.query(`UPDATE outbound_emails SET next_attempt_at = NULL`);
     const sent: OutgoingMail[] = [];
     await runMail(owner, async (m) => void sent.push(m), SITE);
     expect(sent[0]!.text).toContain(`${SITE}/actions/${aid}`);

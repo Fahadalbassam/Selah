@@ -12,6 +12,17 @@ import { actionStatus, evidenceRequestStatus } from "@/db/schema";
 import { FIRM_TIME_ZONE, firmToday } from "@/lib/dates";
 import { SHORT_NAMES } from "@/lib/engagement";
 import { CHECKIN_DAYS, FIRM_SETTING_RANGES } from "@/lib/firm-settings";
+import {
+  LADDER_AUDIENCES,
+  MAIL_CADENCES,
+  MAIL_DEFAULTS,
+  RAMADAN_DEFAULTS,
+  RAMADAN_SPAN_DAYS,
+  REMINDER_CADENCES,
+  UPDATE_MAIL_KINDS,
+  WEEKLY_DAY,
+  WORK_MAIL_KINDS,
+} from "@/lib/mail-choices";
 import { MAIL_KINDS } from "@/lib/mail-templates";
 import { NAME_ALT_LENGTH } from "@/lib/masking";
 import { callProvider, SPOKEN_LANGS } from "@/lib/meetings";
@@ -230,8 +241,78 @@ describe("firm settings", () => {
       expect(fallbacks.checkins).toEqual(FIRM_SETTING_DEFAULTS.checkinDays);
       expect(fallbacks.admins).toBe(FIRM_SETTING_DEFAULTS.restrictedMaxAdmins);
       const row = (await c.query(`INSERT INTO firm_settings (org_id) VALUES ($1) RETURNING *`, [FIRM])).rows[0];
-      for (const [key, value] of Object.entries(FIRM_SETTING_DEFAULTS)) expect(row[column(key)], key).toEqual(value);
+      // Times come back with seconds; the app works in HH:MM.
+      const clock = (v: unknown) => (typeof v === "string" && /^\d\d:\d\d:\d\d$/.test(v) ? v.slice(0, 5) : v);
+      for (const [key, value] of Object.entries(FIRM_SETTING_DEFAULTS)) expect(clock(row[column(key)]), key).toEqual(value);
     });
+  });
+});
+
+describe("mail choices", () => {
+  const clock = (v: string | null) => (v ? v.slice(0, 5) : v);
+
+  it("MAIL_CADENCES is the mail_cadence enum, and REMINDER_CADENCES is what mail_reminders_cadence allows", async () => {
+    const r = await owner.query(`SELECT enum_range(NULL::mail_cadence)::text[] AS v`);
+    expect(r.rows[0].v).toEqual([...MAIL_CADENCES]);
+    await rolledBack(async (c) => {
+      for (const cadence of MAIL_CADENCES) {
+        const refused = await refusal(c, `INSERT INTO mail_preferences (user_id, reminders) VALUES ($1, $2)`, [CONSULTANT, cadence]);
+        expect(refused === null, cadence).toBe((REMINDER_CADENCES as readonly string[]).includes(cadence));
+      }
+    });
+  });
+
+  it("MAIL_DEFAULTS are the column defaults and app_mail_choice()'s fallback", async () => {
+    await rolledBack(async (c) => {
+      const none = (await c.query(`SELECT * FROM app_mail_choice($1)`, [id(999)])).rows[0];
+      const row = (await c.query(`INSERT INTO mail_preferences (user_id) VALUES ($1) RETURNING *`, [CONSULTANT])).rows[0];
+      for (const r of [none, row]) {
+        expect({
+          updates: r.updates,
+          reminders: r.reminders,
+          quietFrom: clock(r.quiet_from),
+          quietTo: clock(r.quiet_to),
+          saturday: r.saturday,
+          ramadan: r.ramadan,
+        }).toEqual(MAIL_DEFAULTS);
+      }
+    });
+  });
+
+  it("UPDATE_MAIL_KINDS and WORK_MAIL_KINDS are the database's lists, and are known mail kinds", async () => {
+    const r = await owner.query(`SELECT app_update_mail_kinds() AS updates, app_work_mail_kinds() AS work`);
+    expect(sorted(r.rows[0].updates)).toEqual(sorted(UPDATE_MAIL_KINDS));
+    expect(sorted(r.rows[0].work)).toEqual(sorted(WORK_MAIL_KINDS));
+    for (const k of WORK_MAIL_KINDS) expect(MAIL_KINDS).toContain(k);
+  });
+
+  it("WEEKLY_DAY is the day app_cadence_due() sends the weekly summary", async () => {
+    const r = await owner.query(
+      `SELECT extract(dow FROM d)::int AS dow FROM generate_series('2027-05-17'::date, '2027-05-23', '1 day') d WHERE app_cadence_due('weekly', d::date)`,
+    );
+    expect(r.rows).toEqual([{ dow: WEEKLY_DAY }]);
+  });
+
+  it("RAMADAN_DEFAULTS and RAMADAN_SPAN_DAYS are the firm_settings defaults and ramadan_dates", async () => {
+    await rolledBack(async (c) => {
+      const row = (await c.query(`INSERT INTO firm_settings (org_id) VALUES ($1) RETURNING *`, [FIRM])).rows[0];
+      expect({ mailFrom: clock(row.ramadan_mail_from), mailTo: clock(row.ramadan_mail_to) }).toEqual(RAMADAN_DEFAULTS);
+      const allowed: number[] = [];
+      for (let span = 25; span <= 32; span++) {
+        const refused = await refusal(c, `UPDATE firm_settings SET ramadan_starts = '2027-02-08', ramadan_ends = '2027-02-08'::date + $2::int WHERE org_id = $1`, [
+          FIRM,
+          span,
+        ]);
+        if (refused === null) allowed.push(span);
+      }
+      expect([allowed[0], allowed.at(-1)]).toEqual([...RAMADAN_SPAN_DAYS]);
+    });
+  });
+
+  it("LADDER_AUDIENCES lists every audience app_action_ladder() can name", async () => {
+    const def = (await owner.query(`SELECT pg_get_functiondef('app_action_ladder(uuid)'::regprocedure) AS d`)).rows[0].d as string;
+    const named = [...def.matchAll(/THEN '([a-z_]+)'/g)].map((m) => m[1]!);
+    expect(sorted(new Set(named))).toEqual(sorted(LADDER_AUDIENCES));
   });
 });
 

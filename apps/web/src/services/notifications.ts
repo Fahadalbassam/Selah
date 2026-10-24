@@ -1,8 +1,10 @@
 import "server-only";
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailPreferences, notifications, organizations, projects } from "@/db/schema";
+import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects } from "@/db/schema";
 import type { Principal } from "@/authz";
+import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
+import { BadRequestError, NotFoundError } from "@/server/errors";
 
 // A person's own notifications. Row-level security already limits every
 // query here to the caller's rows; the user_id filters say so explicitly.
@@ -124,22 +126,83 @@ export async function markRead(tx: Tx, principal: Principal, only?: string[]) {
   return { unread: await unreadCount(tx, principal) };
 }
 
-/** The caller's mail choices; no row means the defaults. */
+const hhmm = (t: string | null) => (t ? t.slice(0, 5) : null);
+
+/**
+ * The caller's mail choices (no row means the defaults), the actions they
+ * muted, the firm's Ramadan, and when a work mail queued now would go out.
+ */
 export async function getMailPreferences(tx: Tx, principal: Principal) {
-  const [row] = await tx
-    .select({ followUpDigest: mailPreferences.followUpDigest })
-    .from(mailPreferences)
-    .where(eq(mailPreferences.userId, principal.userId));
-  return { followUpDigest: row?.followUpDigest ?? true };
+  const [row] = await tx.select().from(mailPreferences).where(eq(mailPreferences.userId, principal.userId));
+  const choices: MailChoices = row
+    ? {
+        updates: row.updates,
+        reminders: row.reminders,
+        quietFrom: hhmm(row.quietFrom),
+        quietTo: hhmm(row.quietTo),
+        saturday: row.saturday,
+        ramadan: row.ramadan,
+      }
+    : { ...MAIL_DEFAULTS };
+  // Titles under the caller's rights: an action they can no longer see drops out.
+  const muted = await tx
+    .select({ actionId: mailMutes.actionId, title: actions.title, at: mailMutes.createdAt })
+    .from(mailMutes)
+    .innerJoin(actions, eq(actions.id, mailMutes.actionId))
+    .where(eq(mailMutes.userId, principal.userId))
+    .orderBy(desc(mailMutes.createdAt));
+  const { rows } = await tx.execute<{ next: Date | string | null; starts: string | null; ends: string | null; mail_from: string | null; mail_to: string | null }>(sql`
+    SELECT app_my_next_mail_at() AS next, r.starts, r.ends, r.mail_from, r.mail_to
+    FROM (SELECT 1) x LEFT JOIN app_firm_ramadan() r ON true`);
+  const r = rows[0];
+  return {
+    ...choices,
+    muted,
+    nextMailAt: r?.next ? new Date(r.next) : null,
+    firmRamadan: r?.starts
+      ? { starts: r.starts, ends: r.ends!, mailFrom: hhmm(r.mail_from)!, mailTo: hhmm(r.mail_to)! }
+      : null,
+  };
 }
 
-export async function setMailPreferences(tx: Tx, principal: Principal, input: { followUpDigest: boolean }) {
+export async function setMailPreferences(tx: Tx, principal: Principal, input: Partial<MailChoices>) {
+  const current = await getMailPreferences(tx, principal);
+  const next: MailChoices = {
+    updates: input.updates ?? current.updates,
+    reminders: input.reminders ?? current.reminders,
+    quietFrom: input.quietFrom !== undefined ? input.quietFrom : current.quietFrom,
+    quietTo: input.quietTo !== undefined ? input.quietTo : current.quietTo,
+    saturday: input.saturday ?? current.saturday,
+    ramadan: input.ramadan ?? current.ramadan,
+  };
+  // The database refuses the same; saying so here gives the form a clear error.
+  if ((next.quietFrom === null) !== (next.quietTo === null) || (next.quietFrom !== null && next.quietFrom === next.quietTo)) {
+    throw new BadRequestError("quiet_hours");
+  }
   await tx
     .insert(mailPreferences)
-    .values({ userId: principal.userId, followUpDigest: input.followUpDigest })
-    .onConflictDoUpdate({
-      target: mailPreferences.userId,
-      set: { followUpDigest: input.followUpDigest, updatedAt: new Date() },
-    });
+    .values({ userId: principal.userId, ...next })
+    .onConflictDoUpdate({ target: mailPreferences.userId, set: { ...next, updatedAt: new Date() } });
   return getMailPreferences(tx, principal);
+}
+
+/** Stop or restart mail about one action. Only an action the caller can see can be muted. */
+export async function setActionMuted(tx: Tx, principal: Principal, actionId: string, muted: boolean) {
+  if (muted) {
+    const [seen] = await tx.select({ id: actions.id }).from(actions).where(eq(actions.id, actionId));
+    if (!seen) throw new NotFoundError("action");
+    await tx.insert(mailMutes).values({ userId: principal.userId, actionId }).onConflictDoNothing();
+  } else {
+    await tx.delete(mailMutes).where(and(eq(mailMutes.userId, principal.userId), eq(mailMutes.actionId, actionId)));
+  }
+  return { muted };
+}
+
+/** Whether the caller muted mail about an action. */
+export async function isActionMuted(tx: Tx, principal: Principal, actionId: string) {
+  const [row] = await tx
+    .select({ id: mailMutes.actionId })
+    .from(mailMutes)
+    .where(and(eq(mailMutes.userId, principal.userId), eq(mailMutes.actionId, actionId)));
+  return !!row;
 }
