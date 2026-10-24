@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Network,
+  ScrollText,
   Settings,
   Users,
   type LucideIcon,
@@ -50,6 +51,7 @@ const ICONS = {
   assistant: Bot,
   team: Users,
   settings: Settings,
+  audit: ScrollText,
   departments: Network,
 } satisfies Record<string, LucideIcon>;
 

@@ -162,6 +162,13 @@
       "when": 1792816735142,
       "tag": "0022_client_overview",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792818878993,
+      "tag": "0023_audit_trail",
+      "breakpoints": true
     }
   ]
 }

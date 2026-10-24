@@ -5,6 +5,7 @@ import { aiChunks, documentSummaries, documents, projects } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "@/server/errors";
 import { summarizePages, type SummaryPoint } from "./ai-client";
+import { audit } from "./audit";
 import { projectMasker } from "./masking";
 
 // File summaries (baseline: AI sources). One per file version
@@ -63,6 +64,18 @@ async function keptSummary(tx: Tx, doc: { id: string; sha256: string }, lang: "a
 export async function getDocumentSummary(tx: Tx, principal: Principal, documentId: string, lang: "ar" | "en") {
   const doc = await loadForSummary(tx, principal, documentId);
   const kept = await keptSummary(tx, doc, lang);
+  // Reading a kept summary is reading the file's content, so it is logged like a download (R2).
+  if (kept) {
+    await audit(tx, {
+      actorId: principal.userId,
+      orgId: principal.orgId,
+      action: "document.summary_view",
+      resourceType: "document",
+      resourceId: doc.id,
+      outcome: "allow",
+      meta: { version: doc.version, lang },
+    });
+  }
   return {
     aiIndexable: doc.aiIndexable,
     textStatus: doc.textStatus,

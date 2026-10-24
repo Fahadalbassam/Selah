@@ -29,6 +29,7 @@ export const FIRM_SETTING_DEFAULTS = {
   ramadanEnds: null as string | null,
   ramadanMailFrom: RAMADAN_DEFAULTS.mailFrom as string,
   ramadanMailTo: RAMADAN_DEFAULTS.mailTo as string,
+  auditKeepMonths: 12,
 };
 export type FirmSettings = typeof FIRM_SETTING_DEFAULTS;
 export type FirmSettingsPatch = Partial<FirmSettings>;

@@ -14,6 +14,9 @@ export const FIRM_SETTING_RANGES = {
   chatAfterCloseDays: [0, 365],
   // Must also be more than the archive days (checked by the database).
   chatIdleDeleteDays: [30, 730],
+  // Months, not days: the audit log is kept at least 12 (NCA ECC 2-12), and the
+  // database never lets a younger entry be removed (audit_log_guard()).
+  auditKeepMonths: [12, 120],
 } as const satisfies Record<string, readonly [number, number]>;
 
 export type FirmSettingRange = keyof typeof FIRM_SETTING_RANGES;
