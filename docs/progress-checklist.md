@@ -160,7 +160,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6 · pr: #96
 - [x] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6 · pr: #99
 - [x] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7 · pr: #78
-- [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: 3 · decision: Wave 3 pick on 2026-10-24 (two-sided review)
+- [x] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: 3 · decision: Wave 3 pick on 2026-10-24 (two-sided review) · pr: #121
 - [x] **F14** Magic-link sign-in and no-login upload links — tier: 3 · size: M · wave: 2 · decision: D6 D7 · pr: #113 (sign-in links), #114 (upload links)
 
 ### Tier 4 · Following through well
