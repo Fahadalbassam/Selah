@@ -16,6 +16,7 @@ import { MeetingForm } from "@/components/meeting-form";
 import { AskAbout } from "@/components/ask-about";
 import { EmptyState } from "@/components/empty-state";
 import { ExportButton } from "@/components/export-button";
+import { FileActions } from "@/components/file-actions";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { Translatable } from "@/components/translatable";
@@ -518,6 +519,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                   {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                   {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
+                  <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} />
                 </li>
               ))}
             </ul>

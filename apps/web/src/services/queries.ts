@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -19,6 +19,7 @@ import {
 } from "@/db/schema";
 import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
 import { loadAction, roundSubmitters } from "./actions";
+import { fileControls } from "./documents";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
@@ -218,6 +219,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       firmOrgId: projects.firmOrgId,
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
+      minimalRecords: organizations.minimalRecords,
     })
     .from(projects)
     .innerJoin(organizations, eq(organizations.id, projects.orgId))
@@ -269,6 +271,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       aiIndexable: documents.aiIndexable,
       textStatus: documents.textStatus,
       purpose: documents.purpose,
+      state: documents.state,
       createdAt: documents.createdAt,
       uploadedBy: documents.uploadedBy,
       ownerOrgId: documents.ownerOrgId,
@@ -277,8 +280,27 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       projectId: documents.projectId,
     })
     .from(documents)
-    .where(and(eq(documents.projectId, id)))
+    .where(
+      and(
+        eq(documents.projectId, id),
+        ne(documents.state, "archived"),
+        // The latest version of each file; earlier ones stay on record.
+        sql`not exists (select 1 from documents n where n.supersedes_id = ${documents.id})`,
+      ),
+    )
     .orderBy(desc(documents.createdAt));
+
+  const docResource = (d: (typeof docs)[number]): Resource => ({
+    type: "document",
+    id: d.id,
+    orgId: d.orgId,
+    firmOrgId: p.firmOrgId,
+    projectId: d.projectId,
+    visibility: d.visibility,
+    createdBy: d.uploadedBy,
+    ownerOrgId: d.ownerOrgId,
+    departmentId: d.departmentId,
+  });
 
   const activity = await tx
     .select({
@@ -312,16 +334,13 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       visibility: f.visibility,
       createdBy: f.createdBy,
     })),
-    documents: visible(principal, "document.read", docs, (d) => ({
-      type: "document",
-      id: d.id,
-      orgId: d.orgId,
-      firmOrgId: p.firmOrgId,
-      projectId: d.projectId,
-      visibility: d.visibility,
-      createdBy: d.uploadedBy,
-      ownerOrgId: d.ownerOrgId,
-      departmentId: d.departmentId,
+    documents: visible(principal, "document.read", docs, docResource).map((d) => ({
+      ...d,
+      can: fileControls(principal, {
+        doc: d,
+        resource: docResource(d),
+        context: { projectKind: p.kind, projectClosed: p.state === "closed", minimal: p.minimalRecords, latest: true },
+      }),
     })),
     activity: authorize(principal, "activity.read", projectResource).allowed ? activity : [],
   };

@@ -588,6 +588,8 @@ export const documents = pgTable(
     departmentFk("documents", t),
     foreignKey({ name: "documents_supersedes_fk", columns: [t.supersedesId], foreignColumns: [t.id] }),
     index("documents_project_idx").on(t.projectId),
+    // A file has at most one next version (baseline: File controls, 0005).
+    uniqueIndex("documents_supersede_once").on(t.supersedesId),
   ],
 );
 
