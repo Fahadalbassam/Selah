@@ -96,6 +96,13 @@ export const POLICY = {
   // admin and the client's lead read the answers (app_can_read_pulse).
   "pulse.answer": { client_admin: "any", client_manager: "any" },
   "pulse.read": { firm_admin: "any", consultant: "lead" },
+  // Case-study consent (F37): everyone on the project reads it. The client's
+  // sponsor or admin gives and withdraws it (the database decides the
+  // sponsor: app_is_consent_giver); the firm admin records one the client
+  // gave outside Selah.
+  "case_study.read": { ...ALL_BUT_OWNER },
+  "case_study.consent": { firm_admin: "any", client_admin: "any", client_manager: "any" },
+  "case_study.revoke": { client_admin: "any", client_manager: "any" },
 
   // Staffing. Only the firm admin adds clients and names a client's lead.
   // The lead consultant adds or removes consultants on that client and,
@@ -309,6 +316,9 @@ export const OPEN_WHEN_CLOSED: ReadonlySet<Permission> = new Set<Permission>([
   "assistant.query",
   // The closing pulse is answered once the project is closed (F36).
   "pulse.answer",
+  // Case-study consent is given and withdrawn after closing (F37).
+  "case_study.consent",
+  "case_study.revoke",
 ]);
 
 /**
@@ -320,7 +330,12 @@ export const OPEN_TO_OBSERVERS: ReadonlySet<Permission> = new Set<Permission>(["
 
 /** Permissions that only read. They stay open on a closed project. */
 /** What the people of an archived client may still do in its grace period, besides reading. */
-export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>(["assistant.query", "organization.export"]);
+export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>([
+  "assistant.query",
+  "organization.export",
+  // A client can withdraw case-study consent at any time, also while leaving (F37).
+  "case_study.revoke",
+]);
 
 export function isReadPermission(permission: Permission): boolean {
   return /\.(read|download)$/.test(permission);

@@ -1698,7 +1698,8 @@
       "report_pack_drafted": "Your monthly status pack for {title} is drafted and waiting for you",
       "client_deputy": "You are now the deputy consultant for {title}",
       "pulse_requested": "{title} is closed: tell the firm how it went",
-      "pulse_low_score": "A client gave a low score in the closing pulse for {title}"
+      "pulse_low_score": "A client gave a low score in the closing pulse for {title}",
+      "case_study_revoked": "The client withdrew its case-study consent for {title}"
     },
     "mail": {
       "section": "Mail",
@@ -2158,6 +2159,53 @@
       "person": "Person",
       "comment": "Comment",
       "yourComment": "Your comment"
+    },
+    "caseStudyNotAsked": "Case-study consent: not asked yet. This doesn't stop the project from closing.",
+    "caseStudy": {
+      "title": "Case-study consent",
+      "hint": "Whether the firm may cite this project, and how. The client's sponsor or admin decides and can withdraw it at any time. Without a consent, the firm does not cite the project.",
+      "levels": {
+        "none": "None",
+        "metrics_only": "Metrics only",
+        "anonymised": "Anonymised",
+        "named": "Named"
+      },
+      "levelHints": {
+        "none": "the firm does not cite this project",
+        "metrics_only": "figures and results only, with nothing that identifies the client",
+        "anonymised": "the story of the work, with the client disguised",
+        "named": "the firm may name the client"
+      },
+      "level": "How the firm may cite the project",
+      "chooseLevel": "Choose a level",
+      "testimonial": "May the firm quote a testimonial from you?",
+      "yes": "Yes",
+      "no": "No",
+      "testimonialYes": "Testimonial: may be quoted",
+      "testimonialNo": "Testimonial: not to be quoted",
+      "conditions": "Conditions",
+      "give": "Give consent",
+      "change": "Change consent",
+      "giveTitle": "Case-study consent",
+      "giveHint": "Your choice is kept with its date. You can change or withdraw it at any time.",
+      "record": "Record a consent given outside Selah",
+      "recordTitle": "Record the client's consent",
+      "recordHint": "For a consent the client gave by email or letter. It is marked as recorded by the firm, with where it came from.",
+      "source": "Where the client gave it",
+      "sourcePlaceholder": "For example: the sponsor's email of 12 October",
+      "save": "Save",
+      "revoke": "Withdraw consent",
+      "revokeConfirm": "Withdraw the consent? The firm will no longer cite this project. The record and its withdrawal are kept.",
+      "notAsked": "Not asked yet",
+      "defaultNone": "Until the client gives consent, the answer is none.",
+      "withdrawn": "Withdrawn",
+      "givenBy": "Given by {who} on {date}",
+      "recordedBy": "Recorded by the firm ({who}) on {date}",
+      "revokedBy": "Withdrawn by {who} on {date}",
+      "sourceShown": "Given outside Selah: {note}",
+      "history": "Earlier records",
+      "someone": "someone",
+      "conditionsField": "Conditions (optional)"
     }
   },
   "closurePdf": {
@@ -3488,7 +3536,10 @@
       "client_group_set_holding": "Group's holding named",
       "client_group_grant_viewer": "Access to a group's numbers given",
       "client_group_revoke_viewer": "Access to a group's numbers removed",
-      "pulse_answer": "Closing pulse answered"
+      "pulse_answer": "Closing pulse answered",
+      "pulse_answer": "Closing pulse answered",
+      "case_study_consent": "Case-study consent recorded",
+      "case_study_revoke": "Case-study consent withdrawn"
     },
     "csv": {
       "time": "Time (UTC)",

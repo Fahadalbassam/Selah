@@ -295,6 +295,13 @@
       "when": 1792862114634,
       "tag": "0054_pulse",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792862150686,
+      "tag": "0055_case_study",
+      "breakpoints": true
     }
   ]
 }

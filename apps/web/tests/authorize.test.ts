@@ -567,7 +567,7 @@ describe("closing a project", () => {
   });
 
   it("a closed project refuses every write, for every role, and keeps every read", () => {
-    const open = new Set(["project.reopen", "project.watch", "follow_up.write", "assistant.query", "pulse.answer"]);
+    const open = new Set(["project.reopen", "project.watch", "follow_up.write", "assistant.query", "pulse.answer", "case_study.consent", "case_study.revoke"]);
     for (const role of ROLES) {
       const p = principal(role, [ACME_PROJ_1], undefined, [ACME], { clients: [ACME] });
       for (const perm of permissions) {
@@ -613,7 +613,7 @@ describe("a client leaving", () => {
     for (const p of [lead, principal("client_manager", [ACME_PROJ_1]), principal("action_owner", [ACME_PROJ_1])]) {
       expect(authorize(p, "organization.export", org).allowed, p.role).toBe(false);
     }
-    expect([...OPEN_WHEN_ARCHIVED].sort()).toEqual(["assistant.query", "organization.export"]);
+    expect([...OPEN_WHEN_ARCHIVED].sort()).toEqual(["assistant.query", "case_study.revoke", "organization.export"]);
   });
 
   it("the people of an archived client in its grace period only read", () => {

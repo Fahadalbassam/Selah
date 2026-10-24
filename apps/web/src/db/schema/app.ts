@@ -2814,6 +2814,41 @@ export const pulseAnswers = pgTable(
   ],
 );
 
+// Case-study consent (F37): whether the firm may cite a client project, and
+// how. The client's sponsor or admin gives it once the project is closing
+// or closed, and may withdraw it at any time; the firm admin may record a
+// consent the client gave outside Selah, saying where. Each record is kept:
+// a new one follows the last, a withdrawal is dated on the record it ends.
+// The latest record is the consent; with none, or once withdrawn, it is
+// "none". Written only by app_record_case_study_consent() and
+// app_revoke_case_study_consent().
+export const caseStudyLevel = pgEnum("case_study_level", ["none", "metrics_only", "anonymised", "named"]);
+
+export const caseStudyConsents = pgTable(
+  "case_study_consents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    level: caseStudyLevel("level").notNull(),
+    testimonial: boolean("testimonial").notNull().default(false),
+    conditions: text("conditions"),
+    // Recorded by the firm admin from a consent given outside Selah (an email, a letter).
+    recordedByFirm: boolean("recorded_by_firm").notNull().default(false),
+    sourceNote: text("source_note"),
+    givenBy: uuid("given_by").references(() => user.id),
+    givenAt: ts("given_at").notNull().defaultNow(),
+    revokedBy: uuid("revoked_by").references(() => user.id),
+    revokedAt: ts("revoked_at"),
+  },
+  (t) => [
+    scopedFk("case_study_consents", t),
+    index("case_study_consents_project_idx").on(t.projectId, t.givenAt),
+    check("case_study_source", sql`recorded_by_firm = (source_note IS NOT NULL)`),
+    check("case_study_text", sql`length(coalesce(conditions, '')) <= 2000 AND length(coalesce(source_note, '')) <= 2000`),
+    check("case_study_revoked", sql`(revoked_at IS NULL) = (revoked_by IS NULL)`),
+  ],
+);
+
 // Who accepted which version of which document, and when (R1). Append-only;
 // written only by app_record_consent(), which takes the current version only.
 export const consentRecords = pgTable(
