@@ -259,6 +259,10 @@ export const clientAssignments = pgTable(
     // One lead consultant per client. The lead staffs the client's team and
     // decides join requests together with the firm admin.
     isLead: boolean("is_lead").notNull().default(false),
+    // At most one deputy (F18), named by the firm admin: a full backup for the
+    // lead, who can do what the lead can and gets the lead's alerts. The lead
+    // stays the one accountable name.
+    isDeputy: boolean("is_deputy").notNull().default(false),
     assignedBy: uuid("assigned_by").references(() => user.id),
     createdAt: createdAt(),
   },
@@ -266,6 +270,8 @@ export const clientAssignments = pgTable(
     primaryKey({ columns: [t.clientOrgId, t.userId] }),
     index("client_assignments_user_idx").on(t.userId),
     uniqueIndex("client_assignments_one_lead").on(t.clientOrgId).where(sql`${t.isLead}`),
+    uniqueIndex("client_assignments_one_deputy").on(t.clientOrgId).where(sql`${t.isDeputy}`),
+    check("client_assignment_lead_or_deputy", sql`NOT (${t.isLead} AND ${t.isDeputy})`),
   ],
 );
 
