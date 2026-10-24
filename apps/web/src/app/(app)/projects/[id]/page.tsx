@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -735,6 +735,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                     <p className="text-xs text-muted-foreground">{team.clientLead.email}</p>
                   </div>
                 ) : null}
+                {team.clientDeputy && !team.firm.some((m) => m.userId === team.clientDeputy!.userId) ? (
+                  <div className="py-3">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {team.clientDeputy.name}
+                      <Badge variant="outline" className="gap-1">
+                        <UserCheck className="size-3" />
+                        {ts("clientDeputyBadge")}
+                      </Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">{team.clientDeputy.email}</p>
+                  </div>
+                ) : null}
                 {team.firm.length === 0 && !team.clientLead ? <p className="py-2 text-sm text-muted-foreground">{ts("noStaff")}</p> : null}
                 {team.firm.map((m) => (
                   <div key={m.userId} className="flex items-center gap-3 py-3">
@@ -745,6 +757,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                           <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
                             <Crown className="size-3" />
                             {ts("leadBadge")}
+                          </Badge>
+                        ) : null}
+                        {m.userId === team.clientDeputy?.userId ? (
+                          <Badge variant="outline" className="gap-1">
+                            <UserCheck className="size-3" />
+                            {ts("clientDeputyBadge")}
                           </Badge>
                         ) : null}
                         {m.observer ? (

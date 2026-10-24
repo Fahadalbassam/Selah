@@ -33,7 +33,7 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
   const assignments =
     membership.role === "consultant"
       ? await tx
-          .select({ clientOrgId: clientAssignments.clientOrgId, isLead: clientAssignments.isLead })
+          .select({ clientOrgId: clientAssignments.clientOrgId, isLead: clientAssignments.isLead, isDeputy: clientAssignments.isDeputy })
           .from(clientAssignments)
           .where(eq(clientAssignments.userId, userId))
       : [];
@@ -51,7 +51,8 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     role: membership.role,
     projectIds: new Set(rows.map((r) => r.projectId)),
     assignedClientIds: new Set(assignments.map((a) => a.clientOrgId)),
-    leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
+    // The deputy (F18) can do what the lead can, as app_is_client_lead() says.
+    leadClientIds: new Set(assignments.filter((a) => a.isLead || a.isDeputy).map((a) => a.clientOrgId)),
     leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
     observedProjectIds: new Set(rows.filter((r) => r.observer).map((r) => r.projectId)),
     departmentIds: new Set(departments.map((d) => d.id)),

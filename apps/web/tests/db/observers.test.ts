@@ -143,7 +143,7 @@ describe("who may observe", () => {
     ).rejects.toThrow(/observer is a consultant of the firm/);
     await expect(
       run(U.admin, `INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,true)`, [PROJ, U.lead]),
-    ).rejects.toThrow(/lead consultant works on its projects/);
+    ).rejects.toThrow(/lead or deputy consultant works on its projects/);
     await expect(
       run(U.admin, `UPDATE project_members SET observer = true WHERE project_id = $1 AND user_id = $2`, [INT, U.cons]),
     ).rejects.toThrow(/project_member_observer_not_lead/);

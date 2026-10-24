@@ -100,6 +100,7 @@ export const POLICY = {
   "client_assignment.read": { ...STAFF },
   "client_assignment.manage": { firm_admin: "any", consultant: "lead" },
   "client_assignment.set_lead": { firm_admin: "any" },
+  "client_assignment.set_deputy": { firm_admin: "any" },
   "join_request.create": { consultant: "any" },
   "join_request.decide": { firm_admin: "any", consultant: "lead" },
 

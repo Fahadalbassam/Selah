@@ -612,7 +612,13 @@
     "staffAsMember": "Works on it",
     "staffAsObserver": "Observer: reads and comments, changes nothing",
     "observerBadge": "Observer",
-    "observingHint": "You observe this project: you read it and add notes to actions, and change nothing else."
+    "observingHint": "You observe this project: you read it and add notes to actions, and change nothing else.",
+    "deputyBadge": "Deputy",
+    "makeDeputy": "Make deputy",
+    "makeDeputyConfirm": "Make this consultant the deputy? They can do everything the lead can and get the lead's alerts. The lead stays the accountable name.",
+    "removeDeputy": "Remove deputy",
+    "removeDeputyConfirm": "Remove the deputy? They stay on the client's team.",
+    "clientDeputyBadge": "Client deputy · backs up the lead"
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -1686,7 +1692,8 @@
       "action_mentioned": "You were mentioned on an action",
       "follow_up_reminder": "Your consultant asked for an update on {title}",
       "project_client_quiet": "No one at the client has worked on {title} for two weeks or more",
-      "report_pack_drafted": "Your monthly status pack for {title} is drafted and waiting for you"
+      "report_pack_drafted": "Your monthly status pack for {title} is drafted and waiting for you",
+      "client_deputy": "You are now the deputy consultant for {title}"
     },
     "mail": {
       "section": "Mail",
@@ -3362,7 +3369,9 @@
       "action_comment_remove": "Comment removed",
       "action_comment_read": "Read an action's discussion",
       "action_comment_create": "Commented on an action",
-      "report_issue_pack": "Status pack issued"
+      "report_issue_pack": "Status pack issued",
+      "client_assignment_set_deputy": "Deputy consultant named",
+      "client_assignment_clear_deputy": "Deputy consultant removed"
     },
     "csv": {
       "time": "Time (UTC)",
