@@ -33,7 +33,7 @@ export default async function LegalPage({ params }: Props) {
   return (
     <article className="mx-auto max-w-3xl animate-page-in space-y-8 px-6 py-12">
       <header className="space-y-2">
-        {version ? <p className="text-sm text-muted-foreground">{t("version", { version })}</p> : null}
+        {version ? <p className="text-sm text-muted-foreground">{t("version", { version: `\u2066${version}\u2069` })}</p> : null}
         <h1 className="text-2xl font-semibold text-balance">{t(`${doc}.title`)}</h1>
         <p className="leading-relaxed text-muted-foreground">{t(`${doc}.intro`)}</p>
         {doc === "data_agreement" ? <p className="text-sm font-medium">{t("template")}</p> : null}

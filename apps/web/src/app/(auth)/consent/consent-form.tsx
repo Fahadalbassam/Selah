@@ -17,6 +17,9 @@ import { LEGAL_SLUGS, type AcceptedDoc } from "@/lib/legal";
  * One tick per document, each linking to its full text; continue once all are
  * ticked. Someone who doesn't accept signs out: nothing else opens.
  */
+/** A dated version such as 2026-10-24 reads backwards inside Arabic text unless it is isolated as left to right. */
+const ltr = (v: string) => `\u2066${v}\u2069`;
+
 export function ConsentForm({ docs }: { docs: { doc: AcceptedDoc; version: string }[] }) {
   const t = useTranslations("consent");
   const tc = useTranslations("common");
@@ -52,7 +55,7 @@ export function ConsentForm({ docs }: { docs: { doc: AcceptedDoc; version: strin
                 target="_blank"
                 className="inline-block text-sm font-medium underline underline-offset-4"
               >
-                {t("read", { version })}
+                {t("read", { version: ltr(version) })}
               </Link>
               <div className="flex items-start gap-2 pt-1">
                 <Checkbox
