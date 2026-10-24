@@ -18,6 +18,7 @@ import {
 import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import type { EngagementInput } from "@/lib/engagements";
+import type { EnteredInquiryInput } from "@/lib/inquiry-entry";
 import { audit } from "./audit";
 import { recordEngagement } from "./engagements";
 import { createClient, setLead } from "./staffing";
@@ -83,6 +84,8 @@ export async function listInquiries(tx: Tx, principal: Principal) {
       orgNameAr: inquiries.orgNameAr,
       sector: sectors.code,
       employeeBand: inquiries.employeeBand,
+      source: inquiries.source,
+      tenderClosesOn: inquiries.tenderClosesOn,
       urgency: inquiries.urgency,
       status: inquiries.status,
       ownerUserId: inquiries.ownerUserId,
@@ -125,11 +128,23 @@ export async function getInquiry(tx: Tx, principal: Principal, id: string) {
     .from(discoverySessions)
     .where(eq(discoverySessions.inquiryId, id))
     .orderBy(asc(discoverySessions.scheduledAt));
+  const [sourceClient] = row.sourceClientOrgId
+    ? await tx.select({ name: organizations.name, nameAr: organizations.nameAr }).from(organizations).where(eq(organizations.id, row.sourceClientOrgId))
+    : [];
+  const [enteredBy] = row.enteredBy ? await tx.select({ name: user.name }).from(user).where(eq(user.id, row.enteredBy)) : [];
+  const [owner] = row.ownerUserId ? await tx.select({ name: user.name }).from(user).where(eq(user.id, row.ownerUserId)) : [];
   // The hashes are for the rate limit, not for people.
   const { ipHash, userAgentHash, sectorId, ...inquiry } = row;
   void [ipHash, userAgentHash, sectorId];
   return {
-    inquiry: { ...inquiry, sector: sector!.code, services: (await serviceCodes(tx, [id])).get(id) ?? [] },
+    inquiry: {
+      ...inquiry,
+      sector: sector!.code,
+      services: (await serviceCodes(tx, [id])).get(id) ?? [],
+      sourceClient: sourceClient ?? null,
+      enteredByName: enteredBy?.name ?? null,
+      ownerName: owner?.name ?? null,
+    },
     events,
     discoverySessions: sessions,
     can: {
@@ -188,6 +203,47 @@ export async function updateInquiry(tx: Tx, principal: Principal, id: string, ch
     meta: Object.fromEntries(Object.entries(change).filter(([k, v]) => k !== "conflictNote" && v !== undefined)),
   });
   return { ok: true };
+}
+
+/**
+ * Enter an inquiry that never touched the public form: a referral, a
+ * returning client, an Etimad tender, or a company the firm approached.
+ * A consultant who enters one owns it; the admins are told.
+ */
+export async function enterInquiry(tx: Tx, principal: Principal, input: EnteredInquiryInput) {
+  firmStaff(principal);
+  assertAllowed(principal, "inquiry.enter", { type: "inquiry", orgId: principal.orgId, firmOrgId: principal.orgId, projectId: null });
+  const payload = {
+    source: input.source,
+    org_name: input.orgName,
+    org_name_ar: input.orgNameAr,
+    sector: input.sector,
+    employee_band: input.employeeBand,
+    ownership_type: input.ownershipType,
+    contact_name: input.contactName,
+    contact_role: input.contactRole,
+    email: input.email,
+    phone: input.phone,
+    preferred_language: input.preferredLanguage,
+    services: input.services,
+    message: input.message,
+    urgency: input.urgency,
+    source_client_org_id: input.sourceClientOrgId,
+    tender_number: input.tenderNumber,
+    tender_closes_on: input.tenderClosesOn,
+  };
+  const { rows } = await tx.execute<{ id: string }>(sql`select app_enter_inquiry(${JSON.stringify(payload)}::jsonb) as id`);
+  const id = rows[0]!.id;
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "inquiry.enter",
+    resourceType: "inquiry",
+    resourceId: id,
+    outcome: "allow",
+    meta: { source: input.source },
+  });
+  return { id };
 }
 
 /** Queue the courteous decline mail to the requester (N10). The database allows it once. */

@@ -1095,6 +1095,10 @@ export const inquiryStatus = pgEnum("inquiry_status", [
   "spam",
   "withdrawn",
 ]);
+// How an inquiry reached the firm (wave 1, item 8): the public form, or
+// entered by firm staff for a referral, a returning client, a government
+// tender (Etimad) or a company the firm approached.
+export const inquirySource = pgEnum("inquiry_source", ["website", "referral", "existing_client", "tender", "firm_outreach"]);
 export const conflictStatus = pgEnum("conflict_status", ["not_checked", "clear", "flagged", "waived"]);
 export const discoveryMode = pgEnum("discovery_mode", ["in_person", "video", "phone"]);
 export const discoveryOutcome = pgEnum("discovery_outcome", ["proceed", "not_a_fit", "needs_followup"]);
@@ -1108,6 +1112,14 @@ export const inquiries = pgTable(
       .references(() => organizations.id),
     // Short code shown to the requester.
     publicRef: text("public_ref").notNull().unique(),
+    source: inquirySource("source").notNull().default("website"),
+    // Who typed it in (not the public form).
+    enteredBy: uuid("entered_by").references(() => user.id),
+    // The client who referred it, or the returning client it is from.
+    sourceClientOrgId: uuid("source_client_org_id").references(() => organizations.id),
+    // A government tender on Etimad: its number and closing date.
+    tenderNumber: text("tender_number"),
+    tenderClosesOn: date("tender_closes_on"),
     // The requester's details. Nullable only so anonymisation can clear them.
     orgName: text("org_name"),
     orgNameAr: text("org_name_ar"),
@@ -1115,8 +1127,9 @@ export const inquiries = pgTable(
     sectorId: uuid("sector_id")
       .notNull()
       .references(() => sectors.id),
-    employeeBand: employeeBand("employee_band").notNull(),
-    ownershipType: ownershipType("ownership_type").notNull(),
+    // Required on the public form; staff entering a referral may not know them.
+    employeeBand: employeeBand("employee_band"),
+    ownershipType: ownershipType("ownership_type"),
     contactName: text("contact_name"),
     contactRole: text("contact_role"),
     contactEmail: text("contact_email"),
@@ -1127,8 +1140,9 @@ export const inquiries = pgTable(
     selfCheck: jsonb("self_check").$type<Record<string, boolean>>().notNull(),
     urgency: inquiryUrgency("urgency"),
     heardFrom: heardFrom("heard_from"),
-    privacyNoticeVersion: text("privacy_notice_version").notNull(),
-    consentedAt: ts("consented_at").notNull(),
+    // The public form only: the notice the requester agreed to.
+    privacyNoticeVersion: text("privacy_notice_version"),
+    consentedAt: ts("consented_at"),
     // HMACs with a server secret; never the raw IP or user agent.
     ipHash: text("ip_hash"),
     userAgentHash: text("user_agent_hash"),
@@ -1153,7 +1167,23 @@ export const inquiries = pgTable(
     index("inquiries_status_idx").on(t.firmOrgId, t.status),
     index("inquiries_ip_idx").on(t.ipHash, t.createdAt),
     check("inquiry_language", sql`${t.preferredLanguage} IN ('ar', 'en')`),
-    check("inquiry_contact_kept", sql`${t.anonymisedAt} IS NOT NULL OR (${t.contactEmail} IS NOT NULL AND ${t.contactName} IS NOT NULL AND ${t.orgName} IS NOT NULL)`),
+    check(
+      "inquiry_contact_kept",
+      sql`${t.anonymisedAt} IS NOT NULL OR (${t.orgName} IS NOT NULL AND (${t.source} <> 'website' OR (${t.contactEmail} IS NOT NULL AND ${t.contactName} IS NOT NULL)))`,
+    ),
+    check(
+      "inquiry_website_fields",
+      sql`${t.source} <> 'website' OR (${t.privacyNoticeVersion} IS NOT NULL AND ${t.consentedAt} IS NOT NULL AND ${t.employeeBand} IS NOT NULL AND ${t.ownershipType} IS NOT NULL AND ${t.enteredBy} IS NULL)`,
+    ),
+    check("inquiry_entered_by", sql`${t.source} = 'website' OR ${t.enteredBy} IS NOT NULL`),
+    check(
+      "inquiry_tender_fields",
+      sql`CASE WHEN ${t.source} = 'tender' THEN ${t.tenderNumber} IS NOT NULL AND ${t.tenderNumber} ~ '^[0-9A-Za-z-]{1,40}$' ELSE ${t.tenderNumber} IS NULL AND ${t.tenderClosesOn} IS NULL END`,
+    ),
+    check(
+      "inquiry_source_client",
+      sql`CASE ${t.source} WHEN 'existing_client' THEN ${t.sourceClientOrgId} IS NOT NULL WHEN 'referral' THEN true ELSE ${t.sourceClientOrgId} IS NULL END`,
+    ),
   ],
 );
 
