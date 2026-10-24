@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { route } from "@/server/http";
 import { CHECKIN_DAYS, FIRM_SETTING_RANGES as R } from "@/lib/firm-settings";
+import { isClockTime } from "@/lib/mail-choices";
 import { getFirmSettings, updateFirmSettings } from "@/services/firm-settings";
 
 // The ranges are lib/firm-settings, which the database checks agree with.
@@ -20,6 +21,11 @@ const body = z
     chatArchiveDays: days(R.chatArchiveDays),
     chatAfterCloseDays: days(R.chatAfterCloseDays),
     chatIdleDeleteDays: days(R.chatIdleDeleteDays),
+    // Both dates or neither; the database checks the span and that the hours run forward.
+    ramadanStarts: z.iso.date().nullable(),
+    ramadanEnds: z.iso.date().nullable(),
+    ramadanMailFrom: z.string().refine(isClockTime),
+    ramadanMailTo: z.string().refine(isClockTime),
   })
   .partial()
   .strict();

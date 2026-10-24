@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { firmSettings, organizations } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
+import { RAMADAN_DEFAULTS } from "@/lib/mail-choices";
 import { NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
@@ -23,6 +24,11 @@ export const FIRM_SETTING_DEFAULTS = {
   chatArchiveDays: 30,
   chatAfterCloseDays: 90,
   chatIdleDeleteDays: 180,
+  // This year's Ramadan, as the admin enters it, and its mail hours (firm time).
+  ramadanStarts: null as string | null,
+  ramadanEnds: null as string | null,
+  ramadanMailFrom: RAMADAN_DEFAULTS.mailFrom as string,
+  ramadanMailTo: RAMADAN_DEFAULTS.mailTo as string,
 };
 export type FirmSettings = typeof FIRM_SETTING_DEFAULTS;
 export type FirmSettingsPatch = Partial<FirmSettings>;
@@ -41,6 +47,9 @@ export async function getFirmSettings(tx: Tx, principal: Principal) {
   for (const key of Object.keys(settings) as (keyof FirmSettings)[]) {
     if (row) (settings as Record<string, unknown>)[key] = row[key];
   }
+  // Postgres gives times with seconds; the form works in HH:MM.
+  settings.ramadanMailFrom = settings.ramadanMailFrom.slice(0, 5);
+  settings.ramadanMailTo = settings.ramadanMailTo.slice(0, 5);
   return { organization: { id: org.id, name: org.name, nameAr: org.nameAr }, settings, updatedAt: row?.updatedAt ?? null };
 }
 

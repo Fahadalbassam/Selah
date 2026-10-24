@@ -214,19 +214,23 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
   // The reminder job's daily summary (src/jobs/follow-ups.ts): no titles, no counts.
   "follow_up.digest": {
     ar: {
-      subject: "تذكيرات اليوم في صلة",
-      lines: ["لديك تذكيرات جديدة بإجراءات أو مستندات مطلوبة قرب موعدها أو تأخرت.", "سجّل الدخول لتراها. يمكنك إيقاف هذه الرسالة من صفحة الإشعارات."],
+      subject: "ملخص جديد في صلة",
+      lines: [
+        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة.",
+        "سجّل الدخول لتراها. يمكنك تغيير عدد هذه الرسائل وتوقيتها من صفحة الإشعارات.",
+      ],
       action: "فتح الإشعارات",
     },
     en: {
-      subject: "Today's reminders in Selah",
+      subject: "Your Selah summary",
       lines: [
-        "You have new reminders about actions or requested documents that are due soon or overdue.",
-        "Sign in to see them. You can turn this mail off on the notifications page.",
+        "You have new reminders or updates about your actions or requested documents.",
+        "Sign in to see them. You can change how often and when this mail comes on the notifications page.",
       ],
       action: "Open notifications",
     },
   },
+
 };
 
 export interface RenderedMail {

@@ -12,7 +12,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { TimeSelect } from "@/components/mail-choices";
+import { DatePicker } from "@/components/ui/date-picker";
 import { CHECKIN_DAYS, FIRM_SETTING_RANGES, type FirmSettingRange } from "@/lib/firm-settings";
+import { RAMADAN_SPAN_DAYS } from "@/lib/mail-choices";
+
+/** Ramadan runs 29 or 30 days (the database checks the same). */
+function ramadanSpanOk(starts: string | null, ends: string | null) {
+  if (!starts || !ends) return true;
+  const days = (Date.parse(ends) - Date.parse(starts)) / 86_400_000;
+  return days >= RAMADAN_SPAN_DAYS[0] && days <= RAMADAN_SPAN_DAYS[1];
+}
 
 export interface Settings {
   intakeEmail: string | null;
@@ -28,6 +38,10 @@ export interface Settings {
   chatArchiveDays: number;
   chatAfterCloseDays: number;
   chatIdleDeleteDays: number;
+  ramadanStarts: string | null;
+  ramadanEnds: string | null;
+  ramadanMailFrom: string;
+  ramadanMailTo: string;
 }
 type Key = keyof Settings;
 
@@ -264,6 +278,51 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
           {days("chatIdleDeleteDays", "s-chat-idle")}
         </Row>
         {err("chats")}
+      </Section>
+
+      <Section
+        id="ramadan"
+        title={t("ramadan.title")}
+        description={t("ramadan.hint")}
+        send={async () => {
+          if ((s.ramadanStarts === null) !== (s.ramadanEnds === null) || !ramadanSpanOk(s.ramadanStarts, s.ramadanEnds)) {
+            setError((e) => ({ ...e, ramadan: t("ramadan.span") }));
+            return false;
+          }
+          return save("ramadan", ["ramadanStarts", "ramadanEnds", "ramadanMailFrom", "ramadanMailTo"])();
+        }}
+      >
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="s-ramadan-starts">{t("ramadan.starts")}</Label>
+            <DatePicker
+              id="s-ramadan-starts"
+              className="w-44"
+              value={s.ramadanStarts ?? undefined}
+              onChange={(v) => set("ramadanStarts", v ?? null)}
+              placeholder={t("ramadan.starts")}
+              clearLabel={t("ramadan.clear")}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="s-ramadan-ends">{t("ramadan.ends")}</Label>
+            <DatePicker
+              id="s-ramadan-ends"
+              className="w-44"
+              value={s.ramadanEnds ?? undefined}
+              onChange={(v) => set("ramadanEnds", v ?? null)}
+              placeholder={t("ramadan.ends")}
+              clearLabel={t("ramadan.clear")}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor="s-ramadan-from">{t("ramadan.from")}</Label>
+          <TimeSelect id="s-ramadan-from" value={s.ramadanMailFrom} onChange={(v) => set("ramadanMailFrom", v)} />
+          <span className="text-sm text-muted-foreground">{t("ramadan.to")}</span>
+          <TimeSelect id="s-ramadan-to" value={s.ramadanMailTo} onChange={(v) => set("ramadanMailTo", v)} />
+        </div>
+        {err("ramadan")}
       </Section>
     </div>
   );

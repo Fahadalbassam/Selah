@@ -32,6 +32,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
@@ -976,6 +977,13 @@ export const firmSettings = pgTable("firm_settings", {
   chatArchiveDays: integer("chat_archive_days").notNull().default(30),
   chatAfterCloseDays: integer("chat_after_close_days").notNull().default(90),
   chatIdleDeleteDays: integer("chat_idle_delete_days").notNull().default(180),
+  // This year's Ramadan (set by the admin, since the dates follow the moon
+  // sighting) and the hours work mail goes out during it, for people who keep
+  // the Ramadan profile on (migration 0019).
+  ramadanStarts: date("ramadan_starts"),
+  ramadanEnds: date("ramadan_ends"),
+  ramadanMailFrom: time("ramadan_mail_from").notNull().default("10:00"),
+  ramadanMailTo: time("ramadan_mail_to").notNull().default("15:00"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1583,14 +1591,40 @@ export const notifications = pgTable(
 
 // What a person wants by email beyond the mails every account gets. No row
 // means the defaults. Each person reads and changes only their own (migration 0003).
+export const mailCadence = pgEnum("mail_cadence", ["instant", "daily", "weekly", "off"]);
+
 export const mailPreferences = pgTable("mail_preferences", {
   userId: uuid("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
-  // One mail a day on days the reminder job has something for them (src/jobs/follow-ups.ts).
-  followUpDigest: boolean("follow_up_digest").notNull().default(true),
+  // How often each kind of work mail comes (migration 0019): updates about
+  // their own actions, and the reminder ladder's summary.
+  updates: mailCadence("updates").notNull().default("instant"),
+  reminders: mailCadence("reminders").notNull().default("daily"),
+  // Work mail is held through these hours (firm time); both null means none.
+  quietFrom: time("quiet_from").default("20:00"),
+  quietTo: time("quiet_to").default("07:00"),
+  // Friday never gets work mail; Saturday only when they ask for it.
+  saturday: boolean("saturday").notNull().default(false),
+  // During the firm's Ramadan dates, mail only in the firm's Ramadan hours.
+  ramadan: boolean("ramadan").notNull().default(true),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
+
+// Mail about one action switched off by one person. The in-app notices still come.
+export const mailMutes = pgTable(
+  "mail_mutes",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.actionId] })],
+);
 
 // ------------------------------------------------------------------- AI
 

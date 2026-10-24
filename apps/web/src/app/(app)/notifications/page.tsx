@@ -1,6 +1,8 @@
 import { getTranslations } from "next-intl/server";
-import { DigestSwitch, MarkAllRead, NotificationList } from "@/components/notifications";
+import { MailChoicesForm, MutedActions } from "@/components/mail-choices";
+import { MarkAllRead, NotificationList } from "@/components/notifications";
 import { PageHeader } from "@/components/page-header";
+import { SectionHeader } from "@/components/section-header";
 import { withPrincipal } from "@/server/page";
 import { getMailPreferences, listNotifications } from "@/services/notifications";
 
@@ -10,6 +12,7 @@ export default async function NotificationsPage() {
     mail: await getMailPreferences(tx, principal),
   }));
   const t = await getTranslations("notifications");
+  const { muted, nextMailAt, ...choices } = mail;
   return (
     <>
       <PageHeader title={t("title")} description={t("unread", { n: unread })}>
@@ -18,7 +21,9 @@ export default async function NotificationsPage() {
       <div className="overflow-hidden rounded-xl border bg-card">
         <NotificationList items={items} />
       </div>
-      <DigestSwitch initial={mail.followUpDigest} />
+      <SectionHeader title={t("mail.section")} description={t("mail.sectionHint")} />
+      <MailChoicesForm initial={{ ...choices, nextMailAt: nextMailAt?.toISOString() ?? null }} />
+      <MutedActions items={muted} />
     </>
   );
 }
