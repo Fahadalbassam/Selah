@@ -103,6 +103,9 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
 function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind === "access_review.due") return "/team";
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=requests`;
+  // A drafted status pack waits on the project's progress tab; a quiet client shows on the oversight page.
+  if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
+  if (kind === "project.client_quiet") return "/oversight";
   // A client confirmed receiving its export pack: the firm admin sees it on the client page.
   if (kind === "client.pack_received") return `/clients/${entityId}`;
   // Archiving and restoring reach the client's admins, who have no client page.

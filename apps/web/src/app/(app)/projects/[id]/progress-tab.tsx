@@ -30,6 +30,8 @@ export interface ReportList {
     sharedAt: Date | null;
     createdAt: Date;
     author: string | null;
+    kind: string;
+    issued: boolean;
   }[];
   can: { write: boolean };
 }
@@ -61,7 +63,8 @@ export async function ProgressTab({
   reports: ReportList | null;
   firm: boolean;
 }) {
-  const [t, format] = await Promise.all([getTranslations("metrics"), getFormatter()]);
+  const [t, tPack, format] = await Promise.all([getTranslations("metrics"), getTranslations("statusPack"), getFormatter()]);
+  const month = (d: string) => format.dateTime(new Date(`${d}T00:00:00`), { month: "long", year: "numeric" });
   const { live, progress } = data;
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
   const percent = (v: number | null) => (v === null ? "—" : `${Math.round(v)}%`);
@@ -185,14 +188,16 @@ export async function ProgressTab({
                 <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0">
                   <FileText className="size-4 text-muted-foreground" />
                   <Link href={`/reports/${r.id}`} className="font-medium hover:underline">
-                    {r.title}
+                    {r.kind === "status_pack" && r.periodStart ? tPack("title", { month: month(r.periodStart) }) : r.title}
                   </Link>
                   {r.periodStart && r.periodEnd ? (
                     <span className="text-sm text-muted-foreground tabular-nums">
                       {t("period", { start: day(r.periodStart), end: day(r.periodEnd) })}
                     </span>
                   ) : null}
-                  {firm ? (
+                  {r.kind === "status_pack" && !r.issued ? (
+                    <Badge variant="outline">{tPack("listDraft")}</Badge>
+                  ) : firm ? (
                     <Badge variant={r.visibility === "shared" ? "secondary" : "outline"}>
                       {r.visibility === "shared" ? t("shared") : t("firmOnly")}
                     </Badge>

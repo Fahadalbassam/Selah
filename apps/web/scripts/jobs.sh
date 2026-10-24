@@ -7,7 +7,7 @@
 # alerts on quiet clients (job:health, before the reminders so the alert
 # rides the same summary mail), sends follow-up reminders, checks the audit chain
 # and runs the retention purges. On the 1st of each month: takes the metrics
-# snapshot. A failing job is logged and retried on the next round; it never
+# snapshot and drafts last month's status packs (job:status-packs). A failing job is logged and retried on the next round; it never
 # stops the others.
 set -u
 INDEX_EVERY="${INDEX_EVERY_SECONDS:-120}"
@@ -27,6 +27,7 @@ while :; do
   month=$(TZ=Asia/Riyadh date +%Y-%m)
   if [ "$(TZ=Asia/Riyadh date +%d)" = "01" ] && [ "$month" != "$last_month" ]; then
     run job:metrics
+    run job:status-packs
     last_month="$month"
   fi
   sleep "$INDEX_EVERY"

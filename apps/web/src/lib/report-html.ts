@@ -43,6 +43,11 @@ export interface ReportHtmlInput {
     /** Not shared with the client yet (said only to the firm). */
     firmOnly: boolean;
   };
+  /** A status pack's lists (F19), already in the reader's language. */
+  pack?: {
+    sections: { title: string; hint: string; head: string[]; rows: string[][] }[];
+    moved: { title: string; hint: string; counts: { label: string; n: number }[] };
+  } | null;
   actions: { title: string; recommendation: string; owner: string | null; dueDate: string | null; status: string; overdue: boolean; extensions: number }[];
   exportedOn: string;
   /** Strings under messages "reportPdf". */
@@ -156,6 +161,35 @@ export function renderReportHtml(input: ReportHtmlInput): string {
     ? `<section><h2>${e(t("notes"))}</h2><div class="notes" dir="auto">${e(report.bodyMd)}</div></section>`
     : "";
 
+  const pack = input.pack
+    ? input.pack.sections
+        .map(
+          (s) => `<section>
+  <h2>${e(s.title)} <span class="muted">${num(s.rows.length)}</span></h2>
+  <p class="muted small">${e(s.hint)}</p>
+  ${
+    s.rows.length
+      ? `<table>
+    <thead><tr>${s.head.map((h) => `<th>${e(h)}</th>`).join("")}</tr></thead>
+    <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) => `<td${i ? ' class="nowrap"' : ""} dir="auto">${e(c)}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table>`
+      : ""
+  }
+</section>`,
+        )
+        .join("\n") +
+      `
+<section>
+  <h2>${e(input.pack.moved.title)}</h2>
+  <p class="muted small">${e(input.pack.moved.hint)}</p>
+  ${
+    input.pack.moved.counts.length
+      ? `<div class="tiles">${input.pack.moved.counts.map((c) => `<div class="tile"><p class="muted">${e(c.label)}</p><p class="value">${num(c.n)}</p></div>`).join("")}</div>`
+      : ""
+  }
+</section>`
+    : "";
+
   const actions = `<section class="actions">
   <h2>${e(t("actionsTitle", { date: day(input.exportedOn) }))}</h2>
   <p class="muted small">${e(t("actionsNote"))}</p>
@@ -195,6 +229,7 @@ ${reportStyles()}
 ${report.firmOnly ? `<p class="notice">${e(t("firmOnly"))}</p>` : ""}
 ${headline}
 ${notes}
+${pack}
 ${actions}
 <p class="claim">${e(t("claimNote"))}</p>
 </body>

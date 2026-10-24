@@ -1,31 +1,45 @@
-import { ArrowLeft, Share2 } from "lucide-react";
+import { ArrowLeft, Send, Share2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
-import { ApiButton } from "@/components/form-dialog";
+import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { LateAgainstOriginal } from "@/components/late-against-original";
 import { PageHeader } from "@/components/page-header";
 import { Meter, StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { env } from "@/env";
 import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { getReport } from "@/services/follow-through";
 import { getProject } from "@/services/queries";
+import { reportPack } from "@/services/status-pack";
+import { StatusPackLists } from "./status-pack";
 
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { report, can, projectTitle, firm } = await withPrincipal(async (tx, principal) => {
+  const { report, can, projectTitle, firm, pack } = await withPrincipal(async (tx, principal) => {
     const r = await getReport(tx, principal, id);
     const { project } = await getProject(tx, principal, r.report.projectId);
-    return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm" };
+    const pack = r.report.kind === "status_pack" ? await reportPack(tx, principal, id) : null;
+    return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm", pack };
   });
-  const [t, tExport, format] = await Promise.all([getTranslations("metrics"), getTranslations("exports"), getFormatter()]);
+  const [t, tPack, tExport, format] = await Promise.all([
+    getTranslations("metrics"),
+    getTranslations("statusPack"),
+    getTranslations("exports"),
+    getFormatter(),
+  ]);
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
-  const m = report.metrics;
+  // A draft pack shows the numbers as they stand; issuing freezes them.
+  const m = report.metrics ?? pack?.live ?? null;
+  const title =
+    pack && report.periodStart
+      ? tPack("title", { month: format.dateTime(new Date(`${report.periodStart}T00:00:00`), { month: "long", year: "numeric" }) })
+      : report.title;
 
   return (
     <>
@@ -37,14 +51,16 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         {projectTitle}
       </Link>
       <PageHeader
-        title={report.title}
+        title={title}
         description={
           report.periodStart && report.periodEnd
             ? t("period", { start: day(report.periodStart), end: day(report.periodEnd) })
             : undefined
         }
         meta={
-          firm ? (
+          pack?.draft ? (
+            <Badge variant="outline">{tPack("draft")}</Badge>
+          ) : firm ? (
             <Badge variant={report.visibility === "shared" ? "secondary" : "outline"}>
               {report.visibility === "shared" && report.sharedAt ? t("sharedOn", { date: day(report.sharedAt) }) : t("firmOnly")}
             </Badge>
@@ -53,6 +69,21 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       >
         {env().PDF_SERVICE_URL ? (
           <ExportButton endpoint={`/api/reports/${report.id}/pdf`} label={tExport("pdf")} title={tExport("downloadPdf")} />
+        ) : null}
+        {can.issue ? (
+          <FormDialog
+            trigger={
+              <Button size="sm">
+                <Send />
+                {tPack("issue")}
+              </Button>
+            }
+            title={tPack("issueTitle")}
+            description={tPack("issueHint")}
+            endpoint={`/api/reports/${report.id}/issue`}
+            fields={[{ name: "bodyMd", label: tPack("note"), type: "textarea", maxLength: 8000, placeholder: tPack("notePlaceholder") }]}
+            submitLabel={tPack("issue")}
+          />
         ) : null}
         {can.share ? (
           <ApiButton
@@ -64,13 +95,21 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         ) : null}
       </PageHeader>
       <p className="-mt-3 text-sm text-muted-foreground">{t("by", { who: report.author ?? "—", date: day(report.createdAt) })}</p>
+      {pack?.draft ? (
+        <Card className="gap-1 border-dashed py-4 shadow-none">
+          <CardHeader className="px-5">
+            <CardTitle className="text-sm">{tPack("draftTitle")}</CardTitle>
+            <CardDescription>{tPack("draftHint")}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       {m ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <Card className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">
               <p className="text-sm text-muted-foreground">
-                {report.periodEnd ? t("frozen", { date: day(report.periodEnd) }) : t("implemented")}
+                {pack?.draft ? t("implemented") : report.periodEnd ? t("frozen", { date: day(report.periodEnd) }) : t("implemented")}
               </p>
               <CardTitle className="text-4xl font-semibold tabular-nums">
                 {m.implementedPct === null ? "—" : `${Math.round(m.implementedPct)}%`}
@@ -115,6 +154,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       ) : null}
+      {pack ? <StatusPackLists pack={pack.pack} links /> : null}
     </>
   );
 }
