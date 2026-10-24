@@ -33,6 +33,8 @@ export const POLICY = {
   // Tenancy
   "organization.read": { ...ALL_BUT_OWNER },
   "organization.create": { firm_admin: "any" },
+  // A pitch to a company the firm approached (N4): any consultant starts one and leads it.
+  "organization.pitch": { firm_admin: "any", consultant: "any" },
   "organization.update": { firm_admin: "any", client_admin: "any" },
   // How a client takes part (full, restricted, consultant-managed). The firm admin's call.
   "organization.engagement": { firm_admin: "any" },

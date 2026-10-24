@@ -1,4 +1,4 @@
-import { ArrowLeft, FilePenLine, Pencil, UserPlus, UsersRound } from "lucide-react";
+import { ArrowLeft, FilePenLine, Pencil, Trash2, UserPlus, UsersRound } from "lucide-react";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -20,6 +20,7 @@ import { withPrincipal } from "@/server/page";
 import { listContacts } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
 import { listEngagements } from "@/services/engagements";
+import { discardBlock } from "@/services/prospects";
 import { suggestClientLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
 import { getClientTeam } from "@/services/staffing";
@@ -40,6 +41,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       admin,
       engagement,
       signed: await listEngagements(tx, principal, id),
+      // Null when this user may delete it now (a lost pitch, a client added by mistake).
+      discard: await discardBlock(tx, id),
       // People at the client without an account; firm staff on the client's team only.
       contacts: await listContacts(tx, principal, id).catch(() => null),
       // Who fits this client, from the inquiry it came from. The admin decides.
@@ -113,7 +116,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
-      <PageHeader title={localName(client, ar)} description={ar ? client.name : (client.nameAr ?? undefined)}>
+      <PageHeader
+        title={localName(client, ar)}
+        description={ar ? client.name : (client.nameAr ?? undefined)}
+        meta={client.prospect ? <ToneBadge tone="waiting">{tE("prospect")}</ToneBadge> : undefined}
+      >
         {can.watch ? (
           <ApiButton
             endpoint={`/api/clients/${client.id}/watch`}
@@ -124,7 +131,24 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             title={t("watchClientHint")}
           />
         ) : null}
+        {data.discard === null ? (
+          <ApiButton
+            endpoint={`/api/clients/${client.id}`}
+            method="DELETE"
+            label={client.prospect ? tE("deletePitch") : tE("deleteClient")}
+            icon={<Trash2 />}
+            variant="ghost"
+            confirm={client.prospect ? tE("deletePitchConfirm") : tE("deleteClientConfirm")}
+            redirectTo="/clients"
+          />
+        ) : null}
       </PageHeader>
+      {client.prospect ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <FilePenLine className="size-4 shrink-0" />
+          {tE("pitchBanner")}
+        </p>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
@@ -423,7 +447,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </Card>
           ) : null}
 
-          {can.decide ? (
+          {can.decide && !client.prospect ? (
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("joinRequests")}</CardTitle>
@@ -549,12 +573,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <CardDescription>{tp("clientPeopleHint")}</CardDescription>
             </CardHeader>
             <CardContent className="px-5">
+              {client.prospect ? (
+                <p className="text-sm text-muted-foreground">{tE("noAccountsYet")}</p>
+              ) : (
               <Button asChild size="sm" variant="outline">
                 <Link href={`/clients/${client.id}/people`}>
                   <UsersRound />
                   {tp("manage")}
                 </Link>
               </Button>
+              )}
             </CardContent>
           </Card>
         ) : null}

@@ -78,6 +78,7 @@ Every private-capable row has a label:
 - **A consultant** sees a client's projects only when staffed on them, or all of them as that client's lead. Being on a client's team alone shows the client's name and team, not its projects.
 - **The firm admin** sees all firm and shared data, but never `client_private` or another person's `user_private`.
 - **A draft project** (a client project no signed engagement covers yet) is firm-only: the client's people neither see it nor join it until the firm admin records the signed engagement that covers it (`engagements`, migration 0008). The engagement itself is read by firm admins, the client's assigned consultants and the client's admin.
+- **A prospect** (a company the firm approached and is pitching) is a client organisation that never signed: no accounts, and consultants who are not on it don't see it, not even its name. Its first signed engagement makes it a client. A lost pitch is deleted with everything in it, and its files leave the bucket through the `delete-objects` job (migration 0009).
 
 ## 2. File storage [Built]
 

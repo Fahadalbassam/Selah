@@ -152,6 +152,10 @@ export const organizations = pgTable("organizations", {
   shortNames: text("short_names").array().notNull().default(sql`'{}'::text[]`),
   // Clients only. Needed before the client is assessed (baseline: Assessments).
   legalForm: legalForm("legal_form"),
+  // A company the firm approached and is pitching, never signed (journey gap
+  // N4). Firm-only, no accounts; it becomes a client when its first signed
+  // engagement is recorded, and a lost pitch is deleted, not archived (N7).
+  prospect: boolean("prospect").notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -1181,6 +1185,13 @@ export const discoverySessions = pgTable(
 // One client has many over the years; each covers one or more projects
 // (its phases). The firm admin records it; the client's admin reads it.
 // No fees. baseline: Engagements (0008).
+// Stored files whose rows are gone (a discarded prospect, later a withdrawn
+// upload). The delete-objects job removes them from the bucket.
+export const storageDeletions = pgTable("storage_deletions", {
+  storageKey: text("storage_key").primaryKey(),
+  queuedAt: createdAt(),
+});
+
 export const engagements = pgTable(
   "engagements",
   {

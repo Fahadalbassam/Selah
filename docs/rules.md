@@ -46,7 +46,7 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 
 | Rule | Database | Checked first in | Tests |
 |---|---|---|---|
-| History tables (progress, evidence, reviews, activity, audit, snapshots, AI drafts, inquiry events, access reviews, meeting decisions) are append-only; only the purge job blanks text | `forbid_change()` | database only | `tests/db/rls.test.ts` |
+| History tables (progress, evidence, reviews, activity, audit, snapshots, AI drafts, inquiry events, access reviews, meeting decisions) are append-only; only the purge job blanks text, and only deleting a client that never signed removes rows | `forbid_change()` | database only | `tests/db/rls.test.ts`, `tests/db/prospects.test.ts` |
 | Firm roles only in the firm org, client roles only in client orgs | `check_membership_role()` | `src/services/accounts.ts`, `src/services/onboarding.ts` | `tests/db/rls.test.ts`, `tests/db/accounts.test.ts` |
 | A project pairs the firm with one client (an internal project belongs to the firm) | `check_project_orgs()` | `src/services/staffing.ts` | `tests/db/rls.test.ts` |
 | Action workflow: allowed moves, clients only move their own work, only the firm releases, reviews, closes and reopens, verified needs an accept of this round and every evidence item settled, risk acceptance needs a current client signature, reopening clears the closure | `check_action_transition()` | `src/authz/workflow.ts` (`TRANSITIONS`, `canTransition()`), `src/services/actions.ts` | `tests/db/follow-through.test.ts`, `tests/db/rule-parity.test.ts`, `tests/authorize.test.ts` |
@@ -72,6 +72,17 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | A deliverable belongs to a project its engagement covers | `check_engagement_deliverable()` | `src/services/engagements.ts` (`addDeliverable()`) | `tests/db/engagements.test.ts` |
 | A client project no signed engagement covers is a draft; covering it makes it planned; only the firm admin covers it, with an engagement of the same client; a covered project keeps it and is never a draft again; internal projects are never drafts | `check_project_engagement()` | `src/services/engagements.ts` (`coverProjects()`), `src/services/staffing.ts` (`createClientProject()`) | `tests/db/engagements.test.ts`, `tests/db/projects.test.ts` |
 | The client never sees a draft project, and its people join only once it is covered | `app_can_see_project()`, `check_draft_member()` | `src/services/staffing.ts` | `tests/db/engagements.test.ts` |
+
+### Prospects and pitches
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| Any consultant or the firm admin starts a pitch: a prospect client and its first draft project, led by the consultant who starts it | `app_start_pitch()` | `src/services/prospects.ts` (`startPitch()`), `src/authz/policy.ts` (`organization.pitch`) | `tests/db/prospects.test.ts` |
+| Only a client is a prospect; it becomes a client only when its first signed engagement is recorded (which does it), and never goes back | `check_prospect()`, `win_prospect()` | `src/services/engagements.ts` (`recordEngagement()`) | `tests/db/prospects.test.ts` |
+| A prospect has no accounts, invitations or join requests, and consultants not on it don't see it in the client directory | `check_prospect_access()`, `app_client_directory()` | `src/services/staffing.ts` (`clientDirectory()`) | `tests/db/prospects.test.ts` |
+| Only what never signed is deleted: no engagement, no accounts, not from an inquiry; a prospect by the firm admin or its lead, with everything in it; any other client by the firm admin while it holds no files | `app_discard_check()`, `app_discard_client()` | `src/services/prospects.ts` (`discardBlock()`, `discardClient()`) | `tests/db/prospects.test.ts` |
+| A deleted file's bytes leave the bucket (the delete-objects job) | `queue_storage_deletion()` | `scripts/delete-objects.ts` | `tests/db/prospects.test.ts` |
+| A new client sets no minimal records unless asked, so a consultant can start a pitch | `check_minimal_records()` | `src/services/prospects.ts` | `tests/db/prospects.test.ts` |
 
 ### Evidence and review integrity
 
