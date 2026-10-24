@@ -1,4 +1,4 @@
-import { ArrowLeft, Circle, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
+import { ArrowLeft, Circle, Mail, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
 import Link from "next/link";
@@ -135,6 +135,16 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                       },
                     ]}
                     submitLabel={t("close")}
+                  />
+                ) : null}
+                {can.declineMail ? (
+                  <ApiButton
+                    endpoint={`/api/intake/inquiries/${q.id}/decline-mail`}
+                    label={t("declineMail")}
+                    title={t("declineMailHint")}
+                    confirm={t("declineMailConfirm", { email: q.contactEmail ?? "" })}
+                    icon={<Mail />}
+                    size="default"
                   />
                 ) : null}
                 {can.decide && closed ? (
@@ -286,7 +296,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                               ? t("events.conflict_checked", {
                                   status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
                                 })
-                              : ["submitted", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                              : ["submitted", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
                                 ? t(`events.${e.event}`)
                                 : e.event}
                       </span>{" "}

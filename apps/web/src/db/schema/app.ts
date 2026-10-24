@@ -1671,6 +1671,9 @@ export const outboundEmails = pgTable("outbound_emails", {
   toEmail: text("to_email").notNull(),
   kind: text("kind").notNull(),
   link: text("link"),
+  // A reference the reader already has (an inquiry's public ref), shown in
+  // the mail. Cleared once sent, like the link.
+  reference: text("reference"),
   // Meeting invites: the sender builds the .ics from the meeting when it sends.
   meetingId: uuid("meeting_id").references((): AnyPgColumn => meetings.id, { onDelete: "cascade" }),
   locale: text("locale").notNull().default("ar"),

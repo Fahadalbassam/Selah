@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { getInquiry } from "@/services/inquiries";
+import { renderMail } from "@/lib/mail-templates";
+import { getInquiry, mailDecline } from "@/services/inquiries";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -230,10 +231,10 @@ describe("the inquiry page", () => {
     const iid = (await byRef(await submit(form()))).id;
     await run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.cons]);
     const admin = await detail(U.admin, iid);
-    expect(admin.can).toEqual({ work: true, decide: true, forward: "triaged", convert: false });
+    expect(admin.can).toEqual({ work: true, decide: true, forward: "triaged", declineMail: false, convert: false });
     expect(admin.inquiry).not.toHaveProperty("ipHash");
     expect(admin.inquiry).not.toHaveProperty("userAgentHash");
-    expect((await detail(U.cons, iid)).can).toEqual({ work: true, decide: false, forward: "triaged", convert: false });
+    expect((await detail(U.cons, iid)).can).toEqual({ work: true, decide: false, forward: "triaged", declineMail: false, convert: false });
     await expect(detail(U.other, iid)).rejects.toThrow(/not found/i);
 
     // After discovery and a clear check, the admin may make it a client.
@@ -293,5 +294,71 @@ describe("retention", () => {
     // A won inquiry is never purged, and jobs cannot change anything else.
     expect(Number((await owner.query(`SELECT app_purge_inquiries('2099-01-01') AS n`)).rows[0].n)).toBe(0);
     await expect(owner.query(`UPDATE inquiries SET status = 'won' WHERE id = $1`, [lost])).rejects.toThrow(/only anonymise/);
+  });
+});
+
+describe("mails to the requester", () => {
+  const detail = (uid: string, iid: string) =>
+    as(uid, async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return getInquiry(tx, (await loadPrincipal(tx, uid))!, iid);
+    });
+  const mails = async (to: string) =>
+    (
+      await owner.query(`SELECT kind, reference, locale FROM outbound_emails WHERE lower(to_email) = lower($1) ORDER BY created_at`, [to])
+    ).rows;
+  const svc = <R>(userId: string, fn: (tx: Tx, p: Awaited<ReturnType<typeof loadPrincipal>>) => Promise<R>) =>
+    as(userId, async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, await loadPrincipal(tx, userId));
+    }, true);
+
+  it("acknowledge each new inquiry with its reference, at most once a day to an address", async () => {
+    const to = "ack@example.test";
+    const ref = await submit(form({ email: to, preferred_language: "en" }));
+    expect(await mails(to)).toEqual([{ kind: "inquiry.received", reference: ref, locale: "en" }]);
+    const iid = (await byRef(ref)).id;
+    expect((await owner.query(`SELECT event FROM inquiry_events WHERE inquiry_id = $1 ORDER BY event`, [iid])).rows.map((r) => r.event)).toEqual([
+      "acknowledged",
+      "submitted",
+    ]);
+    // A second inquiry from the same address the same day is stored, but not acknowledged again.
+    const again = await submit(form({ email: "ACK@example.test" }));
+    expect(await mails(to)).toHaveLength(1);
+    expect((await owner.query(`SELECT 1 FROM inquiry_events e JOIN inquiries i ON i.id = e.inquiry_id WHERE i.public_ref = $1 AND e.event = 'acknowledged'`, [again])).rowCount).toBe(0);
+  });
+
+  it("only carry an inquiry's reference, and render it in both languages", async () => {
+    await expect(owner.query(`INSERT INTO outbound_emails (to_email, kind, reference) VALUES ('x@example.test', 'invitation', 'INQ-1')`)).rejects.toThrow(
+      /outbound_reference/,
+    );
+    const m = renderMail("inquiry.declined", null, "https://selah.example", "INQ-ABCD1234");
+    expect(m.text.match(/INQ-ABCD1234/g)).toHaveLength(2);
+    expect(m.text).not.toContain("{ref}");
+  });
+
+  it("send a courteous decline once, by the firm admin, for a lost or declined inquiry", async () => {
+    const to = "decline@example.test";
+    const iid = (await byRef(await submit(form({ email: to })))).id;
+    const decline = (who: string) => svc(who, (tx, p) => mailDecline(tx, p!, iid));
+    // Still open.
+    await expect(decline(U.admin)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/closed as lost or declined/) } });
+    await run(U.admin, `UPDATE inquiries SET owner_user_id = $2, status = 'declined' WHERE id = $1`, [iid, U.cons]);
+    expect((await detail(U.cons, iid)).can.declineMail).toBe(false);
+    expect((await detail(U.admin, iid)).can.declineMail).toBe(true);
+    await expect(decline(U.cons)).rejects.toThrow(/forbidden/);
+    // Straight to the function, a consultant is refused too.
+    await expect(run(U.cons, `SELECT app_mail_inquiry_decline($1)`, [iid])).rejects.toThrow(/only the firm admin/);
+    await decline(U.admin);
+    expect((await mails(to)).map((m) => m.kind)).toEqual(["inquiry.received", "inquiry.declined"]);
+    expect((await detail(U.admin, iid)).can.declineMail).toBe(false);
+    await expect(decline(U.admin)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/already sent/) } });
+  });
+
+  it("never go out once the requester's details are removed", async () => {
+    const iid = (await byRef(await submit(form({ email: "gone@example.test" })))).id;
+    await run(U.admin, `UPDATE inquiries SET status = 'lost' WHERE id = $1`, [iid]);
+    await owner.query(`UPDATE inquiries SET anonymised_at = now(), contact_email = NULL, contact_name = NULL, org_name = NULL WHERE id = $1`, [iid]);
+    await expect(run(U.admin, `SELECT app_mail_inquiry_decline($1)`, [iid])).rejects.toThrow(/no longer kept/);
   });
 });
