@@ -1,4 +1,5 @@
 import { Building2 } from "lucide-react";
+import { MorphTitle } from "@/components/morph";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
@@ -64,7 +65,9 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                         {tKind(p.kind)}
                       </Badge>
                     </div>
-                    <CardTitle className="text-base leading-snug">{p.title}</CardTitle>
+                    <CardTitle className="text-base leading-snug">
+                      <MorphTitle name={`project-${p.id}`}>{p.title}</MorphTitle>
+                    </CardTitle>
                     {p.kind === "client" ? (
                       <CardDescription>
                         {t("client")}: {(ar ? p.orgNameAr : null) ?? p.orgName}

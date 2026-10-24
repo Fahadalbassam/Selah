@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-// A template (unlike a layout) remounts on every navigation, so each page
-// fades up into place. The global reduced-motion rule turns this off.
+// The page transition lives in the layout (PageTransition), which keeps it
+// mounted across pages; this template only sets the vertical rhythm.
 export default function Template({ children }: { children: ReactNode }) {
-  return <div className="flex animate-page-in flex-col gap-6">{children}</div>;
+  return <div className="flex flex-col gap-6">{children}</div>;
 }

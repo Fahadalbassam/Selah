@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { PendingTitle } from "@/components/morph";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,7 @@ export function HeaderSkeleton({ action = false, description = true }: { action?
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="space-y-2">
-        <Skeleton className="h-6 w-48" />
+        <PendingTitle fallback={<Skeleton className="h-6 w-48" />} />
         {description ? <Skeleton className="h-4 w-72" /> : null}
       </div>
       {action ? <Skeleton className="h-9 w-32" /> : null}

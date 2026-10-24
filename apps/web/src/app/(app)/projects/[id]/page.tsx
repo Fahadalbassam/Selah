@@ -1,4 +1,5 @@
 import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
+import { MorphTitle } from "@/components/morph";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -148,6 +149,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     <>
       <PageHeader
         title={project.title}
+        morph={`project-${project.id}`}
         description={project.description ?? undefined}
         meta={
           <>
@@ -424,7 +426,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className={cn("text-base", r.withdrawnAt && "text-muted-foreground line-through")}>
                         <Link href={`/recommendations/${r.id}`} className="hover:underline" dir="auto">
-                          {r.title}
+                          <MorphTitle name={`rec-${r.id}`} className="inline-block">
+                            {r.title}
+                          </MorphTitle>
                         </Link>
                       </CardTitle>
                       {r.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}

@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import { MorphTitle } from "@/components/morph";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -58,6 +59,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
       </Link>
       <PageHeader
         title={r.title}
+        morph={`rec-${r.id}`}
         meta={
           <>
             {r.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}
@@ -183,7 +185,9 @@ export default async function RecommendationPage({ params }: { params: Promise<{
                 {data.actions.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
                     <Link href={`/actions/${a.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline" dir="auto">
-                      {a.title}
+                      <MorphTitle name={`action-${a.id}`} className="truncate">
+                        {a.title}
+                      </MorphTitle>
                     </Link>
                     <StatusBadge status={a.status} />
                     <span className="w-28 text-xs text-muted-foreground tabular-nums">{a.dueDate ? day(a.dueDate) : "—"}</span>

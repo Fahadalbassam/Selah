@@ -1,4 +1,5 @@
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { MorphTitle } from "@/components/morph";
 import { Users } from "@/components/animate-ui/icons/users";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -70,7 +71,9 @@ export default async function ClientGroupsPage() {
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">
                     <Link href={`/clients/groups/${g.id}`} className="hover:underline">
-                      {localLabel(g, ar)}
+                      <MorphTitle name={`group-${g.id}`} className="inline-block">
+                        {localLabel(g, ar)}
+                      </MorphTitle>
                     </Link>
                   </TableCell>
                   <TableCell className="whitespace-normal text-muted-foreground">

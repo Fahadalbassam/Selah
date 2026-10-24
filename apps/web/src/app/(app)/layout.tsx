@@ -3,8 +3,11 @@ import Link from "next/link";
 import { NextIntlClientProvider } from "next-intl";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
+import { PageTransition } from "@/components/animate-ui/components/page-transition";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
+import { MorphCapture } from "@/components/morph";
 import { NotificationBell } from "@/components/notifications";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import type { Role } from "@/authz";
@@ -153,7 +156,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <SidebarTrigger className="-ms-1" aria-label={tHeader("toggleSidebar")} title={tHeader("toggleSidebar")} />
             <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
             <span className="text-sm text-muted-foreground">{tApp("tagline")}</span>
-            <div className="ms-auto">
+            <div className="ms-auto flex items-center gap-1">
+              <ThemeSwitch label={tHeader("theme")} dir={rtl ? "rtl" : "ltr"} />
               <NotificationBell unread={unread} />
             </div>
           </header>
@@ -169,7 +173,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 ) : null}
               </p>
             ) : null}
-            {children}
+            {/* Pages cross-fade through a light blur, and titles shared by a list and the
+                page it opens morph between them (components/morph.tsx). The shell
+                around stays still. Reduced motion keeps only the cross-fade. */}
+            <MorphCapture />
+            <PageTransition effect="fade" className="flex min-w-0 flex-col gap-6">
+              {children}
+            </PageTransition>
           </main>
         </SidebarInset>
       </SidebarProvider>
