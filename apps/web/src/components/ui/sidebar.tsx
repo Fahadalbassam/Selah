@@ -53,6 +53,16 @@ function useSidebar() {
   return context
 }
 
+const TABLET_QUERY = "(max-width: 1023px)"
+function subscribeTablet(onChange: () => void) {
+  const query = window.matchMedia(TABLET_QUERY)
+  query.addEventListener("change", onChange)
+  return () => query.removeEventListener("change", onChange)
+}
+function isTablet() {
+  return window.matchMedia(TABLET_QUERY).matches
+}
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -71,8 +81,11 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
-  const open = openProp ?? _open
+  // Until someone toggles it, tablets (below lg) start with the icon rail so
+  // the page gets the width; desktops start open.
+  const tablet = React.useSyncExternalStore(subscribeTablet, isTablet, () => false)
+  const [_open, _setOpen] = React.useState<boolean | null>(null)
+  const open = openProp ?? _open ?? (defaultOpen && !tablet)
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value

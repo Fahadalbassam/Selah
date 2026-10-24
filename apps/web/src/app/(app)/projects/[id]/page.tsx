@@ -143,10 +143,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         description={project.description ?? undefined}
         meta={
           <>
-            <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
-              {tKind(project.kind)}
-              {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
-            </Badge>
+            {/* The client's own people know whose project it is. */}
+            {firmStaff ? (
+              <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
+                {tKind(project.kind)}
+                {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
+              </Badge>
+            ) : null}
             {observing ? (
               <Badge variant="outline" className="gap-1" title={ts("observingHint")}>
                 <Eye className="size-3" />
