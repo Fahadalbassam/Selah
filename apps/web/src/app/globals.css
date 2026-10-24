@@ -205,6 +205,13 @@
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
+  /* Page transitions, morphs and the theme wipe are view transitions: with
+     no animations on their layers, pages and themes simply swap. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 @layer base {

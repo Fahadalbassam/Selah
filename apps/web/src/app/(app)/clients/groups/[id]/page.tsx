@@ -1,4 +1,5 @@
 import { ArrowLeft, Building, Pencil, Trash2, UserPlus } from "lucide-react";
+import { MorphTitle } from "@/components/morph";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
@@ -38,7 +39,7 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("title")}
       </Link>
-      <PageHeader title={localLabel(group, ar)} description={ar ? (group.nameEn ?? undefined) : group.nameEn ? group.nameAr : undefined}>
+      <PageHeader title={localLabel(group, ar)} morph={`group-${group.id}`} description={ar ? (group.nameEn ?? undefined) : group.nameEn ? group.nameAr : undefined}>
         {can.manage ? (
           <>
             <FormDialog
@@ -116,7 +117,9 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
                     <li key={m.id} className="space-y-2 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link href={`/clients/${m.id}`} className="min-w-0 flex-1 text-sm font-medium hover:underline">
-                          {localName(m, ar)}
+                          <MorphTitle name={`client-${m.id}`} className="inline-block">
+                            {localName(m, ar)}
+                          </MorphTitle>
                         </Link>
                         {m.status === "archived" ? <ToneBadge tone="neutral">{tOff("archived")}</ToneBadge> : null}
                         {m.isHolding ? (

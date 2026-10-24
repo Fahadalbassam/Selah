@@ -1,4 +1,5 @@
 import { Archive, ArrowLeft, FilePenLine, Pencil, Trash2, UserCheck, UserPlus, UsersRound } from "lucide-react";
+import { MorphTitle } from "@/components/morph";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -146,6 +147,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       </Link>
       <PageHeader
         title={localName(client, ar)}
+        morph={`client-${client.id}`}
         description={ar ? client.name : (client.nameAr ?? undefined)}
         meta={
           client.prospect ? (
@@ -227,7 +229,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       <li key={p.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <Link href={`/projects/${p.id}`} className="font-medium hover:underline" dir="auto">
-                            {p.sequence ? tPh("numbered", { n: p.sequence, title: p.title }) : p.title}
+                            <MorphTitle name={`project-${p.id}`} className="inline-block">
+                              {p.sequence ? tPh("numbered", { n: p.sequence, title: p.title }) : p.title}
+                            </MorphTitle>
                           </Link>
                           <p className="text-xs text-muted-foreground tabular-nums">
                             {[

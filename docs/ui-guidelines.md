@@ -77,7 +77,8 @@ Use `md:` and `lg:` breakpoints for layout changes. `sm:` is fine inside shadcn 
 | Sidebar | `16rem` open, icon rail when collapsed | shadcn `sidebar-07`. On the right in Arabic, on the left in English. Wordmark when open, S mark when collapsed. |
 | Top bar | `3rem` high, sticky, `border-b`, `bg-background/80` with blur | Sidebar trigger, the product tagline, notifications at the far end. Nothing page-specific goes here. |
 | Main area | `max-w-6xl` (72 rem), centred, padding `p-4` (tablet) / `p-6` (desktop) | Set once in `app/(app)/layout.tsx`. Pages never add their own outer width or padding. |
-| Vertical rhythm | `gap-6` between page blocks | Set by `template.tsx`, which also fades each page in. |
+| Top bar actions | Theme switch, then notifications, at the far end | `ThemeSwitch` (Animate UI Theme Toggler Button driving the Theme Toggler wipe, which runs from the reading direction's start). |
+| Vertical rhythm | `gap-6` between page blocks | Set by `template.tsx`; the page transition is in the layout (section 8). |
 
 ### Page anatomy
 
@@ -299,7 +300,9 @@ AI-written text is always labelled as such, shows its sources, and never uses th
 ## 8. Motion
 
 - Use the shared tokens in `globals.css`: `--duration-fast` (150 ms), `--duration-base` (240 ms), `--duration-slow` (340 ms), `--ease-out-soft`, `--ease-in-out-soft`. Don't hard-code other timings.
-- Pages fade up on navigation (`template.tsx`); lists can use `.stagger`. Skeletons shimmer.
+- **Page transitions.** `app/(app)/layout.tsx` wraps the page in Animate UI's `PageTransition` with the `fade` effect: the old page leaves in 0.15 s and the new one arrives in 0.3 s through a light blur, while the sidebar and top bar stay still. Fade was chosen over the sliding effects because most moves in Selah are sideways jumps through the sidebar, not a stack of screens, and a short fade never fights the morphs below. Don't wrap single pages in their own transition and don't add per-page entrance animations; lists can still use `.stagger`. Skeletons shimmer.
+- **Morphs (shared elements).** A title that appears on a list and on the page it opens carries the same name in both places, and the transition morphs one into the other: `PageHeader morph="project-<id>"` on the detail page, and `<MorphTitle name="project-<id>">` around the title on the card or row that links to it (`components/morph.tsx`). Names in use: `project-`, `client-`, `group-`, `rec-`, `action-`. A name may appear only once on a page (the browser drops the whole transition otherwise), so never morph a value that repeats, such as the project column of an actions table. The loading skeleton shows the clicked title under the same name, so the title moves into place before the page's data arrives.
+- Under reduced motion, `globals.css` removes every view-transition animation, so pages and themes swap at once with no fade, morph or wipe.
 - Numbers count with `AnimatedNumber`; icons animate per section 1.
 - `prefers-reduced-motion` turns all of it off globally. Don't add motion that bypasses that rule (for example JavaScript loops that ignore it).
 

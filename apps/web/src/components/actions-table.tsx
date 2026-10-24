@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MorphTitle } from "@/components/morph";
 import { useFormatter, useTranslations } from "next-intl";
 import { StatusBadge } from "@/components/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,7 +43,9 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
             <TableRow key={r.id}>
               <TableCell className="max-w-72">
                 <Link href={`/actions/${r.id}`} className="block truncate font-medium hover:underline">
-                  {r.title}
+                  <MorphTitle name={`action-${r.id}`} className="truncate">
+                    {r.title}
+                  </MorphTitle>
                 </Link>
                 <div className="truncate text-xs text-muted-foreground">{r.recommendationTitle}</div>
               </TableCell>

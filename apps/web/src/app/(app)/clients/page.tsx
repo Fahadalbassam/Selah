@@ -1,4 +1,5 @@
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { MorphTitle } from "@/components/morph";
 import { Megaphone } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -111,7 +112,9 @@ export default async function ClientsPage() {
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">
                       <Link href={`/clients/${c.id}`} className="hover:underline">
-                        {name(c)}
+                        <MorphTitle name={`client-${c.id}`} className="inline-block">
+                          {name(c)}
+                        </MorphTitle>
                       </Link>
                       {c.prospect ? (
                         <ToneBadge tone="waiting" className="ms-2">
