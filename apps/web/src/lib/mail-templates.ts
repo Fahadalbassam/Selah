@@ -26,6 +26,7 @@ export const MAIL_KINDS = [
   "client.archived",
   "pulse.requested",
   "sign_in_link",
+  "info_request.upload_link",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -303,6 +304,28 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       subject: "Your Selah sign-in link",
       lines: ["You asked for a link to sign in to Selah.", "The link works once, for 15 minutes. If it wasn't you, ignore this mail."],
       action: "Sign in",
+    },
+  },
+  // F14: an upload link for one requested document, to an address the
+  // consultant typed. No account needed; the page shows what is asked.
+  "info_request.upload_link": {
+    ar: {
+      subject: "مطلوب منك مستند",
+      lines: [
+        "طلب منك مستشار عبر صلة إرسال مستند.",
+        "افتح الرابط لترى المطلوب وترفع الملف، دون حاجة إلى حساب. الرابط لهذا الطلب وحده ولمدة محدودة.",
+        "إن لم تكن تتوقع هذه الرسالة فتجاهلها.",
+      ],
+      action: "إرسال المستند",
+    },
+    en: {
+      subject: "A document is requested from you",
+      lines: [
+        "A consultant asked you, through Selah, to send a document.",
+        "Open the link to see what is needed and upload the file; no account is needed. The link is for this one request and works for a limited time.",
+        "If you weren't expecting this mail, ignore it.",
+      ],
+      action: "Send the document",
     },
   },
 };

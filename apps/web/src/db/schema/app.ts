@@ -966,8 +966,40 @@ export const infoRequestFiles = pgTable(
       .notNull()
       .references(() => user.id),
     attachedAt: ts("attached_at").notNull().defaultNow(),
+    // The file came in through an upload link (F14), with no account: the
+    // link holds the address it was sent to. attached_by is then the
+    // consultant who sent the link.
+    viaLinkId: uuid("via_link_id").references((): AnyPgColumn => infoRequestLinks.id),
   },
   (t) => [primaryKey({ columns: [t.requestId, t.documentId] }), index("info_request_files_document_idx").on(t.documentId)],
+);
+
+// A no-login upload link for one information request item (wave 2, F14,
+// decision D6): a consultant on the project mails it to an address; whoever
+// opens it sees only that item and the firm's name, and may send files for
+// it until it expires, is revoked, or the item or project closes. Only the
+// token's hash is kept. Firm-only (baseline: the migration's row policies).
+export const infoRequestLinks = pgTable(
+  "info_request_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => infoRequests.id, { onDelete: "cascade" }),
+    ...scoped(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email").notNull(),
+    expiresAt: ts("expires_at").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+    revokedAt: ts("revoked_at"),
+    revokedBy: uuid("revoked_by").references(() => user.id),
+    lastUsedAt: ts("last_used_at"),
+    uploads: integer("uploads").notNull().default(0),
+  },
+  (t) => [scopedFk("info_request_links", t), index("info_request_links_request_idx").on(t.requestId)],
 );
 
 // Reminders sent for information requests, so the daily job sends each step

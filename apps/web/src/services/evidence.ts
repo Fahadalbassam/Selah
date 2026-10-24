@@ -30,8 +30,9 @@ export interface PreparedUpload {
  * Infected files are audited here because no transaction exists yet.
  */
 export async function prepareUpload(
-  userId: string,
-  target: { type: "action" | "project" | "document" | "info_request"; id: string },
+  /** Null for a file sent through an upload link (F14), with no account. */
+  userId: string | null,
+  target: { type: "action" | "project" | "document" | "info_request" | "info_request_link"; id: string },
   file: File,
 ): Promise<PreparedUpload> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -52,7 +53,9 @@ export async function prepareUpload(
               ? "document.new_version"
               : target.type === "info_request"
                 ? "info_request.answer"
-                : "document.upload",
+                : target.type === "info_request_link"
+                  ? "info_request.link_upload"
+                  : "document.upload",
         resourceType: target.type,
         resourceId: target.id,
         outcome: "deny",

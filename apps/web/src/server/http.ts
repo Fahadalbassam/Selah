@@ -132,12 +132,16 @@ class NoMembershipError extends Error {}
 class TwoFactorSetupError extends Error {}
 class ConsentRequiredError extends Error {}
 
-interface PublicOptions<P extends z.ZodType, B extends z.ZodType> {
+interface PublicOptions<P extends z.ZodType, B extends z.ZodType, R> {
   params?: P;
   /** JSON body schema. */
   body?: B;
   /** Largest accepted body. */
   maxBytes: number;
+  /** A multipart form with files instead of JSON (an upload link's page). */
+  form?: boolean;
+  /** Slow work on the files (the virus scan), before the transaction opens; as in route(). */
+  prepare?: (input: { params: z.infer<P>; files: Map<string, File> }) => Promise<R>;
 }
 
 /**
@@ -148,9 +152,16 @@ interface PublicOptions<P extends z.ZodType, B extends z.ZodType> {
  * the purpose. Invalid input answers 400 with the names of the bad fields.
  * tests/route-guard.test.ts lists the routes allowed to use it.
  */
-export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined>(
-  options: PublicOptions<P, B>,
-  handler: (ctx: { tx: Tx; params: z.infer<P>; body: z.infer<B>; ip: string | null; userAgent: string | null }) => Promise<unknown>,
+export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.ZodType = z.ZodUndefined, R = undefined>(
+  options: PublicOptions<P, B, R>,
+  handler: (ctx: {
+    tx: Tx;
+    params: z.infer<P>;
+    body: z.infer<B>;
+    ip: string | null;
+    userAgent: string | null;
+    prepared: R;
+  }) => Promise<unknown>,
 ) {
   return async (req: NextRequest, segment?: { params: Promise<Record<string, string | string[]>> }) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -158,7 +169,12 @@ export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.Zo
       if (!SAFE_METHODS.has(req.method) && !sameOrigin(req)) return json({ error: "forbidden" }, 403);
       const params = parse(options.params, segment ? await segment.params : {}) as z.infer<P>;
       let body: z.infer<B> = undefined as z.infer<B>;
-      if (options.body) {
+      let prepared = undefined as R;
+      if (options.form) {
+        const files = new Map<string, File>();
+        for (const [key, value] of await readForm(req, options.maxBytes)) if (typeof value !== "string") files.set(key, value);
+        if (options.prepare) prepared = await options.prepare({ params, files });
+      } else if (options.body) {
         const length = Number(req.headers.get("content-length") ?? NaN);
         if (!Number.isFinite(length) || length > options.maxBytes) return json({ error: "too_large" }, 413);
         const result = options.body.safeParse(await readJson(req));
@@ -168,7 +184,7 @@ export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.Zo
         }
         body = result.data;
       }
-      const result = await asAnonymous((tx) => handler({ tx, params, body, ip, userAgent: req.headers.get("user-agent") }));
+      const result = await asAnonymous((tx) => handler({ tx, params, body, ip, userAgent: req.headers.get("user-agent"), prepared }));
       return result instanceof Response ? result : json(result ?? { ok: true }, 200);
     } catch (err) {
       return toErrorResponse(err, null, ip, req);

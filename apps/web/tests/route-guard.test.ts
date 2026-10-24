@@ -23,6 +23,7 @@ const PUBLIC: Record<string, string> = {
   "invite/[token]/route.ts": "an invited person opening their link",
   "invite/[token]/accept/route.ts": "an invited person setting up their account",
   "email-change/confirm/route.ts": "a new address confirming an admin's change",
+  "upload/[token]/route.ts": "someone sending a file through an upload link for one request item (F14)",
 };
 
 function routeFiles(dir: string): string[] {

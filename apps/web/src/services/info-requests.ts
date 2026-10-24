@@ -1,8 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { activityEvents, documents, infoRequestFiles, infoRequests, notifications, orgMemberships, projectMembers, projects, user } from "@/db/schema";
+import { activityEvents, documents, infoRequestFiles, infoRequestLinks, infoRequests, notifications, orgMemberships, projectMembers, projects, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import type { z } from "zod";
 import { INFO_REQUEST_TEMPLATES, templateByKey, type InfoRequestInput, type infoRequestEdit } from "@/lib/info-requests";
@@ -27,7 +27,7 @@ async function clientProject(tx: Tx, principal: Principal, projectId: string) {
 }
 
 /** One item, read under the caller's rights (an action owner sees only their own). */
-async function loadRequest(tx: Tx, principal: Principal, id: string) {
+export async function loadRequest(tx: Tx, principal: Principal, id: string) {
   const [row] = await tx
     .select({ r: infoRequests, firmOrgId: projects.firmOrgId })
     .from(infoRequests)
@@ -90,13 +90,38 @@ export async function listInfoRequests(tx: Tx, principal: Principal, projectId: 
   // Files the reader can see (the link and the file are both read under RLS).
   const files = ids.length
     ? await tx
-        .select({ requestId: infoRequestFiles.requestId, documentId: documents.id, title: documents.title, attachedBy: infoRequestFiles.attachedBy })
+        .select({
+          requestId: infoRequestFiles.requestId,
+          documentId: documents.id,
+          title: documents.title,
+          attachedBy: infoRequestFiles.attachedBy,
+          viaLink: infoRequestFiles.viaLinkId,
+          // The address a link went to: the firm only (the client can't read links).
+          viaEmail: infoRequestLinks.email,
+        })
         .from(infoRequestFiles)
         .innerJoin(documents, eq(documents.id, infoRequestFiles.documentId))
+        .leftJoin(infoRequestLinks, eq(infoRequestLinks.id, infoRequestFiles.viaLinkId))
         .where(inArray(infoRequestFiles.requestId, ids))
         .orderBy(asc(infoRequestFiles.attachedAt))
     : [];
   const manage = authorize(principal, "info_request.manage", resource).allowed;
+  // Upload links that still work (F14), for the firm.
+  const links =
+    manage && ids.length
+      ? await tx
+          .select({
+            id: infoRequestLinks.id,
+            requestId: infoRequestLinks.requestId,
+            email: infoRequestLinks.email,
+            expiresAt: infoRequestLinks.expiresAt,
+            uploads: infoRequestLinks.uploads,
+          })
+          .from(infoRequestLinks)
+          .where(and(inArray(infoRequestLinks.requestId, ids), isNull(infoRequestLinks.revokedAt), gt(infoRequestLinks.expiresAt, sql`now()`)))
+          .orderBy(asc(infoRequestLinks.createdAt))
+      : [];
+  const projectOpen = loaded.project.state !== "closed";
   const answerAny = authorize(principal, "info_request.answer", resource).allowed;
   const today = firmToday();
   const items = rows.map(({ r, ownerName }) => {
@@ -122,8 +147,12 @@ export async function listInfoRequests(tx: Tx, principal: Principal, projectId: 
         .map((f) => ({
           documentId: f.documentId,
           title: f.title,
+          viaLink: f.viaLink !== null,
+          viaEmail: f.viaEmail,
           canRemove: r.status !== "reviewed" && (manage || f.attachedBy === principal.userId),
         })),
+      // Links only while the item and project are open, since they stop working otherwise.
+      links: open && projectOpen ? links.filter((l) => l.requestId === r.id).map((l) => ({ id: l.id, email: l.email, expiresAt: l.expiresAt, uploads: l.uploads })) : [],
       can: {
         answer,
         notApplicable: manage ? r.status === "requested" || r.status === "received" : answer && r.status === "requested",
@@ -133,6 +162,8 @@ export async function listInfoRequests(tx: Tx, principal: Principal, projectId: 
         reopen: manage && r.status === "not_applicable",
         edit: manage,
         remove: manage && r.status === "requested",
+        // A no-login upload link for this one item (F14).
+        sendLink: manage && open && projectOpen,
       },
     };
   });

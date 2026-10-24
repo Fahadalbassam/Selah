@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
@@ -11,6 +11,7 @@ import { Lock } from "@/components/animate-ui/icons/lock";
 import { Paperclip } from "@/components/animate-ui/icons/paperclip";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
+import { Send } from "@/components/animate-ui/icons/send";
 import { X } from "@/components/animate-ui/icons/x";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INFO_REQUEST_AREAS, INFO_REQUEST_TEMPLATES, NO_OWNER, requestTitle } from "@/lib/info-requests";
+import { UPLOAD_LINK_DAY_CHOICES, UPLOAD_LINK_DAYS } from "@/lib/upload-links";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import type { InfoRequestList } from "@/services/info-requests";
 
@@ -222,6 +224,11 @@ function ItemRow({
               <a href={`/api/documents/${f.documentId}/download`} className="hover:underline">
                 <bdi>{f.title}</bdi>
               </a>
+              {f.viaLink ? (
+                <span className="text-muted-foreground">
+                  {f.viaEmail ? t.rich("link.fromEmail", { email: f.viaEmail, a: (c) => <bdi dir="ltr">{c}</bdi> }) : t("link.byLink")}
+                </span>
+              ) : null}
               {f.canRemove ? (
                 <button
                   type="button"
@@ -238,8 +245,58 @@ function ItemRow({
         </ul>
       ) : null}
 
+      {i.links.length ? (
+        <ul className="space-y-1">
+          {i.links.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <Link2 className="size-3.5" />
+              <span>
+                {t.rich("link.active", {
+                  email: l.email,
+                  date: format.dateTime(new Date(l.expiresAt), { dateStyle: "medium" }),
+                  n: l.uploads,
+                  a: (c) => <bdi dir="ltr">{c}</bdi>,
+                })}
+              </span>
+              <ApiButton
+                endpoint={`/api/info-request-links/${l.id}`}
+                method="DELETE"
+                variant="ghost"
+                size="sm"
+                label={t("link.revoke")}
+                confirm={t("link.revokeConfirm", { email: l.email })}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {i.can.answer ? <AnswerDialog item={i} title={title} files={files} /> : null}
+        {i.can.sendLink ? (
+          <FormDialog
+            trigger={
+              <Button size="sm" variant="ghost">
+                <Send />
+                {t("link.send")}
+              </Button>
+            }
+            title={t("link.send")}
+            description={t("link.hint")}
+            endpoint={`${base}/links`}
+            fields={[
+              { name: "email", label: t("link.email"), required: true, maxLength: 254, dir: "ltr", placeholder: "name@company.sa" },
+              {
+                name: "days",
+                label: t("link.days"),
+                type: "select",
+                defaultValue: String(UPLOAD_LINK_DAYS.default),
+                options: UPLOAD_LINK_DAY_CHOICES.map((d) => ({ value: String(d), label: t("link.daysOption", { n: d }) })),
+              },
+            ]}
+            submitLabel={t("link.sendSubmit")}
+          />
+        ) : null}
         {i.can.review ? (
           <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("review")} icon={<CircleCheck />} />
         ) : null}
