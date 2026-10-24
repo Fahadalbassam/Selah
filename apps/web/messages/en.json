@@ -29,7 +29,8 @@
     "theme": "Toggle theme",
     "signOut": "Sign out",
     "account": "Account",
-    "security": "Sign-in security"
+    "security": "Sign-in security",
+    "toggleSidebar": "Show or hide the sidebar"
   },
   "role": {
     "firm_admin": "Firm admin",

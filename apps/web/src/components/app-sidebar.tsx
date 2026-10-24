@@ -73,6 +73,8 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   user: NavUserProps;
   /** Which side of the workspace the person is on (the file explorer's wording). */
   orgKind: "firm" | "client";
+  /** Accessible name of the thin rail that toggles the sidebar. */
+  railLabel: string;
 }
 
 /**
@@ -80,7 +82,7 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
  * (sub-menus). The menu only reflects what the server decided this user may
  * open; it is not the access control.
  */
-export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, ...props }: AppSidebarProps) {
+export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, railLabel, ...props }: AppSidebarProps) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const current = search ? `${pathname}?${search}` : pathname;
@@ -162,7 +164,7 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
       <SidebarFooter>
         <NavUser {...user} />
       </SidebarFooter>
-      <SidebarRail />
+      <SidebarRail aria-label={railLabel} title={railLabel} />
     </Sidebar>
   );
 }
