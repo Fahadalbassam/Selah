@@ -107,6 +107,9 @@ export const chunkSource = pgEnum("chunk_source", [
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const auditOutcome = pgEnum("audit_outcome", ["allow", "deny", "error"]);
+// The documents a person accepts before using Selah (R1): terms of use, the
+// privacy notice for people with accounts, and the AI-use notice.
+export const legalDoc = pgEnum("legal_doc", ["terms", "privacy", "ai_notice"]);
 // How a client takes part (baseline: Engagement):
 //   full               - the client's people use Selah and record their own work
 //   restricted         - client admins only; their uploads stay private to them until shared
@@ -2542,4 +2545,22 @@ export const projectClosureRequests = pgTable(
     scopedFk("project_closure_requests", t),
     uniqueIndex("project_closure_requests_one_pending").on(t.projectId).where(sql`status = 'pending'`),
   ],
+);
+
+// Who accepted which version of which document, and when (R1). Append-only;
+// written only by app_record_consent(), which takes the current version only.
+export const consentRecords = pgTable(
+  "consent_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    doc: legalDoc("doc").notNull(),
+    version: text("version").notNull(),
+    locale: text("locale").notNull(),
+    acceptedAt: ts("accepted_at").notNull().defaultNow(),
+    ip: text("ip"),
+  },
+  (t) => [index("consent_records_user_idx").on(t.userId, t.doc, t.acceptedAt)],
 );

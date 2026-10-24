@@ -5,7 +5,7 @@
 
 /** Areas for the filter, by action prefix. An action is in an area when it is a prefix or starts with "prefix.". */
 export const AUDIT_AREAS = {
-  signIn: ["auth", "two_factor", "password", "invitation", "user"],
+  signIn: ["auth", "two_factor", "password", "invitation", "user", "consent"],
   files: ["document"],
   work: [
     "action",

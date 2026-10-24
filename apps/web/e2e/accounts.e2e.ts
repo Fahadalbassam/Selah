@@ -1,6 +1,6 @@
 import { expect, request, test, type Page } from "@playwright/test";
 import { L } from "./support/msg";
-import { hydrated } from "./support/session";
+import { acceptConsent, hydrated } from "./support/session";
 import { open } from "./support/ui";
 
 // Invitation and password reset end to end: the screen, the mail queue, the
@@ -57,7 +57,10 @@ test("client admin invites a new action owner, who accepts from the mail and sig
   await page.locator("#email").fill(email);
   await page.locator("#password").fill("New-Owner-Pass-2026!");
   await page.locator('form button[type="submit"]').click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/sign-in"));
+  // A new account accepts the terms and notices before anything else.
+  await page.waitForURL(/\/consent/);
+  await page.screenshot({ path: "e2e-results/shots/consent-first-sign-in.png", fullPage: true });
+  await acceptConsent(page);
   await expect(page.locator("body")).toContainText(email);
 });
 

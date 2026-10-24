@@ -6,6 +6,7 @@ import { auth } from "@/auth/auth";
 import { mustSetUpTwoFactor, type Principal } from "@/authz";
 import { asAnonymous, asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
+import { pendingConsents } from "@/services/consent";
 import { loadPrincipal } from "@/services/principal";
 import { NotFoundError } from "./errors";
 
@@ -18,11 +19,13 @@ const session = cache(async () => auth().api.getSession({ headers: await headers
 /**
  * Redirects to sign-in when there is no session or no active membership, and
  * to /security while someone who must use two-factor sign-in has not set it
- * up (only that page passes `allowTwoFactorSetup`).
+ * up (only that page passes `allowTwoFactorSetup`), then to /consent until the
+ * current terms, privacy notice and AI-use notice are accepted (that page
+ * passes `allowConsentPending`).
  */
 export async function withPrincipal<T>(
   fn: (tx: Tx, principal: Principal) => Promise<T>,
-  options: { allowTwoFactorSetup?: boolean } = {},
+  options: { allowTwoFactorSetup?: boolean; allowConsentPending?: boolean } = {},
 ): Promise<T> {
   const s = await session();
   if (!s) redirect("/sign-in");
@@ -36,11 +39,15 @@ export async function withPrincipal<T>(
       ) {
         throw new TwoFactorSetup();
       }
+      if (!options.allowTwoFactorSetup && !options.allowConsentPending && (await pendingConsents(tx)).length) {
+        throw new ConsentNeeded();
+      }
       return fn(tx, principal);
     });
   } catch (err) {
     if (err instanceof NoAccess) redirect("/sign-in?error=no_access");
     if (err instanceof TwoFactorSetup) redirect("/security");
+    if (err instanceof ConsentNeeded) redirect("/consent");
     if (err instanceof NotFoundError) notFound();
     throw err;
   }
@@ -48,6 +55,7 @@ export async function withPrincipal<T>(
 
 class NoAccess extends Error {}
 class TwoFactorSetup extends Error {}
+class ConsentNeeded extends Error {}
 
 /** The signed-in user's own sign-in settings, for /security. */
 export async function currentUser() {

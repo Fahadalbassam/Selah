@@ -3149,7 +3149,8 @@
       "user_erase": "Personal details erased",
       "user_name_alt": "Name in the other language changed",
       "closure_export": "Closing report exported",
-      "client_report_export": "Client report exported"
+      "client_report_export": "Client report exported",
+      "consent_accept": "Terms and notices accepted"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -3167,5 +3168,213 @@
       "details": "Details",
       "truncated": "Only the newest {shown} of {total} entries are in this file. Narrow the dates to download the rest."
     }
+  },
+  "legal": {
+    "metaTitle": "Legal documents",
+    "version": "Version {version}",
+    "template": "Template: the firm's lawyer adapts it before it is signed.",
+    "others": "Other documents",
+    "back": "Back to Selah",
+    "inUse": "In use on this site",
+    "notInUse": "Not in use on this site",
+    "columns": {
+      "who": "Service",
+      "what": "What it does",
+      "data": "What it receives",
+      "where": "Where",
+      "when": "When it is used"
+    },
+    "terms": {
+      "title": "Terms of use",
+      "intro": "These terms apply to everyone with a Selah account on this site. Selah is run by the consulting firm that invited you, to follow up its recommendations with its clients. Where your organization has a signed engagement or contract with the firm, that agreement comes first, and these terms fill in how the site is used.",
+      "sections": [
+        {
+          "title": "Your account",
+          "body": "Accounts are by invitation only and belong to one person. Keep your password to yourself, use two-factor sign-in where your role requires it, and tell your administrator or the firm at once if you think someone else has used your account. Your administrator can switch your account off when you leave."
+        },
+        {
+          "title": "What you may do",
+          "body": "Use Selah for the work you were invited to: reading what is shared with you, updating your actions, submitting evidence and taking part in reviews and meetings. Upload only files you are entitled to share, and nothing that contains malware or someone else's personal data without a reason to share it."
+        },
+        {
+          "title": "What you may not do",
+          "body": "Don't try to reach data that wasn't shared with you, another client's data in particular, test the site's security without the firm's written permission, or use automated tools to read or load it. Every refused attempt is recorded."
+        },
+        {
+          "title": "Who owns what",
+          "body": "Your organization keeps ownership of the files and information it puts in Selah. The firm's recommendations, reports and other deliverables are governed by your engagement with the firm. Selah does not use your files to train any AI model."
+        },
+        {
+          "title": "What is recorded",
+          "body": "Sign-ins, files opened, changes and refused attempts are kept in an audit log that nobody can edit, for at least 12 months. Your administrator can see what your organization's people did; the firm's administrator can see everything."
+        },
+        {
+          "title": "What the site does not do",
+          "body": "Selah tracks implementation. A status, a percentage or an AI answer is not a certification, an audit opinion or legal advice, and only a person at the firm verifies evidence. The site is provided as it is; the firm works to keep it available and safe but does not promise it will never be interrupted."
+        },
+        {
+          "title": "Suspension and changes",
+          "body": "The firm may suspend an account that breaks these terms or puts others' data at risk. When these terms change, you will be asked to accept the new version at your next sign-in."
+        },
+        {
+          "title": "Law",
+          "body": "These terms are governed by the laws of the Kingdom of Saudi Arabia."
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy notice for account holders",
+      "intro": "This notice explains what happens to your personal data when you use Selah with an account. The consulting firm that runs this site decides how it is used, in line with the Saudi Personal Data Protection Law (PDPL). The separate notice for the public inquiry form is at /privacy.",
+      "sections": [
+        {
+          "title": "What we hold",
+          "body": "Your name (and, if you give it, its spelling in the other language), your work email, your organization and role, your two-factor setting, the work you do in Selah (updates, evidence, comments, meetings) and the audit log of your sign-ins and actions, including the network address they came from."
+        },
+        {
+          "title": "Why",
+          "body": "To run your organization's engagement with the firm, keep the site secure, show who did what, and meet the firm's legal duties. We don't sell your data or use it for advertising."
+        },
+        {
+          "title": "Who sees it",
+          "body": "People on the same project see your name and your work on it. Your organization's administrator manages your account and sees your organization's activity. The firm's staff on your engagement see your work; the firm's administrator sees everything, including the audit log. Other clients never see anything about you."
+        },
+        {
+          "title": "Where it is kept",
+          "body": "On the firm's own server in Saudi Arabia, with backups in a second location in the Kingdom. The services that may handle some of it in passing, such as delivering email, are listed at /legal/sub-processors."
+        },
+        {
+          "title": "How long",
+          "body": "While your account is active, and then for as long as the engagement's records must be kept. The audit log is kept for at least 12 months. When your details are erased, your name and address are removed and only an anonymous id stays in the history, so the record of who did what still holds together."
+        },
+        {
+          "title": "Your rights",
+          "body": "You can ask to see, correct or erase your personal data, or ask how it is used, through your organization's administrator or the firm directly. The firm answers within 30 days. You can also complain to the Saudi Data and Artificial Intelligence Authority (SDAIA)."
+        },
+        {
+          "title": "If something goes wrong",
+          "body": "If a breach puts your data at risk, the firm tells SDAIA within 72 hours where the law requires it, and tells you without undue delay what happened and what to do."
+        }
+      ]
+    },
+    "ai_notice": {
+      "title": "How Selah uses AI",
+      "intro": "Selah has an assistant that helps the firm's consultants find and summarise what is already in the platform. This notice says what it reads, where it runs and what it never does.",
+      "sections": [
+        {
+          "title": "What it reads",
+          "body": "Only files whose AI setting is on and records the person asking is already allowed to open. Permissions are applied before anything reaches the model, so the assistant can't see what the person can't. Files are added to its index only when someone turns their AI setting on, and leave it when the setting goes off or the file is unshared or archived."
+        },
+        {
+          "title": "Where it runs",
+          "body": "By default the model runs on the firm's own server, and nothing leaves it. If the firm switches to a hosted model, only the passages needed for one question are sent, with names of clients, people and departments masked first, and the provider is listed at /legal/sub-processors."
+        },
+        {
+          "title": "What it never does",
+          "body": "It never approves evidence, closes an action, makes a governance or legal judgment, or certifies compliance. It never invents a recommendation. A person at the firm makes every decision, and everything the assistant writes is labelled as AI-written with its sources."
+        },
+        {
+          "title": "Who can use it",
+          "body": "Today the firm's consultants and administrators. People at clients don't have the assistant, though summaries the firm shares with you may have been drafted with it and are labelled when so."
+        },
+        {
+          "title": "What is kept",
+          "body": "The question and answer stay in the person's own chat, which is archived and then deleted on the firm's schedule. The audit log records that a question was asked and how many sources were used, never its text. Your files are never used to train a model."
+        },
+        {
+          "title": "Your choice",
+          "body": "Ask the firm, or your administrator, to keep a file out of the assistant: its AI setting is switched off and it leaves the index at once."
+        }
+      ]
+    },
+    "data_agreement": {
+      "title": "Data processing agreement (template)",
+      "intro": "A template for the agreement between the consulting firm and a client on the personal data the client puts in Selah. Clients sharing files fully or in restricted mode sign it before their files go in. The firm's lawyer adapts it; the blanks in [brackets] are filled for each client.",
+      "sections": [
+        {
+          "title": "1. Parties and roles",
+          "body": "[Client name] (the Client) and [Firm name] (the Firm). For personal data in the files and records the Client puts in Selah, the Client decides why it is processed and the Firm processes it on the Client's behalf, only to carry out the engagement signed on [date]."
+        },
+        {
+          "title": "2. What is processed",
+          "body": "Names, work contact details and roles of the Client's staff; personal data that appears in the documents the Client shares (such as policies, minutes and organisation charts); activity records in Selah. No special categories of data unless agreed in writing."
+        },
+        {
+          "title": "3. The Firm's duties",
+          "body": "Process only on the Client's documented instructions and for the engagement; keep the data confidential and limit access to the staff assigned to the Client; keep it in the Kingdom of Saudi Arabia except where section 6 allows otherwise; apply the security measures in section 4; help the Client answer requests from data subjects within the 30 days the PDPL allows."
+        },
+        {
+          "title": "4. Security",
+          "body": "Separate access per client enforced in the database; two-factor sign-in for administrators and consultants; encryption in transit; virus scanning of every upload; an audit log that can't be edited, kept at least 12 months, with a nightly integrity check; encrypted nightly backups in a second location in the Kingdom, with a restore tested at least every quarter."
+        },
+        {
+          "title": "5. Breaches",
+          "body": "The Firm tells the Client within [24] hours of becoming aware of a breach affecting the Client's data, with what is known, the likely effects and what is being done, so the Client can notify SDAIA within 72 hours where required."
+        },
+        {
+          "title": "6. Sub-processors and transfers",
+          "body": "The Client accepts the services listed at /legal/sub-processors on the date of signing. The Firm gives [30] days' notice of a new one, and the Client may object. Data leaves the Kingdom only as the PDPL and its Transfer Regulation allow."
+        },
+        {
+          "title": "7. End of the engagement",
+          "body": "Within [30] days of the end, the Firm returns the Client's files as an export and deletes them from Selah and its backups, except what the law requires the Firm to keep, which stays protected for that period."
+        },
+        {
+          "title": "8. Audits and law",
+          "body": "The Client may ask for the Firm's security summary and, once a year with notice, check compliance with this agreement. This agreement is governed by the laws of the Kingdom of Saudi Arabia."
+        }
+      ]
+    },
+    "subprocessors": {
+      "title": "Sub-processors",
+      "intro": "Services outside the firm that handle some data when Selah runs. Selah itself, its database and the files run on the firm's own server in Saudi Arabia, which is not a sub-processor. The firm gives notice before adding a service to this list.",
+      "rows": {
+        "edge": {
+          "who": "Cloudflare (Tunnel)",
+          "what": "Carries the site's traffic to the firm's server and protects it from attacks",
+          "data": "Encrypted traffic, which it decrypts at its edge: page content, sign-in details, uploaded files in transit",
+          "where": "Cloudflare's network, which may be outside the Kingdom",
+          "when": "While the site is served through Cloudflare Tunnel. The firm switches to its own reverse proxy in the Kingdom before any real client file is uploaded."
+        },
+        "mail": {
+          "who": "Mail delivery service (currently Resend)",
+          "what": "Delivers invitations, sign-in and password mail, reminders and meeting invites",
+          "data": "Recipient names and addresses, and the mail's text (titles and due dates, never file contents)",
+          "where": "The provider's servers, which may be outside the Kingdom",
+          "when": "Whenever Selah sends mail."
+        },
+        "llm": {
+          "who": "Hosted AI model (the provider named in the firm's settings)",
+          "what": "Writes the assistant's answers and file summaries",
+          "data": "The passages needed for one question, with names masked",
+          "where": "The provider's servers, outside the Kingdom",
+          "when": "Only when the firm switches the assistant to a hosted model. Off by default: the model runs on the firm's server."
+        }
+      }
+    }
+  },
+  "consent": {
+    "title": "Before you start",
+    "subtitle": "Read and accept these to use Selah. You'll be asked again only if one of them changes.",
+    "read": "Read it in full (version {version})",
+    "continue": "Accept and continue",
+    "changed": "One of these documents was just updated. Reload the page to read the new version.",
+    "docs": {
+      "terms": {
+        "title": "Terms of use",
+        "summary": "Your account is yours alone; use Selah for the work you were invited to, and never try to reach data that wasn't shared with you.",
+        "accept": "I accept the terms of use."
+      },
+      "privacy": {
+        "title": "Privacy notice",
+        "summary": "What we keep about you, who sees it, that it stays in Saudi Arabia, and how to see, correct or erase it.",
+        "accept": "I have read the privacy notice."
+      },
+      "ai_notice": {
+        "title": "How Selah uses AI",
+        "summary": "The assistant reads only what the person asking may open, runs on the firm's server by default, and never approves or decides anything.",
+        "accept": "I have read how Selah uses AI."
+      }
+    },
+    "signOut": "Not now, sign out"
   }
 }

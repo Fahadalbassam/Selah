@@ -23,7 +23,10 @@ export async function hydrated(page: Page, selector: string) {
 
 let lastCode: string | undefined;
 
-/** Signs in through the form; sets up two-factor on first use for roles that need it. */
+/**
+ * Signs in through the form; sets up two-factor on first use for roles that
+ * need it, then accepts the terms and notices if they are still pending.
+ */
 export async function signIn(page: Page, u: UserKey, password = PASSWORD) {
   await page.goto("/sign-in");
   await hydrated(page, "form");
@@ -39,6 +42,17 @@ export async function signIn(page: Page, u: UserKey, password = PASSWORD) {
   }
   await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
   if (USERS[u].twoFactor && !secret) await enrolTwoFactor(page, u, password);
+  // The app (its sidebar) or the consent page, once the redirects are done.
+  await page.locator('[data-slot="sidebar"], #c-terms').first().waitFor();
+  if (new URL(page.url()).pathname === "/consent") await acceptConsent(page);
+}
+
+/** Ticks every document on the first-sign-in consent page and continues. */
+export async function acceptConsent(page: Page) {
+  await hydrated(page, "form");
+  for (const box of await page.getByRole("checkbox").all()) await box.click();
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForURL((url) => url.pathname !== "/consent");
 }
 
 export async function enrolTwoFactor(page: Page, u: UserKey, password = PASSWORD) {
