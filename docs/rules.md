@@ -137,6 +137,8 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | Every status and owner change is logged, and the new owner told | `log_inquiry_update()` | database only | `tests/db/intake.test.ts` |
 | A new inquiry mails the intake address a link, and the requester an acknowledgement with the reference, at most one a day to an address | `mail_new_inquiry()` | database only | `tests/db/firm-settings.test.ts`, `tests/db/intake.test.ts` |
 | Only the firm admin sends a requester a decline, once, for an inquiry closed as lost or declined whose details are still kept | `app_mail_inquiry_decline()` | `src/services/inquiries.ts` (`mailDecline()`, `can.declineMail`) | `tests/db/intake.test.ts` |
+| Firm staff enter inquiries that didn't come through the form (referral, returning client, Etimad tender, the firm's own approach); a consultant owns what they enter and the admins are told; a named client must be one they can see; no mail goes out | `app_enter_inquiry()`, `mail_new_inquiry()` | `src/services/inquiries.ts` (`enterInquiry()`), `src/lib/inquiry-entry.ts` | `tests/db/intake.test.ts` |
+| The public form's inquiries carry consent, size and ownership and no staff author; entered ones carry who entered them; only a tender carries a tender number; a returning client's inquiry names the client | `inquiries.inquiry_website_fields`, `inquiries.inquiry_entered_by`, `inquiries.inquiry_tender_fields`, `inquiries.inquiry_source_client` | `src/lib/inquiry-entry.ts` (`enteredInquiryInput`) | `tests/db/intake.test.ts` |
 
 ### Expertise
 

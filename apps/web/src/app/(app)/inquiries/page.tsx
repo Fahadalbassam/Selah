@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { listInquiries } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
+import { clientDirectory } from "@/services/staffing";
+import { EnterInquiryDialog } from "./enter-inquiry";
 import { ToneBadge } from "@/components/tone-badge";
 
 const CLOSED = new Set(["lost", "declined", "spam", "withdrawn"]);
@@ -19,13 +21,22 @@ const inView = (status: string, view: View) =>
 export default async function InquiriesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view: asked } = await searchParams;
   const view: View = VIEWS.includes(asked as View) ? (asked as View) : "open";
+  const ar = (await getLocale()) === "ar";
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
-    return { rows: await listInquiries(tx, principal), options: await intakeOptions(tx), admin: principal.role === "firm_admin" };
+    const directory = await clientDirectory(tx, principal);
+    return {
+      rows: await listInquiries(tx, principal),
+      options: await intakeOptions(tx),
+      admin: principal.role === "firm_admin",
+      // Clients this person can name as the referrer or the returning client.
+      clients: directory
+        .filter((c) => principal.role === "firm_admin" || c.assigned)
+        .map((c) => ({ id: c.id, name: c.nameAr && ar ? c.nameAr : c.name })),
+    };
   });
   if (!data) notFound();
   const [t, ti, format] = await Promise.all([getTranslations("inbox"), getTranslations("inquiry"), getFormatter()]);
-  const ar = (await getLocale()) === "ar";
   const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
     const x = list.find((o) => o.code === code);
     return x ? localLabel(x, ar) : code;
@@ -34,7 +45,9 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title={t("title")} description={data.admin ? t("description") : t("descriptionConsultant")} />
+      <PageHeader title={t("title")} description={data.admin ? t("description") : t("descriptionConsultant")}>
+        <EnterInquiryDialog sectors={data.options.sectors} services={data.options.services} clients={data.clients} />
+      </PageHeader>
       <nav className="flex gap-1 rounded-lg bg-muted p-1 text-sm w-fit">
         {VIEWS.map((v) => (
           <Link
@@ -74,8 +87,9 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
                       {(ar ? r.orgNameAr : null) ?? r.orgName ?? r.publicRef}
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      {label(data.options.sectors, r.sector)} · {ti(`employeeBand.${r.employeeBand}`)} ·{" "}
-                      <span dir="ltr">{r.publicRef}</span>
+                      {r.source !== "website" ? `${t(`sources.${r.source}`)} · ` : null}
+                      {label(data.options.sectors, r.sector)}
+                      {r.employeeBand ? ` · ${ti(`employeeBand.${r.employeeBand}`)}` : null} · <span dir="ltr">{r.publicRef}</span>
                     </p>
                   </TableCell>
                   <TableCell className="max-w-64 text-sm whitespace-normal">

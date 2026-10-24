@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { isUuid } from "@/lib/ids";
 import { SELF_CHECKS } from "@/lib/intake";
-import { localLabel } from "@/lib/names";
+import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getInquiry, suggestLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
@@ -56,6 +56,25 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
   const nameOf = (userId: string | null | undefined) => data.team.find((m) => m.id === userId)?.name;
 
   const rows: [string, React.ReactNode][] = [
+    [
+      t("source"),
+      [t(`sources.${q.source}`), q.sourceClient ? localName(q.sourceClient, ar) : null, q.enteredByName ? t("enteredBy", { name: q.enteredByName }) : null]
+        .filter(Boolean)
+        .join(" · "),
+    ],
+    ...(q.tenderNumber
+      ? [
+          [
+            t("tender"),
+            <span key="tn">
+              <span dir="ltr">{q.tenderNumber}</span>
+              {q.tenderClosesOn
+                ? ` · ${t("tenderCloses", { date: format.dateTime(new Date(`${q.tenderClosesOn}T00:00:00`), { dateStyle: "medium" }) })}`
+                : null}
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
     [t("contact"), [q.contactName, q.contactRole].filter(Boolean).join(" · ") || "—"],
     [
       "",
@@ -70,8 +89,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     ],
     [t("language"), t(`langs.${q.preferredLanguage === "ar" ? "ar" : "en"}`)],
     [t("sector"), label(data.options.sectors, q.sector)],
-    [t("size"), ti(`employeeBand.${q.employeeBand}`)],
-    [t("ownership"), ti(`ownershipType.${q.ownershipType}`)],
+    [t("size"), q.employeeBand ? ti(`employeeBand.${q.employeeBand}`) : "—"],
+    [t("ownership"), q.ownershipType ? ti(`ownershipType.${q.ownershipType}`) : "—"],
     ...(q.crNumber
       ? [
           [
@@ -181,24 +200,27 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                   </p>
                 </div>
               ) : null}
-              <div className="space-y-2 border-t pt-4">
-                <p className="text-xs text-muted-foreground">{t("selfCheck")}</p>
-                <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
-                  {SELF_CHECKS.map((k) => {
-                    const v = selfCheck[snake(k)] ?? selfCheck[k];
-                    const Icon = v === true ? CircleCheck : v === false ? MinusCircle : Circle;
-                    return (
-                      <li key={k} className="flex items-center gap-2">
-                        <Icon className="size-4 shrink-0 text-muted-foreground" />
-                        <span>{ti(`selfCheck.${k}`)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {v === true ? t("yes") : v === false ? t("no") : t("notAnswered")}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              {/* The self-check is asked on the public form only. */}
+              {q.source === "website" ? (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-xs text-muted-foreground">{t("selfCheck")}</p>
+                  <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+                    {SELF_CHECKS.map((k) => {
+                      const v = selfCheck[snake(k)] ?? selfCheck[k];
+                      const Icon = v === true ? CircleCheck : v === false ? MinusCircle : Circle;
+                      return (
+                        <li key={k} className="flex items-center gap-2">
+                          <Icon className="size-4 shrink-0 text-muted-foreground" />
+                          <span>{ti(`selfCheck.${k}`)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {v === true ? t("yes") : v === false ? t("no") : t("notAnswered")}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -296,7 +318,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                               ? t("events.conflict_checked", {
                                   status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
                                 })
-                              : ["submitted", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                              : ["submitted", "entered", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
                                 ? t(`events.${e.event}`)
                                 : e.event}
                       </span>{" "}
@@ -318,7 +340,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
           <Card className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">
               <CardDescription>{t("owner")}</CardDescription>
-              <CardTitle className="text-base">{nameOf(q.ownerUserId) ?? (q.ownerUserId ? "—" : t("unassigned"))}</CardTitle>
+              <CardTitle className="text-base">{nameOf(q.ownerUserId) ?? q.ownerName ?? (q.ownerUserId ? "—" : t("unassigned"))}</CardTitle>
             </CardHeader>
             {can.decide && !q.clientOrgId ? (
               <CardContent className="px-5">
@@ -419,6 +441,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     orgName={q.orgName ?? ""}
                     orgNameAr={q.orgNameAr ?? null}
                     clients={data.clients}
+                    existingClientId={q.source === "existing_client" ? q.sourceClientOrgId : null}
                     consultants={[
                       ...(data.leads ?? []).map((l) => ({ id: l.userId, name: l.name })),
                       ...data.team.filter((m) => m.role === "consultant" && !data.leads?.some((l) => l.userId === m.id)),
