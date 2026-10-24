@@ -108,6 +108,13 @@ export const POLICY = {
   "finding.write": { ...STAFF },
   "recommendation.read": { ...READ_WORK },
   "recommendation.write": { ...STAFF },
+  // The client's formal response (F10): agree, partly agree or disagree.
+  // The database decides who answers for the client (app_can_respond: the
+  // client admin, or the sponsor in a full engagement; firm staff only for a
+  // consultant-managed client). The firm confirms what it recorded and
+  // answers a response.
+  "recommendation.respond": { ...ALL_BUT_OWNER },
+  "recommendation_response.review": { ...STAFF },
 
   // Assessment templates belong to the firm. Its staff read them; the firm
   // admin and the consultants the admin names build and publish them (the

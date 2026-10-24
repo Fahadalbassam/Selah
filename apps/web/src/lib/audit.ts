@@ -21,6 +21,7 @@ export const AUDIT_AREAS = {
     "follow_up",
     "finding",
     "recommendation",
+    "recommendation_response",
   ],
   projects: [
     "project",

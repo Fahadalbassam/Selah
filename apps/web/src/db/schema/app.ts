@@ -534,6 +534,48 @@ export const recommendations = pgTable(
   (t) => [scopedFk("recommendations", t), departmentFk("recommendations", t), index("recommendations_project_idx").on(t.projectId)],
 );
 
+// The client's formal response to a recommendation (F10; IIA Global
+// Internal Audit Standards 14.4 and 15.1 want both positions on record):
+// agree, partly agree or disagree, with the reason, the planned action, who
+// at the client answers for it and by when. Append-only: a changed position
+// is a new response, and the latest counts. A consultant records it for a
+// client the firm manages (with how and when it was given), and a different
+// colleague confirms it. The firm may answer each response once. Selah keeps
+// the record; it never judges who is right. See the recommendation_responses
+// migration.
+export const responseStance = pgEnum("response_stance", ["agree", "partly_agree", "disagree"]);
+export const recommendationResponses = pgTable(
+  "recommendation_responses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    recommendationId: uuid("recommendation_id")
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "cascade" }),
+    stance: responseStance("stance").notNull(),
+    reason: text("reason"),
+    plannedAction: text("planned_action"),
+    // The client person who answers for the planned action (a name or job title).
+    actionOwner: text("action_owner"),
+    targetDate: date("target_date"),
+    recordedBy: uuid("recorded_by")
+      .notNull()
+      .references(() => user.id),
+    ...recorded(),
+    confirmedBy: uuid("confirmed_by").references(() => user.id),
+    confirmedAt: ts("confirmed_at"),
+    firmReply: text("firm_reply"),
+    repliedBy: uuid("replied_by").references(() => user.id),
+    repliedAt: ts("replied_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    scopedFk("recommendation_responses", t),
+    index("recommendation_responses_rec_idx").on(t.recommendationId, t.createdAt),
+    ...recordedChecks("recommendation_responses", t),
+  ],
+);
+
 // Status moves are checked twice: by authz/workflow.ts (who may move it) and
 // by a database trigger (which moves exist at all).
 export const actions = pgTable(

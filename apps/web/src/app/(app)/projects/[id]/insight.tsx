@@ -70,7 +70,7 @@ export function SinceLastVisit(props: {
 }
 
 export interface DeviationRow {
-  entityType: "action" | "kpi";
+  entityType: "action" | "kpi" | "recommendation";
   entityId: string;
   rule: string;
   detail: Record<string, string | number | null>;
@@ -94,6 +94,9 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
     if (r.rule === "kpi_not_reported" || r.rule === "kpi_off_target") {
       const period = d.period_start ? format.dateTime(new Date(String(d.period_start)), { dateStyle: "medium" }) : "—";
       return t(`detail.${r.rule}`, { period });
+    }
+    if (r.rule === "disputed") {
+      return t("detail.disputed", { date: d.since ? format.dateTime(new Date(String(d.since)), { dateStyle: "medium" }) : "—" });
     }
     return t(`detail.${r.rule}`);
   };
@@ -126,8 +129,12 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
                 {rows.map((r) => (
                   <TableRow key={`${r.entityId}-${r.rule}`}>
                     <TableCell className="max-w-80">
-                      {r.entityType === "action" ? (
-                        <Link href={`/actions/${r.entityId}`} className="block truncate font-medium hover:underline">
+                      {r.entityType !== "kpi" ? (
+                        <Link
+                          href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
+                          className="block truncate font-medium hover:underline"
+                          dir="auto"
+                        >
                           {r.title}
                         </Link>
                       ) : (
@@ -141,7 +148,7 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
                       <span title={t(`rules.${r.rule}.hint`)}>{t(`rules.${r.rule}.name`)}</span>
                     </TableCell>
                     <TableCell
-                      className={cn("tabular-nums", (r.rule === "overdue" || r.rule === "orphaned") && "text-destructive")}
+                      className={cn("tabular-nums", (r.rule === "overdue" || r.rule === "orphaned" || r.rule === "disputed") && "text-destructive")}
                     >
                       {detail(r)}
                     </TableCell>

@@ -19,6 +19,7 @@ import { ExportButton } from "@/components/export-button";
 import { FileActions } from "@/components/file-actions";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
+import { StanceBadge } from "@/components/stance-badge";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -410,8 +411,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 <Card key={r.id} className={cn("gap-4 py-5 shadow-xs", r.withdrawnAt && "bg-muted/40")}>
                   <CardHeader className="px-5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className={cn("text-base", r.withdrawnAt && "text-muted-foreground line-through")}>{r.title}</CardTitle>
+                      <CardTitle className={cn("text-base", r.withdrawnAt && "text-muted-foreground line-through")}>
+                        <Link href={`/recommendations/${r.id}`} className="hover:underline" dir="auto">
+                          {r.title}
+                        </Link>
+                      </CardTitle>
                       {r.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}
+                      {r.stance ? <StanceBadge stance={r.stance} /> : null}
                       <Badge variant="outline">
                         {t("priority")}: {tPrio(r.priority)}
                       </Badge>
