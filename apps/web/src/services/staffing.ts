@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
+  actions,
   clientAssignments,
   joinRequests,
   notifications,
@@ -13,7 +14,7 @@ import {
   user,
   watches,
 } from "@/db/schema";
-import { assertAllowed, authorize, type EngagementMode, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, CLIENT_ROLES, OPEN_STATUSES, type EngagementMode, type Principal, type Resource, type Role } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
@@ -131,11 +132,21 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
         .orderBy(asc(joinRequests.createdAt))
     : [];
 
+  // In phase order, then by start; RLS leaves out the ones this user can't open.
   const clientProjects = await tx
-    .select({ id: projects.id, title: projects.title, state: projects.state })
+    .select({
+      id: projects.id,
+      title: projects.title,
+      state: projects.state,
+      sequence: projects.sequence,
+      startDate: projects.startDate,
+      endDate: projects.endDate,
+      plannedWorkingDays: projects.plannedWorkingDays,
+      followsProjectId: projects.followsProjectId,
+    })
     .from(projects)
     .where(eq(projects.orgId, clientOrgId))
-    .orderBy(asc(projects.title));
+    .orderBy(sql`${projects.sequence} nulls last`, sql`${projects.startDate} nulls last`, asc(projects.title));
 
   const canWatch = authorize(principal, "project.watch", { ...resource, type: "organization" }).allowed;
   const watching = canWatch ? await isWatching(tx, principal, { clientOrgId }) : false;
@@ -152,6 +163,7 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
       setLead: canSetLead,
       decide: canDecide,
       watch: canWatch,
+      createProject: authorize(principal, "project.create", { ...resource, type: "project", projectKind: "client" }).allowed,
       // The legal form decides which criteria bind this client (docs/assessments.md).
       setLegalForm: authorize(principal, "organization.engagement", { ...resource, type: "organization" }).allowed,
     },
@@ -323,6 +335,94 @@ export async function createInternalProject(tx: Tx, principal: Principal, input:
 
 // ------------------------------------------------------------ projects
 
+/** What a client project records about its phase (option B: one client, many projects). */
+export interface PhaseInput {
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  sequence?: number | null;
+  plannedWorkingDays?: number | null;
+  followsProjectId?: string | null;
+}
+
+async function assertFollows(tx: Tx, clientOrgId: string, followsProjectId: string | null | undefined, self?: string) {
+  if (!followsProjectId) return;
+  const [p] = await tx
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, followsProjectId), eq(projects.orgId, clientOrgId), eq(projects.kind, "client")))
+    .limit(1);
+  if (!p || p.id === self) throw new BadRequestError("a project can only follow another project of the same client");
+}
+
+function assertDates(input: Pick<PhaseInput, "startDate" | "endDate">) {
+  if (input.startDate && input.endDate && input.endDate < input.startDate) throw new BadRequestError("the end date is before the start date");
+}
+
+/**
+ * A new project for a client: a phase, a follow-on scope or a retainer. The
+ * firm admin and the client's lead consultant create them. Starts planned.
+ */
+export async function createClientProject(tx: Tx, principal: Principal, clientOrgId: string, input: PhaseInput) {
+  assertAllowed(principal, "project.create", {
+    type: "project",
+    orgId: clientOrgId,
+    firmOrgId: principal.orgId,
+    projectId: null,
+    projectKind: "client",
+    clientOrgId,
+  });
+  const [client] = await tx
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(and(eq(organizations.id, clientOrgId), eq(organizations.kind, "client"), eq(organizations.status, "active")))
+    .limit(1);
+  if (!client) throw new NotFoundError("client");
+  assertDates(input);
+  await assertFollows(tx, clientOrgId, input.followsProjectId);
+  const id = randomUUID();
+  // No RETURNING, as for internal projects.
+  await tx.insert(projects).values({
+    id,
+    kind: "client",
+    orgId: clientOrgId,
+    firmOrgId: principal.orgId,
+    title: input.title,
+    description: input.description ?? null,
+    state: "planned",
+    startDate: input.startDate ?? null,
+    endDate: input.endDate ?? null,
+    sequence: input.sequence ?? null,
+    plannedWorkingDays: input.plannedWorkingDays ?? null,
+    followsProjectId: input.followsProjectId ?? null,
+    createdBy: principal.userId,
+  });
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.create", resourceType: "project", resourceId: id, outcome: "allow", meta: { clientOrgId } });
+  return { id };
+}
+
+/** The firm admin corrects a project's title, dates or place in the client's phases. */
+export async function updateProject(tx: Tx, principal: Principal, projectId: string, input: Partial<PhaseInput>) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "project.update", resource);
+  const [current] = await tx
+    .select({ startDate: projects.startDate, endDate: projects.endDate })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  assertDates({ startDate: input.startDate === undefined ? current?.startDate : input.startDate, endDate: input.endDate === undefined ? current?.endDate : input.endDate });
+  if (project.kind !== "client" && (input.sequence != null || input.plannedWorkingDays != null || input.followsProjectId != null)) {
+    throw new BadRequestError("only client projects have phases");
+  }
+  if (input.followsProjectId !== undefined) await assertFollows(tx, project.orgId, input.followsProjectId, projectId);
+  const set = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+  if (Object.keys(set).length) await tx.update(projects).set(set).where(eq(projects.id, projectId));
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.update", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { fields: Object.keys(set).join(",") } });
+  return { ok: true };
+}
+
+
 /** Load a project the user may read. Unknown and forbidden look the same (404). */
 export async function loadProject(tx: Tx, principal: Principal, projectId: string) {
   const [p] = await tx
@@ -394,13 +494,24 @@ export async function getProjectTeam(tx: Tx, principal: Principal, projectId: st
       : [];
 
   const canWatch = authorize(principal, "project.watch", resource).allowed;
+  const canEdit = authorize(principal, "project.update", resource).allowed;
+  // Other projects of the same client, for the "follows" choice when editing.
+  const siblings =
+    canEdit && project.kind === "client"
+      ? await tx
+          .select({ id: projects.id, title: projects.title })
+          .from(projects)
+          .where(and(eq(projects.orgId, project.orgId), sql`${projects.id} <> ${projectId}`))
+          .orderBy(sql`${projects.sequence} nulls last`, asc(projects.title))
+      : [];
   return {
+    siblings,
     clientLead: clientLead ?? null,
     firm,
     client,
     candidates,
     watching: canWatch ? await isWatching(tx, principal, { projectId }) : false,
-    can: { manage: canManage, watch: canWatch },
+    can: { manage: canManage, watch: canWatch, edit: canEdit },
   };
 }
 
@@ -455,6 +566,111 @@ export async function unstaffProject(tx: Tx, principal: Principal, projectId: st
   if (row.isLead && principal.role !== "firm_admin") throw new BadRequestError("the project lead cannot be removed");
   await tx.delete(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
   await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.unstaff", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
+  return { ok: true };
+}
+
+// ------------------------------------------------------------ client people
+
+/**
+ * The client's own people on one client project. Client managers and action
+ * owners see only the projects they are on, and an action's owner must be
+ * on its project, so this is how a client takes part. The firm admin, the
+ * client's admin and the client's lead consultant add and remove them; firm
+ * staff on the project see the list. What the client's mode allows: any
+ * client role (full), client admins only (restricted), nobody with an
+ * account (consultant-managed: the firm records for named people instead).
+ */
+export async function getProjectPeople(tx: Tx, principal: Principal, projectId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  if (project.kind !== "client") return null;
+  if (principal.orgKind === "client" && principal.role !== "client_admin") return null;
+  const [org] = await tx
+    .select({ engagementMode: organizations.engagementMode })
+    .from(organizations)
+    .where(eq(organizations.id, project.orgId))
+    .limit(1);
+  const people = await tx
+    .select({ userId: user.id, name: user.name, email: user.email, role: orgMemberships.role, active: orgMemberships.active })
+    .from(projectMembers)
+    .innerJoin(user, eq(user.id, projectMembers.userId))
+    .innerJoin(orgMemberships, and(eq(orgMemberships.userId, projectMembers.userId), eq(orgMemberships.orgId, project.orgId)))
+    .where(eq(projectMembers.projectId, projectId))
+    .orderBy(asc(user.name));
+  // Open actions each person owns here: they can't come off until those are reassigned.
+  const owned = await tx
+    .select({ userId: actions.ownerUserId, n: sql<number>`count(*)::int` })
+    .from(actions)
+    .where(and(eq(actions.projectId, projectId), inArray(actions.status, [...OPEN_STATUSES])))
+    .groupBy(actions.ownerUserId);
+  const openOwned = new Map(owned.map((o) => [o.userId, o.n]));
+
+  const canManage = authorize(principal, "project.manage_members", resource).allowed;
+  const onProject = new Set(people.map((p) => p.userId));
+  const candidates = canManage
+    ? (
+        await tx
+          .select({ userId: user.id, name: user.name, email: user.email, role: orgMemberships.role })
+          .from(orgMemberships)
+          .innerJoin(user, eq(user.id, orgMemberships.userId))
+          .where(
+            and(eq(orgMemberships.orgId, project.orgId), eq(orgMemberships.active, true), inArray(orgMemberships.role, [...CLIENT_ROLES])),
+          )
+          .orderBy(asc(user.name))
+      ).filter((c) => !onProject.has(c.userId))
+    : [];
+  return {
+    mode: org?.engagementMode ?? "full",
+    people: people.map((p) => ({ ...p, openActions: openOwned.get(p.userId) ?? 0 })),
+    candidates,
+    can: { manage: canManage },
+  };
+}
+
+async function clientMember(tx: Tx, clientOrgId: string, userId: string) {
+  const [m] = await tx
+    .select({ role: orgMemberships.role })
+    .from(orgMemberships)
+    .where(and(eq(orgMemberships.userId, userId), eq(orgMemberships.orgId, clientOrgId), eq(orgMemberships.active, true)))
+    .limit(1);
+  return m && (CLIENT_ROLES as readonly Role[]).includes(m.role) ? m : null;
+}
+
+/** Put one of the client's own people on a client project. */
+export async function addProjectPerson(tx: Tx, principal: Principal, projectId: string, userId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "project.manage_members", resource);
+  if (project.kind !== "client") throw new BadRequestError("internal projects have no client people");
+  if (!(await clientMember(tx, project.orgId, userId))) throw new BadRequestError("only the client's own active people can be added");
+  const inserted = await tx
+    .insert(projectMembers)
+    .values({ projectId, userId, addedBy: principal.userId })
+    .onConflictDoNothing()
+    .returning({ userId: projectMembers.userId });
+  if (inserted.length && userId !== principal.userId) {
+    await tx.insert(notifications).values({ userId, kind: "project.added", entityType: "project", entityId: projectId });
+  }
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.add_person", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
+  return { ok: true };
+}
+
+/** Take one of the client's people off a project. Refused while they own open actions there. */
+export async function removeProjectPerson(tx: Tx, principal: Principal, projectId: string, userId: string) {
+  const { project, resource } = await loadProject(tx, principal, projectId);
+  assertAllowed(principal, "project.manage_members", resource);
+  const [row] = await tx
+    .select({ userId: projectMembers.userId })
+    .from(projectMembers)
+    .innerJoin(orgMemberships, and(eq(orgMemberships.userId, projectMembers.userId), eq(orgMemberships.orgId, project.orgId)))
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+    .limit(1);
+  if (!row || project.kind !== "client") throw new NotFoundError("member");
+  const [open] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(actions)
+    .where(and(eq(actions.projectId, projectId), eq(actions.ownerUserId, userId), inArray(actions.status, [...OPEN_STATUSES])));
+  if (open && open.n > 0) throw new ConflictError("this person still owns open actions on the project: reassign them first");
+  await tx.delete(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.remove_person", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
   return { ok: true };
 }
 
