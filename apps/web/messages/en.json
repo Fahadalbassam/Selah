@@ -3147,7 +3147,8 @@
       "two_factor_reset": "Two-factor sign-in reset by an admin",
       "user_email_change": "Sign-in address changed",
       "user_erase": "Personal details erased",
-      "user_name_alt": "Name in the other language changed"
+      "user_name_alt": "Name in the other language changed",
+      "closure_export": "Closing report exported"
     },
     "csv": {
       "time": "Time (UTC)",
