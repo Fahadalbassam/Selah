@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Every API route must be built with route() from src/server/http.ts, which
@@ -41,7 +41,8 @@ describe("API route guard", () => {
     expect(files.length).toBeGreaterThan(Object.keys(EXEMPT).length);
   });
 
-  it.each(files.map((f) => relative(API_DIR, f)))("%s goes through route()", (file) => {
+  // Forward slashes on Windows too, to match the lists above.
+  it.each(files.map((f) => relative(API_DIR, f).split(sep).join("/")))("%s goes through route()", (file) => {
     if (file in EXEMPT) return;
     const source = readFileSync(join(API_DIR, file), "utf8");
     expect(source).toMatch(/from "@\/server\/http"/);

@@ -1,0 +1,14 @@
+{
+  "name": "selah",
+  "private": true,
+  "description": "Shortcuts for running Selah on this machine. The app itself is in apps/web.",
+  "scripts": {
+    "dev:local": "node scripts/local.mjs dev",
+    "test:all": "node scripts/local.mjs test",
+    "stop:local": "node scripts/local.mjs stop",
+    "reset:local": "node scripts/local.mjs reset"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
