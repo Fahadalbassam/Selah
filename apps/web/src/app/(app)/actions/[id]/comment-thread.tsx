@@ -5,7 +5,7 @@ import { Send } from "@/components/animate-ui/icons/send";
 import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { ASK_EVENT, THREAD_ANCHOR } from "@/lib/help";
 
 interface Person {
   id: string;
@@ -55,12 +56,15 @@ export function CommentThread({
   people,
   canWrite,
   firmView,
+  askMention,
 }: {
   actionId: string;
   comments: Comment[];
   people: Person[];
   canWrite: boolean;
   firmView: boolean;
+  /** Client side (F13): who "Ask your consultant" mentions, the client's lead when they can see the action. */
+  askMention?: string | null;
 }) {
   const t = useTranslations("action.thread");
   const format = useFormatter();
@@ -72,6 +76,19 @@ export function CommentThread({
   const [confirm, dialog] = useConfirm();
   const when = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short" });
   const byId = new Map(people.map((p) => [p.id, p]));
+  const box = useRef<HTMLTextAreaElement>(null);
+
+  // "Ask your consultant" in the page header brings the reader here, with the lead mentioned.
+  useEffect(() => {
+    const ask = () => {
+      const lead = askMention;
+      if (lead && people.some((p) => p.id === lead)) setMentions((m) => (m.includes(lead) ? m : [...m, lead]));
+      box.current?.scrollIntoView({ block: "center" });
+      box.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener(ASK_EVENT, ask);
+    return () => window.removeEventListener(ASK_EVENT, ask);
+  }, [askMention, people]);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -98,7 +115,7 @@ export function CommentThread({
   const toggle = (id: string, on: boolean) => setMentions((m) => (on ? [...m, id] : m.filter((x) => x !== id)));
 
   return (
-    <Card className="gap-4 py-5 shadow-xs">
+    <Card id={THREAD_ANCHOR} className="scroll-mt-16 gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-base">{t("title")}</CardTitle>
         <CardDescription>{firmView ? t("hintFirm") : t("hintClient")}</CardDescription>
@@ -148,6 +165,7 @@ export function CommentThread({
               {t("label")}
             </Label>
             <Textarea
+              ref={box}
               id={`thread-${actionId}`}
               value={body}
               onChange={(e) => setBody(e.target.value)}

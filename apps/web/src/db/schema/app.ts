@@ -2994,3 +2994,33 @@ export const clientExportPacks = pgTable(
     check("export_pack_locale", sql`locale IN ('ar', 'en')`),
   ],
 );
+
+// A technical problem a client person reports from the help page (F13). It
+// goes to the firm's admins (a notification and a mail that carry no text);
+// they read it on their notifications page and mark it handled. The person
+// reads their own; nobody else. Written only by app_report_problem(), at
+// most five a day per person (lib/help.ts).
+export const supportRequests = pgTable(
+  "support_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    handledAt: ts("handled_at"),
+    handledBy: uuid("handled_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("support_requests_user_idx").on(t.userId, t.createdAt),
+    index("support_requests_firm_idx").on(t.firmOrgId, t.createdAt),
+    check("support_body", sql`length(btrim(body)) BETWEEN 1 AND 2000`),
+  ],
+);

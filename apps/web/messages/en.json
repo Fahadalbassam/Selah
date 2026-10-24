@@ -28,7 +28,8 @@
     "oversight": "Oversight",
     "allClients": "All clients",
     "clientGroups": "Client groups",
-    "group": "Our group"
+    "group": "Our group",
+    "help": "Help"
   },
   "header": {
     "language": "العربية",
@@ -1800,7 +1801,9 @@
       "client_deputy": "You are now the deputy consultant for {title}",
       "pulse_requested": "{title} is closed: tell the firm how it went",
       "pulse_low_score": "A client gave a low score in the closing pulse for {title}",
-      "case_study_revoked": "The client withdrew its case-study consent for {title}"
+      "case_study_revoked": "The client withdrew its case-study consent for {title}",
+      "support_requested": "Someone at {title} reported a technical problem",
+      "support_handled": "The firm handled the problem you reported"
     },
     "mail": {
       "section": "Mail",
@@ -3663,7 +3666,9 @@
       "info_request_link_create": "Upload link sent",
       "info_request_link_revoke": "Upload link revoked",
       "info_request_link_opened": "Upload link opened",
-      "info_request_link_upload": "File sent through an upload link"
+      "info_request_link_upload": "File sent through an upload link",
+      "support_request_create": "Technical problem reported",
+      "support_request_handle": "Reported problem marked handled"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4328,5 +4333,161 @@
     "full": "This link has taken all the files it can. Ask the person who sent it for a new one.",
     "deadTitle": "This link doesn't work",
     "dead": "It may have expired or been withdrawn, or the request is already settled. Ask the person who sent it for a new one."
+  },
+  "help": {
+    "title": "Help",
+    "description": "Ask about your work, or tell the firm about a technical problem.",
+    "steps": {
+      "title": "First steps",
+      "description": "Three things to do first in your role ({role}).",
+      "client_admin": {
+        "0": {
+          "title": "Invite your people",
+          "body": "On Team, invite the managers and action owners who will do the work. Each gets a link by mail that works for 7 days.",
+          "link": "Open Team"
+        },
+        "1": {
+          "title": "Add them to their projects",
+          "body": "On a project's Team tab, add the people who work on it. Managers and action owners see only the projects they are on.",
+          "link": "Open Projects"
+        },
+        "2": {
+          "title": "Follow the work",
+          "body": "Overview shows the same numbers the firm sees, and what needs your follow-up: overdue, blocked and returned actions.",
+          "link": "Open Overview"
+        }
+      },
+      "client_admin_restricted": {
+        "0": {
+          "title": "Answer the recommendations",
+          "body": "When the firm shares a recommendation, you record whether your company agrees, partly agrees or disagrees, with your reasons.",
+          "link": "Open Projects"
+        },
+        "1": {
+          "title": "Keep your files private until you share them",
+          "body": "Files your company adds stay private from the firm's users until an admin shares them. Evidence you submit is shared, because the firm must see it to verify the work.",
+          "link": ""
+        },
+        "2": {
+          "title": "Follow the work",
+          "body": "Overview shows the same numbers the firm sees, and what needs your follow-up: overdue, blocked and returned actions.",
+          "link": "Open Overview"
+        }
+      },
+      "client_manager": {
+        "0": {
+          "title": "See what needs follow-up",
+          "body": "Overview lists the actions on your projects that are overdue, blocked or returned with a revision request.",
+          "link": "Open Overview"
+        },
+        "1": {
+          "title": "Record progress on an action",
+          "body": "Open an action, press Start work, and add progress notes and evidence as the work moves.",
+          "link": "Open Actions"
+        },
+        "2": {
+          "title": "Send it for review",
+          "body": "When the work is done, press Submit for review with the evidence. Only the consultant's review marks it Verified complete.",
+          "link": "Open Actions"
+        }
+      },
+      "action_owner": {
+        "0": {
+          "title": "Open your actions",
+          "body": "My actions lists the actions assigned to you, soonest due first.",
+          "link": "Open My actions"
+        },
+        "1": {
+          "title": "Start, and attach the evidence",
+          "body": "Press Start work. The action page shows the evidence the consultant expects; attach it there.",
+          "link": "Open My actions"
+        },
+        "2": {
+          "title": "Submit for review",
+          "body": "Press Submit for review. The consultant accepts it or asks for changes, and you are told either way.",
+          "link": "Open My actions"
+        }
+      }
+    },
+    "ask": {
+      "title": "Ask your consultant",
+      "lead": "For questions about a piece of work.",
+      "body": "A question about an action belongs on that action. Open it and press \"Ask your consultant\": it takes you to the action's discussion with your lead consultant mentioned, so they are notified. Everyone who can see the action reads the discussion, and the answer stays with the work.",
+      "button": "Ask your consultant",
+      "readOnly": "Your company's records are read-only while it leaves Selah, so new comments can't be written. You can still report a technical problem, or write to your consultants below.",
+      "openTitle": "Your open actions",
+      "openHint": "Actions you own that are still being worked on. Open one to ask about it.",
+      "none": "You have no open actions of your own."
+    },
+    "problem": {
+      "title": "Technical problem",
+      "lead": "For something in Selah that doesn't work.",
+      "label": "What went wrong?",
+      "placeholder": "What you were doing, what you expected, and what happened instead.",
+      "hint": "This goes to the firm's administrators, not to your consultants. Up to {n} reports a day.",
+      "send": "Send report",
+      "sending": "Sending…",
+      "sent": "Report sent to the firm's administrators",
+      "cannot": "Reports can't be sent from your account.",
+      "yours": "Your reports",
+      "waiting": "Sent",
+      "handled": "Handled",
+      "errors": {
+        "limit": "You've sent {n} reports in the last 24 hours. Try again later.",
+        "generic": "The report wasn't sent. Reload the page and try again."
+      }
+    },
+    "consultants": {
+      "title": "Your consultants",
+      "description": "The firm's people who work with your company, with their work address for anything that doesn't fit an action.",
+      "lead": "Lead consultant",
+      "deputy": "Deputy",
+      "leadHint": "Leads the firm's work with your company.",
+      "deputyHint": "Stands in for the lead consultant.",
+      "onProject": "Consultants on this project",
+      "noLead": "The firm hasn't named a lead consultant for your company yet.",
+      "noneOnProject": "No consultant is on this project yet. Ask your lead consultant.",
+      "noProjects": "You aren't on a project yet. Your consultants will appear here when you are.",
+      "mail": "Write to {name}"
+    },
+    "faq": {
+      "title": "Questions people ask",
+      "states": {
+        "q": "What do the states of an action mean?",
+        "a": "Assigned: released to its owner; work hasn't started.\nIn progress: the owner started the work.\nBlocked: the owner said what is stopping the work, and the consultant sees the reason.\nAwaiting review: evidence was sent and a consultant is checking it.\nRevision requested: the consultant asked for changes and said why.\nVerified complete: a consultant reviewed the evidence and accepted it."
+      },
+      "claimed": {
+        "q": "Why isn't my finished work shown as complete?",
+        "a": "What your company records is a claim. In progress and Awaiting review show work you reported, not work that was checked. Only a consultant's review marks an action Verified complete, and only that state is green. A consultant can reopen it later, with a reason."
+      },
+      "awaiting": {
+        "q": "My action says \"Waiting for the consultant's decision\". What now?",
+        "a": "Nothing more is needed from you. The consultant reviews the evidence and either accepts it or requests a revision, and you get a notification either way. If you have a question meanwhile, press \"Ask your consultant\" on the action."
+      },
+      "revision": {
+        "q": "A revision was requested. What do I do?",
+        "a": "Read the consultant's reason in the action's history. Press Resume work, make the changes, then press Submit for review again with the new evidence."
+      },
+      "blocked": {
+        "q": "Something outside my control is stopping the work.",
+        "a": "While the action is in progress, press Mark as blocked and say what is in the way; the consultant sees it. When it's cleared, press Resume work."
+      },
+      "dueDate": {
+        "q": "I need more time.",
+        "a": "On the action, under Due date changes, press Ask for a new date: propose a date and say why. The consultant approves or declines it."
+      },
+      "whoSees": {
+        "q": "Who reads what I write in an action's discussion?",
+        "a": "Everyone who can see the action: the consultants on the project and the people at your company who can open it. Mention someone to send them a notification; only people who can see the action can be mentioned."
+      }
+    },
+    "support": {
+      "title": "Problems reported by clients",
+      "description": "Technical problems client people sent from their help page. Answer them by mail, then mark each one handled; they are told in Selah.",
+      "none": "No problems reported.",
+      "open": "Open",
+      "handled": "Handled",
+      "handle": "Mark handled"
+    }
   }
 }

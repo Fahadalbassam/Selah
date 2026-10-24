@@ -27,7 +27,9 @@ import { actionClosure, actionFollowThrough, actionLadder, listActionNotes, mail
 import { isActionMuted } from "@/services/notifications";
 import { getActionDetail } from "@/services/queries";
 import { actionSlip } from "@/services/slips";
+import { askMentionFor } from "@/services/help";
 import { ActionPanel } from "./action-panel";
+import { AskConsultant } from "./ask-consultant";
 import { CommentThread } from "./comment-thread";
 import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
@@ -44,7 +46,7 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       ladder: await actionLadder(tx, principal, id),
@@ -58,6 +60,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       // Firm-only notes; anyone who may not read them (every client role) gets null.
       notes: await listActionNotes(tx, principal, id).catch(() => null),
       thread: await actionThread(tx, principal, id),
+      // Client side: whom "Ask your consultant" mentions (F13).
+      leads: await askMentionFor(tx, principal),
       slip: await actionSlip(tx, data.action.projectId, id),
       // Internal projects have no departments.
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
@@ -76,6 +80,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
   const ar = (await getLocale()) === "ar";
   const { action, context } = data;
   const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  // The first of the client's lead and deputy who can see this action.
+  const askMention = leads?.find((u) => thread.people.some((p) => p.id === u)) ?? null;
 
   return (
     <>
@@ -84,6 +90,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         {t("back")}
       </Link>
       <PageHeader title={action.title} meta={<StatusBadge status={action.status} />}>
+        {leads && thread.can.write ? <AskConsultant /> : null}
         <MuteButton actionId={action.id} muted={muted} />
         {data.firmStaff ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
       </PageHeader>
@@ -129,7 +136,14 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
 
           <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} firmView={firmView} canSubmit={data.can.submitEvidence} />
 
-          <CommentThread actionId={action.id} comments={thread.comments} people={thread.people} canWrite={thread.can.write} firmView={firmView} />
+          <CommentThread
+            actionId={action.id}
+            comments={thread.comments}
+            people={thread.people}
+            canWrite={thread.can.write}
+            firmView={firmView}
+            askMention={askMention}
+          />
 
           {notes ? (
             <Card className="gap-4 py-5 shadow-xs">

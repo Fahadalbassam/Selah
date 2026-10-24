@@ -262,6 +262,16 @@ export const POLICY = {
   "consultant_profile.update_own": { consultant: "own" },
   "lead_suggestion.read": { firm_admin: "any" },
 
+  // Help (F13): a client's people read who their consultants are and report
+  // a technical problem to the firm's admins (the database decides:
+  // app_my_consultants, app_report_problem, at most five a day). The firm
+  // admin reads the reports and marks them handled; a client person reads
+  // only their own. Firm staff have no help page.
+  "help.read": { client_admin: "any", client_manager: "any", action_owner: "any" },
+  "support_request.create": { client_admin: "any", client_manager: "any", action_owner: "any" },
+  "support_request.read": { firm_admin: "any", client_admin: "own", client_manager: "own", action_owner: "own" },
+  "support_request.handle": { firm_admin: "any" },
+
   // AI assistant. Whether client users get it is an open decision in the
   // spec; until it is made, only firm staff do. To enable client managers,
   // add `client_manager: "any"` here; retrieval rules stay the same.
@@ -338,6 +348,8 @@ export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>([
   "organization.export",
   // A client can withdraw case-study consent at any time, also while leaving (F37).
   "case_study.revoke",
+  // A technical problem (F13), say with the export pack, is still reported while leaving.
+  "support_request.create",
 ]);
 
 export function isReadPermission(permission: Permission): boolean {

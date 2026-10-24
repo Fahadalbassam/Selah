@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, Languages } from "lucide-react";
+import { ChevronsUpDown, Languages, LifeBuoy } from "lucide-react";
 import { LogOut } from "@/components/animate-ui/icons/log-out";
 import { Moon } from "@/components/animate-ui/icons/moon";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
@@ -28,9 +28,11 @@ export interface NavUserProps {
   email: string;
   otherLocale: string;
   labels: { language: string; theme: string; security: string; signOut: string };
+  /** Client side (F13): the help page, also here where people look for their account. */
+  help?: { label: string; href: string };
 }
 
-export function NavUser({ name, email, otherLocale, labels }: NavUserProps) {
+export function NavUser({ name, email, otherLocale, labels, help }: NavUserProps) {
   const { isMobile } = useSidebar();
   const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
@@ -77,6 +79,12 @@ export function NavUser({ name, email, otherLocale, labels }: NavUserProps) {
                 <ShieldCheck />
                 {labels.security}
               </DropdownMenuItem>
+              {help ? (
+                <DropdownMenuItem onSelect={() => router.push(help.href)}>
+                  <LifeBuoy />
+                  {help.label}
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem

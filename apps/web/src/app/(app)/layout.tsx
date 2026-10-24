@@ -129,11 +129,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0)}
           orgKind={viewer.orgKind}
           railLabel={tHeader("toggleSidebar")}
+          // Help for the client's people (F13); firm staff have no help page.
+          help={viewer.orgKind === "client" ? { title: tNav("help"), href: "/help" } : undefined}
           user={{
             name: viewer.name,
             email: viewer.email,
             otherLocale: rtl ? "en" : "ar",
             labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
+            help: viewer.orgKind === "client" ? { label: tNav("help"), href: "/help" } : undefined,
           }}
         />
         {/* min-w-0: a wide table scrolls inside its card instead of pushing the page sideways. */}
