@@ -35,6 +35,7 @@ import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insi
 import { listMeetings, meetingInvitees } from "@/services/meetings";
 import { planOptions } from "@/services/plan";
 import { getProject, isOverdue } from "@/services/queries";
+import { listInfoRequests } from "@/services/info-requests";
 import { getProjectPeople, getProjectTeam } from "@/services/staffing";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { ProjectPeople } from "./project-people";
@@ -42,14 +43,19 @@ import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
 import { ClientRolesCard } from "./client-roles-card";
 import { HandoverCard } from "./handover-card";
+import { InfoRequestsTab } from "./info-requests-tab";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
 import { ProgressTab } from "./progress-tab";
 
-export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+const TABS = ["recs", "progress", "attention", "trace", "meetings", "assessments", "requests", "docs", "activity", "team"];
+
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
+  // A link may open a tab (a notification about a request opens the list).
+  const { tab } = await searchParams;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -85,6 +91,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       deviations: await projectDeviations(tx, principal, id).catch(() => null),
       trace: await projectTrace(tx, principal, id).catch(() => null),
       handover: await getHandover(tx, principal, id),
+      // What the firm asked the client for (client projects only).
+      requests: client ? await listInfoRequests(tx, principal, id).catch(() => null) : null,
     };
   });
   const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, tE, format] = await Promise.all([
@@ -191,7 +199,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
 
-      <Tabs defaultValue="recs" className="gap-4">
+      <Tabs defaultValue={tab && TABS.includes(tab) ? tab : "recs"} className="gap-4">
         {/* Up to ten tabs: scroll inside the bar at tablet width rather than widen the page. */}
         <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
@@ -205,6 +213,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {trace ? <TabsTrigger value="trace">{tInsight("trace.tab")}</TabsTrigger> : null}
           {meetings ? <TabsTrigger value="meetings">{t("meetings")}</TabsTrigger> : null}
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
+          {requests ? <TabsTrigger value="requests">{t("requests")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
           {team || people || roles ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
@@ -511,6 +520,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </TabsContent>
         ) : null}
 
+        {requests ? (
+          <TabsContent value="requests">
+            <InfoRequestsTab projectId={project.id} list={requests} />
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="docs">
           {data.documents.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noDocs")}</p>
@@ -554,7 +569,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   <span className="font-medium">{e.actorName ?? "—"}</span>{" "}
                   {e.fromState && e.toState
                     ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
-                    : e.event}
+                    : t.has(`events.${e.event}`)
+                      ? t(`events.${e.event}` as never)
+                      : e.event}
                   <div className="text-xs text-muted-foreground">{format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "short" })}</div>
                 </li>
               ))}

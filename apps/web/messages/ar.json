@@ -112,7 +112,19 @@
     "noMeetings": "لا توجد اجتماعات بعد.",
     "assessments": "التقييمات",
     "noAssessments": "لا توجد تقييمات بعد.",
-    "noAssessmentsClient": "لم تُشارك معكم أي تقييمات بعد."
+    "noAssessmentsClient": "لم تُشارك معكم أي تقييمات بعد.",
+    "requests": "الطلبات",
+    "events": {
+      "info_request_added": "طلب مستندًا",
+      "info_requests_added": "أضاف بنودًا من القائمة المبدئية",
+      "info_request_answered": "أرسل ملفًا لطلب",
+      "info_request_file_removed": "أزال ملفًا من طلب",
+      "info_request_reviewed": "راجع طلبًا",
+      "info_request_returned": "أعاد طلبًا مع ذكر السبب",
+      "info_request_reopened": "أعاد طلب بند سبق وصفه بأنه لا ينطبق",
+      "info_request_not_applicable": "وصف طلبًا بأنه لا ينطبق",
+      "info_request_removed": "حذف طلبًا"
+    }
   },
   "priority": {
     "low": "منخفضة",
@@ -1551,7 +1563,11 @@
       "inquiry_assigned": "أُسند إليك طلب {title}",
       "access_review_due": "حان وقت مراجعة صلاحيات الدخول في {title}",
       "other": "حدث تغيير في {title}",
-      "project_added": "أُضفت إلى مشروع {title}"
+      "project_added": "أُضفت إلى مشروع {title}",
+      "info_request_requested": "طُلبت منك مستندات في {title}",
+      "info_request_returned": "أُعيد إليك مستند أرسلته في {title}",
+      "info_request_received": "أرسل العميل مستندًا مطلوبًا في {title}",
+      "info_request_not_applicable": "وصف العميل بندًا مطلوبًا بأنه لا ينطبق في {title}"
     }
   },
   "people": {
@@ -2636,5 +2652,84 @@
       }
     },
     "choose": "اختر"
+  },
+  "infoRequests": {
+    "title": "طلبات المعلومات",
+    "hintFirm": "اذكر ما تحتاجه من العميل: يرى العميل كل بند ويرسل الملفات له، وتراجع أنت ما يصل.",
+    "hintClient": "ما تحتاجه الشركة منكم لهذا المشروع.",
+    "overdueCount": "{n} متأخر",
+    "emptyFirm": "لم يُطلب شيء بعد. ابدأ من القائمة المبدئية أو أضف بندًا من عندك.",
+    "emptyClient": "لم تطلب الشركة أي شيء بعد.",
+    "add": "إضافة بند",
+    "fromList": "إضافة من القائمة المبدئية",
+    "fromListHint": "اختر ما ينبغي أن يرسله هذا العميل. البنود الموجودة في القائمة محددة مسبقًا. يُطبَّق المسؤول وتاريخ الاستحقاق على جميعها، ويمكنك تعديل كل بند لاحقًا.",
+    "addPicked": "{n, plural, =0 {إضافة} one {إضافة بند واحد} two {إضافة بندين} few {إضافة # بنود} many {إضافة # بندًا} other {إضافة # بند}}",
+    "addedCount": "{n, plural, =0 {لم يُضف شيء جديد} one {أُضيف بند واحد} two {أُضيف بندان} few {أُضيفت # بنود} many {أُضيف # بندًا} other {أُضيف # بند}}",
+    "pickSome": "اختر بندًا واحدًا على الأقل.",
+    "onList": "في القائمة",
+    "area": "المجال",
+    "areaPick": "اختر مجالًا",
+    "areas": {
+      "legal": "الشؤون القانونية والتسجيل",
+      "governance": "الحوكمة",
+      "strategy": "الاستراتيجية والأداء",
+      "finance": "المالية",
+      "people": "الموارد البشرية والتنظيم",
+      "family": "العائلة والملكية",
+      "operations": "العمليات",
+      "other": "أخرى"
+    },
+    "itemTitle": "ما تحتاجه",
+    "description": "تفاصيل للعميل",
+    "owner": "من يرسله",
+    "noOwner": "لم يُحدَّد أحد بعد",
+    "ownedBy": "من <who>{name}</who>",
+    "due": "تاريخ الاستحقاق",
+    "dueOn": "يستحق في {date}",
+    "overdueOn": "كان مستحقًا في {date}",
+    "overdue": "متأخر",
+    "sensitivity": "درجة الحساسية",
+    "standard": "عادي",
+    "confidentialOption": "سري (لا يقرؤه المساعد)",
+    "confidential": "سري",
+    "confidentialHint": "هذا البند سري: لن يقرأ المساعد الملف الذي ترسله له.",
+    "status": {
+      "requested": "بانتظار الإرسال",
+      "received": "مستلم",
+      "reviewed": "تمت مراجعته",
+      "not_applicable": "لا ينطبق"
+    },
+    "returnedNote": "أُعيد:",
+    "naNote": "لا ينطبق:",
+    "answer": "إرسال ملف",
+    "addFile": "إضافة ملف آخر",
+    "answerTitle": "إرسال ملف لهذا البند",
+    "uploadNew": "رفع ملف",
+    "sharedHint": "يُشارَك الملف مع الشركة ويُضاف إلى مستندات المشروع.",
+    "orExisting": "أو استخدم ملفًا موجودًا في المشروع",
+    "pickFile": "اختر ملفًا",
+    "useFile": "استخدام هذا الملف",
+    "answered": "أُرسل الملف",
+    "assistantFile": "المساعد يقرأ هذا الملف. أوقف قراءة المساعد له قبل استخدامه لبند سري.",
+    "removeFile": "إزالة {name} من هذا البند",
+    "removeFileConfirm": "هل تريد إزالة {name} من هذا البند؟ يبقى الملف في مستندات المشروع.",
+    "review": "تمت المراجعة",
+    "return": "إعادة",
+    "returnHint": "يعود البند إلى العميل مع السبب الذي تذكره، ويصله إشعار بذلك.",
+    "reopen": "طلبه مجددًا",
+    "reopenHint": "يعود البند إلى قائمة العميل مع السبب الذي تذكره.",
+    "notApplicable": "لا ينطبق",
+    "naHint": "اذكر سبب عدم انطباق هذا البند. ترى الشركة السبب الذي تذكره.",
+    "reason": "السبب",
+    "edit": "تعديل",
+    "remove": "حذف",
+    "removeConfirm": "هل تريد حذف «{title}» من القائمة؟ لا يمكن حذف إلا البنود التي لم يُرسل لها شيء.",
+    "total": "{n, plural, one {بند واحد} two {بندان} few {# بنود} many {# بندًا} other {# بند}}",
+    "counted": {
+      "requested": "بانتظار الإرسال",
+      "received": "مستلم",
+      "reviewed": "تمت مراجعته",
+      "not_applicable": "لا ينطبق"
+    }
   }
 }

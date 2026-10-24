@@ -36,6 +36,7 @@ export type ResourceType =
   | "action"
   | "action_note"
   | "evidence_request"
+  | "info_request"
   | "risk_acceptance"
   | "progress_update"
   | "deadline_request"

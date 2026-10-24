@@ -702,6 +702,65 @@ export const evidenceRequests = pgTable(
   (t) => [scopedFk("evidence_requests", t), index("evidence_requests_action_idx").on(t.actionId)],
 );
 
+// The project's information request list (wave 1, item 9): what the firm
+// needs from the client at kickoff, apart from any one action. Each item has
+// an owner at the client, a due date, a status and a sensitivity; a file
+// answers it, and one file may answer several.
+export const infoRequestStatus = pgEnum("info_request_status", ["requested", "received", "reviewed", "not_applicable"]);
+export const infoRequestArea = pgEnum("info_request_area", ["legal", "governance", "strategy", "finance", "people", "family", "operations", "other"]);
+export const infoRequestSensitivity = pgEnum("info_request_sensitivity", ["standard", "confidential"]);
+
+export const infoRequests = pgTable(
+  "info_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    area: infoRequestArea("area").notNull(),
+    // Set when the item came from the template list unchanged; the title then shows in the reader's language.
+    templateKey: text("template_key"),
+    title: text("title").notNull(),
+    description: text("description"),
+    sensitivity: infoRequestSensitivity("sensitivity").notNull().default("standard"),
+    // Who at the client gathers it.
+    ownerUserId: uuid("owner_user_id").references(() => user.id),
+    dueDate: date("due_date"),
+    status: infoRequestStatus("status").notNull().default("requested"),
+    // Why it was returned, or why it does not apply.
+    statusNote: text("status_note"),
+    statusBy: uuid("status_by").references(() => user.id),
+    statusAt: ts("status_at"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    scopedFk("info_requests", t),
+    index("info_requests_project_idx").on(t.projectId, t.status),
+    check("info_request_title", sql`length(btrim(${t.title})) BETWEEN 2 AND 200`),
+    check("info_request_description", sql`length(${t.description}) <= 2000`),
+    check("info_request_note", sql`length(${t.statusNote}) <= 1000`),
+  ],
+);
+
+export const infoRequestFiles = pgTable(
+  "info_request_files",
+  {
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => infoRequests.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    attachedBy: uuid("attached_by")
+      .notNull()
+      .references(() => user.id),
+    attachedAt: ts("attached_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requestId, t.documentId] }), index("info_request_files_document_idx").on(t.documentId)],
+);
+
 // A named client person accepting the risk of not implementing an action.
 // Append-only; an action closes as "risk_accepted" only with one of these.
 export const riskAcceptances = pgTable(
