@@ -344,7 +344,8 @@
       "pastDate": "The new date is in the past.",
       "sameDate": "That's already the due date.",
       "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened.",
-      "notShared": "Only files shared between the client and the firm can be used as evidence."
+      "notShared": "Only files shared between the client and the firm can be used as evidence.",
+      "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move."
     },
     "entry": {
       "update": "posted an update",
@@ -404,7 +405,18 @@
         "rejected": "Declined"
       },
       "approve": "Approve",
-      "reject": "Decline"
+      "reject": "Decline",
+      "original": "Originally due {date}",
+      "slipped": "{count, plural, one {Moved later once} other {Moved later # times}}, {days, plural, one {# day} other {# days}} past the original date",
+      "late": "{days, plural, one {# day} other {# days}} past the original date",
+      "raisedLate": "Asked after the due date",
+      "raisedLateHint": "The due date was {date} and had already passed when this was asked.",
+      "needsLead": "This would move the date later a third time, so the client's lead consultant or a firm admin decides it.",
+      "history": "Date history",
+      "moved": "{from} → {to}",
+      "movedByRequest": "Approved by {who} on {date}",
+      "movedByPlan": "Changed in the plan by {who} on {date}",
+      "movedOn": "On {date}"
     },
     "reopen": "Reopen",
     "reopenHint": "Reopening puts the action back in progress. Say why; everyone on the project sees it. A risk acceptance signed before now no longer counts.",
@@ -1395,7 +1407,20 @@
     "totals": "The team, last 90 days",
     "reviewsDone": "Reviews done",
     "medianReview": "Median days to review",
-    "days": "{n} days"
+    "days": "{n} days",
+    "aging": {
+      "d1_30": "1–30 days",
+      "d31_60": "31–60 days",
+      "d61_90": "61–90 days",
+      "d90_plus": "Over 90 days"
+    },
+    "extended": "Moved later",
+    "extendedHint": "Actions whose due date moved later at least once. {twice} of them moved twice or more.",
+    "slipDays": "Days slipped",
+    "slipDaysHint": "Days added past the dates agreed at release.",
+    "lateTitle": "Late against the original date",
+    "lateHint": "Open actions by how long they are past the date agreed at release.",
+    "lateNone": "No open action is past its original date."
   },
   "inbox": {
     "title": "Inquiries",
@@ -2392,7 +2417,8 @@
       "finding": "That finding isn't in this project.",
       "accountable": "The accountable person must be someone at the client who is on this project.",
       "findingWithdrawn": "That finding was withdrawn. Pick another one.",
-      "withdrawn": "It was withdrawn, so it can't change."
+      "withdrawn": "It was withdrawn, so it can't change.",
+      "needsLead": "The due date has already moved later twice. The client's lead consultant or a firm admin moves it again."
     },
     "changes": {
       "menu": "More for {title}",
@@ -2640,7 +2666,19 @@
     "noOwner": "No owner yet",
     "noActions": "No actions.",
     "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact.",
-    "footer": "Selah · exported {date}"
+    "footer": "Selah · exported {date}",
+    "extended": "Moved later",
+    "extendedTwice": "{n} of them twice or more",
+    "slipDays": "Days slipped",
+    "lateTitle": "Late against the original date",
+    "lateHint": "Open actions by how long they are past the date agreed at release.",
+    "movedMark": "(moved later {n}×)",
+    "aging": {
+      "d1_30": "1–30 days",
+      "d31_60": "31–60 days",
+      "d61_90": "61–90 days",
+      "d90_plus": "Over 90 days"
+    }
   },
   "phases": {
     "hint": "Each phase or separately agreed scope is its own project, in the order agreed with the client.",

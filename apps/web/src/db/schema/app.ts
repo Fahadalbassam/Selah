@@ -661,12 +661,37 @@ export const deadlineChangeRequests = pgTable(
       .references(() => user.id),
     proposedDueDate: date("proposed_due_date").notNull(),
     reason: text("reason").notNull(),
+    // The due date when it was asked, and whether that date had already
+    // passed (F17). Set by the database.
+    dueDateThen: date("due_date_then"),
+    raisedLate: boolean("raised_late").notNull().default(false),
     status: requestStatus("status").notNull().default("pending"),
     decidedBy: uuid("decided_by").references(() => user.id),
     decidedAt: ts("decided_at"),
     createdAt: createdAt(),
   },
   (t) => [scopedFk("deadline_change_requests", t)],
+);
+
+// Every change to a released action's due date (F17), written by the
+// database whenever the date moves: by an approved request (request_id) or
+// by the firm editing the plan. Append-only. Slip days and extensions are
+// read from it against the baseline date (actions.baseline_due_date).
+export const actionDueChanges = pgTable(
+  "action_due_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    fromDate: date("from_date"),
+    toDate: date("to_date"),
+    changedBy: uuid("changed_by").references(() => user.id),
+    requestId: uuid("request_id").references(() => deadlineChangeRequests.id),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("action_due_changes", t), index("action_due_changes_action_idx").on(t.actionId, t.createdAt)],
 );
 
 // ------------------------------------------------------------ documents

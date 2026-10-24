@@ -97,7 +97,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 ### J10 · Change, slips and disputes · التغيير والتأخير والخلاف
 
 - [x] **J10.1** Approve a new date — lane: firm · map: exists · wave: — · pr: #16
-- [ ] **J10.2** Slip history and aging — lane: firm · map: wave 1 · covered by: F17 · wave: 1
+- [x] **J10.2** Slip history and aging — lane: firm · map: wave 1 · covered by: F17 · wave: 1 · pr: #100
 - [ ] **J10.3** Scope change log — lane: firm · map: missing · covered by: F20 · wave: frozen
 - [x] **J10.4** Deadline request (firm: Approves or rejects; client: Asks for a new date) — lane: shared · map: exists · wave: — · pr: #16
 - [x] **J10.5** Signs a risk acceptance — lane: client · map: exists · wave: — · pr: #22
@@ -167,7 +167,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 - [ ] **F15** Saudi working calendar — tier: 4 · size: S–M · wave: frozen
 - [ ] **F16** Say what proves each recommendation — tier: 4 · size: M · wave: frozen
-- [ ] **F17** Slip history and aging — tier: 4 · size: S · wave: 1 · journey: J10.2
+- [x] **F17** Slip history and aging — tier: 4 · size: S · wave: 1 · journey: J10.2 · pr: #100
 - [ ] **F18** Firm-wide exceptions and engagement health — tier: 4 · size: M · wave: 1 · journey: J11.2
 - [ ] **F19** Scheduled status pack — tier: 4 · size: S–M · wave: 1 · journey: J11.3
 - [ ] **F20** Change request log — tier: 4 · size: S · wave: frozen · journey: J10.3

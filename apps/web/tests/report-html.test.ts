@@ -17,13 +17,28 @@ const input = (over: Partial<ReportHtmlInput["report"]> = {}, locale: "ar" | "en
     firmOnly: false,
     ...over,
   },
-  actions: [{ title: "Draft <b>charter</b>", recommendation: "Adopt a charter", owner: null, dueDate: "2027-02-01", status: "Blocked", overdue: true }],
+  actions: [{ title: "Draft <b>charter</b>", recommendation: "Adopt a charter", owner: null, dueDate: "2027-02-01", status: "Blocked", overdue: true, extensions: 2 }],
   exportedOn: "2027-04-10",
   t: (key, values) => `${key}${values ? JSON.stringify(values) : ""}`,
   outcome: (key) => `outcome.${key}`,
 });
 
 describe("report PDF page", () => {
+  it("shows slips and aging when the report froze them, and leaves them out of older reports (F17)", () => {
+    const old = renderReportHtml(input());
+    expect(old).not.toContain("lateTitle");
+    expect(old).toContain("movedMark");
+    const late = { d1_30: 1, d31_60: 0, d61_90: 2, d90_plus: 0 };
+    const html = renderReportHtml(
+      input({
+        metrics: { total: 10, verified: 4, partially: 1, riskAccepted: 0, notApplicable: 1, superseded: 1, open: 3, overdue: 2, implementedPct: 50, extended: 3, extendedTwice: 1, slipDays: 40, late },
+      }),
+    );
+    expect(html).toContain("lateTitle");
+    expect(html).toContain("aging.d61_90");
+    expect(html).toContain("extendedTwice");
+  });
+
   it("escapes everything people wrote and carries no script", () => {
     const html = renderReportHtml(input());
     expect(html).not.toMatch(/<script/i);

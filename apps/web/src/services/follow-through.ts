@@ -18,9 +18,11 @@ import {
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import type { LadderAudience } from "@/lib/mail-choices";
+import type { AgingBucket } from "@/lib/slips";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
 import { audit } from "./audit";
+import { canExtend } from "./slips";
 import { loadProject } from "./staffing";
 
 // What happens after the report is handed over: the evidence list for each
@@ -280,6 +282,10 @@ export async function decideDeadlineChange(tx: Tx, principal: Principal, request
   const { action, resource } = await actionFor(tx, principal, req.actionId, "deadline_request");
   assertAllowed(principal, "deadline_request.decide", resource);
   if (req.status !== "pending") throw new ConflictError("this request was already decided");
+  // The third move later needs the lead (app_can_extend; the database checks the same).
+  const later = !action.dueDate || req.proposedDueDate > isoDate(action.dueDate);
+  if (input.approve && later && !(await canExtend(tx, action.id)))
+    throw new ConflictError("a third extension needs the lead consultant or a firm admin");
   const status = input.approve ? "approved" : "rejected";
   await tx.update(deadlineChangeRequests).set({ status }).where(eq(deadlineChangeRequests.id, requestId));
   await activity(tx, principal, action, `deadline_change_${status}`, {
@@ -326,6 +332,8 @@ export async function actionFollowThrough(tx: Tx, principal: Principal, actionId
           proposedDueDate: deadlineChangeRequests.proposedDueDate,
           reason: deadlineChangeRequests.reason,
           status: deadlineChangeRequests.status,
+          dueDateThen: deadlineChangeRequests.dueDateThen,
+          raisedLate: deadlineChangeRequests.raisedLate,
           requestedBy: user.name,
           createdAt: deadlineChangeRequests.createdAt,
           decidedAt: deadlineChangeRequests.decidedAt,
@@ -367,6 +375,13 @@ export interface Progress {
   overdue: number;
   /** Null when no released action still applies. */
   implementedPct: number | null;
+  /** Actions whose date moved later at least once, and at least twice (F17). Missing on reports frozen before F17. */
+  extended?: number;
+  extendedTwice?: number;
+  /** Days added past the dates agreed at release, over all released actions. */
+  slipDays?: number;
+  /** Open actions by how long they are past the date agreed at release (lib/slips.ts AGING_BUCKETS). */
+  late?: Record<AgingBucket, number>;
 }
 
 /** The project's numbers, computed in Postgres under the caller's row-level security. */
@@ -387,6 +402,15 @@ export async function projectProgress(tx: Tx, principal: Principal, projectId: s
     open: Number(r.open),
     overdue: Number(r.overdue),
     implementedPct: r.implemented_pct === null ? null : Number(r.implemented_pct),
+    extended: Number(r.extended),
+    extendedTwice: Number(r.extended_twice),
+    slipDays: Number(r.slip_days),
+    late: {
+      d1_30: Number(r.late_d1_30),
+      d31_60: Number(r.late_d31_60),
+      d61_90: Number(r.late_d61_90),
+      d90_plus: Number(r.late_d90_plus),
+    },
   };
 }
 

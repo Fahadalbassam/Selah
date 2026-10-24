@@ -34,11 +34,16 @@ export interface ReportHtmlInput {
       open: number;
       overdue: number;
       implementedPct: number | null;
+      // Slips and aging (F17); missing on reports frozen before them.
+      extended?: number;
+      extendedTwice?: number;
+      slipDays?: number;
+      late?: Record<"d1_30" | "d31_60" | "d61_90" | "d90_plus", number>;
     } | null;
     /** Not shared with the client yet (said only to the firm). */
     firmOnly: boolean;
   };
-  actions: { title: string; recommendation: string; owner: string | null; dueDate: string | null; status: string; overdue: boolean }[];
+  actions: { title: string; recommendation: string; owner: string | null; dueDate: string | null; status: string; overdue: boolean; extensions: number }[];
   exportedOn: string;
   /** Strings under messages "reportPdf". */
   t: (key: string, values?: Record<string, string | number>) => string;
@@ -124,8 +129,27 @@ export function renderReportHtml(input: ReportHtmlInput): string {
       .map((k) => `<div class="tile"><p class="muted">${e(input.outcome(k))}</p><p class="value">${num(m[k])}</p></div>`)
       .join("")}
     <div class="tile"><p class="muted">${e(t("overdue"))}</p><p class="value">${num(m.overdue)}</p></div>
+    ${
+      m.extended !== undefined
+        ? `<div class="tile"><p class="muted">${e(t("extended"))}</p><p class="value">${num(m.extended)}</p><p class="muted small">${e(t("extendedTwice", { n: num(m.extendedTwice ?? 0) }))}</p></div>
+    <div class="tile"><p class="muted">${e(t("slipDays"))}</p><p class="value">${num(m.slipDays ?? 0)}</p></div>`
+        : ""
+    }
+  </div>
+</section>${
+        m.late
+          ? `
+<section>
+  <h2>${e(t("lateTitle"))}</h2>
+  <p class="muted small">${e(t("lateHint"))}</p>
+  <div class="tiles">
+    ${(["d1_30", "d31_60", "d61_90", "d90_plus"] as const)
+      .map((k) => `<div class="tile"><p class="muted">${e(t(`aging.${k}`))}</p><p class="value">${num(m.late![k])}</p></div>`)
+      .join("")}
   </div>
 </section>`
+          : ""
+      }`
     : "";
 
   const notes = report.bodyMd.trim()
@@ -144,7 +168,7 @@ export function renderReportHtml(input: ReportHtmlInput): string {
         (a) => `<tr>
       <td><span dir="auto">${e(a.title)}</span><br><span class="muted small" dir="auto">${e(a.recommendation)}</span></td>
       <td dir="auto">${e(a.owner ?? t("noOwner"))}</td>
-      <td class="nowrap">${a.dueDate ? e(day(a.dueDate)) : "—"}${a.overdue ? `<br><span class="small">${e(t("overdueMark"))}</span>` : ""}</td>
+      <td class="nowrap">${a.dueDate ? e(day(a.dueDate)) : "—"}${a.overdue ? `<br><span class="small">${e(t("overdueMark"))}</span>` : ""}${a.extensions ? `<br><span class="small">${e(t("movedMark", { n: num(a.extensions) }))}</span>` : ""}</td>
       <td>${e(a.status)}</td>
     </tr>`,
       )
