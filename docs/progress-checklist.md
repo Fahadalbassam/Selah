@@ -15,8 +15,8 @@ This file replaces the earlier "living plan" page, which stopped at PR #24.
 
 ## Standing rules for every item
 
-- [~] **X1** Every new page follows `docs/ui-guidelines.md`: shadcn/ui and Animate UI first, monochrome, RTL with logical properties, the shared Selah components — applies to: every UI item · since: #26 · check: review checklist in section 13 of the guide · audited: wave 1 screens #59–#86 (UI pass), enrollment spine screens #93
-- [~] **X2** Everything ships in Arabic and English: every new message key in both locales, Arabic first, user text translatable — applies to: every item · since: `messages/ar.json` and `messages/en.json` have the same 1,800 keys on 87099c7 · check: both files keep the same keys
+- [x] **X1** Every new page follows `docs/ui-guidelines.md`: shadcn/ui and Animate UI first, monochrome, RTL with logical properties, the shared Selah components — applies to: every UI item · since: #26 · check: review checklist in section 13 of the guide · audited: wave 1 screens #59–#86 (UI pass), enrollment spine screens #93; full wave 1 pass (every screen and role, AR/EN, light/dark, 1440/1024/768, every dialog, e2e) #105, #107, report `selah-frontend/wave1-ui-pass/`
+- [x] **X2** Everything ships in Arabic and English: every new message key in both locales, Arabic first, user text translatable — applies to: every item · since: `messages/ar.json` and `messages/en.json` have the same 1,800 keys on 87099c7 · check: both files keep the same keys · wave 1 pass: 3,232 keys in each, no raw keys on any screen (#107)
 - [~] **X3** Every screen is built with its backend and tests, no mock screens and no "demo" labels; desktop and tablet only — applies to: every UI item · since: 2026-10-20
 - [~] **X4** The partner firm is never named in the product, the docs or the UI — applies to: every item · since: 2026-10-20
 
