@@ -30,6 +30,7 @@ import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
 import { listClientRoles } from "@/services/client-roles";
+import { getClosure } from "@/services/closure";
 import { getHandover } from "@/services/handover";
 import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
@@ -42,20 +43,21 @@ import { ProjectPeople } from "./project-people";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
 import { ClientRolesCard } from "./client-roles-card";
+import { ClosureTab } from "./closure-tab";
 import { HandoverCard } from "./handover-card";
 import { InfoRequestsTab } from "./info-requests-tab";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
 import { ProgressTab } from "./progress-tab";
 
-const TABS = ["recs", "progress", "attention", "trace", "meetings", "assessments", "requests", "docs", "activity", "team"];
+const TABS = ["recs", "progress", "attention", "trace", "meetings", "assessments", "requests", "docs", "activity", "team", "closing"];
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
   // A link may open a tab (a notification about a request opens the list).
   const { tab } = await searchParams;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests, closure } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -93,9 +95,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       handover: await getHandover(tx, principal, id),
       // What the firm asked the client for (client projects only).
       requests: client ? await listInfoRequests(tx, principal, id).catch(() => null) : null,
+      // Closing (baseline: Closing). The firm sees it on every signed project; the
+      // client once it is closing or closed, or when they may ask the firm to close.
+      closure:
+        data.project.state === "draft"
+          ? null
+          : await getClosure(tx, principal, id).then((c) =>
+              c.firm || c.state === "closing" || c.state === "closed" || c.can.request || c.request ? c : null,
+            ),
     };
   });
-  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, tE, format] = await Promise.all([
+  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, tE, tClose, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("plan"),
     getTranslations("staffing"),
@@ -111,6 +121,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     getTranslations("planImport"),
     getTranslations("phases"),
     getTranslations("engagements"),
+    getTranslations("closure"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -197,6 +208,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </p>
       ) : null}
 
+      {project.state === "closing" || project.state === "closed" ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <Lock className="size-4" />
+          {project.state === "closed" ? tClose("bannerClosed") : tClose("bannerClosing")}
+        </p>
+      ) : null}
+
       {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
 
       <Tabs defaultValue={tab && TABS.includes(tab) ? tab : "recs"} className="gap-4">
@@ -217,6 +235,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
           {team || people || roles ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
+          {closure ? <TabsTrigger value="closing">{tClose("tab")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="recs" className="space-y-6">
@@ -506,6 +525,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <TabsContent value="progress" className="space-y-6">
             <HandoverCard projectId={project.id} data={handover} />
             <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} />
+          </TabsContent>
+        ) : null}
+
+        {closure ? (
+          <TabsContent value="closing">
+            <ClosureTab projectId={project.id} data={closure} />
           </TabsContent>
         ) : null}
 

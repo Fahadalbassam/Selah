@@ -141,6 +141,13 @@
       "when": 1792815166406,
       "tag": "0019_mail_choices",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792815643873,
+      "tag": "0020_project_closure",
+      "breakpoints": true
     }
   ]
 }

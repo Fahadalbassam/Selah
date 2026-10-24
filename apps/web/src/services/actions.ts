@@ -32,6 +32,7 @@ export async function loadAction(tx: Tx, id: string) {
       action: actions,
       firmOrgId: projects.firmOrgId,
       projectKind: projects.kind,
+      projectState: projects.state,
       engagementMode: organizations.engagementMode,
       label: recommendations.visibility,
     })
@@ -49,6 +50,7 @@ export async function loadAction(tx: Tx, id: string) {
     firmOrgId: row.firmOrgId,
     projectId: row.action.projectId,
     projectKind: row.projectKind,
+    projectState: row.projectState,
     engagementMode: row.engagementMode,
     createdBy: row.action.createdBy,
     assignees: row.action.ownerUserId ? [row.action.ownerUserId] : [],

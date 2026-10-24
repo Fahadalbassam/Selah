@@ -1,4 +1,4 @@
-import { grantFor, type Permission, type Scope } from "./policy";
+import { grantFor, isReadPermission, OPEN_WHEN_CLOSED, type Permission, type Scope } from "./policy";
 import type { Decision, Principal, Resource } from "./types";
 
 /**
@@ -14,6 +14,9 @@ import type { Decision, Principal, Resource } from "./types";
  *   4. Assignment   - does the grant's scope (assigned / own / shared /
  *                     owner_org / lead / team) cover this record?
  *   5. Label        - does the visibility label allow this user?
+ *
+ * Then one rule of state: nothing in a closed project is written, except
+ * what OPEN_WHEN_CLOSED lists.
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
@@ -31,6 +34,10 @@ export function authorize(principal: Principal, permission: Permission, resource
 
   const label = checkLabel(principal, resource);
   if (!label.allowed) return label;
+
+  if (resource.projectState === "closed" && !isReadPermission(permission) && !OPEN_WHEN_CLOSED.has(permission)) {
+    return deny("project:closed");
+  }
 
   return { allowed: true, reason: "ok" };
 }

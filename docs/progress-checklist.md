@@ -117,8 +117,8 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J12.1** Close an action with outcome — lane: firm · map: exists · wave: — · pr: #22
 - [x] **J12.2** Close project (no gate) — lane: firm · map: exists · wave: — · pr: main
-- [ ] **J12.3** Closing gate, read-only — lane: firm · map: wave 1 · covered by: F25 · wave: 1
-- [ ] **J12.4** Handover (firm: Disposes every open item; client: Names who sustains each) — lane: shared · map: wave 1 · covered by: F25 · wave: 1
+- [x] **J12.3** Closing gate, read-only — lane: firm · map: wave 1 · covered by: F25 · wave: 1 · pr: #79
+- [x] **J12.4** Handover (firm: Disposes every open item; client: Names who sustains each) — lane: shared · map: wave 1 · covered by: F25 · wave: 1 · pr: #79
 - [ ] **J12.5** Acknowledges deliverables — lane: client · map: missing · covered by: F21 · wave: frozen
 
 ### J13 · After-care and renewal · ما بعد الإغلاق
@@ -178,7 +178,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 ### Tier 5 · Closing and leaving
 
-- [ ] **F25** Closing is a gate — tier: 5 · size: M · wave: 1 · journey: J12.3, J12.4
+- [~] **F25** Closing is a gate — tier: 5 · size: M · wave: 1 · journey: J12.3, J12.4 · pr: #79 (dispositions, sustainers, lessons, read-only, reopen with reason, closure report PDF; still open: closing pulse survey and case-study consent)
 - [ ] **F26** When people leave or change — tier: 5 · size: M · wave: 1 · journey: J14.3
 - [ ] **F27** A client can leave cleanly — tier: 5 · size: M · wave: 1 · journey: J14.1, J14.2, J14.4, J14.5
 - [ ] **F28** Pause and follow-on projects — tier: 5 · size: M · wave: frozen · journey: J13.3 · decision: D2
@@ -210,11 +210,11 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N2** Actions under a firm-only recommendation stay firm-only (test first) — wave: 1 · pr: #62
 - [x] **N3** A draft project state the client never sees — wave: 1 · pr: #64
 - [x] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2 · pr: #65
-- [ ] **N5** The lead of an internal project can close it — wave: 1
+- [x] **N5** The lead of an internal project can close it — wave: 1 · pr: #79
 - [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26
 - [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
 - [~] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74 (open)
-- [ ] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25
+- [x] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25 · pr: #79
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
 
 ## Decisions still waiting

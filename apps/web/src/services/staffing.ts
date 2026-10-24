@@ -450,7 +450,7 @@ export async function updateProject(tx: Tx, principal: Principal, projectId: str
 /** Load a project the user may read. Unknown and forbidden look the same (404). */
 export async function loadProject(tx: Tx, principal: Principal, projectId: string) {
   const [p] = await tx
-    .select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId })
+    .select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId, state: projects.state })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
@@ -462,6 +462,7 @@ export async function loadProject(tx: Tx, principal: Principal, projectId: strin
     firmOrgId: p.firmOrgId,
     projectId: p.id,
     projectKind: p.kind,
+    projectState: p.state,
     clientOrgId: p.kind === "client" ? p.orgId : undefined,
   };
   if (!authorize(principal, "project.read", resource).allowed) throw new NotFoundError("project");
