@@ -557,6 +557,17 @@ describe("closing a project", () => {
     }
   });
 
+  it("the client's lead or deputy starts closing (0058); other consultants and the client do not", () => {
+    const project = acmeRecord("project", { projectKind: "client", clientOrgId: ACME });
+    const lead = principal("consultant", [ACME_PROJ_1], undefined, [], { clients: [ACME] });
+    expect(authorize(lead, "project.start_closing", project).allowed).toBe(true);
+    expect(authorize(principal("firm_admin"), "project.start_closing", project).allowed).toBe(true);
+    expect(authorize(principal("consultant", [ACME_PROJ_1], undefined, [ACME]), "project.start_closing", project).allowed).toBe(false);
+    for (const role of ["client_admin", "client_manager", "action_owner"] as Role[]) {
+      expect(authorize(principal(role, [ACME_PROJ_1]), "project.start_closing", project).allowed, role).toBe(false);
+    }
+  });
+
   it("the lead of an internal project closes it (N5); other members don't, and only the firm admin reopens", () => {
     const internal: Resource = { type: "project", orgId: FIRM, firmOrgId: FIRM, projectId: "p-int", projectKind: "internal" };
     const lead = principal("consultant", ["p-int"], undefined, [], { projects: ["p-int"] });

@@ -77,9 +77,11 @@ export const POLICY = {
   "engagement.write": { firm_admin: "any" },
   // Oversight without being staffed: the admin follows a client or project.
   "project.watch": { firm_admin: "any" },
-  // Closing is a gate (baseline: Closing, 0020). The firm admin starts and
-  // finishes it; on an internal project its lead does too (INTERNAL_POLICY).
-  // Only the firm admin reopens a closed project, with a reason.
+  // Closing is a gate (baseline: Closing, 0020). The firm admin or the
+  // client's lead (or deputy) starts it and may stop it (0058); only the
+  // firm admin finishes it. On an internal project its lead does both
+  // (INTERNAL_POLICY). Only the firm admin reopens a closed project, with a reason.
+  "project.start_closing": { firm_admin: "any", consultant: "lead" },
   "project.close": { firm_admin: "any" },
   "project.reopen": { firm_admin: "any" },
   // While closing: the firm on the project disposes of each open action and
@@ -284,6 +286,7 @@ export type Permission = keyof typeof POLICY;
 const INTERNAL_POLICY: Partial<Record<Permission, Grants>> = {
   // The lead of an internal project closes it (N5).
   "project.close": { firm_admin: "any", consultant: "lead" },
+  "project.start_closing": { firm_admin: "any", consultant: "lead" },
   "action.work": { firm_admin: "assigned", consultant: "assigned" },
   "evidence.submit": { firm_admin: "assigned", consultant: "assigned" },
   "progress_update.create": { ...STAFF },

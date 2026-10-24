@@ -316,6 +316,13 @@
       "when": 1792862513089,
       "tag": "0057_upload_links",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792871718499,
+      "tag": "0058_lead_starts_closing",
+      "breakpoints": true
     }
   ]
 }

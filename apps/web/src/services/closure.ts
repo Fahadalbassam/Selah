@@ -115,6 +115,10 @@ export async function getClosure(tx: Tx, principal: Principal, projectId: string
 
   const sponsor = project.kind === "client" ? await sponsorOf(tx, projectId) : null;
   const canClose = authorize(principal, "project.close", resource).allowed && (await bool(tx, sql`select app_can_close_project(${projectId}) as ok`));
+  // The client's lead or deputy opens and stops the gate; the admin closes (0058).
+  const canStart =
+    canClose ||
+    (authorize(principal, "project.start_closing", resource).allowed && (await bool(tx, sql`select app_can_start_closing(${projectId}) as ok`)));
   const canDispose = closing && authorize(principal, "closure.dispose", resource).allowed;
   // The client's admin, or the project's sponsor (app_name_sustainer).
   const canName =
@@ -191,8 +195,8 @@ export async function getClosure(tx: Tx, principal: Principal, projectId: string
     people,
     contacts,
     can: {
-      start: canClose && (state === "planned" || state === "active"),
-      cancel: canClose && closing,
+      start: canStart && (state === "planned" || state === "active"),
+      cancel: canStart && closing,
       close: canClose && closing,
       reopen: state === "closed" && authorize(principal, "project.reopen", resource).allowed,
       dispose: canDispose,
@@ -219,7 +223,7 @@ export async function moveClosure(
     await tx.execute(sql`select app_reopen_project(${projectId}, ${input.reason})`);
     await logged(tx, principal, "project.reopen", projectId, { reason: input.reason.slice(0, 200) });
   } else {
-    assertAllowed(principal, "project.close", resource);
+    assertAllowed(principal, input.step === "close" ? "project.close" : "project.start_closing", resource);
     if (input.step === "start") await tx.execute(sql`select app_start_closing(${projectId})`);
     if (input.step === "cancel") await tx.execute(sql`select app_cancel_closing(${projectId})`);
     if (input.step === "close") await tx.execute(sql`select app_close_project(${projectId})`);

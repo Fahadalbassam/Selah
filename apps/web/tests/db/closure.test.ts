@@ -153,7 +153,7 @@ afterAll(async () => {
 
 describe("who closes", () => {
   it("the firm admin closes a client project; consultants and the client cannot, even its lead", async () => {
-    for (const who of [U.lead, U.cons, U.cadmin, U.sponsor]) {
+    for (const who of [U.cons, U.cadmin, U.sponsor]) {
       await expect(svc(who, (tx, p) => moveClosure(tx, p, PROJ, { step: "start" })), who).rejects.toThrow();
       await expect(run(who, `SELECT app_start_closing($1)`, [PROJ]), who).rejects.toThrow();
     }
@@ -161,6 +161,34 @@ describe("who closes", () => {
     expect(view.state).toBe("closing");
     expect(view.can).toMatchObject({ cancel: true, close: true, dispose: true, lessons: true });
     expect(await state(PROJ)).toBe("closing");
+  });
+
+  it("the client's lead or deputy starts and stops closing (0058); only the firm admin closes, and the admins are told", async () => {
+    const view = await svc(U.lead, (tx, p) => moveClosure(tx, p, PROJ, { step: "start" }));
+    expect(view.state).toBe("closing");
+    expect(view.can).toMatchObject({ start: false, cancel: true, close: false, dispose: true, lessons: true });
+    expect(view.current?.startedBy).toBe("lead");
+    const told = (await owner.query(`SELECT user_id FROM notifications WHERE kind = 'closure.lead_started'`)).rows.map((r) => r.user_id);
+    expect(told).toEqual([U.admin]);
+    // The last step stays the admin's, in the app and in the database.
+    await svc(U.lead, (tx, p) => writeLessons(tx, p, PROJ, { wentWell: "Clear scope", toImprove: "Earlier reviews" }));
+    await expect(svc(U.lead, (tx, p) => moveClosure(tx, p, PROJ, { step: "close" }))).rejects.toThrow();
+    await expect(run(U.lead, `SELECT app_close_project($1)`, [PROJ])).rejects.toThrow(/no such project/);
+    await svc(U.lead, (tx, p) => moveClosure(tx, p, PROJ, { step: "cancel" }));
+    expect(await state(PROJ)).toBe("active");
+    // The deputy has the lead's powers; another consultant on the project does not.
+    await expect(run(U.cons, `SELECT app_start_closing($1)`, [PROJ])).rejects.toThrow(/lead consultant starts closing/);
+    await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_deputy) VALUES ($1,$2,true)`, [ACME, U.cons]);
+    try {
+      await svc(U.cons, (tx, p) => moveClosure(tx, p, PROJ, { step: "start" }));
+      expect(await state(PROJ)).toBe("closing");
+      // A lead's start does not reach another client's projects.
+      await expect(run(U.cons, `SELECT app_start_closing($1)`, [BETA_PROJ])).rejects.toThrow();
+    } finally {
+      await owner.query(`DELETE FROM client_assignments WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.cons]);
+    }
+    const admin = await svc(U.admin, (tx, p) => getClosure(tx, p, PROJ));
+    expect(admin.can).toMatchObject({ cancel: true, close: true });
   });
 
   it("the lead of an internal project closes it (N5); another member does not", async () => {
