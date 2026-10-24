@@ -22,6 +22,7 @@ import {
 import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
 import { loadAction, roundSubmitters } from "./actions";
 import { fileControls } from "./documents";
+import { recordControls } from "./plan-changes";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
@@ -286,10 +287,23 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgId: findings.orgId,
       projectId: findings.projectId,
       fromAssessment: sql<boolean>`${findings.assessmentAnswerId} is not null`,
+      releasedAt: findings.releasedAt,
+      withdrawnAt: findings.withdrawnAt,
+      withdrawnReason: findings.withdrawnReason,
     })
     .from(findings)
     .where(eq(findings.projectId, id))
     .orderBy(asc(findings.createdAt));
+
+  const findingResource = (f: (typeof findingRows)[number]): Resource => ({
+    type: "finding",
+    id: f.id,
+    orgId: f.orgId,
+    firmOrgId: p.firmOrgId,
+    projectId: f.projectId,
+    visibility: f.visibility,
+    createdBy: f.createdBy,
+  });
 
   const docs = await tx
     .select({
@@ -351,22 +365,24 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
 
   return {
     project: p,
-    recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => ({
-      ...r,
-      department: r.departmentId ? (deptNames.get(r.departmentId) ?? null) : null,
-      accountableName: r.accountableUserId ? (peopleNames.get(r.accountableUserId) ?? null) : null,
-      actions: projectActions.filter((a) => a.recommendationId === r.id),
-    })),
+    recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => {
+      const recActions = projectActions.filter((a) => a.recommendationId === r.id);
+      return {
+        ...r,
+        department: r.departmentId ? (deptNames.get(r.departmentId) ?? null) : null,
+        accountableName: r.accountableUserId ? (peopleNames.get(r.accountableUserId) ?? null) : null,
+        actions: recActions,
+        // Edit, release, withdraw, delete (N1), as the database will allow them.
+        can: recordControls(principal, recResource(r), r, { releasedActions: recActions.filter((a) => a.status !== "draft").length }),
+      };
+    }),
     // Shares are checked per document by the download route; the list shows
     // documents whose label and project the user passes.
-    findings: visible(principal, "finding.read", findingRows, (f) => ({
-      type: "finding",
-      id: f.id,
-      orgId: f.orgId,
-      firmOrgId: p.firmOrgId,
-      projectId: f.projectId,
-      visibility: f.visibility,
-      createdBy: f.createdBy,
+    findings: visible(principal, "finding.read", findingRows, findingResource).map((f) => ({
+      ...f,
+      can: recordControls(principal, findingResource(f), f, {
+        liveRecommendations: recs.filter((r) => r.findingId === f.id && !r.withdrawnAt).length,
+      }),
     })),
     documents: visible(principal, "document.read", docs, docResource).map((d) => ({
       ...d,

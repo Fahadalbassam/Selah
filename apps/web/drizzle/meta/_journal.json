@@ -218,6 +218,13 @@
       "when": 1792822197123,
       "tag": "0034_observers",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792822651450,
+      "tag": "0044_recommendation_changes",
+      "breakpoints": true
     }
   ]
 }

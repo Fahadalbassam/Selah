@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
+import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
@@ -48,6 +49,7 @@ import { HandoverCard } from "./handover-card";
 import { InfoRequestsTab } from "./info-requests-tab";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
+import { RecordActions } from "./record-actions";
 import { ProgressTab } from "./progress-tab";
 
 const TABS = ["recs", "progress", "attention", "trace", "meetings", "assessments", "requests", "docs", "activity", "team", "closing"];
@@ -130,6 +132,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const { project } = data;
   // A new recommendation's department and accountable person (F31).
   const recScope = { departments: plan?.departments ?? [], accountables: plan?.accountables ?? [] };
+  // A new or corrected recommendation answers a live finding only.
+  const liveFindings = data.findings.filter((f) => !f.withdrawnAt).map((x) => ({ id: x.id, title: x.title }));
 
   return (
     <>
@@ -292,11 +296,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               ) : (
                 <ul className="divide-y rounded-xl border bg-card shadow-xs">
                   {data.findings.map((f) => {
-                    const answeredBy = data.recommendations.filter((r) => r.findingId === f.id).length;
+                    const answeredBy = data.recommendations.filter((r) => r.findingId === f.id && !r.withdrawnAt).length;
                     return (
-                      <li key={f.id} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
+                      <li key={f.id} className={cn("flex flex-wrap items-start gap-3 px-4 py-3 text-sm", f.withdrawnAt && "bg-muted/40")}>
                         <div className="min-w-0 flex-1 space-y-1">
-                          <p className="font-medium" dir="auto">
+                          <p className={cn("font-medium", f.withdrawnAt && "text-muted-foreground line-through")} dir="auto">
                             {f.title}
                           </p>
                           {f.description ? (
@@ -304,23 +308,32 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                               {f.description}
                             </p>
                           ) : null}
-                          <p className="text-xs text-muted-foreground">
-                            {tPlan("findings.answeredBy", { n: answeredBy })}
-                            {f.fromAssessment ? ` · ${tPlan("findings.fromAssessment")}` : ""}
-                          </p>
+                          {f.withdrawnAt ? (
+                            <p className="text-xs text-muted-foreground">
+                              {tPlan("changes.withdrawnOn", { date: format.dateTime(f.withdrawnAt, { dateStyle: "medium" }) })}{" "}
+                              <span dir="auto">{f.withdrawnReason}</span>
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {tPlan("findings.answeredBy", { n: answeredBy })}
+                              {f.fromAssessment ? ` · ${tPlan("findings.fromAssessment")}` : ""}
+                            </p>
+                          )}
                         </div>
+                        {f.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}
                         {f.visibility === "firm_private" ? (
                           <Badge variant="outline" className="gap-1">
                             <Lock className="size-3" />
                             {tVis("firm_private")}
                           </Badge>
                         ) : null}
-                        {plan?.can.recommendation ? (
+                        <RecordActions kind="finding" id={f.id} title={f.title} can={f.can} values={{ title: f.title, description: f.description }} />
+                        {plan?.can.recommendation && !f.withdrawnAt ? (
                           <RecommendationDialog
                             projectId={project.id}
                             client={project.kind === "client"}
                             scope={recScope}
-                            findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                            findings={liveFindings}
                             defaultFindingId={f.id}
                             trigger={
                               <Button size="sm" variant="ghost">
@@ -357,7 +370,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                     projectId={project.id}
                     client={project.kind === "client"}
                     scope={recScope}
-                    findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                    findings={liveFindings}
                     trigger={
                       <Button size="sm">
                         <Plus />
@@ -378,7 +391,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       projectId={project.id}
                       client={project.kind === "client"}
                       scope={recScope}
-                      findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
+                      findings={liveFindings}
                       trigger={
                         <Button size="sm">
                           <Plus />
@@ -392,11 +405,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             ) : null}
             {data.recommendations.map((r) => {
               const finding = r.findingId ? data.findings.find((f) => f.id === r.findingId) : null;
+              const openActions = r.actions.filter((a) => a.status !== "draft" && a.status !== "verified_complete" && a.status !== "closed").length;
               return (
-                <Card key={r.id} className="gap-4 py-5 shadow-xs">
+                <Card key={r.id} className={cn("gap-4 py-5 shadow-xs", r.withdrawnAt && "bg-muted/40")}>
                   <CardHeader className="px-5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base">{r.title}</CardTitle>
+                      <CardTitle className={cn("text-base", r.withdrawnAt && "text-muted-foreground line-through")}>{r.title}</CardTitle>
+                      {r.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}
                       <Badge variant="outline">
                         {t("priority")}: {tPrio(r.priority)}
                       </Badge>
@@ -410,7 +425,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       {r.department ? <Badge variant="secondary">{localLabel(r.department, ar)}</Badge> : null}
                       {firmStaff ? (
                         <span className="ms-auto flex items-center gap-1">
-                          {plan?.can.action ? (
+                          {plan?.can.action && !r.withdrawnAt ? (
                             <ActionDialog
                               recommendationId={r.id}
                               recommendationTitle={r.title}
@@ -430,10 +445,35 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                               }
                             />
                           ) : null}
-                          <AskAbout projectId={project.id} type="recommendation" id={r.id} size="icon-sm" />
+                          {r.withdrawnAt ? null : <AskAbout projectId={project.id} type="recommendation" id={r.id} size="icon-sm" />}
+                          <RecordActions
+                            kind="recommendation"
+                            id={r.id}
+                            title={r.title}
+                            can={r.can}
+                            openActions={openActions}
+                            projectId={project.id}
+                            client={project.kind === "client"}
+                            findings={liveFindings}
+                            values={{
+                              title: r.title,
+                              findingId: r.findingId,
+                              rationale: r.rationale,
+                              targetOutcome: r.targetOutcome,
+                              priority: r.priority,
+                              dueDate: r.dueDate,
+                              requiredEvidence: r.requiredEvidence,
+                            }}
+                          />
                         </span>
                       ) : null}
                     </div>
+                    {r.withdrawnAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        {tPlan("changes.withdrawnOn", { date: format.dateTime(r.withdrawnAt, { dateStyle: "medium" }) })}{" "}
+                        <span dir="auto">{r.withdrawnReason}</span>
+                      </p>
+                    ) : null}
                     {finding ? (
                       <p className="text-xs text-muted-foreground" dir="auto">
                         {tPlan("rec.answers", { finding: finding.title })}
