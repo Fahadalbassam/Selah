@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { actionReminders } from "@/db/schema";
 import { assertAllowed, type Principal } from "@/authz";
-import type { HealthSignal } from "@/lib/health";
+import { HEALTH_WEEKS_SHOWN, weekStart, type HealthSignal } from "@/lib/health";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
@@ -39,6 +39,8 @@ export interface PortfolioRow {
   riskAccepted: number;
   clientLastActive: Date | null;
   signal: HealthSignal;
+  /** The signal of each of the last HEALTH_WEEKS_SHOWN weeks the daily job kept, oldest first. */
+  weeks: { weekStart: string; signal: HealthSignal }[];
 }
 
 const SIGNAL_ORDER: HealthSignal[] = [
@@ -94,6 +96,13 @@ export async function portfolio(
     join projects p on p.id = f.project_id
     join organizations o on o.id = f.org_id
     left join "user" u on u.id = f.lead_id`);
+  const since = new Date(`${weekStart(firmToday())}T00:00:00Z`);
+  since.setUTCDate(since.getUTCDate() - 7 * (HEALTH_WEEKS_SHOWN - 1));
+  const { rows: history } = await tx.execute<{ project_id: string; week_start: string; signal: HealthSignal }>(sql`
+    select project_id, week_start::text, signal from project_health_weeks
+    where week_start >= ${since.toISOString().slice(0, 10)}::date order by week_start`);
+  const weeks = new Map<string, PortfolioRow["weeks"]>();
+  for (const h of history) weeks.set(h.project_id, [...(weeks.get(h.project_id) ?? []), { weekStart: h.week_start, signal: h.signal }]);
   return rows
     .map(
       (r): PortfolioRow => ({
@@ -128,6 +137,7 @@ export async function portfolio(
           ? new Date(r.client_last_active)
           : null,
         signal: r.signal,
+        weeks: weeks.get(r.project_id) ?? [],
       }),
     )
     .sort(
