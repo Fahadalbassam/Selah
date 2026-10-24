@@ -78,6 +78,13 @@
       "when": 1792807588038,
       "tag": "0010_client_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792808388282,
+      "tag": "0011_legal_profile",
+      "breakpoints": true
     }
   ]
 }

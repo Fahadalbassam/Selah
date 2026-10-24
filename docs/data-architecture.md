@@ -79,6 +79,7 @@ Every private-capable row has a label:
 - **The firm admin** sees all firm and shared data, but never `client_private` or another person's `user_private`.
 - **A draft project** (a client project no signed engagement covers yet) is firm-only: the client's people neither see it nor join it until the firm admin records the signed engagement that covers it (`engagements`, migration 0008). The engagement itself is read by firm admins, the client's assigned consultants and the client's admin.
 - **A prospect** (a company the firm approached and is pitching) is a client organisation that never signed: no accounts, and consultants who are not on it don't see it, not even its name. Its first signed engagement makes it a client. A lost pitch is deleted with everything in it, and its files leave the bucket through the `delete-objects` job (migration 0009).
+- **A client's legal profile** (`client_profiles`, one row per client, migration 0011): Arabic legal name (the authoritative one, used on reports), English legal name, trade name, unified number (7 then nine digits, unique across clients), optional ISIC code, sector, Monsha'at size bands by employees and by revenue, region, regulators, listed market, and fiscal year end with its calendar. The legal form stays on the client record because assessments read it. The firm admin and the client's lead keep the profile; the client's admins and managers can read it. A minimal-records client keeps no names or number in it.
 
 ## 2. File storage [Built]
 

@@ -38,6 +38,8 @@ export const POLICY = {
   "organization.update": { firm_admin: "any", client_admin: "any" },
   // How a client takes part (full, restricted, consultant-managed). The firm admin's call.
   "organization.engagement": { firm_admin: "any" },
+  // The client's legal profile (item 7): the admin and the client's lead. The database decides (app_can_edit_client_profile).
+  "client_profile.write": { firm_admin: "any", consultant: "lead" },
   // Optional departments: names for everyone at the client, managed by its
   // admin or the firm admin. The client admin switches them on or off.
   "department.read": { ...ALL_BUT_OWNER, action_owner: "any" },
