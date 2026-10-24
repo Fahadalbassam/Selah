@@ -19,7 +19,7 @@ Results are test results on the executed cases, not a guarantee of security.
 | V14 Data protection | Visibility labels; app role cannot read passwords, sessions or the audit log; sample seed data only | Done |
 | V16 Logging and errors | `audit_log` (insert-only for the app, append-only even for its owner, `audit_log_guard()`): status changes, file downloads and summary reads, sign-ins, failed sign-ins, two-factor checks, sign-outs, password changes, AI queries and every denial are logged with actor and reason, never document text; generic error bodies. Sealed into a SHA-256 hash chain every few minutes and checked every night; kept 12 to 120 months (firm setting, never under 12, NCA ECC 2-12); read on the audit-log screen (see below) | Done (R2) |
 | V13 Configuration | Secrets only in `.env` (ignored by Git), validated at start (`src/env.ts`); `npm audit` in CI; ports bound to 127.0.0.1 | Done |
-| V12 Secure communication | HTTPS for the deployed site through a reverse proxy on the team's Linux server. The proxy must overwrite `X-Forwarded-For` with the visitor's address, not append to it: per-address limits and the intake form read it | Not yet set up |
+| V12 Secure communication | HTTPS through Caddy in front of the app (`ops/edge/Caddyfile`), either directly on the server or behind Cloudflare Tunnel, one setting in `.env` (`docs/operations.md`). Caddy replaces `X-Forwarded-For` with the visitor's address (the connection's, or Cloudflare's `Cf-Connecting-Ip` in tunnel mode), so per-address limits can't be dodged; the file host passes only `GET` and `HEAD` | Done (R5); direct mode required before real client files |
 
 ## Database roles
 
@@ -58,4 +58,4 @@ What it holds, who reads it and how it shows tampering (R2, migration `0023_audi
 
 The terms of use, privacy notice, AI-use notice and data processing agreement template (`/legal/*`, see `docs/accounts.md`) are drafts written for the product; the firm's counsel reviews them before real client data is used.
 
-Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; HTTPS still needs to be set up there. Backups, the restore drill and the breach runbook are in `docs/operations.md`; they need a second disk, the off-server key and the crontab on that server.
+Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; the way in (`COMPOSE_PROFILES`) must be `direct` before real client files. Backups, the restore drill and the breach runbook are in `docs/operations.md`; they need a second disk, the off-server key and the crontab on that server.

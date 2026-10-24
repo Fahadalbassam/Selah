@@ -37,6 +37,9 @@ const schema = z.object({
   // the model is hosted outside our server (docs/assistant.md).
   LLM_PROVIDER: z.enum(["ollama", "openai_compat"]).default("ollama"),
   AI_MASKING: z.enum(["auto", "on", "off"]).default("auto"),
+  // The compose profiles in use (R5): "direct" or "tunnel" says how traffic
+  // reaches the site, shown on the sub-processor list and the security page.
+  SELAH_EDGE: z.string().optional(),
   // Shows the details of /api/ready to ops/readiness.sh and the alert job
   // (docs/operations.md). Without it, the probe answers only its status.
   OPS_TOKEN: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
