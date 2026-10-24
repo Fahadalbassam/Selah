@@ -266,13 +266,13 @@ export default async function TemplatePage({
                             {q.type !== "text" ? <Badge variant="outline">{tq("weightOf", { weight: q.weight })}</Badge> : null}
                             <Badge variant="secondary">{ar ? own.ar : own.en}</Badge>
                             {(q.legalFor ?? []).length ? (
-                              <Badge variant="default">
-                                {tq("legalFor", { forms: (q.legalFor ?? []).map((f) => tq(`forms.${f}`)).join("، ") })}
+                              <Badge variant="default" className="h-auto max-w-full whitespace-normal">
+                                {tq("legalFor", { forms: (q.legalFor ?? []).map((f) => tq(`forms.${f}`)).join(ar ? "، " : ", ") })}
                               </Badge>
                             ) : null}
                             {(q.guidanceFor ?? []).length ? (
-                              <Badge variant="outline">
-                                {tq("guidanceFor", { forms: (q.guidanceFor ?? []).map((f) => tq(`forms.${f}`)).join("، ") })}
+                              <Badge variant="outline" className="h-auto max-w-full whitespace-normal">
+                                {tq("guidanceFor", { forms: (q.guidanceFor ?? []).map((f) => tq(`forms.${f}`)).join(ar ? "، " : ", ") })}
                               </Badge>
                             ) : null}
                             {q.citation && !q.citationVerified ? <Badge variant="outline">{tq("toVerify")}</Badge> : null}
@@ -296,7 +296,7 @@ export default async function TemplatePage({
                                         ? tv(v as "yes")
                                         : v;
                                   })
-                                  .join("، "),
+                                  .join(ar ? "، " : ", "),
                               })}
                             </p>
                           ) : null}

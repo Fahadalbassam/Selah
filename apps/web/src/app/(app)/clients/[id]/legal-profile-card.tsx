@@ -50,6 +50,7 @@ const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 /** The client's legal identity, as the firm recorded it (wave 1, item 7). */
 export function LegalProfileCard(props: Props) {
   const t = useTranslations("legalProfile");
+  const ar = useLocale() === "ar";
   const tq = useTranslations("assessment.question");
   const p = props.profile;
   const month = p?.fiscalYearEndMonth ? t(`months.${p.fiscalCalendar}.${p.fiscalYearEndMonth}`) : null;
@@ -68,7 +69,7 @@ export function LegalProfileCard(props: Props) {
     [t("sizeBand"), p?.sizeBand ? t(`employees.${p.sizeBand}`) : null],
     [t("revenueBand"), p?.revenueBand ? t(`revenue.${p.revenueBand}`) : null],
     [t("region"), p?.region ? t(`regions.${p.region}`) : null],
-    [t("regulators"), p?.regulators.length ? p.regulators.map((r) => t(`regulatorNames.${r}`)).join("، ") : null],
+    [t("regulators"), p?.regulators.length ? p.regulators.map((r) => t(`regulatorNames.${r}`)).join(ar ? "، " : ", ") : null],
     [t("listedMarket"), p?.listedMarket ? t(`markets.${p.listedMarket}`) : null],
     [t("fiscalYearEnd"), month ? t("fiscalYearEndValue", { month, calendar: t(`calendars.${p!.fiscalCalendar}`) }) : null],
   ];
