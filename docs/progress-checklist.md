@@ -57,17 +57,17 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J05.1** Convert inquiry to client — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J05.2** Add a client directly — lane: firm · map: exists · wave: — · pr: #20
 - [ ] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
-- [~] **J05.4** A project per phase — lane: firm · map: wave 1 · covered by: F02 · wave: 1 · pr: #59 (open)
+- [x] **J05.4** A project per phase — lane: firm · map: wave 1 · covered by: F02 · wave: 1 · pr: #59
 - [ ] **J05.5** First sign-in (firm: Invites the client admin; client: Accepts terms and AI notice) — lane: shared · map: wave 1 · covered by: R1 · wave: 1
 - [x] **J05.6** Accepts invite, sets 2FA — lane: client · map: exists · wave: — · pr: #7, #8
 
 ### J06 · People and roles · الأشخاص والأدوار
 
 - [x] **J06.1** Add contacts (managed mode) — lane: firm · map: exists · wave: — · pr: #35
-- [~] **J06.2** Put client people on a project — lane: firm · map: wave 1 · covered by: F01 · wave: 1 · pr: #59 (open)
+- [x] **J06.2** Put client people on a project — lane: firm · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
 - [ ] **J06.3** Name the roles (firm: Records sponsor, acceptors; client: Confirms who signs off) — lane: shared · map: wave 1 · covered by: F06 · wave: 1
 - [x] **J06.4** Invites managers and owners — lane: client · map: exists · wave: — · pr: #20
-- [~] **J06.5** Adds them to a project — lane: client · map: wave 1 · covered by: F01 · wave: 1 · pr: #59 (open)
+- [x] **J06.5** Adds them to a project — lane: client · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
 
 ### J07 · Kickoff (first 14 days) · الانطلاق
 
@@ -80,7 +80,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J08.1** Run assessments — lane: firm · map: exists · wave: — · pr: #6, #13
 - [x] **J08.2** Upload a deliverable — lane: firm · map: exists · wave: — · pr: #28, #29
-- [ ] **J08.3** Share or version a file — lane: firm · map: wave 1 · covered by: F03 · wave: 1
+- [~] **J08.3** Share or version a file — lane: firm · map: wave 1 · covered by: F03 · wave: 1 · pr: #61 (open)
 - [ ] **J08.4** Deliverable sign-off (firm: Sends a version for review; client: Accepts or comments) — lane: shared · map: missing · covered by: F21 · wave: frozen
 - [ ] **J08.5** Comments on drafts — lane: client · map: missing · covered by: F21 · wave: frozen
 
@@ -142,9 +142,9 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 ### Tier 1 · Day-one blockers
 
-- [~] **F01** Put client people on a project — tier: 1 · size: S · wave: 1 · journey: J06.2, J06.5 · pr: #59 (open)
-- [~] **F02** More than one project per client — tier: 1 · size: S · wave: 1 · journey: J05.4 · decision: D2 · pr: #59 (open)
-- [ ] **F03** File controls: share, AI flag, new version — tier: 1 · size: S–M · wave: 1 · journey: J08.3
+- [x] **F01** Put client people on a project — tier: 1 · size: S · wave: 1 · journey: J06.2, J06.5 · pr: #59
+- [x] **F02** More than one project per client — tier: 1 · size: S · wave: 1 · journey: J05.4 · decision: D2 · pr: #59
+- [~] **F03** File controls: share, AI flag, new version — tier: 1 · size: S–M · wave: 1 · journey: J08.3 · pr: #61 (open)
 - [ ] **F04** Assistant reads PDF and Word files — tier: 1 · size: M · wave: 1
 
 ### Tier 2 · The enrolment spine

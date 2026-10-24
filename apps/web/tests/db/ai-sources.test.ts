@@ -387,7 +387,11 @@ describe("file summaries", () => {
       [P1, ACME, FIRM, U.cons, D.shared],
     );
     expect(await left()).toBe(0);
+    // The old version leaves the assistant (0005).
+    expect((await owner.query(`SELECT ai_indexable FROM documents WHERE id = $1`, [D.shared])).rows[0].ai_indexable).toBe(false);
     await owner.query(`DELETE FROM documents WHERE storage_key = 'k-v2'`);
+    await owner.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.shared]);
+    await indexDocument(owner, D.shared, pagesFromText(TEXT), embed);
   });
 
   it("refuse files that are not indexed or have no readable text", async () => {

@@ -1851,6 +1851,13 @@
       "tooLarge": "This file is larger than 20 MB.",
       "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text.",
       "generic": "The file couldn't be added. Try again."
+    },
+    "assistant": "Assistant",
+    "assistantOff": "Not read by the assistant",
+    "assistantState": {
+      "pending": "Waiting to be read",
+      "searchable": "The assistant can read it",
+      "not_searchable": "No readable text found"
     }
   },
   "plan": {
@@ -2181,5 +2188,31 @@
     "owns": "{n, plural, one {owns # open action} other {owns # open actions}}",
     "reassignFirst": "Reassign their actions first",
     "switchedOff": "switched off"
+  },
+  "fileActions": {
+    "menu": "More for {title}",
+    "shareWithClient": "Share with the client",
+    "shareWithClientConfirm": "Share this file with the client? Everyone at the client who can open this project will see it. Sharing can't be undone; to correct the file, upload a new version.",
+    "shareWithFirm": "Share with the firm",
+    "shareWithFirmConfirm": "Share this file with the firm? The consultants on this project will see it. Sharing can't be undone.",
+    "shared": "File shared",
+    "assistantTurnOn": "Let the assistant read it",
+    "assistantTurnOff": "Stop the assistant reading it",
+    "assistantOnConfirm": "Let the assistant read this file? Its text is indexed on your server, and answers can quote it to people who can already open it.",
+    "assistantOffConfirm": "Stop the assistant reading this file? Its passages and summaries are removed from the assistant at once.",
+    "assistantOn": "The assistant can read this file",
+    "assistantOff": "The assistant no longer reads this file",
+    "newVersion": "Upload a new version",
+    "newVersionHint": "Replaces {title} with the next version. The earlier version stays on record. The new one keeps the same project, label and department.",
+    "newVersionHintShared": "Replaces {title} with the next version, which the client sees too. The earlier version stays on record. The new one keeps the same project, label and department.",
+    "versionAdded": "New version added",
+    "file": "File",
+    "upload": "Upload",
+    "errors": {
+      "scanner": "The virus scanner isn't available right now. Try again in a minute.",
+      "infected": "This file was refused: the virus scan found a problem.",
+      "tooLarge": "This file is larger than 20 MB.",
+      "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text."
+    }
   }
 }

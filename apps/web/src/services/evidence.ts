@@ -31,7 +31,7 @@ export interface PreparedUpload {
  */
 export async function prepareUpload(
   userId: string,
-  target: { type: "action" | "project"; id: string },
+  target: { type: "action" | "project" | "document"; id: string },
   file: File,
 ): Promise<PreparedUpload> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -45,7 +45,7 @@ export async function prepareUpload(
     if (err instanceof BadRequestError) {
       await auditDetached({
         actorId: userId,
-        action: target.type === "action" ? "evidence.submit" : "document.upload",
+        action: target.type === "action" ? "evidence.submit" : target.type === "document" ? "document.new_version" : "document.upload",
         resourceType: target.type,
         resourceId: target.id,
         outcome: "deny",
