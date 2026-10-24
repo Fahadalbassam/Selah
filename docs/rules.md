@@ -161,6 +161,13 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | A client answering an item tells the firm-side team, and only for something the caller did | `app_notify_info_request()` | `src/services/info-requests.ts` (`tellFirm()`) | `tests/db/info-requests.test.ts` |
 | Waiting items with a due date are reminded by the daily job with the project's reminder and escalation days: due soon and overdue go to the owner (or the client admins when none is named), and past the level 2 days also to the client managers on the project and the firm-side team; each step once per due date, one notification per person and project | `app_info_requests_due()` | `src/jobs/follow-ups.ts` (`runFollowUps()`) | `tests/db/info-requests.test.ts` |
 
+### Withdrawing a wrong file
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| Only the uploader withdraws a file, on an open project, with a reason (3 to 500 characters): not evidence (the reviewer returns it), not a file with versions (the next version replaces it), and not one already relied on (a reviewed information request, a final assessment, a KPI reading). It is archived, leaves the assistant, stops answering requests and draft assessments, and is logged | `app_withdraw_document()`, `app_document_settled()`, `documents.document_withdrawn` | `src/services/documents.ts` (`fileControls().withdraw`, `withdrawDocument()`) | `tests/db/info-requests.test.ts` |
+| The withdrawal record is written only by the withdrawal, and a withdrawn file stays archived | `check_document_withdrawal()`, `documents.document_withdrawn` | database only | `tests/db/info-requests.test.ts` |
+
 ### Expertise
 
 | Rule | Database | Checked first in | Tests |

@@ -624,10 +624,19 @@ export const documents = pgTable(
     textStatus: textStatus("text_status").notNull().default("pending"),
     /** Scanned pages (no text layer) waiting for text recognition; set by the indexing job. */
     ocrPages: integer("ocr_pages").array().notNull().default(sql`'{}'::integer[]`),
+    /** The uploader took a wrong file back (N8): archived, kept for the record, with why. */
+    withdrawnAt: ts("withdrawn_at"),
+    withdrawnBy: uuid("withdrawn_by").references(() => user.id),
+    withdrawnReason: text("withdrawn_reason"),
     createdAt: createdAt(),
   },
   (t) => [
     scopedFk("documents", t),
+    check(
+      "document_withdrawn",
+      sql`(${t.withdrawnAt} IS NULL AND ${t.withdrawnBy} IS NULL AND ${t.withdrawnReason} IS NULL)
+        OR (${t.withdrawnAt} IS NOT NULL AND ${t.withdrawnBy} IS NOT NULL AND char_length(btrim(${t.withdrawnReason})) BETWEEN 3 AND 500 AND ${t.state} = 'archived')`,
+    ),
     departmentFk("documents", t),
     foreignKey({ name: "documents_supersedes_fk", columns: [t.supersedesId], foreignColumns: [t.id] }),
     index("documents_project_idx").on(t.projectId),

@@ -104,6 +104,8 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         aiIndexable: documents.aiIndexable,
         textStatus: documents.textStatus,
         ocrPages: documents.ocrPages,
+        firstVersion: sql<boolean>`${documents.supersedesId} is null`,
+        settled: sql<boolean>`app_document_settled(${documents.id})`,
       },
       project: { title: projects.title, kind: projects.kind, firmOrgId: projects.firmOrgId, state: projects.state },
       org: {
@@ -224,7 +226,14 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       can: fileControls(principal, {
         doc: r.doc,
         resource: resourceOf(r),
-        context: { projectKind: r.project.kind, projectClosed: r.project.state === "closed", minimal: r.org.minimal, latest: true },
+        context: {
+          projectKind: r.project.kind,
+          projectClosed: r.project.state === "closed",
+          minimal: r.org.minimal,
+          latest: true,
+          firstVersion: r.doc.firstVersion,
+          settled: r.doc.settled,
+        },
       }),
       org: { id: r.doc.orgId, kind: r.org.kind, name: r.org.name, nameAr: r.org.nameAr },
       project: { id: r.doc.projectId, title: r.project.title, kind: r.project.kind },

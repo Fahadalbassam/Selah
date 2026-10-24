@@ -17,6 +17,7 @@ import { loadPrincipal } from "@/services/principal";
 const stored: string[] = [];
 vi.mock("@/services/storage", () => ({ putObject: async (key: string) => void stored.push(key) }));
 const svcModule = await import("@/services/info-requests");
+const { withdrawDocument } = await import("@/services/documents");
 const { addTemplateItems, answerWithExisting, answerWithUpload, createInfoRequest, deleteInfoRequest, listInfoRequests, moveInfoRequest, removeAnswer, updateInfoRequest } =
   svcModule;
 
@@ -299,5 +300,57 @@ describe("reminders", () => {
     expect((await told()).length).toBe(before);
     // Other clients' people hear nothing.
     expect((await told()).some((x) => x.startsWith("betaAdmin") || x.startsWith("outsider"))).toBe(false);
+  });
+});
+
+describe("withdrawing a wrong file (N8)", () => {
+  const docOf = async (doc: string) =>
+    (await owner.query(`SELECT state, ai_indexable, withdrawn_reason FROM documents WHERE id = $1`, [doc])).rows[0];
+
+  it("lets only the uploader take back a file nobody relied on, and the item asks again", async () => {
+    const r = await create(U.cons, { title: "Shareholder register", ownerUserId: U.owner1 });
+    const doc = await svc(U.owner1, (tx, p) => answerWithUpload(tx, p, r.id, upload("wrong.pdf")));
+    expect((await statusOf(r.id)).status).toBe("received");
+    await expect(svc(U.cadmin, (tx, p) => withdrawDocument(tx, p, doc.id, "Not ours"))).rejects.toThrow(/cannot be withdrawn/);
+    await expect(attempt(U.cadmin, `SELECT app_withdraw_document($1, 'Not ours')`, [doc.id])).rejects.toThrow(/only the person who uploaded/);
+    await expect(attempt(U.owner1, `SELECT app_withdraw_document($1, 'x')`, [doc.id])).rejects.toThrow(/say why/);
+    await svc(U.owner1, (tx, p) => withdrawDocument(tx, p, doc.id, "Sent last year's register by mistake"));
+    expect(await docOf(doc.id)).toEqual({ state: "archived", ai_indexable: false, withdrawn_reason: "Sent last year's register by mistake" });
+    expect((await statusOf(r.id)).status).toBe("requested");
+    const list = (await svc(U.owner1, (tx, p) => listInfoRequests(tx, p, PROJ)))!;
+    expect(list.items.find((i) => i.id === r.id)!.files).toEqual([]);
+    expect(list.files.some((f) => f.id === doc.id)).toBe(false);
+    const logged = await owner.query(`SELECT 1 FROM activity_events WHERE entity_id = $1 AND event = 'document_withdrawn'`, [doc.id]);
+    expect(logged.rowCount).toBe(1);
+    await expect(svc(U.owner1, (tx, p) => withdrawDocument(tx, p, doc.id, "Again"))).rejects.toThrow(/cannot be withdrawn/);
+    // Withdrawn stays withdrawn, and nobody writes the record by hand.
+    await expect(attempt(U.owner1, `UPDATE documents SET state = 'submitted' WHERE id = $1`, [doc.id])).rejects.toThrow(/document_withdrawn/);
+    await expect(attempt(U.owner1, `UPDATE documents SET withdrawn_reason = 'edited' WHERE id = $1`, [doc.id])).rejects.toThrow(/withdrawn only by/);
+  });
+
+  it("keeps a file someone relied on, evidence, and a file with versions", async () => {
+    const r = await create(U.cons, { title: "Signed policy", ownerUserId: U.owner1 });
+    const doc = await svc(U.owner1, (tx, p) => answerWithUpload(tx, p, r.id, upload("policy.pdf")));
+    await svc(U.cons, (tx, p) => moveInfoRequest(tx, p, r.id, { status: "reviewed" }));
+    await expect(attempt(U.owner1, `SELECT app_withdraw_document($1, 'Wrong one')`, [doc.id])).rejects.toThrow(/relied on/);
+
+    const evidence = id(41);
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1::uuid,$2,$3,$3,$4,'evidence','submitted','e.pdf','shared',$1::text,'text/plain',1,$5,'clean')`,
+      [evidence, PROJ, ACME, U.owner1, "0".repeat(64)],
+    );
+    await expect(attempt(U.owner1, `SELECT app_withdraw_document($1, 'Wrong one')`, [evidence])).rejects.toThrow(/returned by the reviewer/);
+
+    const v1 = id(42);
+    const v2 = id(43);
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status, version, supersedes_id)
+       VALUES ($1::uuid,$3,$4,$4,$5,'client_document','submitted','v1','shared',$1::text,'text/plain',1,$6,'clean',1,NULL),
+              ($2::uuid,$3,$4,$4,$5,'client_document','submitted','v2','shared',$2::text,'text/plain',1,$6,'clean',2,$1::uuid)`,
+      [v1, v2, PROJ, ACME, U.owner1, "0".repeat(64)],
+    );
+    await expect(attempt(U.owner1, `SELECT app_withdraw_document($1, 'Wrong one')`, [v2])).rejects.toThrow(/new version/);
+    await expect(attempt(U.owner1, `SELECT app_withdraw_document($1, 'Wrong one')`, [v1])).rejects.toThrow(/new version/);
   });
 });
