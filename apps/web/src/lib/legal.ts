@@ -14,8 +14,8 @@ export const LEGAL_VERSIONS: Record<AcceptedDoc, string> = {
   ai_notice: "2026-10-24",
 };
 
-/** Published for reading only: the data agreement template and the sub-processor list. */
-export const REFERENCE_DOCS = ["data_agreement", "subprocessors"] as const;
+/** Published for reading only: the data agreement template, the sub-processor list and the security overview (R5). */
+export const REFERENCE_DOCS = ["data_agreement", "subprocessors", "security"] as const;
 export type ReferenceDoc = (typeof REFERENCE_DOCS)[number];
 
 export type LegalDoc = AcceptedDoc | ReferenceDoc;
@@ -28,8 +28,17 @@ export const LEGAL_SLUGS: Record<LegalDoc, string> = {
   ai_notice: "ai",
   data_agreement: "data-agreement",
   subprocessors: "sub-processors",
+  security: "security",
 };
 
 export function legalDocFromSlug(slug: string): LegalDoc | null {
   return (Object.entries(LEGAL_SLUGS).find(([, s]) => s === slug)?.[0] as LegalDoc | undefined) ?? null;
+}
+
+/** Which way traffic comes in (R5): COMPOSE_PROFILES, passed to the app as SELAH_EDGE. */
+export function edgeMode(value: string | undefined): "direct" | "tunnel" | null {
+  const profiles = (value ?? "").split(",").map((p) => p.trim());
+  if (profiles.includes("direct")) return "direct";
+  if (profiles.includes("tunnel")) return "tunnel";
+  return null;
 }

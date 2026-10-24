@@ -1,6 +1,34 @@
 # Operations
 
-Running Selah on the firm's server: backups, restoring, knowing it is up, upgrading, and what to do when something goes wrong (readiness items R3 and R4). Everything here runs on the server, from the repository folder that holds `docker-compose.yml` and `.env`.
+Running Selah on the firm's server: backups, restoring, knowing it is up, upgrading, and what to do when something goes wrong (readiness items R3, R4 and R5). Everything here runs on the server, from the repository folder that holds `docker-compose.yml` and `.env`.
+
+## How traffic reaches it
+
+One setting in `.env` chooses the way in, and both ways put the same Caddy (`ops/edge/Caddyfile`) in front of the web app, so headers and limits don't change when switching.
+
+| `COMPOSE_PROFILES` | What runs | Who sees the traffic | Open ports |
+| --- | --- | --- | --- |
+| *(empty)* | Nothing in front; the app on `127.0.0.1:3000` | Only this machine | None |
+| `tunnel` | `cloudflared` and `edge-tunnel` | Cloudflare ends HTTPS and sees the traffic (listed as a sub-processor) | None; the server opens the connection |
+| `direct` | `edge`, with its own certificates (Let's Encrypt, renewed by Caddy) | Nobody outside the server | 80 and 443 |
+
+Both serve two names: `SITE_DOMAIN` (the site) and `FILES_DOMAIN` (the one-minute signed download links; only `GET` and `HEAD` pass, uploads always go through the app). Set `APP_URL=https://SITE_DOMAIN` and `S3_PUBLIC_ENDPOINT=https://FILES_DOMAIN`.
+
+The visitor's address, which the sign-in and inquiry limits use, is always set by Caddy and never taken from the visitor: in direct mode it is the connection's address, in tunnel mode Cloudflare's `Cf-Connecting-Ip` (trusted only because nothing but `cloudflared` can reach `edge-tunnel`). Whatever the visitor sends in `X-Forwarded-For` is replaced.
+
+**Tunnel** (the current setup, synthetic data only). Create a tunnel in the Cloudflare dashboard (Zero Trust, Networks, Tunnels), copy its token into `CLOUDFLARE_TUNNEL_TOKEN`, and add two public hostnames, `SITE_DOMAIN` and `FILES_DOMAIN`, both to `http://edge-tunnel:80`. Then `COMPOSE_PROFILES=tunnel` and `docker compose up -d`.
+
+**Switching to direct** (before any real client file).
+1. Point `SITE_DOMAIN` and `FILES_DOMAIN` at the server's public address (DNS A records, not proxied through Cloudflare), and open ports 80 and 443 to it.
+2. In `.env`: `COMPOSE_PROFILES=direct`, and remove `CLOUDFLARE_TUNNEL_TOKEN`.
+3. `docker compose up -d --remove-orphans`. Caddy gets the certificates on the first request; `docker compose logs edge` shows it.
+4. Delete the tunnel in the Cloudflare dashboard, and check that the sub-processor page now shows Cloudflare as not in use.
+
+The sub-processor list and the security overview (`/legal/sub-processors`, `/legal/security`) read the same setting, so what clients are told follows what runs.
+
+## Security overview for clients' IT teams
+
+`/legal/security`, in Arabic and English, is the security pack to send a client's IT or security team: where Selah runs, how traffic reaches it, how clients are kept apart, sign-in, files, the AI assistant, audit and monitoring, backups, incidents and how it is built, with a panel showing this site's actual setup (way in, where the model runs, scanning, two-factor). It links to the sub-processor list and the data processing agreement template. Keep it true: when a control changes, change its text in `messages/*.json` in the same pull request. For a detailed review, `docs/security.md` maps the controls to OWASP ASVS 5.0 and the OWASP Top 10 for LLM applications.
 
 ## Backups
 

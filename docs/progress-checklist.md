@@ -198,7 +198,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **R2** Audit-log screen and tamper evidence — size: M · wave: 1 · journey: J11.4 · pr: #77
 - [x] **R3** Backups, restore drill, incident runbook — size: M · wave: 1 · pr: #86
 - [~] **R4** Readiness checks, alerts, upgrades — size: S · wave: later (before real data) · pr: #87 (open)
-- [ ] **R5** Security pack for client IT — size: S · wave: later (before real data)
+- [~] **R5** Security pack for client IT — size: S · wave: later (before real data) · pr: R5 PR (open)
 - [ ] **R6** AI operations and consent — size: S · wave: later (before real data)
 - [ ] **R7** Accessibility checks — size: S · wave: later (before real data)
 
