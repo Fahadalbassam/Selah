@@ -234,7 +234,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               .join(" · ") || tPh("noDates")}
                           </p>
                         </div>
-                        <ToneBadge tone={p.state === "active" ? "active" : p.state === "closed" ? "neutral" : p.state === "draft" ? "waiting" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
+                        <ToneBadge tone={p.state === "active" ? "active" : p.state === "closed" ? "neutral" : p.state === "draft" ? "neutral" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
                       </li>
                     );
                   })}

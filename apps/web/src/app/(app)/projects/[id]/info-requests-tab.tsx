@@ -239,7 +239,7 @@ function ItemRow({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {i.can.answer ? <AnswerDialog item={i} title={title} files={files} firm={i.can.edit} /> : null}
+        {i.can.answer ? <AnswerDialog item={i} title={title} files={files} /> : null}
         {i.can.review ? (
           <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("review")} icon={<CircleCheck />} />
         ) : null}
@@ -271,7 +271,7 @@ function ItemRow({
 }
 
 /** Answer an item: upload a file, or pick one already shared on the project. */
-function AnswerDialog({ item, title, files, firm }: { item: Item; title: string; files: InfoRequestList["files"]; firm: boolean }) {
+function AnswerDialog({ item, title, files }: { item: Item; title: string; files: InfoRequestList["files"] }) {
   const t = useTranslations("infoRequests");
   const tf = useTranslations("fileActions");
   const tc = useTranslations("common");
@@ -330,8 +330,8 @@ function AnswerDialog({ item, title, files, firm }: { item: Item; title: string;
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setExisting(""))}>
       <DialogTrigger asChild>
-        {/* The client's main step; the firm only files what reached it another way. */}
-        <Button size="sm" variant={firm ? "outline" : "default"}>
+        {/* One per row, so outline: a card keeps a single solid button. */}
+        <Button size="sm" variant="outline">
           <Paperclip />
           {t(item.files.length ? "addFile" : "answer")}
         </Button>
