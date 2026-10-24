@@ -1,21 +1,12 @@
 import { z } from "zod";
-import {
-  EMPLOYEE_BANDS,
-  ENTERED_SOURCES,
-  OWNERSHIP_TYPES,
-  TENDER_NUMBER,
-  URGENCIES,
-} from "@/lib/intake";
+import { EMPLOYEE_BANDS, ENTERED_SOURCES, OWNERSHIP_TYPES, TENDER_NUMBER, URGENCIES } from "@/lib/intake";
 
 // An inquiry typed in by firm staff (wave 1, item 8). The database checks it
 // again in app_enter_inquiry() and the inquiry_* constraints.
 
-const blank = (v: unknown) =>
-  typeof v === "string" ? v.trim() || undefined : v;
-const text = (max: number) =>
-  z.preprocess(blank, z.string().max(max).optional());
-const choice = <T extends readonly [string, ...string[]]>(values: T) =>
-  z.preprocess(blank, z.enum(values).optional());
+const blank = (v: unknown) => (typeof v === "string" ? v.trim() || undefined : v);
+const text = (max: number) => z.preprocess(blank, z.string().max(max).optional());
+const choice = <T extends readonly [string, ...string[]]>(values: T) => z.preprocess(blank, z.enum(values).optional());
 
 export const enteredInquiryInput = z
   .object({
@@ -40,10 +31,7 @@ export const enteredInquiryInput = z
     message: text(2000),
     urgency: choice(URGENCIES),
     sourceClientOrgId: z.preprocess(blank, z.uuid().optional()),
-    tenderNumber: z.preprocess(
-      blank,
-      z.string().regex(TENDER_NUMBER).optional(),
-    ),
+    tenderNumber: z.preprocess(blank, z.string().regex(TENDER_NUMBER).optional()),
     tenderClosesOn: z.preprocess(blank, z.iso.date().optional()),
   })
   .strict()
@@ -66,11 +54,7 @@ export const enteredInquiryInput = z
         path: ["sourceClientOrgId"],
         message: "pick the client",
       });
-    if (
-      v.sourceClientOrgId &&
-      v.source !== "existing_client" &&
-      v.source !== "referral"
-    ) {
+    if (v.sourceClientOrgId && v.source !== "existing_client" && v.source !== "referral") {
       ctx.addIssue({
         code: "custom",
         path: ["sourceClientOrgId"],

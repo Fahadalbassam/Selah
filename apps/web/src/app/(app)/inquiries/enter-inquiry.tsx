@@ -9,31 +9,12 @@ import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  EMPLOYEE_BANDS,
-  ENTERED_SOURCES,
-  OWNERSHIP_TYPES,
-  URGENCIES,
-} from "@/lib/intake";
+import { EMPLOYEE_BANDS, ENTERED_SOURCES, OWNERSHIP_TYPES, URGENCIES } from "@/lib/intake";
 import { localLabel } from "@/lib/names";
 
 type Option = { code: string; nameAr: string; nameEn: string };
@@ -44,11 +25,7 @@ const NONE = "none";
  * referral, a returning client, an Etimad tender, or a company the firm
  * approached. Only what staff know is required.
  */
-export function EnterInquiryDialog(props: {
-  sectors: Option[];
-  services: Option[];
-  clients: { id: string; name: string }[];
-}) {
+export function EnterInquiryDialog(props: { sectors: Option[]; services: Option[]; clients: { id: string; name: string }[] }) {
   const t = useTranslations("inbox.enter");
   const ti = useTranslations("inquiry");
   const tb = useTranslations("inbox");
@@ -58,8 +35,7 @@ export function EnterInquiryDialog(props: {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [source, setSource] =
-    useState<(typeof ENTERED_SOURCES)[number]>("referral");
+  const [source, setSource] = useState<(typeof ENTERED_SOURCES)[number]>("referral");
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -83,24 +59,17 @@ export function EnterInquiryDialog(props: {
       services: form.getAll("services").map(String),
       message: get("message"),
       urgency: get("urgency"),
-      sourceClientOrgId:
-        source === "referral" || source === "existing_client"
-          ? get("sourceClientOrgId")
-          : undefined,
+      sourceClientOrgId: source === "referral" || source === "existing_client" ? get("sourceClientOrgId") : undefined,
       tenderNumber: source === "tender" ? get("tenderNumber") : undefined,
       tenderClosesOn: source === "tender" ? get("tenderClosesOn") : undefined,
     };
     if (!body.sector) return setError(t("errors.sector"));
-    if (source === "existing_client" && !body.sourceClientOrgId)
-      return setError(t("errors.client"));
+    if (source === "existing_client" && !body.sourceClientOrgId) return setError(t("errors.client"));
     setBusy(true);
     setError(null);
     const r = await callApi("/api/intake/inquiries", "POST", body);
     setBusy(false);
-    if (!r.ok)
-      return setError(
-        r.error === "bad_request" ? t("errors.check") : tc("errors.generic"),
-      );
+    if (!r.ok) return setError(r.error === "bad_request" ? t("errors.check") : tc("errors.generic"));
     setOpen(false);
     router.push(`/inquiries/${(r.data as { id: string }).id}`);
   }
@@ -115,18 +84,12 @@ export function EnterInquiryDialog(props: {
   ) => (
     <div className="grid gap-2">
       <Label htmlFor={`ei-${name}`}>{label}</Label>
-      <Select
-        name={name}
-        defaultValue={value ?? (optional ? NONE : undefined)}
-        onValueChange={onChange}
-      >
+      <Select name={name} defaultValue={value ?? (optional ? NONE : undefined)} onValueChange={onChange}>
         <SelectTrigger id={`ei-${name}`} className="w-full">
           <SelectValue placeholder={t("choose")} />
         </SelectTrigger>
         <SelectContent>
-          {optional ? (
-            <SelectItem value={NONE}>{t("unknown")}</SelectItem>
-          ) : null}
+          {optional ? <SelectItem value={NONE}>{t("unknown")}</SelectItem> : null}
           {options.map((o) => (
             <SelectItem key={o.value} value={o.value}>
               {o.label}
@@ -175,25 +138,11 @@ export function EnterInquiryDialog(props: {
               <>
                 <div className="grid gap-2">
                   <Label htmlFor="ei-tenderNumber">{t("tenderNumber")}</Label>
-                  <Input
-                    id="ei-tenderNumber"
-                    name="tenderNumber"
-                    required
-                    dir="ltr"
-                    maxLength={40}
-                    pattern="[0-9A-Za-z\-]{1,40}"
-                  />
+                  <Input id="ei-tenderNumber" name="tenderNumber" required dir="ltr" maxLength={40} pattern="[0-9A-Za-z\-]{1,40}" />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="ei-tenderClosesOn">
-                    {t("tenderClosesOn")}
-                  </Label>
-                  <DatePicker
-                    id="ei-tenderClosesOn"
-                    name="tenderClosesOn"
-                    placeholder={t("tenderClosesOn")}
-                    clearLabel={tc("clear")}
-                  />
+                  <Label htmlFor="ei-tenderClosesOn">{t("tenderClosesOn")}</Label>
+                  <DatePicker id="ei-tenderClosesOn" name="tenderClosesOn" placeholder={t("tenderClosesOn")} clearLabel={tc("clear")} />
                 </div>
               </>
             ) : null}
@@ -201,22 +150,11 @@ export function EnterInquiryDialog(props: {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="ei-orgName">{ti("org.name")}</Label>
-              <Input
-                id="ei-orgName"
-                name="orgName"
-                required
-                maxLength={200}
-                dir="auto"
-              />
+              <Input id="ei-orgName" name="orgName" required maxLength={200} dir="auto" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="ei-orgNameAr">{ti("org.nameAr")}</Label>
-              <Input
-                id="ei-orgNameAr"
-                name="orgNameAr"
-                maxLength={200}
-                dir="rtl"
-              />
+              <Input id="ei-orgNameAr" name="orgNameAr" maxLength={200} dir="rtl" />
             </div>
             {select(
               "sector",
@@ -250,15 +188,10 @@ export function EnterInquiryDialog(props: {
             )}
           </div>
           <fieldset className="grid gap-2">
-            <legend className="mb-2 text-sm font-medium">
-              {tb("services")}
-            </legend>
+            <legend className="mb-2 text-sm font-medium">{tb("services")}</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {props.services.map((s) => (
-                <Label
-                  key={s.code}
-                  className="flex items-center gap-2 font-normal"
-                >
+                <Label key={s.code} className="flex items-center gap-2 font-normal">
                   <Checkbox name="services" value={s.code} />
                   <span>{localLabel(s, ar)}</span>
                 </Label>
@@ -268,41 +201,19 @@ export function EnterInquiryDialog(props: {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="ei-contactName">{t("contactName")}</Label>
-              <Input
-                id="ei-contactName"
-                name="contactName"
-                maxLength={120}
-                dir="auto"
-              />
+              <Input id="ei-contactName" name="contactName" maxLength={120} dir="auto" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="ei-contactRole">{t("contactRole")}</Label>
-              <Input
-                id="ei-contactRole"
-                name="contactRole"
-                maxLength={120}
-                dir="auto"
-              />
+              <Input id="ei-contactRole" name="contactRole" maxLength={120} dir="auto" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="ei-email">{t("email")}</Label>
-              <Input
-                id="ei-email"
-                name="email"
-                type="email"
-                maxLength={254}
-                dir="ltr"
-              />
+              <Input id="ei-email" name="email" type="email" maxLength={254} dir="ltr" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="ei-phone">{t("phone")}</Label>
-              <Input
-                id="ei-phone"
-                name="phone"
-                maxLength={30}
-                dir="ltr"
-                pattern="[+0-9 ()\-]{0,30}"
-              />
+              <Input id="ei-phone" name="phone" maxLength={30} dir="ltr" pattern="[+0-9 ()\-]{0,30}" />
             </div>
             {select(
               "preferredLanguage",
@@ -318,14 +229,7 @@ export function EnterInquiryDialog(props: {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="ei-message">{t("notes")}</Label>
-            <Textarea
-              id="ei-message"
-              name="message"
-              maxLength={2000}
-              rows={3}
-              dir="auto"
-              placeholder={t("notesPlaceholder")}
-            />
+            <Textarea id="ei-message" name="message" maxLength={2000} rows={3} dir="auto" placeholder={t("notesPlaceholder")} />
           </div>
           {error ? (
             <p role="alert" className="text-sm text-destructive">
@@ -333,11 +237,7 @@ export function EnterInquiryDialog(props: {
             </p>
           ) : null}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {tc("cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
