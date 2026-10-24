@@ -1,4 +1,11 @@
-import { ArrowLeft, Circle, Mail, MinusCircle, NotebookPen, UserPlus } from "lucide-react";
+import {
+  ArrowLeft,
+  Circle,
+  Mail,
+  MinusCircle,
+  NotebookPen,
+  UserPlus,
+} from "lucide-react";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
 import Link from "next/link";
@@ -9,11 +16,17 @@ import { PageHeader } from "@/components/page-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { isUuid } from "@/lib/ids";
 import { SELF_CHECKS } from "@/lib/intake";
-import { localLabel } from "@/lib/names";
+import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getInquiry, suggestLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
@@ -24,39 +37,88 @@ const CLOSED = ["lost", "declined", "spam", "withdrawn"] as const;
 // The self-check keys as the database stores them.
 const snake = (k: string) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
-export default async function InquiryPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InquiryPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
     const detail = await getInquiry(tx, principal, id);
     const admin = detail.can.decide;
-    const team = admin ? (await listTeam(tx, principal)).filter((m) => m.active !== false) : [];
+    const team = admin
+      ? (await listTeam(tx, principal)).filter((m) => m.active !== false)
+      : [];
     return {
       ...detail,
       options: await intakeOptions(tx),
       leads: admin ? await suggestLeads(tx, principal, id) : null,
       team: team.map((m) => ({ id: m.id, name: m.name, role: m.role })),
-      clients: admin ? (await listClients(tx, principal)).map((c) => ({ id: c.id, name: c.name })) : [],
+      clients: admin
+        ? (await listClients(tx, principal)).map((c) => ({
+            id: c.id,
+            name: c.name,
+          }))
+        : [],
     };
   });
   if (!data) notFound();
-  const [t, ti, format] = await Promise.all([getTranslations("inbox"), getTranslations("inquiry"), getFormatter()]);
+  const [t, ti, format] = await Promise.all([
+    getTranslations("inbox"),
+    getTranslations("inquiry"),
+    getFormatter(),
+  ]);
   const ar = (await getLocale()) === "ar";
   const { inquiry: q, can } = data;
-  const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
+  const label = (
+    list: { code: string; nameAr: string; nameEn: string }[],
+    code: string,
+  ) => {
     const x = list.find((o) => o.code === code);
     return x ? localLabel(x, ar) : code;
   };
   const when = (d: Date | string) =>
-    format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short", timeZone: FIRM_TIME_ZONE });
+    format.dateTime(new Date(d), {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: FIRM_TIME_ZONE,
+    });
   const closed = (CLOSED as readonly string[]).includes(q.status);
   const status = (s: string | null) => (s ? t(`statuses.${s}`) : "—");
   const selfCheck = q.selfCheck as Record<string, boolean | undefined>;
-  const nameOf = (userId: string | null | undefined) => data.team.find((m) => m.id === userId)?.name;
+  const nameOf = (userId: string | null | undefined) =>
+    data.team.find((m) => m.id === userId)?.name;
 
   const rows: [string, React.ReactNode][] = [
-    [t("contact"), [q.contactName, q.contactRole].filter(Boolean).join(" · ") || "—"],
+    [
+      t("source"),
+      [
+        t(`sources.${q.source}`),
+        q.sourceClient ? localName(q.sourceClient, ar) : null,
+        q.enteredByName ? t("enteredBy", { name: q.enteredByName }) : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ],
+    ...(q.tenderNumber
+      ? [
+          [
+            t("tender"),
+            <span key="tn">
+              <span dir="ltr">{q.tenderNumber}</span>
+              {q.tenderClosesOn
+                ? ` · ${t("tenderCloses", { date: format.dateTime(new Date(`${q.tenderClosesOn}T00:00:00`), { dateStyle: "medium" }) })}`
+                : null}
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
+    [
+      t("contact"),
+      [q.contactName, q.contactRole].filter(Boolean).join(" · ") || "—",
+    ],
     [
       "",
       <span key="c" className="flex flex-wrap gap-x-3" dir="ltr">
@@ -70,8 +132,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     ],
     [t("language"), t(`langs.${q.preferredLanguage === "ar" ? "ar" : "en"}`)],
     [t("sector"), label(data.options.sectors, q.sector)],
-    [t("size"), ti(`employeeBand.${q.employeeBand}`)],
-    [t("ownership"), ti(`ownershipType.${q.ownershipType}`)],
+    [t("size"), q.employeeBand ? ti(`employeeBand.${q.employeeBand}`) : "—"],
+    [
+      t("ownership"),
+      q.ownershipType ? ti(`ownershipType.${q.ownershipType}`) : "—",
+    ],
     ...(q.crNumber
       ? [
           [
@@ -82,21 +147,40 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
           ] as [string, React.ReactNode],
         ]
       : []),
-    [t("services"), q.services.map((c) => label(data.options.services, c)).join(ar ? "، " : ", ")],
+    [
+      t("services"),
+      q.services
+        .map((c) => label(data.options.services, c))
+        .join(ar ? "، " : ", "),
+    ],
     [t("urgency"), q.urgency ? ti(`urgency.${q.urgency}`) : "—"],
-    ...(q.heardFrom ? [[t("heardFrom"), ti(`heardFromOption.${q.heardFrom}`)] as [string, React.ReactNode]] : []),
+    ...(q.heardFrom
+      ? [
+          [t("heardFrom"), ti(`heardFromOption.${q.heardFrom}`)] as [
+            string,
+            React.ReactNode,
+          ],
+        ]
+      : []),
   ];
 
   return (
     <>
-      <Link href="/inquiries" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        href="/inquiries"
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
       <PageHeader
         title={(ar ? q.orgNameAr : null) ?? q.orgName ?? q.publicRef}
         description={`${q.publicRef} · ${t("received")} ${when(q.createdAt)}`}
-        meta={<ToneBadge tone={q.status === "new" ? "new" : "open"}>{status(q.status)}</ToneBadge>}
+        meta={
+          <ToneBadge tone={q.status === "new" ? "new" : "open"}>
+            {status(q.status)}
+          </ToneBadge>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -107,7 +191,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 <CardTitle className="text-base">{t("nextStep")}</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2 px-5">
-                {can.forward === "triaged" || can.forward === "proposal_sent" ? (
+                {can.forward === "triaged" ||
+                can.forward === "proposal_sent" ? (
                   <ApiButton
                     endpoint={`/api/intake/inquiries/${q.id}`}
                     method="PATCH"
@@ -117,7 +202,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     size="default"
                   />
                 ) : null}
-                {["new", "triaged", "discovery_scheduled"].includes(q.status) ? <BookDiscovery inquiryId={q.id} /> : null}
+                {["new", "triaged", "discovery_scheduled"].includes(
+                  q.status,
+                ) ? (
+                  <BookDiscovery inquiryId={q.id} />
+                ) : null}
                 {can.decide && !closed ? (
                   <FormDialog
                     trigger={<Button variant="outline">{t("close")}</Button>}
@@ -131,7 +220,10 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                         label: t("closeAs"),
                         type: "select",
                         required: true,
-                        options: CLOSED.map((s) => ({ value: s, label: t(`statuses.${s}`) })),
+                        options: CLOSED.map((s) => ({
+                          value: s,
+                          label: t(`statuses.${s}`),
+                        })),
                       },
                     ]}
                     submitLabel={t("close")}
@@ -142,7 +234,9 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     endpoint={`/api/intake/inquiries/${q.id}/decline-mail`}
                     label={t("declineMail")}
                     title={t("declineMailHint")}
-                    confirm={t("declineMailConfirm", { email: q.contactEmail ?? "" })}
+                    confirm={t("declineMailConfirm", {
+                      email: q.contactEmail ?? "",
+                    })}
                     icon={<Mail />}
                     size="default"
                   />
@@ -175,30 +269,46 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               </dl>
               {q.message ? (
                 <div className="space-y-1 border-t pt-4">
-                  <p className="text-xs text-muted-foreground">{t("message")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("message")}
+                  </p>
                   <p className="text-sm whitespace-pre-wrap" dir="auto">
                     {q.message}
                   </p>
                 </div>
               ) : null}
-              <div className="space-y-2 border-t pt-4">
-                <p className="text-xs text-muted-foreground">{t("selfCheck")}</p>
-                <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
-                  {SELF_CHECKS.map((k) => {
-                    const v = selfCheck[snake(k)] ?? selfCheck[k];
-                    const Icon = v === true ? CircleCheck : v === false ? MinusCircle : Circle;
-                    return (
-                      <li key={k} className="flex items-center gap-2">
-                        <Icon className="size-4 shrink-0 text-muted-foreground" />
-                        <span>{ti(`selfCheck.${k}`)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {v === true ? t("yes") : v === false ? t("no") : t("notAnswered")}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              {/* The self-check is asked on the public form only. */}
+              {q.source === "website" ? (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-xs text-muted-foreground">
+                    {t("selfCheck")}
+                  </p>
+                  <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+                    {SELF_CHECKS.map((k) => {
+                      const v = selfCheck[snake(k)] ?? selfCheck[k];
+                      const Icon =
+                        v === true
+                          ? CircleCheck
+                          : v === false
+                            ? MinusCircle
+                            : Circle;
+                      return (
+                        <li key={k} className="flex items-center gap-2">
+                          <Icon className="size-4 shrink-0 text-muted-foreground" />
+                          <span>{ti(`selfCheck.${k}`)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {v === true
+                              ? t("yes")
+                              : v === false
+                                ? t("no")
+                                : t("notAnswered")}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -207,18 +317,35 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               <CardTitle className="text-base">{t("discovery")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 px-5">
-              {data.discoverySessions.length === 0 ? <p className="text-sm text-muted-foreground">{t("noDiscovery")}</p> : null}
+              {data.discoverySessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("noDiscovery")}
+                </p>
+              ) : null}
               {data.discoverySessions.map((s) => (
-                <div key={s.id} className="space-y-2 border-t pt-4 text-sm first:border-t-0 first:pt-0">
+                <div
+                  key={s.id}
+                  className="space-y-2 border-t pt-4 text-sm first:border-t-0 first:pt-0"
+                >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium tabular-nums">{when(s.scheduledAt)}</span>
+                    <span className="font-medium tabular-nums">
+                      {when(s.scheduledAt)}
+                    </span>
                     <Badge variant="outline">{t(`modes.${s.mode}`)}</Badge>
-                    {s.outcome ? <Badge variant="secondary">{t(`outcomes.${s.outcome}`)}</Badge> : null}
+                    {s.outcome ? (
+                      <Badge variant="secondary">
+                        {t(`outcomes.${s.outcome}`)}
+                      </Badge>
+                    ) : null}
                     {s.heldAt ? (
-                      <span className="text-xs text-muted-foreground">{t("held", { date: when(s.heldAt) })}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t("held", { date: when(s.heldAt) })}
+                      </span>
                     ) : null}
                   </div>
-                  {s.attendees ? <p className="text-muted-foreground">{s.attendees}</p> : null}
+                  {s.attendees ? (
+                    <p className="text-muted-foreground">{s.attendees}</p>
+                  ) : null}
                   {s.notes ? (
                     <p className="whitespace-pre-wrap" dir="auto">
                       {s.notes}
@@ -243,7 +370,9 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                           type: "select",
                           required: true,
                           defaultValue: s.outcome ?? undefined,
-                          options: (["proceed", "needs_followup", "not_a_fit"] as const).map((o) => ({
+                          options: (
+                            ["proceed", "needs_followup", "not_a_fit"] as const
+                          ).map((o) => ({
                             value: o,
                             label: t(`outcomes.${o}`),
                           })),
@@ -276,7 +405,15 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                   }
                   title={t("addNote")}
                   endpoint={`/api/intake/inquiries/${q.id}/notes`}
-                  fields={[{ name: "note", label: t("note"), type: "textarea", required: true, maxLength: 4000 }]}
+                  fields={[
+                    {
+                      name: "note",
+                      label: t("note"),
+                      type: "textarea",
+                      required: true,
+                      maxLength: 4000,
+                    },
+                  ]}
                   submitLabel={t("addNote")}
                 />
               ) : null}
@@ -286,21 +423,42 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 {data.events.map((e) => (
                   <li key={e.id} className="space-y-0.5">
                     <p>
-                      <span className="font-medium">{e.actorName ?? t("public")}</span>{" "}
+                      <span className="font-medium">
+                        {e.actorName ?? t("public")}
+                      </span>{" "}
                       <span className="text-muted-foreground">
                         {e.event === "status_changed"
-                          ? t("events.status_changed", { from: status(e.fromStatus), to: status(e.toStatus) })
-                          : e.event === "owner_changed" && nameOf(e.meta.owner_user_id as string | null)
-                            ? t("events.owner_assigned", { name: nameOf(e.meta.owner_user_id as string)! })
+                          ? t("events.status_changed", {
+                              from: status(e.fromStatus),
+                              to: status(e.toStatus),
+                            })
+                          : e.event === "owner_changed" &&
+                              nameOf(e.meta.owner_user_id as string | null)
+                            ? t("events.owner_assigned", {
+                                name: nameOf(e.meta.owner_user_id as string)!,
+                              })
                             : e.event === "conflict_checked"
                               ? t("events.conflict_checked", {
-                                  status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
+                                  status: t(
+                                    `conflicts.${String(e.meta.conflict_status ?? "not_checked")}`,
+                                  ),
                                 })
-                              : ["submitted", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                              : [
+                                    "submitted",
+                                    "entered",
+                                    "acknowledged",
+                                    "decline_mailed",
+                                    "owner_changed",
+                                    "converted",
+                                    "note",
+                                    "anonymised",
+                                  ].includes(e.event)
                                 ? t(`events.${e.event}`)
                                 : e.event}
                       </span>{" "}
-                      <span className="ms-1 text-xs text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
+                      <span className="ms-1 text-xs text-muted-foreground tabular-nums">
+                        {when(e.createdAt)}
+                      </span>
                     </p>
                     {e.note ? (
                       <p className="whitespace-pre-wrap" dir="auto">
@@ -318,7 +476,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
           <Card className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">
               <CardDescription>{t("owner")}</CardDescription>
-              <CardTitle className="text-base">{nameOf(q.ownerUserId) ?? (q.ownerUserId ? "—" : t("unassigned"))}</CardTitle>
+              <CardTitle className="text-base">
+                {nameOf(q.ownerUserId) ??
+                  q.ownerName ??
+                  (q.ownerUserId ? "—" : t("unassigned"))}
+              </CardTitle>
             </CardHeader>
             {can.decide && !q.clientOrgId ? (
               <CardContent className="px-5">
@@ -340,7 +502,10 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                       type: "select",
                       required: true,
                       defaultValue: q.ownerUserId ?? undefined,
-                      options: data.team.map((m) => ({ value: m.id, label: m.name })),
+                      options: data.team.map((m) => ({
+                        value: m.id,
+                        label: m.name,
+                      })),
                     },
                   ]}
                   submitLabel={t("assign")}
@@ -380,8 +545,13 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                       label: t("conflict"),
                       type: "select",
                       required: true,
-                      defaultValue: q.conflictStatus === "not_checked" ? "clear" : q.conflictStatus,
-                      options: (["clear", "flagged", "waived"] as const).map((s) => ({ value: s, label: t(`conflicts.${s}`) })),
+                      defaultValue:
+                        q.conflictStatus === "not_checked"
+                          ? "clear"
+                          : q.conflictStatus,
+                      options: (["clear", "flagged", "waived"] as const).map(
+                        (s) => ({ value: s, label: t(`conflicts.${s}`) }),
+                      ),
                     },
                     {
                       name: "conflictNote",
@@ -402,7 +572,9 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               <CardContent className="space-y-3 px-5 text-sm">
                 <p>{t("converted")}</p>
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/clients/${q.clientOrgId}`}>{t("openClient")}</Link>
+                  <Link href={`/clients/${q.clientOrgId}`}>
+                    {t("openClient")}
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
@@ -410,7 +582,9 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("convert")}</CardTitle>
-                <CardDescription>{can.convert ? t("convertHint") : t("convertBlocked")}</CardDescription>
+                <CardDescription>
+                  {can.convert ? t("convertHint") : t("convertBlocked")}
+                </CardDescription>
               </CardHeader>
               {can.convert ? (
                 <CardContent className="px-5">
@@ -419,9 +593,21 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     orgName={q.orgName ?? ""}
                     orgNameAr={q.orgNameAr ?? null}
                     clients={data.clients}
+                    existingClientId={
+                      q.source === "existing_client"
+                        ? q.sourceClientOrgId
+                        : null
+                    }
                     consultants={[
-                      ...(data.leads ?? []).map((l) => ({ id: l.userId, name: l.name })),
-                      ...data.team.filter((m) => m.role === "consultant" && !data.leads?.some((l) => l.userId === m.id)),
+                      ...(data.leads ?? []).map((l) => ({
+                        id: l.userId,
+                        name: l.name,
+                      })),
+                      ...data.team.filter(
+                        (m) =>
+                          m.role === "consultant" &&
+                          !data.leads?.some((l) => l.userId === m.id),
+                      ),
                     ]}
                   />
                 </CardContent>
@@ -436,15 +622,22 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 <CardDescription>{t("leadsHint")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 px-5 text-sm">
-                {data.leads.length === 0 ? <p className="text-muted-foreground">{t("noLeads")}</p> : null}
+                {data.leads.length === 0 ? (
+                  <p className="text-muted-foreground">{t("noLeads")}</p>
+                ) : null}
                 {data.leads.map((l) => (
-                  <div key={l.userId} className="space-y-1 border-t pt-3 first:border-t-0 first:pt-0">
+                  <div
+                    key={l.userId}
+                    className="space-y-1 border-t pt-3 first:border-t-0 first:pt-0"
+                  >
                     <p className="font-medium">{l.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {[
                         l.matchedServices.length
                           ? t("matched", {
-                              services: l.matchedServices.map((c) => label(data.options.services, c)).join(ar ? "، " : ", "),
+                              services: l.matchedServices
+                                .map((c) => label(data.options.services, c))
+                                .join(ar ? "، " : ", "),
                             })
                           : null,
                         l.sectorMatch ? t("sectorMatch") : null,

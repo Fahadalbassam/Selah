@@ -2,31 +2,64 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { localLabel } from "@/lib/names";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { listInquiries } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
+import { clientDirectory } from "@/services/staffing";
+import { EnterInquiryDialog } from "./enter-inquiry";
 import { ToneBadge } from "@/components/tone-badge";
 
 const CLOSED = new Set(["lost", "declined", "spam", "withdrawn"]);
 const VIEWS = ["open", "won", "closed"] as const;
 type View = (typeof VIEWS)[number];
 const inView = (status: string, view: View) =>
-  view === "won" ? status === "won" : view === "closed" ? CLOSED.has(status) : status !== "won" && !CLOSED.has(status);
+  view === "won"
+    ? status === "won"
+    : view === "closed"
+      ? CLOSED.has(status)
+      : status !== "won" && !CLOSED.has(status);
 
-export default async function InquiriesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function InquiriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const { view: asked } = await searchParams;
   const view: View = VIEWS.includes(asked as View) ? (asked as View) : "open";
+  const ar = (await getLocale()) === "ar";
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
-    return { rows: await listInquiries(tx, principal), options: await intakeOptions(tx), admin: principal.role === "firm_admin" };
+    const directory = await clientDirectory(tx, principal);
+    return {
+      rows: await listInquiries(tx, principal),
+      options: await intakeOptions(tx),
+      admin: principal.role === "firm_admin",
+      // Clients this person can name as the referrer or the returning client.
+      clients: directory
+        .filter((c) => principal.role === "firm_admin" || c.assigned)
+        .map((c) => ({ id: c.id, name: c.nameAr && ar ? c.nameAr : c.name })),
+    };
   });
   if (!data) notFound();
-  const [t, ti, format] = await Promise.all([getTranslations("inbox"), getTranslations("inquiry"), getFormatter()]);
-  const ar = (await getLocale()) === "ar";
-  const label = (list: { code: string; nameAr: string; nameEn: string }[], code: string) => {
+  const [t, ti, format] = await Promise.all([
+    getTranslations("inbox"),
+    getTranslations("inquiry"),
+    getFormatter(),
+  ]);
+  const label = (
+    list: { code: string; nameAr: string; nameEn: string }[],
+    code: string,
+  ) => {
     const x = list.find((o) => o.code === code);
     return x ? localLabel(x, ar) : code;
   };
@@ -34,7 +67,16 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title={t("title")} description={data.admin ? t("description") : t("descriptionConsultant")} />
+      <PageHeader
+        title={t("title")}
+        description={data.admin ? t("description") : t("descriptionConsultant")}
+      >
+        <EnterInquiryDialog
+          sectors={data.options.sectors}
+          services={data.options.services}
+          clients={data.clients}
+        />
+      </PageHeader>
       <nav className="flex gap-1 rounded-lg bg-muted p-1 text-sm w-fit">
         {VIEWS.map((v) => (
           <Link
@@ -42,16 +84,22 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
             href={v === "open" ? "/inquiries" : `/inquiries?view=${v}`}
             className={cn(
               "rounded-md px-3 py-1",
-              v === view ? "bg-background font-medium shadow-xs" : "text-muted-foreground hover:text-foreground",
+              v === view
+                ? "bg-background font-medium shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {t(`views.${v}`)}{" "}
-            <span className="tabular-nums text-muted-foreground">{data.rows.filter((r) => inView(r.status, v)).length}</span>
+            <span className="tabular-nums text-muted-foreground">
+              {data.rows.filter((r) => inView(r.status, v)).length}
+            </span>
           </Link>
         ))}
       </nav>
       {rows.length === 0 ? (
-        <p className="rounded-xl border bg-card px-4 py-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+        <p className="rounded-xl border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+          {t("empty")}
+        </p>
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
@@ -70,26 +118,49 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>
-                    <Link href={`/inquiries/${r.id}`} className="font-medium hover:underline">
+                    <Link
+                      href={`/inquiries/${r.id}`}
+                      className="font-medium hover:underline"
+                    >
                       {(ar ? r.orgNameAr : null) ?? r.orgName ?? r.publicRef}
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      {label(data.options.sectors, r.sector)} · {ti(`employeeBand.${r.employeeBand}`)} ·{" "}
-                      <span dir="ltr">{r.publicRef}</span>
+                      {r.source !== "website"
+                        ? `${t(`sources.${r.source}`)} · `
+                        : null}
+                      {label(data.options.sectors, r.sector)}
+                      {r.employeeBand
+                        ? ` · ${ti(`employeeBand.${r.employeeBand}`)}`
+                        : null}{" "}
+                      · <span dir="ltr">{r.publicRef}</span>
                     </p>
                   </TableCell>
                   <TableCell className="max-w-64 text-sm whitespace-normal">
-                    {r.services.map((c) => label(data.options.services, c)).join(ar ? "، " : ", ")}
-                  </TableCell>
-                  <TableCell className="text-sm">{r.urgency ? ti(`urgency.${r.urgency}`) : "—"}</TableCell>
-                  <TableCell>
-                    <ToneBadge tone={r.status === "new" ? "new" : "open"}>{t(`statuses.${r.status}`)}</ToneBadge>
+                    {r.services
+                      .map((c) => label(data.options.services, c))
+                      .join(ar ? "، " : ", ")}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {r.ownerName ?? <span className="text-muted-foreground">{t("unassigned")}</span>}
+                    {r.urgency ? ti(`urgency.${r.urgency}`) : "—"}
                   </TableCell>
                   <TableCell>
-                    <ToneBadge tone={r.conflictStatus === "flagged" ? "problem" : "neutral"}>
+                    <ToneBadge tone={r.status === "new" ? "new" : "open"}>
+                      {t(`statuses.${r.status}`)}
+                    </ToneBadge>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {r.ownerName ?? (
+                      <span className="text-muted-foreground">
+                        {t("unassigned")}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <ToneBadge
+                      tone={
+                        r.conflictStatus === "flagged" ? "problem" : "neutral"
+                      }
+                    >
                       {t(`conflicts.${r.conflictStatus}`)}
                     </ToneBadge>
                   </TableCell>

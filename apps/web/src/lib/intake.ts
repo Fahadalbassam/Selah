@@ -18,3 +18,9 @@ export const URGENCIES = ["exploring", "within_3_months", "urgent"] as const;
 export const HEARD_FROM = ["referral", "search", "social_media", "event", "existing_client", "other"] as const;
 /** The self-check questions (mirroring the firm's survey of family businesses). */
 export const SELF_CHECKS = ["hasStrategy", "hasOrgChart", "hasDelegationMatrix", "hasPolicies", "hasSops", "hasKpis"] as const;
+
+/** How an inquiry reached the firm. Staff enter every source but the public form. */
+export const INQUIRY_SOURCES = ["website", "referral", "existing_client", "tender", "firm_outreach"] as const;
+export const ENTERED_SOURCES = ["referral", "existing_client", "tender", "firm_outreach"] as const;
+/** An Etimad tender number, as inquiry_tender_fields allows. */
+export const TENDER_NUMBER = /^[0-9A-Za-z-]{1,40}$/;

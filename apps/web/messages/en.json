@@ -1259,7 +1259,7 @@
   "inbox": {
     "title": "Inquiries",
     "description": "Requests from the public inquiry form. Each one is checked for conflicts, discussed in a discovery session, then won or closed.",
-    "descriptionConsultant": "Inquiries the firm admin handed to you.",
+    "descriptionConsultant": "Inquiries the firm admin handed to you, and the ones you entered.",
     "empty": "No inquiries here.",
     "views": {
       "open": "Open",
@@ -1315,7 +1315,8 @@
       "anonymised": "removed the personal details (retention)",
       "owner_assigned": "handed it to {name}",
       "acknowledged": "sent the requester an acknowledgement with the reference",
-      "decline_mailed": "sent the requester a courteous decline"
+      "decline_mailed": "sent the requester a courteous decline",
+      "entered": "entered the inquiry by hand"
     },
     "public": "The public form",
     "back": "Back to inquiries",
@@ -1398,7 +1399,42 @@
     },
     "declineMail": "Send a courteous decline",
     "declineMailHint": "A short bilingual mail with the reference, thanking them and saying the firm can't take the request forward. Sent once.",
-    "declineMailConfirm": "Send the decline mail to {email}? It can only be sent once."
+    "declineMailConfirm": "Send the decline mail to {email}? It can only be sent once.",
+    "source": "Came in through",
+    "enteredBy": "entered by {name}",
+    "tender": "Etimad tender",
+    "tenderCloses": "closes {date}",
+    "sources": {
+      "website": "The inquiry form",
+      "referral": "A referral",
+      "existing_client": "A returning client",
+      "tender": "A government tender (Etimad)",
+      "firm_outreach": "Our own approach"
+    },
+    "enter": {
+      "button": "Enter an inquiry",
+      "title": "Enter an inquiry",
+      "hint": "For a request that didn't come through the form: a referral, a returning client, an Etimad tender, or a company we approached. Fill in what you know. No mail goes to the contact.",
+      "source": "How it came in",
+      "referredBy": "Referred by a client (optional)",
+      "client": "The client",
+      "tenderNumber": "Tender number",
+      "tenderClosesOn": "Closing date",
+      "contactName": "Contact name (optional)",
+      "contactRole": "Their role (optional)",
+      "email": "Email (optional)",
+      "phone": "Phone (optional)",
+      "notes": "Notes",
+      "notesPlaceholder": "What they asked for, who referred them, what we know so far.",
+      "choose": "Choose",
+      "unknown": "Not known",
+      "submit": "Enter the inquiry",
+      "errors": {
+        "sector": "Choose a sector.",
+        "client": "Choose the returning client.",
+        "check": "Please check what you entered: the organisation name is required, and the tender number uses letters, digits and dashes only."
+      }
+    }
   },
   "notifications": {
     "title": "Notifications",

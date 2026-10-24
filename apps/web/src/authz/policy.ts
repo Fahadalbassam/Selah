@@ -180,6 +180,8 @@ export const POLICY = {
   "inquiry.read": { firm_admin: "any", consultant: "assigned" },
   "inquiry.work": { firm_admin: "any", consultant: "assigned" },
   "inquiry.decide": { firm_admin: "any" },
+  // Typing in a referral, returning client, tender or an approach of the firm's own (item 8). A consultant owns what they enter.
+  "inquiry.enter": { firm_admin: "any", consultant: "any" },
   // Who can lead what. The admin records it; a consultant keeps their own
   // languages and availability. Suggestions match one inquiry; they are
   // not a ranking of people.

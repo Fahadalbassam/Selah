@@ -142,13 +142,15 @@ export function ConvertDialog(props: {
   orgNameAr: string | null;
   clients: { id: string; name: string }[];
   consultants: { id: string; name: string }[];
+  /** A returning client's inquiry starts on that client. */
+  existingClientId?: string | null;
 }) {
   const t = useTranslations("inbox");
   const te = useTranslations("engagements");
   const tc = useTranslations("common");
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<"new" | "existing">("new");
+  const [kind, setKind] = useState<"new" | "existing">(props.existingClientId ? "existing" : "new");
   const { busy, error, setError, run } = useSubmit();
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -235,7 +237,7 @@ export function ConvertDialog(props: {
           ) : (
             <div className="grid gap-2">
               <Label htmlFor="c-existing">{t("existingClient")}</Label>
-              <Select name="existingClientId" required>
+              <Select name="existingClientId" required defaultValue={props.existingClientId ?? undefined}>
                 <SelectTrigger id="c-existing" className="w-full">
                   <SelectValue placeholder={t("chooseClient")} />
                 </SelectTrigger>

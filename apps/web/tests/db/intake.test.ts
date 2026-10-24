@@ -8,7 +8,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { renderMail } from "@/lib/mail-templates";
-import { getInquiry, mailDecline } from "@/services/inquiries";
+import { enteredInquiryInput } from "@/lib/inquiry-entry";
+import { enterInquiry, getInquiry, mailDecline } from "@/services/inquiries";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -360,5 +361,89 @@ describe("mails to the requester", () => {
     await run(U.admin, `UPDATE inquiries SET status = 'lost' WHERE id = $1`, [iid]);
     await owner.query(`UPDATE inquiries SET anonymised_at = now(), contact_email = NULL, contact_name = NULL, org_name = NULL WHERE id = $1`, [iid]);
     await expect(run(U.admin, `SELECT app_mail_inquiry_decline($1)`, [iid])).rejects.toThrow(/no longer kept/);
+  });
+});
+
+describe("inquiries entered by firm staff", () => {
+  const svc = <R>(userId: string, fn: (tx: Tx, p: NonNullable<Awaited<ReturnType<typeof loadPrincipal>>>) => Promise<R>) =>
+    as(
+      userId,
+      async (c) => {
+        const tx = drizzle(c, { schema }) as unknown as Tx;
+        return fn(tx, (await loadPrincipal(tx, userId))!);
+      },
+      true,
+    );
+  // The test ids aren't RFC 4122 variants, so the client id joins after the form's check.
+  const entry = ({ sourceClientOrgId, ...fields }: Record<string, unknown>) => ({
+    ...enteredInquiryInput.parse({
+      orgName: "Al-Rimal Holding",
+      sector: "trade_distribution",
+      services: ["delegation_matrix"],
+      ...fields,
+      ...(sourceClientOrgId ? { sourceClientOrgId: "6f1c2a52-6a5b-4b7e-9c1d-2f0b8e3a4d5c" } : {}),
+    }),
+    sourceClientOrgId: sourceClientOrgId as string | undefined,
+  });
+  const enter = (who: string, fields: Record<string, unknown>) => svc(who, (tx, p) => enterInquiry(tx, p, entry(fields)));
+
+  it("the admin enters a referral: no consent asked, no mail to anyone, logged as entered", async () => {
+    const before = Number((await owner.query(`SELECT count(*) FROM outbound_emails`)).rows[0].count);
+    const { id: iid } = await enter(U.admin, { source: "referral", sourceClientOrgId: ACME, contactName: "Huda", email: "huda@rimal.example" });
+    const row = (await owner.query(`SELECT * FROM inquiries WHERE id = $1`, [iid])).rows[0];
+    expect(row).toMatchObject({ source: "referral", entered_by: U.admin, source_client_org_id: ACME, owner_user_id: null, status: "new", consented_at: null });
+    expect(Number((await owner.query(`SELECT count(*) FROM outbound_emails`)).rows[0].count)).toBe(before);
+    expect((await owner.query(`SELECT event, actor_id FROM inquiry_events WHERE inquiry_id = $1`, [iid])).rows).toEqual([{ event: "entered", actor_id: U.admin }]);
+  });
+
+  it("a consultant enters their own approach, owns it, and the admins are told", async () => {
+    const { id: iid } = await enter(U.cons, { source: "firm_outreach" });
+    expect((await owner.query(`SELECT owner_user_id FROM inquiries WHERE id = $1`, [iid])).rows[0].owner_user_id).toBe(U.cons);
+    expect((await owner.query(`SELECT user_id FROM notifications WHERE entity_id = $1 AND kind = 'inquiry.new'`, [iid])).rows).toEqual([{ user_id: U.admin }]);
+    const seen = await svc(U.cons, (tx, p) => getInquiry(tx, p, iid));
+    expect(seen.inquiry).toMatchObject({ source: "firm_outreach", enteredByName: "cons", employeeBand: null });
+    // Another consultant doesn't see it.
+    expect((await attempt(U.other, `SELECT 1 FROM inquiries WHERE id = $1`, [iid])).rowCount).toBe(0);
+  });
+
+  it("names only clients the person can see, and only firm staff enter", async () => {
+    await expect(enter(U.cons, { source: "existing_client", sourceClientOrgId: ACME })).rejects.toMatchObject({
+      cause: { message: expect.stringMatching(/source_client_org_id/) },
+    });
+    await expect(enter(U.cmgr, { source: "referral" })).rejects.toThrow();
+    const payload = JSON.stringify({ source: "referral", org_name: "X", sector: "trade_distribution" });
+    await expect(run(U.cmgr, `SELECT app_enter_inquiry($1::jsonb)`, [payload])).rejects.toThrow(/only firm staff/);
+    await expect(run(null, `SELECT app_enter_inquiry($1::jsonb)`, [payload])).rejects.toThrow(/only firm staff/);
+    // The public form's source can't be typed in.
+    await expect(run(U.admin, `SELECT app_enter_inquiry($1::jsonb)`, [JSON.stringify({ source: "website", org_name: "X", sector: "trade_distribution" })])).rejects.toThrow(
+      /invalid field: source/,
+    );
+  });
+
+  it("a tender carries its number, and only a tender does; a returning client names the client", async () => {
+    const { id: iid } = await enter(U.admin, { source: "tender", tenderNumber: "250139001234", tenderClosesOn: "2026-12-01" });
+    expect((await owner.query(`SELECT tender_number, tender_closes_on::text AS closes FROM inquiries WHERE id = $1`, [iid])).rows[0]).toEqual({
+      tender_number: "250139001234",
+      closes: "2026-12-01",
+    });
+    expect(enteredInquiryInput.safeParse({ source: "tender", orgName: "X", sector: "s" }).success).toBe(false);
+    expect(enteredInquiryInput.safeParse({ source: "referral", orgName: "X", sector: "s", tenderNumber: "1" }).success).toBe(false);
+    expect(enteredInquiryInput.safeParse({ source: "existing_client", orgName: "X", sector: "s" }).success).toBe(false);
+    // The database says the same, past the form.
+    for (const p of [{ source: "tender" }, { source: "referral", tender_number: "1" }, { source: "existing_client" }]) {
+      await expect(run(U.admin, `SELECT app_enter_inquiry($1::jsonb)`, [JSON.stringify({ org_name: "X", sector: "trade_distribution", ...p })]), p.source).rejects.toThrow(
+        /inquiry_tender_fields|inquiry_source_client/,
+      );
+    }
+  });
+
+  it("the public form still needs consent, size and ownership", async () => {
+    await expect(
+      owner.query(
+        `INSERT INTO inquiries (firm_org_id, public_ref, org_name, contact_name, contact_email, sector_id, preferred_language, self_check)
+         SELECT $1, 'INQ-TEST0001', 'X', 'Y', 'y@example.test', id, 'ar', '{}' FROM sectors LIMIT 1`,
+        [FIRM],
+      ),
+    ).rejects.toThrow(/inquiry_website_fields/);
   });
 });
