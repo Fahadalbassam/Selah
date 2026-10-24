@@ -17,6 +17,7 @@ import { NotFoundError, RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
 import { clientOverview } from "./client-overview";
 import { getClosure } from "./closure";
+import { reportPack } from "./status-pack";
 import { getReport } from "./follow-through";
 import { renderPdf } from "./pdf";
 import { getProject, isOverdue, listActions } from "./queries";
@@ -230,22 +231,64 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
     sql`select action_id, extensions from app_action_slips(${report.projectId}::uuid)`,
   );
   const moved = new Map(slips.map((r) => [r.action_id, Number(r.extensions)]));
+  const pack = report.kind === "status_pack" ? await reportPack(tx, principal, reportId) : null;
+  const tp = (key: string, values?: Record<string, string | number>) => t(`statusPack.${key}` as "statusPack.title", values as Record<string, string>);
+  const d = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
   const html = renderReportHtml({
     locale,
     firmName: name(firmOrg),
     clientName: project.kind === "client" ? name({ name: project.orgName, nameAr: project.orgNameAr }) : null,
     projectTitle: project.title,
     report: {
-      title: report.title,
+      title:
+        pack && report.periodStart
+          ? tp("title", { month: new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${report.periodStart}T00:00:00Z`)) })
+          : report.title,
       periodStart: report.periodStart,
       periodEnd: report.periodEnd,
       author: report.author,
       createdAt: new Date(report.createdAt).toISOString().slice(0, 10),
       bodyMd: report.bodyMd,
-      metrics: report.metrics,
+      metrics: report.metrics ?? pack?.live ?? null,
       // Only the firm needs telling that the client hasn't seen it.
       firmOnly: principal.orgKind === "firm" && report.visibility !== "shared",
     },
+    pack: pack
+      ? {
+          sections: [
+            {
+              key: "decisions",
+              head: [tp("item"), tp("decisions.what"), tp("since")],
+              rows: pack.pack.decisions.map((x) => [x.title, x.kind === "response" ? tp("decisions.response") : tp("decisions.deadline", { date: d(x.proposedDueDate!) }), d(x.since)]),
+            },
+            {
+              key: "overdue",
+              head: [tp("item"), tp("owner"), tp("due"), tp("late")],
+              rows: pack.pack.overdue.map((x) => [x.title, x.owner ?? "—", d(x.dueDate), tp("days", { n: x.days })]),
+            },
+            {
+              key: "slipped",
+              head: [tp("item"), tp("owner"), tp("original"), tp("moves")],
+              rows: pack.pack.slipped.map((x) => [x.title, x.owner ?? "—", x.baselineDueDate ? d(x.baselineDueDate) : "—", String(x.moves)]),
+            },
+            {
+              key: "riskAccepted",
+              head: [tp("item"), tp("acceptedBy"), tp("on")],
+              rows: pack.pack.riskAccepted.map((x) => [x.title, x.acceptedBy ?? "—", d(x.on)]),
+            },
+            {
+              key: "verified",
+              head: [tp("item"), tp("owner"), tp("on")],
+              rows: pack.pack.verified.map((x) => [x.title, x.owner ?? "—", d(x.on)]),
+            },
+          ].map(({ key, ...s }) => ({ ...s, title: tp(`${key}.title`), hint: tp(`${key}.hint`) })),
+          moved: {
+            title: tp("moved.title"),
+            hint: tp(Object.keys(pack.pack.moved).length ? "moved.hint" : "moved.none"),
+            counts: Object.entries(pack.pack.moved).map(([s, n]) => ({ label: t(`status.${s}` as "status.draft"), n })),
+          },
+        }
+      : null,
     actions: list.map((a) => ({
       title: a.title,
       recommendation: a.recommendationTitle,

@@ -1685,7 +1685,8 @@
       "action_commented": "New comment on an action",
       "action_mentioned": "You were mentioned on an action",
       "follow_up_reminder": "Your consultant asked for an update on {title}",
-      "project_client_quiet": "No one at the client has worked on {title} for two weeks or more"
+      "project_client_quiet": "No one at the client has worked on {title} for two weeks or more",
+      "report_pack_drafted": "Your monthly status pack for {title} is drafted and waiting for you"
     },
     "mail": {
       "section": "Mail",
@@ -3360,7 +3361,8 @@
       "recommendation_response_review": "Confirming or answering a response",
       "action_comment_remove": "Comment removed",
       "action_comment_read": "Read an action's discussion",
-      "action_comment_create": "Commented on an action"
+      "action_comment_create": "Commented on an action",
+      "report_issue_pack": "Status pack issued"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -3958,5 +3960,55 @@
         "cannot": "The reminder couldn't be sent."
       }
     }
+  },
+  "statusPack": {
+    "title": "Status pack, {month}",
+    "draft": "Draft",
+    "issue": "Issue",
+    "issueTitle": "Issue the status pack",
+    "issueHint": "Issuing freezes the numbers and the lists as they stand now. It stays with the firm until you share it.",
+    "note": "Note for the client",
+    "notePlaceholder": "What stands out this month, and what you need from them",
+    "draftTitle": "Draft, seen only by the firm",
+    "draftHint": "The monthly job drafted this pack. The numbers below are live until you issue it.",
+    "item": "Item",
+    "since": "Since",
+    "owner": "Owner",
+    "due": "Due",
+    "late": "Late",
+    "original": "Original date",
+    "moves": "Moves",
+    "acceptedBy": "Accepted by",
+    "on": "On",
+    "days": "{n, plural, one {# day} other {# days}}",
+    "decisions": {
+      "title": "Needs a decision",
+      "hint": "Recommendations waiting on the client's answer, and deadline changes waiting on approval.",
+      "what": "What is needed",
+      "response": "The client's answer",
+      "deadline": "Approve a new date: {date}"
+    },
+    "overdue": {
+      "title": "Overdue",
+      "hint": "Open actions past their due date at the end of the period, and with whom."
+    },
+    "slipped": {
+      "title": "Moved twice or more",
+      "hint": "Open actions whose due date has moved two or more times."
+    },
+    "riskAccepted": {
+      "title": "Risk accepted",
+      "hint": "Actions the client chose not to complete in the period, and who signed."
+    },
+    "verified": {
+      "title": "Verified",
+      "hint": "Actions the firm verified as done in the period."
+    },
+    "moved": {
+      "title": "Movement in the period",
+      "hint": "How many actions reached each status in the period.",
+      "none": "No action changed status in the period."
+    },
+    "listDraft": "Draft pack"
   }
 }

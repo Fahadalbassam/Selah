@@ -471,6 +471,8 @@ export async function listReports(tx: Tx, principal: Principal, projectId: strin
       createdAt: reports.createdAt,
       generatedBy: reports.generatedBy,
       author: user.name,
+      kind: reports.kind,
+      issued: sql<boolean>`${reports.metrics} is not null`,
     })
     .from(reports)
     .leftJoin(user, eq(user.id, reports.generatedBy))
@@ -499,6 +501,7 @@ export async function getReport(tx: Tx, principal: Principal, id: string) {
       generatedBy: reports.generatedBy,
       author: user.name,
       metrics: reports.metrics,
+      kind: reports.kind,
     })
     .from(reports)
     .leftJoin(user, eq(user.id, reports.generatedBy))
@@ -512,14 +515,18 @@ export async function getReport(tx: Tx, principal: Principal, id: string) {
   void generatedBy;
   return {
     report: { ...report, metrics: metrics as Progress | null },
-    can: { share: row.visibility !== "shared" && authorize(principal, "report.share", rr).allowed },
+    can: {
+      // A status pack is shared only once issued (F19).
+      share: row.visibility !== "shared" && (row.kind !== "status_pack" || metrics !== null) && authorize(principal, "report.share", rr).allowed,
+      issue: row.kind === "status_pack" && metrics === null && authorize(principal, "report.write", { ...resource, type: "report" }).allowed,
+    },
   };
 }
 
 /** Share a firm-private report with the client. One way: a shared report stays shared. */
 export async function shareReport(tx: Tx, principal: Principal, id: string) {
   const [row] = await tx
-    .select({ id: reports.id, projectId: reports.projectId, visibility: reports.visibility, generatedBy: reports.generatedBy })
+    .select({ id: reports.id, projectId: reports.projectId, visibility: reports.visibility, generatedBy: reports.generatedBy, kind: reports.kind, metrics: reports.metrics })
     .from(reports)
     .where(eq(reports.id, id))
     .limit(1);
@@ -529,6 +536,7 @@ export async function shareReport(tx: Tx, principal: Principal, id: string) {
   if (!authorize(principal, "report.read", rr).allowed) throw new NotFoundError("report");
   assertAllowed(principal, "report.share", rr);
   if (row.visibility === "shared") throw new ConflictError("the report is already shared");
+  if (row.kind === "status_pack" && row.metrics === null) throw new ConflictError("issue the status pack before sharing it");
   await tx.update(reports).set({ visibility: "shared", sharedAt: new Date() }).where(eq(reports.id, id));
   await audit(tx, {
     actorId: principal.userId,
