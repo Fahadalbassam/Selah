@@ -97,6 +97,8 @@ export interface RecommendationValues {
   priority: "low" | "medium" | "high" | "critical";
   dueDate: string | null;
   requiredEvidence: string | null;
+  departmentId: string | null;
+  accountableUserId: string | null;
 }
 
 /**
@@ -145,6 +147,7 @@ export function RecommendationDialog(props: {
     const text = (k: string) => String(form.get(k) ?? "").trim() || undefined;
     const finding = text("findingId");
     const pick = (k: string) => (text(k) === NONE ? undefined : text(k));
+    const listed = (ids: string[], current: string | null) => current === null || ids.includes(current);
     if (props.edit) {
       // Every field is sent: an emptied one is cleared.
       const or = (k: string) => text(k) ?? null;
@@ -158,6 +161,15 @@ export function RecommendationDialog(props: {
           priority: text("priority") ?? "medium",
           dueDate: or("dueDate"),
           requiredEvidence: or("requiredEvidence"),
+          // Only the fields the dialog shows; NONE clears them.
+          // A department switched off since, or a person no longer on the project, isn't in the
+          // lists; leaving the field alone then keeps it rather than clearing it.
+          ...(props.scope.departments.length && listed(props.scope.departments.map((d) => d.id), editing!.departmentId)
+            ? { departmentId: pick("departmentId") ?? null }
+            : {}),
+          ...(props.scope.accountables.length && listed(props.scope.accountables.map((p) => p.userId), editing!.accountableUserId)
+            ? { accountableUserId: pick("accountableUserId") ?? null }
+            : {}),
         },
         "PATCH",
       );
@@ -256,12 +268,12 @@ export function RecommendationDialog(props: {
               />
             </div>
           ) : null}
-          {!editing && (props.scope.departments.length || props.scope.accountables.length) ? (
+          {props.scope.departments.length || props.scope.accountables.length ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {props.scope.departments.length ? (
                 <div className="grid gap-2">
                   <Label htmlFor="r-dept">{t("department")}</Label>
-                  <Select name="departmentId" defaultValue={NONE}>
+                  <Select name="departmentId" defaultValue={editing?.departmentId ?? NONE}>
                     <SelectTrigger id="r-dept" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -280,7 +292,7 @@ export function RecommendationDialog(props: {
               {props.scope.accountables.length ? (
                 <div className="grid gap-2">
                   <Label htmlFor="r-accountable">{t("accountable")}</Label>
-                  <Select name="accountableUserId" defaultValue={NONE}>
+                  <Select name="accountableUserId" defaultValue={editing?.accountableUserId ?? NONE}>
                     <SelectTrigger id="r-accountable" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -330,7 +342,7 @@ export function RecommendationDialog(props: {
               </div>
             ) : null}
           </div>
-          <Footer busy={busy} error={error} label={t("save")} onCancel={() => setOpen(false)} />
+          <Footer busy={busy} error={error} label={editing ? tc("save") : t("save")} onCancel={() => setOpen(false)} />
         </form>
       </DialogContent>
     </Dialog>
