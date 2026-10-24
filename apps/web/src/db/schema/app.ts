@@ -1083,9 +1083,19 @@ export const reports = pgTable(
     periodStart: date("period_start"),
     periodEnd: date("period_end"),
     metrics: jsonb("metrics"),
+    // A monthly status pack (F19) is drafted by the job for last month, firm-only;
+    // the firm reviews it, adds a note and issues it, which freezes the numbers
+    // and the lists (pack). Never shared before it is issued.
+    kind: text("kind").notNull().default("report"),
+    pack: jsonb("pack"),
     createdAt: createdAt(),
   },
-  (t) => [scopedFk("reports", t)],
+  (t) => [
+    scopedFk("reports", t),
+    check("reports_kind", sql`${t.kind} IN ('report', 'status_pack')`),
+    check("reports_pack_issued_before_shared", sql`${t.kind} <> 'status_pack' OR ${t.visibility} = 'firm_private' OR ${t.metrics} IS NOT NULL`),
+    uniqueIndex("reports_status_pack_once").on(t.projectId, t.periodStart).where(sql`${t.kind} = 'status_pack'`),
+  ],
 );
 
 // ------------------------------------------------------------- metrics
