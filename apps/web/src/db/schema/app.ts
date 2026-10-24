@@ -694,6 +694,29 @@ export const actionDueChanges = pgTable(
   (t) => [scopedFk("action_due_changes", t), index("action_due_changes_action_idx").on(t.actionId, t.createdAt)],
 );
 
+// A consultant asking an action's owner for an update in one click (F18).
+// Append-only; once per action per firm day. The owner gets a reminder
+// notification, mailed with their other reminders (migration oversight).
+export const actionReminders = pgTable(
+  "action_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id),
+    sentBy: uuid("sent_by")
+      .notNull()
+      .references(() => user.id),
+    onDay: date("on_day").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("action_reminders", t), uniqueIndex("action_reminders_once_a_day").on(t.actionId, t.onDay)],
+);
+
 // ------------------------------------------------------------ documents
 
 // owner_org_id is the side that controls the document (and its AI flag).
