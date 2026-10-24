@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
+import { AssistantSidebarItem } from "@/components/assistant/assistant-card";
 import { SidebarBrand } from "@/components/brand";
 import { FilesSidebarItem } from "@/components/file-explorer";
 import { NavUser, type NavUserProps } from "@/components/nav-user";
@@ -65,6 +66,8 @@ export interface NavItem {
   href: string;
   icon: keyof typeof ICONS;
   items?: { title: string; href: string }[];
+  /** The assistant: opens its floating card instead of a page. */
+  card?: boolean;
 }
 
 export interface NavGroup {
@@ -124,6 +127,7 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
             <SidebarMenu>
               {group.items.map((item) => {
                 const Icon = ICONS[item.icon];
+                if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
                 if (!item.items?.length) {
                   return (
                     <SidebarMenuItem key={item.href}>

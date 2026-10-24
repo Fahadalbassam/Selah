@@ -3,18 +3,16 @@
 import { Archive, ArchiveRestore, Languages, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
+import { openFilePage } from "@/app/(app)/projects/[id]/document-summary";
 import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
 import { FileText } from "@/components/animate-ui/icons/file-text";
-import { Plus } from "@/components/animate-ui/icons/plus";
 import { Search } from "@/components/animate-ui/icons/search";
 import { Send } from "@/components/animate-ui/icons/send";
 import { BrandLoader, BrandMark } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
-import { callApi } from "@/components/form-dialog";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -37,12 +35,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
-import { openFilePage } from "../projects/[id]/document-summary";
 
-type Lang = "ar" | "en";
+export type Lang = "ar" | "en";
 type CaseType = "recommendation" | "action" | "finding" | "meeting" | "document";
 
-interface ChatRow {
+export interface ChatRow {
   id: string;
   title: string;
   projectId: string;
@@ -76,7 +73,7 @@ interface ChatMessage {
   citations: Citation[];
 }
 
-interface Chat extends Omit<ChatRow, "projectTitle"> {
+export interface Chat extends Omit<ChatRow, "projectTitle"> {
   projectTitle: string;
   caseId: string | null;
   caseLabel: string | null;
@@ -105,7 +102,7 @@ async function fetchTranslation(
   return { ok: true, translation: !data.original && data.id ? { id: data.id, text: data.text, reviewed: data.reviewed } : undefined };
 }
 
-async function getJson<T>(url: string): Promise<T | null> {
+export async function getJson<T>(url: string): Promise<T | null> {
   const res = await fetch(url).catch(() => null);
   return res?.ok ? ((await res.json()) as T) : null;
 }
@@ -116,173 +113,17 @@ const rise = {
   transition: { type: "spring", stiffness: 380, damping: 32 },
 } as const;
 
-/**
- * The assistant: the person's chats on the start side, one chat on the other.
- * Each chat is about one project, and optionally one record in it. Messages
- * are kept in the language they were written in; switching the interface
- * language translates only the latest answer, and folds older ones until asked.
- */
-export function AssistantWorkspace({
-  projects,
-  initialChatId,
-  initialCase,
-  initialProjectId = null,
-}: {
-  projects: { id: string; title: string; client: string }[];
-  initialChatId: string | null;
-  initialCase: NewChatCase | null;
-  initialProjectId?: string | null;
-}) {
-  const t = useTranslations("assistant");
-  const locale = useLocale() as Lang;
-  const router = useRouter();
-  const [chats, setChats] = useState<ChatRow[]>([]);
-  const [archived, setArchived] = useState<ChatRow[] | null>(null);
-  const [filter, setFilter] = useState("");
-  const [chatId, setChatId] = useState<string | null>(initialChatId);
-  // Bumped to load the list or the open chat again.
-  const [listVersion, setListVersion] = useState(0);
-  const [chatVersion, setChatVersion] = useState(0);
-  const [loaded, setLoaded] = useState<{ key: string; chat: Chat | null } | null>(null);
-  const [draft, setDraft] = useState<{ projectId: string; case: NewChatCase | null }>({
-    projectId: initialCase?.projectId ?? initialProjectId ?? projects[0]?.id ?? "",
-    case: initialCase,
-  });
-  const [pending, setPending] = useState<string | null>(null);
-  // "limit": the person asked their questions for today (the client assistant's daily limit).
-  const [failed, setFailed] = useState<false | "error" | "limit">(false);
-
-  // Loaded again when the interface language changes, to pick up kept translations.
-  const chatKey = chatId ? `${chatId}:${locale}:${chatVersion}` : null;
-  const chat = chatKey && loaded?.key === chatKey ? loaded.chat : chatId && loaded?.chat?.id === chatId ? loaded.chat : null;
-  const loadingChat = Boolean(chatKey && loaded?.key !== chatKey);
-
-  const loadArchived = useCallback(async () => {
-    const rows = await getJson<ChatRow[]>("/api/assistant/conversations?archived=1");
-    if (rows) setArchived(rows);
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    void getJson<ChatRow[]>("/api/assistant/conversations").then((rows) => live && rows && setChats(rows));
-    return () => {
-      live = false;
-    };
-  }, [listVersion]);
-
-  useEffect(() => {
-    if (!chatId || !chatKey) return;
-    let live = true;
-    void getJson<Chat>(`/api/assistant/conversations/${chatId}?lang=${locale}`).then((data) => {
-      if (!live) return;
-      setLoaded({ key: chatKey, chat: data });
-      if (!data) {
-        toast.error(t("chatGone"));
-        setChatId(null);
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, [chatId, chatKey, locale, t]);
-
-  function refresh() {
-    setListVersion((v) => v + 1);
-    if (archived) void loadArchived();
-  }
-
-  function open(id: string | null) {
-    setChatId(id);
-    setFailed(false);
-    router.replace(id ? `/assistant?chat=${id}` : "/assistant", { scroll: false });
-  }
-
-  async function ask(question: string) {
-    setPending(question);
-    setFailed(false);
-    const body = chat
-      ? { projectId: chat.projectId, conversationId: chat.id, question, language: locale }
-      : {
-          projectId: draft.projectId,
-          question,
-          language: locale,
-          ...(draft.case ? { caseType: draft.case.type, caseId: draft.case.id } : {}),
-        };
-    const r = await callApi("/api/assistant/query", "POST", body);
-    setPending(null);
-    if (!r.ok) {
-      setFailed(r.status === 429 ? "limit" : "error");
-      return false;
-    }
-    const { conversationId } = r.data as { conversationId: string };
-    if (conversationId !== chatId) open(conversationId);
-    else setChatVersion((v) => v + 1);
-    refresh();
-    return true;
-  }
-
-  async function patch(change: { title?: string; keep?: boolean; archived?: boolean }) {
-    if (!chat) return;
-    const r = await callApi(`/api/assistant/conversations/${chat.id}`, "PATCH", change);
-    if (!r.ok) {
-      toast.error(t("saveFailed"));
-      return;
-    }
-    setChatVersion((v) => v + 1);
-    refresh();
-  }
-
-  async function remove() {
-    if (!chat) return;
-    const r = await callApi(`/api/assistant/conversations/${chat.id}`, "DELETE");
-    if (!r.ok) {
-      toast.error(t("saveFailed"));
-      return;
-    }
-    toast.success(t("deleted"));
-    open(null);
-    refresh();
-  }
-
-  return (
-    <div className="grid h-[min(46rem,calc(100svh-13rem))] min-h-[32rem] grid-cols-[16rem_1fr] overflow-hidden rounded-xl border bg-card shadow-xs lg:grid-cols-[18rem_1fr]">
-      <ChatList
-        chats={chats}
-        archived={archived}
-        filter={filter}
-        onFilter={setFilter}
-        selected={chatId}
-        onOpen={open}
-        onNew={() => {
-          setDraft((d) => ({ ...d, case: null }));
-          open(null);
-        }}
-        onShowArchived={() => (archived ? setArchived(null) : void loadArchived())}
-      />
-      <section className="flex min-h-0 min-w-0 flex-col">
-        {chat ? (
-          <ChatHeader chat={chat} onPatch={patch} onDelete={remove} />
-        ) : (
-          <NewChatHeader projects={projects} draft={draft} onChange={setDraft} disabled={Boolean(chatId)} />
-        )}
-        <Thread chat={chat} loading={loadingChat} pending={pending} failed={failed} />
-        <Composer onAsk={ask} busy={pending !== null} disabled={!chat && !draft.projectId} />
-      </section>
-    </div>
-  );
-}
-
 // ------------------------------------------------------------- the list
 
-function ChatList(props: {
+export function ChatList(props: {
   chats: ChatRow[];
   archived: ChatRow[] | null;
   filter: string;
   onFilter: (v: string) => void;
   selected: string | null;
   onOpen: (id: string) => void;
-  onNew: () => void;
   onShowArchived: () => void;
+  className?: string;
 }) {
   const t = useTranslations("assistant");
   const format = useFormatter();
@@ -329,11 +170,7 @@ function ChatList(props: {
   );
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 border-e bg-muted/30 p-3">
-      <Button onClick={props.onNew} className="w-full">
-        <Plus animateOnHover />
-        {t("newChat")}
-      </Button>
+    <aside className={cn("flex min-h-0 flex-col gap-3 p-3", props.className)}>
       <div className="relative">
         <Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -376,7 +213,7 @@ function ChatList(props: {
 
 // ------------------------------------------------------------- headers
 
-function NewChatHeader({
+export function NewChatHeader({
   projects,
   draft,
   onChange,
@@ -423,7 +260,7 @@ function NewChatHeader({
   );
 }
 
-function ChatHeader({
+export function ChatHeader({
   chat,
   onPatch,
   onDelete,
@@ -536,7 +373,20 @@ function ChatHeader({
 
 // ------------------------------------------------------------- messages
 
-function Thread({ chat, loading, pending, failed }: { chat: Chat | null; loading: boolean; pending: string | null; failed: false | "error" | "limit" }) {
+export function Thread({
+  chat,
+  loading,
+  pending,
+  failed,
+  note,
+}: {
+  chat: Chat | null;
+  loading: boolean;
+  pending: string | null;
+  failed: false | "error" | "limit";
+  /** Under the empty chat's hint: what the assistant does not do. */
+  note?: string;
+}) {
   const t = useTranslations("assistant");
   const locale = useLocale();
   const messages = chat?.messages ?? [];
@@ -548,6 +398,7 @@ function Thread({ chat, loading, pending, failed }: { chat: Chat | null; loading
         <EmptyHeader>
           <EmptyMedia>{loading ? <BrandLoader className="size-8" /> : <BrandMark className="size-10 opacity-80" />}</EmptyMedia>
           {loading ? null : <EmptyDescription>{t("emptyThread")}</EmptyDescription>}
+          {loading || !note ? null : <EmptyDescription className="text-xs">{note}</EmptyDescription>}
         </EmptyHeader>
       </Empty>
     );
@@ -813,7 +664,18 @@ function Sources({ citations, projectId }: { citations: Citation[]; projectId: s
 
 // ------------------------------------------------------------- composer
 
-function Composer({ onAsk, busy, disabled }: { onAsk: (q: string) => Promise<boolean>; busy: boolean; disabled: boolean }) {
+export function Composer({
+  onAsk,
+  busy,
+  disabled,
+  usage,
+}: {
+  onAsk: (q: string) => Promise<boolean>;
+  busy: boolean;
+  disabled: boolean;
+  /** A client's questions today against the daily limit. */
+  usage?: { used: number; limit: number } | null;
+}) {
   const t = useTranslations("assistant");
   const [question, setQuestion] = useState("");
   async function submit(e?: FormEvent) {
@@ -845,6 +707,7 @@ function Composer({ onAsk, busy, disabled }: { onAsk: (q: string) => Promise<boo
           aria-label={t("placeholder")}
           maxLength={2000}
           rows={1}
+          autoFocus
           dir="auto"
           className="max-h-40 min-h-9 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
@@ -852,7 +715,10 @@ function Composer({ onAsk, busy, disabled }: { onAsk: (q: string) => Promise<boo
           {busy ? <BrandLoader tone="current" className="size-4" /> : <Send animateOnHover className="rtl:-scale-x-100" />}
         </Button>
       </div>
-      <p className="mt-1.5 px-1 text-xs text-muted-foreground">{t("enterHint")}</p>
+      <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+        {t("enterHint")}
+        {usage ? ` · ${t("clientUsage", { used: usage.used, limit: usage.limit })}` : null}
+      </p>
     </form>
   );
 }

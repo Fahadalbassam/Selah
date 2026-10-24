@@ -58,10 +58,11 @@ A follow-up gets the chat's last 8 messages as context (`history`). They are nev
 Every chat belongs to one person and one project (`ai_conversations.project_id`), so one chat never mixes two clients. Picking another project starts another chat.
 
 - **Title:** the first question on one line, cut at 60 characters, with no model call. The owner can rename it.
-- **Case** (optional): the recommendation, action, finding, meeting or file the chat is about. The database checks it is a record of the same project that the person can see. "Ask the assistant" on an action, a meeting, a recommendation or a file starts a chat already linked to it (`/assistant?project=…&case=action:…`). Deleting the record unlinks the chat; the chat stays in its project.
+- **Case** (optional): the recommendation, action, finding, meeting or file the chat is about. The database checks it is a record of the same project that the person can see. "Ask the assistant" on an action, a meeting, a recommendation or a file starts a chat already linked to it, in the assistant card (a link to `/assistant?project=…&case=action:…` or `/assistant?chat=…` opens the card the same way). Deleting the record unlinks the chat; the chat stays in its project.
 - **Who reads it:** only its owner, and only while they can still see the project. A consultant taken off a client loses the chat and its messages at once (the messages are hidden with the chat, not only the chat itself). Staffed again, they get them back, until retention deletes them.
 - **Sources shown again:** opening an old chat checks each citation again. A source the person can no longer open shows as "Source no longer available to you", without its title; a file with a newer version says so.
-- **API:** `GET /api/assistant/conversations[?archived=1]`, `GET /api/assistant/conversations/:id?lang=`, `PATCH` (title, keep, archived), `DELETE`. `POST /api/assistant/query` takes `caseType` and `caseId` when it starts a chat.
+- **Where:** a floating card (`src/components/assistant/`), opened from the sidebar like the Files card and kept open across pages. Small, it shows the chats or one chat (a button switches back to the list, "+" starts a new chat); focused, it moves to the middle of the screen, grows, and shows the chats beside the open chat. `/assistant` stays as the client admin's consent page and the landing for links.
+- **API:** `GET /api/assistant/context?locale=&project=&case=` (the projects the person may ask about, the case's label, a client's questions today), `GET /api/assistant/conversations[?archived=1]`, `GET /api/assistant/conversations/:id?lang=`, `PATCH` (title, keep, archived), `DELETE`. `POST /api/assistant/query` takes `caseType` and `caseId` when it starts a chat.
 
 ## Two languages in one chat
 
