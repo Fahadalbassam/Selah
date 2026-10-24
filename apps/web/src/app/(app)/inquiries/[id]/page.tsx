@@ -397,7 +397,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                                   ? t(`events.${e.event}`)
                                   : e.event}
                       </span>{" "}
-                      <span className="ms-1 text-xs text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
+                      <span className="ms-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
                     </p>
                     {e.note ? (
                       <p className="whitespace-pre-wrap" dir="auto">

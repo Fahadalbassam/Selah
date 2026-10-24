@@ -57,7 +57,7 @@ export default async function DepartmentPage({ params }: { params: Promise<{ id:
               <ul className="divide-y">
                 {overview.members.map((m) => (
                   <li key={m.userId} className="flex items-center gap-2 py-2 text-sm">
-                    <span className="min-w-0 flex-1 font-medium" dir="auto">
+                    <span className="min-w-0 flex-1 font-medium">
                       {m.name}
                     </span>
                     {m.isHead ? (

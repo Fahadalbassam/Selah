@@ -603,7 +603,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               {data.activity.map((e) => (
                 <li key={e.id} className="text-sm">
                   <span className="font-medium">{e.actorName ?? "—"}</span>{" "}
-                  {e.fromState && e.toState
+                  {/* Only an action's states are action statuses; files and assessments have their own events. */}
+                  {e.entityType === "action" && e.fromState && e.toState
                     ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
                     : t.has(`events.${e.event}`)
                       ? t(`events.${e.event}` as never)
