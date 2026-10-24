@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
@@ -115,7 +116,9 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
                 <CardHeader className="flex flex-row items-start justify-between gap-3 px-5">
                   <div className="min-w-0 space-y-1">
                     <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                      {name(d)}
+                      <Link href={`/departments/${d.id}`} className="hover:underline">
+                        {name(d)}
+                      </Link>
                       {d.active ? null : <ToneBadge tone="neutral">{t("switchedOff")}</ToneBadge>}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">{ar ? d.nameEn : d.nameEn ? d.nameAr : null}</p>

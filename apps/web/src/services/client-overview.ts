@@ -1,10 +1,11 @@
 import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { departments, organizations, projects } from "@/db/schema";
-import { assertAllowed, type Principal } from "@/authz";
+import { departmentMembers, departments, organizations, projects, user } from "@/db/schema";
+import { assertAllowed, OPEN_STATUSES, type Principal } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
+import { isOverdue, listActions } from "./queries";
 
 // A client's progress across its projects (F30): pooled counts with the
 // breakdown per project and per department beside the total. Postgres does
@@ -119,3 +120,46 @@ export async function clientOverview(tx: Tx, principal: Principal, clientOrgId: 
 }
 
 export type ClientOverview = Awaited<ReturnType<typeof clientOverview>>;
+
+/**
+ * One department's page (F31): its numbers across the client's projects, its
+ * people, and its open actions. Read by the client's consultants, its admins,
+ * and the department's own people; a manager outside it gets nothing.
+ */
+export async function departmentOverview(tx: Tx, principal: Principal, departmentId: string, today = firmToday()) {
+  const [dept] = await tx
+    .select({ id: departments.id, orgId: departments.orgId, nameAr: departments.nameAr, nameEn: departments.nameEn, active: departments.active })
+    .from(departments)
+    .where(eq(departments.id, departmentId))
+    .limit(1);
+  if (!dept) throw new NotFoundError("department");
+  const members = await tx
+    .select({ userId: departmentMembers.userId, name: user.name, isHead: departmentMembers.isHead })
+    .from(departmentMembers)
+    .innerJoin(user, eq(user.id, departmentMembers.userId))
+    .where(eq(departmentMembers.departmentId, departmentId))
+    .orderBy(asc(user.name));
+  if (principal.orgKind === "client" && principal.role !== "client_admin" && !members.some((m) => m.userId === principal.userId)) {
+    throw new NotFoundError("department");
+  }
+  const client = await clientOverview(tx, principal, dept.orgId, today);
+  const { rows } = await tx.execute<Row>(sql`select * from app_client_progress(${dept.orgId}::uuid, ${today}::date)`);
+  const total = rows.find((r) => r.scope === "department" && r.department_id === departmentId);
+  const byProject = new Map(
+    rows.filter((r) => r.scope === "project_department" && r.department_id === departmentId).map((r) => [r.project_id as string, numbers(r)]),
+  );
+  const open = await listActions(tx, principal, { clientOrgId: dept.orgId, departmentId, status: [...OPEN_STATUSES], limit: 100 });
+  return {
+    department: { id: dept.id, nameAr: dept.nameAr, nameEn: dept.nameEn, active: dept.active },
+    client: client.client,
+    today,
+    total: total ? numbers(total) : EMPTY,
+    // Only the projects where the department has work.
+    projects: client.projects.filter((p) => byProject.has(p.id)).map((p) => ({ ...p, numbers: byProject.get(p.id)! })),
+    departments: [],
+    members,
+    open: open.map((a) => ({ ...a, overdue: isOverdue(a, today) })),
+  };
+}
+
+export type DepartmentOverview = Awaited<ReturnType<typeof departmentOverview>>;

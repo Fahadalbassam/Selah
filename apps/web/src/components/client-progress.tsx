@@ -15,9 +15,13 @@ import type { ClientNumbers, ClientOverview } from "@/services/client-overview";
 export async function ClientProgress({
   data,
   tiles = true,
+  scope = "client",
 }: {
-  data: ClientOverview;
-  /** Off where the page already shows these counts. */ tiles?: boolean;
+  data: Pick<ClientOverview, "client" | "total" | "projects" | "departments">;
+  /** Off where the page already shows these counts. */
+  tiles?: boolean;
+  /** A department's page shows its own numbers, without the client-wide report. */
+  scope?: "client" | "department";
 }) {
   const [t, tm, tPh, tExport] = await Promise.all([
     getTranslations("clientProgress"),
@@ -53,10 +57,12 @@ export async function ClientProgress({
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">{t("title")}</CardTitle>
-          <CardDescription>{t("hint")}</CardDescription>
+          <CardTitle className="text-base">{scope === "client" ? t("title") : t("departmentTitle")}</CardTitle>
+          <CardDescription>{scope === "client" ? t("hint") : t("departmentHint")}</CardDescription>
         </div>
-        <ExportButton endpoint={`/api/clients/${data.client.id}/report`} label={tExport("pdf")} title={t("downloadReport")} />
+        {scope === "client" ? (
+          <ExportButton endpoint={`/api/clients/${data.client.id}/report`} label={tExport("pdf")} title={t("downloadReport")} />
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-5 px-5">
         <div className="space-y-3">
@@ -116,7 +122,13 @@ export async function ClientProgress({
               {data.departments.map((d) => (
                 <TableRow key={d.id ?? "none"}>
                   <TableCell className={d.name ? "font-medium whitespace-normal" : "whitespace-normal text-muted-foreground"}>
-                    {d.name ? localLabel(d.name, ar) : t("companyWide")}
+                    {d.name && d.id ? (
+                      <Link href={`/departments/${d.id}`} className="hover:underline">
+                        {localLabel(d.name, ar)}
+                      </Link>
+                    ) : (
+                      t("companyWide")
+                    )}
                   </TableCell>
                   {columns(d.numbers)}
                 </TableRow>
