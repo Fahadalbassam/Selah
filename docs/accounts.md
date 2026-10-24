@@ -64,6 +64,16 @@ Firm admins, consultants and client admins must sign in with a code from an auth
 - Admins see who has it on (`app_two_factor_status`). The app role cannot read the flag directly.
 - `TWO_FACTOR_REQUIRED=false` switches enforcement off for local development; production refuses to start with it.
 
+## Terms and notices
+
+Everyone accepts the terms of use, the privacy notice and the AI-use notice before using the site, and again when one of them changes (R1, migration `0024_consent_records.sql`).
+
+- **The texts** are public pages in Arabic and English: `/legal/terms`, `/legal/privacy`, `/legal/ai`, plus two reference pages that are not accepted one by one: `/legal/data-agreement` (the data processing agreement template the firm signs with a client) and `/legal/sub-processors` (Cloudflare, the mail service and a hosted AI model, each marked in use or not on this install). They are in `messages/*.json` under `legal`; their versions are `LEGAL_VERSIONS` in `src/lib/legal.ts` and `app_legal_version()` in SQL, kept equal by `tests/db/rule-parity.test.ts`.
+- **Until they are accepted**, pages redirect to `/consent` and API routes answer 403 `consent_required` (`src/server/http.ts`, `page.ts`). Two-factor setup comes first for the roles that need it. The consent page has one tick per document and a way to sign out instead.
+- **The record** (`consent_records`): person, document, version, language and address, one row per acceptance, append-only. The app writes it only through `app_record_consent()`, which takes only the current version and an active account. People read their own records, a client admin their organization's people's, the firm admin everyone's. Each acceptance is also in the audit log (`consent.accept`).
+- **Changing a text**: edit it in both languages, then bump the version in `LEGAL_VERSIONS` and `app_legal_version()` together (a new migration). Everyone is asked again at their next page.
+- The texts are a starting point written for this product, not legal advice; the firm's counsel should review them before real client data is used.
+
 ## Password reset
 
 "Forgot it?" on the sign-in page (`/forgot-password`) asks Better Auth for a reset link.

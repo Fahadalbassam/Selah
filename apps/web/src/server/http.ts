@@ -7,6 +7,7 @@ import { ForbiddenError, mustSetUpTwoFactor, type Principal } from "@/authz";
 import { asAnonymous, asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { auditDetached } from "@/services/audit";
+import { pendingConsents } from "@/services/consent";
 import { loadPrincipal } from "@/services/principal";
 import { BadRequestError, ConflictError, NotFoundError, RateLimitError, UnavailableError } from "./errors";
 
@@ -52,6 +53,8 @@ interface Options<P extends z.ZodType, B extends z.ZodType, R, Q extends z.ZodTy
    * connection. Runs after the session and input checks, before the
    * transaction opens; it must not read data or make access decisions.
    */
+  /** Only POST /api/consent: everything else waits until the current terms are accepted. */
+  allowConsentPending?: boolean;
   prepare?: (input: { userId: string; params: z.infer<P>; body: z.infer<B>; files: Map<string, File> }) => Promise<R>;
 }
 
@@ -106,6 +109,7 @@ export function route<
         if (mustSetUpTwoFactor(principal.role, session.user.twoFactorEnabled, env().TWO_FACTOR_REQUIRED === "true")) {
           throw new TwoFactorSetupError();
         }
+        if (!options.allowConsentPending && (await pendingConsents(tx)).length) throw new ConsentRequiredError();
         return handler({
           principal,
           tx,
@@ -126,6 +130,7 @@ export function route<
 
 class NoMembershipError extends Error {}
 class TwoFactorSetupError extends Error {}
+class ConsentRequiredError extends Error {}
 
 interface PublicOptions<P extends z.ZodType, B extends z.ZodType> {
   params?: P;
@@ -223,6 +228,7 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof NotFoundError) return json({ error: "not_found" }, 404);
   if (err instanceof NoMembershipError) return json({ error: "forbidden" }, 403);
   if (err instanceof TwoFactorSetupError) return json({ error: "two_factor_required" }, 403);
+  if (err instanceof ConsentRequiredError) return json({ error: "consent_required" }, 403);
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
   if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
