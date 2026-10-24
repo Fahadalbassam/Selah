@@ -15,7 +15,7 @@ This file replaces the earlier "living plan" page, which stopped at PR #24.
 
 ## Standing rules for every item
 
-- [~] **X1** Every new page follows `docs/ui-guidelines.md`: shadcn/ui and Animate UI first, monochrome, RTL with logical properties, the shared Selah components — applies to: every UI item · since: #26 · check: review checklist in section 13 of the guide · audited: wave 1 screens #59–#86 (UI pass)
+- [~] **X1** Every new page follows `docs/ui-guidelines.md`: shadcn/ui and Animate UI first, monochrome, RTL with logical properties, the shared Selah components — applies to: every UI item · since: #26 · check: review checklist in section 13 of the guide · audited: wave 1 screens #59–#86 (UI pass), enrollment spine screens #93
 - [~] **X2** Everything ships in Arabic and English: every new message key in both locales, Arabic first, user text translatable — applies to: every item · since: `messages/ar.json` and `messages/en.json` have the same 1,800 keys on 87099c7 · check: both files keep the same keys
 - [~] **X3** Every screen is built with its backend and tests, no mock screens and no "demo" labels; desktop and tablet only — applies to: every UI item · since: 2026-10-20
 - [~] **X4** The partner firm is never named in the product, the docs or the UI — applies to: every item · since: 2026-10-20
@@ -187,7 +187,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ### Tier 6 · Departments and phases (option B)
 
 - [x] **F30** Client overview page and client-wide report — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #82
-- [~] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #80 (part 1), #85 (part 2), #88 (part 3, open)
+- [~] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #80 (part 1), #85 (part 2), #88 (part 3); still open: editing a recommendation's department and accountable person, after N1
 - [ ] **F32** Workstreams with a lead consultant — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4
