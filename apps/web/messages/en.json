@@ -75,7 +75,7 @@
     "verified": "Verified complete",
     "verifiedHint": "Reviewed and accepted by a consultant",
     "overdue": "Overdue",
-    "attentionFirm": "Needs your decision",
+    "attentionFirm": "Needs your attention",
     "attentionClient": "Needs your follow-up",
     "empty": "Nothing needs your attention right now.",
     "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact."

@@ -5,6 +5,7 @@ import {
   actions,
   activityEvents,
   documents,
+  evidenceRequests,
   evidenceSubmissions,
   notifications,
   organizations,
@@ -210,6 +211,16 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     .where(and(eq(actions.id, id), eq(actions.status, from)))
     .returning({ id: actions.id });
   if (updated.length === 0) throw new ConflictError("the action changed; reload and try again");
+
+  // One submission, one decision (review M01): asking for a revision answers
+  // the items still waiting with the same reason, so they don't keep offering
+  // accept and not-accepted. Items already accepted stay accepted.
+  if (input.to === "revision_requested") {
+    await tx
+      .update(evidenceRequests)
+      .set({ status: "rejected", decisionNote: input.reason })
+      .where(and(eq(evidenceRequests.actionId, id), eq(evidenceRequests.status, "submitted")));
+  }
 
   await tx.insert(activityEvents).values({
     projectId: action.projectId,
