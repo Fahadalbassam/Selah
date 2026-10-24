@@ -287,7 +287,23 @@
     "limited": "Too many tries. Wait a minute and try again.",
     "verify": "Continue",
     "useBackup": "Use a backup code instead",
-    "useApp": "Use the authenticator app"
+    "useApp": "Use the authenticator app",
+    "link": {
+      "or": "or",
+      "send": "Email me a sign-in link",
+      "who": "For client managers and action owners. Admins and firm staff sign in with their password.",
+      "sentTitle": "Check your inbox",
+      "sent": "If this address can sign in by link, a link is on its way. It works once, for {minutes} minutes.",
+      "back": "Back to sign in",
+      "failed": "That sign-in link has expired or was already used. Ask for a new one, or sign in with your password.",
+      "pageTitle": "Sign in to Selah",
+      "pageSubtitle": "Press the button to finish signing in.",
+      "continue": "Sign in",
+      "once": "The link works once. To sign in again later, ask for a new one.",
+      "invalidTitle": "This link doesn't work",
+      "invalid": "The address is incomplete. Open the link from the mail again, or ask for a new one.",
+      "toSignIn": "Go to sign in"
+    }
   },
   "notFound": {
     "title": "Not found",
@@ -1864,7 +1880,9 @@
       "restricted": "Accounts for a restricted client",
       "restrictedHint": "A restricted client has client admins only, up to this many.",
       "domains": "The firm's email domains and people are managed on",
-      "domainsLink": "the Team page."
+      "domainsLink": "the Team page.",
+      "signInLinks": "Sign-in links",
+      "signInLinksHint": "Client managers and action owners may sign in with a link mailed to them, valid once for 15 minutes. Admins and firm staff always use their password and two-factor sign-in."
     },
     "records": {
       "title": "Records",
@@ -3539,7 +3557,9 @@
       "pulse_answer": "Closing pulse answered",
       "pulse_answer": "Closing pulse answered",
       "case_study_consent": "Case-study consent recorded",
-      "case_study_revoke": "Case-study consent withdrawn"
+      "case_study_revoke": "Case-study consent withdrawn",
+      "auth_sign_in_link_sent": "Sign-in link sent",
+      "auth_sign_in_link_refused": "Sign-in link not sent"
     },
     "csv": {
       "time": "Time (UTC)",

@@ -25,6 +25,7 @@ export const MAIL_KINDS = [
   "follow_up.digest",
   "client.archived",
   "pulse.requested",
+  "sign_in_link",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -286,6 +287,22 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
         "Answering is optional, and only the firm sees your answers. You can change them for 30 days after closing.",
       ],
       action: "Answer the questions",
+    },
+  },
+  // F14: a client manager or action owner asked to sign in by link.
+  sign_in_link: {
+    ar: {
+      subject: "رابط الدخول إلى صلة",
+      lines: [
+        "طلبتَ رابطاً لتسجيل الدخول إلى صلة.",
+        "الرابط صالح لمدة 15 دقيقة ولمرة واحدة. إن لم تطلبه فتجاهل هذه الرسالة.",
+      ],
+      action: "تسجيل الدخول",
+    },
+    en: {
+      subject: "Your Selah sign-in link",
+      lines: ["You asked for a link to sign in to Selah.", "The link works once, for 15 minutes. If it wasn't you, ignore this mail."],
+      action: "Sign in",
     },
   },
 };

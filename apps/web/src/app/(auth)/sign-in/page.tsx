@@ -13,6 +13,8 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <AuthShell title={t("title")} subtitle={t("subtitle")}>
       {error === "no_access" ? <p className="text-center text-sm text-destructive">{t("noAccess")}</p> : null}
+      {/* Any other error comes back from a sign-in link: used, expired, or not for this account. */}
+      {error && error !== "no_access" ? <p className="text-center text-sm text-destructive">{t("link.failed")}</p> : null}
       {notice ? <p className="text-center text-sm text-foreground">{notice}</p> : null}
       <SignInForm />
       <p className="text-center text-sm text-muted-foreground">

@@ -1219,6 +1219,9 @@ export const firmSettings = pgTable("firm_settings", {
   ramadanMailTo: time("ramadan_mail_to").notNull().default("15:00"),
   // Months the audit log is kept (R2). Never less than 12 (NCA ECC 2-12).
   auditKeepMonths: integer("audit_keep_months").notNull().default(12),
+  // Client managers and action owners may sign in by a link mailed to them
+  // (F14, decision D7). Staff and client admins never can.
+  signInLinksEnabled: boolean("sign_in_links_enabled").notNull().default(true),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 

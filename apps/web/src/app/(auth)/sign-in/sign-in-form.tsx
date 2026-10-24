@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Mail } from "lucide-react";
 import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
+import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-links";
 
 export function SignInForm() {
   const t = useTranslations("signIn");
@@ -18,7 +21,22 @@ export function SignInForm() {
   // "wrong" for a bad password or code, "limited" after too many tries.
   const [failed, setFailed] = useState<false | "wrong" | "limited">(false);
   // After the password: the code from the authenticator app, or a backup code.
-  const [step, setStep] = useState<"password" | "totp" | "backup">("password");
+  // "link" once a sign-in link was asked for.
+  const [step, setStep] = useState<"password" | "totp" | "backup" | "link">("password");
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  // A sign-in link (F14): only client managers and action owners get one, but
+  // the answer is the same for every address.
+  async function sendLink() {
+    const input = emailRef.current;
+    if (!input?.reportValidity()) return;
+    setBusy(true);
+    setFailed(false);
+    const { error } = await authClient.signIn.magicLink({ email: input.value.trim(), callbackURL: "/" });
+    setBusy(false);
+    if (error?.status === 429) return setFailed("limited");
+    setStep("link");
+  }
 
   const done = () => {
     router.replace("/");
@@ -54,6 +72,25 @@ export function SignInForm() {
     setBusy(false);
     if (error) return setFailed(error.status === 429 ? "limited" : "wrong");
     done();
+  }
+
+  if (step === "link") {
+    return (
+      <Card className="py-6 shadow-xs">
+        <CardContent className="space-y-4 px-6">
+          <div className="flex items-start gap-3">
+            <Mail className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">{t("link.sentTitle")}</p>
+              <p className="text-muted-foreground">{t("link.sent", { minutes: SIGN_IN_LINK_MINUTES })}</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" className="w-full" onClick={() => setStep("password")}>
+            {t("link.back")}
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (step !== "password") {
@@ -106,7 +143,7 @@ export function SignInForm() {
         <form method="post" onSubmit={submit} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="email">{t("email")}</Label>
-            <Input id="email" name="email" type="email" autoComplete="username" dir="ltr" required />
+            <Input ref={emailRef} id="email" name="email" type="email" autoComplete="username" dir="ltr" required />
           </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
@@ -125,6 +162,18 @@ export function SignInForm() {
             {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {busy ? t("submitting") : t("submit")}
           </Button>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <Separator className="flex-1" />
+            {t("link.or")}
+            <Separator className="flex-1" />
+          </div>
+          <div className="grid gap-2">
+            <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={sendLink}>
+              <Mail />
+              {t("link.send")}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">{t("link.who")}</p>
+          </div>
         </form>
       </CardContent>
     </Card>
