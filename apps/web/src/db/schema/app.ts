@@ -465,6 +465,18 @@ const recordedChecks = (name: string, t: { source: AnyPgColumn; receivedVia: Any
 
 // ------------------------------------------------- findings and actions
 
+// Findings and recommendations are corrected, released and withdrawn, never
+// quietly deleted once the client could see them (journey-map gap N1,
+// migration recommendation_changes). released_at: when a firm-only record was shared with the
+// client (one way). withdrawn_*: the firm took it back, with its reason; the
+// record stays, marked, and its open actions are closed.
+const releasable = () => ({
+  releasedAt: ts("released_at"),
+  withdrawnAt: ts("withdrawn_at"),
+  withdrawnBy: uuid("withdrawn_by").references(() => user.id),
+  withdrawnReason: text("withdrawn_reason"),
+});
+
 export const findings = pgTable(
   "findings",
   {
@@ -476,6 +488,7 @@ export const findings = pgTable(
     // A gap a consultant confirmed in an assessment (baseline: Assessments). At most one finding per answer.
     assessmentAnswerId: uuid("assessment_answer_id").references((): AnyPgColumn => assessmentAnswers.id),
     visibility: visibility("visibility").notNull().default("shared"),
+    ...releasable(),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
@@ -511,6 +524,7 @@ export const recommendations = pgTable(
     // the client for the whole of it (F31).
     departmentId: uuid("department_id"),
     accountableUserId: uuid("accountable_user_id").references(() => user.id),
+    ...releasable(),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),

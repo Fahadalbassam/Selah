@@ -43,6 +43,8 @@ function planError(message: string | undefined): string | null {
   if (m.includes("department")) return "department";
   if (m.includes("accountable person")) return "accountable";
   if (m.includes("finding is not in this project")) return "finding";
+  if (m.includes("finding was withdrawn")) return "findingWithdrawn";
+  if (m.includes("withdrawn")) return "withdrawn";
   return null;
 }
 
@@ -51,10 +53,10 @@ function useSubmit(onSaved: (data: unknown) => void) {
   const tc = useTranslations("common");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  async function send(url: string, body: unknown) {
+  async function send(url: string, body: unknown, method = "POST") {
     setBusy(true);
     setError(null);
-    const r = await callApi(url, "POST", body);
+    const r = await callApi(url, method, body);
     setBusy(false);
     if (!r.ok) {
       const key = planError(r.message);
@@ -87,7 +89,21 @@ function Footer({ busy, error, label, onCancel }: { busy: boolean; error: string
   );
 }
 
-/** Add a recommendation to a project, optionally answering one of its findings. */
+export interface RecommendationValues {
+  title: string;
+  findingId: string | null;
+  rationale: string | null;
+  targetOutcome: string | null;
+  priority: "low" | "medium" | "high" | "critical";
+  dueDate: string | null;
+  requiredEvidence: string | null;
+}
+
+/**
+ * Add a recommendation to a project, optionally answering one of its
+ * findings; or, with `edit`, correct one (N1). Its source and label are not
+ * edits: releasing a firm-only recommendation is its own step.
+ */
 export function RecommendationDialog(props: {
   projectId: string;
   /** Internal projects have no client, so there is nothing to keep from one. */
@@ -99,7 +115,11 @@ export function RecommendationDialog(props: {
     departments: { id: string; nameAr: string; nameEn: string | null }[];
     accountables: { userId: string; name: string }[];
   };
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  edit?: { id: string; values: RecommendationValues };
+  /** Opened from a menu instead of a trigger. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("plan.rec");
   const ar = useLocale() === "ar";
@@ -107,7 +127,10 @@ export function RecommendationDialog(props: {
   const tVis = useTranslations("visibility");
   const tc = useTranslations("common");
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = props.open ?? ownOpen;
+  const setOpen = (o: boolean) => (props.onOpenChange ? props.onOpenChange(o) : setOwnOpen(o));
+  const editing = props.edit?.values;
   const [source, setSource] = useState("consultant");
   const [decidedOn, setDecidedOn] = useState<string | undefined>();
   const { busy, error, setError, send } = useSubmit(() => {
@@ -122,6 +145,23 @@ export function RecommendationDialog(props: {
     const text = (k: string) => String(form.get(k) ?? "").trim() || undefined;
     const finding = text("findingId");
     const pick = (k: string) => (text(k) === NONE ? undefined : text(k));
+    if (props.edit) {
+      // Every field is sent: an emptied one is cleared.
+      const or = (k: string) => text(k) ?? null;
+      return send(
+        `/api/recommendations/${props.edit.id}`,
+        {
+          title: text("title"),
+          ...(props.findings.length ? { findingId: finding === NONE ? null : (finding ?? null) } : {}),
+          rationale: or("rationale"),
+          targetOutcome: or("targetOutcome"),
+          priority: text("priority") ?? "medium",
+          dueDate: or("dueDate"),
+          requiredEvidence: or("requiredEvidence"),
+        },
+        "PATCH",
+      );
+    }
     await send(`/api/projects/${props.projectId}/recommendations`, {
       title: text("title"),
       findingId: finding === NONE ? undefined : finding,
@@ -140,21 +180,21 @@ export function RecommendationDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
+      {props.trigger ? <DialogTrigger asChild>{props.trigger}</DialogTrigger> : null}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>{t("add")}</DialogTitle>
-            <DialogDescription>{t("addHint")}</DialogDescription>
+            <DialogTitle>{editing ? t("edit") : t("add")}</DialogTitle>
+            <DialogDescription>{editing ? t("editHint") : t("addHint")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="r-title">{t("title")}</Label>
-            <Input id="r-title" name="title" required maxLength={300} dir="auto" />
+            <Input id="r-title" name="title" required maxLength={300} dir="auto" defaultValue={editing?.title} />
           </div>
           {props.findings.length ? (
             <div className="grid gap-2">
               <Label htmlFor="r-finding">{t("finding")}</Label>
-              <Select name="findingId" defaultValue={props.defaultFindingId ?? NONE}>
+              <Select name="findingId" defaultValue={editing ? (editing.findingId ?? NONE) : (props.defaultFindingId ?? NONE)}>
                 <SelectTrigger id="r-finding" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -170,24 +210,26 @@ export function RecommendationDialog(props: {
             </div>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="r-source">{t("source")}</Label>
-              <Select value={source} onValueChange={setSource}>
-                <SelectTrigger id="r-source" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(["consultant", "board_decision", "compliance"] as const).map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {t(`sources.${s}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {editing ? null : (
+              <div className="grid gap-2">
+                <Label htmlFor="r-source">{t("source")}</Label>
+                <Select value={source} onValueChange={setSource}>
+                  <SelectTrigger id="r-source" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["consultant", "board_decision", "compliance"] as const).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {t(`sources.${s}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="r-priority">{t("priority")}</Label>
-              <Select name="priority" defaultValue="medium">
+              <Select name="priority" defaultValue={editing?.priority ?? "medium"}>
                 <SelectTrigger id="r-priority" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -201,7 +243,7 @@ export function RecommendationDialog(props: {
               </Select>
             </div>
           </div>
-          {source === "board_decision" ? (
+          {!editing && source === "board_decision" ? (
             <div className="grid gap-2">
               <Label htmlFor="r-decided">{t("decidedOn")}</Label>
               <DatePicker
@@ -214,7 +256,7 @@ export function RecommendationDialog(props: {
               />
             </div>
           ) : null}
-          {props.scope.departments.length || props.scope.accountables.length ? (
+          {!editing && (props.scope.departments.length || props.scope.accountables.length) ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {props.scope.departments.length ? (
                 <div className="grid gap-2">
@@ -258,22 +300,22 @@ export function RecommendationDialog(props: {
           ) : null}
           <div className="grid gap-2">
             <Label htmlFor="r-rationale">{t("rationale")}</Label>
-            <Textarea id="r-rationale" name="rationale" rows={3} maxLength={8000} dir="auto" />
+            <Textarea id="r-rationale" name="rationale" rows={3} maxLength={8000} dir="auto" defaultValue={editing?.rationale ?? undefined} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="r-outcome">{t("targetOutcome")}</Label>
-            <Textarea id="r-outcome" name="targetOutcome" rows={2} maxLength={4000} dir="auto" />
+            <Textarea id="r-outcome" name="targetOutcome" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.targetOutcome ?? undefined} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="r-evidence">{t("requiredEvidence")}</Label>
-            <Textarea id="r-evidence" name="requiredEvidence" rows={2} maxLength={4000} dir="auto" />
+            <Textarea id="r-evidence" name="requiredEvidence" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.requiredEvidence ?? undefined} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="r-due">{t("dueDate")}</Label>
-              <DatePicker id="r-due" name="dueDate" placeholder={t("dueDate")} clearLabel={tc("clear")} />
+              <DatePicker id="r-due" name="dueDate" placeholder={t("dueDate")} clearLabel={tc("clear")} defaultValue={editing?.dueDate ?? undefined} />
             </div>
-            {props.client ? (
+            {props.client && !editing ? (
               <div className="grid gap-2">
                 <Label htmlFor="r-visibility">{t("visibility")}</Label>
                 <Select name="visibility" defaultValue="shared">

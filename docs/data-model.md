@@ -16,7 +16,7 @@ project ─┬─ findings ── recommendations ── actions ─┬─ evide
          └─ reports (periodic, with frozen metrics)
 ```
 
-- **Only the firm writes the plan.** Findings, recommendations, actions, meeting notes, follow-ups and reports can be inserted, edited and deleted only by firm users who can see the project. Clients read them. Only draft actions can be deleted; a released action is closed as not applicable, so the record keeps it. An issued report (one with metrics) is frozen: only sharing it can change, and a correction is a new report.
+- **Only the firm writes the plan.** Findings, recommendations, actions, meeting notes, follow-ups and reports can be inserted, edited and deleted only by firm users who can see the project. Clients read them. Only draft actions can be deleted; a released action is closed as not applicable, so the record keeps it. Findings and recommendations follow the same rule (N1): the firm corrects them while they are live, shares a firm-only one with the client (one way, `released_at`), and withdraws a released one with a reason (`withdrawn_*`). A withdrawn recommendation stays on record, marked, with its open actions closed as not applicable and its drafts deleted. Only a firm-only record the client never saw can be deleted. An issued report (one with metrics) is frozen: only sharing it can change, and a correction is a new report.
 - **Clients move their actions.** An action owner moves their own actions through the workflow; a client manager or admin may also change the owner. The trigger allows a client user to change only `status`, `owner_user_id` and `blocked_reason` (an allow-list, so new columns are the firm's by default).
 - **The owner** must be an active member of the project's org (the client, or the firm for internal projects) and staffed on the project.
 - **Board decisions** are recommendations with `source = 'board_decision'`, which must have `decided_on` and may link the meeting note where it was decided.
@@ -102,6 +102,7 @@ It also returns open and overdue counts. A periodic report (`POST /api/projects/
 |---|---|
 | `POST /api/projects/:id/findings`, `/recommendations` | firm |
 | `POST /api/recommendations/:id/actions` (with an optional evidence list and release) | firm |
+| `PATCH`, `DELETE /api/findings/:id`, `/api/recommendations/:id`; `POST …/release`, `POST …/withdraw` (with a reason) | firm |
 | `PATCH /api/actions/:id` | firm (plan); client manager (owner only) |
 | `POST /api/actions/:id/transition` with `to: "closed"` and `closure` | firm |
 | `GET, POST /api/actions/:id/evidence-requests`; `PATCH /api/evidence-requests/:id` | read: everyone on the action; write: firm |

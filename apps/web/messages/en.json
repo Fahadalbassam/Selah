@@ -2312,7 +2312,9 @@
       "accountable": "Accountable at the client",
       "noAccountable": "No one named",
       "accountableHint": "One person who answers for the whole recommendation, even when several departments carry it out.",
-      "accountableLine": "Accountable: <who>{name}</who>"
+      "accountableLine": "Accountable: <who>{name}</who>",
+      "edit": "Correct the recommendation",
+      "editHint": "Fix its wording, priority, date or evidence. The change is kept in the project's history."
     },
     "action": {
       "add": "Add an action",
@@ -2348,7 +2350,44 @@
       "jobTitle": "This client keeps minimal records: give the owner's job title, not a name.",
       "department": "That department is no longer active. Pick another one.",
       "finding": "That finding isn't in this project.",
-      "accountable": "The accountable person must be someone at the client who is on this project."
+      "accountable": "The accountable person must be someone at the client who is on this project.",
+      "findingWithdrawn": "That finding was withdrawn. Pick another one.",
+      "withdrawn": "It was withdrawn, so it can't change."
+    },
+    "changes": {
+      "menu": "More for {title}",
+      "edit": "Correct",
+      "editHint": "Fix the wording. The change is kept in the project's history.",
+      "release": "Share with the client",
+      "released": "Shared with the client",
+      "withdraw": "Withdraw",
+      "withdrawn": "Withdrawn",
+      "delete": "Delete",
+      "deleted": "Deleted",
+      "reason": "Why it is withdrawn",
+      "reasonPlaceholder": "For example: the board dropped this item in the March meeting.",
+      "withdrawnBadge": "Withdrawn",
+      "withdrawnOn": "Withdrawn on {date}:",
+      "finding": {
+        "edit": "Correct the finding",
+        "title": "Finding",
+        "description": "Details (optional)",
+        "releaseConfirm": "Share this finding with the client? Their admins and managers will see it. Sharing can't be undone; to take it back later, withdraw it.",
+        "deleteConfirm": "Delete this finding? The client never saw it, so nothing is kept.",
+        "withdrawTitle": "Withdraw the finding",
+        "withdrawHint": "The finding stays on record, marked as withdrawn with your reason, so the client sees why."
+      },
+      "recommendation": {
+        "releaseConfirm": "Share this recommendation and its actions with the client? Everyone on the project at the client will see it. Sharing can't be undone; to take it back later, withdraw it.",
+        "deleteConfirm": "Delete this recommendation and its draft actions? The client never saw them, so nothing is kept.",
+        "withdrawTitle": "Withdraw the recommendation",
+        "withdrawHint": "The recommendation stays on record, marked as withdrawn with your reason, so the client sees why.",
+        "withdrawHintActions": "The recommendation stays on record, marked as withdrawn with your reason. {n, plural, one {Its open action is closed} other {Its # open actions are closed}} as not applicable, and draft actions are deleted. Verified work stays as it is."
+      },
+      "errors": {
+        "answered": "Withdraw the recommendations that answer this finding first.",
+        "openActions": "Close its open actions first."
+      }
     }
   },
   "importExport": {
@@ -3224,7 +3263,15 @@
       "department_move_work": "Moved a department's unfinished work",
       "client_pack_make": "Export pack made",
       "client_pack_download": "Export pack downloaded",
-      "client_pack_receipt": "Export pack receipt recorded"
+      "client_pack_receipt": "Export pack receipt recorded",
+      "finding_updated": "Finding corrected",
+      "finding_released": "Finding shared with the client",
+      "finding_withdrawn": "Finding withdrawn",
+      "finding_deleted": "Finding deleted",
+      "recommendation_updated": "Recommendation corrected",
+      "recommendation_released": "Recommendation shared with the client",
+      "recommendation_withdrawn": "Recommendation withdrawn",
+      "recommendation_deleted": "Recommendation deleted"
     },
     "csv": {
       "time": "Time (UTC)",

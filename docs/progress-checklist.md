@@ -87,7 +87,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 ### J09 · Follow-through · المتابعة
 
 - [x] **J09.1** Write recommendation — lane: firm · map: exists · wave: — · pr: #35
-- [ ] **J09.2** Edit or withdraw it — lane: firm · map: missing · covered by: N1 · wave: 1
+- [x] **J09.2** Edit or withdraw it — lane: firm · map: missing · covered by: N1 · wave: 1 · pr: #76
 - [x] **J09.3** Release an action — lane: firm · map: exists · wave: — · pr: #35
 - [x] **J09.4** Evidence review (firm: Verifies or asks revision; client: Submits progress, evidence) — lane: shared · map: exists · wave: — · pr: #1, #22
 - [ ] **J09.5** Responds to recommendation — lane: client · map: wave 1 · covered by: F10 · wave: 1
@@ -208,7 +208,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 Added to Wave 1 after the map was drawn. N2 needs a database test before anyone calls it a leak.
 
-- [ ] **N1** Edit, withdraw and release recommendations and findings — wave: 1 · journey: J09.2
+- [x] **N1** Edit, withdraw and release recommendations and findings — wave: 1 · journey: J09.2 · pr: #76
 - [x] **N2** Actions under a firm-only recommendation stay firm-only (test first) — wave: 1 · pr: #62
 - [x] **N3** A draft project state the client never sees — wave: 1 · pr: #64
 - [x] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2 · pr: #65
