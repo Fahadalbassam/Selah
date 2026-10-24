@@ -15,6 +15,7 @@ export type BlockerKind = (typeof BLOCKER_KINDS)[number];
 export const FROZEN_TABLES = [
   "action_comments",
   "action_notes",
+  "action_reminders",
   "actions",
   "assessment_answers",
   "assessment_evidence",

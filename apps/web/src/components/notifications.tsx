@@ -34,6 +34,8 @@ function useText() {
       head === "follow_up"
         ? kind === "due_soon"
           ? "follow_up_due_soon"
+          : kind === "reminder"
+            ? "follow_up_reminder"
           : level >= 2
             ? "follow_up_escalated"
             : "follow_up_overdue"
