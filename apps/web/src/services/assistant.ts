@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
-import { ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
+import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
 import { chatTitle, fuse, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
 import { CLIENT_REFUSAL, clientAnswerProblem, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
@@ -10,7 +10,9 @@ import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
+import { myClientAi } from "./client-ai";
 import { projectMasker } from "./masking";
+import { listProjects } from "./queries";
 
 const TOP_K = 8;
 // Recommendations and actions found by the search (baseline: Record passages), searched
@@ -817,4 +819,26 @@ export async function caseLabel(tx: Tx, projectId: string, ref: CaseRef): Promis
     sql`SELECT title FROM ${sql.identifier(table)} WHERE id = ${ref.id} AND project_id = ${projectId}`,
   );
   return rows[0]?.title ?? null;
+}
+
+/**
+ * What the floating assistant card needs to start: the projects the person
+ * may ask about, the record a new chat is about ("Ask the assistant" on a
+ * record page), and, at a client, today's questions against the limit.
+ */
+export async function assistantContext(tx: Tx, principal: Principal, input: { locale: "ar" | "en"; projectId?: string; case?: CaseRef }) {
+  const all = await listProjects(tx, principal);
+  const allowed = all.filter(
+    (p) => authorize(principal, "assistant.query", { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }).allowed,
+  );
+  const projectId = input.projectId && allowed.some((p) => p.id === input.projectId) ? input.projectId : null;
+  const label = projectId && input.case ? await caseLabel(tx, projectId, input.case) : null;
+  const clientAi = await myClientAi(tx, principal);
+  return {
+    projects: allowed.map((p) => ({ id: p.id, title: p.title, client: input.locale === "ar" && p.orgNameAr ? p.orgNameAr : p.orgName })),
+    projectId,
+    case: projectId && input.case && label ? { projectId, type: input.case.type, id: input.case.id, label } : null,
+    // The client's people (F39): null for firm staff.
+    usage: clientAi ? { used: clientAi.usedToday, limit: clientAi.dailyLimit } : null,
+  };
 }

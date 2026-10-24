@@ -337,7 +337,19 @@
     "clientUsage": "Questions today: {used} of {limit}.",
     "clientDisclaimer": "The assistant reads only what you can already open, and it never rules on the law or compliance or speaks for the firm. For a decision, ask your consultant.",
     "clientNotForYou": "You agreed to the assistant for your company. The firm offered it to: {roles}.",
-    "dailyLimit": "You have asked today's questions. You can ask again tomorrow, or ask your consultant."
+    "dailyLimit": "You have asked today's questions. You can ask again tomorrow, or ask your consultant.",
+    "card": {
+      "move": "Move the assistant card: drag it, or use the arrow keys",
+      "moveRole": "movable card header",
+      "focus": "Focus: move to the middle of the screen and enlarge",
+      "unfocus": "Back to a small card",
+      "showChats": "Show your chats",
+      "hideChats": "Hide your chats",
+      "close": "Close the assistant",
+      "open": "Open the assistant",
+      "pageTitle": "The assistant opens as a card",
+      "pageHint": "It floats over any page, so you can keep working beside it. Drag it where you like, or focus it in the middle of the screen. It stays open as you move between pages."
+    }
   },
   "signIn": {
     "title": "Sign in",

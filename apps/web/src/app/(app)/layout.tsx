@@ -5,6 +5,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
 import { PageTransition } from "@/components/animate-ui/components/page-transition";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
+import { AssistantHost } from "@/components/assistant/assistant-card";
 import { MorphCapture } from "@/components/morph";
 import { NotificationBell } from "@/components/notifications";
 import { ThemeSwitch } from "@/components/theme-switch";
@@ -18,7 +19,7 @@ import { unreadCount } from "@/services/notifications";
 import { myOffboarding } from "@/services/offboarding";
 import { getViewer } from "@/services/queries";
 
-function navFor(role: Role, t: (key: string) => string, inGroup: boolean, clientAssistant = false): NavGroup[] {
+function navFor(role: Role, t: (key: string) => string, inGroup: boolean, clientAssistant: "card" | "page" | null = null): NavGroup[] {
   const overview = { title: t("overview"), href: "/", icon: "overview" as const };
   const team = { title: t("team"), href: "/team", icon: "team" as const };
   if (role === "firm_admin" || role === "consultant") {
@@ -53,7 +54,7 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean, client
           { title: t("reviewQueue"), href: "/review", icon: "review" },
           { title: t("oversight"), href: "/oversight", icon: "oversight" },
           { title: t("templates"), href: "/templates", icon: "templates" },
-          { title: t("assistant"), href: "/assistant", icon: "assistant" },
+          { title: t("assistant"), href: "/assistant", icon: "assistant", card: true },
         ],
       },
       {
@@ -91,8 +92,8 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean, client
         overview,
         { title: t("projects"), href: "/projects", icon: "projects" },
         { title: t("actions"), href: "/actions", icon: "actions" },
-        // The client assistant (F39), once the firm offered it: for its users, and for the admin who consents.
-        ...(clientAssistant ? [{ title: t("assistant"), href: "/assistant", icon: "assistant" as const }] : []),
+        // The client assistant (F39), once the firm offered it: the card for its users, the page for the admin who consents.
+        ...(clientAssistant ? [{ title: t("assistant"), href: "/assistant", icon: "assistant" as const, card: clientAssistant === "card" }] : []),
       ],
     },
     {
@@ -127,6 +128,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     getFormatter(),
   ]);
   const rtl = locale === "ar";
+  const firmStaff = viewer.role === "firm_admin" || viewer.role === "consultant";
+  const clientAssistant = clientAi?.on ? "card" : clientAi && (clientAi.canConsent || clientAi.canWithdraw) ? "page" : null;
   const orgName = (rtl ? viewer.orgNameAr : null) ?? viewer.orgName;
 
   return (
@@ -137,7 +140,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           appName={tApp("name")}
           orgName={orgName}
           roleLabel={tRole(viewer.role)}
-          groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0, Boolean(clientAi && (clientAi.on || clientAi.canConsent || clientAi.canWithdraw)))}
+          groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0, clientAssistant)}
           orgKind={viewer.orgKind}
           railLabel={tHeader("toggleSidebar")}
           // Help for the client's people (F13); firm staff have no help page.
@@ -150,6 +153,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             help: viewer.orgKind === "client" ? { label: tNav("help"), href: "/help" } : undefined,
           }}
         />
+        {/* The assistant's floating card: stays open while the person moves between pages. */}
+        {firmStaff || clientAssistant === "card" ? <AssistantHost side={rtl ? "right" : "left"} client={!firmStaff} /> : null}
         {/* min-w-0: a wide table scrolls inside its card instead of pushing the page sideways. */}
         <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-10 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">

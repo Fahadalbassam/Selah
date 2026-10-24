@@ -6,13 +6,10 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -27,6 +24,7 @@ import { FileActions } from "@/components/file-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useFloatingCard } from "@/components/floating-card";
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ui/file-tree";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -77,104 +75,18 @@ export function FilesSidebarItem({ orgKind, side }: { orgKind: "firm" | "client"
   );
 }
 
-const POSITION_KEY = "selah.files.position";
-const MARGIN = 16;
-const STEP = 16;
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-function readPosition(): Point | null {
-  try {
-    const raw = window.localStorage.getItem(POSITION_KEY);
-    const p = raw ? (JSON.parse(raw) as Point) : null;
-    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null;
-  } catch {
-    return null;
-  }
-}
-
-function savePosition(p: Point) {
-  try {
-    window.localStorage.setItem(POSITION_KEY, JSON.stringify(p));
-  } catch {
-    // A private window or blocked storage: the card just opens in its default spot next time.
-  }
-}
-
-/** Keep the whole card on screen. */
-function clamp(p: Point, card: HTMLElement): Point {
-  const maxX = Math.max(MARGIN, window.innerWidth - card.offsetWidth - MARGIN);
-  const maxY = Math.max(MARGIN, window.innerHeight - card.offsetHeight - MARGIN);
-  return { x: Math.min(Math.max(p.x, MARGIN), maxX), y: Math.min(Math.max(p.y, MARGIN), maxY) };
-}
-
 /**
- * The Files card. Not modal: the page stays usable behind it. Drag it by its
- * header, or focus the header and move it with the arrow keys (Shift for
- * bigger steps). It stays inside the window, remembers where it was left,
- * and closes with Escape or its close button.
+ * The Files card (components/floating-card.tsx: moved by its header, kept on
+ * screen, remembers where it was left). Closes with Escape or its close button.
  */
 function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client"; side: "left" | "right"; onClose: () => void }) {
   const t = useTranslations("files");
-  const card = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
-  const [pos, setPos] = useState<Point | null>(null);
+  const { card, pos, handle } = useFloatingCard({ storageKey: "selah.files.position", side });
   const [reload, setReload] = useState(0);
 
-  // First placement: where it was left, else next to the sidebar.
-  useLayoutEffect(() => {
-    const el = card.current;
-    if (!el) return;
-    const saved = readPosition();
-    const sidebar = 16 * 16 + MARGIN;
-    const fallback = { x: side === "right" ? window.innerWidth - el.offsetWidth - sidebar : sidebar, y: 64 };
-    setPos(clamp(saved ?? fallback, el));
-    el.querySelector<HTMLInputElement>("input")?.focus();
-  }, [side]);
-
   useEffect(() => {
-    const onResize = () => card.current && setPos((p) => (p ? clamp(p, card.current!) : p));
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  const move = (next: Point) => {
-    if (!card.current) return;
-    const p = clamp(next, card.current);
-    setPos(p);
-    return p;
-  };
-
-  function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("button") || !pos) return;
-    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-  function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    if (drag.current) move({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy });
-  }
-  function onPointerUp() {
-    if (!drag.current) return;
-    drag.current = null;
-    if (pos) savePosition(pos);
-  }
-  function onHandleKey(e: ReactKeyboardEvent<HTMLDivElement>) {
-    const step = e.shiftKey ? STEP * 4 : STEP;
-    const delta: Record<string, Point> = {
-      ArrowLeft: { x: -step, y: 0 },
-      ArrowRight: { x: step, y: 0 },
-      ArrowUp: { x: 0, y: -step },
-      ArrowDown: { x: 0, y: step },
-    };
-    const d = delta[e.key];
-    if (!d || !pos) return;
-    e.preventDefault();
-    const p = move({ x: pos.x + d.x, y: pos.y + d.y });
-    if (p) savePosition(p);
-  }
+    card.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, [card]);
 
   return createPortal(
     <div
@@ -199,11 +111,7 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
         aria-roledescription={t("moveRole")}
         aria-label={t("move")}
         title={t("move")}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onKeyDown={onHandleKey}
+        {...handle}
         className="flex cursor-grab touch-none items-start gap-2 border-b bg-muted px-4 py-3 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset active:cursor-grabbing"
       >
         <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
