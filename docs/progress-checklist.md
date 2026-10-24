@@ -222,4 +222,4 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 ## Decisions still waiting
 
 - [ ] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — waiting on: supervisor · blocks: F35
-- [ ] **D11** Rewrite the partner name out of the first commit (force-push, can't be undone for clones) — waiting on: Fahad's explicit go · related: X4
+- [x] **D11** Rewrite the partner name out of the first commit (force-push, can't be undone for clones) — done: Fahad's go on 2026-10-24; history rewritten and every branch force-pushed, main 71e45d0 became 9d0c72c with identical files · related: X4
