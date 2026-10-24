@@ -11,6 +11,7 @@ const API_DIR = join(__dirname, "../src/app/api");
 const EXEMPT: Record<string, string> = {
   "auth/[...all]/route.ts": "Better Auth's own endpoints; handle their own sessions, origin checks and rate limits",
   "health/route.ts": "liveness probe; reads no data",
+  "ready/route.ts": "readiness probe; pings the dependencies, reads no data, details only with OPS_TOKEN",
 };
 
 // Routes the public uses without signing in. They go through publicRoute(),

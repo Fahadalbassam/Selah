@@ -150,6 +150,8 @@ services:
       AI_MASKING: ${AI_MASKING:-auto}
       CLAMD_HOST: clamav
       PDF_SERVICE_URL: http://pdf:3000
+      # Shows each check on /api/ready to the alert job and ops/readiness.sh.
+      OPS_TOKEN: ${OPS_TOKEN:-}
     depends_on:
       clamav: { condition: service_healthy }
       setup: { condition: service_completed_successfully }
@@ -172,8 +174,9 @@ services:
       setup: { condition: service_completed_successfully }
     restart: unless-stopped
 
-  # The scheduled jobs (apps/web/scripts/jobs.sh): assistant indexing every
-  # two minutes, reminders and retention purges daily, metrics monthly.
+  # The scheduled jobs (apps/web/scripts/jobs.sh): assistant indexing, audit
+  # sealing and the readiness alert every two minutes, reminders and
+  # retention purges daily, metrics monthly.
   jobs:
     build: { context: ./apps/web, target: tools }
     command: ["sh", "scripts/jobs.sh"]
@@ -187,6 +190,14 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       AI_SERVICE_URL: http://ai:8000
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      # The readiness alert (docs/operations.md): sent straight through the
+      # relay, not the mail queue, and/or to a webhook.
+      OPS_READY_URL: http://web:3000/api/ready
+      OPS_TOKEN: ${OPS_TOKEN:-}
+      OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
+      OPS_ALERT_WEBHOOK: ${OPS_ALERT_WEBHOOK:-}
+      SMTP_URL: ${SMTP_URL}
+      MAIL_FROM: ${MAIL_FROM}
     depends_on:
       setup: { condition: service_completed_successfully }
       ai: { condition: service_started }

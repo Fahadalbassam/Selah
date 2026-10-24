@@ -41,3 +41,23 @@ export function scanWithClamd(bytes: Uint8Array, host: string, port: number, tim
     });
   });
 }
+
+/** Whether a ClamAV daemon answers PING (readiness check). */
+export function pingClamd(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host, port });
+    let reply = "";
+    const done = (ok: boolean) => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.on("error", () => done(false));
+    socket.on("connect", () => socket.write("zPING\0"));
+    socket.on("data", (d) => {
+      reply += d.toString("utf8");
+      if (reply.includes("PONG")) done(true);
+    });
+    socket.on("end", () => done(reply.includes("PONG")));
+  });
+}
