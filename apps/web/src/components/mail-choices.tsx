@@ -22,7 +22,8 @@ import { MAIL_CADENCES, REMINDER_CADENCES, type MailCadence, type MailChoices } 
 const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 
 /** A time of day in half-hour steps (firm time), shown in the reader's own clock format. */
-export function TimeSelect(props: { id: string; value: string; onChange: (v: string) => void; className?: string }) {
+/** `labelledBy`: ids of the visible words that name this time (the trigger itself only shows the time). */
+export function TimeSelect(props: { id: string; value: string; onChange: (v: string) => void; className?: string; labelledBy?: string }) {
   const format = useFormatter();
   const label = (t: string) => {
     const [h = 0, m = 0] = t.split(":").map(Number);
@@ -31,7 +32,11 @@ export function TimeSelect(props: { id: string; value: string; onChange: (v: str
   const options = TIMES.includes(props.value) ? TIMES : [...TIMES, props.value].sort();
   return (
     <Select value={props.value} onValueChange={props.onChange}>
-      <SelectTrigger id={props.id} className={props.className ?? "w-32 tabular-nums"}>
+      <SelectTrigger
+        id={props.id}
+        aria-labelledby={props.labelledBy ? `${props.labelledBy} ${props.id}` : undefined}
+        className={props.className ?? "w-32 tabular-nums"}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="max-h-72">
@@ -49,7 +54,9 @@ function Row({ id, label, hint, children }: { id: string; label: string; hint: s
   return (
     <div className="flex items-start justify-between gap-6">
       <div className="max-w-lg space-y-1">
-        <Label htmlFor={id}>{label}</Label>
+        <Label id={`${id}-label`} htmlFor={id}>
+          {label}
+        </Label>
         <p className="text-sm text-muted-foreground">{hint}</p>
       </div>
       {/* Radix's hidden form input beside a switch shifts the page sideways in RTL; keep it in this box. */}
@@ -123,9 +130,11 @@ export function MailChoicesForm({ initial }: { initial: MailChoicesView }) {
           <Row id="m-quiet" label={t("quiet")} hint={t("quietHint")}>
             {quiet ? (
               <>
-                <TimeSelect id="m-quiet-from" value={s.quietFrom!} onChange={(v) => set("quietFrom", v)} />
-                <span className="text-sm text-muted-foreground">{t("to")}</span>
-                <TimeSelect id="m-quiet-to" value={s.quietTo!} onChange={(v) => set("quietTo", v)} />
+                <TimeSelect id="m-quiet-from" labelledBy="m-quiet-label" value={s.quietFrom!} onChange={(v) => set("quietFrom", v)} />
+                <span id="m-quiet-to-label" className="text-sm text-muted-foreground">
+                  {t("to")}
+                </span>
+                <TimeSelect id="m-quiet-to" labelledBy="m-quiet-to-label" value={s.quietTo!} onChange={(v) => set("quietTo", v)} />
               </>
             ) : null}
             <span className="relative [&>input]:!start-0 [&>input]:![transform:none]">

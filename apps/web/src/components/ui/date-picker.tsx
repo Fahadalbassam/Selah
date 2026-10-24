@@ -101,6 +101,8 @@ function DatePicker({
       <PopoverContent className="w-auto overflow-hidden p-0" align="start">
         <Calendar
           mode="single"
+          // Picking the chosen day again keeps it; the clear button empties the field.
+          required
           selected={selected}
           defaultMonth={selected}
           dir={locale === "ar" ? "rtl" : "ltr"}
