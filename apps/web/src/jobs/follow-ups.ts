@@ -25,12 +25,14 @@ export async function runFollowUps(db: Queryable, today: string): Promise<{ sent
      sent AS (
        INSERT INTO notifications (user_id, kind, entity_type, entity_id)
        SELECT r, 'follow_up.' || l.kind || '.' || l.level, 'action', l.action_id FROM logged l, unnest(l.recipients) r
-       RETURNING 1
+       RETURNING user_id
      ),
+     -- Only people who got a notification: one about an action they can't
+     -- see is dropped by the database (0006), and so is its mail.
      mailed AS (
        INSERT INTO outbound_emails (to_email, kind, link)
        SELECT u.email, 'follow_up.digest', '/notifications'
-       FROM (SELECT DISTINCT r FROM logged l, unnest(l.recipients) r) x
+       FROM (SELECT DISTINCT user_id AS r FROM sent) x
        JOIN "user" u ON u.id = x.r
        WHERE app_can_reset_password(x.r)
          AND coalesce((SELECT p.follow_up_digest FROM mail_preferences p WHERE p.user_id = x.r), true)
