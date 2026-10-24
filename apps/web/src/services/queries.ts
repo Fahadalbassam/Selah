@@ -203,12 +203,16 @@ export function isOverdue(row: Pick<ActionRow, "status" | "dueDate">, today = fi
 export async function dashboard(tx: Tx, principal: Principal) {
   const counts = await actionCounts(tx, principal);
   const by = (s: ActionStatus) => counts.filter((c) => c.status === s).reduce((n, c) => n + c.n, 0);
-  // What needs this person: overdue work, and what waits on their side.
-  const waiting: ActionStatus[] = principal.orgKind === "firm" ? ["awaiting_review"] : ["revision_requested", "blocked"];
+  // What needs this person: overdue work, and what waits on their side. For
+  // the firm that is a decision, a client who is stuck, and work sent back
+  // for revision that the consultant follows up (review M04).
+  const waiting: ActionStatus[] =
+    principal.orgKind === "firm" ? ["awaiting_review", "blocked", "revision_requested"] : ["revision_requested", "blocked"];
   const attention = await listActions(tx, principal, { attention: waiting, limit: 10 });
   return {
     total: counts.reduce((n, c) => n + c.n, 0),
-    inProgress: by("in_progress") + by("assigned") + by("revision_requested"),
+    // Claimed progress only: an action that is just assigned claims nothing yet (review M04).
+    inProgress: by("in_progress") + by("revision_requested"),
     blocked: by("blocked"),
     awaitingReview: by("awaiting_review"),
     verified: by("verified_complete"),

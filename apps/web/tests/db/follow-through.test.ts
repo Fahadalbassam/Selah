@@ -439,6 +439,23 @@ describe("evidence lists", () => {
     ).rejects.toThrow(/virus scan/);
   });
 
+  it("asking for a revision answers the items still waiting with the same reason; accepted ones stay", async () => {
+    const aid = await action({ status: "in_progress" });
+    await ask(aid);
+    await ask(aid);
+    const [a, b] = await requestsOf(aid);
+    await submitEvidence(aid, a.id);
+    await submitEvidence(aid, b.id);
+    await run(U.cons, `UPDATE evidence_requests SET status = 'accepted' WHERE id = $1`, [a.id]);
+    await owner.query(`UPDATE actions SET status = 'awaiting_review' WHERE id = $1`, [aid]);
+    await svc(U.cons, (tx, p) => transitionAction(tx, p, aid, { to: "revision_requested", reason: "The policy isn't signed" }));
+    const items = await requestsOf(aid);
+    expect(items.map((r) => [r.status, r.decision_note])).toEqual([
+      ["accepted", null],
+      ["rejected", "The policy isn't signed"],
+    ]);
+  });
+
   it("a rejected item can be asked again, and an accepted one cannot be undone", async () => {
     const aid = await action();
     await ask(aid);
@@ -690,14 +707,18 @@ describe("action lists, pages and counts", () => {
   it("the dashboard counts in the database and lists at most ten that need attention", async () => {
     await action({ due: "2001-01-01" });
     await action({ status: "awaiting_review", due: "2099-01-01" });
+    await action({ status: "revision_requested", due: "2099-01-01" });
+    await action({ status: "assigned", due: "2099-01-01" });
     for (const who of [U.cons, U.cowner, U.cmgr]) {
       const d = await svc(who, (tx, p) => Q.dashboard(tx, p));
       const all = await svc(who, (tx, p) => Q.listActions(tx, p));
       expect(d.total).toBe(all.length);
       expect(d.overdue).toBe(all.filter((r) => Q.isOverdue(r)).length);
       expect(d.awaitingReview).toBe(all.filter((r) => r.status === "awaiting_review").length);
+      // Claimed progress: an assigned action claims nothing yet.
+      expect(d.inProgress).toBe(all.filter((r) => r.status === "in_progress" || r.status === "revision_requested").length);
       const p = await svc(who, async (_tx, p) => p);
-      const waiting = p.orgKind === "firm" ? ["awaiting_review"] : ["revision_requested", "blocked"];
+      const waiting = p.orgKind === "firm" ? ["awaiting_review", "blocked", "revision_requested"] : ["revision_requested", "blocked"];
       const expected = all.filter((r) => Q.isOverdue(r) || waiting.includes(r.status)).slice(0, 10);
       expect(d.attention.map((r) => r.id)).toEqual(expected.map((r) => r.id));
     }

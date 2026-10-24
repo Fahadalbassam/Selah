@@ -293,6 +293,13 @@ describe("the gate", () => {
     const told = (await owner.query(`SELECT user_id FROM notifications WHERE kind = 'project.closed' ORDER BY user_id`)).rows.map((r) => r.user_id);
     expect(told).toEqual(expect.arrayContaining([U.lead, U.cons, U.sponsor]));
     expect(told).not.toContain(U.admin);
+    // Withdrawn at closing means settled (review R01): closed as not applicable, with the reason and the move in its history.
+    // The handed-over action stays open: the client carries it on.
+    const rows = (await owner.query(`SELECT id, status::text, closure_outcome::text, closure_note FROM actions WHERE id = ANY($1)`, [[a, b]])).rows;
+    expect(rows.find((r) => r.id === b)).toMatchObject({ status: "closed", closure_outcome: "not_applicable", closure_note: "Replaced by the new charter" });
+    expect(rows.find((r) => r.id === a)).toMatchObject({ status: "in_progress", closure_outcome: null });
+    const moved = (await owner.query(`SELECT from_state, to_state FROM activity_events WHERE entity_id = $1 AND event = 'status_changed'`, [b])).rows;
+    expect(moved).toEqual([{ from_state: "assigned", to_state: "closed" }]);
   });
 });
 
