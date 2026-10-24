@@ -267,6 +267,13 @@
       "when": 1792829687412,
       "tag": "0050_status_packs",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792831254131,
+      "tag": "0051_deputy",
+      "breakpoints": true
     }
   ]
 }

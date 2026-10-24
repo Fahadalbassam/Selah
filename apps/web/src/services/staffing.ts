@@ -103,14 +103,22 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
   assertAllowed(principal, "client_assignment.read", resource);
 
   const team = await tx
-    .select({ userId: clientAssignments.userId, isLead: clientAssignments.isLead, name: user.name, email: user.email, since: clientAssignments.createdAt })
+    .select({
+      userId: clientAssignments.userId,
+      isLead: clientAssignments.isLead,
+      isDeputy: clientAssignments.isDeputy,
+      name: user.name,
+      email: user.email,
+      since: clientAssignments.createdAt,
+    })
     .from(clientAssignments)
     .innerJoin(user, eq(user.id, clientAssignments.userId))
     .where(eq(clientAssignments.clientOrgId, clientOrgId))
-    .orderBy(desc(clientAssignments.isLead), asc(user.name));
+    .orderBy(desc(clientAssignments.isLead), desc(clientAssignments.isDeputy), asc(user.name));
 
   const canManage = authorize(principal, "client_assignment.manage", resource).allowed;
   const canSetLead = authorize(principal, "client_assignment.set_lead", resource).allowed;
+  const canSetDeputy = authorize(principal, "client_assignment.set_deputy", resource).allowed;
   const canDecide = authorize(principal, "join_request.decide", requestFor(principal, clientOrgId)).allowed;
 
   const onTeam = new Set(team.map((m) => m.userId));
@@ -163,6 +171,7 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
     can: {
       manage: canManage,
       setLead: canSetLead,
+      setDeputy: canSetDeputy,
       decide: canDecide,
       watch: canWatch,
       createProject: authorize(principal, "project.create", { ...resource, type: "project", projectKind: "client" }).allowed,
@@ -200,13 +209,14 @@ export async function removeConsultant(tx: Tx, principal: Principal, clientOrgId
   const resource = assignmentOf(principal, clientOrgId);
   assertAllowed(principal, "client_assignment.manage", resource);
   const [row] = await tx
-    .select({ isLead: clientAssignments.isLead })
+    .select({ isLead: clientAssignments.isLead, isDeputy: clientAssignments.isDeputy })
     .from(clientAssignments)
     .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, userId)))
     .limit(1);
   if (!row) throw new NotFoundError("assignment");
-  // Removing the lead leaves the client without one: only the admin may.
+  // Removing the lead leaves the client without one: only the admin may. The same for the deputy.
   if (row.isLead) assertAllowed(principal, "client_assignment.set_lead", resource);
+  if (row.isDeputy) assertAllowed(principal, "client_assignment.set_deputy", resource);
   await tx.delete(clientAssignments).where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, userId)));
   // Leaving the client team also takes them off its projects.
   await tx
@@ -235,6 +245,49 @@ export async function setLead(tx: Tx, principal: Principal, clientOrgId: string,
     .onConflictDoUpdate({ target: [clientAssignments.clientOrgId, clientAssignments.userId], set: { isLead: true } });
   await tx.insert(notifications).values({ userId, kind: "client.lead", entityType: "organization", entityId: clientOrgId });
   await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "client_assignment.set_lead", resourceType: "organization", resourceId: clientOrgId, outcome: "allow", meta: { userId } });
+  return { ok: true };
+}
+
+/**
+ * Name `userId` the client's deputy consultant (adding them to the team if
+ * needed), or with null remove the deputy (who stays on the team). The
+ * deputy can do what the lead can and gets the lead's alerts (F18).
+ */
+export async function setDeputy(tx: Tx, principal: Principal, clientOrgId: string, userId: string | null) {
+  assertAllowed(principal, "client_assignment.set_deputy", assignmentOf(principal, clientOrgId));
+  const [current] = await tx
+    .select({ userId: clientAssignments.userId })
+    .from(clientAssignments)
+    .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.isDeputy, true)))
+    .limit(1);
+  if (userId === null) {
+    if (!current) return { ok: true };
+    await tx
+      .update(clientAssignments)
+      .set({ isDeputy: false })
+      .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, current.userId)));
+    await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "client_assignment.clear_deputy", resourceType: "organization", resourceId: clientOrgId, outcome: "allow", meta: { userId: current.userId } });
+    return { ok: true };
+  }
+  if (current?.userId === userId) return { ok: true };
+  await assertConsultant(tx, principal, userId);
+  const [lead] = await tx
+    .select({ userId: clientAssignments.userId })
+    .from(clientAssignments)
+    .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, userId), eq(clientAssignments.isLead, true)))
+    .limit(1);
+  if (lead) throw new BadRequestError("the lead cannot also be the deputy");
+  if (current)
+    await tx
+      .update(clientAssignments)
+      .set({ isDeputy: false })
+      .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.userId, current.userId)));
+  await tx
+    .insert(clientAssignments)
+    .values({ clientOrgId, userId, isDeputy: true, assignedBy: principal.userId })
+    .onConflictDoUpdate({ target: [clientAssignments.clientOrgId, clientAssignments.userId], set: { isDeputy: true } });
+  await tx.insert(notifications).values({ userId, kind: "client.deputy", entityType: "organization", entityId: clientOrgId });
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "client_assignment.set_deputy", resourceType: "organization", resourceId: clientOrgId, outcome: "allow", meta: { userId } });
   return { ok: true };
 }
 
@@ -524,6 +577,15 @@ export async function getProjectTeam(tx: Tx, principal: Principal, projectId: st
           .where(and(eq(clientAssignments.clientOrgId, project.orgId), eq(clientAssignments.isLead, true)))
           .limit(1)
       : [];
+  const [clientDeputy] =
+    project.kind === "client"
+      ? await tx
+          .select({ userId: user.id, name: user.name, email: user.email })
+          .from(clientAssignments)
+          .innerJoin(user, eq(user.id, clientAssignments.userId))
+          .where(and(eq(clientAssignments.clientOrgId, project.orgId), eq(clientAssignments.isDeputy, true)))
+          .limit(1)
+      : [];
 
   const canWatch = authorize(principal, "project.watch", resource).allowed;
   const canEdit = authorize(principal, "project.update", resource).allowed;
@@ -539,6 +601,7 @@ export async function getProjectTeam(tx: Tx, principal: Principal, projectId: st
   return {
     siblings,
     clientLead: clientLead ?? null,
+    clientDeputy: clientDeputy ?? null,
     firm,
     client,
     candidates,

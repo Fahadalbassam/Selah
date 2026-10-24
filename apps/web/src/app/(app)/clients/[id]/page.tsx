@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, FilePenLine, Pencil, Trash2, UserPlus, UsersRound } from "lucide-react";
+import { Archive, ArrowLeft, FilePenLine, Pencil, Trash2, UserCheck, UserPlus, UsersRound } from "lucide-react";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -339,6 +339,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           {t("leadBadge")}
                         </Badge>
                       ) : null}
+                      {m.isDeputy ? (
+                        <Badge variant="outline" className="gap-1">
+                          <UserCheck className="size-3" />
+                          {t("deputyBadge")}
+                        </Badge>
+                      ) : null}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {m.email} · {t("since", { date: format.dateTime(m.since, { dateStyle: "medium" }) })}
@@ -347,7 +353,21 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   {can.setLead && !m.isLead ? (
                     <ApiButton endpoint={`/api/clients/${client.id}/lead`} method="PUT" body={{ userId: m.userId }} label={t("makeLead")} variant="ghost" />
                   ) : null}
-                  {can.manage && (!m.isLead || can.setLead) ? (
+                  {can.setDeputy && !m.isLead ? (
+                    m.isDeputy ? (
+                      <ApiButton endpoint={`/api/clients/${client.id}/deputy`} method="DELETE" label={t("removeDeputy")} variant="ghost" confirm={t("removeDeputyConfirm")} />
+                    ) : (
+                      <ApiButton
+                        endpoint={`/api/clients/${client.id}/deputy`}
+                        method="PUT"
+                        body={{ userId: m.userId }}
+                        label={t("makeDeputy")}
+                        variant="ghost"
+                        confirm={t("makeDeputyConfirm")}
+                      />
+                    )
+                  ) : null}
+                  {can.manage && (!m.isLead || can.setLead) && (!m.isDeputy || can.setDeputy) ? (
                     <ApiButton
                       endpoint={`/api/clients/${client.id}/consultants/${m.userId}`}
                       method="DELETE"
