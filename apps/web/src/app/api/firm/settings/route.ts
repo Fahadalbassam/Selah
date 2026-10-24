@@ -26,6 +26,7 @@ const body = z
     ramadanEnds: z.iso.date().nullable(),
     ramadanMailFrom: z.string().refine(isClockTime),
     ramadanMailTo: z.string().refine(isClockTime),
+    auditKeepMonths: days(R.auditKeepMonths),
   })
   .partial()
   .strict();

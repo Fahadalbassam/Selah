@@ -11,6 +11,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { getFirmSettings, updateFirmSettings } from "@/services/firm-settings";
 import { loadPrincipal } from "@/services/principal";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -70,7 +71,8 @@ beforeAll(async () => {
   const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
   await q(`TRUNCATE "user", organizations CASCADE`);
   await q(`TRUNCATE inquiries CASCADE`);
-  await q(`TRUNCATE outbound_emails, audit_log`);
+  await q(`TRUNCATE outbound_emails`);
+  await truncateAuditLog(owner);
   await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'firm','firm'), ($2,'client','Acme')`, [FIRM, ACME]);
   for (const [name, uid] of Object.entries(U)) {
     await q(`INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)`, [uid, name, `${name}@example.test`]);

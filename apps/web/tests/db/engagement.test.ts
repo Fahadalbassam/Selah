@@ -17,6 +17,7 @@ import { statusRecords } from "@/services/assistant";
 import { departmentChoices, getEngagement, setEngagement } from "@/services/engagement";
 import { planOptions } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -143,7 +144,7 @@ const invite = (by: string, org: string, email: string, role: string) =>
 beforeAll(async () => {
   const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
   await q(`TRUNCATE "user", organizations CASCADE`);
-  await q(`TRUNCATE audit_log`);
+  await truncateAuditLog(owner);
   await q(
     `INSERT INTO organizations (id, kind, name, engagement_mode, departments_enabled) VALUES
       ($1,'firm','firm',NULL,false), ($2,'client','Acme',NULL,true), ($3,'client','Quiet','restricted',false), ($4,'client','Family','consultant_managed',false)`,

@@ -15,6 +15,7 @@ import * as A from "@/services/assessments";
 import { createAction, createRecommendation } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 import { STARTER_TEMPLATE } from "@/services/assessment-starter";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -96,7 +97,8 @@ const answer = (assessmentId: string, ref: string, value: string | null, extra: 
 
 beforeAll(async () => {
   const q = (text: string, params: unknown[] = []) => owner.query(text, params);
-  await q(`TRUNCATE "user", organizations, audit_log CASCADE`);
+  await q(`TRUNCATE "user", organizations CASCADE`);
+  await truncateAuditLog(owner);
   await q(
     `INSERT INTO organizations (id, kind, name, engagement_mode, legal_form) VALUES
       ($1,'firm','firm',NULL,NULL), ($2,'client','Acme','full','llc'), ($3,'client','Listed Co','full','listed_jsc'),

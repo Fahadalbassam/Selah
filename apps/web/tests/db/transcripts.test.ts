@@ -11,6 +11,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { getMeeting, importTranscript } from "@/services/meetings";
 import { loadPrincipal } from "@/services/principal";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -84,7 +85,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await owner.query(`DELETE FROM meetings`);
-  await owner.query(`TRUNCATE audit_log`);
+  await truncateAuditLog(owner);
   await sqlAs(
     U.cons,
     `INSERT INTO meetings (id, project_id, org_id, kind, title, starts_at, ends_at, location, join_url, organizer_id, ics_uid)

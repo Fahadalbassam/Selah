@@ -39,6 +39,46 @@ async function recordLockout(email: string) {
   }
 }
 
+const ipOf = (headers: Headers | undefined) => headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+
+/**
+ * Sign-in, two-factor and password events in the audit log (R2), under the
+ * account's id, never the address typed. A failed sign-in to an address with
+ * no account is recorded without one. Recording never breaks signing in.
+ */
+async function recordAuthEvent(entry: {
+  action: string;
+  outcome: "allow" | "deny";
+  actorId?: string | null;
+  email?: unknown;
+  ip: string | null;
+  meta?: Record<string, string | number | boolean | null>;
+}) {
+  try {
+    let resourceId: string | undefined;
+    if (!entry.actorId && accountsDb) {
+      const key = accountKey(entry.email);
+      if (key) {
+        const { rows } = await accountsDb.execute<{ id: string }>(sql`select id from "user" where lower(email) = ${key}`);
+        resourceId = rows[0]?.id;
+      }
+    }
+    await auditDetached({
+      actorId: entry.actorId ?? null,
+      action: entry.action,
+      resourceType: "user",
+      resourceId: entry.actorId ?? resourceId,
+      outcome: entry.outcome,
+      ip: entry.ip,
+      meta: entry.meta,
+    });
+  } catch {
+    // Recording must never break signing in.
+  }
+}
+
+const TWO_FACTOR_CHECKS = new Set(["/two-factor/verify-totp", "/two-factor/verify-backup-code", "/two-factor/verify-otp"]);
+
 function createAuth() {
   const e = env();
   const production = e.NODE_ENV === "production";
@@ -119,6 +159,12 @@ function createAuth() {
           }
           return;
         }
+        if (ctx.path === "/sign-out") {
+          // Before the session is gone, so the event has its person.
+          const s = await getSessionFromCtx(ctx).catch(() => null);
+          if (s) await recordAuthEvent({ action: "auth.sign_out", outcome: "allow", actorId: s.user.id, ip: ipOf(ctx.headers) });
+          return;
+        }
         if (ctx.path !== "/two-factor/disable") return;
         const s = await getSessionFromCtx(ctx);
         if (!s) return;
@@ -126,6 +172,39 @@ function createAuth() {
           sql`select app_requires_two_factor(${s.user.id}::uuid) as required`,
         );
         if (rows[0]?.required) throw new APIError("FORBIDDEN", { message: "two-factor sign-in is required for your role" });
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        const failed = ctx.context.returned instanceof APIError;
+        const ip = ipOf(ctx.headers);
+        const signedIn = ctx.context.newSession?.user.id ?? null;
+        if (ctx.path === "/sign-in/email") {
+          const body = ctx.body as { email?: unknown } | undefined;
+          if (failed) await recordAuthEvent({ action: "auth.sign_in.failed", outcome: "deny", email: body?.email, ip });
+          else if (signedIn) await recordAuthEvent({ action: "auth.sign_in", outcome: "allow", actorId: signedIn, ip });
+          // Right password, two-factor code still to come.
+          else await recordAuthEvent({ action: "auth.sign_in.password_ok", outcome: "allow", email: body?.email, ip });
+          return;
+        }
+        if (TWO_FACTOR_CHECKS.has(ctx.path)) {
+          const method = ctx.path.split("/").pop()!;
+          const s = signedIn ? null : await getSessionFromCtx(ctx).catch(() => null);
+          const actorId = signedIn ?? s?.user.id ?? null;
+          await recordAuthEvent({
+            action: failed ? "auth.two_factor.failed" : "auth.two_factor.verified",
+            outcome: failed ? "deny" : "allow",
+            actorId,
+            ip,
+            meta: { method },
+          });
+          return;
+        }
+        if (ctx.path === "/two-factor/enable" || ctx.path === "/two-factor/disable" || ctx.path === "/change-password") {
+          const s = await getSessionFromCtx(ctx).catch(() => null);
+          if (!s) return;
+          const action =
+            ctx.path === "/change-password" ? "auth.password.changed" : ctx.path === "/two-factor/enable" ? "auth.two_factor.enable" : "auth.two_factor.disable";
+          await recordAuthEvent({ action, outcome: failed ? "deny" : "allow", actorId: s.user.id, ip });
+        }
       }),
     },
     plugins: [twoFactor({ issuer: "Selah" }), nextCookies()],

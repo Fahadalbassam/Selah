@@ -46,7 +46,12 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
               { title: t("expertise"), href: "/team/expertise" },
             ],
           },
-          ...(role === "firm_admin" ? [{ title: t("settings"), href: "/settings", icon: "settings" as const }] : []),
+          ...(role === "firm_admin"
+            ? [
+                { title: t("audit"), href: "/audit", icon: "audit" as const },
+                { title: t("settings"), href: "/settings", icon: "settings" as const },
+              ]
+            : []),
         ],
       },
     ];
@@ -66,7 +71,11 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
     },
     {
       label: t("organization"),
-      items: [team, { title: t("departments"), href: "/departments", icon: "departments" }],
+      items: [
+        team,
+        { title: t("departments"), href: "/departments", icon: "departments" },
+        ...(role === "client_admin" ? [{ title: t("audit"), href: "/audit", icon: "audit" as const }] : []),
+      ],
     },
   ];
 }

@@ -16,6 +16,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
+    "job:audit-check": "tsx scripts/audit-check.ts",
+    "job:audit-seal": "tsx scripts/audit-seal.ts",
     "job:delete-objects": "tsx scripts/delete-objects.ts",
     "job:follow-ups": "tsx scripts/follow-ups.ts",
     "job:index-documents": "tsx scripts/index-documents.ts",

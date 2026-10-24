@@ -42,6 +42,7 @@ export interface Settings {
   ramadanEnds: string | null;
   ramadanMailFrom: string;
   ramadanMailTo: string;
+  auditKeepMonths: number;
 }
 type Key = keyof Settings;
 
@@ -115,7 +116,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
       return true;
     };
 
-  const days = (k: FirmSettingRange, id: string) => {
+  const days = (k: FirmSettingRange, id: string, unit: "days" | "months" = "days") => {
     const [min, max] = FIRM_SETTING_RANGES[k];
     return (
       <div className="flex items-center gap-2">
@@ -130,7 +131,7 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
           value={String(s[k])}
           onChange={(e) => set(k, Number(e.target.value) as never)}
         />
-        <span className="text-sm text-muted-foreground">{t("days")}</span>
+        <span className="text-sm text-muted-foreground">{t(unit)}</span>
       </div>
     );
   };
@@ -323,6 +324,12 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
           <TimeSelect id="s-ramadan-to" value={s.ramadanMailTo} onChange={(v) => set("ramadanMailTo", v)} />
         </div>
         {err("ramadan")}
+      </Section>
+      <Section id="audit" title={t("audit.title")} description={t("audit.hint")} send={save("audit", ["auditKeepMonths"])}>
+        <Row id="s-audit-keep" label={t("audit.keep")} hint={t("audit.keepHint")}>
+          {days("auditKeepMonths", "s-audit-keep", "months")}
+        </Row>
+        {err("audit")}
       </Section>
     </div>
   );

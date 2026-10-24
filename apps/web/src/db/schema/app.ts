@@ -19,6 +19,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   customType,
   boolean,
   check,
@@ -994,6 +995,8 @@ export const firmSettings = pgTable("firm_settings", {
   ramadanEnds: date("ramadan_ends"),
   ramadanMailFrom: time("ramadan_mail_from").notNull().default("10:00"),
   ramadanMailTo: time("ramadan_mail_to").notNull().default("15:00"),
+  // Months the audit log is kept (R2). Never less than 12 (NCA ECC 2-12).
+  auditKeepMonths: integer("audit_keep_months").notNull().default(12),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
@@ -1577,9 +1580,42 @@ export const auditLog = pgTable(
     ip: text("ip"),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: createdAt(),
+    // The hash chain (R2, migration 0023). Set once by the sealing job, never
+    // by the app: the row's place in the chain and sha256 of the previous
+    // row's hash plus this row's fields.
+    chainSeq: bigint("chain_seq", { mode: "number" }).unique("audit_log_chain_seq_uq"),
+    chainHash: text("chain_hash"),
   },
-  (t) => [index("audit_log_actor_idx").on(t.actorId, t.createdAt)],
+  (t) => [
+    index("audit_log_actor_idx").on(t.actorId, t.createdAt),
+    index("audit_log_created_idx").on(t.createdAt),
+    index("audit_log_org_idx").on(t.orgId, t.createdAt),
+  ],
 );
+
+// Where the audit chain starts and ends (one row). The start moves only when
+// rows past the retention period are pruned; the end after each seal.
+export const auditChain = pgTable("audit_chain", {
+  id: boolean("id").primaryKey().default(true),
+  anchorSeq: bigint("anchor_seq", { mode: "number" }).notNull().default(0),
+  anchorHash: text("anchor_hash").notNull().default(sql`repeat('0', 64)`),
+  headSeq: bigint("head_seq", { mode: "number" }).notNull().default(0),
+  headHash: text("head_hash").notNull().default(sql`repeat('0', 64)`),
+  prunedAt: ts("pruned_at"),
+});
+
+// Each run of the nightly chain check, kept so the audit screen can say when
+// the log was last proven whole.
+export const auditChainChecks = pgTable("audit_chain_checks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  checkedAt: ts("checked_at").notNull().defaultNow(),
+  rowsChecked: bigint("rows_checked", { mode: "number" }).notNull(),
+  ok: boolean("ok").notNull(),
+  firstBadSeq: bigint("first_bad_seq", { mode: "number" }),
+  headSeq: bigint("head_seq", { mode: "number" }).notNull(),
+  headHash: text("head_hash").notNull(),
+  unsealed: integer("unsealed").notNull(),
+});
 
 export const notifications = pgTable(
   "notifications",
