@@ -41,7 +41,7 @@ export async function callApi(
   url: string,
   method: string,
   body?: unknown,
-): Promise<{ ok: true; data: unknown } | { ok: false; error: string; message?: string }> {
+): Promise<{ ok: true; data: unknown } | { ok: false; error: string; message?: string; status?: number }> {
   try {
     const res = await fetch(url, {
       method,
@@ -51,7 +51,7 @@ export async function callApi(
     if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
     // The data rule's own words (English), for callers that map known ones to a message.
     const message = ((await res.json().catch(() => null)) as { message?: string } | null)?.message;
-    return { ok: false, error: res.status === 409 ? "conflict" : res.status === 400 ? "invalid" : "generic", message };
+    return { ok: false, error: res.status === 409 ? "conflict" : res.status === 400 ? "invalid" : "generic", message, status: res.status };
   } catch {
     return { ok: false, error: "generic" };
   }

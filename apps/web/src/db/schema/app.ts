@@ -2042,6 +2042,68 @@ export const aiMessages = pgTable(
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],
 );
 
+// The client assistant (wave 3, F39): off by default. The firm admin
+// switches it on for one client and picks which client roles get it; the
+// client's admin then consents, and only then does anyone there get it.
+// Switching it off ends the consent, so it needs a fresh one. Written only
+// by app_set_client_ai(), app_consent_client_ai() and app_revoke_client_ai().
+export const clientAiSettings = pgTable(
+  "client_ai_settings",
+  {
+    clientOrgId: uuid("client_org_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    // Client managers by default; the client admin too when the firm admin adds them. Never action owners (src/lib/client-ai.ts).
+    roles: role("roles").array().notNull().default(sql`'{client_manager}'::role[]`),
+    // Questions per person per day (OWASP LLM10).
+    dailyLimit: integer("daily_limit").notNull().default(20),
+    updatedBy: uuid("updated_by").references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check("client_ai_roles", sql`${t.roles} <@ ARRAY['client_admin', 'client_manager']::role[]`),
+    check("client_ai_daily_limit", sql`${t.dailyLimit} BETWEEN 1 AND 200`),
+  ],
+);
+
+// The client admin's consent, one row each time, kept as history. The latest
+// row without an end date is the consent in force, for the notice version it names.
+export const clientAiConsents = pgTable(
+  "client_ai_consents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientOrgId: uuid("client_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    version: text("version").notNull(),
+    locale: text("locale").notNull(),
+    givenBy: uuid("given_by")
+      .notNull()
+      .references(() => user.id),
+    givenAt: ts("given_at").notNull().defaultNow(),
+    endedBy: uuid("ended_by").references(() => user.id),
+    endedAt: ts("ended_at"),
+  },
+  (t) => [
+    index("client_ai_consents_org_idx").on(t.clientOrgId, t.givenAt),
+    check("client_ai_consent_ended", sql`(${t.endedAt} IS NULL) = (${t.endedBy} IS NULL)`),
+  ],
+);
+
+// Questions asked per person per day, counted before the search runs.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    queries: integer("queries").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);
+
 // A summary of one file, made once per version and language and then kept
 // (baseline: AI sources). Keyed by the file's hash, so a new version never reuses an
 // old summary; read with the file's own rights.

@@ -62,6 +62,8 @@ class AnswerRequest(BaseModel):
     passages: list[Passage]
     language: Literal["ar", "en", "auto"] = "auto"
     history: list[HistoryTurn] = Field(default_factory=list, max_length=8)
+    # "client": a person at the client organisation; extra rules apply (prompt.CLIENT_RULES).
+    audience: Literal["staff", "client"] = "staff"
 
 
 class TranslateRequest(BaseModel):
@@ -120,7 +122,7 @@ async def answer(
     if not req.passages:
         return Answer(answer="", cited_ids=[], grounded=False)
 
-    system, user = build_messages(req.question, req.passages, req.language, req.history)
+    system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
 

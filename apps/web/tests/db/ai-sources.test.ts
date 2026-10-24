@@ -184,6 +184,16 @@ beforeAll(async () => {
   );
   await q(`UPDATE documents SET state = 'archived' WHERE id = $1`, [D.archived]);
   await q(`UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.aiOff]);
+  // The client assistant is on for both clients (wave 3), so these tests see
+  // what row-level security gives each client person; with it off they see
+  // nothing (tests/db/client-assistant.test.ts).
+  await q(`INSERT INTO client_ai_settings (client_org_id, enabled, roles) VALUES ($1, true, '{client_admin,client_manager}'), ($2, true, '{client_admin,client_manager}')`, [ACME, BETA]);
+  await q(`INSERT INTO client_ai_consents (client_org_id, version, locale, given_by) VALUES ($1, app_client_ai_version(), 'en', $3), ($2, app_client_ai_version(), 'en', $4)`, [
+    ACME,
+    BETA,
+    U.cadmin,
+    U.bmgr,
+  ]);
 });
 
 afterAll(async () => {
@@ -314,9 +324,8 @@ it("shows each client user exactly the passages of the files they may open", asy
   // A manager outside the finance department doesn't see its file; their own private file they do.
   expect(await seen(U.cmgr, P1)).toEqual([D.shared, D.clientPrivate, D.cmgrPrivate].sort());
   expect(await seen(U.hr, P1)).toEqual([D.shared, D.clientPrivate].sort());
-  // An action owner on the project reads what its client side may, but not someone else's private file.
-  // (They never get the assistant: retrievalScope() refuses them.)
-  expect(await seen(U.actionOwner, P1)).toEqual([D.shared, D.clientPrivate].sort());
+  // An action owner never gets the client assistant (src/lib/client-ai.ts), so reads no passage.
+  expect(await seen(U.actionOwner, P1)).toEqual([]);
   expect(await seen(U.cons, P1)).toEqual([D.shared, D.firmPrivate, D.consPrivate, D.finance].sort());
   expect(await seen(U.bmgr, P1)).toEqual([]);
   expect(await seen(U.bmgr, BETA_P)).toEqual([D.betaShared, D.betaPrivate].sort());

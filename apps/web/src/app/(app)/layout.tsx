@@ -10,11 +10,12 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import type { Role } from "@/authz";
 import { withPrincipal } from "@/server/page";
 import { myGroups } from "@/services/client-groups";
+import { myClientAi } from "@/services/client-ai";
 import { unreadCount } from "@/services/notifications";
 import { myOffboarding } from "@/services/offboarding";
 import { getViewer } from "@/services/queries";
 
-function navFor(role: Role, t: (key: string) => string, inGroup: boolean): NavGroup[] {
+function navFor(role: Role, t: (key: string) => string, inGroup: boolean, clientAssistant = false): NavGroup[] {
   const overview = { title: t("overview"), href: "/", icon: "overview" as const };
   const team = { title: t("team"), href: "/team", icon: "team" as const };
   if (role === "firm_admin" || role === "consultant") {
@@ -83,7 +84,13 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean): NavGr
   return [
     {
       label: t("workspace"),
-      items: [overview, { title: t("projects"), href: "/projects", icon: "projects" }, { title: t("actions"), href: "/actions", icon: "actions" }],
+      items: [
+        overview,
+        { title: t("projects"), href: "/projects", icon: "projects" },
+        { title: t("actions"), href: "/actions", icon: "actions" },
+        // The client assistant (F39), once the firm offered it: for its users, and for the admin who consents.
+        ...(clientAssistant ? [{ title: t("assistant"), href: "/assistant", icon: "assistant" as const }] : []),
+      ],
     },
     {
       label: t("organization"),
@@ -99,12 +106,13 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean): NavGr
 }
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { viewer, unread, leaving, groups } = await withPrincipal(async (tx, principal) => ({
+  const { viewer, unread, leaving, groups, clientAi } = await withPrincipal(async (tx, principal) => ({
     viewer: await getViewer(tx, principal),
     unread: await unreadCount(tx, principal),
     // The people of an archived client read until their grace period ends (F27).
     leaving: await myOffboarding(tx, principal),
     groups: await myGroups(tx, principal),
+    clientAi: await myClientAi(tx, principal),
   }));
   const locale = await getLocale();
   const [tNav, tRole, tHeader, tApp, tOff, format] = await Promise.all([
@@ -126,7 +134,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           appName={tApp("name")}
           orgName={orgName}
           roleLabel={tRole(viewer.role)}
-          groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0)}
+          groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0, Boolean(clientAi && (clientAi.on || clientAi.canConsent || clientAi.canWithdraw)))}
           orgKind={viewer.orgKind}
           railLabel={tHeader("toggleSidebar")}
           // Help for the client's people (F13); firm staff have no help page.

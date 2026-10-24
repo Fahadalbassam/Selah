@@ -74,7 +74,7 @@ Nobody reviews or closes an action they own or submitted evidence for. The trigg
 
 `retrievalScope()` turns the same check into a filter (project, tenant, allowed labels, user). `services/assistant.ts` puts that filter **inside** the pgvector query's `WHERE`, and the query also runs under RLS. Chunks are deleted by trigger when a document's AI flag is turned off, its label changes, or it is archived. The AI service only receives the passages that survived.
 
-Client roles do not get the assistant yet: that is an open decision in the spec. To enable client managers, add `client_manager: "any"` to `assistant.query` in `policy.ts`; nothing else changes. Action owners stay excluded because their document access is per-user shares, which the index does not carry.
+Client admins and managers get the assistant only where the firm admin offered it to their role and their admin agreed (wave 3, F39): `assistant.query` lists them, `authorize()` also requires `principal.clientAssistant` (from `app_client_ai_on()`), and RESTRICTIVE policies on `ai_chunks` and `ai_conversations` check the same in the database. Action owners stay excluded because their document access is per-user shares, which the index does not carry. See [assistant.md](assistant.md), "The client assistant".
 
 ## File explorer
 

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Button } from "@/components/ui/button";
 
-/** Starts an assistant chat about one record (firm staff). The chat keeps the record as its case. */
+/** Starts an assistant chat about one record (firm staff, and client people with the assistant on). The chat keeps the record as its case. */
 export function AskAbout({
   projectId,
   type,

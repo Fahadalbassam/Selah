@@ -57,5 +57,12 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     observedProjectIds: new Set(rows.filter((r) => r.observer).map((r) => r.projectId)),
     departmentIds: new Set(departments.map((d) => d.id)),
     readOnly: membership.status === "archived",
+    clientAssistant: membership.orgKind === "client" ? await clientAssistantOn(tx) : false,
   };
+}
+
+/** Whether the client assistant is on for the signed-in client person (the database decides: app_client_ai_on). */
+async function clientAssistantOn(tx: Tx): Promise<boolean> {
+  const { rows } = await tx.execute<{ on: boolean }>(sql`select app_client_ai_on() as on`);
+  return rows[0]?.on === true;
 }

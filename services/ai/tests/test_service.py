@@ -266,3 +266,29 @@ def test_check_answer_strips_passage_markers_from_the_text():
 def test_prompt_asks_for_both_versions_when_passages_disagree():
     system, _ = build_messages("q", PASSAGES, "en")
     assert "give each version with its citation" in system
+
+
+def test_client_answers_get_the_client_rules_and_staff_answers_do_not(client_with):
+    staff, _ = build_messages("q", PASSAGES, "en")
+    client, _ = build_messages("q", PASSAGES, "ar", audience="client")
+    assert "CLIENT organisation" not in staff
+    assert "CLIENT organisation" in client
+    assert "Never give a legal or compliance ruling" in client
+    # The reply format stays the last instruction, and the language rule is kept.
+    assert client.rstrip().endswith('"grounded": boolean}.')
+    assert "Answer in Arabic." in client
+
+    c, fake = client_with(json.dumps({"answer": "Quarterly [P1].", "cited_ids": ["P1"], "grounded": True}))
+    r = c.post(
+        "/v1/answer",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json={"question": "q", "passages": [p.model_dump() for p in PASSAGES], "audience": "client"},
+    )
+    assert r.status_code == 200
+    assert "CLIENT organisation" in fake.calls[0][0]
+    bad = c.post(
+        "/v1/answer",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json={"question": "q", "passages": [p.model_dump() for p in PASSAGES], "audience": "admin"},
+    )
+    assert bad.status_code == 422

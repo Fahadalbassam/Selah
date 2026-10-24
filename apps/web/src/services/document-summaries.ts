@@ -37,7 +37,7 @@ async function loadForSummary(tx: Tx, principal: Principal, documentId: string) 
   if (!doc) throw new NotFoundError("document");
   const [project] = await tx.select().from(projects).where(eq(projects.id, doc.projectId));
   if (!project) throw new NotFoundError("document");
-  assertAllowed(principal, "assistant.query", {
+  assertAllowed(principal, "document.summarize", {
     type: "project",
     id: project.id,
     orgId: project.orgId,

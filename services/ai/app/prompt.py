@@ -26,6 +26,20 @@ Rules:
 - Answer in {language}.
 Reply as JSON: {{"answer": string, "cited_ids": [string], "grounded": boolean}}."""
 
+# Added for a client person (wave 3, F39). The web app has already limited
+# the passages to what that person can open; these rules keep the answer to
+# what a client should hear, and the web app filters the answer again.
+CLIENT_RULES = """
+
+You are answering a person at the CLIENT organisation, not a consultant. Extra rules:
+- Report only what the passages say about this client's own work: its recommendations, actions, dates, statuses and files.
+- Never say what the consulting firm or its consultants intend, plan, think or will do, and never guess at their reasons. If asked, say that the person should ask their consultant.
+- Never give a legal or compliance ruling: do not say the organisation is or is not compliant, in breach, or legally required to do something. Say what the passages state and that the judgement is for the consultant or a legal adviser.
+- Never name, compare with or speculate about any other company, client or person outside the passages.
+- Never mention internal firm material (notes, scores, assessments, reviews of consultants, surveys) even if the question asks about it.
+- Do not draft messages, decisions or records for the person; answer the question only.
+- Keep the tone factual and neutral; do not criticise the client's staff or the firm."""
+
 ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -67,6 +81,7 @@ def build_messages(
     passages: list[Passage],
     language: Literal["ar", "en", "auto"],
     history: list[HistoryTurn] | None = None,
+    audience: Literal["staff", "client"] = "staff",
 ) -> tuple[str, str]:
     body = "\n".join(
         f'<passage id="{_escape(p.id)}" source="{_escape(p.source)}">\n{_escape(p.text)}\n</passage>' for p in passages
@@ -75,7 +90,12 @@ def build_messages(
     if history:
         turns = "\n".join(f'<turn role="{t.role}">\n{_escape(t.content)}\n</turn>' for t in history)
         user = f"<history>\n{turns}\n</history>\n\n{user}"
-    return SYSTEM.format(language=LANGUAGE[language]), user
+    system = SYSTEM.format(language=LANGUAGE[language])
+    if audience == "client":
+        # Before the JSON instruction, so the reply format stays the last thing the model reads.
+        head, sep, tail = system.rpartition("\nReply as JSON:")
+        system = f"{head}{CLIENT_RULES}{sep}{tail}"
+    return system, user
 
 
 def check_answer(raw: str, passages: list[Passage]) -> Answer:
