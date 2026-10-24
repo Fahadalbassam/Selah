@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   Bot,
   Building2,
   ChevronRight,
@@ -47,6 +48,7 @@ const ICONS = {
   inquiries: Inbox,
   actions: ListChecks,
   review: ClipboardCheck,
+  oversight: Activity,
   templates: ClipboardList,
   assistant: Bot,
   team: Users,

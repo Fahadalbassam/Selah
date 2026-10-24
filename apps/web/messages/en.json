@@ -23,7 +23,8 @@
     "people": "People",
     "expertise": "Expertise",
     "departments": "Departments",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "oversight": "Oversight"
   },
   "header": {
     "language": "العربية",
@@ -1682,7 +1683,8 @@
       "recommendation_responded": "A response was recorded on {title}",
       "recommendation_answered": "The firm answered your response on {title}",
       "action_commented": "New comment on an action",
-      "action_mentioned": "You were mentioned on an action"
+      "action_mentioned": "You were mentioned on an action",
+      "follow_up_reminder": "Your consultant asked for an update on {title}"
     },
     "mail": {
       "section": "Mail",
@@ -1911,7 +1913,7 @@
         },
         "slipped": {
           "name": "Slipped",
-          "hint": "Two or more deadline changes were approved."
+          "hint": "The due date moved later two or more times since release."
         },
         "churn": {
           "name": "Sent back",
@@ -3878,5 +3880,80 @@
     "actions": "Actions",
     "actionsHint": "The work that carries this recommendation out.",
     "noActions": "No actions yet."
+  },
+  "oversight": {
+    "title": "Oversight",
+    "subtitle": "Every open project you can see, with the work that needs chasing. For the firm only.",
+    "signals": {
+      "off_track": "Off track",
+      "watch": "Watch",
+      "on_track": "On track",
+      "no_data": "No work yet"
+    },
+    "summary": {
+      "projects": "of {n, plural, one {# open project} other {# open projects}}",
+      "overdue": "Overdue actions",
+      "overdueHint": "Open past their current due date",
+      "reviews": "Reviews waiting",
+      "reviewsHint": "Longer than {days} days"
+    },
+    "reasons": {
+      "overdue": "{n} of {open} overdue",
+      "lateLong": "{n, plural, one {# action} other {# actions}} over {days} days late",
+      "blocked": "{n} blocked",
+      "extendedTwice": "{n} moved twice or more",
+      "reviewWaiting": "{n, plural, one {# review} other {# reviews}} waiting",
+      "orphaned": "{n} without an active owner",
+      "stale": "{n} with no change",
+      "disputed": "{n, plural, one {# recommendation} other {# recommendations}} disputed"
+    },
+    "health": {
+      "title": "Engagement health",
+      "hint": "Off track when a quarter or more of the open actions are overdue, or one is over {days} days past its original date. Watch when anything else needs attention. Counted from the work, never a judgement of a person.",
+      "none": "No open projects to show.",
+      "project": "Project",
+      "signal": "Signal",
+      "open": "Open",
+      "overdue": "Overdue",
+      "blocked": "Blocked",
+      "oldestReview": "Oldest review",
+      "lead": "Lead",
+      "clientActive": "Client last active",
+      "days": "{n, plural, one {# day} other {# days}}",
+      "internal": "Internal project",
+      "recordedByFirm": "Recorded by the firm",
+      "never": "Not yet",
+      "today": "Today"
+    },
+    "rules": {
+      "blocked": {
+        "name": "Blocked",
+        "hint": "The owner marked the action blocked.",
+        "detail": "Waiting on something outside the owner"
+      },
+      "review_waiting": {
+        "name": "Review waiting",
+        "hint": "Evidence has waited for a consultant's review longer than {days} days.",
+        "detail": "Waiting {n, plural, one {# day} other {# days}} for review"
+      }
+    },
+    "exceptions": {
+      "title": "Exceptions",
+      "hint": "What breaks a fixed rule across your open projects, most pressing first.",
+      "none": "Nothing breaks a rule across your open projects right now.",
+      "all": "All"
+    },
+    "remind": {
+      "button": "Remind owner",
+      "sent": "Reminder sent to {name}",
+      "today": "Reminded today",
+      "last": "Last reminded {date}",
+      "errors": {
+        "already": "The owner was already reminded today.",
+        "noOwner": "This action has no active owner to remind.",
+        "settled": "Only open actions can be chased.",
+        "cannot": "The reminder couldn't be sent."
+      }
+    }
   }
 }

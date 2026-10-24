@@ -106,7 +106,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 ### J11 · Oversight and reporting · الإشراف والتقارير
 
 - [x] **J11.1** Needs attention per project — lane: firm · map: exists · wave: — · pr: #23
-- [ ] **J11.2** Firm-wide exceptions — lane: firm · map: wave 1 · covered by: F18 · wave: 1
+- [ ] **J11.2** Firm-wide exceptions — lane: firm · map: wave 1 · covered by: F18 · wave: 1 · pr: #101 (part 1)
 - [ ] **J11.3** Monthly status pack — lane: firm · map: wave 1 · covered by: F19 · wave: 1
 - [x] **J11.4** Audit-log screen — lane: firm · map: wave 1 · covered by: R2 · wave: 1 · pr: #77
 - [x] **J11.5** Shared report (firm: Freezes and shares it; client: Reads it, downloads PDF) — lane: shared · map: exists · wave: — · pr: #17, #41
@@ -168,7 +168,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F15** Saudi working calendar — tier: 4 · size: S–M · wave: frozen
 - [ ] **F16** Say what proves each recommendation — tier: 4 · size: M · wave: frozen
 - [x] **F17** Slip history and aging — tier: 4 · size: S · wave: 1 · journey: J10.2 · pr: #100
-- [ ] **F18** Firm-wide exceptions and engagement health — tier: 4 · size: M · wave: 1 · journey: J11.2
+- [ ] **F18** Firm-wide exceptions and engagement health — tier: 4 · size: M · wave: 1 · journey: J11.2 · pr: #101 (part 1; weekly history, client-inactivity alert, deputy consultant to come)
 - [ ] **F19** Scheduled status pack — tier: 4 · size: S–M · wave: 1 · journey: J11.3
 - [ ] **F20** Change request log — tier: 4 · size: S · wave: frozen · journey: J10.3
 - [ ] **F21** Deliverable versions and client acceptance — tier: 4 · size: M–L · wave: frozen · journey: J08.4, J08.5, J12.5
