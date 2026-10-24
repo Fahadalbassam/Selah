@@ -72,6 +72,10 @@ describe("masking", () => {
     // A part of the name is the same person; the answer gets the name as first seen.
     expect(m.mask("Reem Al-Harbi, then Reem")).toBe("[PERSON_1], then [PERSON_1]");
     expect(m.unmask("[ORG_1] asked [PERSON_1]")).toBe("Al-Nukhba Holding asked Reem Al-Harbi");
+    // GPT-OSS sometimes drops the brackets (client run, 2026-10-24); unknown ones stay as written.
+    expect(m.unmask("circulated by PERSON_1 of ORG_1, not PERSON_9 or XPERSON_1")).toBe(
+      "circulated by Reem Al-Harbi of Al-Nukhba Holding, not PERSON_9 or XPERSON_1",
+    );
   });
 
   it("finds a Latin name however its parts are joined, and counts them as one", () => {

@@ -155,6 +155,15 @@ npm run db:seed && npx tsx scripts/assistant-eval/seed.ts > /tmp/eval-ids.json &
 CONTENT=/tmp/eval-ids.json PAYLOAD_LOG=… OUT=/tmp/eval.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/run.ts
 ```
 
+The client assistant has its own run. `client-seed.ts` plants canaries around Al-Nukhba's project: the firm's pitch, closing-survey answers, lessons and scoring sheet (firm-only files), a firm-only recommendation and action, stray meeting-note, review and progress passages, the chair's private file, a Finance-department file, a client-uploaded file with an injection, and an evidence guide. `client-run.ts` then checks the consent gate (20 probes), asks 49 questions as the client admin (who is also the sponsor) and a client manager (useful questions, firm-only material, other people's files, other clients, legal rulings, the firm's intentions, injection), checks every citation opens for the asker and that no canary reaches an answer or the model, then the daily limit, a role change and switching off. First run, 2026-10-24, same model: no canary or other client's word in any answer or in anything sent to the model, every citation openable by the asker, all 30 probes as expected, the client filter never needed (the model declined on its own), median answer 1.4 s. The report is in the project files under `selah-frontend/assistant/client-run/`.
+
+```sh
+npx tsx --conditions=react-server scripts/assistant-eval/client-seed.ts > /tmp/client-ids.json && npm run job:index-documents
+CONTENT=/tmp/eval-ids.json CLIENT=/tmp/client-ids.json PAYLOAD_LOG=… OUT=/tmp/client.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/client-run.ts
+```
+
+Run the staff run before `client-seed.ts`, or on a fresh seed: the canary files crowd the staff questions' search.
+
 ## Not done yet
 
 - Text recognition (OCR) for scanned pages and images: they are listed in `ocr_pages` and marked `needs_ocr` until it exists.

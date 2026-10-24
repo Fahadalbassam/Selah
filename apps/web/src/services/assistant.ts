@@ -103,17 +103,23 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const linked = await linkedRecords(tx, caseRef, chunks, hits);
   const records = [...linked, ...status.filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
 
+  // The chat's own record goes first and says so: asked "explain this action", the model
+  // otherwise picked whichever action came first (client run, 2026-10-24).
+  const isCase = (r: RecordPassage) => caseRef !== null && caseRef.type === r.type && caseRef.id === r.id;
+  const subject = records.filter(isCase);
+  const toSource = (r: RecordPassage, label: string) => ({
+    text: r.text,
+    source: label,
+    citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null },
+  });
   const sources = [
+    ...subject.map((r) => toSource(r, `${r.type}, the record this chat is about`)),
     ...chunks.map((c) => ({
       text: c.content,
       source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}`,
       citation: { chunkId: c.id, sourceType: c.sourceType, sourceId: c.sourceId, version: c.sourceVersion, page: c.page },
     })),
-    ...records.map((r) => ({
-      text: r.text,
-      source: r.type,
-      citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null },
-    })),
+    ...records.filter((r) => !isCase(r)).map((r) => toSource(r, r.type)),
   ];
   const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: s.text, source: s.source }));
   const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation]));
@@ -126,7 +132,8 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const masker = await projectMasker(tx, eng.id);
   if (passages.length > 0) {
     const result = await answer(
-      masker.mask(input.question),
+      // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
+      subject.length ? `${masker.mask(input.question).slice(0, 1960)}\n(This chat is about passage P1.)` : masker.mask(input.question),
       passages.map((p) => ({ ...p, text: masker.mask(p.text) })),
       // "auto" is settled here: with Arabic records and an English question the model drifted to Arabic.
       input.language === "auto" ? detectLang(input.question) : input.language,

@@ -201,9 +201,11 @@ describe("asking", () => {
     reply = (p) => ({ answer: "See the action.", cited_ids: [p[p.length - 1]!.id], grounded: true });
     const first = await ask(U.cons, { question: "  What is   pending on the board charter?  ", case: { type: "action", id: ACT } });
     const passages = sent[0]!.passages;
-    const records = passages.filter((p) => ["action", "recommendation", "finding", "meeting"].includes(p.source));
-    // The case first, then the recommendation behind the charter (through its finding).
-    expect(records.map((p) => p.source)).toEqual(["action", "recommendation"]);
+    const records = passages.filter((p) => /^(action|recommendation|finding|meeting)\b/.test(p.source));
+    // The case first, before the files, and labelled as the chat's record; then the recommendation behind the charter (through its finding).
+    expect(passages[0]!.source).toBe("action, the record this chat is about");
+    expect(sent[0]!.question).toMatch(/\(This chat is about passage P1\.\)$/);
+    expect(records.map((p) => p.source)).toEqual(["action, the record this chat is about", "recommendation"]);
     expect(records[0]!.text).toContain("status in_progress, due 2026-11-15");
     expect(records[1]!.text).toContain("Update the audit committee mandate");
     expect(first.citations).toEqual([
@@ -235,7 +237,7 @@ describe("asking", () => {
     await owner.query(`UPDATE actions SET status = 'blocked', blocked_reason = 'Waiting for the legal adviser' WHERE id = $1`, [ACT]);
     try {
       await ask(U.cons, { question: "Why is this blocked?", case: { type: "action", id: ACT } });
-      const record = sent[0]!.passages.find((p) => p.source === "action")!;
+      const record = sent[0]!.passages[0]!;
       expect(record.text).toContain('Blocked because: "Waiting for the legal adviser"');
     } finally {
       await owner.query(`UPDATE actions SET status = 'in_progress', blocked_reason = NULL WHERE id = $1`, [ACT]);
