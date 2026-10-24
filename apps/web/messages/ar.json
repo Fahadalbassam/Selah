@@ -1684,7 +1684,8 @@
       "recommendation_answered": "أجاب المكتب على ردك على التوصية {title}",
       "action_commented": "تعليق جديد على إجراء",
       "action_mentioned": "أُشير إليك في إجراء",
-      "follow_up_reminder": "طلب المستشار تحديثاً عن {title}"
+      "follow_up_reminder": "طلب المستشار تحديثاً عن {title}",
+      "project_client_quiet": "لم يعمل أحد من جهة العميل على {title} منذ أسبوعين أو أكثر"
     },
     "mail": {
       "section": "البريد",
@@ -3923,7 +3924,9 @@
       "internal": "مشروع داخلي",
       "recordedByFirm": "يسجّله المكتب",
       "never": "لم يبدأ بعد",
-      "today": "اليوم"
+      "today": "اليوم",
+      "week": "أسبوع {date}: {signal}",
+      "weeks": "المؤشر خلال آخر {n} أسابيع"
     },
     "rules": {
       "blocked": {
