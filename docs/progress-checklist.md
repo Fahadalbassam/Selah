@@ -220,7 +220,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74
 - [x] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25 · pr: #79
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
-- [x] **N11** The client's lead consultant or deputy can start (and stop) closing; only the firm admin closes — wave: 3 · related: F25 · decision: Fahad said yes on 2026-10-24 · pr: #__PR__
+- [x] **N11** The client's lead consultant or deputy can start (and stop) closing; only the firm admin closes — wave: 3 · related: F25 · decision: Fahad said yes on 2026-10-24 · pr: #118
 
 ## Decisions still waiting
 
