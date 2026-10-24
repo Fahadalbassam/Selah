@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 export interface Handover {
   kind: "client" | "internal";
   handoverOn: string | null;
-  state: "planned" | "active" | "closed";
+  state: "draft" | "planned" | "active" | "closed";
   closedAt: string | Date | null;
   sponsor: { id: string; name: string | null } | null;
   checkins: {
@@ -113,9 +113,12 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
               <span className="tabular-nums">
                 {closed && data.closedAt
                   ? t("closedOn", { date: format.dateTime(new Date(data.closedAt), { dateStyle: "medium" }) })
-                  : t("open")}
+                  : data.state === "draft"
+                    ? t("draft")
+                    : t("open")}
               </span>
-              {data.can.edit ? (
+              {/* A draft starts when a signed engagement covers it, not from here. */}
+              {data.can.edit && data.state !== "draft" ? (
                 <Button variant="ghost" size="sm" className="h-7" onClick={() => setState(closed ? "active" : "closed")}>
                   {closed ? t("reopenProject") : t("closeProject")}
                 </Button>

@@ -5,6 +5,7 @@ import type { Tx } from "@/db/client";
 import {
   actions,
   clientAssignments,
+  engagements,
   joinRequests,
   notifications,
   orgMemberships,
@@ -364,7 +365,18 @@ function assertDates(input: Pick<PhaseInput, "startDate" | "endDate">) {
  * A new project for a client: a phase, a follow-on scope or a retainer. The
  * firm admin and the client's lead consultant create them. Starts planned.
  */
-export async function createClientProject(tx: Tx, principal: Principal, clientOrgId: string, input: PhaseInput) {
+/**
+ * A new project for a client. Without an engagement it is a draft: the firm
+ * prepares it (a pitch, a phase not agreed yet) and the client doesn't see
+ * it until a signed engagement covers it. The firm admin may put it under
+ * one of the client's engagements straight away.
+ */
+export async function createClientProject(
+  tx: Tx,
+  principal: Principal,
+  clientOrgId: string,
+  input: PhaseInput & { engagementId?: string | null },
+) {
   assertAllowed(principal, "project.create", {
     type: "project",
     orgId: clientOrgId,
@@ -381,6 +393,15 @@ export async function createClientProject(tx: Tx, principal: Principal, clientOr
   if (!client) throw new NotFoundError("client");
   assertDates(input);
   await assertFollows(tx, clientOrgId, input.followsProjectId);
+  if (input.engagementId) {
+    assertAllowed(principal, "engagement.write", { type: "engagement", orgId: clientOrgId, firmOrgId: principal.orgId, projectId: null });
+    const [g] = await tx
+      .select({ id: engagements.id })
+      .from(engagements)
+      .where(and(eq(engagements.id, input.engagementId), eq(engagements.clientOrgId, clientOrgId)))
+      .limit(1);
+    if (!g) throw new BadRequestError("choose one of this client's engagements");
+  }
   const id = randomUUID();
   // No RETURNING, as for internal projects.
   await tx.insert(projects).values({
@@ -390,7 +411,9 @@ export async function createClientProject(tx: Tx, principal: Principal, clientOr
     firmOrgId: principal.orgId,
     title: input.title,
     description: input.description ?? null,
-    state: "planned",
+    // The database makes it planned when an engagement covers it.
+    state: input.engagementId ? "planned" : "draft",
+    engagementId: input.engagementId ?? null,
     startDate: input.startDate ?? null,
     endDate: input.endDate ?? null,
     sequence: input.sequence ?? null,

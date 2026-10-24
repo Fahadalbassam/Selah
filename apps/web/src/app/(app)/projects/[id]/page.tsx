@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ClipboardList, Pencil, SearchCheck, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserPlus } from "lucide-react";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -83,7 +83,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       handover: await getHandover(tx, principal, id),
     };
   });
-  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, format] = await Promise.all([
+  const [t, tPlan, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tMetrics, tInsight, tExport, tImport, tPh, tE, format] = await Promise.all([
     getTranslations("project"),
     getTranslations("plan"),
     getTranslations("staffing"),
@@ -98,6 +98,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getTranslations("exports"),
     getTranslations("planImport"),
     getTranslations("phases"),
+    getTranslations("engagements"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -168,6 +169,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
           {t("internalBanner")}
+        </p>
+      ) : null}
+      {project.state === "draft" ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <FilePenLine className="size-4" />
+          {tE("draftBanner")}
+        </p>
+      ) : project.engagementId ? (
+        <p className="text-sm text-muted-foreground">
+          {tE("underEngagement")}{" "}
+          <Link href={`/engagements/${project.engagementId}`} className="font-medium text-foreground hover:underline" dir="auto">
+            {project.engagementTitle}
+          </Link>
         </p>
       ) : null}
 

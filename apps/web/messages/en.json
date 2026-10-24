@@ -1372,7 +1372,7 @@
     "notAccepting": "Not taking new clients",
     "activeClients": "{n, plural, =0 {No active clients} one {1 active client} other {# active clients}}",
     "convert": "Make it a client",
-    "convertHint": "Creates the client, names its lead and, if you like, starts the first project. Inviting the client's people is a separate step.",
+    "convertHint": "Creates the client, records the engagement they signed, names its lead and, if you like, starts the first project under it. Inviting the client's people is a separate step.",
     "convertBlocked": "An inquiry becomes a client after discovery, once the conflict check is clear or waived.",
     "newClient": "New client",
     "existingClient": "Existing client",
@@ -1663,7 +1663,8 @@
     "closeProject": "Close project",
     "reopenProject": "Reopen",
     "closeConfirm": "Close this project? Close it when the engagement is over. Everyone's assistant chats about it are deleted after the firm's retention period (90 days by default).",
-    "reopenConfirm": "Reopen this project? Its chats are kept again until it closes."
+    "reopenConfirm": "Reopen this project? Its chats are kept again until it closes.",
+    "draft": "Draft, not yet signed"
   },
   "engagement": {
     "title": "How the client takes part",
@@ -2149,7 +2150,7 @@
   "phases": {
     "hint": "Each phase or separately agreed scope is its own project, in the order agreed with the client.",
     "new": "New project",
-    "newHint": "A phase, a follow-on scope or a retainer for this client. It starts as planned; staff it and add the client's people from its Team tab.",
+    "newHint": "A phase, a follow-on scope or a retainer for this client. It stays a draft the client doesn't see until a signed engagement covers it; staff it from its Team tab meanwhile.",
     "create": "Create project",
     "edit": "Edit details",
     "save": "Save",
@@ -2169,7 +2170,8 @@
     "states": {
       "planned": "Planned",
       "active": "Active",
-      "closed": "Closed"
+      "closed": "Closed",
+      "draft": "Draft"
     }
   },
   "projectPeople": {
@@ -2217,6 +2219,85 @@
       "infected": "This file was refused: the virus scan found a problem.",
       "tooLarge": "This file is larger than 20 MB.",
       "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text."
+    }
+  },
+  "engagements": {
+    "title": "Signed engagements",
+    "hint": "What the client signed. A project starts once an engagement covers it; until then it is a draft the client doesn't see.",
+    "none": "No signed engagement recorded yet.",
+    "noneWithDrafts": "No signed engagement recorded yet. {n, plural, one {# draft project waits} other {# draft projects wait}} for one.",
+    "record": "Record an engagement",
+    "recordHint": "Enter what the client signed. Tick the draft projects it covers: they become planned and the client's people can see them.",
+    "recordButton": "Record",
+    "edit": "Edit engagement",
+    "editHint": "Correct what was recorded. The client stays the same.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this engagement record? Only a record that covers no project can be deleted.",
+    "pageHint": "A signed engagement and the projects and deliverables it covers.",
+    "signedSection": "What the client signed",
+    "signedSectionHint": "The engagement is recorded with the client, and the first project starts under it.",
+    "covers": "Projects it covers",
+    "coversHint": "This client's projects that no engagement covers yet. A draft becomes planned and the client sees it.",
+    "cover": "Add projects",
+    "coverButton": "Add",
+    "coveredBy": "Signed engagement",
+    "notCovered": "Not signed yet (stays a draft)",
+    "coveredProjects": "Projects",
+    "coveredHint": "The phases and scopes this engagement covers.",
+    "coversCount": "{n, plural, one {covers # project} other {covers # projects}}",
+    "coversNone": "Covers no project yet",
+    "signedOnShort": "signed {date}",
+    "noDataAgreement": "No data agreement recorded",
+    "retainer": "Retainer follows",
+    "noRetainer": "No retainer agreed",
+    "afterwards": "Afterwards",
+    "period": "Period",
+    "details": "Details",
+    "fromInquiry": "From inquiry",
+    "recorded": "Recorded",
+    "deliverables": "Deliverables",
+    "deliverablesHint": "What the engagement promises to hand over, and how the client will accept it.",
+    "addDeliverable": "Add deliverable",
+    "removeDeliverable": "Remove",
+    "removeDeliverableConfirm": "Remove this deliverable from the engagement?",
+    "noDeliverables": "No deliverables listed yet.",
+    "dueOn": "due {date}",
+    "noDue": "No due date",
+    "draftBanner": "Draft: the client doesn't see this project until a signed engagement covers it. The firm admin records it on the client's page.",
+    "underEngagement": "Under the signed engagement",
+    "deliverable": {
+      "title": "Deliverable",
+      "titlePlaceholder": "For example: Board charter, approved",
+      "criteria": "How the client accepts it (optional)",
+      "dueOn": "Due date (optional)",
+      "project": "Delivered in",
+      "anyProject": "Not tied to one project"
+    },
+    "fields": {
+      "title": "Engagement title",
+      "titlePlaceholder": "For example: Governance framework, 2027",
+      "signedOn": "Signed on",
+      "contractRef": "Contract reference (optional)",
+      "scope": "Agreed scope",
+      "scopePlaceholder": "What the firm will do, in the contract's words.",
+      "exclusions": "Excluded from scope (optional)",
+      "exclusionsPlaceholder": "What was explicitly left out.",
+      "startsOn": "Starts on (optional)",
+      "endsOn": "Ends on (optional)",
+      "dataAgreementOn": "Data processing agreement signed on (optional)",
+      "dataAgreementHint": "Leave empty if none was signed yet; the engagement shows that it is missing.",
+      "retainerFollows": "A retainer follows this engagement"
+    },
+    "errors": {
+      "signedOn": "Choose the day it was signed.",
+      "future": "A signature date can't be in the future.",
+      "period": "The engagement must end on or after the day it starts.",
+      "pickOne": "Tick at least one project."
+    },
+    "detail": {
+      "signedOn": "Signed on",
+      "contractRef": "Contract reference",
+      "dataAgreement": "Data processing agreement"
     }
   }
 }

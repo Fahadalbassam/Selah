@@ -6,6 +6,7 @@ import {
   activityEvents,
   clientAssignments,
   documents,
+  engagements,
   evidenceSubmissions,
   findings,
   orgMemberships,
@@ -220,9 +221,13 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
       minimalRecords: organizations.minimalRecords,
+      // RLS leaves it out for those who may not read the engagement.
+      engagementId: engagements.id,
+      engagementTitle: engagements.title,
     })
     .from(projects)
     .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .leftJoin(engagements, eq(engagements.id, projects.engagementId))
     .where(eq(projects.id, id))
     .limit(1);
   if (!p) throw new NotFoundError("project");

@@ -1,4 +1,4 @@
-import { ArrowLeft, Pencil, UserPlus, UsersRound } from "lucide-react";
+import { ArrowLeft, FilePenLine, Pencil, UserPlus, UsersRound } from "lucide-react";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -19,9 +19,12 @@ import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listContacts } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
+import { listEngagements } from "@/services/engagements";
 import { suggestClientLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
 import { getClientTeam } from "@/services/staffing";
+import { EngagementDialog } from "@/components/engagement-form";
+import { NOT_COVERED } from "@/lib/engagements";
 import { EngagementCard } from "./engagement-card";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +39,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       ...team,
       admin,
       engagement,
+      signed: await listEngagements(tx, principal, id),
       // People at the client without an account; firm staff on the client's team only.
       contacts: await listContacts(tx, principal, id).catch(() => null),
       // Who fits this client, from the inquiry it came from. The admin decides.
@@ -44,7 +48,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     };
   });
   if (!data) notFound();
-  const [t, tc, tq, tp, ti, tCt, tPh, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, tCt, tPh, tE, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
@@ -52,6 +56,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     getTranslations("inbox"),
     getTranslations("clients.contacts"),
     getTranslations("phases"),
+    getTranslations("engagements"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -81,7 +86,22 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           },
         ]
       : []),
+    // Only the firm admin puts a project under an engagement; anyone else's new project is a draft.
+    ...(data.signed.can.record && data.signed.engagements.length
+      ? [
+          {
+            name: "engagementId",
+            label: tE("coveredBy"),
+            type: "select" as const,
+            options: [
+              { value: NOT_COVERED, label: tE("notCovered") },
+              ...data.signed.engagements.map((g) => ({ value: g.id, label: g.title })),
+            ],
+          },
+        ]
+      : []),
   ];
+  const drafts = data.projects.filter((p) => p.state === "draft").map((p) => ({ id: p.id, title: p.title }));
   const serviceName = (code: string) => {
     const x = data.services.find((o) => o.code === code);
     return x ? localLabel(x, ar) : code;
@@ -156,10 +176,59 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               .join(" · ") || tPh("noDates")}
                           </p>
                         </div>
-                        <ToneBadge tone={p.state === "active" ? "active" : p.state === "closed" ? "neutral" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
+                        <ToneBadge tone={p.state === "active" ? "active" : p.state === "closed" ? "neutral" : p.state === "draft" ? "waiting" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
                       </li>
                     );
                   })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-4 py-5 shadow-xs">
+            <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">{tE("title")}</CardTitle>
+                <CardDescription>{tE("hint")}</CardDescription>
+              </div>
+              {data.signed.can.record ? (
+                <EngagementDialog
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      <FilePenLine />
+                      {tE("record")}
+                    </Button>
+                  }
+                  endpoint={`/api/clients/${client.id}/engagements`}
+                  drafts={drafts}
+                  redirectTo="/engagements/:id"
+                />
+              ) : null}
+            </CardHeader>
+            <CardContent className="px-5">
+              {data.signed.engagements.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{drafts.length ? tE("noneWithDrafts", { n: drafts.length }) : tE("none")}</p>
+              ) : (
+                <ul className="divide-y">
+                  {data.signed.engagements.map((g) => (
+                    <li key={g.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <Link href={`/engagements/${g.id}`} className="font-medium hover:underline" dir="auto">
+                          {g.title}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            tE("signedOnShort", { date: format.dateTime(new Date(g.signedOn), { dateStyle: "medium" }) }),
+                            g.projects.length ? tE("coversCount", { n: g.projects.length }) : tE("coversNone"),
+                            g.dataAgreementOn ? null : tE("noDataAgreement"),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      {g.retainerFollows ? <ToneBadge tone="neutral">{tE("retainer")}</ToneBadge> : null}
+                    </li>
+                  ))}
                 </ul>
               )}
             </CardContent>
