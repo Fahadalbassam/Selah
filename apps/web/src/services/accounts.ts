@@ -5,7 +5,7 @@ import type { Tx } from "@/db/client";
 import { accessReviews, clientContacts, invitations, orgMemberships, organizations, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { isPersonalEmail } from "@/lib/email";
-import { BadRequestError, NotFoundError } from "@/server/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
 // Accounts (baseline: Accounts): who belongs to an
@@ -180,12 +180,75 @@ export async function setActive(tx: Tx, principal: Principal, userId: string, in
   assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
   if (userId === principal.userId) throw new BadRequestError("you cannot switch off your own account");
   if (!input.active && !input.reason) throw new BadRequestError("say why the account is switched off");
+  // The database refuses the same (check_departure); saying so first keeps the message plain.
+  if (!input.active && m.active) {
+    const { blocking } = await personHoldings(tx, principal, userId);
+    if (blocking > 0) throw new ConflictError("hand over what this person still holds before switching the account off");
+  }
   const changed = await tx
     .update(orgMemberships)
     .set(input.active ? { active: true } : { active: false, deactivationReason: input.reason })
     .where(and(eq(orgMemberships.userId, userId), eq(orgMemberships.active, !input.active)))
     .returning({ userId: orgMemberships.userId });
   return { changed: changed.length > 0 };
+}
+
+export const HAND_OVER_KINDS = ["action", "client_lead", "project_lead", "review", "client_role"] as const;
+export type HandOverKind = (typeof HAND_OVER_KINDS)[number];
+
+export interface Holding {
+  kind: HandOverKind | "department_head";
+  entityId: string;
+  projectId: string | null;
+  orgId: string;
+  title: string;
+  detail: string | null;
+  blocking: boolean;
+}
+
+/**
+ * What a person still holds (migration 0027): open actions, clients and
+ * projects they lead, reviews only they can do (these stop the account being
+ * switched off), and client roles and departments they head (an interim is
+ * named). For the admins who may switch them off.
+ */
+export async function personHoldings(tx: Tx, principal: Principal, userId: string) {
+  const m = await membershipOf(tx, userId);
+  assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
+  const { rows } = await tx.execute<{
+    kind: Holding["kind"];
+    entity_id: string;
+    project_id: string | null;
+    org_id: string;
+    title: string;
+    detail: string | null;
+    blocking: boolean;
+  }>(sql`select * from app_person_holdings(${userId})`);
+  const items: Holding[] = rows.map((r) => ({
+    kind: r.kind,
+    entityId: r.entity_id,
+    projectId: r.project_id,
+    orgId: r.org_id,
+    title: r.title,
+    detail: r.detail,
+    blocking: r.blocking,
+  }));
+  return { items, blocking: items.filter((i) => i.blocking).length };
+}
+
+/**
+ * Hand a person's work to an active colleague in the same organisation, in
+ * one step. The database checks who may, who may receive, and every
+ * record's own rules, and writes the audit log.
+ */
+export async function handOver(tx: Tx, principal: Principal, userId: string, input: { to: string; kinds: HandOverKind[] }) {
+  const m = await membershipOf(tx, userId);
+  assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
+  if (input.to === userId) throw new BadRequestError("hand over to someone else");
+  const { rows } = await tx.execute<{ n: number }>(
+    sql`select app_hand_over(${userId}, ${input.to}, ${`{${input.kinds.join(",")}}`}::text[]) as n`,
+  );
+  return { moved: Number(rows[0]!.n), ...(await personHoldings(tx, principal, userId)) };
 }
 
 /**
