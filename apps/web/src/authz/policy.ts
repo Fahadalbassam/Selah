@@ -41,6 +41,9 @@ export const POLICY = {
   // A client leaving (F27): archive and restore it, place and release legal holds.
   "organization.archive": { firm_admin: "any" },
   "organization.hold": { firm_admin: "any" },
+  // What a leaving client takes with it (J14.2, J14.4): the firm admin or the
+  // client's own admin makes the export pack, and the receipt is recorded.
+  "organization.export": { firm_admin: "any", client_admin: "any" },
   // The client's legal profile (item 7): the admin and the client's lead. The database decides (app_can_edit_client_profile).
   "client_profile.write": { firm_admin: "any", consultant: "lead" },
   // Optional departments: names for everyone at the client, managed by its
@@ -278,7 +281,7 @@ export const OPEN_WHEN_CLOSED: ReadonlySet<Permission> = new Set<Permission>([
 
 /** Permissions that only read. They stay open on a closed project. */
 /** What the people of an archived client may still do in its grace period, besides reading. */
-export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>(["assistant.query"]);
+export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>(["assistant.query", "organization.export"]);
 
 export function isReadPermission(permission: Permission): boolean {
   return /\.(read|download)$/.test(permission);

@@ -33,6 +33,7 @@ import { latestConflictSearch } from "@/services/conflicts";
 import { ConflictMatches } from "@/components/conflict-matches";
 import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
+import { listExportPacks } from "@/services/export-pack";
 import { getOffboarding } from "@/services/offboarding";
 import { OffboardingCard } from "./offboarding-card";
 
@@ -64,6 +65,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       overview: team.client.prospect ? null : await clientOverview(tx, principal, id).catch(() => null),
       // Leaving (F27): archived or not, what blocks it, holds and retention.
       offboarding: await getOffboarding(tx, principal, id),
+      packs: await listExportPacks(tx, principal, id),
     };
   });
   if (!data) notFound();
@@ -575,7 +577,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </CardContent>
         </Card>
-        {client.prospect ? null : <OffboardingCard clientId={client.id} view={data.offboarding} />}
+        {client.prospect ? null : <OffboardingCard clientId={client.id} view={data.offboarding} packs={data.packs} />}
         {data.admin && client.prospect ? (
           <Card className="h-fit gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

@@ -59,3 +59,10 @@ export async function copyObject(fromKey: string, toKey: string): Promise<void> 
   const bucket = env().S3_BUCKET;
   await s3().send(new CopyObjectCommand({ Bucket: bucket, CopySource: `${bucket}/${fromKey}`, Key: toKey }));
 }
+
+/** Read a stored file back (an export pack gathers a client's files). */
+export async function getObject(storageKey: string): Promise<Uint8Array> {
+  const out = await s3().send(new GetObjectCommand({ Bucket: env().S3_BUCKET, Key: storageKey }));
+  if (!out.Body) throw new Error(`empty object ${storageKey}`);
+  return out.Body.transformToByteArray();
+}
