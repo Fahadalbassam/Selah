@@ -336,6 +336,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
   const activity = await tx
     .select({
       id: activityEvents.id,
+      entityType: activityEvents.entityType,
       event: activityEvents.event,
       fromState: activityEvents.fromState,
       toState: activityEvents.toState,

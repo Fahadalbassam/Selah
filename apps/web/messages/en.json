@@ -127,7 +127,15 @@
       "info_request_not_applicable": "marked a request not applicable",
       "info_request_removed": "removed a request",
       "document_withdrawn": "withdrew a file uploaded by mistake",
-      "department_moved": "moved a department's unfinished work to another department"
+      "department_moved": "moved a department's unfinished work to another department",
+      "created": "added an action",
+      "updated": "updated an action",
+      "evidence_submitted": "submitted evidence",
+      "document_shared": "shared a file",
+      "assessment_started": "started an assessment",
+      "assessment_finalised": "finalised an assessment",
+      "assessment_shared": "shared an assessment with the client",
+      "assessment_unshared": "took an assessment back from the client"
     }
   },
   "priority": {
