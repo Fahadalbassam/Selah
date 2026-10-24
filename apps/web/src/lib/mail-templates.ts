@@ -20,6 +20,8 @@ export const MAIL_KINDS = [
   "action.revision_requested",
   "action.verified_complete",
   "evidence.requested",
+  "action.commented",
+  "action.mentioned",
   "follow_up.digest",
   "client.archived",
 ] as const;
@@ -209,6 +211,23 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Evidence requested",
       lines: ["The consultant asked for another piece of evidence on one of your actions.", "Sign in to see what's needed."],
+      action: "Open the action",
+    },
+  },
+  // The thread on an action (F11). Never the comment itself: the reader signs in.
+  "action.commented": {
+    ar: { subject: "تعليق جديد على إجراء", lines: ["كتب أحدهم تعليقاً على إجراء تتابعه في صلة.", "سجّل الدخول لقراءته والرد عليه."], action: "فتح الإجراء" },
+    en: {
+      subject: "A new comment on an action",
+      lines: ["Someone wrote on an action you follow in Selah.", "Sign in to read it and reply."],
+      action: "Open the action",
+    },
+  },
+  "action.mentioned": {
+    ar: { subject: "ذُكر اسمك في تعليق", lines: ["ذكرك أحدهم في تعليق على إجراء في صلة.", "سجّل الدخول لقراءته والرد عليه."], action: "فتح الإجراء" },
+    en: {
+      subject: "You were mentioned in a comment",
+      lines: ["Someone mentioned you in a comment on an action in Selah.", "Sign in to read it and reply."],
       action: "Open the action",
     },
   },

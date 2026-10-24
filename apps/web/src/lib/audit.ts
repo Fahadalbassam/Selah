@@ -11,6 +11,7 @@ export const AUDIT_AREAS = {
     "action",
     "actions",
     "action_note",
+    "action_comment",
     "evidence",
     "evidence_request",
     "progress_update",
