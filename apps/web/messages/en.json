@@ -1696,7 +1696,9 @@
       "follow_up_reminder": "Your consultant asked for an update on {title}",
       "project_client_quiet": "No one at the client has worked on {title} for two weeks or more",
       "report_pack_drafted": "Your monthly status pack for {title} is drafted and waiting for you",
-      "client_deputy": "You are now the deputy consultant for {title}"
+      "client_deputy": "You are now the deputy consultant for {title}",
+      "pulse_requested": "{title} is closed: tell the firm how it went",
+      "pulse_low_score": "A client gave a low score in the closing pulse for {title}"
     },
     "mail": {
       "section": "Mail",
@@ -2115,7 +2117,48 @@
     "reportPdf": "Closure report (PDF)",
     "refused": "Selah refused this change. Reload the page to see where closing stands.",
     "bannerClosing": "This project is closing. Work goes on until every open item is settled.",
-    "bannerClosed": "This project is closed and read-only."
+    "bannerClosed": "This project is closed and read-only.",
+    "pulse": {
+      "title": "How did the project go?",
+      "clientHint": "Three short questions now that the project is closed. Answering is optional, and only the firm sees your answers.",
+      "questions": {
+        "metAgreement": "The work met what was agreed",
+        "responsive": "The consultants were responsive",
+        "selfReliant": "We can carry on the work ourselves now that the firm has left"
+      },
+      "short": {
+        "metAgreement": "Met what was agreed",
+        "responsive": "Responsive",
+        "selfReliant": "Can carry on alone"
+      },
+      "scale": {
+        "1": "1 · Not at all",
+        "2": "2 · Mostly not",
+        "3": "3 · Partly",
+        "4": "4 · Mostly",
+        "5": "5 · Fully"
+      },
+      "choose": "Choose a score",
+      "commentLabel": "Anything else you want the firm to know (optional)",
+      "answer": "Answer",
+      "change": "Change my answer",
+      "send": "Send",
+      "save": "Save",
+      "openUntil": "Open until {date}",
+      "changeUntil": "You can change your answer until {date}.",
+      "locked": "This pulse is closed. Your answer is kept as it is.",
+      "lockedOn": "Closed on {date}",
+      "results": "Client pulse",
+      "resultsHint": "The client people on the project were asked three questions when it closed. Only the firm admin and the client's lead see the answers.",
+      "firmOnly": "Firm only",
+      "answered": "Answers",
+      "answeredValue": "{n} of {of}",
+      "outOf5": "Average, out of 5",
+      "noAnswers": "No one has answered yet.",
+      "person": "Person",
+      "comment": "Comment",
+      "yourComment": "Your comment"
+    }
   },
   "closurePdf": {
     "kind": "Closure report",
@@ -3444,7 +3487,8 @@
       "client_group_clear_company": "Company inside a client unmarked",
       "client_group_set_holding": "Group's holding named",
       "client_group_grant_viewer": "Access to a group's numbers given",
-      "client_group_revoke_viewer": "Access to a group's numbers removed"
+      "client_group_revoke_viewer": "Access to a group's numbers removed",
+      "pulse_answer": "Closing pulse answered"
     },
     "csv": {
       "time": "Time (UTC)",

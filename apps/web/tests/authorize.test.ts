@@ -567,7 +567,7 @@ describe("closing a project", () => {
   });
 
   it("a closed project refuses every write, for every role, and keeps every read", () => {
-    const open = new Set(["project.reopen", "project.watch", "follow_up.write", "assistant.query"]);
+    const open = new Set(["project.reopen", "project.watch", "follow_up.write", "assistant.query", "pulse.answer"]);
     for (const role of ROLES) {
       const p = principal(role, [ACME_PROJ_1], undefined, [ACME], { clients: [ACME] });
       for (const perm of permissions) {

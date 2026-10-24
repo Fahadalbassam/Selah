@@ -192,7 +192,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [x] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4 · pr: #109 (groups, linked clients, companies inside a client), #110 (the holding's named people see the roll-up)
 - [ ] **F35** Company and department KPIs — tier: 6 · size: L · wave: frozen · waiting on: supervisor (D8) · decision: D8
-- [ ] **F36** Closing pulse survey: the client rates the engagement when a project closes — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, the comparable-platforms study lists evaluation and NPS as a common practice; against, it is a firm-improvement tool rather than part of connecting consultant and client, and nobody has asked for it yet
+- [x] **F36** Closing pulse survey: the client rates the engagement when a project closes — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, the comparable-platforms study lists evaluation and NPS as a common practice; against, it is a firm-improvement tool rather than part of connecting consultant and client, and nobody has asked for it yet · pr: #111
 - [ ] **F37** Case-study consent: the client agrees, per project, that the firm may cite the work — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, it keeps a record of a permission firms otherwise get by email; against, it is rare and is handled outside Selah today
 ## Readiness before real client data
 

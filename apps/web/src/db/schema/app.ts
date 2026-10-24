@@ -2785,6 +2785,35 @@ export const projectClosureRequests = pgTable(
   ],
 );
 
+// The closing pulse (F36): when a client project closes, its sponsor,
+// coordinator and the client's people staffed on it may answer three
+// questions on a 1-5 scale and leave a comment. One answer per person and
+// project, changeable while the pulse is open (lib/pulse.ts), then locked.
+// Firm-only: the firm admin and the client's lead read every answer; a
+// client person reads only their own. Written only by app_answer_pulse().
+export const pulseAnswers = pgTable(
+  "pulse_answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    metAgreement: integer("met_agreement").notNull(),
+    responsive: integer("responsive").notNull(),
+    selfReliant: integer("self_reliant").notNull(),
+    comment: text("comment"),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    scopedFk("pulse_answers", t),
+    uniqueIndex("pulse_answers_one").on(t.projectId, t.userId),
+    check("pulse_scores", sql`met_agreement BETWEEN 1 AND 5 AND responsive BETWEEN 1 AND 5 AND self_reliant BETWEEN 1 AND 5`),
+    check("pulse_comment", sql`length(coalesce(comment, '')) <= 2000`),
+  ],
+);
+
 // Who accepted which version of which document, and when (R1). Append-only;
 // written only by app_record_consent(), which takes the current version only.
 export const consentRecords = pgTable(
