@@ -352,7 +352,7 @@ Who: client admin, client manager, action owner.
 ## 12. Public and sign-in pages
 
 - **Auth pages** (`app/(auth)`): centred `max-w-sm` card (`py-6 shadow-xs`) over the `Topography` background, wordmark above, `text-xl` title. Same tokens and components as the app.
-- **Public pages** (`app/(public)`: `/inquiry`, `/privacy`): `max-w-6xl` shell; the inquiry page is a two-column intro and form (`lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]`), the privacy page a single `max-w-2xl` text column. These are the only pages with a hero-sized title.
+- **Public pages** (`app/(public)`: `/inquiry`, `/privacy`): `max-w-6xl` shell; the inquiry page is a two-column intro and form (`lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]`), the privacy page a single `max-w-2xl` text column. These are the only pages with a hero-sized title. An upload link's page (`/upload/<token>`, F14) is one `max-w-xl` card over the `Topography` background: the requested item, the firm's name and the file field, nothing else.
 - No client data, staff names or internal wording on public pages.
 
 ---

@@ -139,7 +139,8 @@
       "assessment_started": "started an assessment",
       "assessment_finalised": "finalised an assessment",
       "assessment_shared": "shared an assessment with the client",
-      "assessment_unshared": "took an assessment back from the client"
+      "assessment_unshared": "took an assessment back from the client",
+      "info_request_link_upload": "received a file through an upload link they sent"
     }
   },
   "priority": {
@@ -3257,6 +3258,19 @@
       "received": "received",
       "reviewed": "reviewed",
       "not_applicable": "not applicable"
+    },
+    "link": {
+      "send": "Send upload link",
+      "sendSubmit": "Send the link",
+      "hint": "Mail a link for this one item to someone who doesn't sign in to Selah. Whoever opens it sees only this item and the firm's name, and can send files for it until it expires. Files are scanned like any upload and come in for your review. Every use is logged.",
+      "email": "Their email address",
+      "days": "The link works for",
+      "daysOption": "{n, plural, one {# day} other {# days}}",
+      "active": "Upload link to <a>{email}</a> · works until {date} · {n, plural, =0 {no files yet} one {# file} other {# files}}",
+      "revoke": "Revoke",
+      "revokeConfirm": "Revoke the upload link sent to {email}? It stops working at once.",
+      "fromEmail": "by upload link from <a>{email}</a>",
+      "byLink": "by upload link"
     }
   },
   "clientProgress": {
@@ -3559,7 +3573,11 @@
       "case_study_consent": "Case-study consent recorded",
       "case_study_revoke": "Case-study consent withdrawn",
       "auth_sign_in_link_sent": "Sign-in link sent",
-      "auth_sign_in_link_refused": "Sign-in link not sent"
+      "auth_sign_in_link_refused": "Sign-in link not sent",
+      "info_request_link_create": "Upload link sent",
+      "info_request_link_revoke": "Upload link revoked",
+      "info_request_link_opened": "Upload link opened",
+      "info_request_link_upload": "File sent through an upload link"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4207,5 +4225,21 @@
       "none": "No action changed status in the period."
     },
     "listDraft": "Draft pack"
+  },
+  "uploadLink": {
+    "metaTitle": "Send a requested document",
+    "from": "Requested by {firm}",
+    "confidential": "This item is marked confidential: its files are kept out of the AI assistant.",
+    "until": "This link is for this request only and works until {date}.",
+    "file": "Your file",
+    "another": "Another file",
+    "rules": "PDF, Word, Excel, PowerPoint, images, text or CSV ({types}), up to {mb} MB. One file at a time.",
+    "send": "Send",
+    "sending": "Sending…",
+    "received": "{n, plural, one {Received. Thank you.} other {Received # files. Thank you.}}",
+    "closed": "This link no longer works. Ask the person who sent it for a new one.",
+    "full": "This link has taken all the files it can. Ask the person who sent it for a new one.",
+    "deadTitle": "This link doesn't work",
+    "dead": "It may have expired or been withdrawn, or the request is already settled. Ask the person who sent it for a new one."
   }
 }
