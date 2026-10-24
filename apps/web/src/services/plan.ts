@@ -149,11 +149,7 @@ export async function createRecommendation(tx: Tx, principal: Principal, project
       .limit(1);
     if (!f || f.projectId !== projectId) throw new BadRequestError("the finding is not in this project");
   }
-  if (input.departmentId) await checkOwnership(tx, { projectId, orgId: project.orgId }, { departmentId: input.departmentId });
-  if (input.accountableUserId) {
-    const [ok] = project.kind === "client" ? await accountablePeople(tx, projectId, project.orgId, input.accountableUserId) : [];
-    if (!ok) throw new BadRequestError("the accountable person is someone at the client on this project");
-  }
+  await checkRecommendationScope(tx, project, input);
   const [row] = await tx
     .insert(recommendations)
     .values({ projectId, orgId: project.orgId, ...input, createdBy: principal.userId })
@@ -172,6 +168,24 @@ export async function createRecommendation(tx: Tx, principal: Principal, project
     await tx.insert(notifications).values({ userId: input.accountableUserId, kind: "recommendation.accountable", entityType: "project", entityId: projectId });
   }
   return row!;
+}
+
+/**
+ * A recommendation's department is an active one of its client, and its
+ * accountable person someone at the client on the project. Checked when it is
+ * added and when either is changed (plan-changes.ts); the database checks the
+ * same (check_row_department, check_recommendation_accountable).
+ */
+export async function checkRecommendationScope(
+  tx: Tx,
+  project: { id: string; orgId: string; kind: string },
+  input: { departmentId?: string | null; accountableUserId?: string | null },
+) {
+  if (input.departmentId) await checkOwnership(tx, { projectId: project.id, orgId: project.orgId }, { departmentId: input.departmentId });
+  if (input.accountableUserId) {
+    const [ok] = project.kind === "client" ? await accountablePeople(tx, project.id, project.orgId, input.accountableUserId) : [];
+    if (!ok) throw new BadRequestError("the accountable person is someone at the client on this project");
+  }
 }
 
 /** The owner must work on the project: a client user staffed on it, or firm staff on an internal project. */

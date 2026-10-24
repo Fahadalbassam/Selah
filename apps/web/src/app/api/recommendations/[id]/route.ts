@@ -14,6 +14,8 @@ const body = z
     priority: z.enum(["low", "medium", "high", "critical"]),
     dueDate: z.iso.date().nullable(),
     requiredEvidence: text(4000),
+    departmentId: z.uuid().nullable(),
+    accountableUserId: z.uuid().nullable(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0);

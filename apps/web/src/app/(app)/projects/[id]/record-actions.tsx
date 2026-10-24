@@ -38,6 +38,8 @@ type Props = {
       projectId: string;
       client: boolean;
       findings: { id: string; title: string }[];
+      /** The client's departments and who can be accountable (F31). */
+      scope: { departments: { id: string; nameAr: string; nameEn: string | null }[]; accountables: { userId: string; name: string }[] };
     }
 );
 
@@ -128,8 +130,7 @@ export function RecordActions(props: Props) {
           projectId={props.projectId}
           client={props.client}
           findings={props.findings}
-          // Department and accountable person are set when it is added (F31).
-          scope={{ departments: [], accountables: [] }}
+          scope={props.scope}
           edit={{ id: props.id, values: props.values }}
           open={editOpen}
           onOpenChange={setEditOpen}

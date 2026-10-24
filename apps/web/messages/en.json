@@ -2314,7 +2314,7 @@
       "accountableHint": "One person who answers for the whole recommendation, even when several departments carry it out.",
       "accountableLine": "Accountable: <who>{name}</who>",
       "edit": "Correct the recommendation",
-      "editHint": "Fix its wording, priority, date or evidence. The change is kept in the project's history."
+      "editHint": "Fix its wording, priority, date, evidence, department or accountable person. Moving it to another department moves its actions too. The change is kept in the project's history."
     },
     "action": {
       "add": "Add an action",
