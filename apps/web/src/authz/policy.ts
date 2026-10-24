@@ -108,6 +108,9 @@ export const POLICY = {
   // decides which: app_sees_client_group).
   "client_group.read": { ...STAFF },
   "client_group.manage": { firm_admin: "any" },
+  // The group's roll-up on the client side: only the holding's admins and
+  // managers the firm admin named (the database decides: app_is_group_viewer).
+  "client_group.view": { client_admin: "any", client_manager: "any" },
 
   // Findings and recommendations
   "finding.read": { ...ALL_BUT_OWNER },

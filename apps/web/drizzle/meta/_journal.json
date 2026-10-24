@@ -281,6 +281,13 @@
       "when": 1792849360722,
       "tag": "0052_client_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792850202091,
+      "tag": "0053_group_viewers",
+      "breakpoints": true
     }
   ]
 }

@@ -42,7 +42,7 @@ export async function GroupProgress({ total, companies, links }: { total: Client
   };
 
   return (
-    <Card className="gap-4 py-5 shadow-xs">
+    <Card className="h-fit gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-base">{t("pooledTitle")}</CardTitle>
         <CardDescription>{t("pooledHint")}</CardDescription>

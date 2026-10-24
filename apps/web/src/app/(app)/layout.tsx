@@ -8,11 +8,12 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import type { Role } from "@/authz";
 import { withPrincipal } from "@/server/page";
+import { myGroups } from "@/services/client-groups";
 import { unreadCount } from "@/services/notifications";
 import { myOffboarding } from "@/services/offboarding";
 import { getViewer } from "@/services/queries";
 
-function navFor(role: Role, t: (key: string) => string): NavGroup[] {
+function navFor(role: Role, t: (key: string) => string, inGroup: boolean): NavGroup[] {
   const overview = { title: t("overview"), href: "/", icon: "overview" as const };
   const team = { title: t("team"), href: "/team", icon: "team" as const };
   if (role === "firm_admin" || role === "consultant") {
@@ -86,6 +87,8 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
       items: [
         team,
         { title: t("departments"), href: "/departments", icon: "departments" },
+        // The holding's people the firm admin named see their group (F34).
+        ...(inGroup ? [{ title: t("group"), href: "/group", icon: "clients" as const }] : []),
         ...(role === "client_admin" ? [{ title: t("audit"), href: "/audit", icon: "audit" as const }] : []),
       ],
     },
@@ -93,11 +96,12 @@ function navFor(role: Role, t: (key: string) => string): NavGroup[] {
 }
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { viewer, unread, leaving } = await withPrincipal(async (tx, principal) => ({
+  const { viewer, unread, leaving, groups } = await withPrincipal(async (tx, principal) => ({
     viewer: await getViewer(tx, principal),
     unread: await unreadCount(tx, principal),
     // The people of an archived client read until their grace period ends (F27).
     leaving: await myOffboarding(tx, principal),
+    groups: await myGroups(tx, principal),
   }));
   const locale = await getLocale();
   const [tNav, tRole, tHeader, tApp, tOff, format] = await Promise.all([
@@ -118,7 +122,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         appName={tApp("name")}
         orgName={orgName}
         roleLabel={tRole(viewer.role)}
-        groups={navFor(viewer.role, (k) => tNav(k))}
+        groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0)}
         orgKind={viewer.orgKind}
         railLabel={tHeader("toggleSidebar")}
         user={{
