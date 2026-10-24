@@ -901,6 +901,30 @@ export const actionNotes = pgTable(
   (t) => [scopedFk("action_notes", t), index("action_notes_action_idx").on(t.actionId)],
 );
 
+// The two-way thread on an action (F11): the firm and the client talk about
+// the work where it is recorded, not on WhatsApp. Whoever can see the action
+// reads it; mentions name people who can see it too. Append-only: the
+// author may remove their own comment, which keeps the row and blanks the
+// text. See the action_comments migration.
+export const actionComments = pgTable(
+  "action_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => user.id),
+    body: text("body").notNull(),
+    mentions: uuid("mentions").array().notNull().default(sql`'{}'::uuid[]`),
+    removedAt: ts("removed_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [scopedFk("action_comments", t), index("action_comments_action_idx").on(t.actionId, t.createdAt)],
+);
+
 // One row per reminder or escalation sent, so each is sent once. A new due
 // date re-arms them (due_date is part of the key).
 export const followUpLog = pgTable(

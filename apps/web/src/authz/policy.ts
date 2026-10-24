@@ -153,6 +153,12 @@ export const POLICY = {
   // The firm's private notes on an action.
   "action_note.read": { ...STAFF },
   "action_note.create": { ...STAFF },
+  // The thread on an action (F11): everyone who can read the action reads
+  // and writes it, and removes their own comments. The database checks the
+  // action is visible and that mentions name people who can see it.
+  "action_comment.read": { ...READ_WORK },
+  "action_comment.create": { ...READ_WORK },
+  "action_comment.remove": { ...READ_WORK },
 
   "progress_update.read": { ...READ_WORK },
   "progress_update.create": { ...DO_WORK },

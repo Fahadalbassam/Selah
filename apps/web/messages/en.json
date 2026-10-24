@@ -480,7 +480,37 @@
       }
     },
     "mailFailing": "Mail to this person isn't getting through",
-    "mailFailingHint": "Our last mail to {name} could not be delivered. Check the address with them."
+    "mailFailingHint": "Our last mail to {name} could not be delivered. Check the address with them.",
+    "thread": {
+      "title": "Discussion",
+      "hintFirm": "Talk with the client about this action. Everyone who can see the action reads this thread; use firm notes for anything the client shouldn't see.",
+      "hintClient": "Ask the consulting team about this action, or answer them. Everyone who can see the action reads this thread.",
+      "none": "No comments yet.",
+      "label": "Comment",
+      "placeholder": "Write a comment…",
+      "post": "Post",
+      "posting": "Posting…",
+      "posted": "Comment posted",
+      "mention": "Mention",
+      "mentionHint": "Mentioned people get a notification. Only people who can see this action are listed.",
+      "unmention": "Don't mention {name}",
+      "sides": {
+        "firm": "Firm",
+        "client": "Client"
+      },
+      "you": "You",
+      "someone": "Someone",
+      "remove": "Remove comment",
+      "removeQuestion": "Remove this comment? Its text is deleted, and a note stays in the thread saying it was removed.",
+      "removed": "Comment removed",
+      "removedMarker": "Comment removed on {date}",
+      "errors": {
+        "mentions": "You can mention only people who can see this action.",
+        "empty": "Write something first.",
+        "removed": "This comment was already removed.",
+        "cannot": "This comment couldn't be saved. The project may be closed, or you may only be observing it."
+      }
+    }
   },
   "common": {
     "cancel": "Cancel",
@@ -1625,7 +1655,9 @@
       "client_pack_received": "{title} confirmed receiving its export pack",
       "recommendation_released": "{title} is waiting for your response",
       "recommendation_responded": "A response was recorded on {title}",
-      "recommendation_answered": "The firm answered your response on {title}"
+      "recommendation_answered": "The firm answered your response on {title}",
+      "action_commented": "New comment on an action",
+      "action_mentioned": "You were mentioned on an action"
     },
     "mail": {
       "section": "Mail",
@@ -1633,7 +1665,7 @@
       "title": "Mail choices",
       "hint": "Every mail is a short line and a link: titles and details stay in Selah.",
       "updates": "Updates on your actions",
-      "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence.",
+      "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
       "reminders": "Reminders and escalations",
       "remindersHint": "Due-soon and overdue reminders, and requested documents, gathered into one summary.",
       "cadence": {
@@ -3284,7 +3316,10 @@
       "recommendation_response_confirmed": "Recorded response confirmed",
       "recommendation_response_answered": "Response answered by the firm",
       "recommendation_respond": "Response to a recommendation",
-      "recommendation_response_review": "Confirming or answering a response"
+      "recommendation_response_review": "Confirming or answering a response",
+      "action_comment_remove": "Comment removed",
+      "action_comment_read": "Read an action's discussion",
+      "action_comment_create": "Commented on an action"
     },
     "csv": {
       "time": "Time (UTC)",

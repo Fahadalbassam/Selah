@@ -91,7 +91,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J09.3** Release an action — lane: firm · map: exists · wave: — · pr: #35
 - [x] **J09.4** Evidence review (firm: Verifies or asks revision; client: Submits progress, evidence) — lane: shared · map: exists · wave: — · pr: #1, #22
 - [x] **J09.5** Responds to recommendation — lane: client · map: wave 1 · covered by: F10 · wave: 1 · pr: #96
-- [ ] **J09.6** Comment thread on action — lane: client · map: wave 1 · covered by: F11 · wave: 1
+- [x] **J09.6** Comment thread on action — lane: client · map: wave 1 · covered by: F11 · wave: 1 · pr: #99
 - [x] **J09.7** Update, block, submit — lane: client · map: exists · wave: — · pr: #16
 
 ### J10 · Change, slips and disputes · التغيير والتأخير والخلاف
@@ -158,7 +158,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ### Tier 3 · The client takes part
 
 - [x] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6 · pr: #96
-- [ ] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6
+- [x] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6 · pr: #99
 - [x] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7 · pr: #78
 - [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: frozen
 - [ ] **F14** Magic-link sign-in and no-login upload links — tier: 3 · size: M · wave: 2 · decision: D6 D7
