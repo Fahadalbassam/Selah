@@ -207,6 +207,8 @@ describe("winning an inquiry", () => {
       self_check: { has_strategy: false },
       consent: true,
       privacy_notice_version: "2026-10-20",
+      requester_role: "ceo",
+      why_now: "A new board wants it settled this year.",
     };
     const ref = (await as(null, (c) => c.query(`SELECT submit_inquiry($1::jsonb) AS ref`, [JSON.stringify(form)]), true)).rows[0].ref as string;
     const inquiryId = (await owner.query(`SELECT id FROM inquiries WHERE public_ref = $1`, [ref])).rows[0].id as string;

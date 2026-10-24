@@ -36,7 +36,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { SELF_CHECKS } from "@/lib/intake";
+import {
+  CONTACT_CHANNELS,
+  FAMILY_GENERATIONS,
+  FAMILY_GOVERNANCE,
+  FAMILY_OWNERSHIP,
+  FAMILY_WORKING,
+  REQUESTER_ROLES,
+  SELF_CHECKS,
+  WHY_NOW_MAX,
+} from "@/lib/intake";
 import { cn } from "@/lib/utils";
 
 interface Choice {
@@ -59,33 +68,40 @@ type SelfCheckKey = (typeof SELF_CHECKS)[number];
 interface Answers {
   orgName: string;
   orgNameAr: string;
-  crNumber: string;
   sector: string;
   employeeBand: string;
   ownershipType: string;
+  familyGeneration: string;
+  familyWorking: string;
+  familyGovernance: string;
   contactName: string;
+  requesterRole: string;
   contactRole: string;
   email: string;
   phone: string;
+  contactChannel: (typeof CONTACT_CHANNELS)[number];
   preferredLanguage: "ar" | "en";
   services: string[];
+  whyNow: string;
   message: string;
   urgency: string;
   heardFrom: string;
   selfCheck: Partial<Record<SelfCheckKey, boolean>>;
   consent: boolean;
+  marketingConsent: boolean;
 }
 
-const STEPS = ["org", "contact", "needs", "today", "review"] as const;
+// Size, ownership and the family questions come after the need, and are optional.
+const STEPS = ["org", "contact", "needs", "about", "review"] as const;
 type Step = (typeof STEPS)[number];
 
 /** Which step each API field lives on, to route server errors back to it. */
 const FIELD_STEP: Record<string, number> = {
-  orgName: 0, orgNameAr: 0, crNumber: 0, sector: 0, employeeBand: 0, ownershipType: 0,
-  contactName: 1, contactRole: 1, email: 1, phone: 1, preferredLanguage: 1,
-  services: 2, message: 2, urgency: 2, heardFrom: 2,
-  selfCheck: 3,
-  consent: 4, privacyNoticeVersion: 4,
+  orgName: 0, orgNameAr: 0, sector: 0,
+  contactName: 1, requesterRole: 1, contactRole: 1, email: 1, phone: 1, contactChannel: 1, preferredLanguage: 1,
+  services: 2, whyNow: 2, message: 2, urgency: 2, heardFrom: 2,
+  employeeBand: 3, ownershipType: 3, familyGeneration: 3, familyWorking: 3, familyGovernance: 3, selfCheck: 3,
+  consent: 4, marketingConsent: 4, privacyNoticeVersion: 4,
 };
 
 function without<T extends object>(obj: T, key: PropertyKey): T {
@@ -102,17 +118,19 @@ function validate(step: number, a: Answers): Record<string, string> {
   const e: Record<string, string> = {};
   if (step === 0) {
     if (!a.orgName.trim()) e.orgName = "required";
-    if (a.crNumber && !/^[0-9]{1,20}$/.test(a.crNumber.trim())) e.crNumber = "cr";
     if (!a.sector) e.sector = "required";
-    if (!a.employeeBand) e.employeeBand = "required";
-    if (!a.ownershipType) e.ownershipType = "required";
   }
   if (step === 1) {
     if (!a.contactName.trim()) e.contactName = "required";
+    if (!a.requesterRole) e.requesterRole = "required";
     if (!EMAIL.test(a.email.trim())) e.email = a.email.trim() ? "email" : "required";
     if (a.phone && !/^[+0-9 ()-]{1,30}$/.test(a.phone.trim())) e.phone = "phone";
+    else if (a.contactChannel !== "email" && !a.phone.trim()) e.phone = "phoneForChannel";
   }
-  if (step === 2 && a.services.length === 0) e.services = "services";
+  if (step === 2) {
+    if (a.services.length === 0) e.services = "services";
+    if (!a.whyNow.trim()) e.whyNow = "whyNow";
+  }
   if (step === 4 && !a.consent) e.consent = "consent";
   return e;
 }
@@ -121,9 +139,10 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
   const t = useTranslations("inquiry");
   const rtl = locale === "ar";
   const empty: Answers = {
-    orgName: "", orgNameAr: "", crNumber: "", sector: "", employeeBand: "", ownershipType: "",
-    contactName: "", contactRole: "", email: "", phone: "", preferredLanguage: locale,
-    services: [], message: "", urgency: "", heardFrom: "", selfCheck: {}, consent: false,
+    orgName: "", orgNameAr: "", sector: "", employeeBand: "", ownershipType: "",
+    familyGeneration: "", familyWorking: "", familyGovernance: "",
+    contactName: "", requesterRole: "", contactRole: "", email: "", phone: "", contactChannel: "email", preferredLanguage: locale,
+    services: [], whyNow: "", message: "", urgency: "", heardFrom: "", selfCheck: {}, consent: false, marketingConsent: false,
   };
   const [a, setA] = useState<Answers>(empty);
   const [step, setStep] = useState(0);
@@ -137,6 +156,7 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
   const honeypot = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
 
+  const family = FAMILY_OWNERSHIP.includes(a.ownershipType);
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => {
     setA((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => without(prev, key));
@@ -177,21 +197,27 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
         body: JSON.stringify({
           orgName: a.orgName.trim(),
           orgNameAr: opt(a.orgNameAr),
-          crNumber: opt(a.crNumber),
           sector: a.sector,
-          employeeBand: a.employeeBand,
-          ownershipType: a.ownershipType,
+          employeeBand: a.employeeBand || undefined,
+          ownershipType: a.ownershipType || undefined,
+          familyGeneration: (family && a.familyGeneration) || undefined,
+          familyWorking: (family && a.familyWorking) || undefined,
+          familyGovernance: (family && a.familyGovernance) || undefined,
           contactName: a.contactName.trim(),
+          requesterRole: a.requesterRole,
           contactRole: opt(a.contactRole),
           email: a.email.trim(),
           phone: opt(a.phone),
+          contactChannel: a.contactChannel,
           preferredLanguage: a.preferredLanguage,
           services: a.services,
+          whyNow: a.whyNow.trim(),
           message: opt(a.message),
           selfCheck: a.selfCheck,
           urgency: a.urgency || undefined,
           heardFrom: a.heardFrom || undefined,
           consent: a.consent,
+          marketingConsent: a.marketingConsent,
           privacyNoticeVersion: options.privacyNoticeVersion,
           website: honeypot.current?.value || undefined,
         }),
@@ -285,13 +311,6 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
                       <Input id="orgNameAr" dir="rtl" lang="ar" value={a.orgNameAr} onChange={(e) => set("orgNameAr", e.target.value)} maxLength={200} />
                       <FieldDescription>{t("org.nameArHint")}</FieldDescription>
                     </Field>
-                    <Field data-invalid={!!errors.crNumber}>
-                      <FieldLabel htmlFor="crNumber">{t("org.cr")}</FieldLabel>
-                      <Input id="crNumber" dir="ltr" inputMode="numeric" value={a.crNumber} onChange={(e) => set("crNumber", e.target.value)} maxLength={20} aria-invalid={!!errors.crNumber} />
-                      {err("crNumber") ? <FieldError>{err("crNumber")}</FieldError> : <FieldDescription>{t("org.crHint")}</FieldDescription>}
-                    </Field>
-                  </div>
-                  <div className="grid gap-6 sm:grid-cols-2">
                     <Field data-invalid={!!errors.sector}>
                       <FieldLabel htmlFor="sector">{t("org.sector")}</FieldLabel>
                       <Select value={a.sector} onValueChange={(v) => set("sector", v)}>
@@ -308,39 +327,7 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
                       </Select>
                       {err("sector") ? <FieldError>{err("sector")}</FieldError> : null}
                     </Field>
-                    <Field data-invalid={!!errors.ownershipType}>
-                      <FieldLabel htmlFor="ownershipType">{t("org.ownership")}</FieldLabel>
-                      <Select value={a.ownershipType} onValueChange={(v) => set("ownershipType", v)}>
-                        <SelectTrigger id="ownershipType" className="w-full" aria-invalid={!!errors.ownershipType}>
-                          <SelectValue placeholder={t("org.ownershipPlaceholder")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.ownershipTypes.map((o) => (
-                            <SelectItem key={o} value={o}>
-                              {t(`ownershipType.${o}`)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {err("ownershipType") ? <FieldError>{err("ownershipType")}</FieldError> : null}
-                    </Field>
                   </div>
-                  <FieldSet data-invalid={!!errors.employeeBand}>
-                    <FieldLegend variant="label">{t("org.size")}</FieldLegend>
-                    <RadioGroup value={a.employeeBand} onValueChange={(v) => set("employeeBand", v)} className="grid grid-cols-2 gap-2 md:grid-cols-4" aria-invalid={!!errors.employeeBand}>
-                      {options.employeeBands.map((b) => (
-                        <FieldLabel key={b} htmlFor={`band-${b}`}>
-                          <Field orientation="horizontal" className="p-3!">
-                            <RadioGroupItem value={b} id={`band-${b}`} />
-                            <FieldTitle className="tabular-nums">
-                              <bdi dir="ltr">{t(`employeeBand.${b}`)}</bdi>
-                            </FieldTitle>
-                          </Field>
-                        </FieldLabel>
-                      ))}
-                    </RadioGroup>
-                    {err("employeeBand") ? <FieldError>{err("employeeBand")}</FieldError> : null}
-                  </FieldSet>
                 </FieldGroup>
               ) : null}
 
@@ -352,22 +339,64 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
                       <Input id="contactName" value={a.contactName} onChange={(e) => set("contactName", e.target.value)} maxLength={120} autoComplete="name" aria-invalid={!!errors.contactName} autoFocus />
                       {err("contactName") ? <FieldError>{err("contactName")}</FieldError> : null}
                     </Field>
-                    <Field>
-                      <FieldLabel htmlFor="contactRole">{t("contact.role")}</FieldLabel>
-                      <Input id="contactRole" value={a.contactRole} onChange={(e) => set("contactRole", e.target.value)} maxLength={120} autoComplete="organization-title" />
-                      <FieldDescription>{t("contact.roleHint")}</FieldDescription>
+                    <Field data-invalid={!!errors.requesterRole}>
+                      <FieldLabel htmlFor="requesterRole">{t("contact.role")}</FieldLabel>
+                      <Select value={a.requesterRole} onValueChange={(v) => set("requesterRole", v)}>
+                        <SelectTrigger id="requesterRole" className="w-full" aria-invalid={!!errors.requesterRole}>
+                          <SelectValue placeholder={t("contact.rolePlaceholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REQUESTER_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {t(`requesterRole.${r}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {err("requesterRole") ? <FieldError>{err("requesterRole")}</FieldError> : null}
                     </Field>
                   </div>
                   <div className="grid gap-6 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="contactRole">{t("contact.title")}</FieldLabel>
+                      <Input id="contactRole" value={a.contactRole} onChange={(e) => set("contactRole", e.target.value)} maxLength={120} autoComplete="organization-title" />
+                      <FieldDescription>{t("contact.titleHint")}</FieldDescription>
+                    </Field>
                     <Field data-invalid={!!errors.email}>
                       <FieldLabel htmlFor="email">{t("contact.email")}</FieldLabel>
                       <Input id="email" type="email" dir="ltr" value={a.email} onChange={(e) => set("email", e.target.value)} maxLength={254} autoComplete="email" aria-invalid={!!errors.email} />
                       {err("email") ? <FieldError>{err("email")}</FieldError> : null}
                     </Field>
+                  </div>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel id="channelLabel">{t("contact.channel")}</FieldLabel>
+                      <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        aria-labelledby="channelLabel"
+                        value={a.contactChannel}
+                        onValueChange={(v) => {
+                          if (!v) return;
+                          set("contactChannel", v as Answers["contactChannel"]);
+                          setErrors((prev) => without(prev, "phone"));
+                        }}
+                      >
+                        {CONTACT_CHANNELS.map((c) => (
+                          <ToggleGroupItem key={c} value={c} className="px-4">
+                            {t(`channel.${c}`)}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </Field>
                     <Field data-invalid={!!errors.phone}>
-                      <FieldLabel htmlFor="phone">{t("contact.phone")}</FieldLabel>
+                      <FieldLabel htmlFor="phone">{a.contactChannel === "whatsapp" ? t("contact.whatsapp") : t("contact.phone")}</FieldLabel>
                       <Input id="phone" type="tel" dir="ltr" value={a.phone} onChange={(e) => set("phone", e.target.value)} maxLength={30} autoComplete="tel" aria-invalid={!!errors.phone} />
-                      {err("phone") ? <FieldError>{err("phone")}</FieldError> : <FieldDescription>{t("contact.phoneHint")}</FieldDescription>}
+                      {err("phone") ? (
+                        <FieldError>{err("phone")}</FieldError>
+                      ) : (
+                        <FieldDescription>{a.contactChannel === "email" ? t("contact.phoneHint") : t("contact.phoneNeeded")}</FieldDescription>
+                      )}
                     </Field>
                   </div>
                   <Field>
@@ -412,6 +441,20 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
                     </div>
                     {err("services") ? <FieldError>{err("services")}</FieldError> : null}
                   </FieldSet>
+                  <Field data-invalid={!!errors.whyNow}>
+                    <FieldLabel htmlFor="whyNow">{t("needs.whyNow")}</FieldLabel>
+                    <Textarea id="whyNow" value={a.whyNow} onChange={(e) => set("whyNow", e.target.value)} maxLength={WHY_NOW_MAX} rows={2} className="resize-none" aria-invalid={!!errors.whyNow} />
+                    {err("whyNow") ? (
+                      <FieldError>{err("whyNow")}</FieldError>
+                    ) : (
+                      <FieldDescription className="flex justify-between gap-4">
+                        <span>{t("needs.whyNowHint")}</span>
+                        <span className="shrink-0 tabular-nums">
+                          {a.whyNow.length}/{WHY_NOW_MAX}
+                        </span>
+                      </FieldDescription>
+                    )}
+                  </Field>
                   <Field>
                     <FieldLabel htmlFor="message">{t("needs.message")}</FieldLabel>
                     <Textarea id="message" value={a.message} onChange={(e) => set("message", e.target.value)} maxLength={MESSAGE_MAX} rows={4} className="resize-none" />
@@ -459,43 +502,102 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
                 </FieldGroup>
               ) : null}
 
-              {current === "today" ? (
-                <div className="space-y-5">
-                  <p className="text-sm leading-relaxed text-muted-foreground">{t("today.intro")}</p>
-                  <ItemGroup className="divide-y rounded-lg border">
-                    {SELF_CHECKS.map((k) => {
-                      const v = a.selfCheck[k];
-                      return (
-                        <Item key={k} size="sm" className="rounded-none">
-                          <ItemContent>
-                            <ItemTitle id={`sc-${k}`}>{t(`selfCheck.${k}`)}</ItemTitle>
-                          </ItemContent>
-                          <ItemActions>
-                            <ToggleGroup
-                              type="single"
-                              variant="outline"
-                              size="sm"
-                              aria-labelledby={`sc-${k}`}
-                              value={v === undefined ? "" : v ? "yes" : "no"}
-                              onValueChange={(nv) => {
-                                const rest = without(a.selfCheck, k);
-                                set("selfCheck", nv ? { ...rest, [k]: nv === "yes" } : rest);
-                              }}
-                            >
-                              <ToggleGroupItem value="yes" className="px-3">{t("today.yes")}</ToggleGroupItem>
-                              <ToggleGroupItem value="no" className="px-3">{t("today.no")}</ToggleGroupItem>
-                            </ToggleGroup>
-                          </ItemActions>
-                        </Item>
-                      );
-                    })}
-                  </ItemGroup>
-                  <p className="text-xs text-muted-foreground">{t("today.skip")}</p>
-                </div>
+              {current === "about" ? (
+                <FieldGroup>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{t("about.intro")}</p>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="ownershipType">{t("org.ownership")}</FieldLabel>
+                      <Select
+                        value={a.ownershipType}
+                        onValueChange={(v) => {
+                          set("ownershipType", v);
+                          // The family questions are for family businesses only.
+                          if (!FAMILY_OWNERSHIP.includes(v)) setA((prev) => ({ ...prev, ownershipType: v, familyGeneration: "", familyWorking: "", familyGovernance: "" }));
+                        }}
+                      >
+                        <SelectTrigger id="ownershipType" className="w-full">
+                          <SelectValue placeholder={t("org.ownershipPlaceholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {options.ownershipTypes.map((o) => (
+                            <SelectItem key={o} value={o}>
+                              {t(`ownershipType.${o}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <FieldSet>
+                    <FieldLegend variant="label">{t("org.size")}</FieldLegend>
+                    <RadioGroup value={a.employeeBand} onValueChange={(v) => set("employeeBand", v)} className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                      {options.employeeBands.map((b) => (
+                        <FieldLabel key={b} htmlFor={`band-${b}`}>
+                          <Field orientation="horizontal" className="p-3!">
+                            <RadioGroupItem value={b} id={`band-${b}`} />
+                            <FieldTitle className="tabular-nums">
+                              <bdi dir="ltr">{t(`employeeBand.${b}`)}</bdi>
+                            </FieldTitle>
+                          </Field>
+                        </FieldLabel>
+                      ))}
+                    </RadioGroup>
+                  </FieldSet>
+                  {family ? (
+                    <FieldSet className="rounded-lg border p-4">
+                      <FieldLegend variant="label">{t("family.title")}</FieldLegend>
+                      <FieldDescription>{t("family.hint")}</FieldDescription>
+                      <FamilyQuestion id="familyGeneration" label={t("family.generation")} value={a.familyGeneration} choices={FAMILY_GENERATIONS} prefix="family.generations" onChange={(v) => set("familyGeneration", v)} />
+                      <FamilyQuestion id="familyWorking" label={t("family.working")} value={a.familyWorking} choices={FAMILY_WORKING} prefix="family.workingBands" onChange={(v) => set("familyWorking", v)} ltr />
+                      <FamilyQuestion id="familyGovernance" label={t("family.governance")} value={a.familyGovernance} choices={FAMILY_GOVERNANCE} prefix="family.governances" onChange={(v) => set("familyGovernance", v)} />
+                    </FieldSet>
+                  ) : null}
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">{t("today.title")}</p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{t("today.intro")}</p>
+                    <ItemGroup className="divide-y rounded-lg border">
+                      {SELF_CHECKS.map((k) => {
+                        const v = a.selfCheck[k];
+                        return (
+                          <Item key={k} size="sm" className="rounded-none">
+                            <ItemContent>
+                              <ItemTitle id={`sc-${k}`}>{t(`selfCheck.${k}`)}</ItemTitle>
+                            </ItemContent>
+                            <ItemActions>
+                              <ToggleGroup
+                                type="single"
+                                variant="outline"
+                                size="sm"
+                                aria-labelledby={`sc-${k}`}
+                                value={v === undefined ? "" : v ? "yes" : "no"}
+                                onValueChange={(nv) => {
+                                  const rest = without(a.selfCheck, k);
+                                  set("selfCheck", nv ? { ...rest, [k]: nv === "yes" } : rest);
+                                }}
+                              >
+                                <ToggleGroupItem value="yes" className="px-3">{t("today.yes")}</ToggleGroupItem>
+                                <ToggleGroupItem value="no" className="px-3">{t("today.no")}</ToggleGroupItem>
+                              </ToggleGroup>
+                            </ItemActions>
+                          </Item>
+                        );
+                      })}
+                    </ItemGroup>
+                    <p className="text-xs text-muted-foreground">{t("today.skip")}</p>
+                  </div>
+                </FieldGroup>
               ) : null}
 
               {current === "review" ? (
-                <Review answers={a} options={options} onEdit={go} errors={errors} onConsent={(c) => set("consent", c)} />
+                <Review
+                  answers={a}
+                  options={options}
+                  onEdit={go}
+                  errors={errors}
+                  onConsent={(c) => set("consent", c)}
+                  onMarketing={(c) => set("marketingConsent", c)}
+                />
               ) : null}
             </motion.div>
           </AnimatePresence>
@@ -524,6 +626,31 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
         </div>
       </form>
     </Card>
+  );
+}
+
+/** One of the light family-business questions: a row of choices, any of which may stay unanswered. */
+function FamilyQuestion(props: {
+  id: string;
+  label: string;
+  value: string;
+  choices: readonly string[];
+  prefix: string;
+  onChange: (v: string) => void;
+  ltr?: boolean;
+}) {
+  const t = useTranslations("inquiry");
+  return (
+    <Field>
+      <FieldLabel id={`${props.id}Label`}>{props.label}</FieldLabel>
+      <ToggleGroup type="single" variant="outline" size="sm" aria-labelledby={`${props.id}Label`} value={props.value} onValueChange={props.onChange} className="flex-wrap">
+        {props.choices.map((c) => (
+          <ToggleGroupItem key={c} value={c} className="px-3">
+            {props.ltr ? <bdi dir="ltr">{t(`${props.prefix}.${c}`)}</bdi> : t(`${props.prefix}.${c}`)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </Field>
   );
 }
 
@@ -584,47 +711,58 @@ function Review({
   onEdit,
   errors,
   onConsent,
+  onMarketing,
 }: {
   answers: Answers;
   options: InquiryOptions;
   onEdit: (step: number) => void;
   errors: Record<string, string>;
   onConsent: (c: boolean) => void;
+  onMarketing: (c: boolean) => void;
 }) {
   const t = useTranslations("inquiry");
   const label = (list: Choice[], code: string) => list.find((c) => c.code === code)?.label ?? code;
   const none = <span className="text-muted-foreground">{t("review.notAnswered")}</span>;
   const answered = SELF_CHECKS.filter((k) => a.selfCheck[k] !== undefined);
+  const family = FAMILY_OWNERSHIP.includes(a.ownershipType);
+  const familyAnswers = [
+    a.familyGeneration ? t(`family.generations.${a.familyGeneration}`) : null,
+    a.familyWorking ? t("family.workingShort", { band: t(`family.workingBands.${a.familyWorking}`) }) : null,
+    a.familyGovernance ? t(`family.governances.${a.familyGovernance}`) : null,
+  ].filter(Boolean);
   const sections: { step: number; rows: [string, React.ReactNode][] }[] = [
     {
       step: 0,
       rows: [
         [t("org.name"), [a.orgName, a.orgNameAr].filter(Boolean).join(" · ")],
         [t("org.sector"), label(options.sectors, a.sector)],
-        [t("org.size"), a.employeeBand ? <bdi key="b" dir="ltr">{t(`employeeBand.${a.employeeBand}`)}</bdi> : none],
-        [t("org.ownership"), a.ownershipType ? t(`ownershipType.${a.ownershipType}`) : none],
       ],
     },
     {
       step: 1,
       rows: [
-        [t("contact.name"), [a.contactName, a.contactRole].filter(Boolean).join(" · ")],
+        [t("contact.name"), [a.contactName, a.requesterRole ? t(`requesterRole.${a.requesterRole}`) : null, a.contactRole].filter(Boolean).join(" · ")],
         [t("contact.email"), <bdi key="e">{a.email}</bdi>],
         [t("contact.phone"), a.phone ? <bdi key="p">{a.phone}</bdi> : none],
+        [t("contact.channel"), t(`channel.${a.contactChannel}`)],
       ],
     },
     {
       step: 2,
       rows: [
         [t("needs.services"), a.services.map((s) => label(options.services, s)).join("، ")],
+        [t("review.whyNow"), <span key="w" dir="auto" className="whitespace-pre-wrap">{a.whyNow}</span>],
         [t("needs.urgency"), a.urgency ? t(`urgency.${a.urgency}`) : none],
       ],
     },
     {
       step: 3,
       rows: [
+        [t("org.ownership"), a.ownershipType ? t(`ownershipType.${a.ownershipType}`) : none],
+        [t("org.size"), a.employeeBand ? <bdi key="b" dir="ltr">{t(`employeeBand.${a.employeeBand}`)}</bdi> : none],
+        ...(family ? [[t("family.title"), familyAnswers.length ? familyAnswers.join("، ") : none] as [string, React.ReactNode]] : []),
         [
-          t("steps.today"),
+          t("today.title"),
           answered.length
             ? answered.map((k) => `${t(`selfCheck.${k}`)}: ${a.selfCheck[k] ? t("today.yes") : t("today.no")}`).join("، ")
             : none,
@@ -667,6 +805,16 @@ function Review({
             </Link>
           </FieldDescription>
           {errors.consent ? <FieldError>{t("errors.consent")}</FieldError> : null}
+        </FieldContent>
+      </Field>
+      {/* Separate from the consent above and never ticked for them (PDPL). */}
+      <Field orientation="horizontal">
+        <Checkbox id="marketingConsent" checked={a.marketingConsent} onCheckedChange={(c) => onMarketing(c === true)} />
+        <FieldContent>
+          <FieldLabel htmlFor="marketingConsent" className="font-normal leading-relaxed">
+            {t("review.marketing")}
+          </FieldLabel>
+          <FieldDescription>{t("review.marketingHint")}</FieldDescription>
         </FieldContent>
       </Field>
     </FieldGroup>

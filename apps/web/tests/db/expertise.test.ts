@@ -112,6 +112,8 @@ beforeAll(async () => {
       self_check: {},
       consent: true,
       privacy_notice_version: "2026-10-20",
+      requester_role: "ceo",
+      why_now: "A new board wants it settled this year.",
     }),
   ]);
   INQ = (await q(`SELECT id FROM inquiries WHERE public_ref = $1`, [rows[0].ref])).rows[0].id;

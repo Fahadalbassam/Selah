@@ -35,14 +35,14 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J02.1** Hand inquiry to a consultant — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J02.2** Record conflict status — lane: firm · map: exists · wave: — · pr: #18
-- [~] **J02.3** Search for conflicts — lane: firm · map: wave 1 · covered by: F08 · wave: 1 · pr: #70 (open)
+- [x] **J02.3** Search for conflicts — lane: firm · map: wave 1 · covered by: F08 · wave: 1 · pr: #70
 - [x] **J02.4** Gets a courteous decline — lane: client · map: missing · covered by: N10 · wave: 1 · pr: #68
 
 ### J03 · NDA and discovery · السرية والاستكشاف
 
 - [x] **J03.1** Book discovery — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J03.2** Record the outcome — lane: firm · map: exists · wave: — · pr: #18
-- [~] **J03.3** Mark the NDA — lane: firm · map: wave 1 · covered by: F08 · wave: 1 · pr: #70 (open)
+- [x] **J03.3** Mark the NDA — lane: firm · map: wave 1 · covered by: F08 · wave: 1 · pr: #70
 - [x] **J03.4** Discovery session (firm: Runs it, records outcome; client: Sponsor attends (no login)) — lane: shared · map: exists · wave: — · pr: #18
 
 ### J04 · Proposal and contract · العرض والعقد
@@ -152,7 +152,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64
 - [x] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66
 - [x] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67
-- [~] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (acknowledgement mail), #69 (staff entry), #70 (open: conflict search, qualification, NDA, returning client); the public form changes follow
+- [~] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (acknowledgement mail), #69 (staff entry), #70 (conflict search, qualification, NDA, returning client), #71 (open: public form changes and marketing consent)
 - [ ] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4
 
 ### Tier 3 · The client takes part

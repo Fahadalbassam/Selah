@@ -9,7 +9,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { renderMail } from "@/lib/mail-templates";
 import { enteredInquiryInput } from "@/lib/inquiry-entry";
-import { enterInquiry, getInquiry, mailDecline } from "@/services/inquiries";
+import { enterInquiry, getInquiry, mailDecline, withdrawMarketingConsent } from "@/services/inquiries";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -47,7 +47,6 @@ const attempt = (userId: string | null, sql: string, params: unknown[] = []) => 
 const form = (extra: Record<string, unknown> = {}) => ({
   org_name: "Al-Waha Trading",
   org_name_ar: "الواحة للتجارة",
-  cr_number: "1010123456",
   sector: "trade_distribution",
   employee_band: "50-249",
   ownership_type: "family_multi_partner",
@@ -63,10 +62,22 @@ const form = (extra: Record<string, unknown> = {}) => ({
   heard_from: "referral",
   consent: true,
   privacy_notice_version: "2026-10-20",
+  requester_role: "ceo",
+  why_now: "A new board wants it settled this year.",
   ...extra,
 });
 const submit = async (payload: Record<string, unknown>) =>
   (await run(null, `SELECT submit_inquiry($1::jsonb) AS ref`, [JSON.stringify(payload)])).rows[0].ref as string;
+/** Call a service as `userId`; committed when asked. */
+const call = <R>(userId: string, fn: (tx: Tx, p: NonNullable<Awaited<ReturnType<typeof loadPrincipal>>>) => Promise<R>, commit = false) =>
+  as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      return fn(tx, (await loadPrincipal(tx, userId))!);
+    },
+    commit,
+  );
 const byRef = async (ref: string) => (await owner.query(`SELECT * FROM inquiries WHERE public_ref = $1`, [ref])).rows[0];
 
 beforeAll(async () => {
@@ -135,10 +146,80 @@ describe("the public form", () => {
       [{ phone: "call me" }, "phone"],
       [{ preferred_language: "fr" }, "preferred_language"],
       [{ urgency: "yesterday" }, "urgency"],
+      [{ requester_role: undefined }, "requester_role"],
+      [{ requester_role: "king" }, "requester_role"],
+      [{ why_now: " " }, "why_now"],
+      [{ why_now: "x".repeat(501) }, "why_now"],
+      [{ contact_channel: "fax" }, "contact_channel"],
+      [{ contact_channel: "whatsapp", phone: undefined }, "phone"],
+      [{ family_generation: "fourth" }, "family_generation"],
+      [{ ownership_type: "llc", family_generation: "second" }, "family_generation"],
+      [{ ownership_type: undefined, family_governance: "charter" }, "family_generation"],
+      [{ marketing_consent: "yes" }, "marketing_consent"],
     ];
     for (const [extra, field] of cases) {
       await expect(submit(form(extra)), field).rejects.toThrow(`invalid field: ${field}`);
     }
+  });
+
+  it("asks size, ownership and the family questions optionally, and keeps marketing consent apart and unticked", async () => {
+    const bare = await byRef(await submit(form({ employee_band: undefined, ownership_type: undefined, marketing_consent: undefined })));
+    expect([bare.employee_band, bare.ownership_type, bare.marketing_consent_at, bare.contact_channel, bare.cr_number]).toEqual([
+      null,
+      null,
+      null,
+      "email",
+      null,
+    ]);
+    // The CR number is no longer taken from the form.
+    const full = await byRef(
+      await submit(
+        form({
+          cr_number: "1010123456",
+          contact_channel: "whatsapp",
+          family_generation: "second",
+          family_working: "4-10",
+          family_governance: "none",
+          marketing_consent: true,
+        }),
+      ),
+    );
+    expect([full.cr_number, full.contact_channel, full.requester_role, full.why_now]).toEqual([
+      null,
+      "whatsapp",
+      "ceo",
+      "A new board wants it settled this year.",
+    ]);
+    expect([full.family_generation, full.family_working, full.family_governance]).toEqual(["second", "4-10", "none"]);
+    expect(full.marketing_consent_at).not.toBeNull();
+    // The database holds the same rules as the form.
+    const copy = (ref: string, extra: string, values: string) =>
+      owner.query(
+        `INSERT INTO inquiries (firm_org_id, public_ref, org_name, contact_name, contact_email, sector_id, preferred_language, self_check,
+           privacy_notice_version, consented_at, ${extra})
+         SELECT firm_org_id, $2, org_name, contact_name, contact_email, sector_id, preferred_language, self_check, privacy_notice_version,
+           consented_at, ${values} FROM inquiries WHERE id = $1`,
+        [full.id, ref],
+      );
+    await expect(copy("T-1", "ownership_type, family_generation", "'llc', 'second'")).rejects.toThrow(/inquiry_family_fields/);
+    await expect(copy("T-2", "family_working", "'none'")).rejects.toThrow(/inquiry_family_fields/);
+    await expect(copy("T-3", "contact_channel", "'phone'")).rejects.toThrow(/inquiry_contact_channel/);
+    await expect(copy("T-4", "why_now", "''")).rejects.toThrow(/inquiry_why_now/);
+  });
+
+  it("the firm admin records a withdrawn marketing consent; nobody else, and nobody gives it for the requester", async () => {
+    const iid = (await byRef(await submit(form({ marketing_consent: true })))).id;
+    const bare = (await byRef(await submit(form()))).id;
+    await run(U.admin, `UPDATE inquiries SET owner_user_id = $2 WHERE id = $1`, [iid, U.cons]);
+    await expect(call(U.cons, (tx, p) => withdrawMarketingConsent(tx, p, iid))).rejects.toThrow(/forbidden/);
+    await expect(attempt(U.cons, `UPDATE inquiries SET marketing_consent_at = NULL WHERE id = $1`, [iid])).rejects.toThrow(/not allowed/);
+    await expect(attempt(U.admin, `UPDATE inquiries SET marketing_consent_at = now() WHERE id = $1`, [bare])).rejects.toThrow(
+      /only the requester agrees/,
+    );
+    await call(U.admin, (tx, p) => withdrawMarketingConsent(tx, p, iid), true);
+    expect((await owner.query(`SELECT marketing_consent_at FROM inquiries WHERE id = $1`, [iid])).rows[0].marketing_consent_at).toBeNull();
+    const ev = await owner.query(`SELECT actor_id FROM inquiry_events WHERE inquiry_id = $1 AND event = 'marketing_withdrawn'`, [iid]);
+    expect(ev.rows).toEqual([{ actor_id: U.admin }]);
   });
 
   it("allows 5 an hour from one address", async () => {
@@ -256,7 +337,7 @@ describe("the inquiry page", () => {
 describe("retention", () => {
   it("closing sets a purge date, and the job clears exactly the requester's details", async () => {
     const spam = (await byRef(await submit(form({ ip_hash: "ip-9" })))).id;
-    const lost = (await byRef(await submit(form()))).id;
+    const lost = (await byRef(await submit(form({ contact_channel: "whatsapp", marketing_consent: true, family_generation: "first" })))).id;
     await run(U.admin, `UPDATE inquiries SET status = 'spam' WHERE id = $1`, [spam]);
     await run(U.admin, `UPDATE inquiries SET status = 'lost' WHERE id = $1`, [lost]);
     const dates = await owner.query(`SELECT id, purge_after - (closed_at AT TIME ZONE 'Asia/Riyadh')::date AS days FROM inquiries WHERE id IN ($1, $2)`, [
@@ -280,12 +361,16 @@ describe("retention", () => {
       "contact_email",
       "contact_phone",
       "message",
+      "why_now",
+      "marketing_consent_at",
       "ip_hash",
       "user_agent_hash",
     ];
     for (const col of cleared) expect(row[col], col).toBeNull();
     expect(row.anonymised_at).not.toBeNull();
+    expect(row.contact_channel).toBe("email");
     // Kept for statistics.
+    expect([row.requester_role, row.family_generation]).toEqual(["ceo", "first"]);
     expect([row.employee_band, row.ownership_type, row.status, row.sector_id === null]).toEqual([
       "50-249",
       "family_multi_partner",

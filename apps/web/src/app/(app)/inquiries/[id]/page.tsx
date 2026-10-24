@@ -94,6 +94,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
         ]
       : []),
     [t("contact"), [q.contactName, q.contactRole].filter(Boolean).join(" · ") || "—"],
+    ...(q.requesterRole ? [[t("requesterRole"), ti(`requesterRole.${q.requesterRole}`)] as [string, React.ReactNode]] : []),
     [
       "",
       <span key="c" className="flex flex-wrap gap-x-3" dir="ltr">
@@ -105,10 +106,34 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
         {q.contactPhone ? <span>{q.contactPhone}</span> : null}
       </span>,
     ],
+    [t("channel"), ti(`channel.${q.contactChannel}`)],
     [t("language"), t(`langs.${q.preferredLanguage === "ar" ? "ar" : "en"}`)],
     [t("sector"), label(data.options.sectors, q.sector)],
-    [t("size"), q.employeeBand ? ti(`employeeBand.${q.employeeBand}`) : "—"],
+    [
+      t("size"),
+      q.employeeBand ? (
+        <bdi key="sz" dir="ltr">
+          {ti(`employeeBand.${q.employeeBand}`)}
+        </bdi>
+      ) : (
+        "—"
+      ),
+    ],
     [t("ownership"), q.ownershipType ? ti(`ownershipType.${q.ownershipType}`) : "—"],
+    ...(q.familyGeneration || q.familyWorking || q.familyGovernance
+      ? [
+          [
+            t("family"),
+            [
+              q.familyGeneration ? ti(`family.generations.${q.familyGeneration}`) : null,
+              q.familyWorking ? ti("family.workingShort", { band: ti(`family.workingBands.${q.familyWorking}`) }) : null,
+              q.familyGovernance ? ti(`family.governances.${q.familyGovernance}`) : null,
+            ]
+              .filter(Boolean)
+              .join(ar ? "، " : ", "),
+          ] as [string, React.ReactNode],
+        ]
+      : []),
     ...(q.crNumber
       ? [
           [
@@ -122,6 +147,25 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     [t("services"), q.services.map((c) => label(data.options.services, c)).join(ar ? "، " : ", ")],
     [t("urgency"), q.urgency ? ti(`urgency.${q.urgency}`) : "—"],
     ...(q.heardFrom ? [[t("heardFrom"), ti(`heardFromOption.${q.heardFrom}`)] as [string, React.ReactNode]] : []),
+    ...(q.source === "website"
+      ? [
+          [
+            t("marketing"),
+            <span key="mk" className="flex flex-wrap items-center gap-3">
+              {q.marketingConsentAt ? t("marketingYes", { date: when(q.marketingConsentAt) }) : t("marketingNo")}
+              {q.marketingConsentAt && can.decide ? (
+                <ApiButton
+                  endpoint={`/api/intake/inquiries/${q.id}/marketing-consent`}
+                  method="DELETE"
+                  label={t("withdrawMarketing")}
+                  confirm={t("withdrawMarketingConfirm")}
+                  variant="ghost"
+                />
+              ) : null}
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
   ];
 
   return (
@@ -210,6 +254,14 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                   </div>
                 ))}
               </dl>
+              {q.whyNow ? (
+                <div className="space-y-1 border-t pt-4">
+                  <p className="text-xs text-muted-foreground">{t("whyNow")}</p>
+                  <p className="text-sm whitespace-pre-wrap" dir="auto">
+                    {q.whyNow}
+                  </p>
+                </div>
+              ) : null}
               {q.message ? (
                 <div className="space-y-1 border-t pt-4">
                   <p className="text-xs text-muted-foreground">{t("message")}</p>
@@ -338,7 +390,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                                 })
                               : e.event === "nda_signed"
                                 ? t("events.nda_signed", { date: day(String(e.meta.signed_on)) })
-                                : ["submitted", "entered", "acknowledged", "decline_mailed", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                                : ["submitted", "entered", "acknowledged", "decline_mailed", "marketing_withdrawn", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
                                   ? t(`events.${e.event}`)
                                   : e.event}
                       </span>{" "}

@@ -61,6 +61,8 @@ const form = {
   services: ["delegation_matrix"],
   consent: true,
   privacy_notice_version: "2026-10-20",
+  requester_role: "ceo",
+  why_now: "A new board wants it settled this year.",
 };
 const submit = () => as(null, (c) => c.query(`SELECT submit_inquiry($1::jsonb) AS ref`, [JSON.stringify(form)]), true);
 

@@ -4,7 +4,18 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { sectors, serviceAreas } from "@/db/schema";
 import { env } from "@/env";
-import { EMPLOYEE_BANDS, HEARD_FROM, OWNERSHIP_TYPES, PRIVACY_NOTICE_VERSION, URGENCIES } from "@/lib/intake";
+import {
+  CONTACT_CHANNELS,
+  EMPLOYEE_BANDS,
+  FAMILY_GENERATIONS,
+  FAMILY_GOVERNANCE,
+  FAMILY_WORKING,
+  HEARD_FROM,
+  OWNERSHIP_TYPES,
+  PRIVACY_NOTICE_VERSION,
+  REQUESTER_ROLES,
+  URGENCIES,
+} from "@/lib/intake";
 
 // The public side of intake. The database does the real checks in
 // submit_inquiry() (baseline: Intake); this module only shapes
@@ -13,21 +24,27 @@ import { EMPLOYEE_BANDS, HEARD_FROM, OWNERSHIP_TYPES, PRIVACY_NOTICE_VERSION, UR
 export interface InquiryInput {
   orgName: string;
   orgNameAr?: string;
-  crNumber?: string;
   sector: string;
-  employeeBand: (typeof EMPLOYEE_BANDS)[number];
-  ownershipType: (typeof OWNERSHIP_TYPES)[number];
+  employeeBand?: (typeof EMPLOYEE_BANDS)[number];
+  ownershipType?: (typeof OWNERSHIP_TYPES)[number];
+  familyGeneration?: (typeof FAMILY_GENERATIONS)[number];
+  familyWorking?: (typeof FAMILY_WORKING)[number];
+  familyGovernance?: (typeof FAMILY_GOVERNANCE)[number];
   contactName: string;
+  requesterRole: (typeof REQUESTER_ROLES)[number];
   contactRole?: string;
   email: string;
   phone?: string;
+  contactChannel: (typeof CONTACT_CHANNELS)[number];
   preferredLanguage: "ar" | "en";
   services: string[];
+  whyNow: string;
   message?: string;
   selfCheck: Partial<Record<"hasStrategy" | "hasOrgChart" | "hasDelegationMatrix" | "hasPolicies" | "hasSops" | "hasKpis", boolean>>;
   urgency?: (typeof URGENCIES)[number];
   heardFrom?: (typeof HEARD_FROM)[number];
   consent: true;
+  marketingConsent: boolean;
   privacyNoticeVersion: string;
 }
 
@@ -41,16 +58,21 @@ export async function submitInquiry(tx: Tx, input: InquiryInput, ip: string | nu
   const payload = {
     org_name: input.orgName,
     org_name_ar: input.orgNameAr,
-    cr_number: input.crNumber,
     sector: input.sector,
     employee_band: input.employeeBand,
     ownership_type: input.ownershipType,
+    family_generation: input.familyGeneration,
+    family_working: input.familyWorking,
+    family_governance: input.familyGovernance,
     contact_name: input.contactName,
+    requester_role: input.requesterRole,
     contact_role: input.contactRole,
     email: input.email,
     phone: input.phone,
+    contact_channel: input.contactChannel,
     preferred_language: input.preferredLanguage,
     services: input.services,
+    why_now: input.whyNow,
     message: input.message,
     self_check: {
       has_strategy: s.hasStrategy,
@@ -63,6 +85,7 @@ export async function submitInquiry(tx: Tx, input: InquiryInput, ip: string | nu
     urgency: input.urgency,
     heard_from: input.heardFrom,
     consent: input.consent,
+    marketing_consent: input.marketingConsent,
     privacy_notice_version: input.privacyNoticeVersion,
     ip_hash: fingerprint("intake-ip", ip),
     user_agent_hash: fingerprint("intake-ua", userAgent),

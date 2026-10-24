@@ -70,6 +70,8 @@ const submit = async (extra: Record<string, unknown>) => {
     self_check: {},
     consent: true,
     privacy_notice_version: "2026-10-20",
+    requester_role: "ceo",
+    why_now: "A new board wants it settled this year.",
     ...extra,
   };
   const ref = (await run(null, `SELECT submit_inquiry($1::jsonb) AS ref`, [JSON.stringify(form)])).rows[0].ref as string;
