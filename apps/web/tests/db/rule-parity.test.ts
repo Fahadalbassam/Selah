@@ -30,6 +30,7 @@ import { callProvider, SPOKEN_LANGS } from "@/lib/meetings";
 import { PHASE_LIMITS } from "@/lib/phases";
 import { TRANSCRIPT_FORMATS, TRANSCRIPT_MAX_CHARS } from "@/lib/transcripts";
 import { TRANSLATABLE, TRANSLATION_MAX_CHARS } from "@/lib/translations";
+import { HAND_OVER_KINDS } from "@/services/accounts";
 import { FIRM_SETTING_DEFAULTS } from "@/services/firm-settings";
 import { EVIDENCE_REQUEST_MOVES } from "@/services/follow-through";
 import { ACME, ACME_PROJ_1, FIRM } from "../fixtures";
@@ -321,6 +322,17 @@ describe("terms and notices", () => {
   it("LEGAL_VERSIONS are app_legal_version() for every document the database knows", async () => {
     const { rows } = await owner.query(`SELECT d::text AS doc, app_legal_version(d) AS v FROM unnest(enum_range(NULL::legal_doc)) d`);
     expect(Object.fromEntries(rows.map((r) => [r.doc, r.v]))).toEqual(LEGAL_VERSIONS);
+  });
+});
+
+describe("people leaving", () => {
+  it("HAND_OVER_KINDS is what app_hand_over() accepts, and the blocking kinds of app_person_holdings_of()", async () => {
+    const def = (await owner.query(`SELECT pg_get_functiondef('app_hand_over(uuid,uuid,text[])'::regprocedure) AS d`)).rows[0].d as string;
+    const accepted = /kinds <@ ARRAY\[([^\]]+)\]/.exec(def)![1]!.match(/[a-z_]+/g)!;
+    expect(accepted).toEqual([...HAND_OVER_KINDS]);
+    const report = (await owner.query(`SELECT pg_get_functiondef('app_person_holdings_of(uuid)'::regprocedure) AS d`)).rows[0].d as string;
+    const listed = [...report.matchAll(/SELECT '([a-z_]+)'/g)].map((m) => m[1]!);
+    expect(sorted(listed.filter((k) => k !== "department_head"))).toEqual(sorted(HAND_OVER_KINDS));
   });
 });
 

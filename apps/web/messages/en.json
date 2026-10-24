@@ -1671,7 +1671,6 @@
     "changeEmailHint": "A confirmation link goes to the new address. The account switches over when it's opened, and every session ends.",
     "newEmail": "New address",
     "switchOff": "Switch off",
-    "switchOffHint": "Their sessions end at once. You can switch them back on later.",
     "switchOn": "Switch back on",
     "reason": "Why",
     "resetTwoFactor": "Reset two-factor",
@@ -1700,7 +1699,39 @@
     "manage": "Manage people",
     "nameAlt": "Name in the other language",
     "nameAltHint": "For example Reem Al-Harbi for ريم الحربي. The assistant hides both spellings before a hosted model sees the text. Leave empty to clear.",
-    "save": "Save"
+    "save": "Save",
+    "departure": {
+      "title": "Switch off {name}",
+      "hint": "Before the account is switched off, hand over what this person still holds. Open work, leads and reviews must move first; client roles such as sponsor need an interim.",
+      "nothing": "This person holds nothing that needs handing over.",
+      "kinds": {
+        "action": "Open actions they own",
+        "client_lead": "Clients they lead",
+        "project_lead": "Projects they lead",
+        "review": "Reviews only they can do",
+        "client_role": "Client roles",
+        "department_head": "Departments they head"
+      },
+      "blocks": "Must move first",
+      "interim": "Name an interim",
+      "more": "And {n} more",
+      "to": "Hand over to",
+      "toPlaceholder": "Choose a colleague",
+      "toHint": "They join the projects involved and are told about each action they now own.",
+      "rolesToo": "Also make them the interim in the client roles (sponsor, coordinator and so on)",
+      "handOver": "Hand over",
+      "handed": "{n, plural, one {Handed over one item.} other {Handed over # items.}}",
+      "departments": "Name a new head on the Departments page.",
+      "reason": "Why the account is switched off",
+      "stillHolds": "{n, plural, one {One item still has to be handed over before the account can be switched off.} other {# items still have to be handed over before the account can be switched off.}}",
+      "switchOff": "Switch off",
+      "errors": {
+        "lastAdmin": "The firm needs at least one active admin. Make someone else an admin first.",
+        "badReceiver": "Choose an active colleague in the same organisation.",
+        "needsLead": "Every client with consultants needs a lead consultant.",
+        "stillHoldsError": "Hand over what this person still holds before switching the account off."
+      }
+    }
   },
   "settings": {
     "title": "Firm settings",
@@ -3157,7 +3188,8 @@
       "user_name_alt": "Name in the other language changed",
       "closure_export": "Closing report exported",
       "client_report_export": "Client report exported",
-      "consent_accept": "Terms and notices accepted"
+      "consent_accept": "Terms and notices accepted",
+      "membership_hand_over": "Work handed over"
     },
     "csv": {
       "time": "Time (UTC)",
