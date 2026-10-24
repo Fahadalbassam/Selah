@@ -41,6 +41,7 @@ function planError(message: string | undefined): string | null {
   if (m.includes("released action needs")) return "releaseNeeds";
   if (m.includes("minimal records")) return "jobTitle";
   if (m.includes("department")) return "department";
+  if (m.includes("accountable person")) return "accountable";
   if (m.includes("finding is not in this project")) return "finding";
   return null;
 }
@@ -93,9 +94,15 @@ export function RecommendationDialog(props: {
   client: boolean;
   findings: { id: string; title: string }[];
   defaultFindingId?: string;
+  /** The client's departments and who can be accountable (F31); empty lists hide the fields. */
+  scope: {
+    departments: { id: string; nameAr: string; nameEn: string | null }[];
+    accountables: { userId: string; name: string }[];
+  };
   trigger: ReactNode;
 }) {
   const t = useTranslations("plan.rec");
+  const ar = useLocale() === "ar";
   const tPrio = useTranslations("priority");
   const tVis = useTranslations("visibility");
   const tc = useTranslations("common");
@@ -114,6 +121,7 @@ export function RecommendationDialog(props: {
     const form = new FormData(e.currentTarget);
     const text = (k: string) => String(form.get(k) ?? "").trim() || undefined;
     const finding = text("findingId");
+    const pick = (k: string) => (text(k) === NONE ? undefined : text(k));
     await send(`/api/projects/${props.projectId}/recommendations`, {
       title: text("title"),
       findingId: finding === NONE ? undefined : finding,
@@ -125,6 +133,8 @@ export function RecommendationDialog(props: {
       source,
       decidedOn: source === "board_decision" ? decidedOn : undefined,
       visibility: props.client ? (text("visibility") ?? "shared") : "shared",
+      departmentId: pick("departmentId"),
+      accountableUserId: pick("accountableUserId"),
     });
   }
 
@@ -204,6 +214,48 @@ export function RecommendationDialog(props: {
               />
             </div>
           ) : null}
+          {props.scope.departments.length || props.scope.accountables.length ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {props.scope.departments.length ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="r-dept">{t("department")}</Label>
+                  <Select name="departmentId" defaultValue={NONE}>
+                    <SelectTrigger id="r-dept" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>{t("allDepartments")}</SelectItem>
+                      {props.scope.departments.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {localLabel(d, ar)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t("departmentHint")}</p>
+                </div>
+              ) : null}
+              {props.scope.accountables.length ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="r-accountable">{t("accountable")}</Label>
+                  <Select name="accountableUserId" defaultValue={NONE}>
+                    <SelectTrigger id="r-accountable" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>{t("noAccountable")}</SelectItem>
+                      {props.scope.accountables.map((p) => (
+                        <SelectItem key={p.userId} value={p.userId}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t("accountableHint")}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="r-rationale">{t("rationale")}</Label>
             <Textarea id="r-rationale" name="rationale" rows={3} maxLength={8000} dir="auto" />
@@ -254,7 +306,14 @@ export interface ActionOptions {
 }
 
 /** Add an action under a recommendation: its owner, due date and evidence list, as a draft or released. */
-export function ActionDialog(props: { recommendationId: string; recommendationTitle: string; options: ActionOptions; trigger: ReactNode }) {
+export function ActionDialog(props: {
+  recommendationId: string;
+  recommendationTitle: string;
+  options: ActionOptions;
+  /** A department's recommendation: its actions are that department's (the database sets it). */
+  recommendationDepartmentId?: string | null;
+  trigger: ReactNode;
+}) {
   const t = useTranslations("plan.action");
   const tc = useTranslations("common");
   const ar = useLocale() === "ar";
@@ -292,7 +351,7 @@ export function ActionDialog(props: { recommendationId: string; recommendationTi
       description: text("description"),
       ownerUserId: owner && owner !== NONE ? owner : undefined,
       ownerName: ownerByName ? text("ownerName") : undefined,
-      departmentId: dept && dept !== NONE ? dept : undefined,
+      departmentId: !props.recommendationDepartmentId && dept && dept !== NONE ? dept : undefined,
       dueDate: due,
       evidence: items.map((title) => title.trim()).filter(Boolean).map((title) => ({ title })),
       release,
@@ -363,7 +422,7 @@ export function ActionDialog(props: { recommendationId: string; recommendationTi
           {departments.length ? (
             <div className="grid gap-2">
               <Label htmlFor="a-dept">{t("department")}</Label>
-              <Select name="departmentId" defaultValue={NONE}>
+              <Select name="departmentId" defaultValue={props.recommendationDepartmentId ?? NONE} disabled={!!props.recommendationDepartmentId}>
                 <SelectTrigger id="a-dept" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -376,6 +435,7 @@ export function ActionDialog(props: { recommendationId: string; recommendationTi
                   ))}
                 </SelectContent>
               </Select>
+              {props.recommendationDepartmentId ? <p className="text-xs text-muted-foreground">{t("departmentFollows")}</p> : null}
             </div>
           ) : null}
           <fieldset className="grid gap-3 rounded-lg border p-3">

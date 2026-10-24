@@ -5,6 +5,7 @@ import {
   actions,
   activityEvents,
   clientAssignments,
+  departments,
   documents,
   engagements,
   evidenceSubmissions,
@@ -239,6 +240,18 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     .from(recommendations)
     .where(eq(recommendations.projectId, id))
     .orderBy(asc(recommendations.createdAt));
+  // Department and accountable person, by name (F31).
+  const recDepts = [...new Set(recs.flatMap((r) => (r.departmentId ? [r.departmentId] : [])))];
+  const recPeople = [...new Set(recs.flatMap((r) => (r.accountableUserId ? [r.accountableUserId] : [])))];
+  const deptNames = new Map(
+    (recDepts.length
+      ? await tx.select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn }).from(departments).where(inArray(departments.id, recDepts))
+      : []
+    ).map((d) => [d.id, d]),
+  );
+  const peopleNames = new Map(
+    (recPeople.length ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, recPeople)) : []).map((u) => [u.id, u.name]),
+  );
   const projectActions = await listActions(tx, principal, { projectId: id });
   const recResource = (r: (typeof recs)[number]): Resource => ({
     type: "recommendation",
@@ -328,6 +341,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     project: p,
     recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => ({
       ...r,
+      department: r.departmentId ? (deptNames.get(r.departmentId) ?? null) : null,
+      accountableName: r.accountableUserId ? (peopleNames.get(r.accountableUserId) ?? null) : null,
       actions: projectActions.filter((a) => a.recommendationId === r.id),
     })),
     // Shares are checked per document by the download route; the list shows

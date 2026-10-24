@@ -14,6 +14,7 @@ const body = z
     locationText: z.string().trim().max(300).optional(),
     spokenLang: z.enum(SPOKEN_LANGS).optional(),
     visibility: z.enum(["shared", "firm_private"]).optional(),
+    departmentId: z.uuid().optional(),
     attendees: z
       .array(z.object({ userId: z.uuid().optional(), contactId: z.uuid().optional(), optional: z.boolean().optional() }))
       .max(100)

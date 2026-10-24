@@ -264,6 +264,11 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | Department members are the client's own active people, in one department | `check_department_member()` | `src/services/engagement.ts` (`putDepartmentMember()`) | `tests/db/engagement.test.ts` |
 | Actions and files are filed under an active department of their client | `check_row_department()` | `src/services/plan.ts` | `tests/db/engagement.test.ts` |
 | A passage takes its source's department; refiling drops it from the index | `set_chunk_department()`, `drop_department_chunks()` | database only | `tests/db/engagement.test.ts` |
+| Recommendations and meetings are filed under an active department of their client, or none | `check_row_department()` | `src/services/plan.ts` (`createRecommendation()`), `src/services/meetings.ts` | `tests/db/engagement.test.ts` |
+| A department's recommendation is read at the client by that department, the client's admins, its accountable person and whoever owns one of its actions | `app_dept_ok()`, `app_owns_action_under()` | `src/services/queries.ts` | `tests/db/engagement.test.ts` |
+| The accountable person for a recommendation is a client admin, or someone at the client staffed on the project | `check_recommendation_accountable()` | `src/services/plan.ts` (`planOptions()`, `createRecommendation()`) | `tests/db/engagement.test.ts` |
+| An action takes its recommendation's department and is refiled with it | `check_action_department()`, `recommendation_refiled()` | `src/app/(app)/projects/[id]/plan-dialogs.tsx` (`ActionDialog`) | `tests/db/engagement.test.ts` |
+| A department's meeting gets that department's agenda, and keeps its department | `meeting_department()`, `app_meeting_agenda()` | `src/components/meeting-form.tsx` | `tests/db/engagement.test.ts` |
 
 ### Minimal records and insight
 

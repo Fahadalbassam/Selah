@@ -15,6 +15,8 @@ const body = z.object({
   decidedOn: z.iso.date().optional(),
   meetingNoteId: z.uuid().optional(),
   visibility: z.enum(["shared", "firm_private"]).default("shared"),
+  departmentId: z.uuid().optional(),
+  accountableUserId: z.uuid().optional(),
 });
 
 export const POST = route({ params: z.object({ id: z.uuid() }), body }, ({ tx, principal, params, body }) =>

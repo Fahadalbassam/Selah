@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
   clientContacts,
+  departments,
   followUps,
   meetingAttendees,
   meetingDecisions,
@@ -52,6 +53,8 @@ export interface MeetingInput {
   locationText?: string | null;
   spokenLang?: SpokenLang;
   visibility?: Visibility;
+  /** A department's meeting (set when booking; the database writes its agenda). */
+  departmentId?: string;
 }
 
 export async function listMeetings(tx: Tx, principal: Principal, projectId: string) {
@@ -95,6 +98,13 @@ export async function bookMeeting(
   const visibility = input.visibility ?? "shared";
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility });
   if (principal.orgKind === "client" && visibility !== "shared") throw new BadRequestError("client meetings are shared");
+  if (input.departmentId) {
+    const [d] = await tx
+      .select({ id: departments.id })
+      .from(departments)
+      .where(and(eq(departments.id, input.departmentId), eq(departments.orgId, project.orgId), eq(departments.active, true)));
+    if (!d) throw new BadRequestError("that department is not an active department of this client");
+  }
   const id = randomUUID();
   await tx.insert(meetings).values({
     id,
