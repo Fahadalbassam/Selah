@@ -1567,7 +1567,9 @@
       "info_request_requested": "Documents were requested from you on {title}",
       "info_request_returned": "A document you sent on {title} was returned",
       "info_request_received": "The client sent a requested document on {title}",
-      "info_request_not_applicable": "The client marked a requested item not applicable on {title}"
+      "info_request_not_applicable": "The client marked a requested item not applicable on {title}",
+      "info_request_due_soon": "Requested documents are due soon on {title}",
+      "info_request_overdue": "Requested documents are overdue on {title}"
     }
   },
   "people": {

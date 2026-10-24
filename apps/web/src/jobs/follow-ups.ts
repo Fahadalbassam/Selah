@@ -9,6 +9,11 @@
 // real day, even when the job is run for another date, so a re-run never mails
 // twice. The mail skips anyone switched off or erased, and anyone who turned
 // it off (mail_preferences).
+//
+// Information requests still waiting on the client are reminded the same way
+// (app_info_requests_due(), info_request_reminders): one notification per
+// person, project and kind ("info_request.overdue"), however many items, and
+// the same single summary mail.
 interface Queryable {
   query(sql: string, params?: unknown[]): Promise<{ rows: { sent: string; mailed: string }[] }>;
 }
@@ -27,12 +32,25 @@ export async function runFollowUps(db: Queryable, today: string): Promise<{ sent
        SELECT r, 'follow_up.' || l.kind || '.' || l.level, 'action', l.action_id FROM logged l, unnest(l.recipients) r
        RETURNING user_id
      ),
+     ir_due AS (SELECT * FROM app_info_requests_due($1::date)),
+     ir_logged AS (
+       INSERT INTO info_request_reminders (request_id, kind, level, due_date, recipients)
+       SELECT request_id, kind, level, due_date, recipients FROM ir_due
+       ON CONFLICT DO NOTHING
+       RETURNING request_id, kind, recipients
+     ),
+     ir_sent AS (
+       INSERT INTO notifications (user_id, kind, entity_type, entity_id)
+       SELECT DISTINCT r, 'info_request.' || l.kind, 'project', q.project_id
+       FROM ir_logged l JOIN info_requests q ON q.id = l.request_id, unnest(l.recipients) r
+       RETURNING user_id
+     ),
      -- Only people who got a notification: one about an action they can't
      -- see is dropped by the database (0006), and so is its mail.
      mailed AS (
        INSERT INTO outbound_emails (to_email, kind, link)
        SELECT u.email, 'follow_up.digest', '/notifications'
-       FROM (SELECT DISTINCT user_id AS r FROM sent) x
+       FROM (SELECT user_id AS r FROM sent UNION SELECT user_id FROM ir_sent) x
        JOIN "user" u ON u.id = x.r
        WHERE app_can_reset_password(x.r)
          AND coalesce((SELECT p.follow_up_digest FROM mail_preferences p WHERE p.user_id = x.r), true)
@@ -42,7 +60,7 @@ export async function runFollowUps(db: Queryable, today: string): Promise<{ sent
          )
        RETURNING 1
      )
-     SELECT (SELECT count(*) FROM sent) AS sent, (SELECT count(*) FROM mailed) AS mailed`,
+     SELECT (SELECT count(*) FROM sent) + (SELECT count(*) FROM ir_sent) AS sent, (SELECT count(*) FROM mailed) AS mailed`,
     [today],
   );
   return { sent: Number(rows[0]!.sent), mailed: Number(rows[0]!.mailed) };

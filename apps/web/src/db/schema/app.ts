@@ -761,6 +761,23 @@ export const infoRequestFiles = pgTable(
   (t) => [primaryKey({ columns: [t.requestId, t.documentId] }), index("info_request_files_document_idx").on(t.documentId)],
 );
 
+// Reminders sent for information requests, so the daily job sends each step
+// once (like follow_up_log for actions). Only the job reads or writes it.
+export const infoRequestReminders = pgTable(
+  "info_request_reminders",
+  {
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => infoRequests.id, { onDelete: "cascade" }),
+    kind: followUpKind("kind").notNull(),
+    level: integer("level").notNull(),
+    dueDate: date("due_date").notNull(),
+    recipients: uuid("recipients").array().notNull(),
+    sentAt: ts("sent_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requestId, t.kind, t.level, t.dueDate] })],
+);
+
 // A named client person accepting the risk of not implementing an action.
 // Append-only; an action closes as "risk_accepted" only with one of these.
 export const riskAcceptances = pgTable(
