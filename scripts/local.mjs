@@ -160,7 +160,10 @@ function ensureEnvFiles() {
       SEED_PASSWORD: root.SEED_PASSWORD,
       SMTP_URL: "smtp://localhost:1025",
       MAIL_FROM: root.MAIL_FROM,
-      // Local development only; the app refuses both in production.
+      // Local development only; the app refuses both in production. With no
+      // scanner host, uploads are kept as "skipped"; with one that is down,
+      // every upload is refused. --full sets it.
+      CLAMD_HOST: "",
       SCAN_REQUIRED: "false",
       TWO_FACTOR_REQUIRED: "false",
     });
@@ -236,7 +239,11 @@ async function dev(flags) {
   const services = ["db", "storage", "mailpit", ...(full ? ["clamav", "ollama", "ollama-pull", "ai"] : [])];
   npmInstall();
   await startServices(services, root);
-  const env = { ...web, NODE_ENV: "development", ...(full ? { SCAN_REQUIRED: "true" } : {}) };
+  const env = {
+    ...web,
+    NODE_ENV: "development",
+    ...(full ? { CLAMD_HOST: "localhost", SCAN_REQUIRED: "true" } : { CLAMD_HOST: "", SCAN_REQUIRED: "false" }),
+  };
   await prepareDatabase(env);
   if (full) say("the scanner and the AI models load in the background; the first start downloads a few GB");
   else say("lean start: no virus scanner (uploads are stored unscanned) and no AI assistant. Add --full for both.");
