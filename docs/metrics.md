@@ -76,3 +76,18 @@ A verification is only as strong as what it rests on, so verified actions are co
 
 - `GET /api/projects/:id/trace` returns the project as edges (`nodeType`, `nodeId`, `parentType`, `parentId`, `label`, `state`): objective ← KPI, assessment ← finding (a confirmed gap, docs/assessments.md), finding ← recommendation ← action ← evidence or review, KPI ← recommendation (meant to move it), and action ← action (the node supersedes its parent). It runs with the caller's rights, so a firm-private finding or another department's action, and every link to it, are simply absent. Plain Postgres, no graph database.
 - `GET /api/projects/:id/since-last-visit` lists the actions that moved (status or plan, progress, evidence, review) since the person last opened the project, using the same function as a meeting agenda's "changed since the last meeting". The first visit looks back 7 days. `PUT` on the same path marks the project as seen. No AI.
+
+## Today (firm staff)
+
+`/today` answers "what needs me today" across every client a firm person works on (Wave 3). It stores nothing: `today()` in `src/services/today.ts` reads under the person's rights and checks every row with `authorize()`, so it never shows more than the person could already open. Client users get a 404.
+
+Whose work counts: a consultant's projects are the ones they are staffed on, plus every project of a client they lead or deputise on (as `authorize()` already allows). The firm admin may see everything, so for them it is the projects they are staffed on or lead, and the clients and projects they watch. Sections, each with its count, rows grouped by client and the internal projects last:
+
+1. **Waiting for your review**: actions in Awaiting Review on those projects that the person may verify. Work they own or submitted in the current round is left out (the self-review rule, `canTransition()`), so an internal action's owner never sees their own.
+2. **Due this week**: open actions overdue or due within 7 days on the clients and internal projects the person leads (lead or deputy), and their own actions; not on closed projects, and not the ones already in the review list.
+3. **Your follow-ups**: open follow-ups assigned to them, overdue first. Each links to its meeting, else its action, else the project.
+4. **Meetings this week**: not cancelled, starting from today to 7 days ahead (firm days, Asia/Riyadh), that they organise or attend, with whether the agenda is written.
+5. **Waiting on your decision**: pending join requests they may decide (the admin, or the client's lead or deputy); pending deadline changes on the projects they lead, not their own; clients' closure requests (the firm admin); and request-list items the client answered (`received`) on their projects.
+6. **Since your last visit**: per open project, how many actions moved since they last opened it, with the same function and 7-day first-visit rule as the project page.
+
+Not on the page, by design: time tracking, and team load or backlog columns (a later wave).
