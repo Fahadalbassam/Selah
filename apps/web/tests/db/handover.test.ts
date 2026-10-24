@@ -135,9 +135,15 @@ afterAll(async () => {
 
 describe("the client's sponsor", () => {
   it("is an active admin or manager of the project's client", async () => {
-    const set = (who: string) => run(U.admin, `UPDATE projects SET client_sponsor_user_id = $2 WHERE id = $1`, [PROJ, who]);
-    for (const who of [U.cowner, U.betaMgr, U.lead]) {
-      await expect(set(who), who).rejects.toThrow(/sponsor must be an active admin or manager/);
+    const set = (who: string) =>
+      run(U.admin, `INSERT INTO project_client_roles (project_id, role, user_id, created_by) VALUES ($1, 'sponsor', $2, $3)`, [
+        PROJ,
+        who,
+        U.admin,
+      ]);
+    await expect(set(U.cowner)).rejects.toThrow(/sponsor, coordinator and acceptors are the client's admins or managers/);
+    for (const who of [U.betaMgr, U.lead]) {
+      await expect(set(who), who).rejects.toThrow(/needs an active account at the project.s client/);
     }
     await set(U.cadmin);
   });
@@ -196,31 +202,27 @@ describe("the handover card", () => {
       [60, "open", true],
       [90, "open", true],
     ]);
-    expect(firm.sponsors.map((x) => x.id).sort()).toEqual([U.cadmin, U.cmgr].sort());
 
     const client = await svc(U.cmgr, (tx, p) => getHandover(tx, p, PROJ));
     expect(client).toMatchObject({
       handoverOn: "2026-11-11",
       sponsor: { id: U.cadmin, name: "cadmin" },
       checkins: [],
-      sponsors: [],
     });
     expect(client.can.edit).toBe(false);
     // The lead completes their own check-ins but can't change the handover.
     expect((await svc(U.lead, (tx, p) => getHandover(tx, p, PROJ))).can.edit).toBe(false);
     await expect(svc(U.lead, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-12-01" }))).rejects.toThrow();
-    await expect(svc(U.cadmin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: null }))).rejects.toThrow();
+    await expect(svc(U.cadmin, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-12-01" }))).rejects.toThrow();
 
-    const moved = await svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-11-21", sponsorUserId: U.cmgr }));
-    expect(moved).toMatchObject({ handoverOn: "2026-11-21", sponsor: { id: U.cmgr } });
+    const moved = await svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { handoverOn: "2026-11-21" }));
+    expect(moved).toMatchObject({ handoverOn: "2026-11-21", sponsor: { id: U.cadmin } });
     expect(
       moved.checkins
         .find((c) => c.day === 60)!
         .dueAt!.toISOString()
         .slice(0, 10),
     ).toBe("2027-01-20");
-    await expect(svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: U.cowner }))).rejects.toThrow(/sponsor/);
-    await svc(U.admin, (tx, p) => setHandover(tx, p, PROJ, { sponsorUserId: U.cadmin }));
   });
 });
 

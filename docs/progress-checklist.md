@@ -27,7 +27,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 ### J01 · Lead · العميل المحتمل
 
 - [ ] **J01.1** Enter a referral or tender by hand — lane: firm · map: wave 1 · covered by: F08 · wave: 1
-- [~] **J01.2** Approach a prospect ourselves — lane: firm · map: missing · covered by: N4 · wave: 1
+- [x] **J01.2** Approach a prospect ourselves — lane: firm · map: missing · covered by: N4 · wave: 1
 - [ ] **J01.3** Inquiry arrives (firm: Admins notified; client: Gets acknowledgement mail) — lane: shared · map: wave 1 · covered by: F08 · wave: 1
 - [x] **J01.4** Fills the /inquiry form — lane: client · map: exists · wave: — · pr: #4
 
@@ -65,7 +65,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J06.1** Add contacts (managed mode) — lane: firm · map: exists · wave: — · pr: #35
 - [x] **J06.2** Put client people on a project — lane: firm · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
-- [ ] **J06.3** Name the roles (firm: Records sponsor, acceptors; client: Confirms who signs off) — lane: shared · map: wave 1 · covered by: F06 · wave: 1
+- [~] **J06.3** Name the roles (firm: Records sponsor, acceptors; client: Confirms who signs off) — lane: shared · map: wave 1 · covered by: F06 · wave: 1
 - [x] **J06.4** Invites managers and owners — lane: client · map: exists · wave: — · pr: #20
 - [x] **J06.5** Adds them to a project — lane: client · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
 
@@ -150,7 +150,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ### Tier 2 · The enrolment spine
 
 - [x] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64
-- [ ] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3
+- [~] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66 (open)
 - [ ] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3
 - [ ] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3
 - [ ] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4
@@ -209,10 +209,10 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [ ] **N1** Edit, withdraw and release recommendations and findings — wave: 1 · journey: J09.2
 - [x] **N2** Actions under a firm-only recommendation stay firm-only (test first) — wave: 1 · pr: #62
 - [x] **N3** A draft project state the client never sees — wave: 1 · pr: #64
-- [~] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2 · pr: #65 (open)
+- [x] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2 · pr: #65
 - [ ] **N5** The lead of an internal project can close it — wave: 1
 - [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26
-- [~] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65 (open)
+- [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
 - [ ] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03
 - [ ] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25
 - [ ] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08

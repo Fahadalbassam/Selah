@@ -56,6 +56,9 @@ export const POLICY = {
   "project.create": { firm_admin: "any", consultant: "lead" },
   "project.create_internal": { ...STAFF }, // the creator becomes its lead
   "project.update": { firm_admin: "any" },
+  // Naming the client's sponsor, coordinator, steering committee, acceptors and
+  // observers (item 6). The database decides each case (app_can_manage_client_roles).
+  "client_role.manage": { firm_admin: "any", consultant: "lead", client_admin: "any" },
   "project.manage_members": { firm_admin: "any", client_admin: "any", consultant: "lead" },
   // The signed engagement (what the client agreed): the client's consultants
   // and its admin read it; the firm admin records it. baseline: Engagements.

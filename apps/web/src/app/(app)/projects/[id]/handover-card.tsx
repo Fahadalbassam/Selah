@@ -14,7 +14,6 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export interface Handover {
@@ -31,7 +30,6 @@ export interface Handover {
     assignee: string | null;
     canComplete: boolean;
   }[];
-  sponsors: { id: string; name: string }[];
   can: { edit: boolean };
 }
 
@@ -44,7 +42,6 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sponsor, setSponsor] = useState(data.sponsor?.id ?? "none");
   const [confirm, confirmDialog] = useConfirm();
   const closed = data.state === "closed";
   const client = data.kind === "client";
@@ -55,10 +52,7 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
     const date = String(new FormData(e.currentTarget).get("handoverOn") ?? "");
     setBusy(true);
     setError(null);
-    const r = await callApi(`/api/projects/${projectId}/handover`, "PATCH", {
-      ...(date ? { handoverOn: date } : {}),
-      ...(client ? { sponsorUserId: sponsor === "none" ? null : sponsor } : {}),
-    });
+    const r = await callApi(`/api/projects/${projectId}/handover`, "PATCH", date ? { handoverOn: date } : {});
     setBusy(false);
     if (!r.ok) return setError(r.message ?? tc(`errors.${r.error}`));
     setOpen(false);
@@ -178,25 +172,6 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
               <Label htmlFor="h-date">{t("date")}</Label>
               <DatePicker id="h-date" name="handoverOn" defaultValue={data.handoverOn ?? undefined} placeholder={t("date")} />
             </div>
-            {client ? (
-              <div className="grid gap-2">
-                <Label htmlFor="h-sponsor">{t("sponsor")}</Label>
-                <Select value={sponsor} onValueChange={setSponsor}>
-                  <SelectTrigger id="h-sponsor" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t("noSponsor")}</SelectItem>
-                    {data.sponsors.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">{t("sponsorHint")}</p>
-              </div>
-            ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}
