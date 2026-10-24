@@ -193,6 +193,9 @@ export const POLICY = {
   // The firm's own settings: intake address, client KPIs, reminders, review
   // and retention periods. The database enforces the ranges.
   "firm_settings.manage": { firm_admin: "any" },
+  // The audit-log screen (R2): the firm admin reads everything, a client admin what their own
+  // people did. The database decides what each sees (app_audit_entries).
+  "audit_log.read": { firm_admin: "any", client_admin: "any" },
 
   // Intake. Firm admins see and decide every inquiry; the consultant it is
   // handed to qualifies it (moves it forward, adds notes, runs discovery).

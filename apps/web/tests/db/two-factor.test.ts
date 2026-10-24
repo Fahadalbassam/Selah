@@ -5,6 +5,7 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... TEST_DATABASE_AUTH_URL=... npm run test:db
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -76,7 +77,8 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await owner.query(`TRUNCATE two_factor, session, outbound_emails, audit_log`);
+  await owner.query(`TRUNCATE two_factor, session, outbound_emails`);
+  await truncateAuditLog(owner);
   await owner.query(`UPDATE "user" SET two_factor_enabled = false`);
 });
 

@@ -7,6 +7,7 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { runMail, type OutgoingMail } from "../../src/jobs/mail";
 import { MAIL_KINDS, renderMail } from "../../src/lib/mail-templates";
+import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -52,7 +53,8 @@ const reset = (uid: string, token = TOKEN) => authDb.query(`SELECT app_queue_pas
 beforeAll(async () => {
   const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
   await q(`TRUNCATE "user", organizations CASCADE`);
-  await q(`TRUNCATE outbound_emails, audit_log`);
+  await q(`TRUNCATE outbound_emails`);
+  await truncateAuditLog(owner);
   await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'firm','firm'), ($2,'client','Acme')`, [FIRM, ACME]);
   for (const [name, uid] of Object.entries(U)) {
     await q(`INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)`, [uid, name, `${name}@example.test`]);
@@ -301,7 +303,7 @@ describe("password reset", () => {
   });
 
   it("mails a notice and logs the reset", async () => {
-    await owner.query(`TRUNCATE audit_log`);
+    await truncateAuditLog(owner);
     await authDb.query(`SELECT app_password_was_reset($1)`, [U.cmgr]);
     expect(await queue()).toMatchObject([{ to_email: "cmgr@example.test", kind: "password_reset.notice", link: null }]);
     const log = (await owner.query(`SELECT actor_id, action, outcome FROM audit_log`)).rows;

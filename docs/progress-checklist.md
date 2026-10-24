@@ -108,7 +108,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J11.1** Needs attention per project — lane: firm · map: exists · wave: — · pr: #23
 - [ ] **J11.2** Firm-wide exceptions — lane: firm · map: wave 1 · covered by: F18 · wave: 1
 - [ ] **J11.3** Monthly status pack — lane: firm · map: wave 1 · covered by: F19 · wave: 1
-- [ ] **J11.4** Audit-log screen — lane: firm · map: wave 1 · covered by: R2 · wave: 1
+- [~] **J11.4** Audit-log screen — lane: firm · map: wave 1 · covered by: R2 · wave: 1 · pr: #77 (open)
 - [x] **J11.5** Shared report (firm: Freezes and shares it; client: Reads it, downloads PDF) — lane: shared · map: exists · wave: — · pr: #17, #41
 - [x] **J11.6** Daily digest mail — lane: client · map: exists · wave: — · pr: #44
 - [x] **J11.7** Picks mail frequency — lane: client · map: wave 1 · covered by: F12 · wave: 1 · pr: #78
@@ -195,7 +195,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ## Readiness before real client data
 
 - [ ] **R1** Terms, consent records, AI notice, data agreement — size: S · wave: 1 · journey: J05.5
-- [ ] **R2** Audit-log screen and tamper evidence — size: M · wave: 1 · journey: J11.4
+- [~] **R2** Audit-log screen and tamper evidence — size: M · wave: 1 · journey: J11.4 · pr: #77 (open)
 - [ ] **R3** Backups, restore drill, incident runbook — size: M · wave: 1
 - [ ] **R4** Readiness checks, alerts, upgrades — size: S · wave: later (before real data)
 - [ ] **R5** Security pack for client IT — size: S · wave: later (before real data)
