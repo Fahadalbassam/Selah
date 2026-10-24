@@ -57,7 +57,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // A link may open a tab (a notification about a request opens the list).
   const { tab } = await searchParams;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests, closure } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, deviations, trace, handover, requests, closure } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -82,6 +82,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       // Who may book: the list of people to invite, or null.
       invitees: await meetingInvitees(tx, principal, id).catch(() => null),
       me: principal.userId,
+      // Reads and comments only here (N6).
+      observing: principal.observedProjectIds?.has(id) ?? false,
       // Action owners don't read metrics or reports; they get no tab.
       metrics: await projectMetrics(tx, principal, id)
         .then(async (m) => ({ ...m, progress: await projectProgress(tx, principal, id) }))
@@ -135,10 +137,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         title={project.title}
         description={project.description ?? undefined}
         meta={
-          <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
-            {tKind(project.kind)}
-            {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
-          </Badge>
+          <>
+            <Badge variant={project.kind === "internal" ? "secondary" : "outline"}>
+              {tKind(project.kind)}
+              {project.kind === "client" ? ` · ${(ar ? project.orgNameAr : null) ?? project.orgName}` : ""}
+            </Badge>
+            {observing ? (
+              <Badge variant="outline" className="gap-1" title={ts("observingHint")}>
+                <Eye className="size-3" />
+                {ts("observerBadge")}
+              </Badge>
+            ) : null}
+          </>
         }
       >
         {team?.can.edit ? (
@@ -644,6 +654,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                           required: true,
                           options: team.candidates.map((c) => ({ value: c.userId, label: `${c.name} · ${c.email}` })),
                         },
+                        {
+                          name: "as",
+                          label: ts("staffAs"),
+                          type: "select",
+                          required: true,
+                          defaultValue: "member",
+                          options: [
+                            { value: "member", label: ts("staffAsMember") },
+                            { value: "observer", label: ts("staffAsObserver") },
+                          ],
+                        },
                       ]}
                       submitLabel={ts("add")}
                     />
@@ -675,6 +696,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                           <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
                             <Crown className="size-3" />
                             {ts("leadBadge")}
+                          </Badge>
+                        ) : null}
+                        {m.observer ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Eye className="size-3" />
+                            {ts("observerBadge")}
                           </Badge>
                         ) : null}
                       </p>

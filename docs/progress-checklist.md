@@ -213,7 +213,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N3** A draft project state the client never sees — wave: 1 · pr: #64
 - [x] **N4** A prospect record and a firm-outreach source — wave: 1 · journey: J01.2 · pr: #65
 - [x] **N5** The lead of an internal project can close it — wave: 1 · pr: #79
-- [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26
+- [x] **N6** A read-only observer role for colleagues — wave: 1 · related: F26 · pr: #92
 - [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
 - [x] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74
 - [x] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25 · pr: #79

@@ -26,7 +26,7 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
   if (!membership) return null;
 
   const rows = await tx
-    .select({ projectId: projectMembers.projectId, isLead: projectMembers.isLead })
+    .select({ projectId: projectMembers.projectId, isLead: projectMembers.isLead, observer: projectMembers.observer })
     .from(projectMembers)
     .where(eq(projectMembers.userId, userId));
 
@@ -53,6 +53,7 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     assignedClientIds: new Set(assignments.map((a) => a.clientOrgId)),
     leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
     leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
+    observedProjectIds: new Set(rows.filter((r) => r.observer).map((r) => r.projectId)),
     departmentIds: new Set(departments.map((d) => d.id)),
     readOnly: membership.status === "archived",
   };

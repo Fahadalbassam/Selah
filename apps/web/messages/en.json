@@ -564,7 +564,12 @@
     "clientLeadBadge": "Client lead · sees all projects",
     "suggestionsHint": "Matched against inquiry {ref}, from each consultant's declared expertise. A suggestion only; you choose.",
     "suggestionsNoInquiry": "This client did not come through an inquiry, so there is nothing to match consultants against.",
-    "onTeam": "On the team"
+    "onTeam": "On the team",
+    "staffAs": "On the project as",
+    "staffAsMember": "Works on it",
+    "staffAsObserver": "Observer: reads and comments, changes nothing",
+    "observerBadge": "Observer",
+    "observingHint": "You observe this project: you read it and add notes to actions, and change nothing else."
   },
   "inquiry": {
     "metaTitle": "Work with us",

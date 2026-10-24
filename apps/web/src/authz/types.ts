@@ -23,6 +23,8 @@ export interface Principal {
   leadClientIds: ReadonlySet<string>;
   /** Projects (internal) the user leads. */
   leadProjectIds: ReadonlySet<string>;
+  /** Projects the user only observes: they read and comment, and change nothing else. */
+  observedProjectIds?: ReadonlySet<string>;
   /** Client users only: the departments they belong to (their team). */
   departmentIds: ReadonlySet<string>;
   /** Client users only: their client is archived and in its grace period, so they can only read. */
