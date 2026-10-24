@@ -24,6 +24,7 @@ export const MAIL_KINDS = [
   "action.mentioned",
   "follow_up.digest",
   "client.archived",
+  "pulse.requested",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -266,6 +267,25 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
         "You can still sign in to read your records and download your files for a limited time. Sign in to see until when.",
       ],
       action: "Open Selah",
+    },
+  },
+  // The closing pulse (F36): to the client people asked, when their project closes.
+  "pulse.requested": {
+    ar: {
+      subject: "كيف كانت تجربتكم في المشروع؟",
+      lines: [
+        "أُغلق مشروع عملتم عليه في صلة. نرجو أن تجيبوا عن ثلاثة أسئلة قصيرة عن سير العمل.",
+        "الإجابة اختيارية، ولا يراها إلا المكتب. يمكنكم تعديلها خلال 30 يومًا من الإغلاق.",
+      ],
+      action: "الإجابة عن الأسئلة",
+    },
+    en: {
+      subject: "How did the project go?",
+      lines: [
+        "A project you worked on in Selah has closed. Please answer three short questions about how the work went.",
+        "Answering is optional, and only the firm sees your answers. You can change them for 30 days after closing.",
+      ],
+      action: "Answer the questions",
     },
   },
 };

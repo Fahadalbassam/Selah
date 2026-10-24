@@ -91,6 +91,11 @@ export const POLICY = {
   "closure.sustainer": { ...STAFF, client_admin: "any", client_manager: "any" },
   // The client's admin or the project's sponsor asks the firm to close (N9).
   "closure.request": { client_admin: "any", client_manager: "any" },
+  // The closing pulse (F36): the client people asked answer it after closing
+  // (the database decides who is asked: app_can_answer_pulse). Only the firm
+  // admin and the client's lead read the answers (app_can_read_pulse).
+  "pulse.answer": { client_admin: "any", client_manager: "any" },
+  "pulse.read": { firm_admin: "any", consultant: "lead" },
 
   // Staffing. Only the firm admin adds clients and names a client's lead.
   // The lead consultant adds or removes consultants on that client and,
@@ -302,6 +307,8 @@ export const OPEN_WHEN_CLOSED: ReadonlySet<Permission> = new Set<Permission>([
   "project.watch",
   "follow_up.write",
   "assistant.query",
+  // The closing pulse is answered once the project is closed (F36).
+  "pulse.answer",
 ]);
 
 /**
