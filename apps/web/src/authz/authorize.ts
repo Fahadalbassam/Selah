@@ -1,4 +1,4 @@
-import { grantFor, isReadPermission, OPEN_WHEN_ARCHIVED, OPEN_WHEN_CLOSED, type Permission, type Scope } from "./policy";
+import { grantFor, isReadPermission, OPEN_TO_OBSERVERS, OPEN_WHEN_ARCHIVED, OPEN_WHEN_CLOSED, type Permission, type Scope } from "./policy";
 import type { Decision, Principal, Resource } from "./types";
 
 /**
@@ -15,9 +15,10 @@ import type { Decision, Principal, Resource } from "./types";
  *                     owner_org / lead / team) cover this record?
  *   5. Label        - does the visibility label allow this user?
  *
- * Then two rules of state: nothing in a closed project is written, except
- * what OPEN_WHEN_CLOSED lists, and the people of an archived client only
- * read, except what OPEN_WHEN_ARCHIVED lists.
+ * Then three rules of state: nothing in a closed project is written, except
+ * what OPEN_WHEN_CLOSED lists; the people of an archived client only read,
+ * except what OPEN_WHEN_ARCHIVED lists; and an observer writes nothing in
+ * the project they observe, except what OPEN_TO_OBSERVERS lists.
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
@@ -42,6 +43,15 @@ export function authorize(principal: Principal, permission: Permission, resource
 
   if (principal.readOnly && !isReadPermission(permission) && !OPEN_WHEN_ARCHIVED.has(permission)) {
     return deny("org:archived");
+  }
+
+  if (
+    resource.projectId &&
+    principal.observedProjectIds?.has(resource.projectId) &&
+    !isReadPermission(permission) &&
+    !OPEN_TO_OBSERVERS.has(permission)
+  ) {
+    return deny("project:observer");
   }
 
   return { allowed: true, reason: "ok" };

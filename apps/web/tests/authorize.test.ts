@@ -630,3 +630,26 @@ describe("a client leaving", () => {
     }
   });
 });
+
+describe("observers (N6)", () => {
+  const base = principal("consultant", [ACME_PROJ_1, ACME_PROJ_2], undefined, [ACME]);
+  const observer = { ...base, observedProjectIds: new Set([ACME_PROJ_1]) };
+
+  it("read the project they observe and add notes to its actions, and write nothing else there", () => {
+    const action = acmeRecord("action");
+    expect(authorize(observer, "action.read", action).allowed).toBe(true);
+    expect(authorize(observer, "document.download", acmeRecord("document")).allowed).toBe(true);
+    expect(authorize(observer, "action_note.create", action).allowed).toBe(true);
+    for (const p of ["action.review", "action.write", "recommendation.write", "document.upload", "meeting.book"] as Permission[]) {
+      expect(authorize(observer, p, acmeRecord(p.startsWith("action") ? "action" : "recommendation")), p).toMatchObject({
+        allowed: false,
+        reason: "project:observer",
+      });
+    }
+  });
+
+  it("work as usual on the projects they are staffed on", () => {
+    expect(authorize(observer, "recommendation.write", acmeRecord("recommendation", { projectId: ACME_PROJ_2 })).allowed).toBe(true);
+    expect(authorize(base, "recommendation.write", acmeRecord("recommendation")).allowed).toBe(true);
+  });
+});

@@ -478,7 +478,14 @@ export async function getProjectTeam(tx: Tx, principal: Principal, projectId: st
   if (principal.orgKind !== "firm") return null; // the firm's staffing view
   const { project, resource } = await loadProject(tx, principal, projectId);
   const members = await tx
-    .select({ userId: projectMembers.userId, isLead: projectMembers.isLead, name: user.name, email: user.email, orgId: orgMemberships.orgId })
+    .select({
+      userId: projectMembers.userId,
+      isLead: projectMembers.isLead,
+      observer: projectMembers.observer,
+      name: user.name,
+      email: user.email,
+      orgId: orgMemberships.orgId,
+    })
     .from(projectMembers)
     .innerJoin(user, eq(user.id, projectMembers.userId))
     .leftJoin(orgMemberships, and(eq(orgMemberships.userId, projectMembers.userId), eq(orgMemberships.active, true)))
@@ -550,7 +557,12 @@ async function firmColleagues(tx: Tx, principal: Principal) {
 }
 
 /** Staff a firm member on a project (the client's lead, an internal project's lead, or the admin). */
-export async function staffProject(tx: Tx, principal: Principal, projectId: string, userId: string) {
+/**
+ * Put a consultant on a project. An observer (wave 1, N6) reads it and adds
+ * notes to actions but changes nothing else; the database checks who may
+ * be one (check_project_observer) and what they may write.
+ */
+export async function staffProject(tx: Tx, principal: Principal, projectId: string, userId: string, observer = false) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   if (principal.orgKind !== "firm") throw new NotFoundError("project");
   assertAllowed(principal, "project.manage_members", resource);
@@ -567,13 +579,13 @@ export async function staffProject(tx: Tx, principal: Principal, projectId: stri
   }
   const inserted = await tx
     .insert(projectMembers)
-    .values({ projectId, userId, addedBy: principal.userId })
+    .values({ projectId, userId, observer, addedBy: principal.userId })
     .onConflictDoNothing()
     .returning({ userId: projectMembers.userId });
   if (inserted.length && userId !== principal.userId) {
     await tx.insert(notifications).values({ userId, kind: "project.staffed", entityType: "project", entityId: projectId });
   }
-  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.staff", resourceType: "project", resourceId: projectId, outcome: "allow", meta: { userId } });
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action: "project.staff", resourceType: "project", resourceId: projectId, outcome: "allow", meta: observer ? { userId, observer } : { userId } });
   return { ok: true };
 }
 
