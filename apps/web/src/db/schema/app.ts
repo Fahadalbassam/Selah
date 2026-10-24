@@ -1099,6 +1099,15 @@ export const inquiryStatus = pgEnum("inquiry_status", [
 // entered by firm staff for a referral, a returning client, a government
 // tender (Etimad) or a company the firm approached.
 export const inquirySource = pgEnum("inquiry_source", ["website", "referral", "existing_client", "tender", "firm_outreach"]);
+// The public form's lighter questions (wave 1, item 8): the requester's
+// place in the company, how they want to be reached, and, for a family
+// business, which generation runs it, how many of the family work in it and
+// what governance it has.
+export const requesterRole = pgEnum("requester_role", ["owner_chair", "board_member", "ceo", "executive", "family_member", "manager", "other"]);
+export const contactChannel = pgEnum("contact_channel", ["email", "phone", "whatsapp"]);
+export const familyGeneration = pgEnum("family_generation", ["first", "second", "third_plus"]);
+export const familyWorking = pgEnum("family_working", ["none", "1-3", "4-10", "11+"]);
+export const familyGovernance = pgEnum("family_governance", ["charter", "council", "both", "none", "unsure"]);
 export const conflictStatus = pgEnum("conflict_status", ["not_checked", "clear", "flagged", "waived"]);
 export const discoveryMode = pgEnum("discovery_mode", ["in_person", "video", "phone"]);
 export const discoveryOutcome = pgEnum("discovery_outcome", ["proceed", "not_a_fit", "needs_followup"]);
@@ -1131,11 +1140,19 @@ export const inquiries = pgTable(
     employeeBand: employeeBand("employee_band"),
     ownershipType: ownershipType("ownership_type"),
     contactName: text("contact_name"),
+    // A job title in the requester's words; the form asks for the role from a list.
     contactRole: text("contact_role"),
+    requesterRole: requesterRole("requester_role"),
+    contactChannel: contactChannel("contact_channel").notNull().default("email"),
     contactEmail: text("contact_email"),
     contactPhone: text("contact_phone"),
     preferredLanguage: text("preferred_language").notNull(),
     message: text("message"),
+    // What makes this the moment to act; asked on the public form.
+    whyNow: text("why_now"),
+    familyGeneration: familyGeneration("family_generation"),
+    familyWorking: familyWorking("family_working"),
+    familyGovernance: familyGovernance("family_governance"),
     // Mirrors the sponsor's survey: a first maturity snapshot.
     selfCheck: jsonb("self_check").$type<Record<string, boolean>>().notNull(),
     urgency: inquiryUrgency("urgency"),
@@ -1143,6 +1160,8 @@ export const inquiries = pgTable(
     // The public form only: the notice the requester agreed to.
     privacyNoticeVersion: text("privacy_notice_version"),
     consentedAt: ts("consented_at"),
+    // A separate, unticked choice to hear from the firm later (PDPL); null when not given.
+    marketingConsentAt: ts("marketing_consent_at"),
     // HMACs with a server secret; never the raw IP or user agent.
     ipHash: text("ip_hash"),
     userAgentHash: text("user_agent_hash"),
@@ -1173,7 +1192,16 @@ export const inquiries = pgTable(
     ),
     check(
       "inquiry_website_fields",
-      sql`${t.source} <> 'website' OR (${t.privacyNoticeVersion} IS NOT NULL AND ${t.consentedAt} IS NOT NULL AND ${t.employeeBand} IS NOT NULL AND ${t.ownershipType} IS NOT NULL AND ${t.enteredBy} IS NULL)`,
+      sql`${t.source} <> 'website' OR (${t.privacyNoticeVersion} IS NOT NULL AND ${t.consentedAt} IS NOT NULL AND ${t.enteredBy} IS NULL)`,
+    ),
+    check("inquiry_marketing_consent", sql`${t.marketingConsentAt} IS NULL OR ${t.source} = 'website'`),
+    check("inquiry_why_now", sql`length(${t.whyNow}) BETWEEN 1 AND 500`),
+    // Reaching someone by phone or WhatsApp needs a number (until the details are cleared).
+    check("inquiry_contact_channel", sql`${t.contactChannel} = 'email' OR ${t.contactPhone} IS NOT NULL OR ${t.anonymisedAt} IS NOT NULL`),
+    // The family questions are for family businesses.
+    check(
+      "inquiry_family_fields",
+      sql`coalesce(${t.ownershipType} IN ('family_single_owner', 'family_multi_partner'), false) OR (${t.familyGeneration} IS NULL AND ${t.familyWorking} IS NULL AND ${t.familyGovernance} IS NULL)`,
     ),
     check("inquiry_entered_by", sql`${t.source} = 'website' OR ${t.enteredBy} IS NOT NULL`),
     check(

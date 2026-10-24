@@ -29,22 +29,30 @@ test("a visitor sends the public inquiry form (English, then the sent page in Ar
   await p.getByLabel("Organisation name").fill(org);
   await p.getByRole("combobox", { name: "Sector" }).click();
   await p.getByRole("option").first().click();
-  await p.getByRole("combobox", { name: "Ownership" }).click();
-  await p.getByRole("option").first().click();
-  await p.getByRole("radio", { name: "10–49" }).click();
   await p.getByRole("button", { name: "Continue" }).click();
   await p.getByLabel("Your name").fill("Faisal Test");
+  await p.getByRole("combobox", { name: "Your role" }).click();
+  await p.getByRole("option", { name: "Board member" }).click();
   await p.getByLabel("Work email").fill(`faisal-${stamp}@qimma.example`);
+  // WhatsApp needs a number.
+  await p.getByRole("radio", { name: "WhatsApp" }).click();
+  await p.getByRole("button", { name: "Continue" }).click();
+  await expect(p.getByText("Add the number we should call or message.")).toBeVisible();
+  await p.getByLabel("WhatsApp number").fill("+966 55 000 0000");
   await p.getByRole("button", { name: "Continue" }).click();
   await p.getByRole("checkbox", { name: "Corporate governance" }).click();
+  await p.getByLabel("Why now?").fill("The board changes in January.");
   await p.getByRole("radio", { name: "Within 3 months" }).click();
   await p.getByRole("button", { name: "Continue" }).click();
+  await p.getByRole("combobox", { name: "Ownership" }).click();
+  await p.getByRole("option", { name: /several partners/ }).click();
+  await p.getByRole("radio", { name: "10–49" }).click();
+  await p.getByRole("radiogroup", { name: "Which generation runs the business today?" }).getByRole("radio", { name: "The second generation" }).click();
   await p.getByRole("radiogroup", { name: "A written strategy" }).getByRole("radio", { name: "No" }).click();
   await p.getByRole("button", { name: "Continue" }).click();
-  // Sending without consent is refused.
   await p.getByRole("button", { name: "Send inquiry" }).click();
   await expect(p.getByText(/privacy notice/i).first()).toBeVisible();
-  await p.getByRole("checkbox").last().click();
+  await p.getByRole("checkbox", { name: /privacy notice/ }).click();
   await p.getByRole("button", { name: "Send inquiry" }).click();
   await expect(p.getByRole("heading").filter({ hasText: /thank|sent|received/i }).first()).toBeVisible();
   await p.screenshot({ path: "e2e-results/shots/inquiry-en-sent.png", fullPage: true });
@@ -60,6 +68,8 @@ test("the firm admin triages it, books discovery, records the outcome and makes 
   await page.getByRole("button", { name: "Assign an owner" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Assign an owner" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Run the conflict search" }).click();
+  await expect(page.getByRole("button", { name: "Search again" })).toBeVisible();
   await page.getByRole("button", { name: "Record the check" }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("Checked against clients and owners");
   await page.getByRole("dialog").getByRole("button", { name: "Record the check" }).click();
