@@ -94,7 +94,7 @@ export function HealthTable({ rows }: { rows: PortfolioRow[] }) {
   const lastActive = (r: PortfolioRow) => {
     if (r.kind === "internal") return "—";
     if (r.mode === "consultant_managed") return t("health.recordedByFirm");
-    return r.clientLastActive ? format.relativeTime(new Date(r.clientLastActive)) : t("health.never");
+    return r.clientLastActive ? format.relativeTime(new Date(r.clientLastActive), new Date()) : t("health.never");
   };
   return (
     <Card className="gap-4 py-5 shadow-xs">

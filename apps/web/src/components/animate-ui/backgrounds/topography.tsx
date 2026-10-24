@@ -523,7 +523,11 @@ function TopographyBackgroundContent({
   const inView = useInView(containerRef);
   const pageVisible = usePageVisible();
   const reduce = useShouldReduceMotion();
-  const playing = inView && pageVisible && !reduce;
+  // Software WebGL (no GPU: virtual machines, remote desktops, blocked
+  // drivers) draws every frame on the CPU and starves the page's own
+  // scripts, so the lines hold still there, as under reduced motion.
+  const [software, setSoftware] = React.useState(false);
+  const playing = inView && pageVisible && !reduce && !software;
 
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
@@ -546,8 +550,9 @@ function TopographyBackgroundContent({
   });
 
   React.useEffect(() => {
-    if (reduce) {
+    if (reduce || software) {
       rise.jump(1);
+      drawRef.current(timeRef.current);
       return;
     }
     const controls = animate(rise, 1, {
@@ -555,7 +560,7 @@ function TopographyBackgroundContent({
       ease: [0.16, 1, 0.3, 1],
     });
     return () => controls.stop();
-  }, [reduce, rise]);
+  }, [reduce, software, rise]);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -568,6 +573,7 @@ function TopographyBackgroundContent({
       antialias: false,
     });
     const render = gl ? createGlRenderer(gl) : null;
+    if (gl && isSoftwareGl(gl)) setSoftware(true);
     if (render) {
       paceRef.current = 0;
       let width = 0;
@@ -933,6 +939,12 @@ function TopographyBackgroundContent({
       {children}
     </div>
   );
+}
+
+function isSoftwareGl(gl: WebGLRenderingContext) {
+  const info = gl.getExtension('WEBGL_debug_renderer_info');
+  const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+  return /swiftshader|llvmpipe|softpipe|software/i.test(renderer);
 }
 
 function TopographyBackground(props: TopographyBackgroundProps) {

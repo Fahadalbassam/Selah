@@ -12,19 +12,21 @@ test.describe.configure({ mode: "serial" });
 
 async function linkFromMail(to: string, path: string): Promise<string> {
   const api = await request.newContext();
-  let id = "";
+  // The same person may already have other mail (the invitation), so wait for one carrying this link.
+  const find = new RegExp(`https?://\\S+${path}\\S+`);
+  let url = "";
   await expect
     .poll(async () => {
       const r = await api.get(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`);
-      const m = (await r.json()).messages ?? [];
-      id = m[0]?.ID ?? "";
-      return id;
-    }, { timeout: 60_000, message: `mail to ${to}` })
+      for (const m of (await r.json()).messages ?? []) {
+        const msg = await (await api.get(`${MAILPIT}/api/v1/message/${m.ID}`)).json();
+        url = (msg.Text as string).match(find)?.[0] ?? "";
+        if (url) break;
+      }
+      return url;
+    }, { timeout: 60_000, message: `mail to ${to} with ${path}` })
     .not.toBe("");
-  const msg = await (await api.get(`${MAILPIT}/api/v1/message/${id}`)).json();
-  const url = (msg.Text as string).match(new RegExp(`https?://\\S+${path}\\S+`))?.[0];
-  expect(url, msg.Text).toBeTruthy();
-  return url!.replace(/[).,]+$/, "");
+  return url.replace(/[).,]+$/, "");
 }
 
 async function setPassword(page: Page, pw: string) {

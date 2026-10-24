@@ -88,6 +88,11 @@ test("the firm admin triages it, books discovery, records the outcome and makes 
   await c.getByRole("combobox", { name: "Lead consultant (optional)" }).click();
   await page.getByRole("option", { name: /نورة/ }).click();
   await c.getByRole("textbox", { name: "First project (optional)" }).fill(project);
+  // What the client signed: the engagement is recorded with the client.
+  await c.getByRole("textbox", { name: "Engagement title" }).fill(`Governance framework ${stamp}`);
+  await c.getByRole("button", { name: "Signed on", exact: true }).click();
+  await page.locator(".rdp-root").last().locator("td[data-today] button").click();
+  await c.getByRole("textbox", { name: "Agreed scope" }).fill("A board charter and a delegation of authority.");
   await c.getByRole("button", { name: "Make it a client" }).click();
   await page.waitForURL(/\/clients\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("heading", { name: org })).toBeVisible();

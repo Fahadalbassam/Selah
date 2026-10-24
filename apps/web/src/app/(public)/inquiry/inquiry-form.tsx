@@ -293,7 +293,13 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
               className="p-6"
             >
               {notice ? (
-                <Alert variant={notice === "server" ? "default" : "destructive"} className="mb-6">
+                <Alert
+                  key={notice}
+                  // Sending happens at the bottom of the long review step; bring the reason into view.
+                  ref={(el) => el?.scrollIntoView({ block: "center", behavior: "smooth" })}
+                  variant={notice === "server" ? "default" : "destructive"}
+                  className="mb-6"
+                >
                   <AlertDescription>{t(`errors.${notice}`)}</AlertDescription>
                 </Alert>
               ) : null}

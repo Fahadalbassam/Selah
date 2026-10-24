@@ -320,8 +320,10 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor="s-ramadan-from">{t("ramadan.from")}</Label>
           <TimeSelect id="s-ramadan-from" value={s.ramadanMailFrom} onChange={(v) => set("ramadanMailFrom", v)} />
-          <span className="text-sm text-muted-foreground">{t("ramadan.to")}</span>
-          <TimeSelect id="s-ramadan-to" value={s.ramadanMailTo} onChange={(v) => set("ramadanMailTo", v)} />
+          <span id="s-ramadan-to-label" className="text-sm text-muted-foreground">
+            {t("ramadan.to")}
+          </span>
+          <TimeSelect id="s-ramadan-to" labelledBy="s-ramadan-to-label" value={s.ramadanMailTo} onChange={(v) => set("ramadanMailTo", v)} />
         </div>
         {err("ramadan")}
       </Section>
