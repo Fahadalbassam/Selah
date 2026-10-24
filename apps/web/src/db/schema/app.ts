@@ -57,7 +57,12 @@ export const visibility = pgEnum("visibility", [
   "user_private",
 ]);
 export const projectKind = pgEnum("project_kind", ["internal", "client"]);
-export const projectState = pgEnum("project_state", ["planned", "active", "closed", "draft"]);
+// closing: the project is winding down; every open item gets a disposition
+// before it can close (baseline: Closing, 0020). closed is read-only.
+export const projectState = pgEnum("project_state", ["planned", "active", "closed", "draft", "closing"]);
+// What happens to an action still open when its project closes.
+export const closureDisposition = pgEnum("closure_disposition", ["handed_over", "deferred", "withdrawn", "waived"]);
+export const closureRequestStatus = pgEnum("closure_request_status", ["pending", "accepted", "declined"]);
 export const priority = pgEnum("priority", ["low", "medium", "high", "critical"]);
 export const actionStatus = pgEnum("action_status", [
   "draft",
@@ -2398,5 +2403,100 @@ export const contentTranslations = pgTable(
     uniqueIndex("content_translations_one").on(t.entityType, t.entityId, t.field, t.targetLang, t.sourceSha256),
     index("content_translations_creator_idx").on(t.createdBy, t.createdAt),
     scopedFk("content_translations", t),
+  ],
+);
+
+// ------------------------------------------------------------- closing
+
+// Closing a project is a gate (baseline: Closing, 0020). Each round starts
+// when the firm admin (or an internal project's lead) begins closing, and
+// ends when it is cancelled or, once closed, reopened by the firm admin with
+// a reason. Rounds are kept as the project's closing history.
+export const projectClosures = pgTable(
+  "project_closures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    startedBy: uuid("started_by").references(() => user.id),
+    startedAt: ts("started_at").notNull().defaultNow(),
+    closedBy: uuid("closed_by").references(() => user.id),
+    closedAt: ts("closed_at"),
+    cancelledBy: uuid("cancelled_by").references(() => user.id),
+    cancelledAt: ts("cancelled_at"),
+    reopenedBy: uuid("reopened_by").references(() => user.id),
+    reopenedAt: ts("reopened_at"),
+    reopenReason: text("reopen_reason"),
+  },
+  (t) => [
+    scopedFk("project_closures", t),
+    uniqueIndex("project_closures_one_open").on(t.projectId).where(sql`cancelled_at IS NULL AND reopened_at IS NULL`),
+  ],
+);
+
+// The disposition of one action that is still open at closing: handed to a
+// named person who sustains it, deferred, withdrawn or waived, with a reason.
+export const projectClosureItems = pgTable(
+  "project_closure_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    closureId: uuid("closure_id")
+      .notNull()
+      .references(() => projectClosures.id, { onDelete: "cascade" }),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    ...scoped(),
+    disposition: closureDisposition("disposition").notNull(),
+    note: text("note"),
+    // Who keeps a handed-over action going: an account or a contact of the project's org.
+    sustainerUserId: uuid("sustainer_user_id").references(() => user.id),
+    sustainerContactId: uuid("sustainer_contact_id").references(() => clientContacts.id, { onDelete: "set null" }),
+    decidedBy: uuid("decided_by").references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    scopedFk("project_closure_items", t),
+    uniqueIndex("project_closure_items_one").on(t.closureId, t.actionId),
+    check("closure_item_one_sustainer", sql`sustainer_user_id IS NULL OR sustainer_contact_id IS NULL`),
+    check("closure_item_sustainer_handover", sql`disposition = 'handed_over' OR (sustainer_user_id IS NULL AND sustainer_contact_id IS NULL)`),
+    check("closure_item_reason", sql`disposition = 'handed_over' OR length(btrim(coalesce(note, ''))) >= 3`),
+  ],
+);
+
+// The firm's short lessons from a closing round. Firm-only.
+export const projectClosureLessons = pgTable(
+  "project_closure_lessons",
+  {
+    closureId: uuid("closure_id")
+      .primaryKey()
+      .references(() => projectClosures.id, { onDelete: "cascade" }),
+    ...scoped(),
+    wentWell: text("went_well").notNull(),
+    toImprove: text("to_improve").notNull(),
+    nextTime: text("next_time"),
+    writtenBy: uuid("written_by").references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [scopedFk("project_closure_lessons", t)],
+);
+
+// The client's sponsor (or admin) asks the firm to close (journey gap N9).
+// Only the firm closes; the request starts a closing round or is declined.
+export const projectClosureRequests = pgTable(
+  "project_closure_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    requestedBy: uuid("requested_by").references(() => user.id),
+    note: text("note"),
+    status: closureRequestStatus("status").notNull().default("pending"),
+    decidedBy: uuid("decided_by").references(() => user.id),
+    decidedAt: ts("decided_at"),
+    reply: text("reply"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    scopedFk("project_closure_requests", t),
+    uniqueIndex("project_closure_requests_one_pending").on(t.projectId).where(sql`status = 'pending'`),
   ],
 );

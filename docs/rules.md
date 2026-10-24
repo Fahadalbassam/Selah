@@ -39,6 +39,7 @@ Two things are deliberately held twice and not merged:
 | The firm's time zone and "today" | `FIRM_TIME_ZONE`, `firmToday()` in `src/lib/dates.ts` | every service, job and the date formatting | `app_firm_tz()`, `app_firm_today()`, `app_firm_date()` (migration 0002), used by every function and view that needs the day. Never current_date, which is the database's UTC day | `tests/db/rule-parity.test.ts` (also fails if a function or view spells out the zone again) |
 | Phase number and planned working days of a client project | `PHASE_LIMITS` in `src/lib/phases.ts` | project routes, the client page's New project dialog | `projects.projects_sequence_range`, `projects.projects_planned_days_range` | `tests/db/rule-parity.test.ts` |
 | Open actions (released, not finished) | `OPEN_STATUSES` in `src/authz/workflow.ts` | `isOverdue()`, the assistant's status answer | `app_action_open()` (migration 0002), used by the deviation, reminder, mail and metrics functions | `tests/db/rule-parity.test.ts` |
+| Closing dispositions and frozen tables | `DISPOSITIONS`, `FROZEN_TABLES` in `src/lib/closure.ts` | `src/services/closure.ts`, the closure routes, the Closing tab | `check_project_open()` (the project_open triggers), the closure_disposition enum | `tests/db/closure.test.ts` |
 
 Enums (`action_status`, `role`, `visibility` and the rest) and the check constraints declared in `src/db/schema` have one source already: the Drizzle schema, from which part 1 of the baseline is generated.
 
@@ -87,6 +88,18 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | Only what never signed is deleted: no engagement, no accounts, not from an inquiry; a prospect by the firm admin or its lead, with everything in it; any other client by the firm admin while it holds no files | `app_discard_check()`, `app_discard_client()` | `src/services/prospects.ts` (`discardBlock()`, `discardClient()`) | `tests/db/prospects.test.ts` |
 | A deleted file's bytes leave the bucket (the delete-objects job) | `queue_storage_deletion()` | `scripts/delete-objects.ts` | `tests/db/prospects.test.ts` |
 | A new client sets no minimal records unless asked, so a consultant can start a pitch | `check_minimal_records()` | `src/services/prospects.ts` | `tests/db/prospects.test.ts` |
+
+### Closing a project
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| Who closes: the firm admin, or the lead of an internal project (N5); only the firm admin reopens, with a reason kept in the project's history | `app_can_close_project()`, `app_reopen_project()` | `src/authz/policy.ts` (`project.close`, `project.reopen`), `src/services/closure.ts` (`moveClosure()`) | `tests/db/closure.test.ts`, `tests/authorize.test.ts` |
+| A project moves to or from closing and closed only through the closing steps; a new project is never closing or closed; a closed project's own record doesn't change | `check_project_state()` | `src/services/closure.ts` | `tests/db/closure.test.ts` |
+| A project closes only when nothing is left: every open action has a disposition, every handed-over one names who sustains it, no submission waits for review, no deadline request waits for a decision, and the lessons are written | `app_closure_blockers()`, `app_close_project()` | `src/services/closure.ts` (`getClosure()`), the Closing tab | `tests/db/closure.test.ts` |
+| A closed project is read-only for everyone on the tables in `FROZEN_TABLES`; check-ins, KPI readings, the assistant and leaving the project stay open; jobs are not limited | `check_project_open()` | `src/authz/authorize.ts` (`OPEN_WHEN_CLOSED`), `src/lib/closure.ts` (`FROZEN_TABLES`) | `tests/db/closure.test.ts`, `tests/authorize.test.ts` |
+| Only the firm on a closing project disposes of an open action; deferred, withdrawn and waived say why; who sustains a handed-over action is an active account or contact of the project's own organisation, named by the firm, the client's admin or the project's sponsor | `app_dispose_action()`, `app_name_sustainer()`, `app_check_sustainer()`, `project_closure_items.closure_item_reason` | `src/services/closure.ts` (`disposeAction()`, `nameSustainer()`) | `tests/db/closure.test.ts` |
+| The client's sponsor or admin asks the firm to close (N9), one request at a time; the firm admin declines with a reason or starts closing, which answers it | `app_request_closure()`, `app_decline_closure_request()`, `app_start_closing()` | `src/services/closure.ts` (`requestClosure()`, `declineClosureRequest()`) | `tests/db/closure.test.ts` |
+| Reminders go on while a project closes, except for actions that already have a disposition | `app_follow_ups_due()` | `src/jobs/follow-ups.ts` | `tests/db/closure.test.ts` |
 
 ### Evidence and review integrity
 

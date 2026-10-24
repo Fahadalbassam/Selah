@@ -579,7 +579,8 @@ describe("retention", () => {
 
   it("deletes 90 days after the project closes, and a closed project gets its date from the database", async () => {
     const r = await ask(U.cons, { question: "a" });
-    await svc(U.admin, async (tx, p) => (await import("@/services/handover")).setProjectState(tx, p, P1, "closed"));
+    // Closing itself is tested in tests/db/closure.test.ts; here the project is simply closed.
+    await owner.query(`UPDATE projects SET state = 'closed' WHERE id = $1`, [P1]);
     try {
       const closed = (await owner.query(`SELECT closed_at FROM projects WHERE id = $1`, [P1])).rows[0].closed_at;
       expect(closed).not.toBeNull();
@@ -596,9 +597,9 @@ describe("retention", () => {
       const before = new Date(riyadh.getTime() - 86400_000).toISOString().slice(0, 10);
       expect((await purge(before)).deleted).toBe(0);
       expect((await purge(day)).deleted).toBe(1);
-      // Only a firm admin closes a project.
+      // Only a firm admin reopens a project.
       await expect(
-        svc(U.cons, async (tx, p) => (await import("@/services/handover")).setProjectState(tx, p, P1, "active")),
+        svc(U.cons, async (tx, p) => (await import("@/services/closure")).moveClosure(tx, p, P1, { step: "reopen", reason: "more to do" })),
       ).rejects.toThrow();
     } finally {
       await owner.query(`UPDATE projects SET state = 'active' WHERE id = $1`, [P1]);

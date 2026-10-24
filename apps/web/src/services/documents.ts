@@ -40,6 +40,7 @@ export async function loadDocument(tx: Tx, id: string) {
     sharedWith: shares.map((s) => s.userId),
     ownerOrgId: row.doc.ownerOrgId,
     departmentId: row.doc.departmentId,
+    projectState: row.projectState,
   };
   const latest = !(await tx.select({ id: documents.id }).from(documents).where(eq(documents.supersedesId, id)).limit(1)).length;
   const [{ settled } = { settled: true }] = await tx.execute<{ settled: boolean }>(sql`select app_document_settled(${id}::uuid) as settled`).then((r) => r.rows);

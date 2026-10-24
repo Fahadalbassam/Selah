@@ -542,3 +542,50 @@ describe("assessments", () => {
     expect(authorize(principal("action_owner", [ACME_PROJ_1]), "assessment.read", a).allowed).toBe(false);
   });
 });
+
+describe("closing a project", () => {
+  const permissions = Object.keys(POLICY) as Permission[];
+
+  it("only the firm admin closes a client project, even the client's lead consultant cannot", () => {
+    const project = acmeRecord("project", { projectKind: "client", clientOrgId: ACME });
+    expect(authorize(principal("firm_admin"), "project.close", project).allowed).toBe(true);
+    const lead = principal("consultant", [ACME_PROJ_1], undefined, [], { clients: [ACME] });
+    expect(authorize(lead, "project.close", project).allowed).toBe(false);
+    for (const role of ["client_admin", "client_manager", "action_owner"] as Role[]) {
+      expect(authorize(principal(role, [ACME_PROJ_1]), "project.close", project).allowed, role).toBe(false);
+    }
+  });
+
+  it("the lead of an internal project closes it (N5); other members don't, and only the firm admin reopens", () => {
+    const internal: Resource = { type: "project", orgId: FIRM, firmOrgId: FIRM, projectId: "p-int", projectKind: "internal" };
+    const lead = principal("consultant", ["p-int"], undefined, [], { projects: ["p-int"] });
+    expect(authorize(lead, "project.close", internal).allowed).toBe(true);
+    expect(authorize(principal("consultant", ["p-int"]), "project.close", internal).allowed).toBe(false);
+    expect(authorize(lead, "project.reopen", { ...internal, projectState: "closed" }).allowed).toBe(false);
+    expect(authorize(principal("firm_admin"), "project.reopen", { ...internal, projectState: "closed" }).allowed).toBe(true);
+  });
+
+  it("a closed project refuses every write, for every role, and keeps every read", () => {
+    const open = new Set(["project.reopen", "project.watch", "follow_up.write", "assistant.query"]);
+    for (const role of ROLES) {
+      const p = principal(role, [ACME_PROJ_1], undefined, [ACME], { clients: [ACME] });
+      for (const perm of permissions) {
+        const r = acmeRecord("action", { assignees: [p.userId], createdBy: p.userId, ownerOrgId: p.orgId, projectKind: "client" });
+        const before = authorize(p, perm, r).allowed;
+        const after = authorize(p, perm, { ...r, projectState: "closed" });
+        if (/\.(read|download)$/.test(perm) || open.has(perm)) expect(after.allowed, `${role} ${perm}`).toBe(before);
+        else expect(after.allowed, `${role} ${perm}`).toBe(false);
+      }
+    }
+  });
+
+  it("a closing project still takes work, and its dispositions and lessons are the firm's", () => {
+    const r = acmeRecord("project", { projectState: "closing", projectKind: "client" });
+    const cons = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    expect(authorize(cons, "action.write", r).allowed).toBe(true);
+    expect(authorize(cons, "closure.dispose", r).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "closure.dispose", r).allowed).toBe(false);
+    expect(authorize(principal("client_admin"), "closure.sustainer", r).allowed).toBe(true);
+    expect(authorize(principal("action_owner", [ACME_PROJ_1]), "closure.request", r).allowed).toBe(false);
+  });
+});

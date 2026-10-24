@@ -156,7 +156,8 @@ describe("what each side is offered", () => {
     expect(await controls(U.cons, D.firmEvidence)).toEqual(none);
     expect(await controls(U.cons, D.archived)).toEqual(none);
     expect(await controls(U.cons, D.internal)).toEqual({ ...none, assistant: true, newVersion: true, withdraw: true });
-    expect(await controls(U.cons, D.closed)).toEqual({ ...none, assistant: true });
+    // A closed project is read-only (baseline: Closing): not even the assistant flag changes.
+    expect(await controls(U.cons, D.closed)).toEqual(none);
     const superseded = await svc(U.cons, async (tx, p) => {
       await uploadNewVersion(tx, p, D.shared, upload);
       return fileControls(p, (await loadDocument(tx, D.shared))!);
