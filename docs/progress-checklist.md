@@ -56,7 +56,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J05.1** Convert inquiry to client — lane: firm · map: exists · wave: — · pr: #18
 - [x] **J05.2** Add a client directly — lane: firm · map: exists · wave: — · pr: #20
-- [ ] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
+- [~] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
 - [x] **J05.4** A project per phase — lane: firm · map: wave 1 · covered by: F02 · wave: 1 · pr: #59
 - [ ] **J05.5** First sign-in (firm: Invites the client admin; client: Accepts terms and AI notice) — lane: shared · map: wave 1 · covered by: R1 · wave: 1
 - [x] **J05.6** Accepts invite, sets 2FA — lane: client · map: exists · wave: — · pr: #7, #8
@@ -65,7 +65,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J06.1** Add contacts (managed mode) — lane: firm · map: exists · wave: — · pr: #35
 - [x] **J06.2** Put client people on a project — lane: firm · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
-- [~] **J06.3** Name the roles (firm: Records sponsor, acceptors; client: Confirms who signs off) — lane: shared · map: wave 1 · covered by: F06 · wave: 1
+- [x] **J06.3** Name the roles (firm: Records sponsor, acceptors; client: Confirms who signs off) — lane: shared · map: wave 1 · covered by: F06 · wave: 1
 - [x] **J06.4** Invites managers and owners — lane: client · map: exists · wave: — · pr: #20
 - [x] **J06.5** Adds them to a project — lane: client · map: wave 1 · covered by: F01 · wave: 1 · pr: #59
 
@@ -150,8 +150,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ### Tier 2 · The enrolment spine
 
 - [x] **F05** Record the signed engagement, carry the inquiry over — tier: 2 · size: M · wave: 1 · journey: J04.3 · pr: #64
-- [~] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66 (open)
-- [ ] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3
+- [x] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66
+- [~] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67 (open)
 - [ ] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3
 - [ ] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4
 
