@@ -109,7 +109,7 @@ export function FormDialog(props: {
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{props.title}</DialogTitle>

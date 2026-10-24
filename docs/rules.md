@@ -33,6 +33,7 @@ Two things are deliberately held twice and not merged:
 | Other-language name length | `NAME_ALT_LENGTH` in `src/lib/masking.ts` | name-alt and contact routes | `user.user_name_alt_len`, `client_contacts.contact_name_alt_len` | `tests/db/rule-parity.test.ts` |
 | Client short names | `SHORT_NAMES` in `src/lib/engagement.ts` | `setShortNames()` | `check_short_names()` | `tests/db/rule-parity.test.ts` |
 | The firm's time zone and "today" | `FIRM_TIME_ZONE`, `firmToday()` in `src/lib/dates.ts` | every service, job and the date formatting | `app_firm_tz()`, `app_firm_today()`, `app_firm_date()` (migration 0002), used by every function and view that needs the day. Never current_date, which is the database's UTC day | `tests/db/rule-parity.test.ts` (also fails if a function or view spells out the zone again) |
+| Phase number and planned working days of a client project | `PHASE_LIMITS` in `src/lib/phases.ts` | project routes, the client page's New project dialog | `projects.projects_sequence_range`, `projects.projects_planned_days_range` | `tests/db/rule-parity.test.ts` |
 | Open actions (released, not finished) | `OPEN_STATUSES` in `src/authz/workflow.ts` | `isOverdue()`, the assistant's status answer | `app_action_open()` (migration 0002), used by the deviation, reminder, mail and metrics functions | `tests/db/rule-parity.test.ts` |
 
 Enums (`action_status`, `role`, `visibility` and the rest) and the check constraints declared in `src/db/schema` have one source already: the Drizzle schema, from which part 1 of the baseline is generated.
@@ -56,6 +57,8 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | Rule | Database | Checked first in | Tests |
 |---|---|---|---|
 | Only consultants are assigned to clients | `check_assignment_role()` | `src/services/staffing.ts` | `tests/db/rls.test.ts` |
+| Nobody comes off a project while they own open actions on it (reassign first) | `check_member_removal()` | `src/services/staffing.ts` (`removeProjectPerson()`) | `tests/db/projects.test.ts` |
+| A project continues an earlier project of the same client, never itself or one that continues it | `check_project_follows()` | `src/services/staffing.ts` (`createClientProject()`, `updateProject()`) | `tests/db/projects.test.ts` |
 | A join request is decided once; only the decision changes | `check_join_request_update()` | `src/services/staffing.ts` (`decideRequest()`) | `tests/db/rls.test.ts` |
 
 ### Evidence and review integrity

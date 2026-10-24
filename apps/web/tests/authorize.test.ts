@@ -235,6 +235,21 @@ describe("hierarchy: consultants see only clients assigned to them", () => {
     expect(authorize(lead, "project.manage_members", betaRecord("project")).allowed).toBe(true);
   });
 
+  it("the admin and the client's lead create its projects; nobody else does", () => {
+    const newProject = betaRecord("project", { projectId: null, projectKind: "client", clientOrgId: BETA });
+    expect(authorize(principal("firm_admin"), "project.create", newProject).allowed).toBe(true);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [BETA] }), "project.create", newProject).allowed).toBe(true);
+    expect(authorize(principal("consultant", [], undefined, [BETA]), "project.create", newProject).allowed).toBe(false);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "project.create", newProject).allowed).toBe(false);
+    expect(authorize(principal("client_admin", [], BETA), "project.create", newProject).allowed).toBe(false);
+  });
+
+  it("a client admin manages their own project's people, never another client's", () => {
+    expect(authorize(principal("client_admin"), "project.manage_members", acmeRecord("project")).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "project.manage_members", betaRecord("project")).allowed).toBe(false);
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "project.manage_members", acmeRecord("project")).allowed).toBe(false);
+  });
+
   it("only the firm admin may watch a client or project", () => {
     expect(authorize(principal("firm_admin"), "project.watch", betaRecord("project")).allowed).toBe(true);
     const lead = principal("consultant", [], undefined, [], { clients: [BETA] });

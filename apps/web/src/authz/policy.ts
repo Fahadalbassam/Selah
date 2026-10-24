@@ -50,7 +50,8 @@ export const POLICY = {
 
   // Projects
   "project.read": { ...ALL_BUT_OWNER, action_owner: "any" },
-  "project.create": { firm_admin: "any" }, // client projects
+  // Client projects (phases, follow-on scopes): the admin, and the client's lead consultant.
+  "project.create": { firm_admin: "any", consultant: "lead" },
   "project.create_internal": { ...STAFF }, // the creator becomes its lead
   "project.update": { firm_admin: "any" },
   "project.manage_members": { firm_admin: "any", client_admin: "any", consultant: "lead" },

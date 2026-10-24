@@ -11,7 +11,9 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToneBadge } from "@/components/tone-badge";
 import { LEGAL_FORMS } from "@/lib/assessments";
+import { NO_PREVIOUS } from "@/lib/phases";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
@@ -42,13 +44,14 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     };
   });
   if (!data) notFound();
-  const [t, tc, tq, tp, ti, tCt, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, tCt, tPh, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
     getTranslations("people"),
     getTranslations("inbox"),
     getTranslations("clients.contacts"),
+    getTranslations("phases"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -60,6 +63,24 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     { name: "title", label: tCt("jobTitle"), maxLength: 120, defaultValue: c?.title ?? undefined },
     { name: "email", label: tCt("email"), maxLength: 254, dir: "ltr" as const, defaultValue: c?.email ?? undefined },
     { name: "phone", label: tCt("phone"), maxLength: 30, dir: "ltr" as const, defaultValue: c?.phone ?? undefined },
+  ];
+  const phaseFormFields = () => [
+    { name: "title", label: tPh("title"), required: true, maxLength: 200, placeholder: tPh("titlePlaceholder") },
+    { name: "description", label: tPh("description"), type: "textarea" as const, maxLength: 2000 },
+    { name: "sequence", label: tPh("sequence"), maxLength: 2, dir: "ltr" as const, placeholder: String(data.projects.length + 1) },
+    { name: "plannedWorkingDays", label: tPh("plannedDays"), maxLength: 4, dir: "ltr" as const },
+    { name: "startDate", label: tPh("start"), type: "date" as const },
+    { name: "endDate", label: tPh("end"), type: "date" as const },
+    ...(data.projects.length
+      ? [
+          {
+            name: "followsProjectId",
+            label: tPh("followsField"),
+            type: "select" as const,
+            options: [{ value: NO_PREVIOUS, label: tPh("followsNone") }, ...data.projects.map((p) => ({ value: p.id, label: p.title }))],
+          },
+        ]
+      : []),
   ];
   const serviceName = (code: string) => {
     const x = data.services.find((o) => o.code === code);
@@ -87,6 +108,63 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
+          <Card className="gap-4 py-5 shadow-xs">
+            <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">{t("clientProjects")}</CardTitle>
+                <CardDescription>{tPh("hint")}</CardDescription>
+              </div>
+              {can.createProject ? (
+                <FormDialog
+                  trigger={
+                    <Button size="sm">
+                      <Plus />
+                      {tPh("new")}
+                    </Button>
+                  }
+                  title={tPh("new")}
+                  description={tPh("newHint")}
+                  endpoint={`/api/clients/${client.id}/projects`}
+                  fields={phaseFormFields()}
+                  submitLabel={tPh("create")}
+                  redirectTo="/projects/:id"
+                />
+              ) : null}
+            </CardHeader>
+            <CardContent className="px-5">
+              {data.projects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("noProjects")}</p>
+              ) : (
+                <ul className="divide-y">
+                  {data.projects.map((p) => {
+                    const follows = p.followsProjectId ? data.projects.find((x) => x.id === p.followsProjectId) : null;
+                    return (
+                      <li key={p.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <Link href={`/projects/${p.id}`} className="font-medium hover:underline" dir="auto">
+                            {p.sequence ? tPh("numbered", { n: p.sequence, title: p.title }) : p.title}
+                          </Link>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {[
+                              p.startDate || p.endDate
+                                ? format.dateTimeRange(new Date(p.startDate ?? p.endDate!), new Date(p.endDate ?? p.startDate!), { dateStyle: "medium" })
+                                : null,
+                              p.plannedWorkingDays ? tPh("days", { n: p.plannedWorkingDays }) : null,
+                              follows ? tPh("follows", { title: follows.title }) : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || tPh("noDates")}
+                          </p>
+                        </div>
+                        <ToneBadge tone={p.state === "active" ? "active" : p.state === "closed" ? "neutral" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
               <div className="space-y-1.5">
@@ -411,19 +489,6 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </CardContent>
           </Card>
         ) : null}
-        <Card className="h-fit gap-4 py-5 shadow-xs">
-          <CardHeader className="px-5">
-            <CardTitle className="text-base">{t("clientProjects")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 px-5">
-            {data.projects.length === 0 ? <p className="text-sm text-muted-foreground">{t("noProjects")}</p> : null}
-            {data.projects.map((p) => (
-              <Link key={p.id} href={`/projects/${p.id}`} className="block rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                {p.title}
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
         </div>
       </div>
     </>
