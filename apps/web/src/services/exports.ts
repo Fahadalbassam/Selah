@@ -9,10 +9,12 @@ import { firmToday } from "@/lib/dates";
 import { localName } from "@/lib/names";
 import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
+import { renderClosureHtml } from "@/lib/closure-html";
 import { renderReportHtml } from "@/lib/report-html";
 import { createAttemptLimiter } from "@/auth/attempts";
-import { RateLimitError } from "@/server/errors";
+import { NotFoundError, RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
+import { getClosure } from "./closure";
 import { getReport } from "./follow-through";
 import { renderPdf } from "./pdf";
 import { getProject, isOverdue, listActions } from "./queries";
@@ -262,6 +264,59 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
     meta: { format: "pdf", actions: list.length },
   });
   return { bytes, fileName: fileName("selah-report", "pdf"), contentType: "application/pdf" };
+}
+
+/**
+ * The closure report of a closed project as PDF, in the reader's language:
+ * the counts and the decision on every action left open. Anyone who can read
+ * the project gets it, with only the actions they could read.
+ */
+export async function closurePdf(tx: Tx, principal: Principal, projectId: string, locale: Locale): Promise<ExportFile> {
+  const closure = await getClosure(tx, principal, projectId);
+  if (closure.state !== "closed" || !closure.current) throw new NotFoundError("closure report");
+  const { project } = await getProject(tx, principal, projectId);
+  const [firmOrg] = await tx.select({ name: organizations.name, nameAr: organizations.nameAr }).from(organizations).where(eq(organizations.id, project.firmOrgId));
+  const all = await listActions(tx, principal, { projectId, mineOnly: principal.role === "action_owner" });
+  const t = await getTranslations({ locale });
+  const ar = locale === "ar";
+  const today = firmToday();
+  const html = renderClosureHtml({
+    locale,
+    firmName: firmOrg ? localName(firmOrg, ar) : "",
+    clientName: project.kind === "client" ? localName({ name: project.orgName, nameAr: project.orgNameAr }, ar) : null,
+    projectTitle: project.title,
+    startedAt: new Date(closure.current.startedAt).toISOString(),
+    closedAt: closure.current.closedAt ? new Date(closure.current.closedAt).toISOString() : null,
+    closedBy: closure.current.closedBy,
+    counts: {
+      total: all.filter((a) => a.status !== "draft").length,
+      verified: all.filter((a) => a.status === "verified_complete").length,
+      closed: all.filter((a) => a.status === "closed").length,
+      open: closure.items.length,
+    },
+    items: closure.items.map((i) => ({
+      title: i.title,
+      recommendation: i.recommendation,
+      status: t(`status.${i.status}` as "status.draft"),
+      disposition: i.disposition ? t(`closure.dispositions.${i.disposition}` as "closure.dispositions.handed_over") : "—",
+      sustainer: i.sustainer?.name ?? null,
+      note: i.note,
+    })),
+    t: (key, values) => t(`closurePdf.${key}` as "closurePdf.title", values as Record<string, string | number>),
+  });
+  if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
+  const dateText = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`));
+  const bytes = await renderPdf(html, { locale, footer: t("closurePdf.footer", { date: dateText }) });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "closure.export",
+    resourceType: "project",
+    resourceId: projectId,
+    outcome: "allow",
+    meta: { format: "pdf", actions: closure.items.length },
+  });
+  return { bytes, fileName: fileName("selah-closure", "pdf"), contentType: "application/pdf" };
 }
 
 /** An attachment response: no caching, and the browser must not guess the type. */

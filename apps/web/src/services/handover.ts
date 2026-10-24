@@ -9,8 +9,8 @@ import { loadProject } from "./staffing";
 
 // Handover (baseline: Handover): the day the report was delivered. Setting
 // the date creates the firm's check-ins (firm_settings.checkin_days); moving
-// it moves the open ones. The firm admin sets it, and closes the project when
-// the engagement is over. The client's sponsor is shown here and named with
+// it moves the open ones. The firm admin sets it. Closing the project is its
+// own gate (services/closure.ts). The client's sponsor is shown here and named with
 // the other client roles (services/client-roles.ts).
 
 export async function getHandover(tx: Tx, principal: Principal, projectId: string) {
@@ -81,25 +81,5 @@ export async function setHandover(
       meta: { fields: Object.keys(input).join(",") },
     });
   }
-  return getHandover(tx, principal, projectId);
-}
-
-/**
- * Firm admin: close a project when the engagement is over, or reopen it.
- * The database stamps closed_at; assistant chats about the project are
- * deleted a while after it (firm_settings.chat_after_close_days).
- */
-export async function setProjectState(tx: Tx, principal: Principal, projectId: string, state: "active" | "closed") {
-  const { resource } = await loadProject(tx, principal, projectId);
-  assertAllowed(principal, "project.update", resource);
-  await tx.update(projects).set({ state }).where(eq(projects.id, projectId));
-  await audit(tx, {
-    actorId: principal.userId,
-    orgId: principal.orgId,
-    action: state === "closed" ? "project.close" : "project.reopen",
-    resourceType: "project",
-    resourceId: projectId,
-    outcome: "allow",
-  });
   return getHandover(tx, principal, projectId);
 }

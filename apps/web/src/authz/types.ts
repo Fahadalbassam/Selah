@@ -94,6 +94,8 @@ export interface Resource {
   engagementMode?: EngagementMode | null;
   /** Staffing records (assignments, join requests): the client they are about. */
   clientOrgId?: string;
+  /** State of the record's project. A closed project is read-only (policy.ts OPEN_WHEN_CLOSED). */
+  projectState?: "draft" | "planned" | "active" | "closing" | "closed";
 }
 
 export interface Decision {

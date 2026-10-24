@@ -7,7 +7,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { BrandLoader } from "@/components/brand";
-import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,7 @@ import { cn } from "@/lib/utils";
 export interface Handover {
   kind: "client" | "internal";
   handoverOn: string | null;
-  state: "draft" | "planned" | "active" | "closed";
+  state: "draft" | "planned" | "active" | "closing" | "closed";
   closedAt: string | Date | null;
   sponsor: { id: string; name: string | null } | null;
   checkins: {
@@ -42,7 +41,6 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirm, confirmDialog] = useConfirm();
   const closed = data.state === "closed";
   const client = data.kind === "client";
   const day = (d: string) => format.dateTime(new Date(`${d}T00:00:00`), { dateStyle: "medium" });
@@ -56,14 +54,6 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
     setBusy(false);
     if (!r.ok) return setError(r.message ?? tc(`errors.${r.error}`));
     setOpen(false);
-    toast.success(tc("saved"));
-    router.refresh();
-  }
-
-  async function setState(state: "active" | "closed") {
-    if (!(await confirm(t(state === "closed" ? "closeConfirm" : "reopenConfirm")))) return;
-    const r = await callApi(`/api/projects/${projectId}/state`, "PATCH", { state });
-    if (!r.ok) return toast.error(r.message ?? tc(`errors.${r.error}`));
     toast.success(tc("saved"));
     router.refresh();
   }
@@ -109,14 +99,12 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
                   ? t("closedOn", { date: format.dateTime(new Date(data.closedAt), { dateStyle: "medium" }) })
                   : data.state === "draft"
                     ? t("draft")
-                    : t("open")}
+                    : data.state === "closing"
+                      ? t("closing")
+                      : t("open")}
               </span>
-              {/* A draft starts when a signed engagement covers it, not from here. */}
-              {data.can.edit && data.state !== "draft" ? (
-                <Button variant="ghost" size="sm" className="h-7" onClick={() => setState(closed ? "active" : "closed")}>
-                  {closed ? t("reopenProject") : t("closeProject")}
-                </Button>
-              ) : null}
+              {/* Closing and reopening happen on the Closing tab, as a gate. */}
+              {data.state === "closing" || closed ? <span className="text-xs text-muted-foreground">{t("closingLink")}</span> : null}
             </dd>
           </div>
           {client ? (
@@ -160,7 +148,6 @@ export function HandoverCard({ projectId, data }: { projectId: string; data: Han
         ) : null}
       </CardContent>
 
-      {confirmDialog}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <form onSubmit={save} className="grid gap-4">

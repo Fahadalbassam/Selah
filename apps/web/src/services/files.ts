@@ -152,6 +152,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       firmOrgId: r.project.firmOrgId,
       projectId: r.doc.projectId,
       projectKind: r.project.kind,
+      projectState: r.project.state,
       engagementMode: r.org.mode,
       visibility: r.doc.visibility,
       createdBy: r.doc.uploadedBy,

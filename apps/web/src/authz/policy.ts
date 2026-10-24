@@ -68,6 +68,20 @@ export const POLICY = {
   "engagement.write": { firm_admin: "any" },
   // Oversight without being staffed: the admin follows a client or project.
   "project.watch": { firm_admin: "any" },
+  // Closing is a gate (baseline: Closing, 0020). The firm admin starts and
+  // finishes it; on an internal project its lead does too (INTERNAL_POLICY).
+  // Only the firm admin reopens a closed project, with a reason.
+  "project.close": { firm_admin: "any" },
+  "project.reopen": { firm_admin: "any" },
+  // While closing: the firm on the project disposes of each open action and
+  // writes its lessons. Who sustains a handed-over action can also be named
+  // by the client's admin or the project's sponsor (the database decides
+  // the sponsor: app_name_sustainer).
+  "closure.dispose": { ...STAFF },
+  "closure.lessons": { ...STAFF },
+  "closure.sustainer": { ...STAFF, client_admin: "any", client_manager: "any" },
+  // The client's admin or the project's sponsor asks the firm to close (N9).
+  "closure.request": { client_admin: "any", client_manager: "any" },
 
   // Staffing. Only the firm admin adds clients and names a client's lead.
   // The lead consultant adds or removes consultants on that client and,
@@ -219,6 +233,8 @@ export type Permission = keyof typeof POLICY;
  * records of internal projects.
  */
 const INTERNAL_POLICY: Partial<Record<Permission, Grants>> = {
+  // The lead of an internal project closes it (N5).
+  "project.close": { firm_admin: "any", consultant: "lead" },
   "action.work": { firm_admin: "assigned", consultant: "assigned" },
   "evidence.submit": { firm_admin: "assigned", consultant: "assigned" },
   "progress_update.create": { ...STAFF },
@@ -236,6 +252,25 @@ const CONSULTANT_MANAGED_POLICY: Partial<Record<Permission, Grants>> = {
   "evidence.submit": { ...STAFF },
   "progress_update.create": { ...STAFF },
 };
+
+/**
+ * A closed project is read-only (baseline: Closing, 0020): every permission
+ * that writes is refused on its records, except these. Reading needs no
+ * entry here. After-care check-ins go on after closing, watching and
+ * leaving change nothing in the record, and the admin reopens. The database
+ * trigger check_project_open() holds the same line for the tables it freezes.
+ */
+export const OPEN_WHEN_CLOSED: ReadonlySet<Permission> = new Set<Permission>([
+  "project.reopen",
+  "project.watch",
+  "follow_up.write",
+  "assistant.query",
+]);
+
+/** Permissions that only read. They stay open on a closed project. */
+export function isReadPermission(permission: Permission): boolean {
+  return /\.(read|download)$/.test(permission);
+}
 
 export function grantFor(
   permission: Permission,
