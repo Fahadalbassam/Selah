@@ -455,6 +455,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                             projectId={project.id}
                             client={project.kind === "client"}
                             findings={liveFindings}
+                            scope={recScope}
                             values={{
                               title: r.title,
                               findingId: r.findingId,
@@ -463,6 +464,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                               priority: r.priority,
                               dueDate: r.dueDate,
                               requiredEvidence: r.requiredEvidence,
+                              departmentId: r.departmentId,
+                              accountableUserId: r.accountableUserId,
                             }}
                           />
                         </span>

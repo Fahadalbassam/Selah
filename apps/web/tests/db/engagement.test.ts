@@ -16,6 +16,7 @@ import { firmToday } from "@/lib/dates";
 import { statusRecords } from "@/services/assistant";
 import { departmentChoices, getEngagement, setEngagement } from "@/services/engagement";
 import { planOptions } from "@/services/plan";
+import { updateRecommendation } from "@/services/plan-changes";
 import { loadPrincipal } from "@/services/principal";
 import { truncateAuditLog } from "./audit-reset";
 
@@ -551,6 +552,40 @@ describe("departments across the work", () => {
     );
     expect(opts?.accountables.map((a) => a.userId)).not.toContain(U.lead);
     expect((await svc(U.cons, (tx, p) => planOptions(tx, p, P.managed)))?.accountables).toEqual([]);
+  });
+
+  it("let the firm change a recommendation's department and accountable person, with the same checks", async () => {
+    const rid = await rec({ dept: DEPT.hr });
+    const aid = next();
+    await run(
+      U.lead,
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by) VALUES ($1,$2,$3,$4,'Write the policy',$5,'assigned',$6)`,
+      [aid, P.acme, ACME, rid, U.hr, U.lead],
+    );
+    const edit = (who: string, input: Parameters<typeof updateRecommendation>[3]) => svc(who, (tx, p) => updateRecommendation(tx, p, rid, input));
+    await edit(U.lead, { departmentId: DEPT.fin, accountableUserId: U.cmgr });
+    const after = (await owner.query(`SELECT department_id, accountable_user_id FROM recommendations WHERE id = $1`, [rid])).rows[0];
+    expect(after).toEqual({ department_id: DEPT.fin, accountable_user_id: U.cmgr });
+    expect(await deptOf(aid)).toBe(DEPT.fin);
+    const told = await owner.query(`SELECT 1 FROM notifications WHERE user_id = $1 AND kind = 'recommendation.accountable'`, [U.cmgr]);
+    expect(told.rowCount).toBeGreaterThan(0);
+    // The same checks as when it is added.
+    await expect(edit(U.lead, { accountableUserId: U.lead })).rejects.toThrow(/someone at the client on this project/);
+    await expect(edit(U.lead, { departmentId: next() })).rejects.toThrow(/not an active department/);
+    await expect(edit(U.cadmin, { departmentId: DEPT.hr })).rejects.toThrow();
+    // A department switched off since stays when other fields change; it can't be picked anew.
+    await owner.query(`UPDATE departments SET active = false WHERE id = $1`, [DEPT.fin]);
+    try {
+      await edit(U.lead, { title: "Payroll controls, revised", departmentId: DEPT.fin });
+      await edit(U.lead, { departmentId: DEPT.hr });
+      await expect(edit(U.lead, { departmentId: DEPT.fin })).rejects.toThrow(/not an active department/);
+    } finally {
+      await owner.query(`UPDATE departments SET active = true WHERE id = $1`, [DEPT.fin]);
+    }
+    // Company-wide: the actions keep the department they were filed under.
+    await edit(U.lead, { departmentId: null, accountableUserId: null });
+    expect((await owner.query(`SELECT department_id FROM recommendations WHERE id = $1`, [rid])).rows[0].department_id).toBeNull();
+    expect(await deptOf(aid)).toBe(DEPT.hr);
   });
 });
 

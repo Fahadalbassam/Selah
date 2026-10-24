@@ -1,11 +1,12 @@
 import "server-only";
-import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, activityEvents, findings, recommendations } from "@/db/schema";
+import { actions, activityEvents, findings, notifications, recommendations } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { transitionAction } from "./actions";
 import { audit } from "./audit";
+import { checkRecommendationScope } from "./plan";
 import { loadProject } from "./staffing";
 
 // Correcting, releasing, withdrawing and deleting findings and
@@ -35,6 +36,9 @@ async function loadRecord(tx: Tx, principal: Principal, kind: Kind, id: string) 
       createdBy: table.createdBy,
       releasedAt: table.releasedAt,
       withdrawnAt: table.withdrawnAt,
+      // Recommendations only (F31); null for findings.
+      departmentId: kind === "finding" ? sql<string | null>`null` : recommendations.departmentId,
+      accountableUserId: kind === "finding" ? sql<string | null>`null` : recommendations.accountableUserId,
     })
     .from(table)
     .where(eq(table.id, id))
@@ -121,11 +125,14 @@ export interface RecommendationChange {
   priority?: "low" | "medium" | "high" | "critical";
   dueDate?: string | null;
   requiredEvidence?: string | null;
+  /** Refiling under another department moves its actions with it; null makes it company-wide (F31). */
+  departmentId?: string | null;
+  accountableUserId?: string | null;
 }
 
 /** Correct a live recommendation. Its source and label are not edits: release changes the label. */
 export async function updateRecommendation(tx: Tx, principal: Principal, id: string, input: RecommendationChange) {
-  const { row, resource } = await loadRecord(tx, principal, "recommendation", id);
+  const { row, project, resource } = await loadRecord(tx, principal, "recommendation", id);
   assertAllowed(principal, "recommendation.write", resource);
   live(row);
   if (input.findingId) {
@@ -137,8 +144,19 @@ export async function updateRecommendation(tx: Tx, principal: Principal, id: str
     if (!f || f.projectId !== row.projectId) throw new BadRequestError("the finding is not in this project");
     if (f.withdrawnAt) throw new BadRequestError("that finding was withdrawn");
   }
+  // Only what changes is checked: a department switched off since keeps what is already filed under it.
+  const refiled = input.departmentId !== undefined && input.departmentId !== row.departmentId;
+  const reassigned = input.accountableUserId !== undefined && input.accountableUserId !== row.accountableUserId;
+  await checkRecommendationScope(tx, project, {
+    departmentId: refiled ? input.departmentId : undefined,
+    accountableUserId: reassigned ? input.accountableUserId : undefined,
+  });
   await tx.update(recommendations).set(input).where(eq(recommendations.id, id));
   await record(tx, principal, "recommendation", row, "updated", { fields: Object.keys(input).join(",") }, row.visibility === "firm_private" ? "firm_private" : "shared");
+  // A newly accountable person hears of it, as when it is added.
+  if (reassigned && input.accountableUserId && row.visibility === "shared" && input.accountableUserId !== principal.userId) {
+    await tx.insert(notifications).values({ userId: input.accountableUserId, kind: "recommendation.accountable", entityType: "project", entityId: row.projectId });
+  }
   return { id };
 }
 
