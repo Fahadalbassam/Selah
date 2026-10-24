@@ -80,7 +80,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 
 - [x] **J08.1** Run assessments — lane: firm · map: exists · wave: — · pr: #6, #13
 - [x] **J08.2** Upload a deliverable — lane: firm · map: exists · wave: — · pr: #28, #29
-- [ ] **J08.3** Share or version a file — lane: firm · map: wave 1 · covered by: F03 · wave: 1
+- [~] **J08.3** Share or version a file — lane: firm · map: wave 1 · covered by: F03 · wave: 1 · pr: #61 (open)
 - [ ] **J08.4** Deliverable sign-off (firm: Sends a version for review; client: Accepts or comments) — lane: shared · map: missing · covered by: F21 · wave: frozen
 - [ ] **J08.5** Comments on drafts — lane: client · map: missing · covered by: F21 · wave: frozen
 
@@ -144,7 +144,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 - [x] **F01** Put client people on a project — tier: 1 · size: S · wave: 1 · journey: J06.2, J06.5 · pr: #59
 - [x] **F02** More than one project per client — tier: 1 · size: S · wave: 1 · journey: J05.4 · decision: D2 · pr: #59
-- [ ] **F03** File controls: share, AI flag, new version — tier: 1 · size: S–M · wave: 1 · journey: J08.3
+- [~] **F03** File controls: share, AI flag, new version — tier: 1 · size: S–M · wave: 1 · journey: J08.3 · pr: #61 (open)
 - [ ] **F04** Assistant reads PDF and Word files — tier: 1 · size: M · wave: 1
 
 ### Tier 2 · The enrolment spine
