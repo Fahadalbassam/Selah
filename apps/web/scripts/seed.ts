@@ -277,7 +277,7 @@ for (const q of seeded.sections.flatMap((x) => x.questions)) {
 
 // Two inquiries from the public form, waiting in the firm's inbox.
 const no = { hasStrategy: false, hasOrgChart: true, hasDelegationMatrix: false, hasPolicies: false, hasSops: false, hasKpis: false };
-const inquiry = { consent: true as const, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, selfCheck: no };
+const inquiry = { consent: true as const, marketingConsent: false, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, selfCheck: no };
 await submitInquiry(
   tx,
   {
@@ -287,11 +287,18 @@ await submitInquiry(
     sector: "trade_distribution",
     employeeBand: "50-249",
     ownershipType: "family_multi_partner",
+    familyGeneration: "second",
+    familyWorking: "4-10",
+    familyGovernance: "none",
     contactName: "سلمان الدوسري",
+    requesterRole: "ceo",
     contactRole: "General manager",
     email: "salman@alfajr.example",
+    phone: "+966 55 123 4567",
+    contactChannel: "whatsapp",
     preferredLanguage: "ar",
     services: ["family_business_governance", "delegation_matrix"],
+    whyNow: "The founder plans to hand over to the second generation next year.",
     message: "The second generation is joining the business and we want clear rules before then.",
     urgency: "within_3_months",
     heardFrom: "referral",
@@ -308,9 +315,12 @@ await submitInquiry(
     employeeBand: "10-49",
     ownershipType: "llc",
     contactName: "Mona Al-Harbi",
+    requesterRole: "executive",
     email: "mona@bayan.example",
+    contactChannel: "email",
     preferredLanguage: "en",
     services: ["strategic_plan"],
+    whyNow: "Our three-year plan ends in June and the board wants the next one ready.",
     urgency: "exploring",
   },
   null,

@@ -301,6 +301,23 @@ export async function mailDecline(tx: Tx, principal: Principal, id: string) {
   return { ok: true };
 }
 
+/** Record that the requester withdrew the consent to hear from the firm. The firm admin only. */
+export async function withdrawMarketingConsent(tx: Tx, principal: Principal, id: string) {
+  const { row, resource } = await loadInquiry(tx, principal, id);
+  assertAllowed(principal, "inquiry.decide", resource);
+  if (!row.marketingConsentAt) return { ok: true };
+  await tx.update(inquiries).set({ marketingConsentAt: null }).where(eq(inquiries.id, id));
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "inquiry.marketing_withdrawn",
+    resourceType: "inquiry",
+    resourceId: id,
+    outcome: "allow",
+  });
+  return { ok: true };
+}
+
 export async function addInquiryNote(tx: Tx, principal: Principal, id: string, note: string) {
   const { resource } = await loadInquiry(tx, principal, id);
   assertAllowed(principal, "inquiry.work", resource);

@@ -533,7 +533,7 @@
       "org": "Organisation",
       "contact": "Contact",
       "needs": "What you need",
-      "today": "Today",
+      "about": "About you",
       "review": "Review"
     },
     "org": {
@@ -541,8 +541,6 @@
       "nameHint": "As it appears on your commercial registration.",
       "nameAr": "Name in Arabic",
       "nameArHint": "Optional, if different from the name above.",
-      "cr": "Commercial registration number",
-      "crHint": "Optional. Digits only.",
       "sector": "Sector",
       "sectorPlaceholder": "Choose a sector",
       "size": "Number of employees",
@@ -552,13 +550,18 @@
     "contact": {
       "name": "Your name",
       "role": "Your role",
-      "roleHint": "Optional, for example general manager or founder.",
       "email": "Work email",
       "phone": "Phone",
       "phoneHint": "Optional. Include the country code, for example +966.",
       "language": "Preferred language",
       "ar": "Arabic",
-      "en": "English"
+      "en": "English",
+      "rolePlaceholder": "Choose one",
+      "title": "Job title",
+      "titleHint": "Optional, in your own words.",
+      "channel": "How should we reach you?",
+      "whatsapp": "WhatsApp number",
+      "phoneNeeded": "Include the country code, for example +966."
     },
     "needs": {
       "services": "Which services are you interested in?",
@@ -567,13 +570,16 @@
       "messageHint": "Optional. Please don't include confidential details yet.",
       "urgency": "How soon do you need help?",
       "heardFrom": "How did you hear about us?",
-      "heardFromPlaceholder": "Optional"
+      "heardFromPlaceholder": "Optional",
+      "whyNow": "Why now?",
+      "whyNowHint": "What makes this the right time, for example a handover, a new regulation or growth."
     },
     "today": {
       "intro": "Six quick questions about what your organisation already has. There are no wrong answers: it helps the consultant prepare for the first conversation.",
       "yes": "Yes",
       "no": "No",
-      "skip": "You can leave any question unanswered."
+      "skip": "You can leave any question unanswered.",
+      "title": "What your organisation already has"
     },
     "review": {
       "intro": "Check your answers before you send them.",
@@ -581,7 +587,10 @@
       "consent": "I have read the privacy notice and agree that the firm may use these details to respond to this inquiry.",
       "privacyLink": "Read the privacy notice",
       "noFiles": "Please don't send documents yet. Files are shared later, inside your private workspace, after an engagement starts.",
-      "notAnswered": "Not answered"
+      "notAnswered": "Not answered",
+      "whyNow": "Why now",
+      "marketing": "I'd also like to hear from the firm about events and publications.",
+      "marketingHint": "Optional and separate from your inquiry. You can stop it at any time by replying to any email from the firm."
     },
     "honeypot": "Leave this field empty",
     "back": "Back",
@@ -591,14 +600,15 @@
     "errors": {
       "required": "This field is required.",
       "email": "Enter a valid email address.",
-      "cr": "Use digits only.",
       "phone": "Use digits, spaces, brackets, + or - only.",
       "services": "Choose at least one service.",
       "consent": "Please confirm you have read the privacy notice.",
       "server": "Some answers need another look. We've taken you to the first one.",
       "rateLimited": "Too many inquiries were sent from this connection. Please try again in an hour.",
       "stale": "The privacy notice was updated. Please reload the page and review it.",
-      "failed": "Your inquiry couldn't be sent. Check your connection and try again."
+      "failed": "Your inquiry couldn't be sent. Check your connection and try again.",
+      "phoneForChannel": "Add the number we should call or message.",
+      "whyNow": "Tell us briefly why you are reaching out now."
     },
     "sent": {
       "title": "Thank you, your inquiry was received",
@@ -644,6 +654,49 @@
       "event": "An event",
       "existing_client": "We already work with the firm",
       "other": "Other"
+    },
+    "requesterRole": {
+      "owner_chair": "Owner or chair",
+      "board_member": "Board member",
+      "ceo": "Chief executive or general manager",
+      "executive": "Executive (finance, operations, HR…)",
+      "family_member": "Family member in the business",
+      "manager": "Manager",
+      "other": "Other"
+    },
+    "channel": {
+      "email": "Email",
+      "phone": "Phone call",
+      "whatsapp": "WhatsApp"
+    },
+    "about": {
+      "intro": "All optional. A little context helps the consultant prepare for the first conversation."
+    },
+    "family": {
+      "title": "About the family business",
+      "hint": "Optional. Three light questions; leave any unanswered.",
+      "generation": "Which generation runs the business today?",
+      "working": "How many family members work in it?",
+      "governance": "Does the family have written rules?",
+      "generations": {
+        "first": "The founders",
+        "second": "The second generation",
+        "third_plus": "The third or later"
+      },
+      "workingBands": {
+        "none": "None",
+        "1-3": "1–3",
+        "4-10": "4–10",
+        "11+": "11+"
+      },
+      "workingShort": "{band} family members working in it",
+      "governances": {
+        "charter": "A family charter",
+        "council": "A family council",
+        "both": "A charter and a council",
+        "none": "Neither yet",
+        "unsure": "Not sure"
+      }
     }
   },
   "privacy": {
@@ -652,9 +705,9 @@
     "version": "Version {version}",
     "intro": "This notice explains what happens to the details you send through the inquiry form on this site, which is run by the consulting firm that uses Selah.",
     "collectTitle": "What we collect",
-    "collect": "Your organisation's name, sector, size and ownership type, the optional commercial registration number, your name, role, email and phone, the services you're interested in, your message, and your answers to the six self-check questions. We don't accept files through the form.",
+    "collect": "Your organisation's name and sector; your name, role and job title, email and phone, and how you prefer to be reached; the services you're interested in, why now, and your message. Optionally, its size and ownership type, three light questions for family businesses, and your answers to the six self-check questions. We don't accept files through the form.",
     "whyTitle": "Why",
-    "why": "Only to respond to your inquiry, check it for conflicts of interest, and decide whether and how the firm can help. We don't use it for marketing and we don't sell it.",
+    "why": "Only to respond to your inquiry, check it for conflicts of interest, and decide whether and how the firm can help. We don't sell it. We send you news about events and publications only if you tick the separate box for it, and you can stop it at any time.",
     "whoTitle": "Who sees it",
     "who": "The firm's administrators, and the one consultant they assign to your inquiry. Other clients never see it.",
     "technicalTitle": "Technical details",
@@ -1317,7 +1370,8 @@
       "acknowledged": "sent the requester an acknowledgement with the reference",
       "decline_mailed": "sent the requester a courteous decline",
       "entered": "entered the inquiry by hand",
-      "nda_signed": "recorded the NDA signed on {date}"
+      "nda_signed": "recorded the NDA signed on {date}",
+      "marketing_withdrawn": "recorded that the requester withdrew consent to news from the firm"
     },
     "public": "The public form",
     "back": "Back to inquiries",
@@ -1447,7 +1501,16 @@
     "ndaMark": "Record the NDA",
     "ndaCorrect": "Correct the date",
     "ndaMarkHint": "Record the day the requester signed the NDA. Keep the signed copy with the firm's contracts.",
-    "ndaDate": "Signed on"
+    "ndaDate": "Signed on",
+    "requesterRole": "Role",
+    "channel": "Reach by",
+    "whyNow": "Why now",
+    "family": "Family business",
+    "marketing": "News from the firm",
+    "marketingYes": "Agreed on {date}",
+    "marketingNo": "Not agreed",
+    "withdrawMarketing": "Record withdrawal",
+    "withdrawMarketingConfirm": "Record that the requester no longer wants news from the firm? This can't be undone here; only the requester can agree again, through a new inquiry."
   },
   "notifications": {
     "title": "Notifications",
