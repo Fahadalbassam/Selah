@@ -579,7 +579,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           )}
         </TabsContent>
         {team || people || roles ? (
-          <TabsContent value="team" className="grid gap-6 lg:grid-cols-2">
+          <TabsContent value="team" className={team && people ? "grid gap-6 lg:grid-cols-2" : "flex flex-col gap-6"}>
             {team ? (
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">

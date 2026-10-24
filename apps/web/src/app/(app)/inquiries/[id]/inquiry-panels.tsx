@@ -59,7 +59,7 @@ function Footer({ busy, label, onCancel }: { busy: boolean; label: string; onCan
 }
 
 /** Book the discovery session at a date and time in the firm's time zone. */
-export function BookDiscovery({ inquiryId }: { inquiryId: string }) {
+export function BookDiscovery({ inquiryId, secondary = false }: { inquiryId: string; secondary?: boolean }) {
   const t = useTranslations("inbox");
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -88,7 +88,7 @@ export function BookDiscovery({ inquiryId }: { inquiryId: string }) {
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       <DialogTrigger asChild>
-        <Button>
+        <Button variant={secondary ? "outline" : "default"}>
           <CalendarPlus />
           {t("book")}
         </Button>

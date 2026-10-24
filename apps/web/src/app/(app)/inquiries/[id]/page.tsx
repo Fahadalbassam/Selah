@@ -97,13 +97,13 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     ...(q.requesterRole ? [[t("requesterRole"), ti(`requesterRole.${q.requesterRole}`)] as [string, React.ReactNode]] : []),
     [
       "",
-      <span key="c" className="flex flex-wrap gap-x-3" dir="ltr">
+      <span key="c" className="flex flex-wrap gap-x-3">
         {q.contactEmail ? (
-          <a href={`mailto:${q.contactEmail}`} className="hover:underline">
+          <a href={`mailto:${q.contactEmail}`} dir="ltr" className="hover:underline">
             {q.contactEmail}
           </a>
         ) : null}
-        {q.contactPhone ? <span>{q.contactPhone}</span> : null}
+        {q.contactPhone ? <span dir="ltr">{q.contactPhone}</span> : null}
       </span>,
     ],
     [t("channel"), ti(`channel.${q.contactChannel}`)],
@@ -198,7 +198,10 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     size="default"
                   />
                 ) : null}
-                {["new", "triaged", "discovery_scheduled"].includes(q.status) ? <BookDiscovery inquiryId={q.id} /> : null}
+                {["new", "triaged", "discovery_scheduled"].includes(q.status) ? (
+                  // One solid button per card: booking steps back when moving the inquiry forward is offered.
+                  <BookDiscovery inquiryId={q.id} secondary={can.forward === "triaged" || can.forward === "proposal_sent"} />
+                ) : null}
                 {can.decide && !closed ? (
                   <FormDialog
                     trigger={<Button variant="outline">{t("close")}</Button>}

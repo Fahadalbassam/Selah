@@ -95,6 +95,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         roleLabel={tRole(viewer.role)}
         groups={navFor(viewer.role, (k) => tNav(k))}
         orgKind={viewer.orgKind}
+        railLabel={tHeader("toggleSidebar")}
         user={{
           name: viewer.name,
           email: viewer.email,
@@ -105,7 +106,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       {/* min-w-0: a wide table scrolls inside its card instead of pushing the page sideways. */}
       <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
-          <SidebarTrigger className="-ms-1" />
+          <SidebarTrigger className="-ms-1" aria-label={tHeader("toggleSidebar")} title={tHeader("toggleSidebar")} />
           <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
           <span className="text-sm text-muted-foreground">{tApp("tagline")}</span>
           <div className="ms-auto">
