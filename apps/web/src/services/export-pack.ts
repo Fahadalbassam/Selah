@@ -34,7 +34,7 @@ import { getObject, putObject, signedDownloadUrl, DOWNLOAD_TTL_SECONDS } from ".
 // It is read under the maker's row-level security and authorize(), and holds
 // only what the client may see: records shared with it or private to it,
 // never the firm's own. The database decides who may make one and who gives
-// the receipt (baseline: Export pack, 0030).
+// the receipt (baseline: Export pack, 0043).
 
 const resourceOf = (p: Principal, orgId: string) => ({
   type: "organization" as const,
