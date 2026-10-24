@@ -4,6 +4,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { actions, activityEvents, findings, organizations, projects, recommendationResponses, recommendations, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
+import { firmToday } from "@/lib/dates";
 import type { Received } from "@/lib/engagement";
 import { STANCE_NEEDS, type Stance, type StanceState } from "@/lib/responses";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
@@ -173,6 +174,7 @@ export async function recordResponse(tx: Tx, principal: Principal, id: string, i
   const reason = needs.reason ? input.reason?.trim() || null : input.reason?.trim() || null;
   if (needs.plan && (!plannedAction || !targetDate)) throw new BadRequestError("agreeing needs the planned action and its date");
   if (needs.reason && !reason) throw new BadRequestError("partly agreeing or disagreeing needs the reason");
+  if (targetDate && targetDate < firmToday()) throw new BadRequestError("the target date is in the past");
   if (!(await canRespond(tx, id))) throw new ConflictError("this recommendation can't take a response from you now");
   const [row] = await tx
     .insert(recommendationResponses)

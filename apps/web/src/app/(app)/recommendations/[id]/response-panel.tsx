@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { firmToday } from "@/lib/dates";
 import { RECEIVED_VIA, type ReceivedVia } from "@/lib/engagement";
 import { STANCE_NEEDS, STANCES, type Stance } from "@/lib/responses";
 
@@ -23,12 +24,19 @@ import { STANCE_NEEDS, STANCES, type Stance } from "@/lib/responses";
 function responseError(message: string | undefined, error: string) {
   const m = message ?? "";
   if (m.includes("planned action")) return "plan";
+  if (m.includes("target date is in the past")) return "past";
   if (m.includes("needs the reason")) return "reason";
   if (m.includes("receivedVia") || m.includes("received")) return m.includes("future") ? "future" : "received";
   if (m.includes("other than the one")) return "colleague";
   if (m.includes("already")) return "already";
   if (m.includes("can't take a response")) return "cannot";
   return error === "conflict" ? "already" : "cannot";
+}
+
+/** A YYYY-MM-DD day as local midnight, for the calendar's disabled range. */
+function localDate(day: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y!, m! - 1, d!);
 }
 
 function useSend() {
@@ -138,7 +146,7 @@ export function RespondDialog({ recommendationId, onBehalf, trigger }: { recomme
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="r-date">{t("targetDate")}</Label>
-                  <DatePicker id="r-date" name="targetDate" required placeholder={t("targetDate")} />
+                  <DatePicker id="r-date" name="targetDate" required placeholder={t("targetDate")} disabled={{ before: localDate(firmToday()) }} />
                 </div>
               </div>
             </>
