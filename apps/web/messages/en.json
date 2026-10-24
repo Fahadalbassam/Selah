@@ -1622,7 +1622,10 @@
       "recommendation_accountable": "You were named accountable for a recommendation on {title}",
       "client_archived": "The firm archived {title}: your records are read-only for a while",
       "client_restored": "The firm restored {title}",
-      "client_pack_received": "{title} confirmed receiving its export pack"
+      "client_pack_received": "{title} confirmed receiving its export pack",
+      "recommendation_released": "{title} is waiting for your response",
+      "recommendation_responded": "A response was recorded on {title}",
+      "recommendation_answered": "The firm answered your response on {title}"
     },
     "mail": {
       "section": "Mail",
@@ -1834,7 +1837,7 @@
     },
     "deviations": {
       "tab": "Needs attention",
-      "hint": "Open actions and client KPIs that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
+      "hint": "Open actions, client KPIs and disputed recommendations that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
       "none": "Nothing breaks a deviation rule right now.",
       "item": "Item",
       "rule": "Rule",
@@ -1868,6 +1871,10 @@
         "kpi_off_target": {
           "name": "KPI off target",
           "hint": "The latest reading is in the red band."
+        },
+        "disputed": {
+          "name": "Disputed",
+          "hint": "The client's latest response disagrees with the recommendation."
         }
       },
       "detail": {
@@ -1877,7 +1884,8 @@
         "churn": "Sent back {n} times",
         "orphaned": "The owner has left",
         "kpi_not_reported": "No reading for the period from {period}",
-        "kpi_off_target": "Off target for the period from {period}"
+        "kpi_off_target": "Off target for the period from {period}",
+        "disputed": "Disputed since {date}"
       }
     },
     "trace": {
@@ -3271,7 +3279,12 @@
       "recommendation_updated": "Recommendation corrected",
       "recommendation_released": "Recommendation shared with the client",
       "recommendation_withdrawn": "Recommendation withdrawn",
-      "recommendation_deleted": "Recommendation deleted"
+      "recommendation_deleted": "Recommendation deleted",
+      "recommendation_responded": "Response to a recommendation recorded",
+      "recommendation_response_confirmed": "Recorded response confirmed",
+      "recommendation_response_answered": "Response answered by the firm",
+      "recommendation_respond": "Response to a recommendation",
+      "recommendation_response_review": "Confirming or answering a response"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -3696,5 +3709,101 @@
     "openTitle": "Open actions",
     "openHint": "This department's actions still in progress, across every project, earliest due first.",
     "openEmpty": "No open actions in this department."
+  },
+  "response": {
+    "title": "The client's response",
+    "hintClient": "Say whether you agree with this recommendation. If you agree, say what will be done and by when. If not, say why. The firm sees your response and may answer it.",
+    "hintFirm": "What the client said about this recommendation. It is the client's record, not the firm's view.",
+    "hintOnBehalf": "This client doesn't use Selah. Record what they told you and how. A colleague confirms it before it counts.",
+    "respond": "Respond",
+    "respondAgain": "Change the response",
+    "record": "Record the client's response",
+    "dialogTitle": "Your response to this recommendation",
+    "dialogTitleOnBehalf": "The client's response",
+    "stance": "Response",
+    "choices": {
+      "agree": "Agree",
+      "partly_agree": "Partly agree",
+      "disagree": "Disagree"
+    },
+    "choiceHints": {
+      "agree": "You accept it and will carry it out.",
+      "partly_agree": "You accept some of it. Say which part, and why not the rest.",
+      "disagree": "You don't accept it. Say why; it is marked disputed."
+    },
+    "stances": {
+      "agree": "Agreed",
+      "partly_agree": "Partly agreed",
+      "disagree": "Disputed",
+      "unconfirmed": "Awaiting confirmation",
+      "awaiting": "Awaiting response"
+    },
+    "reason": "Reason",
+    "reasonOptional": "Comment (optional)",
+    "reasonPlaceholder": "Example: the budget for this year is already set; we can start in the next cycle.",
+    "plannedAction": "What will be done",
+    "plannedActionPlaceholder": "Example: the finance team will write the approval policy and take it to the board.",
+    "actionOwner": "Who answers for it (optional)",
+    "actionOwnerPlaceholder": "A name or job title",
+    "targetDate": "By when",
+    "via": "How the client told you",
+    "vias": {
+      "meeting": "In a meeting",
+      "email": "By email",
+      "phone": "By phone",
+      "document": "In a document"
+    },
+    "receivedOn": "On",
+    "submit": "Record the response",
+    "recorded": "Response recorded",
+    "history": "Responses",
+    "historyHint": "Every response stays on record. The latest one is where the recommendation stands.",
+    "none": "No response yet.",
+    "current": "Current",
+    "recordedBy": "{name}, {date}",
+    "onBehalf": "Recorded for the client: {via}, {date}",
+    "confirm": "Confirm",
+    "confirmQuestion": "Confirm that the client gave this response? It then counts as where the recommendation stands.",
+    "confirmedBy": "Confirmed by {name}",
+    "unconfirmed": "Doesn't count until a colleague confirms it.",
+    "confirmedToast": "Response confirmed",
+    "answer": "Answer",
+    "answerTitle": "Answer the client's response",
+    "answerHint": "Your answer stays on record with the response, and the client sees it. A response is answered once.",
+    "answerLabel": "The firm's answer",
+    "answerPlaceholder": "Example: understood. We'll revisit this in the next review and keep the risk on the register.",
+    "answered": "Answer recorded",
+    "firmAnswer": "The firm's answer · {name}, {date}",
+    "planLine": "Will be done: {plan}",
+    "byLine": "By {date}",
+    "ownerLine": "Answers for it: {owner}",
+    "notShared": "This recommendation is firm-only. The client responds once it's shared.",
+    "withdrawn": "Withdrawn recommendations take no more responses.",
+    "closed": "The project is closed, so no more responses are taken.",
+    "noAccounts": "The firm records this client's response.",
+    "whoResponds": "The client's admin responds, or the project's sponsor.",
+    "errors": {
+      "plan": "Agreeing needs what will be done and by when.",
+      "reason": "Partly agreeing or disagreeing needs the reason.",
+      "received": "Say how and when the client told you.",
+      "future": "The date can't be in the future.",
+      "cannot": "This recommendation can't take a response from you now.",
+      "colleague": "A colleague other than the one who recorded it confirms it.",
+      "already": "Someone already did this. Refresh to see it."
+    }
+  },
+  "recommendationPage": {
+    "back": "Back to the project",
+    "answers": "Answers the finding",
+    "targetOutcome": "Target outcome",
+    "requiredEvidence": "Evidence that shows it's done",
+    "due": "Due",
+    "priority": "Priority",
+    "source": "Source",
+    "project": "Project",
+    "client": "Client",
+    "actions": "Actions",
+    "actionsHint": "The work that carries this recommendation out.",
+    "noActions": "No actions yet."
   }
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, isNotNull, or, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -166,6 +166,10 @@ export async function createRecommendation(tx: Tx, principal: Principal, project
   // The accountable person hears of it, unless it is still the firm's own.
   if (input.accountableUserId && input.visibility === "shared" && input.accountableUserId !== principal.userId) {
     await tx.insert(notifications).values({ userId: input.accountableUserId, kind: "recommendation.accountable", entityType: "project", entityId: projectId });
+  }
+  // A shared recommendation asks for the client's response (F10).
+  if (input.visibility === "shared" && project.kind === "client") {
+    await tx.execute(sql`select app_notify_recommendation(${row!.id}::uuid, 'recommendation.released')`);
   }
   return row!;
 }

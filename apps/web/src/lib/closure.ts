@@ -43,6 +43,7 @@ export const FROZEN_TABLES = [
   "project_closure_requests",
   "project_members",
   "recommendation_kpis",
+  "recommendation_responses",
   "recommendations",
   "reports",
   "reviews",
