@@ -147,6 +147,7 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | A recommendation and its KPI share a project | `check_recommendation_kpi()` | database only | `tests/db/metrics.test.ts` |
 | Readings: for active KPIs and started periods, verified or rejected once, never by their reporter; a correction replaces a reading of the same period | `check_kpi_reading()` | database only | `tests/db/metrics.test.ts` |
 | A client's numbers pool its projects' counts and work out the percentage from them, never averaging percentages; each reader counts only the work they can open, with each project and department beside the total | `app_client_progress()` | `src/services/client-overview.ts` (`clientOverview()`) | `tests/db/client-overview.test.ts` |
+| A department's page shows its numbers across the client's projects, each project beside the total; it is read by the client's consultants and admins and by the department's own people, never by another department's manager | `app_client_progress()` | `src/services/client-overview.ts` (`departmentOverview()`) | `tests/db/client-overview.test.ts` |
 
 ### Handover
 
@@ -281,7 +282,7 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | A new version keeps its file's project, owner, purpose, label and department, takes the next number, comes from the owning side, and never versions evidence; each file has at most one next version | `check_document_version()` | `src/services/documents.ts` (`uploadNewVersion()`) | `tests/db/file-controls.test.ts` |
 | An old version leaves the assistant when the next one arrives | `retire_old_version()` | database only | `tests/db/file-controls.test.ts`, `tests/db/ai-sources.test.ts` |
 | Departments belong to a client and stay with it | `check_department()` | `src/services/engagement.ts` (`createDepartment()`) | `tests/db/engagement.test.ts` |
-| Department members are the client's own active people, in one department | `check_department_member()` | `src/services/engagement.ts` (`putDepartmentMember()`) | `tests/db/engagement.test.ts` |
+| Department members are the client's own active people; a person may sit in several departments | `check_department_member()` | `src/services/engagement.ts` (`putDepartmentMember()`) | `tests/db/engagement.test.ts` |
 | Actions and files are filed under an active department of their client | `check_row_department()` | `src/services/plan.ts` | `tests/db/engagement.test.ts` |
 | A passage takes its source's department; refiling drops it from the index | `set_chunk_department()`, `drop_department_chunks()` | database only | `tests/db/engagement.test.ts` |
 | Recommendations and meetings are filed under an active department of their client, or none | `check_row_department()` | `src/services/plan.ts` (`createRecommendation()`), `src/services/meetings.ts` | `tests/db/engagement.test.ts` |

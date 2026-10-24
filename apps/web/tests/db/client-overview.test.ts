@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { clientOverview } from "@/services/client-overview";
+import { clientOverview, departmentOverview } from "@/services/client-overview";
 import { loadPrincipal } from "@/services/principal";
 import { listActions } from "@/services/queries";
 
@@ -179,5 +179,42 @@ describe("a client's progress across projects", () => {
   it("lists the client's actions across its projects only", async () => {
     const rows = await svc(U.lead, (tx, p) => listActions(tx, p, { clientOrgId: ACME }));
     expect(new Set(rows.map((r) => r.projectId))).toEqual(new Set([P.one, P.two]));
+  });
+});
+
+describe("a department's page", () => {
+  const page = (userId: string, dept = DEPT.hr) => svc(userId, (tx, p) => departmentOverview(tx, p, dept, TODAY));
+
+  it("shows the department's own numbers with each project beside them", async () => {
+    const hr = await page(U.lead);
+    expect(hr.total).toMatchObject({ total: 1, verified: 1, implementedPct: 100 });
+    expect(hr.projects.map((p) => [p.id, p.numbers.total])).toEqual([[P.one, 1]]);
+    expect(hr.members.map((m) => m.userId)).toEqual([U.cmgr]);
+    const fin = await page(U.lead, DEPT.fin);
+    expect(fin.total).toMatchObject({ total: 1, blocked: 1, overdue: 1 });
+    expect(fin.open.map((a) => a.overdue)).toEqual([true]);
+  });
+
+  it("is read by the client's team, its admins and the department's people, not by others at the client", async () => {
+    for (const who of [U.admin, U.lead, U.cadmin, U.cmgr]) await expect(page(who), who).resolves.toBeTruthy();
+    // The manager is in HR, not Finance; an action owner and another client never.
+    for (const [who, dept] of [
+      [U.cmgr, DEPT.fin],
+      [U.doer, DEPT.hr],
+      [U.oadmin, DEPT.hr],
+      [U.stranger, DEPT.hr],
+    ] as const) {
+      await expect(page(who, dept), `${who} ${dept}`).rejects.toThrow();
+    }
+  });
+
+  it("lets a person sit in more than one department", async () => {
+    await owner.query(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2)`, [DEPT.fin, U.cmgr]);
+    try {
+      await expect(page(U.cmgr, DEPT.fin)).resolves.toBeTruthy();
+      expect((await overview(U.cmgr)).total.total).toBe(10);
+    } finally {
+      await owner.query(`DELETE FROM department_members WHERE department_id = $1 AND user_id = $2`, [DEPT.fin, U.cmgr]);
+    }
   });
 });
