@@ -2342,5 +2342,113 @@
       "acceptor": "Signs off deliverables.",
       "observer": "Follows along, such as a board or family council member."
     }
+  },
+  "legalProfile": {
+    "title": "Legal profile",
+    "hint": "The client's legal identity. The Arabic legal name is the authoritative one; reports use it.",
+    "hintMinimal": "This client keeps minimal records, so no legal names or unified number are kept.",
+    "editHint": "Copy the names and numbers from the commercial registration. Leave what you don't know empty.",
+    "notRecorded": "Not recorded",
+    "legalForm": "Legal form",
+    "legalNameAr": "Legal name (Arabic)",
+    "legalNameEn": "Legal name (English)",
+    "tradeName": "Trade name",
+    "unifiedNumber": "Unified number",
+    "unifiedNumberHint": "The 700 number: 7 followed by nine digits.",
+    "sector": "Sector",
+    "isicCode": "Activity code (ISIC)",
+    "isicHint": "Optional. Four to six digits.",
+    "sizeBand": "Size by employees",
+    "revenueBand": "Size by annual revenue",
+    "bandsHint": "Bands follow Monsha'at's definitions, as on government forms.",
+    "region": "Region",
+    "regulators": "Regulators",
+    "listedMarket": "Listed on",
+    "calendar": "Fiscal calendar",
+    "fiscalYearEnd": "Fiscal year ends",
+    "fiscalYearEndValue": "End of {month} ({calendar})",
+    "employees": {
+      "micro": "Micro (1 to 5)",
+      "small": "Small (6 to 49)",
+      "medium": "Medium (50 to 249)",
+      "large": "Large (250 or more)"
+    },
+    "revenue": {
+      "micro": "Micro (up to SAR 3M)",
+      "small": "Small (SAR 3M to 40M)",
+      "medium": "Medium (SAR 40M to 200M)",
+      "large": "Large (over SAR 200M)"
+    },
+    "regions": {
+      "riyadh": "Riyadh",
+      "makkah": "Makkah",
+      "madinah": "Madinah",
+      "eastern": "Eastern Province",
+      "qassim": "Qassim",
+      "asir": "Asir",
+      "tabuk": "Tabuk",
+      "hail": "Hail",
+      "northern_borders": "Northern Borders",
+      "jazan": "Jazan",
+      "najran": "Najran",
+      "al_baha": "Al-Baha",
+      "al_jawf": "Al-Jawf"
+    },
+    "regulatorNames": {
+      "mc": "Ministry of Commerce",
+      "cma": "Capital Market Authority",
+      "sama": "Saudi Central Bank",
+      "ia": "Insurance Authority",
+      "cst": "Communications, Space and Technology Commission",
+      "ncnp": "National Center for the Non-Profit Sector",
+      "sfda": "Saudi Food and Drug Authority",
+      "moh": "Ministry of Health",
+      "moe": "Ministry of Education",
+      "other": "Other"
+    },
+    "markets": {
+      "main": "Main market (Tadawul)",
+      "parallel": "Parallel market (Nomu)"
+    },
+    "calendars": {
+      "gregorian": "Gregorian",
+      "hijri": "Hijri"
+    },
+    "months": {
+      "gregorian": {
+        "1": "January",
+        "2": "February",
+        "3": "March",
+        "4": "April",
+        "5": "May",
+        "6": "June",
+        "7": "July",
+        "8": "August",
+        "9": "September",
+        "10": "October",
+        "11": "November",
+        "12": "December"
+      },
+      "hijri": {
+        "1": "Muharram",
+        "2": "Safar",
+        "3": "Rabi al-Awwal",
+        "4": "Rabi al-Thani",
+        "5": "Jumada al-Ula",
+        "6": "Jumada al-Akhirah",
+        "7": "Rajab",
+        "8": "Shaban",
+        "9": "Ramadan",
+        "10": "Shawwal",
+        "11": "Dhu al-Qadah",
+        "12": "Dhu al-Hijjah"
+      }
+    },
+    "errors": {
+      "unifiedNumber": "The unified number is 7 followed by nine digits.",
+      "taken": "Another client already has this unified number. Check for a duplicate client.",
+      "listed": "A listed company needs the legal form \"Listed joint stock company\".",
+      "format": "Please check what you entered: names need at least two letters and the activity code four to six digits."
+    }
   }
 }

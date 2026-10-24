@@ -1588,6 +1588,60 @@ export const accessReviews = pgTable(
   (t) => [index("access_reviews_org_idx").on(t.orgId, t.createdAt)],
 );
 
+// A client's legal profile (wave 1, item 7). The Arabic legal name is the
+// authoritative one; the unified number is the 700 number (7 then 9 digits).
+// Size and revenue use Monsha'at's bands so they match the government forms
+// clients fill in. A minimal-records client keeps no legal names or number.
+export const sizeBand = pgEnum("size_band", ["micro", "small", "medium", "large"]);
+export const saudiRegion = pgEnum("saudi_region", [
+  "riyadh",
+  "makkah",
+  "madinah",
+  "eastern",
+  "qassim",
+  "asir",
+  "tabuk",
+  "hail",
+  "northern_borders",
+  "jazan",
+  "najran",
+  "al_baha",
+  "al_jawf",
+]);
+export const regulator = pgEnum("regulator", ["mc", "cma", "sama", "ia", "cst", "ncnp", "sfda", "moh", "moe", "other"]);
+export const listedMarket = pgEnum("listed_market", ["main", "parallel"]);
+export const fiscalCalendar = pgEnum("fiscal_calendar", ["gregorian", "hijri"]);
+
+export const clientProfiles = pgTable(
+  "client_profiles",
+  {
+    orgId: uuid("org_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    legalNameAr: text("legal_name_ar"),
+    legalNameEn: text("legal_name_en"),
+    tradeName: text("trade_name"),
+    unifiedNumber: text("unified_number"),
+    isicCode: text("isic_code"),
+    sectorCode: text("sector_code").references(() => sectors.code),
+    sizeBand: sizeBand("size_band"),
+    revenueBand: sizeBand("revenue_band"),
+    region: saudiRegion("region"),
+    regulators: regulator("regulators").array().notNull().default(sql`'{}'::regulator[]`),
+    listedMarket: listedMarket("listed_market"),
+    fiscalYearEndMonth: integer("fiscal_year_end_month"),
+    fiscalCalendar: fiscalCalendar("fiscal_calendar").notNull().default("gregorian"),
+    updatedBy: uuid("updated_by").references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("client_profiles_unified_number").on(t.unifiedNumber),
+    check("client_profile_unified_number", sql`${t.unifiedNumber} ~ '^7[0-9]{9}$'`),
+    check("client_profile_isic", sql`${t.isicCode} ~ '^[0-9]{4,6}$'`),
+    check("client_profile_fiscal_month", sql`${t.fiscalYearEndMonth} BETWEEN 1 AND 12`),
+  ],
+);
+
 // People at a client the firm deals with who have no login (consultant-managed
 // engagements): action owners by name, meeting invitees. Firm-only.
 export const clientContacts = pgTable(

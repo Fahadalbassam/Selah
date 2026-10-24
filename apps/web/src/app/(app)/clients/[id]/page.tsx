@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToneBadge } from "@/components/tone-badge";
-import { LEGAL_FORMS } from "@/lib/assessments";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
@@ -27,6 +26,8 @@ import { getClientTeam } from "@/services/staffing";
 import { EngagementDialog } from "@/components/engagement-form";
 import { NOT_COVERED } from "@/lib/engagements";
 import { EngagementCard } from "./engagement-card";
+import { LegalProfileCard } from "./legal-profile-card";
+import { getClientProfile } from "@/services/client-profile";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,6 +42,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       admin,
       engagement,
       signed: await listEngagements(tx, principal, id),
+      // Legal names, unified number, bands, regulators, fiscal year (item 7).
+      legal: await getClientProfile(tx, principal, id),
       // Null when this user may delete it now (a lost pitch, a client added by mistake).
       discard: await discardBlock(tx, id),
       // People at the client without an account; firm staff on the client's team only.
@@ -487,42 +490,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             fit: data.engagement.fit,
           }}
         />
-        <Card className="h-fit gap-4 py-5 shadow-xs">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">{tq("legalFormTitle")}</CardTitle>
-              <CardDescription>{tq("legalFormHint")}</CardDescription>
-            </div>
-            {can.setLegalForm ? (
-              <FormDialog
-                trigger={
-                  <Button size="sm" variant="outline">
-                    <Pencil />
-                    {tq("change")}
-                  </Button>
-                }
-                title={tq("legalFormTitle")}
-                description={tq("legalFormHint")}
-                endpoint={`/api/orgs/${client.id}/legal-form`}
-                method="PUT"
-                fields={[
-                  {
-                    name: "legalForm",
-                    label: tq("legalFormTitle"),
-                    type: "select",
-                    required: true,
-                    defaultValue: client.legalForm ?? undefined,
-                    options: LEGAL_FORMS.map((f) => ({ value: f, label: tq(`forms.${f}`) })),
-                  },
-                ]}
-                submitLabel={tq("save")}
-              />
-            ) : null}
-          </CardHeader>
-          <CardContent className="px-5 text-sm">
-            {client.legalForm ? tq(`forms.${client.legalForm}`) : <span className="text-muted-foreground">{tq("notRecorded")}</span>}
-          </CardContent>
-        </Card>
+        <LegalProfileCard
+          clientId={client.id}
+          profile={data.legal.profile}
+          legalForm={data.legal.legalForm}
+          minimalRecords={data.legal.minimalRecords}
+          sectors={data.legal.sectors}
+          sectorName={data.legal.sector ? (ar ? data.legal.sector.nameAr : data.legal.sector.nameEn) : null}
+          can={data.legal.can}
+        />
         <Card className="h-fit gap-4 py-5 shadow-xs">
           <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
             <div className="space-y-1.5">
