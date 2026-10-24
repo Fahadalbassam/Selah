@@ -123,7 +123,8 @@
       "info_request_returned": "returned a request with a reason",
       "info_request_reopened": "asked again for an item marked not applicable",
       "info_request_not_applicable": "marked a request not applicable",
-      "info_request_removed": "removed a request"
+      "info_request_removed": "removed a request",
+      "document_withdrawn": "withdrew a file uploaded by mistake"
     }
   },
   "priority": {
@@ -2354,7 +2355,11 @@
       "infected": "This file was refused: the virus scan found a problem.",
       "tooLarge": "This file is larger than 20 MB.",
       "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text."
-    }
+    },
+    "withdraw": "Withdraw this file",
+    "withdrawHint": "Use this when {title} was the wrong file. It leaves every list and the assistant, stops answering any request it was sent for, and stays on record with your reason. You can then upload the right one.",
+    "withdrawReason": "Why is it withdrawn?",
+    "withdrawn": "File withdrawn"
   },
   "engagements": {
     "title": "Signed engagements",

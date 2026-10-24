@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 
 export interface FileActionsProps {
@@ -21,7 +22,7 @@ export interface FileActionsProps {
   visibility: "shared" | "firm_private" | "client_private" | "user_private";
   aiIndexable: boolean;
   /** From fileControls() on the server; the server decides again. */
-  can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean };
+  can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean; withdraw: boolean };
   /** After a change; refreshes the page when not given. */
   onChanged?: () => void;
 }
@@ -38,11 +39,12 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
   const router = useRouter();
   const [confirm, confirmDialog] = useConfirm();
   const [versionOpen, setVersionOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const done = () => (onChanged ? onChanged() : router.refresh());
 
-  if (!can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion) return null;
+  if (!can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw) return null;
 
   async function share(message: string) {
     if (!(await confirm(message))) return;
@@ -57,6 +59,19 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
     const r = await callApi(`/api/documents/${id}/assistant`, "PUT", { on });
     if (!r.ok) return void toast.error(tc(`errors.${r.error}`));
     toast.success(on ? t("assistantOn") : t("assistantOff"));
+    done();
+  }
+
+  async function withdraw(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const reason = String(new FormData(e.currentTarget).get("reason") ?? "").trim();
+    setBusy(true);
+    setError(null);
+    const r = await callApi(`/api/documents/${id}/withdraw`, "POST", { reason });
+    setBusy(false);
+    if (!r.ok) return setError(tc(`errors.${r.error}`));
+    toast.success(t("withdrawn"));
+    setWithdrawOpen(false);
     done();
   }
 
@@ -107,9 +122,42 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
             <DropdownMenuItem onSelect={() => assistant(!aiIndexable)}>{aiIndexable ? t("assistantTurnOff") : t("assistantTurnOn")}</DropdownMenuItem>
           ) : null}
           {can.newVersion ? <DropdownMenuItem onSelect={() => setVersionOpen(true)}>{t("newVersion")}</DropdownMenuItem> : null}
+          {can.withdraw ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setWithdrawOpen(true)}>
+              {t("withdraw")}
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {confirmDialog}
+      <Dialog open={withdrawOpen} onOpenChange={(o) => (setWithdrawOpen(o), setError(null))}>
+        <DialogContent>
+          <form onSubmit={withdraw} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>{t("withdraw")}</DialogTitle>
+              <DialogDescription>{t("withdrawHint", { title })}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2">
+              <Label htmlFor={`withdraw-${id}`}>{t("withdrawReason")}</Label>
+              <Textarea id={`withdraw-${id}`} name="reason" required minLength={3} maxLength={500} rows={3} />
+            </div>
+            {error ? (
+              <p role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWithdrawOpen(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit" variant="destructive" disabled={busy}>
+                {busy ? <BrandLoader tone="current" className="size-4" /> : null}
+                {t("withdraw")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={versionOpen} onOpenChange={(o) => (setVersionOpen(o), setError(null))}>
         <DialogContent>
           <form onSubmit={upload} className="grid gap-4">
