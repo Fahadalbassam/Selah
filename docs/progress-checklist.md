@@ -58,7 +58,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J05.2** Add a client directly — lane: firm · map: exists · wave: — · pr: #20
 - [x] **J05.3** Legal profile — lane: firm · map: wave 1 · covered by: F07 · wave: 1
 - [x] **J05.4** A project per phase — lane: firm · map: wave 1 · covered by: F02 · wave: 1 · pr: #59
-- [~] **J05.5** First sign-in (firm: Invites the client admin; client: Accepts terms and AI notice) — lane: shared · map: wave 1 · covered by: R1 · wave: 1 · pr: #84 (open)
+- [x] **J05.5** First sign-in (firm: Invites the client admin; client: Accepts terms and AI notice) — lane: shared · map: wave 1 · covered by: R1 · wave: 1 · pr: #84
 - [x] **J05.6** Accepts invite, sets 2FA — lane: client · map: exists · wave: — · pr: #7, #8
 
 ### J06 · People and roles · الأشخاص والأدوار
@@ -194,9 +194,9 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F35** Company and department KPIs — tier: 6 · size: L · wave: frozen · waiting on: supervisor (D8) · decision: D8
 ## Readiness before real client data
 
-- [~] **R1** Terms, consent records, AI notice, data agreement — size: S · wave: 1 · journey: J05.5 · pr: #84 (open)
+- [x] **R1** Terms, consent records, AI notice, data agreement — size: S · wave: 1 · journey: J05.5 · pr: #84
 - [x] **R2** Audit-log screen and tamper evidence — size: M · wave: 1 · journey: J11.4 · pr: #77
-- [ ] **R3** Backups, restore drill, incident runbook — size: M · wave: 1
+- [~] **R3** Backups, restore drill, incident runbook — size: M · wave: 1 · pr: #86 (open)
 - [ ] **R4** Readiness checks, alerts, upgrades — size: S · wave: later (before real data)
 - [ ] **R5** Security pack for client IT — size: S · wave: later (before real data)
 - [ ] **R6** AI operations and consent — size: S · wave: later (before real data)
