@@ -1316,7 +1316,8 @@
       "owner_assigned": "handed it to {name}",
       "acknowledged": "sent the requester an acknowledgement with the reference",
       "decline_mailed": "sent the requester a courteous decline",
-      "entered": "entered the inquiry by hand"
+      "entered": "entered the inquiry by hand",
+      "nda_signed": "recorded the NDA signed on {date}"
     },
     "public": "The public form",
     "back": "Back to inquiries",
@@ -1434,7 +1435,19 @@
         "client": "Choose the returning client.",
         "check": "Please check what you entered: the organisation name is required, and the tender number uses letters, digits and dashes only."
       }
-    }
+    },
+    "runSearch": "Run the conflict search",
+    "searchAgain": "Search again",
+    "pitchConflictHint": "Search current, past and pitched clients and open inquiries for this name, its mail domain and its people before going further.",
+    "returning": "The search found {name} by the same name or mail domain. It is chosen below; pick New client if it is a different organisation.",
+    "nda": "Non-disclosure agreement",
+    "ndaNone": "Not signed",
+    "ndaSigned": "Signed on {date}",
+    "ndaHint": "Ask for nothing confidential (statements, contracts, ownership details) before the NDA is signed.",
+    "ndaMark": "Record the NDA",
+    "ndaCorrect": "Correct the date",
+    "ndaMarkHint": "Record the day the requester signed the NDA. Keep the signed copy with the firm's contracts.",
+    "ndaDate": "Signed on"
   },
   "notifications": {
     "title": "Notifications",
@@ -2491,5 +2504,74 @@
       "listed": "A listed company needs the legal form \"Listed joint stock company\".",
       "format": "Please check what you entered: names need at least two letters and the activity code four to six digits."
     }
+  },
+  "conflicts": {
+    "notRun": "No conflict search yet. Clearing the check needs one.",
+    "summary": "Searched {when} by <who>{name}</who>: {count, plural, =0 {nothing found} one {1 possible conflict} other {# possible conflicts}}",
+    "none": "No client, pitch or inquiry matched.",
+    "inquiry": "Inquiry",
+    "clientStatus": {
+      "current": "Current client",
+      "past": "Past client",
+      "prospect": "Pitch"
+    },
+    "reasons": {
+      "same_name": "same name",
+      "similar_name": "similar name",
+      "domain": "same mail domain",
+      "person": "same person",
+      "family": "same family name"
+    }
+  },
+  "qualification": {
+    "title": "Qualification",
+    "notRated": "Not rated",
+    "score": "{n} of {of}",
+    "hint": "Rate five signals so the firm admin sees how strong the inquiry is before deciding. It is a guide, not a score that decides.",
+    "rate": "Rate",
+    "rerate": "Rate again",
+    "save": "Save the rating",
+    "note": "Note",
+    "ratedBy": "Rated by <who>{name}</who>, {when}",
+    "levels": {
+      "1": "Weak",
+      "2": "Some",
+      "3": "Strong"
+    },
+    "signals": {
+      "fit": "Fit with our services",
+      "need": "Clear need",
+      "authority": "Talking to who decides",
+      "urgency": "Reason to act now",
+      "budget": "Budget"
+    },
+    "guides": {
+      "fit": {
+        "1": "outside what we do",
+        "2": "partly ours",
+        "3": "squarely ours"
+      },
+      "need": {
+        "1": "vague",
+        "2": "described",
+        "3": "a specific problem"
+      },
+      "authority": {
+        "1": "unknown",
+        "2": "someone who influences",
+        "3": "the decision-maker"
+      },
+      "urgency": {
+        "1": "no timeframe",
+        "2": "this year",
+        "3": "a dated trigger"
+      },
+      "budget": {
+        "1": "not discussed",
+        "2": "a range is expected",
+        "3": "confirmed"
+      }
+    },
+    "choose": "Choose"
   }
 }

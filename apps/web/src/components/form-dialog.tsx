@@ -32,7 +32,7 @@ export interface Field {
   options?: { value: string; label: string }[];
   /** Placeholder (for a date field, also its empty label). */
   placeholder?: string;
-  /** The current value, when the dialog edits something. */
+  /** The current value, when the dialog edits something. A select with "" starts on its placeholder. */
   defaultValue?: string;
 }
 
@@ -143,7 +143,14 @@ export function FormDialog(props: {
                   </SelectContent>
                 </Select>
               ) : f.type === "date" ? (
-                <DatePicker id={`f-${f.name}`} name={f.name} required={f.required} placeholder={f.placeholder ?? f.label} clearLabel={t("clear")} />
+                <DatePicker
+                  id={`f-${f.name}`}
+                  name={f.name}
+                  required={f.required}
+                  defaultValue={f.defaultValue}
+                  placeholder={f.placeholder ?? f.label}
+                  clearLabel={t("clear")}
+                />
               ) : (
                 <Input
                   id={`f-${f.name}`}
