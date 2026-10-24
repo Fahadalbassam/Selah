@@ -11,7 +11,7 @@ import { GRACE_DAYS, OFFBOARDING_LIMITS, RETENTION_YEARS } from "@/lib/offboardi
 import type { OffboardingView } from "@/services/offboarding";
 
 /**
- * Leaving (baseline: Offboarding, 0024), on the client page: archive once
+ * Leaving (baseline: Offboarding, 0025), on the client page: archive once
  * every project is closed, the grace period and retention date, restoring,
  * and legal holds. Every button is one the database will take.
  */

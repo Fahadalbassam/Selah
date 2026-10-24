@@ -2566,7 +2566,7 @@ export const consentRecords = pgTable(
 );
 
 // ------------------------------------------------------------- offboarding
-// A client leaves (baseline: Offboarding, 0024). The firm admin archives it
+// A client leaves (baseline: Offboarding, 0025). The firm admin archives it
 // once every project is closed; its people keep read-only access through a
 // grace period, the records are kept for the retention period (ten years,
 // Saudi commercial records), and then a job deletes them and leaves a
