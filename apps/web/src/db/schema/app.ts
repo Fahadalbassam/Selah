@@ -2626,3 +2626,34 @@ export const clientDeletions = pgTable("client_deletions", {
   deletedAt: ts("deleted_at").notNull().defaultNow(),
   counts: jsonb("counts").$type<Record<string, number>>().notNull(),
 });
+
+// The export pack handed to a leaving client (baseline: Export pack, 0030):
+// a ZIP of what the client may see, kept in storage, with its SHA-256. The
+// client's admin confirms receiving it, or the firm admin records a handover
+// made outside Selah (a client the firm manages has no accounts).
+export const clientExportPacks = pgTable(
+  "client_export_packs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    madeBy: uuid("made_by").references(() => user.id),
+    madeAt: ts("made_at").notNull().defaultNow(),
+    locale: text("locale").notNull(),
+    storageKey: text("storage_key").notNull(),
+    sha256: text("sha256").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    fileCount: integer("file_count").notNull(),
+    receiptBy: uuid("receipt_by").references(() => user.id),
+    receiptAt: ts("receipt_at"),
+    // A handover outside Selah: who received it (the firm admin records it).
+    receivedByName: text("received_by_name"),
+    receiptNote: text("receipt_note"),
+  },
+  (t) => [
+    index("client_export_packs_org_idx").on(t.orgId),
+    check("export_pack_sha256", sql`sha256 ~ '^[0-9a-f]{64}$'`),
+    check("export_pack_locale", sql`locale IN ('ar', 'en')`),
+  ],
+);

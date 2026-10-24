@@ -204,6 +204,13 @@
       "when": 1792819890068,
       "tag": "0032_department_move",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792819950068,
+      "tag": "0030_export_pack",
+      "breakpoints": true
     }
   ]
 }
