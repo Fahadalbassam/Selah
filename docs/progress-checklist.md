@@ -233,17 +233,17 @@ From the review of 2026-10-24 (report `plan/selah-two-sided-review.html`), secti
 - [x] **R05** A response's target date can't be in the past — pr: #116
 - [x] **M01** Asking for a revision answers the evidence items still waiting, so the lead decides once — pr: #117
 - [x] **M04** Overview cards: "In progress" counts claims only; the firm's list includes blocked and revision work — pr: #117
-- [x] **M05** A consultant who only observes a client's projects doesn't add, edit or remove its contacts (notes on actions stay open to observers by design) — pr: #119
-- [x] **M06** An archived client's team card offers no staffing buttons — pr: #119
-- [x] **M10** No PDF button where the PDF service isn't set up — pr: #119
-- [x] **M13** The sample data has no impossible states: evidence behind awaiting review, revision and verified — pr: #119
+- [x] **M05** A consultant who only observes a client's projects doesn't add, edit or remove its contacts (notes on actions stay open to observers by design) — pr: #120
+- [x] **M06** An archived client's team card offers no staffing buttons — pr: #120
+- [x] **M10** No PDF button where the PDF service isn't set up — pr: #120
+- [x] **M13** The sample data has no impossible states: evidence behind awaiting review, revision and verified — pr: #120
 - [x] **L01** The sidebar toggle's screen-reader text is translated — pr: #116
-- [x] **L02** The project's Meetings tab shows a new meeting on the way back — pr: #119
+- [x] **L02** The project's Meetings tab shows a new meeting on the way back — pr: #120
 - [x] **L03** Remind owner confirms with a toast — checked: the toast shows once the request returns; not reproduced, no change
-- [x] **L04** A booked discovery session replaces "Book a discovery session" as the next step — pr: #119
-- [x] **L06** The clients list says "Only the lead consultant" instead of "none" — pr: #119
-- [x] **L09** An action owner opening /team gets not-found like other blocked pages — pr: #119
-- [x] **L12** The actions export refuses an unknown parameter instead of an unfiltered sheet that looks filtered — pr: #119
+- [x] **L04** A booked discovery session replaces "Book a discovery session" as the next step — pr: #120
+- [x] **L06** The clients list says "Only the lead consultant" instead of "none" — pr: #120
+- [x] **L09** An action owner opening /team gets not-found like other blocked pages — pr: #120
+- [x] **L12** The actions export refuses an unknown parameter instead of an unfiltered sheet that looks filtered — pr: #120
 - [x] **L13** The public upload page sends only the strings its form uses — pr: #116
 - [x] **L14** Local start without a scanner keeps uploads (CLAMD_HOST left empty; the app stays fail-closed) — pr: #115
 
