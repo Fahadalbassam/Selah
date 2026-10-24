@@ -213,6 +213,7 @@ describe("winning an inquiry", () => {
     for (const s of ["triaged", "discovery_scheduled", "discovery_done"]) {
       await as(U.admin, (c) => c.query(`UPDATE inquiries SET status = $2 WHERE id = $1`, [inquiryId, s]), true);
     }
+    await as(U.admin, (c) => c.query(`SELECT app_record_conflict_search($1, NULL)`, [inquiryId]), true);
     await as(U.admin, (c) => c.query(`UPDATE inquiries SET conflict_status = 'clear' WHERE id = $1`, [inquiryId]), true);
 
     const out = await svc(

@@ -1220,6 +1220,58 @@ export const inquiryEvents = pgTable(
   (t) => [index("inquiry_events_inquiry_idx").on(t.inquiryId, t.createdAt)],
 );
 
+// What the firm admin's conflict search found, kept as it was when they
+// ran it (wave 1, item 8): for an inquiry, or for a prospect a consultant
+// is pitching. Append-only; the matches are names and reasons, firm-only.
+export const conflictSearches = pgTable(
+  "conflict_searches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    inquiryId: uuid("inquiry_id").references(() => inquiries.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    // The names, person and address searched for.
+    terms: jsonb("terms").$type<{ names: string[]; person: string | null; domain: string | null }>().notNull(),
+    matches: jsonb("matches").$type<{ kind: string; id: string; label: string; status: string; reasons: string[]; people: string[] }[]>().notNull(),
+    searchedBy: uuid("searched_by")
+      .notNull()
+      .references(() => user.id),
+    searchedAt: ts("searched_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("conflict_searches_inquiry_idx").on(t.inquiryId, t.searchedAt),
+    index("conflict_searches_org_idx").on(t.orgId, t.searchedAt),
+    check("conflict_search_subject", sql`(${t.inquiryId} IS NULL) <> (${t.orgId} IS NULL)`),
+  ],
+);
+
+// The owner's read of an inquiry on five signals (wave 1, item 8): does it
+// fit what the firm does, is the need real, are we talking to someone who
+// decides, why now, and is there a budget. 1 weak, 2 some, 3 strong.
+export const inquiryQualifications = pgTable(
+  "inquiry_qualifications",
+  {
+    inquiryId: uuid("inquiry_id")
+      .primaryKey()
+      .references(() => inquiries.id, { onDelete: "cascade" }),
+    fit: integer("fit").notNull(),
+    need: integer("need").notNull(),
+    authority: integer("authority").notNull(),
+    urgency: integer("urgency").notNull(),
+    budget: integer("budget").notNull(),
+    note: text("note"),
+    ratedBy: uuid("rated_by")
+      .notNull()
+      .references(() => user.id),
+    ratedAt: ts("rated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "inquiry_qualification_range",
+      sql`${t.fit} BETWEEN 1 AND 3 AND ${t.need} BETWEEN 1 AND 3 AND ${t.authority} BETWEEN 1 AND 3 AND ${t.urgency} BETWEEN 1 AND 3 AND ${t.budget} BETWEEN 1 AND 3`,
+    ),
+  ],
+);
+
 export const discoverySessions = pgTable(
   "discovery_sessions",
   {

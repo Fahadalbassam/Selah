@@ -186,7 +186,7 @@ describe("the workflow", () => {
     );
     await set(U.cons, `status = 'discovery_done'`);
     await expect(set(U.cons, `status = 'won'`)).rejects.toThrow(/invalid inquiry status change/);
-    await expect(set(U.cons, `conflict_status = 'clear'`)).rejects.toThrow(/not allowed/);
+    await expect(set(U.cons, `conflict_status = 'flagged'`)).rejects.toThrow(/not allowed/);
     await expect(set(U.cons, `owner_user_id = '${U.other}'`)).rejects.toThrow(/not allowed/);
     await expect(set(U.cons, `contact_email = 'x@y.z'`)).rejects.toThrow(/not allowed/);
     await set(U.cons, `status = 'proposal_sent'`);
@@ -206,6 +206,8 @@ describe("the workflow", () => {
   it("winning needs a conflict check, and a won inquiry becomes a client once", async () => {
     await expect(set(U.admin, `status = 'won'`)).rejects.toThrow(/check for conflicts/);
     await expect(set(U.admin, `conflict_status = 'waived'`)).rejects.toThrow(/say what the conflict is/);
+    await expect(set(U.admin, `conflict_status = 'clear'`)).rejects.toThrow(/run the conflict search before clearing/);
+    await run(U.admin, `SELECT app_record_conflict_search($1, NULL)`, [iid]);
     await set(U.admin, `conflict_status = 'clear'`);
     await expect(set(U.admin, `client_org_id = '${NEW_CLIENT}'`)).rejects.toThrow(/becomes a client once/);
     await set(U.admin, `status = 'won'`);
@@ -244,6 +246,7 @@ describe("the inquiry page", () => {
     await run(U.cons, `INSERT INTO discovery_sessions (inquiry_id, scheduled_at, mode, created_by) VALUES ($1, now(), 'video', $2)`, [iid, U.cons]);
     await run(U.cons, `UPDATE inquiries SET status = 'discovery_done' WHERE id = $1`, [iid]);
     expect((await detail(U.admin, iid)).can.convert).toBe(false);
+    await run(U.admin, `SELECT app_record_conflict_search($1, NULL)`, [iid]);
     await run(U.admin, `UPDATE inquiries SET conflict_status = 'clear' WHERE id = $1`, [iid]);
     expect((await detail(U.admin, iid)).can).toMatchObject({ convert: true, forward: "proposal_sent" });
     expect((await detail(U.cons, iid)).can.convert).toBe(false);

@@ -8,6 +8,7 @@ import {
   firmSettings,
   inquiries,
   inquiryEvents,
+  inquiryQualifications,
   inquiryServices,
   organizations,
   projects,
@@ -19,7 +20,9 @@ import { assertAllowed, authorize, type EngagementMode, type Principal, type Res
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import type { EngagementInput } from "@/lib/engagements";
 import type { EnteredInquiryInput } from "@/lib/inquiry-entry";
+import type { QualificationInput } from "@/lib/qualification";
 import { audit } from "./audit";
+import { latestConflictSearch } from "./conflicts";
 import { recordEngagement } from "./engagements";
 import { createClient, setLead } from "./staffing";
 
@@ -133,6 +136,15 @@ export async function getInquiry(tx: Tx, principal: Principal, id: string) {
     : [];
   const [enteredBy] = row.enteredBy ? await tx.select({ name: user.name }).from(user).where(eq(user.id, row.enteredBy)) : [];
   const [owner] = row.ownerUserId ? await tx.select({ name: user.name }).from(user).where(eq(user.id, row.ownerUserId)) : [];
+  const [qualification] = await tx
+    .select({ q: inquiryQualifications, raterName: user.name })
+    .from(inquiryQualifications)
+    .leftJoin(user, eq(user.id, inquiryQualifications.ratedBy))
+    .where(eq(inquiryQualifications.inquiryId, id))
+    .limit(1);
+  // The latest NDA entry wins; a later one corrects an earlier date.
+  const nda = [...events].reverse().find((e) => e.event === "nda_signed");
+  const decide = authorize(principal, "inquiry.decide", resource).allowed;
   // The hashes are for the rate limit, not for people.
   const { ipHash, userAgentHash, sectorId, ...inquiry } = row;
   void [ipHash, userAgentHash, sectorId];
@@ -144,7 +156,11 @@ export async function getInquiry(tx: Tx, principal: Principal, id: string) {
       sourceClient: sourceClient ?? null,
       enteredByName: enteredBy?.name ?? null,
       ownerName: owner?.name ?? null,
+      ndaSignedOn: (nda?.meta as { signed_on?: string } | null)?.signed_on ?? null,
     },
+    qualification: qualification ? { ...qualification.q, raterName: qualification.raterName } : null,
+    // What the last conflict search found; the firm admin's alone.
+    conflictSearch: decide ? await latestConflictSearch(tx, { inquiryId: id }) : null,
     events,
     discoverySessions: sessions,
     can: {
@@ -244,6 +260,29 @@ export async function enterInquiry(tx: Tx, principal: Principal, input: EnteredI
     meta: { source: input.source },
   });
   return { id };
+}
+
+const OPEN: Status[] = ["new", "triaged", "discovery_scheduled", "discovery_done", "proposal_sent"];
+
+/** Rate the inquiry on the five signals. Whoever works it, while it is open. */
+export async function rateInquiry(tx: Tx, principal: Principal, id: string, input: QualificationInput) {
+  const { row, resource } = await loadInquiry(tx, principal, id);
+  assertAllowed(principal, "inquiry.work", resource);
+  if (!OPEN.includes(row.status)) throw new BadRequestError("an inquiry is rated while it is open");
+  const values = { ...input, ratedBy: principal.userId };
+  await tx
+    .insert(inquiryQualifications)
+    .values({ inquiryId: id, ...values })
+    .onConflictDoUpdate({ target: inquiryQualifications.inquiryId, set: values });
+  return { ok: true };
+}
+
+/** Record the day the NDA was signed. */
+export async function markNda(tx: Tx, principal: Principal, id: string, signedOn: string) {
+  const { resource } = await loadInquiry(tx, principal, id);
+  assertAllowed(principal, "inquiry.work", resource);
+  await tx.execute(sql`select app_mark_inquiry_nda(${id}, ${signedOn}::date)`);
+  return { ok: true };
 }
 
 /** Queue the courteous decline mail to the requester (N10). The database allows it once. */

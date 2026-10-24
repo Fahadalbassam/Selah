@@ -3,6 +3,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
 import { EyeOff } from "@/components/animate-ui/icons/eye-off";
+import { Search } from "@/components/animate-ui/icons/search";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
@@ -28,6 +29,8 @@ import { NOT_COVERED } from "@/lib/engagements";
 import { EngagementCard } from "./engagement-card";
 import { LegalProfileCard } from "./legal-profile-card";
 import { getClientProfile } from "@/services/client-profile";
+import { latestConflictSearch } from "@/services/conflicts";
+import { ConflictMatches } from "@/components/conflict-matches";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +54,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       // Who fits this client, from the inquiry it came from. The admin decides.
       suggestions: admin ? await suggestClientLeads(tx, principal, id) : null,
       services: admin ? (await intakeOptions(tx)).services : [],
+      // A pitch is checked for conflicts before the firm goes further (item 8).
+      conflictSearch: admin ? await latestConflictSearch(tx, { orgId: id }) : null,
     };
   });
   if (!data) notFound();
@@ -542,6 +547,22 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </CardContent>
         </Card>
+        {data.admin && client.prospect ? (
+          <Card className="h-fit gap-4 py-5 shadow-xs">
+            <CardHeader className="px-5">
+              <CardTitle className="text-base">{ti("conflictCheck")}</CardTitle>
+              <CardDescription>{ti("pitchConflictHint")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 px-5 text-sm">
+              <ConflictMatches search={data.conflictSearch} />
+              <ApiButton
+                endpoint={`/api/clients/${client.id}/conflict-search`}
+                label={data.conflictSearch ? ti("searchAgain") : ti("runSearch")}
+                icon={<Search />}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
         {data.admin ? (
           <Card className="h-fit gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">
