@@ -11,10 +11,12 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import {
+  CLIENT_QUIET_DAYS,
   HEALTH_LATE_DAYS,
   HEALTH_OVERDUE_SHARE,
   healthSignal,
   REVIEW_WAIT_DAYS,
+  weekStart,
 } from "@/lib/health";
 import { exceptions, portfolio, remindOwner } from "@/services/oversight";
 import { loadPrincipal } from "@/services/principal";
@@ -368,5 +370,90 @@ describe("reminding an owner", () => {
       (await owner.query(`SELECT count(*)::int AS n FROM notifications`))
         .rows[0].n,
     ).toBe(0);
+  });
+});
+
+describe("weekly health history", () => {
+  it("keeps this week's signal for every open project, once per week, and shows it to the firm", async () => {
+    expect((await owner.query(`SELECT app_snapshot_health($1) AS n`, [today])).rows[0].n).toBe(2);
+    expect((await owner.query(`SELECT app_snapshot_health($1) AS n`, [today])).rows[0].n).toBe(2);
+    const rows = (await owner.query(`SELECT project_id, week_start::text AS w, signal FROM project_health_weeks ORDER BY project_id`)).rows;
+    expect(rows).toEqual([
+      { project_id: P.acme, w: weekStart(today), signal: "off_track" },
+      { project_id: P.beta, w: weekStart(today), signal: "no_data" },
+    ]);
+    expect((await owner.query(`SELECT app_week_start($1::date)::text AS w`, [today])).rows[0].w).toBe(weekStart(today));
+    await owner.query(`INSERT INTO project_health_weeks (project_id, org_id, week_start, signal, open, overdue, cautions) VALUES ($1,$2,$3,'watch',3,1,0)`, [
+      P.acme,
+      ACME,
+      day(-7 - new Date(`${today}T00:00:00Z`).getUTCDay()),
+    ]);
+    const [acme] = await svc(U.lead, (tx, p) => portfolio(tx, p));
+    expect(acme!.weeks.map((w) => w.signal)).toEqual(["watch", "off_track"]);
+    // Firm-only, and only for projects the caller can see.
+    expect((await sql(U.cadmin, `SELECT * FROM project_health_weeks`)).rows).toEqual([]);
+    expect((await sql(U.other, `SELECT project_id FROM project_health_weeks`)).rows).toEqual([{ project_id: P.beta }]);
+    expect(await refused(sql(U.admin, `UPDATE project_health_weeks SET signal = 'on_track'`))).toMatch(/permission denied/);
+  });
+
+  it("counts every move of a date when the job runs without a user", async () => {
+    await owner.query(`UPDATE actions SET due_date = $2 WHERE id = $1`, [A.open, day(20)]);
+    await owner.query(`UPDATE actions SET due_date = $2 WHERE id = $1`, [A.open, day(30)]);
+    expect((await owner.query(`SELECT extended_twice FROM app_project_health($1)`, [P.acme])).rows[0].extended_twice).toBe(1);
+    const [acme] = await svc(U.lead, (tx, p) => portfolio(tx, p));
+    expect(acme!.extendedTwice).toBe(1);
+  });
+});
+
+describe("quiet clients", () => {
+  const alerts = async () =>
+    (await owner.query(`SELECT user_id, entity_id FROM notifications WHERE kind = 'project.client_quiet' ORDER BY created_at, user_id`)).rows;
+  const quietFor = (days: number) => owner.query(`UPDATE projects SET created_at = now() - make_interval(days => $2) WHERE id = $1`, [P.acme, days]);
+
+  it("tells the client's lead once per quiet spell", async () => {
+    await quietFor(CLIENT_QUIET_DAYS - 1);
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(0);
+    await quietFor(CLIENT_QUIET_DAYS + 1);
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(1);
+    expect(await alerts()).toEqual([{ user_id: U.lead, entity_id: P.acme }]);
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(0);
+    // The client acted after the alert, then went quiet again: a new spell.
+    await owner.query(`UPDATE notifications SET created_at = now() - interval '30 days'`);
+    await owner.query(
+      `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, created_at) VALUES ($1,$2,$3,'action',$4,'progress', now() - make_interval(days => $5))`,
+      [P.acme, ACME, U.cowner, A.open, CLIENT_QUIET_DAYS + 2],
+    );
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(1);
+    // It rides the person's reminder summary.
+    await owner.query(`SELECT app_queue_digests($1)`, [today]);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'project.client_quiet' AND mailed_at IS NULL AND created_at > now() - interval '1 day'`)).rows[0].n).toBe(0);
+  });
+
+  it("isn't raised once the client acts", async () => {
+    await quietFor(CLIENT_QUIET_DAYS + 5);
+    await owner.query(
+      `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event) VALUES ($1,$2,$3,'action',$4,'progress')`,
+      [P.acme, ACME, U.cowner, A.open],
+    );
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(0);
+  });
+
+  it("isn't raised for a consultant-managed client, who never signs in", async () => {
+    await quietFor(CLIENT_QUIET_DAYS + 5);
+    await owner.query(`UPDATE org_memberships SET active = false WHERE org_id = $1`, [ACME]);
+    await owner.query(`UPDATE organizations SET engagement_mode = 'consultant_managed' WHERE id = $1`, [ACME]);
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(0);
+  });
+
+  it("goes to the firm admins when the client has no lead", async () => {
+    await quietFor(CLIENT_QUIET_DAYS + 5);
+    await owner.query(`DELETE FROM client_assignments WHERE client_org_id = $1`, [ACME]);
+    expect((await owner.query(`SELECT app_alert_quiet_clients($1) AS n`, [today])).rows[0].n).toBe(1);
+    expect(await alerts()).toEqual([{ user_id: U.admin, entity_id: P.acme }]);
+  });
+
+  it("can't be run by the app", async () => {
+    expect(await refused(sql(U.admin, `SELECT app_alert_quiet_clients(current_date)`))).toMatch(/permission denied/);
+    expect(await refused(sql(U.admin, `SELECT app_snapshot_health(current_date)`))).toMatch(/permission denied/);
   });
 });

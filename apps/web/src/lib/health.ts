@@ -39,3 +39,15 @@ export function healthSignal(h: HealthInput): HealthSignal {
   if (h.overdue > 0 || h.cautions > 0) return "watch";
   return "on_track";
 }
+
+/** The client's lead hears when no one at the client has acted on an active project for this long. */
+export const CLIENT_QUIET_DAYS = 14;
+/** Weeks of signal history the oversight page shows. */
+export const HEALTH_WEEKS_SHOWN = 8;
+
+/** The Sunday a day's week starts on (the Saudi working week), as YYYY-MM-DD. */
+export function weekStart(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return d.toISOString().slice(0, 10);
+}

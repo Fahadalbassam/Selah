@@ -49,6 +49,32 @@ export function OversightSummary({ projects, exceptions }: { projects: Portfolio
   );
 }
 
+const WEEK_FILL: Record<HealthSignal, string> = {
+  off_track: "bg-destructive/70",
+  watch: "bg-warning/70",
+  on_track: "bg-muted-foreground/35",
+  no_data: "border border-border",
+};
+
+/** The signal of the last few weeks, oldest first: a mark per week, with its word for screen readers and on hover. */
+function WeekStrip({ weeks }: { weeks: PortfolioRow["weeks"] }) {
+  const t = useTranslations("oversight");
+  const format = useFormatter();
+  if (weeks.length < 2) return null;
+  return (
+    <span className="mt-1.5 flex items-center gap-1" aria-label={t("health.weeks", { n: weeks.length })}>
+      {weeks.map((w) => {
+        const label = t("health.week", { date: format.dateTime(new Date(`${w.weekStart}T00:00:00`), { dateStyle: "medium" }), signal: t(`signals.${w.signal}`) });
+        return (
+          <span key={w.weekStart} title={label} className={cn("size-2.5 rounded-sm", WEEK_FILL[w.signal])}>
+            <span className="sr-only">{label}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 /** One row per open project, most at risk first, with why it has its signal. */
 export function HealthTable({ rows }: { rows: PortfolioRow[] }) {
   const t = useTranslations("oversight");
@@ -110,6 +136,7 @@ export function HealthTable({ rows }: { rows: PortfolioRow[] }) {
                       <TableCell className="max-w-64">
                         <ToneBadge tone={SIGNAL_TONE[r.signal]}>{t(`signals.${r.signal}`)}</ToneBadge>
                         {why.length ? <span className="mt-1 block text-xs text-muted-foreground">{why.join(" · ")}</span> : null}
+                        <WeekStrip weeks={r.weeks} />
                       </TableCell>
                       <TableCell className="text-end tabular-nums">{r.open}</TableCell>
                       <TableCell className={cn("text-end tabular-nums", r.overdue && "text-destructive")}>{r.overdue}</TableCell>

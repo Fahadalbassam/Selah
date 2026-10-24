@@ -1684,7 +1684,8 @@
       "recommendation_answered": "The firm answered your response on {title}",
       "action_commented": "New comment on an action",
       "action_mentioned": "You were mentioned on an action",
-      "follow_up_reminder": "Your consultant asked for an update on {title}"
+      "follow_up_reminder": "Your consultant asked for an update on {title}",
+      "project_client_quiet": "No one at the client has worked on {title} for two weeks or more"
     },
     "mail": {
       "section": "Mail",
@@ -3923,7 +3924,9 @@
       "internal": "Internal project",
       "recordedByFirm": "Recorded by the firm",
       "never": "Not yet",
-      "today": "Today"
+      "today": "Today",
+      "week": "Week of {date}: {signal}",
+      "weeks": "Signal over the last {n} weeks"
     },
     "rules": {
       "blocked": {

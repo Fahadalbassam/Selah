@@ -1152,6 +1152,25 @@ export const metricSnapshots = pgTable(
   (t) => [scopedFk("metric_snapshots", t), uniqueIndex("metric_snapshots_once").on(t.projectId, t.metric, t.asOf)],
 );
 
+// Each open project's health signal per week (F18), written by the daily job
+// (app_snapshot_health): the row for the current week follows the project
+// until the week ends. Firm-only; the app only reads it.
+export const projectHealthWeeks = pgTable(
+  "project_health_weeks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    // The Sunday the week starts on (the Saudi working week).
+    weekStart: date("week_start").notNull(),
+    signal: text("signal").notNull(),
+    open: integer("open").notNull(),
+    overdue: integer("overdue").notNull(),
+    cautions: integer("cautions").notNull(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [scopedFk("project_health_weeks", t), uniqueIndex("project_health_weeks_once").on(t.projectId, t.weekStart)],
+);
+
 // Client KPIs (optional, behind firm_settings.client_kpis_enabled): the
 // client's own strategic measures, entered by hand. Readings are the client's
 // claims until the firm verifies them; nothing is computed or pulled in.

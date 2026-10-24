@@ -25,6 +25,7 @@
     "job:mail": "tsx scripts/send-mail.ts",
     "mail:check": "tsx scripts/mail-check.ts",
     "job:metrics": "tsx scripts/metrics-snapshot.ts",
+    "job:health": "tsx scripts/health.ts",
     "job:ops-check": "tsx scripts/ops-check.ts",
     "job:purge-chats": "tsx scripts/purge-chats.ts",
     "job:purge-clients": "tsx scripts/purge-clients.ts",
