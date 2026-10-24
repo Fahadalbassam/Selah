@@ -126,7 +126,8 @@
       "info_request_reopened": "asked again for an item marked not applicable",
       "info_request_not_applicable": "marked a request not applicable",
       "info_request_removed": "removed a request",
-      "document_withdrawn": "withdrew a file uploaded by mistake"
+      "document_withdrawn": "withdrew a file uploaded by mistake",
+      "department_moved": "moved a department's unfinished work to another department"
     }
   },
   "priority": {
@@ -342,7 +343,8 @@
       "evidence": "submitted evidence",
       "accept": "accepted the evidence",
       "revise": "requested a revision",
-      "reject": "rejected the evidence"
+      "reject": "rejected the evidence",
+      "moved": "moved this from {from} to {to}"
     },
     "download": "Download",
     "revisionNote": "Resume work, make the changes, then send it for review again.",
@@ -2115,7 +2117,7 @@
       "rename": "Rename",
       "switchOff": "Switch off",
       "switchOn": "Switch on",
-      "switchOffConfirm": "Switch off this department? What is filed under it stays there, but nothing new can be filed under it.",
+      "switchOffConfirm": "Switch off this department? What is filed under it stays there, but nothing new can be filed under it. The firm admin can first move its unfinished work to another department.",
       "switchedOff": "Switched off",
       "noMembers": "Nobody yet.",
       "head": "Head",
@@ -2131,7 +2133,20 @@
       "emptyManage": "No departments yet. Add one, then add its people.",
       "department": "Department",
       "fileUnder": "File under a department",
-      "none": "No department"
+      "none": "No department",
+      "move": {
+        "open": "Move unfinished work",
+        "title": "Move {name}'s unfinished work",
+        "hint": "For a restructure. Recommendations and actions still to be done move to the department you pick, with their evidence files. Finished work stays filed under {name}, and so does everything in closed projects. Each moved action's history records the move.",
+        "counting": "Counting what would move…",
+        "nothing": "Nothing unfinished is filed under {name}.",
+        "count": "Recommendations: {recommendations} · Actions: {actions} · Evidence files: {files}",
+        "to": "Move to",
+        "switchOff": "Switch off {name} afterwards",
+        "switchOffHint": "Nothing new can be filed under it. Its finished work stays readable.",
+        "submit": "Move work",
+        "done": "Moved. Recommendations: {recommendations} · Actions: {actions} · Evidence files: {files}"
+      }
     },
     "errors": {
       "accounts": "Switch off the client's accounts before the firm manages the engagement.",
@@ -3191,7 +3206,8 @@
       "closure_export": "Closing report exported",
       "client_report_export": "Client report exported",
       "consent_accept": "Terms and notices accepted",
-      "membership_hand_over": "Work handed over"
+      "membership_hand_over": "Work handed over",
+      "department_move_work": "Moved a department's unfinished work"
     },
     "csv": {
       "time": "Time (UTC)",

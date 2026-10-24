@@ -11,6 +11,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import { Users } from "@/components/animate-ui/icons/users";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { MoveDepartmentWork } from "@/components/move-department-work";
 import { ApiButton, callApi, FormDialog } from "@/components/form-dialog";
 import { SectionHeader } from "@/components/section-header";
 import { ToneBadge } from "@/components/tone-badge";
@@ -25,6 +26,8 @@ export interface DepartmentsData {
   id: string;
   departmentsEnabled: boolean;
   canManageDepartments: boolean;
+  /** Restructures: the firm admin moves a department's unfinished work to another. */
+  canMoveWork: boolean;
   departments: {
     id: string;
     nameAr: string;
@@ -111,6 +114,7 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
           {data.departments.map((d) => {
             const inIt = new Set(d.members.map((m) => m.userId));
             const candidates = people.filter((p) => !inIt.has(p.userId));
+            const targets = data.departments.filter((o) => o.id !== d.id && o.active).map((o) => ({ id: o.id, name: name(o) }));
             return (
               <Card key={d.id} className="gap-3 py-5 shadow-xs">
                 <CardHeader className="flex flex-row items-start justify-between gap-3 px-5">
@@ -141,6 +145,9 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
                         ]}
                         submitLabel={tc("save")}
                       />
+                      {data.canMoveWork && targets.length ? (
+                        <MoveDepartmentWork department={d.id} name={name(d)} active={d.active} targets={targets} />
+                      ) : null}
                       <ApiButton
                         endpoint={`/api/departments/${d.id}`}
                         method="PATCH"

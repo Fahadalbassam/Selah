@@ -47,6 +47,9 @@ export const POLICY = {
   // admin or the firm admin. The client admin switches them on or off.
   "department.read": { ...ALL_BUT_OWNER, action_owner: "any" },
   "department.manage": { firm_admin: "any", client_admin: "any" },
+  // Restructures: moving a department's unfinished work to another refiles
+  // the firm's recommendations, so the firm admin does it (app_move_department_work).
+  "department.move_work": { firm_admin: "any" },
   "org_user.read": { ...ALL_BUT_OWNER },
   "org_user.manage": { firm_admin: "any", client_admin: "any" }, // invite, switch off, change addresses, review access
   // PDPL erasure: details removed, ids and history kept. Firm admin only.

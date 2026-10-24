@@ -460,6 +460,9 @@ export async function listTeam(tx: Tx, principal: Principal) {
  * moves come from canTransition(), the same check the API runs, so the page
  * never offers a button the server would refuse.
  */
+/** activity_events.meta of a restructure (app_move_department_work). */
+type Moved = { from: string; to: string; actions: string[] };
+
 export async function getActionDetail(tx: Tx, principal: Principal, id: string) {
   const loaded = await loadAction(tx, id);
   if (!loaded || !authorize(principal, "action.read", loaded.resource).allowed) throw new NotFoundError("action");
@@ -545,13 +548,44 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
         .where(eq(reviews.actionId, id))
     : [];
 
+  // A restructure that moved this action to another department (F31).
+  const moveRows = await tx
+    .select({ at: activityEvents.createdAt, who: user.name, meta: activityEvents.meta })
+    .from(activityEvents)
+    .leftJoin(user, eq(user.id, activityEvents.actorId))
+    .where(
+      and(
+        eq(activityEvents.projectId, action.projectId),
+        eq(activityEvents.event, "department_moved"),
+        sql`${activityEvents.meta} -> 'actions' ? ${id}`,
+      ),
+    );
+  const deptIds = [...new Set(moveRows.flatMap((m) => [(m.meta as Moved).from, (m.meta as Moved).to]))];
+  const deptNames = new Map(
+    deptIds.length
+      ? (
+          await tx
+            .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+            .from(departments)
+            .where(inArray(departments.id, deptIds))
+        ).map((d) => [d.id, d])
+      : [],
+  );
+  const refilings = moveRows.map((m) => ({
+    at: m.at,
+    who: m.who,
+    from: deptNames.get((m.meta as Moved).from) ?? null,
+    to: deptNames.get((m.meta as Moved).to) ?? null,
+  }));
+
   // source tells "submitted by the client" from "recorded by a consultant"
   // (with how and when the client told them); the two are never mixed.
   type Recorded = Pick<(typeof updates)[number], "source" | "receivedVia" | "receivedOn">;
   type Entry =
     | ({ kind: "update"; id: string; at: Date; who: string | null; body: string } & Recorded)
     | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
-    | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null };
+    | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null }
+    | ({ kind: "moved" } & (typeof refilings)[number]);
   const timeline: Entry[] = [
     ...updates.map((u) => ({
       kind: "update" as const,
@@ -565,6 +599,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     })),
     ...evidence.map((e) => ({ kind: "evidence" as const, at: e.submittedAt, who: e.submitterName, evidence: e })),
     ...reviewRows.map((r) => ({ kind: "review" as const, at: r.createdAt, who: r.reviewerName, outcome: r.outcome, reason: r.reason })),
+    ...refilings.map((m) => ({ kind: "moved" as const, ...m })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const from = action.status as ActionStatus;
