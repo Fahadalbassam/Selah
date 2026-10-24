@@ -10,13 +10,14 @@ One index (`ai_chunks`), built from each file's original text in whatever langua
 
 `npm run job:index-documents` runs as the schema owner. It takes files that have the AI flag on, are scanned clean (or skipped) and not archived, and are still `pending`:
 
-- Text files are read; a form feed starts a page. Passages are at most about 1,200 characters, split at blank lines, then lines, and never across pages. Each passage keeps its page, and copies the file's project, label, department and (for a private file) its owner.
-- A file with no readable text (an image, a scan without a text layer) is marked **not searchable**, so the screen can say so instead of the file quietly missing from answers.
-- PDF and Office files wait, still pending, for a text extractor in the AI service.
+- Files are read by page (`src/jobs/extract-text.ts`). Text files: a form feed starts a page. PDF: `pdftotext` (poppler, installed in the jobs image), fed on stdin with a time and size limit; Arabic set in presentation forms is folded back to ordinary letters, direction marks are dropped, and the lam-alef that poppler writes in reverse after the article ("اإلدارة") is put right. A plain reversed lam-alef ("خالل" for "خلال") can't be told from real text and stays; the multilingual embedding still finds the passage, and the cited page shows the real words. Word: the page marks Word saved when the file was last laid out, or explicit page breaks when there are none, with tables one row per line. PowerPoint: a slide is a page, in the order the presentation shows them (speaker notes are left out). Excel: a sheet is a page, starting with its name. Office files go through the same zip and XML readers as the plan import, with the same limits.
+- Passages are at most about 1,200 characters, split at blank lines, then lines, and never across pages. Each passage keeps its page, and copies the file's project, label, department and (for a private file) its owner.
+- A PDF page with fewer than 20 letters has no text layer: it is a scan. Its number goes in `ocr_pages` for text recognition later, and the rest of the file is indexed. A file with nothing but scans (and any image) is marked **needs text recognition** (`needs_ocr`), not "not searchable", so it can be picked up when recognition comes. The file panel lists the scanned pages.
+- A file that can't be read (damaged, encrypted, a refused archive) is marked **not searchable**, so the screen can say so instead of the file quietly missing from answers. A file that can't be fetched from storage, or a PDF when `pdftotext` is missing, waits for the next run.
 
 **Recommendations and actions** (baseline: Record passages) are indexed by the same job, one passage each: a recommendation's title, rationale, expected outcome and required evidence; an action's title, description and its recommendation's title. The passage takes its recommendation's label, and is read only by someone who can read the record itself (the `with_source` policy), so a client never finds a firm-only recommendation and a department's action stays in it. A change to that text, a change of label, or deleting the record drops the passage, and the next run writes it again; a save that changes nothing keeps it. One passage per record, even when two runs overlap.
 
-Only the job sets a file's text status. Turning the AI flag on, a change of visibility and refiling to another department drop the file's passages and set it back to pending, so it is indexed again.
+Only the job sets a file's text status and its scanned pages. Turning the AI flag on, a change of visibility and refiling to another department drop the file's passages and set it back to pending, so it is indexed again.
 
 ## Searching
 
@@ -143,7 +144,7 @@ CONTENT=/tmp/eval-ids.json PAYLOAD_LOG=… OUT=/tmp/eval.json TWO_FACTOR_REQUIRE
 
 ## Not done yet
 
-- PDF and Office text extraction.
+- Text recognition (OCR) for scanned pages and images: they are listed in `ocr_pages` and marked `needs_ocr` until it exists.
 - A name-spotting model for names that aren't in Selah's records.
 - Saving an answer to the project as a note.
 - Nothing writes meeting summary sources automatically yet; that comes with AI meeting summaries.

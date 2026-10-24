@@ -60,7 +60,9 @@ export interface FileEntry {
   available: boolean;
   /** The owning side lets the assistant read it, and how far indexing got. */
   aiIndexable: boolean;
-  textStatus: "pending" | "searchable" | "not_searchable";
+  textStatus: "pending" | "searchable" | "not_searchable" | "needs_ocr";
+  /** Scanned pages the assistant can't read yet (no text layer). */
+  ocrPages: number[];
   /** What this person may change (share, assistant flag, new version). */
   can: FileControls;
   org: { id: string; kind: "firm" | "client"; name: string; nameAr: string | null };
@@ -101,6 +103,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         state: documents.state,
         aiIndexable: documents.aiIndexable,
         textStatus: documents.textStatus,
+        ocrPages: documents.ocrPages,
       },
       project: { title: projects.title, kind: projects.kind, firmOrgId: projects.firmOrgId, state: projects.state },
       org: {
@@ -216,6 +219,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       available: downloadable(r.doc.scanStatus),
       aiIndexable: r.doc.aiIndexable,
       textStatus: r.doc.textStatus,
+      ocrPages: r.doc.ocrPages,
       // Listed files are the latest version and not archived (the query's filter).
       can: fileControls(principal, {
         doc: r.doc,

@@ -50,6 +50,13 @@
       "when": 1792804255610,
       "tag": "0006_private_recommendation_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792804615645,
+      "tag": "0007_read_pdf_and_office",
+      "breakpoints": true
     }
   ]
 }
