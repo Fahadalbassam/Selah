@@ -60,11 +60,14 @@ function DatePicker({
   const format = useFormatter()
   const [open, setOpen] = React.useState(false)
   const [inner, setInner] = React.useState(defaultValue)
+  // A required date left empty: the button shows it, since the field the form checks is hidden.
+  const [invalid, setInvalid] = React.useState(false)
   const current = value ?? inner
   const selected = fromIso(current)
 
   function set(next: string | undefined) {
     if (value === undefined) setInner(next)
+    setInvalid(false)
     onChange?.(next)
   }
 
@@ -77,6 +80,7 @@ function DatePicker({
             type="button"
             variant="outline"
             data-empty={!selected}
+            aria-invalid={invalid || undefined}
             className="w-full justify-start font-normal data-[empty=true]:text-muted-foreground"
           >
             <CalendarIcon />
@@ -126,6 +130,7 @@ function DatePicker({
           aria-hidden
           className="sr-only"
           onFocus={() => setOpen(true)}
+          onInvalid={() => setInvalid(true)}
         />
       ) : null}
     </Popover>

@@ -140,7 +140,28 @@
       "assessment_finalised": "finalised an assessment",
       "assessment_shared": "shared an assessment with the client",
       "assessment_unshared": "took an assessment back from the client",
-      "info_request_link_upload": "received a file through an upload link they sent"
+      "info_request_link_upload": "received a file through an upload link they sent",
+      "progress_update": "posted a progress update",
+      "commented": "commented on an action",
+      "evidence_requested": "asked for an evidence item",
+      "evidence_request_accepted": "accepted a requested evidence item",
+      "evidence_request_rejected": "did not accept a requested evidence item",
+      "evidence_request_waived": "waived a requested evidence item",
+      "evidence_request_open": "asked again for an evidence item",
+      "risk_accepted": "recorded that the client accepts the risk",
+      "deadline_change_requested": "asked for a new deadline",
+      "deadline_change_approved": "approved a new deadline",
+      "deadline_change_rejected": "declined a new deadline",
+      "finding_updated": "updated a finding",
+      "finding_released": "shared a finding with the client",
+      "finding_withdrawn": "withdrew a finding",
+      "recommendation_updated": "updated a recommendation",
+      "recommendation_released": "shared a recommendation with the client",
+      "recommendation_withdrawn": "withdrew a recommendation",
+      "recommendation_responded": "responded to a recommendation",
+      "recommendation_response_confirmed": "confirmed a recorded response",
+      "recommendation_response_answered": "answered a response to a recommendation",
+      "other": "made a change"
     }
   },
   "priority": {
@@ -558,6 +579,17 @@
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "That was already done, or someone changed it first. Reload to see the latest.",
       "invalid": "Please check what you entered."
+    },
+    "validity": {
+      "required": "Fill in this field.",
+      "choose": "Choose one of the options.",
+      "email": "Enter an email address, like name@example.com.",
+      "url": "Enter a web address that starts with https://.",
+      "format": "Check the format of this field.",
+      "tooShort": "Use at least {n} characters.",
+      "tooLong": "Use at most {n} characters.",
+      "tooLow": "Enter {n} or more.",
+      "tooHigh": "Enter {n} or less."
     }
   },
   "pager": {
@@ -2828,7 +2860,8 @@
       "planned": "Planned",
       "active": "Active",
       "closed": "Closed",
-      "draft": "Draft"
+      "draft": "Draft",
+      "closing": "Closing"
     }
   },
   "projectPeople": {
@@ -3569,7 +3602,6 @@
       "client_group_grant_viewer": "Access to a group's numbers given",
       "client_group_revoke_viewer": "Access to a group's numbers removed",
       "pulse_answer": "Closing pulse answered",
-      "pulse_answer": "Closing pulse answered",
       "case_study_consent": "Case-study consent recorded",
       "case_study_revoke": "Case-study consent withdrawn",
       "auth_sign_in_link_sent": "Sign-in link sent",
@@ -4082,7 +4114,8 @@
       "future": "The date can't be in the future.",
       "cannot": "This recommendation can't take a response from you now.",
       "colleague": "A colleague other than the one who recorded it confirms it.",
-      "already": "Someone already did this. Refresh to see it."
+      "already": "Someone already did this. Refresh to see it.",
+      "past": "The date can't be in the past."
     }
   },
   "recommendationPage": {

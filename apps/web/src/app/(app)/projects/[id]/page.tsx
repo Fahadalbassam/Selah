@@ -680,9 +680,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   {/* Only an action's states are action statuses; files and assessments have their own events. */}
                   {e.entityType === "action" && e.fromState && e.toState
                     ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
-                    : t.has(`events.${e.event}`)
-                      ? t(`events.${e.event}` as never)
-                      : e.event}
+                    : t.has(`events.${e.entityType}_${e.event}`)
+                      ? t(`events.${e.entityType}_${e.event}` as never)
+                      : t.has(`events.${e.event}`)
+                        ? t(`events.${e.event}` as never)
+                        : t("events.other")}
                   <div className="text-xs text-muted-foreground">{format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "short" })}</div>
                 </li>
               ))}

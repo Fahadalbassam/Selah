@@ -140,7 +140,28 @@
       "assessment_finalised": "اعتمد تقييماً",
       "assessment_shared": "شارك تقييماً مع العميل",
       "assessment_unshared": "سحب تقييماً من العميل",
-      "info_request_link_upload": "استلم ملفاً عبر رابط رفع أرسله"
+      "info_request_link_upload": "استلم ملفاً عبر رابط رفع أرسله",
+      "progress_update": "نشر تحديثًا على التقدم",
+      "commented": "علّق على إجراء",
+      "evidence_requested": "طلب بندًا من الأدلة",
+      "evidence_request_accepted": "قبل بندًا من الأدلة المطلوبة",
+      "evidence_request_rejected": "لم يقبل بندًا من الأدلة المطلوبة",
+      "evidence_request_waived": "أعفى من بند من الأدلة المطلوبة",
+      "evidence_request_open": "أعاد طلب بند من الأدلة",
+      "risk_accepted": "سجّل قبول العميل للمخاطرة",
+      "deadline_change_requested": "طلب موعدًا نهائيًا جديدًا",
+      "deadline_change_approved": "وافق على موعد نهائي جديد",
+      "deadline_change_rejected": "رفض طلب موعد نهائي جديد",
+      "finding_updated": "عدّل ملاحظة",
+      "finding_released": "شارك ملاحظة مع العميل",
+      "finding_withdrawn": "سحب ملاحظة",
+      "recommendation_updated": "عدّل توصية",
+      "recommendation_released": "شارك توصية مع العميل",
+      "recommendation_withdrawn": "سحب توصية",
+      "recommendation_responded": "ردّ على توصية",
+      "recommendation_response_confirmed": "أكّد ردًا مسجّلًا",
+      "recommendation_response_answered": "أجاب على رد على توصية",
+      "other": "أجرى تغييرًا"
     }
   },
   "priority": {
@@ -558,6 +579,17 @@
       "generic": "لم تنجح العملية. أعد تحميل الصفحة وحاول مجدداً.",
       "conflict": "تم ذلك مسبقاً أو غيّره شخص آخر. أعد التحميل لرؤية آخر حالة.",
       "invalid": "تحقّق من البيانات المدخلة."
+    },
+    "validity": {
+      "required": "املأ هذا الحقل.",
+      "choose": "اختر أحد الخيارات.",
+      "email": "أدخل بريدًا إلكترونيًا، مثل name@example.com.",
+      "url": "أدخل عنوانًا يبدأ بـ https://.",
+      "format": "تحقّق من صيغة هذا الحقل.",
+      "tooShort": "استخدم {n} أحرف على الأقل.",
+      "tooLong": "استخدم {n} حرفًا على الأكثر.",
+      "tooLow": "أدخل {n} أو أكثر.",
+      "tooHigh": "أدخل {n} أو أقل."
     }
   },
   "pager": {
@@ -2828,7 +2860,8 @@
       "planned": "مخطط",
       "active": "نشط",
       "closed": "مغلق",
-      "draft": "مسودة"
+      "draft": "مسودة",
+      "closing": "قيد الإغلاق"
     }
   },
   "projectPeople": {
@@ -3569,7 +3602,6 @@
       "client_group_grant_viewer": "منح الاطلاع على أرقام مجموعة",
       "client_group_revoke_viewer": "إلغاء الاطلاع على أرقام مجموعة",
       "pulse_answer": "إجابة استطلاع الإغلاق",
-      "pulse_answer": "إجابة استطلاع الإغلاق",
       "case_study_consent": "تسجيل موافقة على دراسة حالة",
       "case_study_revoke": "سحب موافقة على دراسة حالة",
       "auth_sign_in_link_sent": "أُرسل رابط دخول",
@@ -4082,7 +4114,8 @@
       "future": "لا يمكن أن يكون التاريخ في المستقبل.",
       "cannot": "لا يمكنك الرد على هذه التوصية الآن.",
       "colleague": "يؤكده زميل غير الذي سجّله.",
-      "already": "قام أحدهم بذلك مسبقًا. حدّث الصفحة لتراه."
+      "already": "قام أحدهم بذلك مسبقًا. حدّث الصفحة لتراه.",
+      "past": "لا يمكن أن يكون التاريخ في الماضي."
     }
   },
   "recommendationPage": {

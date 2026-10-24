@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getFormatter, getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Link2Off } from "lucide-react";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Topography } from "@/components/topography";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function UploadLinkPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [t, locale, format] = await Promise.all([getTranslations("uploadLink"), getLocale(), getFormatter()]);
+  const [t, locale, format, messages] = await Promise.all([getTranslations("uploadLink"), getLocale(), getFormatter(), getMessages()]);
   const item = isUploadLinkToken(token) ? await withAnonymous((tx) => openUploadLink(tx, token, locale === "ar")) : null;
   return (
     <div className="relative isolate min-h-[calc(100svh-4rem)] overflow-hidden">
@@ -48,7 +49,10 @@ export default async function UploadLinkPage({ params }: { params: Promise<{ tok
                   {t("confidential")}
                 </p>
               ) : null}
-              <UploadForm token={token} />
+              {/* Only the strings the form uses reach an anonymous visitor (L13). */}
+              <NextIntlClientProvider messages={{ uploadLink: messages.uploadLink, fileActions: messages.fileActions, common: messages.common }}>
+                <UploadForm token={token} />
+              </NextIntlClientProvider>
               <p className="text-xs text-muted-foreground">
                 {t("until", { date: format.dateTime(item.expiresAt, { dateStyle: "long", timeStyle: "short" }) })}
               </p>
