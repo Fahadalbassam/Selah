@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DepartureDialog } from "./departure-dialog";
 
 /** A dialog with one form that calls one API route, then refreshes the page. */
 function ActionDialog(props: {
@@ -97,6 +98,8 @@ export function PersonMenu(props: {
   canChange: boolean;
   canResetTwoFactor: boolean;
   canErase: boolean;
+  /** Active colleagues who can take over this person's work. */
+  colleagues: { userId: string; name: string }[];
 }) {
   const t = useTranslations("people");
   const router = useRouter();
@@ -170,17 +173,9 @@ export function PersonMenu(props: {
           <Input id="p-name-alt" name="nameAlt" maxLength={120} dir="auto" defaultValue={props.nameAlt ?? ""} />
         </div>
       </ActionDialog>
-      <ActionDialog
-        open={open === "off"}
-        onOpenChange={set}
-        title={`${t("switchOff")}: ${props.name}`}
-        description={t("switchOffHint")}
-        submitLabel={t("switchOff")}
-        destructive
-        send={(f) => callApi(base, "PATCH", { active: false, reason: field(f, "reason") })}
-      >
-        {reasonField(t("reason"))}
-      </ActionDialog>
+      {open === "off" ? (
+        <DepartureDialog open onOpenChange={set} userId={props.userId} name={props.name} colleagues={props.colleagues} />
+      ) : null}
       <ActionDialog
         open={open === "twoFactor"}
         onOpenChange={set}
