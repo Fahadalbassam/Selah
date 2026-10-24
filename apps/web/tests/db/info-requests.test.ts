@@ -11,6 +11,7 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { infoRequestInput } from "@/lib/info-requests";
+import { runFollowUps } from "@/jobs/follow-ups";
 import { loadPrincipal } from "@/services/principal";
 
 const stored: string[] = [];
@@ -43,6 +44,7 @@ const U = {
 const PROJ = id(21);
 const INTERNAL = id(22);
 const CLOSED = id(23);
+const PROJ2 = id(24); // for the reminders
 const SHARED_DOC = id(31);
 const PRIVATE_DOC = id(32);
 const INDEXED_DOC = id(33);
@@ -98,8 +100,9 @@ beforeAll(async () => {
   );
   await q(
     `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES
-      ($1,'client',$4,$5,'Acme governance','active',$6), ($2,'internal',$5,$5,'Handbook','active',$6), ($3,'client',$4,$5,'Old phase','closed',$6)`,
-    [PROJ, INTERNAL, CLOSED, ACME, FIRM, U.admin],
+      ($1,'client',$4,$5,'Acme governance','active',$6), ($2,'internal',$5,$5,'Handbook','active',$6), ($3,'client',$4,$5,'Old phase','closed',$6),
+      ($7,'client',$4,$5,'Acme strategy','active',$6)`,
+    [PROJ, INTERNAL, CLOSED, ACME, FIRM, U.admin, PROJ2],
   );
   await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,false), ($1,$3,false)`, [ACME, U.cons, U.outsider]);
   await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3), ($1,$4), ($1,$5), ($6,$2)`, [
@@ -110,6 +113,7 @@ beforeAll(async () => {
     U.owner2,
     INTERNAL,
   ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3), ($1,$4)`, [PROJ2, U.cons, U.cmgr, U.owner1]);
   for (const [doc, vis, ai] of [
     [SHARED_DOC, "shared", false],
     [PRIVATE_DOC, "client_private", false],
@@ -228,7 +232,7 @@ describe("answering", () => {
   it("removes only an item nobody answered", async () => {
     const r = await create(U.cons, { title: "Spare item" });
     const answered = await create(U.cons, { title: "Answered item" });
-    await svc(U.cadmin, (tx, p) => answerWithExisting(tx, p, answered.id, SHARED_DOC));
+    await svc(U.cadmin, (tx, p) => answerWithUpload(tx, p, answered.id, upload("zakat.pdf")));
     await expect(svc(U.cons, (tx, p) => deleteInfoRequest(tx, p, answered.id))).rejects.toThrow(/stays on the list/);
     await expect(svc(U.cadmin, (tx, p) => deleteInfoRequest(tx, p, r.id))).rejects.toThrow(/forbidden/);
     await svc(U.cons, (tx, p) => deleteInfoRequest(tx, p, r.id));
@@ -248,5 +252,52 @@ describe("confidential items", () => {
     await expect(svc(U.cons, (tx, p) => updateInfoRequest(tx, p, s.id, { sensitivity: "confidential" }))).rejects.toMatchObject(
       db(/assistant off for its files first/),
     );
+  });
+});
+
+describe("reminders", () => {
+  const DUE = "2027-03-10";
+  const add = (extra: Record<string, unknown>) =>
+    svc(U.cons, (tx, p) => createInfoRequest(tx, p, PROJ2, infoRequestInput.parse({ area: "finance", dueDate: DUE, ...extra })));
+  const told = async () =>
+    (
+      await owner.query(
+        `SELECT u.name, n.kind FROM notifications n JOIN "user" u ON u.id = n.user_id
+         WHERE n.entity_id = $1 AND n.kind IN ('info_request.due_soon', 'info_request.overdue') ORDER BY n.kind, u.name`,
+        [PROJ2],
+      )
+    ).rows.map((r) => `${r.name}:${r.kind}`);
+
+  it("remind the owner (or the client admins) once per step, and widen to the managers and the firm when long overdue", async () => {
+    await add({ title: "Audited statements", ownerUserId: U.owner1 });
+    await add({ title: "Budget", ownerUserId: U.owner1 });
+    await add({ title: "Loan agreements" });
+    const answered = await add({ title: "Zakat certificate", ownerUserId: U.owner1 });
+    await svc(U.cadmin, (tx, p) => answerWithUpload(tx, p, answered.id, upload("zakat.pdf")));
+    // Nothing yet a week before.
+    await runFollowUps(owner, "2027-03-03");
+    expect(await told()).toEqual([]);
+    // Due soon: one note for owner1 however many items, one for the client admin for the unowned one; never for the answered one.
+    await runFollowUps(owner, "2027-03-08");
+    await runFollowUps(owner, "2027-03-09");
+    expect(await told()).toEqual(["cadmin:info_request.due_soon", "owner1:info_request.due_soon"]);
+    await runFollowUps(owner, "2027-03-11");
+    expect((await told()).filter((x) => x.endsWith("overdue"))).toEqual(["cadmin:info_request.overdue", "owner1:info_request.overdue"]);
+    // A week over: the managers on the project and the firm-side team hear too.
+    await runFollowUps(owner, "2027-03-17");
+    expect((await told()).filter((x) => x.endsWith("overdue"))).toEqual([
+      "cadmin:info_request.overdue",
+      "cadmin:info_request.overdue",
+      "cmgr:info_request.overdue",
+      "cons:info_request.overdue",
+      "owner1:info_request.overdue",
+      "owner1:info_request.overdue",
+    ]);
+    // A re-run the same day sends nothing again.
+    const before = (await told()).length;
+    await runFollowUps(owner, "2027-03-17");
+    expect((await told()).length).toBe(before);
+    // Other clients' people hear nothing.
+    expect((await told()).some((x) => x.startsWith("betaAdmin") || x.startsWith("outsider"))).toBe(false);
   });
 });

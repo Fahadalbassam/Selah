@@ -1567,7 +1567,9 @@
       "info_request_requested": "طُلبت منك مستندات في {title}",
       "info_request_returned": "أُعيد إليك مستند أرسلته في {title}",
       "info_request_received": "أرسل العميل مستندًا مطلوبًا في {title}",
-      "info_request_not_applicable": "وصف العميل بندًا مطلوبًا بأنه لا ينطبق في {title}"
+      "info_request_not_applicable": "وصف العميل بندًا مطلوبًا بأنه لا ينطبق في {title}",
+      "info_request_due_soon": "اقترب موعد مستندات مطلوبة في {title}",
+      "info_request_overdue": "تأخر إرسال مستندات مطلوبة في {title}"
     }
   },
   "people": {

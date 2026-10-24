@@ -215,13 +215,13 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
   "follow_up.digest": {
     ar: {
       subject: "تذكيرات اليوم في صلة",
-      lines: ["لديك تذكيرات جديدة بإجراءات قرب موعدها أو تأخرت.", "سجّل الدخول لتراها. يمكنك إيقاف هذه الرسالة من صفحة الإشعارات."],
+      lines: ["لديك تذكيرات جديدة بإجراءات أو مستندات مطلوبة قرب موعدها أو تأخرت.", "سجّل الدخول لتراها. يمكنك إيقاف هذه الرسالة من صفحة الإشعارات."],
       action: "فتح الإشعارات",
     },
     en: {
       subject: "Today's reminders in Selah",
       lines: [
-        "You have new reminders about actions that are due soon or overdue.",
+        "You have new reminders about actions or requested documents that are due soon or overdue.",
         "Sign in to see them. You can turn this mail off on the notifications page.",
       ],
       action: "Open notifications",
