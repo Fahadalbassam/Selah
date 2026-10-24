@@ -1,4 +1,4 @@
-import { ArrowLeft, MailWarning } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, MailWarning } from "lucide-react";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { MessageSquare } from "@/components/animate-ui/icons/message-square";
@@ -178,7 +178,17 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
               <ol className="space-y-5">
                 {data.timeline.map((e, i) => {
                   const Icon =
-                    e.kind === "update" ? MessageSquare : e.kind === "evidence" ? FileText : e.outcome === "accept" ? CircleCheck : e.outcome === "revise" ? RotateCcw : CircleX;
+                    e.kind === "update"
+                      ? MessageSquare
+                      : e.kind === "evidence"
+                        ? FileText
+                        : e.kind === "moved"
+                          ? ArrowRightLeft
+                          : e.outcome === "accept"
+                            ? CircleCheck
+                            : e.outcome === "revise"
+                              ? RotateCcw
+                              : CircleX;
                   const tone =
                     e.kind === "review" ? (e.outcome === "accept" ? "text-success" : "text-destructive") : "text-muted-foreground";
                   return (
@@ -187,7 +197,14 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="text-sm">
                           <span className="font-medium">{e.who ?? (e.kind === "review" ? t("firmReviewer") : t("someone"))}</span>{" "}
-                          <span className="text-muted-foreground">{t(`entry.${e.kind === "review" ? e.outcome : e.kind}`)}</span>
+                          <span className="text-muted-foreground">
+                            {e.kind === "moved"
+                              ? t("entry.moved", {
+                                  from: e.from ? localLabel(e.from, ar) : "—",
+                                  to: e.to ? localLabel(e.to, ar) : "—",
+                                })
+                              : t(`entry.${e.kind === "review" ? e.outcome : e.kind}`)}
+                          </span>
                           <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(e.at)}</span>
                         </p>
                         {e.kind === "update" ? (

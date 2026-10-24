@@ -197,6 +197,13 @@
       "when": 1792819889068,
       "tag": "0031_department_page",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792819890068,
+      "tag": "0032_department_move",
+      "breakpoints": true
     }
   ]
 }

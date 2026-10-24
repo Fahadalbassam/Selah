@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   clientContacts,
@@ -68,6 +68,7 @@ export async function getEngagement(tx: Tx, principal: Principal, orgId: string)
     ...org,
     canChangeMode,
     canManageDepartments: authorize(principal, "department.manage", orgRecord(principal, "department", orgId)).allowed,
+    canMoveWork: authorize(principal, "department.move_work", orgRecord(principal, "department", orgId)).allowed,
     departments: depts.map((d) => ({ ...d, members: members.filter((m) => m.departmentId === d.id) })),
     fit: canChangeMode ? await modeFit(tx, principal, orgId) : null,
   };
@@ -176,6 +177,46 @@ export async function updateDepartment(
   assertAllowed(principal, "department.manage", orgRecord(principal, "department", await departmentOrg(tx, id)));
   await tx.update(departments).set(input).where(eq(departments.id, id));
   return { ok: true };
+}
+
+export interface MovedWork {
+  recommendations: number;
+  actions: number;
+  files: number;
+}
+
+/**
+ * A restructure (F31): what of a department's work is unfinished and would
+ * move, counted for the dialog. The database decides what that is
+ * (app_move_department_work, docs/rules.md).
+ */
+export async function departmentWorkToMove(tx: Tx, principal: Principal, id: string): Promise<MovedWork> {
+  assertAllowed(principal, "department.move_work", orgRecord(principal, "department", await departmentOrg(tx, id)));
+  const { rows } = await tx.execute<{ recommendations: number; actions: number; files: number }>(
+    sql`select * from app_move_department_work(${id}::uuid, null, false, true)`,
+  );
+  return rows[0]!;
+}
+
+/**
+ * Move a department's unfinished work to another active department of the
+ * same client, keeping finished work where it was done, and switch the old
+ * one off if asked. Logged on each project touched and in the audit log.
+ */
+export async function moveDepartmentWork(tx: Tx, principal: Principal, id: string, input: { to: string; switchOff: boolean }): Promise<MovedWork> {
+  const orgId = await departmentOrg(tx, id);
+  assertAllowed(principal, "department.move_work", orgRecord(principal, "department", orgId));
+  const [target] = await tx
+    .select({ orgId: departments.orgId, active: departments.active })
+    .from(departments)
+    .where(eq(departments.id, input.to));
+  if (input.to === id || !target || target.orgId !== orgId || !target.active) {
+    throw new BadRequestError("move the work to another active department of the same client");
+  }
+  const { rows } = await tx.execute<{ recommendations: number; actions: number; files: number }>(
+    sql`select * from app_move_department_work(${id}::uuid, ${input.to}::uuid, ${input.switchOff}, false)`,
+  );
+  return rows[0]!;
 }
 
 /** Add a person to a department, or change whether they head it. */
