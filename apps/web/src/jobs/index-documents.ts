@@ -146,13 +146,15 @@ export async function indexRecords(db: Queryable, embed: Embed, limit = 200): Pr
               CASE WHEN r.visibility = 'user_private' THEN r.created_by END AS owner, r.title,
               ARRAY[r.rationale, r.target_outcome, r.required_evidence] AS parts, r.created_at
        FROM recommendations r
-       WHERE NOT EXISTS (SELECT 1 FROM ai_chunks c WHERE c.source_type = 'recommendation' AND c.source_id = r.id)
+       WHERE r.withdrawn_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM ai_chunks c WHERE c.source_type = 'recommendation' AND c.source_id = r.id)
        UNION ALL
        SELECT 'action', a.id, a.project_id, a.org_id, r.visibility::text,
               CASE WHEN r.visibility = 'user_private' THEN r.created_by END, a.title,
               ARRAY[a.description, r.title], a.created_at
        FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
-       WHERE NOT EXISTS (SELECT 1 FROM ai_chunks c WHERE c.source_type = 'action' AND c.source_id = a.id)
+       WHERE r.withdrawn_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM ai_chunks c WHERE c.source_type = 'action' AND c.source_id = a.id)
      ) todo ORDER BY created_at LIMIT $1`,
     [limit],
   );
