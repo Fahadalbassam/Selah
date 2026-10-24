@@ -2298,6 +2298,18 @@
       "signedOn": "Signed on",
       "contractRef": "Contract reference",
       "dataAgreement": "Data processing agreement"
-    }
+    },
+    "prospect": "Prospect",
+    "startPitch": "Start a pitch",
+    "startPitchHint": "A company the firm approached. It stays firm-only: no client accounts, and only the colleagues you add see it. It becomes a client when the firm admin records what it signed.",
+    "startPitchButton": "Start the pitch",
+    "pitchProject": "First project (draft)",
+    "pitchProjectPlaceholder": "For example: Governance diagnostic",
+    "pitchBanner": "Pitch: firm-only, and seen only by the colleagues on it. Record the signed engagement to make it a client; if it is lost, delete it.",
+    "noAccountsYet": "A prospect has no accounts. Its people are invited once it signs.",
+    "deletePitch": "Delete pitch",
+    "deletePitchConfirm": "Delete this pitch with its draft projects, notes and files? This cannot be undone.",
+    "deleteClient": "Delete client",
+    "deleteClientConfirm": "Delete this client? It never signed and holds no files. This cannot be undone."
   }
 }

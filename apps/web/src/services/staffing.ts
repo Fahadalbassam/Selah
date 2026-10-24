@@ -93,6 +93,7 @@ export async function getClientTeam(tx: Tx, principal: Principal, clientOrgId: s
       nameAr: organizations.nameAr,
       shortNames: organizations.shortNames,
       legalForm: organizations.legalForm,
+      prospect: organizations.prospect,
     })
     .from(organizations)
     .where(and(eq(organizations.id, clientOrgId), eq(organizations.kind, "client")))
