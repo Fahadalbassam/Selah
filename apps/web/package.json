@@ -13,6 +13,7 @@
     "test:db": "vitest run --config vitest.db.config.ts",
     "test:scan": "vitest run --config vitest.scan.config.ts",
     "db:generate": "drizzle-kit generate",
+    "backup:storage": "tsx scripts/storage-backup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
@@ -27,7 +28,8 @@
     "job:purge-chats": "tsx scripts/purge-chats.ts",
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",
     "job:purge-minimal": "tsx scripts/purge-minimal.ts",
-    "job:purge-transcripts": "tsx scripts/purge-transcripts.ts"
+    "job:purge-transcripts": "tsx scripts/purge-transcripts.ts",
+    "restore:storage": "tsx scripts/storage-restore.ts"
   },
   "dependencies": {
     "@animate-ui/react": "^2.0.0",
