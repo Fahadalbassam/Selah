@@ -100,7 +100,8 @@ async function reset(pid: string) {
   await owner.query(`DELETE FROM project_closures WHERE project_id = $1`, [pid]);
   await owner.query(`DELETE FROM project_closure_requests WHERE project_id = $1`, [pid]);
   await owner.query(`DELETE FROM deadline_change_requests WHERE project_id = $1`, [pid]);
-  await owner.query(`DELETE FROM actions WHERE project_id = $1`, [pid]);
+  // Date history is append-only (F17); a reset discards it the way deleting an unsigned client does.
+  await owner.query(`BEGIN; SELECT set_config('selah.discard', 'on', true); DELETE FROM actions WHERE project_id = '${pid}'; COMMIT;`);
   await owner.query(`UPDATE projects SET state = 'active' WHERE id = $1`, [pid]);
   await owner.query(`DELETE FROM notifications`);
 }

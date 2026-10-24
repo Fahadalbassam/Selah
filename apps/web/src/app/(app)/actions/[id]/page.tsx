@@ -26,6 +26,7 @@ import { departmentChoices } from "@/services/engagement";
 import { actionClosure, actionFollowThrough, actionLadder, listActionNotes, mailFailing } from "@/services/follow-through";
 import { isActionMuted } from "@/services/notifications";
 import { getActionDetail } from "@/services/queries";
+import { actionSlip } from "@/services/slips";
 import { ActionPanel } from "./action-panel";
 import { CommentThread } from "./comment-thread";
 import { RiskAcceptances } from "./closure-panels";
@@ -43,7 +44,7 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       ladder: await actionLadder(tx, principal, id),
@@ -57,6 +58,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       // Firm-only notes; anyone who may not read them (every client role) gets null.
       notes: await listActionNotes(tx, principal, id).catch(() => null),
       thread: await actionThread(tx, principal, id),
+      slip: await actionSlip(tx, data.action.projectId, id),
       // Internal projects have no departments.
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
     };
@@ -289,6 +291,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           actionId={action.id}
           dueDate={action.dueDate}
           requests={follow.deadlines}
+          slip={slip}
           canRequest={follow.can.requestDeadline}
           canDecide={follow.can.decideDeadline}
         />

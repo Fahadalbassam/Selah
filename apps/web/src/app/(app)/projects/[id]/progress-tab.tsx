@@ -3,6 +3,7 @@ import { FileText } from "@/components/animate-ui/icons/file-text";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
+import { LateAgainstOriginal } from "@/components/late-against-original";
 import { MetricHistory, type HistoryPoint } from "@/components/metric-history";
 import { Meter, StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,8 @@ export async function ProgressTab({
           </div>
         </div>
       </div>
+
+      {progress.late ? <LateAgainstOriginal late={progress.late} /> : null}
 
       <Card className="gap-3 py-5 shadow-xs">
         <CardHeader className="px-5">

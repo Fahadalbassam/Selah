@@ -40,6 +40,7 @@ function planError(message: string | undefined): string | null {
   if (m.includes("owner must be on the project team")) return "ownerTeam";
   if (m.includes("released action needs")) return "releaseNeeds";
   if (m.includes("minimal records")) return "jobTitle";
+  if (m.includes("needs the lead")) return "needsLead";
   if (m.includes("department")) return "department";
   if (m.includes("accountable person")) return "accountable";
   if (m.includes("finding is not in this project")) return "finding";
