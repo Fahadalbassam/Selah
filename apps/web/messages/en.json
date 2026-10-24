@@ -3407,6 +3407,85 @@
           "when": "Only when the firm switches the assistant to a hosted model. Off by default: the model runs on the firm's server."
         }
       }
+    },
+    "security": {
+      "title": "Security overview for IT teams",
+      "intro": "How Selah protects your organization's data, for your IT and security team to review. The panel below shows how this site is set up right now.",
+      "sections": [
+        {
+          "title": "Where it runs",
+          "body": "Selah runs on one server in Saudi Arabia that the firm operates. The database, the stored files, the virus scanner, the PDF renderer and, by default, the AI model all run on that server, each in its own container. Encrypted backups go nightly to a second location in the Kingdom."
+        },
+        {
+          "title": "How traffic reaches it",
+          "body": "Every connection uses HTTPS. The site can be reached in one of two ways, shown under \"This site, now\": straight to the server, which holds its own certificates so nothing outside it sees the traffic; or through Cloudflare Tunnel, where Cloudflare ends HTTPS (it is listed as a sub-processor) and the server opens no port. The firm moves to the direct way before any real client file is uploaded. Browsers get strict security headers: HSTS, a content security policy with a fresh nonce per page, no framing."
+        },
+        {
+          "title": "Keeping clients apart",
+          "body": "Each client's data is kept apart in the database itself: PostgreSQL row-level security decides, for every row, who may read it, keyed on the signed-in person. The application's database account cannot bypass it. Automated tests try to read across clients and roles on every change and must be refused."
+        },
+        {
+          "title": "Accounts and sign-in",
+          "body": "Accounts are by invitation only, one per person, signed in with the person's own work email. Passwords are hashed with scrypt. Two-factor sign-in (an authenticator app) is required for the firm's administrators and consultants and for client administrators, and optional for others. Repeated failed sign-ins are slowed down and then locked. A client administrator can switch off their own people and runs periodic access reviews."
+        },
+        {
+          "title": "Files",
+          "body": "Uploads are limited to 20 MB and to common document types, and every file is scanned for viruses before it is stored; the upload is refused while the scanner is down. Files sit in a private store under random names. A download is a link valid for one minute, issued only after the person's right to the file is checked."
+        },
+        {
+          "title": "The AI assistant",
+          "body": "By default the model runs on the firm's server and nothing leaves it. If the firm switches to a hosted model, client, people and department names are replaced with placeholders before any text is sent, and only the passages needed for one question go. Files are never used to train a model. The firm can mark any file as not available to the assistant."
+        },
+        {
+          "title": "Audit and monitoring",
+          "body": "Sign-ins, failed attempts, file views and downloads, changes and refused attempts are kept in an audit log that nobody can edit, sealed into a hash chain and checked every night, for at least 12 months. A client administrator sees what their own people did and can export it. The server checks its own health every two minutes and alerts the firm when something fails."
+        },
+        {
+          "title": "Backups and recovery",
+          "body": "The database and the files are backed up every night, with an encrypted copy in a second location whose key is kept off the server. Backups are kept 30 days, so erased data leaves them within that time. A monthly drill restores a backup into a scratch database and checks it, row counts, audit chain and files included. At most a day of work can be lost."
+        },
+        {
+          "title": "Incidents",
+          "body": "The firm follows a written breach runbook: contain, keep the evidence, assess, and notify. Under the data processing agreement a client is told within the agreed time (24 hours in the template) so it can notify SDAIA within 72 hours where required."
+        },
+        {
+          "title": "How it is built",
+          "body": "Every change is reviewed and runs automated tests: unit tests, database rule tests including denial tests, and browser tests. Dependencies are watched for security updates. The controls are mapped to OWASP ASVS 5.0 and the OWASP Top 10 for LLM applications."
+        },
+        {
+          "title": "Questions",
+          "body": "Your IT or security team can ask the firm's administrator for the detailed control list, the latest restore drill result, or a review session."
+        }
+      ],
+      "now": "This site, now",
+      "facts": {
+        "edge": {
+          "label": "Way in",
+          "direct": "Direct to the firm's server, with its own HTTPS certificates",
+          "tunnel": "Through Cloudflare Tunnel (Cloudflare ends HTTPS)",
+          "none": "Not set (a development install)"
+        },
+        "ai": {
+          "label": "AI model",
+          "local": "On the firm's server",
+          "masked": "Hosted by a provider, with names masked",
+          "unmasked": "Hosted by a provider, without masking"
+        },
+        "scan": {
+          "label": "Virus scanning",
+          "on": "Every upload, before it is stored",
+          "off": "Off (a development install)"
+        },
+        "twoFactor": {
+          "label": "Two-factor sign-in",
+          "on": "Required for administrators and consultants",
+          "off": "Not required (a development install)"
+        },
+        "audit": {
+          "label": "Audit log",
+          "value": "Kept at least 12 months, checked nightly"
+        }
+      }
     }
   },
   "consent": {

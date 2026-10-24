@@ -1,0 +1,47 @@
+# The edge in front of Selah (R5): one Caddy for both ways in, chosen with
+# COMPOSE_PROFILES in .env (docs/operations.md, "How traffic reaches it").
+#   direct  Caddy on ports 80 and 443 of the server, with its own HTTPS
+#           certificates. Nothing outside the server sees the traffic.
+#   tunnel  Cloudflare Tunnel (the cloudflared service) brings traffic in;
+#           Caddy listens only inside the stack, on plain HTTP.
+# SITE_ADDRESS and FILES_ADDRESS are set per mode in docker-compose.yml.
+{
+	admin off
+	servers {
+		# The visitor's address, for the per-address limits: Caddy's own
+		# peer in direct mode (no proxy is trusted), Cloudflare's header in
+		# tunnel mode (TRUSTED_PROXIES is the stack's network, and only
+		# cloudflared can reach Caddy). Whatever the visitor sent in
+		# X-Forwarded-For is replaced, never passed on.
+		client_ip_headers Cf-Connecting-Ip
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+	}
+}
+
+(common) {
+	encode zstd gzip
+	header -Server
+	request_body {
+		max_size 25MB
+	}
+}
+
+# The site.
+{$SITE_ADDRESS} {
+	import common
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-For {client_ip}
+		header_up -Cf-Connecting-Ip
+	}
+}
+
+# Stored files: only the one-minute signed download links the app issues
+# (GET and HEAD). Uploads go through the app, never straight to the bucket.
+{$FILES_ADDRESS} {
+	import common
+	@read method GET HEAD
+	handle @read {
+		reverse_proxy storage:9000
+	}
+	respond 405
+}
