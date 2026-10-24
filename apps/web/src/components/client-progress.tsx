@@ -44,11 +44,12 @@ export async function ClientProgress({
   const head = (first: string) => (
     <TableHeader>
       <TableRow>
-        <TableHead className="w-[40%]">{first}</TableHead>
-        <TableHead>{tm("implemented")}</TableHead>
-        <TableHead>{t("verifiedCol")}</TableHead>
-        <TableHead>{tm("outcome.open")}</TableHead>
-        <TableHead>{tm("overdue")}</TableHead>
+        <TableHead className="w-[36%]">{first}</TableHead>
+        {/* Narrow cards (the client page) wrap the headings instead of running them together. */}
+        <TableHead className="whitespace-normal">{tm("implemented")}</TableHead>
+        <TableHead className="whitespace-normal">{t("verifiedCol")}</TableHead>
+        <TableHead className="whitespace-normal">{tm("outcome.open")}</TableHead>
+        <TableHead className="whitespace-normal">{tm("overdue")}</TableHead>
       </TableRow>
     </TableHeader>
   );

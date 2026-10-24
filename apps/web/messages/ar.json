@@ -127,7 +127,15 @@
       "info_request_not_applicable": "وصف طلبًا بأنه لا ينطبق",
       "info_request_removed": "حذف طلبًا",
       "document_withdrawn": "سحب ملفًا رُفع بالخطأ",
-      "department_moved": "نقل أعمال إدارة غير المنجزة إلى إدارة أخرى"
+      "department_moved": "نقل أعمال إدارة غير المنجزة إلى إدارة أخرى",
+      "created": "أضاف إجراءً",
+      "updated": "عدّل إجراءً",
+      "evidence_submitted": "قدّم دليلاً",
+      "document_shared": "شارك ملفاً",
+      "assessment_started": "بدأ تقييماً",
+      "assessment_finalised": "اعتمد تقييماً",
+      "assessment_shared": "شارك تقييماً مع العميل",
+      "assessment_unshared": "سحب تقييماً من العميل"
     }
   },
   "priority": {
