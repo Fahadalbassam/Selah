@@ -86,7 +86,7 @@ export const scanStatus = pgEnum("scan_status", ["pending", "clean", "infected",
 // Whether a file's text could be read for the assistant: "not_searchable" when
 // nothing could be extracted (a scan without text, say), so it is never
 // silently missing from answers.
-export const textStatus = pgEnum("text_status", ["pending", "searchable", "not_searchable"]);
+export const textStatus = pgEnum("text_status", ["pending", "searchable", "not_searchable", "needs_ocr"]);
 export const requestStatus = pgEnum("request_status", ["pending", "approved", "rejected"]);
 export const followUpStatus = pgEnum("follow_up_status", ["open", "done"]);
 export const chunkSource = pgEnum("chunk_source", [
@@ -581,6 +581,8 @@ export const documents = pgTable(
     scanStatus: scanStatus("scan_status").notNull().default("pending"),
     scannedAt: ts("scanned_at"),
     textStatus: textStatus("text_status").notNull().default("pending"),
+    /** Scanned pages (no text layer) waiting for text recognition; set by the indexing job. */
+    ocrPages: integer("ocr_pages").array().notNull().default(sql`'{}'::integer[]`),
     createdAt: createdAt(),
   },
   (t) => [

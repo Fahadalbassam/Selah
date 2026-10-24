@@ -269,7 +269,7 @@ A question can't widen this. "Show me the other client's charter" still runs the
 
 ### Gaps
 
-- PDF and Office text extraction is not built, so those files stay "pending" and aren't searchable yet.
+- Scanned pages and images have no text recognition yet; they are listed (`ocr_pages`, `needs_ocr`) and left out of answers.
 - The indexing job uses the full storage key. Recommendation 3 gives it a read-only key.
 - No model has been run on real data; the tests use fake vectors.
 - A hosted model sees masked text only (docs/assistant.md, "Masking names"). Names that aren't in Selah's records still reach it.

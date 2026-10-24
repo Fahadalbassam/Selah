@@ -226,7 +226,7 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 
 | Rule | Database | Checked first in | Tests |
 |---|---|---|---|
-| A file's text status is set only by the indexing job | `check_text_status()` | database only | `tests/db/ai-sources.test.ts` |
+| A file's text status and scanned pages are set only by the indexing job; a change that sends the file back to the job clears them | `check_text_status()` | database only | `tests/db/ai-sources.test.ts` |
 | File summaries cite pages for every line, at most 30 a person an hour; they go with the file's flag, label, archive or a new version | `check_document_summary()`, `drop_document_summaries()` | `src/services/document-summaries.ts` | `tests/db/ai-sources.test.ts` |
 | A summary line's source is a passage of this meeting or a page of a project file; rewriting the summary retires them | `check_summary_source()`, `drop_summary_sources()` | `src/services/meetings.ts` (`addSummarySource()`) | `tests/db/ai-sources.test.ts` |
 | Messages are Arabic or English; passage pages start at 1 | `ai_messages.ai_message_lang`, `ai_chunks.ai_chunk_page` | `src/services/assistant.ts` | `tests/db/ai-sources.test.ts` |
