@@ -1,4 +1,4 @@
-// A client leaving (baseline: Offboarding, 0023). Shared by the screens, the
+// A client leaving (baseline: Offboarding, 0024). Shared by the screens, the
 // services and the tests; the database holds the same numbers and lists.
 
 /** Days the client's people keep read-only access after archiving. */

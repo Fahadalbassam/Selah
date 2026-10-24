@@ -1,4 +1,4 @@
-// A client leaving (baseline: Offboarding, 0023; full picture item 27) against
+// A client leaving (baseline: Offboarding, 0024; full picture item 27) against
 // a real Postgres: who archives, that every project must be closed first,
 // read-only access in the grace period and none after, restoring with a
 // reason, legal holds, and the purge after retention with its deletion

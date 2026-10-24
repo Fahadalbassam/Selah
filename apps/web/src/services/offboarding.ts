@@ -7,7 +7,7 @@ import { NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
 // A client leaving (full picture item 27, journey J14.1-J14.5). The database
-// holds every rule (baseline: Offboarding, 0023): archiving only once every
+// holds every rule (baseline: Offboarding, 0024): archiving only once every
 // project is closed, read-only access in the grace period, the retention
 // date, legal holds and the purge. These calls check the same permissions
 // first, so the screen only offers what the database will take, and they
