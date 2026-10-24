@@ -26,6 +26,7 @@ interface Row {
   to_email: string;
   kind: MailKind;
   link: string | null;
+  reference: string | null;
   meeting_id: string | null;
   attempts: number;
   created_at: Date;
@@ -44,7 +45,7 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
        WHERE sent_at IS NULL AND failed_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
        ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED
      )
-     RETURNING id, to_email, kind, link, meeting_id, attempts, created_at`,
+     RETURNING id, to_email, kind, link, reference, meeting_id, attempts, created_at`,
     [batch],
   );
   // RETURNING has no order; send oldest first so related mails arrive in order.
@@ -53,13 +54,13 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
   const result: MailRunResult = { sent: 0, failed: 0 };
   for (const row of rows) {
     try {
-      const mail: OutgoingMail = { to: row.to_email, ...renderMail(row.kind, row.link, appUrl) };
+      const mail: OutgoingMail = { to: row.to_email, ...renderMail(row.kind, row.link, appUrl, row.reference) };
       if (row.meeting_id) {
         const ics = await meetingIcs(db, row.meeting_id);
         if (ics) mail.icalEvent = ics;
       }
       await deliver(mail);
-      await db.query(`UPDATE outbound_emails SET sent_at = now(), link = NULL, last_error = NULL WHERE id = $1`, [row.id]);
+      await db.query(`UPDATE outbound_emails SET sent_at = now(), link = NULL, reference = NULL, last_error = NULL WHERE id = $1`, [row.id]);
       result.sent++;
     } catch (err) {
       const message = (err instanceof Error ? err.message : String(err)).slice(0, 500);

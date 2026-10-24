@@ -135,7 +135,8 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | The public form is validated and rate-limited in one function; the app role cannot insert inquiries | `submit_inquiry()` | `src/app/api/inquiries/route.ts`, `src/services/intake.ts` | `tests/db/intake.test.ts` |
 | Inquiry status moves, owner, conflict check before winning, jobs only anonymise | `check_inquiry_update()` | `src/services/inquiries.ts` | `tests/db/intake.test.ts` |
 | Every status and owner change is logged, and the new owner told | `log_inquiry_update()` | database only | `tests/db/intake.test.ts` |
-| A new inquiry mails the intake address a link | `mail_new_inquiry()` | database only | `tests/db/firm-settings.test.ts` |
+| A new inquiry mails the intake address a link, and the requester an acknowledgement with the reference, at most one a day to an address | `mail_new_inquiry()` | database only | `tests/db/firm-settings.test.ts`, `tests/db/intake.test.ts` |
+| Only the firm admin sends a requester a decline, once, for an inquiry closed as lost or declined whose details are still kept | `app_mail_inquiry_decline()` | `src/services/inquiries.ts` (`mailDecline()`, `can.declineMail`) | `tests/db/intake.test.ts` |
 
 ### Expertise
 
@@ -164,6 +165,7 @@ Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the 
 | Roles that require two-factor sign-in cannot switch it off | `check_two_factor_off()` | `src/authz/two-factor.ts`, `src/auth/auth.ts` | `tests/db/two-factor.test.ts` |
 | A queued mail wakes the sender | `notify_outbound_email()` | database only | `tests/db/mail.test.ts` |
 | Only known mail kinds are queued | `outbound_emails.outbound_kind` | `src/lib/mail-templates.ts` (`MAIL_KINDS`) | `tests/db/mail.test.ts`, `tests/db/rule-parity.test.ts` |
+| Only an inquiry's mails carry a reference, and it is cleared once sent | `outbound_emails.outbound_reference` | `src/jobs/mail.ts` | `tests/db/intake.test.ts` |
 | Meeting mail points at its meeting, and only meeting mail does | `outbound_emails.outbound_meeting` | database only | `tests/db/meetings.test.ts` |
 | Send attempts are never negative | `outbound_emails.outbound_attempts` | database only | `tests/db/mail.test.ts` |
 | An action owner is mailed (a line and a link) when their action needs them, at most hourly | `mail_action_notification()` | database only | `tests/db/mail.test.ts` |
