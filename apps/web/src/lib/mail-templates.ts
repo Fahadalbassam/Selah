@@ -21,6 +21,7 @@ export const MAIL_KINDS = [
   "action.verified_complete",
   "evidence.requested",
   "follow_up.digest",
+  "client.archived",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -230,7 +231,24 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       action: "Open notifications",
     },
   },
-
+  "client.archived": {
+    ar: {
+      subject: "انتهى تعاملكم مع المكتب في صلة",
+      lines: [
+        "أُغلقت جميع مشاريعكم وأرشف المكتب حسابكم في صلة.",
+        "يمكنكم الدخول لقراءة سجلاتكم وتنزيل ملفاتكم لفترة محدودة. سجّلوا الدخول لمعرفة آخر موعد.",
+      ],
+      action: "فتح صلة",
+    },
+    en: {
+      subject: "Your engagement in Selah has ended",
+      lines: [
+        "All your projects are closed and the firm has archived your organisation in Selah.",
+        "You can still sign in to read your records and download your files for a limited time. Sign in to see until when.",
+      ],
+      action: "Open Selah",
+    },
+  },
 };
 
 export interface RenderedMail {

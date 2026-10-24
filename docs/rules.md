@@ -40,6 +40,7 @@ Two things are deliberately held twice and not merged:
 | Phase number and planned working days of a client project | `PHASE_LIMITS` in `src/lib/phases.ts` | project routes, the client page's New project dialog | `projects.projects_sequence_range`, `projects.projects_planned_days_range` | `tests/db/rule-parity.test.ts` |
 | Open actions (released, not finished) | `OPEN_STATUSES` in `src/authz/workflow.ts` | `isOverdue()`, the assistant's status answer | `app_action_open()` (migration 0002), used by the deviation, reminder, mail and metrics functions | `tests/db/rule-parity.test.ts` |
 | Closing dispositions and frozen tables | `DISPOSITIONS`, `FROZEN_TABLES` in `src/lib/closure.ts` | `src/services/closure.ts`, the closure routes, the Closing tab | `check_project_open()` (the project_open triggers), the closure_disposition enum | `tests/db/closure.test.ts` |
+| Grace period, retention and frozen client tables | `GRACE_DAYS`, `RETENTION_YEARS`, `CLIENT_FROZEN_TABLES` in `src/lib/offboarding.ts` | the offboarding route, the client page | `app_archive_client()`, `check_client_open()` (the client_open triggers) | `tests/db/offboarding.test.ts` |
 
 Enums (`action_status`, `role`, `visibility` and the rest) and the check constraints declared in `src/db/schema` have one source already: the Drizzle schema, from which part 1 of the baseline is generated.
 
@@ -102,6 +103,17 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | Only the firm on a closing project disposes of an open action; deferred, withdrawn and waived say why; who sustains a handed-over action is an active account or contact of the project's own organisation, named by the firm, the client's admin or the project's sponsor | `app_dispose_action()`, `app_name_sustainer()`, `app_check_sustainer()`, `project_closure_items.closure_item_reason` | `src/services/closure.ts` (`disposeAction()`, `nameSustainer()`) | `tests/db/closure.test.ts` |
 | The client's sponsor or admin asks the firm to close (N9), one request at a time; the firm admin declines with a reason or starts closing, which answers it | `app_request_closure()`, `app_decline_closure_request()`, `app_start_closing()` | `src/services/closure.ts` (`requestClosure()`, `declineClosureRequest()`) | `tests/db/closure.test.ts` |
 | Reminders go on while a project closes, except for actions that already have a disposition | `app_follow_ups_due()` | `src/jobs/follow-ups.ts` | `tests/db/closure.test.ts` |
+
+### A client leaving
+
+| Rule | Database | Checked first in | Tests |
+|---|---|---|---|
+| Only the firm admin archives a client, and only once every project is closed; a client that never signed is deleted instead; drafts are deleted and open invitations revoked when it is archived | `app_archive_client()`, `app_archive_blockers()` | `src/authz/policy.ts` (`organization.archive`), `src/services/offboarding.ts` (`getOffboarding()`, `archiveClient()`) | `tests/db/offboarding.test.ts` |
+| An organization's status changes only through archiving and restoring, and an archived client's own record does not change | `check_org_status()` | `src/services/offboarding.ts` | `tests/db/offboarding.test.ts` |
+| An archived client's people sign in and read during its grace period (0 to 90 days) and nothing after it; no one writes to its client-level records; jobs are not limited | `app_in_grace()`, `app_org()`, `app_role()`, `app_org_kind()`, `app_can_reset_password()`, `check_client_open()` | `src/services/principal.ts` (`readOnly`), `src/authz/authorize.ts` (`OPEN_WHEN_ARCHIVED`) | `tests/db/offboarding.test.ts`, `tests/authorize.test.ts` |
+| Only the firm admin restores an archived client, with a reason kept in its history | `app_restore_client()` | `src/services/offboarding.ts` (`restoreClient()`) | `tests/db/offboarding.test.ts` |
+| Only the firm admin places or releases a legal hold, each with a reason; a hold never changes once placed and is never deleted while its client exists; only the firm admin sees holds | `app_place_legal_hold()`, `app_release_legal_hold()`, `check_legal_hold()` | `src/authz/policy.ts` (`organization.hold`), `src/services/offboarding.ts` | `tests/db/offboarding.test.ts` |
+| An archived client is kept for ten years after archiving; then the daily job deletes it unless a hold stands, erases the accounts that belonged only to it, queues its files for deletion and keeps a deletion record that only the firm admin reads | `app_purge_clients()` | `scripts/purge-clients.ts` | `tests/db/offboarding.test.ts` |
 
 ### Evidence and review integrity
 

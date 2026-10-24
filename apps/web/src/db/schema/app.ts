@@ -2564,3 +2564,65 @@ export const consentRecords = pgTable(
   },
   (t) => [index("consent_records_user_idx").on(t.userId, t.doc, t.acceptedAt)],
 );
+
+// ------------------------------------------------------------- offboarding
+// A client leaves (baseline: Offboarding, 0023). The firm admin archives it
+// once every project is closed; its people keep read-only access through a
+// grace period, the records are kept for the retention period (ten years,
+// Saudi commercial records), and then a job deletes them and leaves a
+// deletion record, unless a legal hold stands.
+export const clientOffboardings = pgTable(
+  "client_offboardings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    archivedBy: uuid("archived_by").references(() => user.id),
+    archivedAt: ts("archived_at").notNull().defaultNow(),
+    // Its people can sign in and read (and download) until then.
+    graceUntil: ts("grace_until").notNull(),
+    // The records are kept until then; the purge job deletes them after.
+    retainUntil: date("retain_until").notNull(),
+    note: text("note"),
+    // Draft projects (never signed work) deleted when the client was archived.
+    draftsDeleted: integer("drafts_deleted").notNull().default(0),
+    restoredBy: uuid("restored_by").references(() => user.id),
+    restoredAt: ts("restored_at"),
+    restoreReason: text("restore_reason"),
+  },
+  (t) => [uniqueIndex("client_offboardings_one_open").on(t.orgId).where(sql`restored_at IS NULL`)],
+);
+
+// Keeps a client's records past their retention date: the purge job skips a
+// client with any hold not yet released.
+export const legalHolds = pgTable(
+  "legal_holds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    placedBy: uuid("placed_by").references(() => user.id),
+    placedAt: ts("placed_at").notNull().defaultNow(),
+    releasedBy: uuid("released_by").references(() => user.id),
+    releasedAt: ts("released_at"),
+    releaseReason: text("release_reason"),
+  },
+  (t) => [index("legal_holds_org_idx").on(t.orgId)],
+);
+
+// What is left of a client after its records are deleted: who it was, when
+// it left, how long it was kept and what was deleted. No foreign keys, so it
+// outlives the client.
+export const clientDeletions = pgTable("client_deletions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id").notNull(),
+  name: text("name").notNull(),
+  nameAr: text("name_ar"),
+  archivedAt: ts("archived_at"),
+  retainUntil: date("retain_until"),
+  deletedAt: ts("deleted_at").notNull().defaultNow(),
+  counts: jsonb("counts").$type<Record<string, number>>().notNull(),
+});

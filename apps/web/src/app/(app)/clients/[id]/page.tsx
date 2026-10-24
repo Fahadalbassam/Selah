@@ -1,4 +1,4 @@
-import { ArrowLeft, FilePenLine, Pencil, Trash2, UserPlus, UsersRound } from "lucide-react";
+import { Archive, ArrowLeft, FilePenLine, Pencil, Trash2, UserPlus, UsersRound } from "lucide-react";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
@@ -33,6 +33,8 @@ import { latestConflictSearch } from "@/services/conflicts";
 import { ConflictMatches } from "@/components/conflict-matches";
 import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
+import { getOffboarding } from "@/services/offboarding";
+import { OffboardingCard } from "./offboarding-card";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -60,10 +62,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       conflictSearch: admin ? await latestConflictSearch(tx, { orgId: id }) : null,
       // Pooled numbers across the client's projects (F30); a pitch has none yet.
       overview: team.client.prospect ? null : await clientOverview(tx, principal, id).catch(() => null),
+      // Leaving (F27): archived or not, what blocks it, holds and retention.
+      offboarding: await getOffboarding(tx, principal, id),
     };
   });
   if (!data) notFound();
-  const [t, tc, tq, tp, ti, tCt, tPh, tE, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, tCt, tPh, tE, tOff, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
@@ -72,10 +76,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     getTranslations("clients.contacts"),
     getTranslations("phases"),
     getTranslations("engagements"),
+    getTranslations("offboarding"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
   const { client, can } = data;
+  // An archived client is read-only: the database refuses changes, so the page offers none.
+  const open = !data.offboarding.archived;
   const onTeam = new Set(data.team.map((m) => m.userId));
   const contactFields = (c?: { name: string; nameAlt: string | null; title: string | null; email: string | null; phone: string | null }) => [
     { name: "name", label: tCt("name"), required: true, maxLength: 120, defaultValue: c?.name },
@@ -131,7 +138,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <PageHeader
         title={localName(client, ar)}
         description={ar ? client.name : (client.nameAr ?? undefined)}
-        meta={client.prospect ? <ToneBadge tone="waiting">{tE("prospect")}</ToneBadge> : undefined}
+        meta={
+          client.prospect ? (
+            <ToneBadge tone="waiting">{tE("prospect")}</ToneBadge>
+          ) : open ? undefined : (
+            <ToneBadge tone="neutral">{tOff("archived")}</ToneBadge>
+          )
+        }
       >
         {can.watch ? (
           <ApiButton
@@ -161,6 +174,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {tE("pitchBanner")}
         </p>
       ) : null}
+      {data.offboarding.current ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <Archive className="size-4 shrink-0" />
+          {tOff("banner", { date: format.dateTime(data.offboarding.current.archivedAt, { dateStyle: "medium" }) })}
+        </p>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
@@ -171,7 +190,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 <CardTitle className="text-base">{t("clientProjects")}</CardTitle>
                 <CardDescription>{tPh("hint")}</CardDescription>
               </div>
-              {can.createProject ? (
+              {can.createProject && open ? (
                 <FormDialog
                   trigger={
                     <Button size="sm">
@@ -228,7 +247,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 <CardTitle className="text-base">{tE("title")}</CardTitle>
                 <CardDescription>{tE("hint")}</CardDescription>
               </div>
-              {data.signed.can.record ? (
+              {data.signed.can.record && open ? (
                 <EngagementDialog
                   trigger={
                     <Button size="sm" variant="outline">
@@ -347,7 +366,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   <CardTitle className="text-base">{tCt("title")}</CardTitle>
                   <CardDescription>{data.engagement.minimalRecords ? tCt("minimal") : tCt("hint")}</CardDescription>
                 </div>
-                {data.engagement.minimalRecords ? null : (
+                {data.engagement.minimalRecords || !open ? null : (
                   <FormDialog
                     trigger={
                       <Button size="sm" variant="outline">
@@ -391,27 +410,31 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           )}
                         </p>
                       </div>
-                      <FormDialog
-                        trigger={
-                          <Button size="sm" variant="ghost">
-                            <Pencil />
-                            {tCt("edit")}
-                          </Button>
-                        }
-                        title={tCt("editTitle")}
-                        endpoint={`/api/contacts/${c.id}`}
-                        method="PATCH"
-                        sendEmptyAsNull
-                        fields={contactFields(c)}
-                        submitLabel={tq("save")}
-                      />
-                      <ApiButton
-                        endpoint={`/api/contacts/${c.id}`}
-                        method="DELETE"
-                        label={tCt("remove")}
-                        variant="ghost"
-                        confirm={tCt("removeConfirm", { name: c.name })}
-                      />
+                      {open ? (
+                        <>
+                          <FormDialog
+                            trigger={
+                              <Button size="sm" variant="ghost">
+                                <Pencil />
+                                {tCt("edit")}
+                              </Button>
+                            }
+                            title={tCt("editTitle")}
+                            endpoint={`/api/contacts/${c.id}`}
+                            method="PATCH"
+                            sendEmptyAsNull
+                            fields={contactFields(c)}
+                            submitLabel={tq("save")}
+                          />
+                          <ApiButton
+                            endpoint={`/api/contacts/${c.id}`}
+                            method="DELETE"
+                            label={tCt("remove")}
+                            variant="ghost"
+                            confirm={tCt("removeConfirm", { name: c.name })}
+                          />
+                        </>
+                      ) : null}
                     </div>
                   ))}
                 </CardContent>
@@ -460,7 +483,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </Card>
           ) : null}
 
-          {can.decide && !client.prospect ? (
+          {can.decide && !client.prospect && open ? (
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("joinRequests")}</CardTitle>
@@ -496,7 +519,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             minimalRecords: data.engagement.minimalRecords,
             displayAlias: data.engagement.displayAlias,
             departmentCount: data.engagement.departments.filter((d) => d.active).length,
-            canChangeMode: data.engagement.canChangeMode,
+            canChangeMode: data.engagement.canChangeMode && open,
             fit: data.engagement.fit,
           }}
         />
@@ -507,7 +530,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           minimalRecords={data.legal.minimalRecords}
           sectors={data.legal.sectors}
           sectorName={data.legal.sector ? (ar ? data.legal.sector.nameAr : data.legal.sector.nameEn) : null}
-          can={data.legal.can}
+          can={open ? data.legal.can : { edit: false, legalForm: false }}
         />
         <Card className="h-fit gap-4 py-5 shadow-xs">
           <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
@@ -515,7 +538,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <CardTitle className="text-base">{tc("shortNames.title")}</CardTitle>
               <CardDescription>{tc("shortNames.hint")}</CardDescription>
             </div>
-            {can.setLegalForm ? (
+            {can.setLegalForm && open ? (
               <FormDialog
                 trigger={
                   <Button size="sm" variant="outline">
@@ -552,6 +575,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </CardContent>
         </Card>
+        {client.prospect ? null : <OffboardingCard clientId={client.id} view={data.offboarding} />}
         {data.admin && client.prospect ? (
           <Card className="h-fit gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

@@ -16,7 +16,7 @@ while :; do
   run job:audit-seal
   day=$(TZ=Asia/Riyadh date +%F)
   if [ "$day" != "$last_day" ]; then
-    for j in job:follow-ups job:audit-check job:purge-chats job:purge-inquiries job:purge-minimal job:purge-transcripts; do run "$j"; done
+    for j in job:follow-ups job:audit-check job:purge-chats job:purge-clients job:purge-inquiries job:purge-minimal job:purge-transcripts; do run "$j"; done
     last_day="$day"
   fi
   month=$(TZ=Asia/Riyadh date +%Y-%m)

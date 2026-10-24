@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { clientAssignments, departmentMembers, orgMemberships, organizations, projectMembers } from "@/db/schema";
 import type { Principal } from "@/authz";
@@ -7,14 +7,21 @@ import type { Principal } from "@/authz";
 /**
  * Build the Principal for a signed-in user from the database. Runs inside the
  * user's RLS transaction. Returns null when the user has no active membership
- * in an active organization, which denies everything.
+ * in an active organization (or an archived client still in its grace period,
+ * read-only), which denies everything.
  */
 export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal | null> {
   const [membership] = await tx
-    .select({ orgId: orgMemberships.orgId, role: orgMemberships.role, orgKind: organizations.kind })
+    .select({ orgId: orgMemberships.orgId, role: orgMemberships.role, orgKind: organizations.kind, status: organizations.status })
     .from(orgMemberships)
     .innerJoin(organizations, eq(organizations.id, orgMemberships.orgId))
-    .where(and(eq(orgMemberships.userId, userId), eq(orgMemberships.active, true), eq(organizations.status, "active")))
+    .where(
+      and(
+        eq(orgMemberships.userId, userId),
+        eq(orgMemberships.active, true),
+        sql`(${organizations.status} = 'active' OR app_in_grace(${organizations.id}))`,
+      ),
+    )
     .limit(1);
   if (!membership) return null;
 
@@ -47,5 +54,6 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     leadClientIds: new Set(assignments.filter((a) => a.isLead).map((a) => a.clientOrgId)),
     leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
     departmentIds: new Set(departments.map((d) => d.id)),
+    readOnly: membership.status === "archived",
   };
 }
