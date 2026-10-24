@@ -133,6 +133,9 @@ export async function PeopleAdmin({
                         canChange={canChange}
                         canResetTwoFactor={canChange && p.twoFactor}
                         canErase={data.can.erase}
+                        colleagues={data.people
+                          .filter((c) => c.active && c.userId !== p.userId)
+                          .map((c) => ({ userId: c.userId, name: c.name }))}
                       />
                     )}
                   </TableCell>
