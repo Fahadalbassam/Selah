@@ -23,6 +23,7 @@ import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus
 import { loadAction, roundSubmitters } from "./actions";
 import { fileControls } from "./documents";
 import { recordControls } from "./plan-changes";
+import { recommendationStances } from "./responses";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
@@ -363,6 +364,9 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     .orderBy(desc(activityEvents.createdAt))
     .limit(20);
 
+  // Where each released recommendation stands with the client (F10).
+  const stances = p.kind === "client" ? await recommendationStances(tx, id) : new Map();
+
   return {
     project: p,
     recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => {
@@ -372,6 +376,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
         department: r.departmentId ? (deptNames.get(r.departmentId) ?? null) : null,
         accountableName: r.accountableUserId ? (peopleNames.get(r.accountableUserId) ?? null) : null,
         actions: recActions,
+        stance: stances.get(r.id)?.stance ?? null,
         // Edit, release, withdraw, delete (N1), as the database will allow them.
         can: recordControls(principal, recResource(r), r, { releasedActions: recActions.filter((a) => a.status !== "draft").length }),
       };

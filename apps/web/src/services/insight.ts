@@ -74,10 +74,10 @@ export async function markVisited(tx: Tx, principal: Principal, projectId: strin
   return { ok: true };
 }
 
-export type DeviationRule = "overdue" | "stale" | "slipped" | "churn" | "orphaned" | "kpi_not_reported" | "kpi_off_target";
+export type DeviationRule = "overdue" | "stale" | "slipped" | "churn" | "orphaned" | "kpi_not_reported" | "kpi_off_target" | "disputed";
 
 /**
- * Open actions and KPIs that break a deviation rule (v_deviations,
+ * Open actions, KPIs and disputed recommendations that break a deviation rule (v_deviations,
  * docs/data-model.md "Handover and deviations"), one row per item and
  * rule, most pressing rules first.
  */
@@ -85,7 +85,7 @@ export async function projectDeviations(tx: Tx, principal: Principal, projectId:
   const { resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "deviation.read", { ...resource, type: "action" });
   const { rows } = await tx.execute<{
-    entity_type: "action" | "kpi";
+    entity_type: "action" | "kpi" | "recommendation";
     entity_id: string;
     rule: DeviationRule;
     detail: Record<string, string | number | null>;
@@ -96,14 +96,15 @@ export async function projectDeviations(tx: Tx, principal: Principal, projectId:
     owner: string | null;
   }>(sql`
     select d.entity_type, d.entity_id, d.rule, d.detail,
-           coalesce(a.title, k.name_en, k.name_ar) as title, k.name_ar as title_ar,
+           coalesce(a.title, rc.title, k.name_en, k.name_ar) as title, k.name_ar as title_ar,
            a.status::text as status, a.due_date::text as due_date, coalesce(u.name, a.owner_name) as owner
     from v_deviations d
     left join actions a on d.entity_type = 'action' and a.id = d.entity_id
     left join kpis k on d.entity_type = 'kpi' and k.id = d.entity_id
+    left join recommendations rc on d.entity_type = 'recommendation' and rc.id = d.entity_id
     left join "user" u on u.id = a.owner_user_id
     where d.project_id = ${projectId}::uuid
-    order by array_position(array['overdue','orphaned','kpi_off_target','kpi_not_reported','slipped','churn','stale'], d.rule), title`);
+    order by array_position(array['overdue','orphaned','disputed','kpi_off_target','kpi_not_reported','slipped','churn','stale'], d.rule), title`);
   return rows.map((r) => ({
     entityType: r.entity_type,
     entityId: r.entity_id,

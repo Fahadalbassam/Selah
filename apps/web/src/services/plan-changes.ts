@@ -169,6 +169,8 @@ export async function releaseRecord(tx: Tx, principal: Principal, kind: Kind, id
   const table = kind === "finding" ? findings : recommendations;
   await tx.update(table).set({ visibility: "shared" }).where(eq(table.id, id));
   await record(tx, principal, kind, row, "released");
+  // The client now answers it (F10): its admins, and the sponsor in a full engagement, are told.
+  if (kind === "recommendation") await tx.execute(sql`select app_notify_recommendation(${id}::uuid, 'recommendation.released')`);
   return { id };
 }
 

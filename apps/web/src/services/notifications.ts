@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects } from "@/db/schema";
+import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations } from "@/db/schema";
 import type { Principal } from "@/authz";
 import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
 import { BadRequestError, NotFoundError } from "@/server/errors";
@@ -53,6 +53,15 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
       titles.set(a.id, { title: a.title, titleAr: null });
     }
   }
+  const recIds = ids(rows, "recommendation");
+  if (recIds.length) {
+    for (const r of await tx
+      .select({ id: recommendations.id, title: recommendations.title })
+      .from(recommendations)
+      .where(inArray(recommendations.id, recIds))) {
+      titles.set(r.id, { title: r.title, titleAr: null });
+    }
+  }
   const projectIds = ids(rows, "project");
   if (projectIds.length) {
     for (const p of await tx
@@ -101,6 +110,8 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   switch (entityType) {
     case "action":
       return `/actions/${entityId}`;
+    case "recommendation":
+      return `/recommendations/${entityId}`;
     case "project":
       return `/projects/${entityId}`;
     case "organization":
