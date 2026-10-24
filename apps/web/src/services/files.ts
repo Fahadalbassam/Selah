@@ -23,7 +23,7 @@ import type { Received } from "@/lib/engagement";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction, transitionAction } from "./actions";
 import { audit } from "./audit";
-import { loadDocument } from "./documents";
+import { fileControls, loadDocument, type FileControls } from "./documents";
 import { receivedFor } from "./progress";
 import { downloadable } from "./scan";
 import { itemAnswered, type PreparedUpload } from "./evidence";
@@ -58,6 +58,11 @@ export interface FileEntry {
   sharedWith: string[];
   /** Cleared by the virus scan, so it can be downloaded. */
   available: boolean;
+  /** The owning side lets the assistant read it, and how far indexing got. */
+  aiIndexable: boolean;
+  textStatus: "pending" | "searchable" | "not_searchable";
+  /** What this person may change (share, assistant flag, new version). */
+  can: FileControls;
   org: { id: string; kind: "firm" | "client"; name: string; nameAr: string | null };
   project: { id: string; title: string; kind: "internal" | "client" };
   source: FileSource;
@@ -93,9 +98,18 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         departmentId: documents.departmentId,
         orgId: documents.orgId,
         projectId: documents.projectId,
+        state: documents.state,
+        aiIndexable: documents.aiIndexable,
+        textStatus: documents.textStatus,
       },
-      project: { title: projects.title, kind: projects.kind, firmOrgId: projects.firmOrgId },
-      org: { kind: organizations.kind, name: organizations.name, nameAr: organizations.nameAr, mode: organizations.engagementMode },
+      project: { title: projects.title, kind: projects.kind, firmOrgId: projects.firmOrgId, state: projects.state },
+      org: {
+        kind: organizations.kind,
+        name: organizations.name,
+        nameAr: organizations.nameAr,
+        mode: organizations.engagementMode,
+        minimal: organizations.minimalRecords,
+      },
       uploaderName: user.name,
       departmentName: departments.nameAr,
       departmentNameEn: departments.nameEn,
@@ -126,8 +140,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
   const sharesOf = new Map<string, { userId: string; name: string | null }[]>();
   for (const s of shares) sharesOf.set(s.documentId, [...(sharesOf.get(s.documentId) ?? []), s]);
 
-  const visibleRows = rows.filter((r) => {
-    const resource: Resource = {
+  const resourceOf = (r: (typeof rows)[number]): Resource => ({
       type: "document",
       id: r.doc.id,
       orgId: r.doc.orgId,
@@ -140,9 +153,8 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       sharedWith: (sharesOf.get(r.doc.id) ?? []).map((s) => s.userId),
       ownerOrgId: r.doc.ownerOrgId,
       departmentId: r.doc.departmentId,
-    };
-    return authorize(principal, "document.download", resource).allowed;
   });
+  const visibleRows = rows.filter((r) => authorize(principal, "document.download", resourceOf(r)).allowed);
   if (visibleRows.length === 0) return [];
   const visibleIds = visibleRows.map((r) => r.doc.id);
 
@@ -202,6 +214,14 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       departmentNameEn: r.departmentNameEn,
       sharedWith: (sharesOf.get(r.doc.id) ?? []).flatMap((s) => (s.name ? [s.name] : [])),
       available: downloadable(r.doc.scanStatus),
+      aiIndexable: r.doc.aiIndexable,
+      textStatus: r.doc.textStatus,
+      // Listed files are the latest version and not archived (the query's filter).
+      can: fileControls(principal, {
+        doc: r.doc,
+        resource: resourceOf(r),
+        context: { projectKind: r.project.kind, projectClosed: r.project.state === "closed", minimal: r.org.minimal, latest: true },
+      }),
       org: { id: r.doc.orgId, kind: r.org.kind, name: r.org.name, nameAr: r.org.nameAr },
       project: { id: r.doc.projectId, title: r.project.title, kind: r.project.kind },
       source,

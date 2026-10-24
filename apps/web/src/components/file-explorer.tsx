@@ -23,6 +23,7 @@ import { Upload } from "@/components/animate-ui/icons/upload";
 import { X } from "@/components/animate-ui/icons/x";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
+import { FileActions } from "@/components/file-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -379,6 +380,8 @@ export function FileBrowser({ orgKind = "client", pick, className }: FileBrowser
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | undefined>();
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
+  // Bumped after a file is shared, flagged or replaced, to read the list again.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -393,7 +396,7 @@ export function FileBrowser({ orgKind = "client", pick, className }: FileBrowser
     return () => {
       live = false;
     };
-  }, [pick?.actionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pick?.actionId, version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shown = useMemo(() => {
     if (!files) return [];
@@ -444,7 +447,7 @@ export function FileBrowser({ orgKind = "client", pick, className }: FileBrowser
         </div>
       </ScrollArea>
 
-      {current ? <FileDetails file={current} pick={pick} /> : null}
+      {current ? <FileDetails file={current} pick={pick} onChanged={() => (setSelected(undefined), setVersion((v) => v + 1))} /> : null}
     </div>
   );
 }
@@ -567,7 +570,7 @@ function TreeSkeleton() {
 
 // --------------------------------------------------------------- details
 
-function FileDetails({ file, pick }: { file: FileEntry; pick?: FileBrowserProps["pick"] }) {
+function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBrowserProps["pick"]; onChanged: () => void }) {
   const t = useTranslations("files");
   const format = useFormatter();
   const labels = useLabels();
@@ -612,6 +615,9 @@ function FileDetails({ file, pick }: { file: FileEntry; pick?: FileBrowserProps[
           </p>
         </div>
         <VisibilityBadge visibility={file.visibility} />
+        {pick ? null : (
+          <FileActions id={file.id} title={file.title} visibility={file.visibility} aiIndexable={file.aiIndexable} can={file.can} onChanged={onChanged} />
+        )}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
         <dt className="text-muted-foreground">{t("uploadedBy")}</dt>
@@ -626,6 +632,12 @@ function FileDetails({ file, pick }: { file: FileEntry; pick?: FileBrowserProps[
           <>
             <dt className="text-muted-foreground">{t("department")}</dt>
             <dd>{department}</dd>
+          </>
+        ) : null}
+        {file.can.assistant || file.aiIndexable ? (
+          <>
+            <dt className="text-muted-foreground">{t("assistant")}</dt>
+            <dd>{file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}</dd>
           </>
         ) : null}
         <dt className="text-muted-foreground">{t("sharing")}</dt>
