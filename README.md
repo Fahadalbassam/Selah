@@ -47,6 +47,8 @@ docker compose up --build
 
 The first start downloads the local AI models (a few GB). Then open http://localhost:3000.
 
+Backups, the restore drill, restoring and the breach runbook for a server install are in `docs/operations.md` (`ops/backup.sh`, `ops/restore-drill.sh`, `ops/restore.sh`).
+
 To create sample users (one per role, password from `SEED_PASSWORD`), run `npm run db:seed` from `apps/web` as described below. Sign in as `sara@mizan.example` (firm admin), `khalid@mizan.example` or `noura@mizan.example` (consultants), `fahd@nukhba.example` (client admin), `reem@nukhba.example` (client manager), `abdullah@nukhba.example` (action owner) or `hind@rawdah.example` (client manager of a second client).
 
 ### AI provider

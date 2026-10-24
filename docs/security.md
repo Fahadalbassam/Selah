@@ -58,4 +58,4 @@ What it holds, who reads it and how it shows tampering (R2, migration `0023_audi
 
 The terms of use, privacy notice, AI-use notice and data processing agreement template (`/legal/*`, see `docs/accounts.md`) are drafts written for the product; the firm's counsel reviews them before real client data is used.
 
-Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; backups and HTTPS still need to be set up there.
+Hosting, retention and legal obligations must be confirmed with the firm and the supervisor before any real client data is used. The site runs on the team's Linux server; HTTPS still needs to be set up there. Backups, the restore drill and the breach runbook are in `docs/operations.md`; they need a second disk, the off-server key and the crontab on that server.
