@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { documentShares, documents, organizations, projects } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
@@ -42,10 +42,18 @@ export async function loadDocument(tx: Tx, id: string) {
     departmentId: row.doc.departmentId,
   };
   const latest = !(await tx.select({ id: documents.id }).from(documents).where(eq(documents.supersedesId, id)).limit(1)).length;
+  const [{ settled } = { settled: true }] = await tx.execute<{ settled: boolean }>(sql`select app_document_settled(${id}::uuid) as settled`).then((r) => r.rows);
   return {
     doc: row.doc,
     resource,
-    context: { projectKind: row.projectKind, projectClosed: row.projectState === "closed", minimal: row.minimal, latest },
+    context: {
+      projectKind: row.projectKind,
+      projectClosed: row.projectState === "closed",
+      minimal: row.minimal,
+      latest,
+      firstVersion: row.doc.supersedesId === null,
+      settled,
+    },
   };
 }
 
@@ -53,7 +61,16 @@ export async function loadDocument(tx: Tx, id: string) {
 export interface ControlledFile {
   doc: { purpose: string; state: string; visibility: string };
   resource: Resource;
-  context: { projectKind: "internal" | "client"; projectClosed: boolean; minimal: boolean; latest: boolean };
+  context: {
+    projectKind: "internal" | "client";
+    projectClosed: boolean;
+    minimal: boolean;
+    latest: boolean;
+    /** Not a later version of another file. */
+    firstVersion: boolean;
+    /** Relied on already (app_document_settled): a reviewed request, a final assessment, a KPI reading. */
+    settled: boolean;
+  };
 }
 
 /**
@@ -65,6 +82,7 @@ export interface ControlledFile {
  *   shareWithFirm   - a client's admin shares its private file (one-way)
  *   assistant       - the owning side switches "available to the assistant"
  *   newVersion      - the owning side uploads the next version
+ *   withdraw        - the uploader takes back a wrong first version nobody relied on yet, on an open project (N8)
  * Evidence has none of these: it is shared by submitting it, and never changes.
  */
 export function fileControls(principal: Principal, loaded: ControlledFile) {
@@ -78,6 +96,7 @@ export function fileControls(principal: Principal, loaded: ControlledFile) {
     shareWithFirm: live && doc.visibility === "client_private" && authorize(principal, "document.share", resource).allowed,
     assistant: manage && live && !evidence && !context.minimal && doc.visibility !== "user_private",
     newVersion: manage && live && !evidence && !context.projectClosed,
+    withdraw: live && !evidence && !context.projectClosed && resource.createdBy === principal.userId && context.firstVersion && !context.settled,
   };
 }
 
@@ -201,4 +220,28 @@ export async function uploadNewVersion(tx: Tx, principal: Principal, id: string,
   });
   await putObject(storageKey, file.bytes, file.contentType, file.sha256);
   return { id: doc!.id, version: old.version + 1 };
+}
+
+/**
+ * Take back a wrong upload (N8): the uploader archives a first version nobody
+ * relied on yet, with a reason. It stays on record, leaves the assistant and
+ * every list, and stops answering any information request. The database
+ * checks the same rules (app_withdraw_document).
+ */
+export async function withdrawDocument(tx: Tx, principal: Principal, id: string, reason: string) {
+  const loaded = await loadDocument(tx, id);
+  if (!loaded) throw new NotFoundError("document");
+  assertAllowed(principal, "document.read", loaded.resource);
+  if (!fileControls(principal, loaded).withdraw) throw new BadRequestError("this file cannot be withdrawn");
+  await tx.execute(sql`select app_withdraw_document(${id}::uuid, ${reason})`);
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "document.withdraw",
+    resourceType: "document",
+    resourceId: id,
+    outcome: "allow",
+    meta: { title: loaded.doc.title },
+  });
+  return { id, withdrawn: true };
 }

@@ -283,6 +283,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       departmentId: documents.departmentId,
       orgId: documents.orgId,
       projectId: documents.projectId,
+      firstVersion: sql<boolean>`${documents.supersedesId} is null`,
+      settled: sql<boolean>`app_document_settled(${documents.id})`,
     })
     .from(documents)
     .where(
@@ -344,7 +346,14 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       can: fileControls(principal, {
         doc: d,
         resource: docResource(d),
-        context: { projectKind: p.kind, projectClosed: p.state === "closed", minimal: p.minimalRecords, latest: true },
+        context: {
+          projectKind: p.kind,
+          projectClosed: p.state === "closed",
+          minimal: p.minimalRecords,
+          latest: true,
+          firstVersion: d.firstVersion,
+          settled: d.settled,
+        },
       }),
     })),
     activity: authorize(principal, "activity.read", projectResource).allowed ? activity : [],

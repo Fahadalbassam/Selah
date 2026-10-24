@@ -153,7 +153,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F06** Client roles that work in every mode — tier: 2 · size: M · wave: 1 · journey: J06.3 · pr: #66
 - [x] **F07** Client legal profile — tier: 2 · size: S–M · wave: 1 · journey: J05.3 · pr: #67
 - [x] **F08** Intake fixes — tier: 2 · size: S–M · wave: 1 · journey: J01.1, J01.3, J02.3, J03.3 · pr: #68 (acknowledgement mail), #69 (staff entry), #70 (conflict search, qualification, NDA, returning client), #71 (public form changes and marketing consent)
-- [~] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4 · pr: #72 (list, templates, answering, review), #73 (open: reminders)
+- [x] **F09** Information request list per project — tier: 2 · size: M · wave: 1 · journey: J07.2, J07.4 · pr: #72 (list, templates, answering, review), #73 (reminders)
 
 ### Tier 3 · The client takes part
 
@@ -213,7 +213,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [ ] **N5** The lead of an internal project can close it — wave: 1
 - [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26
 - [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
-- [ ] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03
+- [~] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74 (open)
 - [ ] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
 
