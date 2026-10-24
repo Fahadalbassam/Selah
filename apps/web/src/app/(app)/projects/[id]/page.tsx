@@ -29,6 +29,7 @@ import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
+import { listClientRoles } from "@/services/client-roles";
 import { getHandover } from "@/services/handover";
 import { projectDeviations, projectTrace, sinceLastVisit } from "@/services/insight";
 import { listMeetings, meetingInvitees } from "@/services/meetings";
@@ -39,6 +40,7 @@ import { NO_PREVIOUS } from "@/lib/phases";
 import { ProjectPeople } from "./project-people";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
 import { DocumentSummary, TextStatusBadge } from "./document-summary";
+import { ClientRolesCard } from "./client-roles-card";
 import { HandoverCard } from "./handover-card";
 import { Deviations, SinceLastVisit, Trace } from "./insight";
 import { ActionDialog, RecommendationDialog } from "./plan-dialogs";
@@ -47,7 +49,7 @@ import { ProgressTab } from "./progress-tab";
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, plan, team, people, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
+  const { data, plan, team, people, roles, firmStaff, meetings, invitees, me, assessments, templates, metrics, reports, visit, deviations, trace, handover } = await withPrincipal(async (tx, principal) => {
     const data = await getProject(tx, principal, id);
     const client = data.project.kind === "client";
     return {
@@ -64,6 +66,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       team: await getProjectTeam(tx, principal, id),
       // The client's own people on the project: the firm, and the client's admin.
       people: await getProjectPeople(tx, principal, id),
+      // Sponsor, coordinator, steering committee, acceptors, observers (client projects).
+      roles: client ? await listClientRoles(tx, principal, id) : null,
       firmStaff: principal.orgKind === "firm",
       // Roles that can't read meetings simply get no tab.
       meetings: await listMeetings(tx, principal, id).catch(() => null),
@@ -203,7 +207,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
           <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
-          {team || people ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
+          {team || people || roles ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="recs" className="space-y-6">
@@ -557,7 +561,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </ol>
           )}
         </TabsContent>
-        {team || people ? (
+        {team || people || roles ? (
           <TabsContent value="team" className="grid gap-6 lg:grid-cols-2">
             {team ? (
             <Card className="gap-4 py-5 shadow-xs">
@@ -637,6 +641,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </Card>
             ) : null}
             {people ? <ProjectPeople projectId={project.id} clientId={project.orgId} firm={firmStaff} data={people} /> : null}
+            {roles ? <ClientRolesCard projectId={project.id} data={roles} /> : null}
           </TabsContent>
         ) : null}
       </Tabs>

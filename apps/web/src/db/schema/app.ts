@@ -206,10 +206,9 @@ export const projects = pgTable(
     remindDaysBefore: integer("remind_days_before").notNull().default(3),
     escalateLevel2Days: integer("escalate_level2_days").notNull().default(7),
     escalateLevel3Days: integer("escalate_level3_days").notNull().default(14),
-    // Handover: the day the report was delivered (check-ins follow), and the
-    // client's sponsor, who is told at the last escalation level. baseline: Handover.
+    // Handover: the day the report was delivered (check-ins follow). The
+    // client's sponsor is a client role (projectClientRoles). baseline: Handover.
     handoverOn: date("handover_on"),
-    clientSponsorUserId: uuid("client_sponsor_user_id").references(() => user.id),
     // Set when a minimal-records client's free text was purged.
     minimalPurgedAt: ts("minimal_purged_at"),
     // Set by the database when the state becomes closed, cleared on reopening.
@@ -319,6 +318,40 @@ export const projectMembers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index("project_members_user_idx").on(t.userId)],
+);
+
+// Who is who on the client's side of a project (wave 1, item 6): the sponsor,
+// the coordinator, the steering committee, who accepts deliverables, and
+// observers such as board or family council members. Each is a client account
+// or, when the person has none (consultant-managed clients, a board member
+// with no company email), a client contact. The database holds the rules
+// (baseline: Client roles, 0010).
+export const clientRole = pgEnum("client_role", ["sponsor", "coordinator", "steering", "acceptor", "observer"]);
+
+export const projectClientRoles = pgTable(
+  "project_client_roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    role: clientRole("role").notNull(),
+    userId: uuid("user_id").references(() => user.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").references(() => clientContacts.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("project_client_roles_project_idx").on(t.projectId),
+    uniqueIndex("project_client_roles_user_unique").on(t.projectId, t.role, t.userId),
+    uniqueIndex("project_client_roles_contact_unique").on(t.projectId, t.role, t.contactId),
+    // One sponsor and one coordinator per project.
+    uniqueIndex("project_client_roles_single").on(t.projectId, t.role).where(sql`role IN ('sponsor', 'coordinator')`),
+    check("project_client_role_person", sql`(user_id IS NULL) <> (contact_id IS NULL)`),
+  ],
 );
 
 // A firm admin who oversees a client or one project without being staffed on

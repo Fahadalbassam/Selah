@@ -1,29 +1,27 @@
 import "server-only";
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { followUps, orgMemberships, projects, user } from "@/db/schema";
+import { followUps, projects, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal } from "@/authz";
 import { audit } from "./audit";
+import { sponsorOf } from "./client-roles";
 import { loadProject } from "./staffing";
 
-// Handover (baseline: Handover): the day the report was
-// delivered and the client's sponsor. Setting the date creates the firm's
-// check-ins (firm_settings.checkin_days); moving it moves the open ones.
-// The firm admin sets both; the database checks the sponsor. The firm admin
-// also closes the project when the engagement is over.
+// Handover (baseline: Handover): the day the report was delivered. Setting
+// the date creates the firm's check-ins (firm_settings.checkin_days); moving
+// it moves the open ones. The firm admin sets it, and closes the project when
+// the engagement is over. The client's sponsor is shown here and named with
+// the other client roles (services/client-roles.ts).
 
 export async function getHandover(tx: Tx, principal: Principal, projectId: string) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   const [row] = await tx
     .select({
       handoverOn: projects.handoverOn,
-      sponsorId: projects.clientSponsorUserId,
-      sponsorName: user.name,
       state: projects.state,
       closedAt: projects.closedAt,
     })
     .from(projects)
-    .leftJoin(user, eq(user.id, projects.clientSponsorUserId))
     .where(eq(projects.id, projectId));
   const edit = authorize(principal, "project.update", resource).allowed;
   // Check-ins are firm tasks (firm-private); row-level security hides them from clients.
@@ -42,22 +40,6 @@ export async function getHandover(tx: Tx, principal: Principal, projectId: strin
         .where(and(eq(followUps.projectId, projectId), isNotNull(followUps.checkinDay)))
         .orderBy(asc(followUps.checkinDay))
     : [];
-  // Who can be the sponsor: the client's active admins and managers.
-  const sponsors =
-    edit && project.kind === "client"
-      ? await tx
-          .select({ id: user.id, name: user.name })
-          .from(orgMemberships)
-          .innerJoin(user, eq(user.id, orgMemberships.userId))
-          .where(
-            and(
-              eq(orgMemberships.orgId, project.orgId),
-              eq(orgMemberships.active, true),
-              inArray(orgMemberships.role, ["client_admin", "client_manager"]),
-            ),
-          )
-          .orderBy(asc(user.name))
-      : [];
   const writeCheckins = authorize(principal, "follow_up.write", {
     ...resource,
     type: "follow_up",
@@ -68,12 +50,11 @@ export async function getHandover(tx: Tx, principal: Principal, projectId: strin
     handoverOn: row?.handoverOn ?? null,
     state: row?.state ?? "planned",
     closedAt: row?.closedAt ?? null,
-    sponsor: row?.sponsorId ? { id: row.sponsorId, name: row.sponsorName } : null,
+    sponsor: project.kind === "client" ? await sponsorOf(tx, projectId) : null,
     checkins: checkins.map(({ assigneeUserId, ...c }) => ({
       ...c,
       canComplete: writeCheckins || assigneeUserId === principal.userId,
     })),
-    sponsors,
     can: { edit },
   };
 }
@@ -82,13 +63,12 @@ export async function setHandover(
   tx: Tx,
   principal: Principal,
   projectId: string,
-  input: { handoverOn?: string; sponsorUserId?: string | null },
+  input: { handoverOn?: string },
 ) {
   const { resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "project.update", resource);
   const change: Partial<typeof projects.$inferInsert> = {};
   if (input.handoverOn !== undefined) change.handoverOn = input.handoverOn;
-  if (input.sponsorUserId !== undefined) change.clientSponsorUserId = input.sponsorUserId;
   if (Object.keys(change).length) {
     await tx.update(projects).set(change).where(eq(projects.id, projectId));
     await audit(tx, {

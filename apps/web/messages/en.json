@@ -1648,7 +1648,7 @@
     "notYet": "Not handed over yet",
     "sponsor": "Client sponsor",
     "noSponsor": "No sponsor named",
-    "sponsorHint": "An admin or manager at the client who is told when an overdue action reaches the last escalation level.",
+    "sponsorHint": "Told when an overdue action reaches the last escalation level. Named under client roles on the Team tab.",
     "checkins": "Check-ins",
     "checkin": "Check-in after {n} days",
     "unassigned": "No lead consultant",
@@ -2311,5 +2311,36 @@
     "deletePitchConfirm": "Delete this pitch with its draft projects, notes and files? This cannot be undone.",
     "deleteClient": "Delete client",
     "deleteClientConfirm": "Delete this client? It never signed and holds no files. This cannot be undone."
+  },
+  "clientRoles": {
+    "title": "Client roles",
+    "hint": "Who stands for the client on this project. The sponsor is told at the last escalation level.",
+    "name": "Name someone",
+    "nameButton": "Name",
+    "role": "Role",
+    "person": "Person",
+    "nameHint": "Pick one of the client's accounts, or a contact without an account. A new sponsor or coordinator replaces the current one.",
+    "nameHintClient": "Pick one of your people. A new sponsor or coordinator replaces the current one.",
+    "optionAccount": "{name}",
+    "optionContact": "{name} (contact)",
+    "nobody": "Not named",
+    "contact": "Contact",
+    "accountOff": "Account off",
+    "remove": "Remove",
+    "removeConfirm": "Remove {name} as {role}?",
+    "roles": {
+      "sponsor": "Sponsor",
+      "coordinator": "Coordinator",
+      "steering": "Steering committee",
+      "acceptor": "Acceptor",
+      "observer": "Observer"
+    },
+    "about": {
+      "sponsor": "Owns the engagement at the client and hears about escalations.",
+      "coordinator": "The day-to-day point of contact.",
+      "steering": "Reviews progress and settles priorities.",
+      "acceptor": "Signs off deliverables.",
+      "observer": "Follows along, such as a board or family council member."
+    }
   }
 }
