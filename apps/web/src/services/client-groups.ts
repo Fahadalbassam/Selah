@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { clientGroupMembers, clientGroups, departments, organizations } from "@/db/schema";
+import { clientGroupMembers, clientGroups, clientGroupViewers, departments, orgMemberships, organizations, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import { ConflictError, NotFoundError } from "@/server/errors";
@@ -258,7 +258,13 @@ export async function groupOverview(tx: Tx, principal: Principal, groupId: strin
   if (!group) throw new NotFoundError("group");
 
   const members = await tx
-    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, status: organizations.status })
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      nameAr: organizations.nameAr,
+      status: organizations.status,
+      isHolding: clientGroupMembers.isHolding,
+    })
     .from(clientGroupMembers)
     .innerJoin(organizations, eq(organizations.id, clientGroupMembers.clientOrgId))
     .where(eq(clientGroupMembers.groupId, groupId))
@@ -300,11 +306,43 @@ export async function groupOverview(tx: Tx, principal: Principal, groupId: strin
         .orderBy(asc(organizations.name))
     : [];
 
+  // Who at the holding reads the group's roll-up (part 2), shown to firm
+  // staff who work with the holding; the admin also gets who could be named.
+  const holding = members.find((m) => m.isHolding) ?? null;
+  const viewers = holding
+    ? await tx
+        .select({ userId: user.id, name: user.name, email: user.email, since: clientGroupViewers.createdAt })
+        .from(clientGroupViewers)
+        .innerJoin(user, eq(user.id, clientGroupViewers.userId))
+        .where(eq(clientGroupViewers.groupId, groupId))
+        .orderBy(asc(user.name))
+    : [];
+  const viewerCandidates =
+    manage && holding
+      ? (
+          await tx
+            .select({ userId: user.id, name: user.name, email: user.email, role: orgMemberships.role })
+            .from(orgMemberships)
+            .innerJoin(user, eq(user.id, orgMemberships.userId))
+            .where(
+              and(
+                eq(orgMemberships.orgId, holding.id),
+                eq(orgMemberships.active, true),
+                inArray(orgMemberships.role, ["client_admin", "client_manager"]),
+              ),
+            )
+            .orderBy(asc(user.name))
+        ).filter((c) => !viewers.some((v) => v.userId === c.userId))
+      : [];
+
   return {
     group,
     today,
     total,
     companies,
+    holding: holding ? { id: holding.id, name: holding.name, nameAr: holding.nameAr } : null,
+    viewers,
+    viewerCandidates,
     members: members.map((m) => ({
       ...m,
       units: units.filter((u) => u.orgId === m.id).map((u) => ({ id: u.id, nameAr: u.nameAr, nameEn: u.nameEn })),
@@ -318,3 +356,116 @@ export async function groupOverview(tx: Tx, principal: Principal, groupId: strin
 
 export type GroupOverview = Awaited<ReturnType<typeof groupOverview>>;
 
+/**
+ * Names the member client that is the group's holding, or with null names
+ * none. Grants to people of a former holding end (viewers_follow_holding()).
+ */
+export async function setHolding(tx: Tx, principal: Principal, groupId: string, clientOrgId: string | null) {
+  assertAllowed(principal, "client_group.manage", groupRecord(principal, groupId));
+  if (clientOrgId) {
+    const [member] = await tx
+      .select({ isHolding: clientGroupMembers.isHolding })
+      .from(clientGroupMembers)
+      .where(and(eq(clientGroupMembers.groupId, groupId), eq(clientGroupMembers.clientOrgId, clientOrgId)))
+      .limit(1);
+    if (!member) throw new NotFoundError("member");
+    if (member.isHolding) return { ok: true };
+  }
+  await tx
+    .update(clientGroupMembers)
+    .set({ isHolding: false })
+    .where(and(eq(clientGroupMembers.groupId, groupId), eq(clientGroupMembers.isHolding, true)));
+  if (clientOrgId) {
+    await tx
+      .update(clientGroupMembers)
+      .set({ isHolding: true })
+      .where(and(eq(clientGroupMembers.groupId, groupId), eq(clientGroupMembers.clientOrgId, clientOrgId)));
+  }
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "client_group.set_holding",
+    resourceType: "client_group",
+    resourceId: groupId,
+    outcome: "allow",
+    meta: { clientOrgId },
+  });
+  return { ok: true };
+}
+
+/** Grants a named admin or manager of the holding the group's roll-up (the database checks who). */
+export async function grantViewer(tx: Tx, principal: Principal, groupId: string, userId: string) {
+  assertAllowed(principal, "client_group.manage", groupRecord(principal, groupId));
+  try {
+    await tx.insert(clientGroupViewers).values({ groupId, userId });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: true };
+    throw err;
+  }
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "client_group.grant_viewer",
+    resourceType: "client_group",
+    resourceId: groupId,
+    outcome: "allow",
+    meta: { userId },
+  });
+  return { ok: true };
+}
+
+export async function revokeViewer(tx: Tx, principal: Principal, groupId: string, userId: string) {
+  assertAllowed(principal, "client_group.manage", groupRecord(principal, groupId));
+  const gone = await tx
+    .delete(clientGroupViewers)
+    .where(and(eq(clientGroupViewers.groupId, groupId), eq(clientGroupViewers.userId, userId)))
+    .returning({ userId: clientGroupViewers.userId });
+  if (!gone.length) throw new NotFoundError("viewer");
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "client_group.revoke_viewer",
+    resourceType: "client_group",
+    resourceId: groupId,
+    outcome: "allow",
+    meta: { userId },
+  });
+  return { ok: true };
+}
+
+/** The groups a client person was granted, by name. Empty for everyone else. */
+export async function myGroups(tx: Tx, principal: Principal) {
+  if (principal.orgKind !== "client" || !authorize(principal, "client_group.view", groupRecord(principal)).allowed) return [];
+  const { rows } = await tx.execute<{ id: string; name_ar: string; name_en: string | null }>(sql`select * from app_my_client_groups()`);
+  return rows.map((r) => ({ id: r.id, nameAr: r.name_ar, nameEn: r.name_en }));
+}
+
+type RollupRow = Row & { client_org_id: string; client_name: string; client_name_ar: string | null; unit_name_ar: string | null; unit_name_en: string | null };
+
+/**
+ * The group's roll-up for a granted person of the holding: pooled counts with
+ * a row per member company, worked out by app_client_group_rollup() from
+ * work the firm and each company both see. Counts only: no record, title or
+ * person of a linked client reaches the reader.
+ */
+export async function groupRollup(tx: Tx, principal: Principal, today = firmToday()) {
+  const [group] = await myGroups(tx, principal);
+  if (!group) throw new NotFoundError("group");
+  assertAllowed(principal, "client_group.view", groupRecord(principal, group.id));
+  const { rows } = await tx.execute<RollupRow>(sql`select * from app_client_group_rollup(${group.id}::uuid, ${today}::date)`);
+  // The function returns counts only; the percentage is worked out here from them.
+  const counts = (r: RollupRow) => pool([numbers({ ...r, implemented_pct: null })]);
+  const members = [...new Map(rows.map((r) => [r.client_org_id, { id: r.client_org_id, name: r.client_name, nameAr: r.client_name_ar }])).values()];
+  const units = rows
+    .filter((r) => r.department_id)
+    .map((r) => ({ id: r.department_id as string, orgId: r.client_org_id, nameAr: r.unit_name_ar ?? "", nameEn: r.unit_name_en, numbers: counts(r) }));
+  // Each client's own row is its work outside its companies; its total adds them back.
+  const totals = new Map(
+    members.map((m) => {
+      const own = rows.filter((r) => r.client_org_id === m.id && !r.department_id).map(counts);
+      return [m.id, pool([...own, ...units.filter((u) => u.orgId === m.id).map((u) => u.numbers)])];
+    }),
+  );
+  const { total, companies } = groupCompanies(members, totals, units);
+  return { group, today, total, companies };
+}

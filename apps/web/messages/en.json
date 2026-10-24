@@ -26,7 +26,8 @@
     "audit": "Audit log",
     "oversight": "Oversight",
     "allClients": "All clients",
-    "clientGroups": "Client groups"
+    "clientGroups": "Client groups",
+    "group": "Our group"
   },
   "header": {
     "language": "العربية",
@@ -3235,7 +3236,21 @@
     "department": "Department",
     "mark": "Mark as a company",
     "unmark": "Unmark",
-    "unmarkConfirm": "Turn {name} back into a plain department? Its work stays where it is."
+    "unmarkConfirm": "Turn {name} back into a plain department? Its work stays where it is.",
+    "holdingBadge": "Holding",
+    "makeHolding": "Make holding",
+    "moveHoldingConfirm": "Make {client} the holding? The people of the current holding lose access to the group's numbers.",
+    "viewersTitle": "Who at the holding sees the group",
+    "viewersHint": "Named admins or managers of the holding read this group's numbers on their side: counts per company, nothing to open. Nobody at another member company sees the group.",
+    "noHolding": "Make one member the holding first. Only its people can be given access.",
+    "noViewers": "Nobody at {client} sees the group yet.",
+    "grantViewer": "Give access",
+    "grantViewerHint": "An admin or manager of {client}. They see the counts per company, not the companies' records.",
+    "person": "Person",
+    "grant": "Give access",
+    "revokeViewer": "Remove access",
+    "revokeViewerConfirm": "Stop {name} seeing the group's numbers?",
+    "clientHint": "The companies of your group, counted together, with each company beside the total. Each company's own work stays with that company."
   },
   "audit": {
     "title": "Audit log",
@@ -3426,7 +3441,10 @@
       "client_group_add_member": "Client linked to a group",
       "client_group_remove_member": "Client unlinked from a group",
       "client_group_set_company": "Company inside a client marked",
-      "client_group_clear_company": "Company inside a client unmarked"
+      "client_group_clear_company": "Company inside a client unmarked",
+      "client_group_set_holding": "Group's holding named",
+      "client_group_grant_viewer": "Access to a group's numbers given",
+      "client_group_revoke_viewer": "Access to a group's numbers removed"
     },
     "csv": {
       "time": "Time (UTC)",

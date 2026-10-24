@@ -1,4 +1,5 @@
-import { ArrowLeft, Building, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Building, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Crown } from "@/components/animate-ui/icons/crown";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,7 +22,12 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const data = await withPrincipal((tx, principal) => groupOverview(tx, principal, id));
-  const [t, tOff, tq] = await Promise.all([getTranslations("clientGroups"), getTranslations("offboarding"), getTranslations("common")]);
+  const [t, tOff, tq, tRole] = await Promise.all([
+    getTranslations("clientGroups"),
+    getTranslations("offboarding"),
+    getTranslations("common"),
+    getTranslations("role"),
+  ]);
   const ar = (await getLocale()) === "ar";
   const { group, can } = data;
   const base = `/api/client-groups/${group.id}`;
@@ -113,6 +119,21 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
                           {localName(m, ar)}
                         </Link>
                         {m.status === "archived" ? <ToneBadge tone="neutral">{tOff("archived")}</ToneBadge> : null}
+                        {m.isHolding ? (
+                          <ToneBadge tone="active" className="gap-1">
+                            <Crown className="size-3" />
+                            {t("holdingBadge")}
+                          </ToneBadge>
+                        ) : can.manage ? (
+                          <ApiButton
+                            endpoint={`${base}/holding`}
+                            method="PUT"
+                            body={{ clientOrgId: m.id }}
+                            label={t("makeHolding")}
+                            variant="ghost"
+                            confirm={data.holding ? t("moveHoldingConfirm", { client: localName(m, ar) }) : undefined}
+                          />
+                        ) : null}
                         {can.manage ? (
                           <ApiButton
                             endpoint={`${base}/members/${m.id}`}
@@ -172,6 +193,69 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
               )}
             </CardContent>
           </Card>
+
+          {can.manage || data.viewers.length ? (
+            <Card className="h-fit gap-3 py-5 shadow-xs">
+              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">{t("viewersTitle")}</CardTitle>
+                  <CardDescription>{t("viewersHint")}</CardDescription>
+                </div>
+                {can.manage && data.viewerCandidates.length ? (
+                  <FormDialog
+                    trigger={
+                      <Button size="sm">
+                        <UserPlus />
+                        {t("grantViewer")}
+                      </Button>
+                    }
+                    title={t("grantViewer")}
+                    description={t("grantViewerHint", { client: data.holding ? localName(data.holding, ar) : "" })}
+                    endpoint={`${base}/viewers`}
+                    fields={[
+                      {
+                        name: "userId",
+                        label: t("person"),
+                        type: "select",
+                        required: true,
+                        options: data.viewerCandidates.map((c) => ({ value: c.userId, label: `${c.name} · ${tRole(c.role)}` })),
+                      },
+                    ]}
+                    submitLabel={t("grant")}
+                  />
+                ) : null}
+              </CardHeader>
+              <CardContent className="px-5">
+                {!data.holding ? (
+                  <p className="text-sm text-muted-foreground">{t("noHolding")}</p>
+                ) : data.viewers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t("noViewers", { client: localName(data.holding, ar) })}</p>
+                ) : (
+                  <ul className="divide-y">
+                    {data.viewers.map((v) => (
+                      <li key={v.userId} className="flex items-center gap-2 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{v.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            <bdi dir="ltr">{v.email}</bdi>
+                          </p>
+                        </div>
+                        {can.manage ? (
+                          <ApiButton
+                            endpoint={`${base}/viewers/${v.userId}`}
+                            method="DELETE"
+                            label={t("revokeViewer")}
+                            variant="ghost"
+                            confirm={t("revokeViewerConfirm", { name: v.name })}
+                          />
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {group.notes ? (
             <Card className="h-fit gap-3 py-5 shadow-xs">

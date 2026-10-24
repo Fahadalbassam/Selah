@@ -485,10 +485,34 @@ export const clientGroupMembers = pgTable(
     groupId: uuid("group_id")
       .notNull()
       .references(() => clientGroups.id, { onDelete: "cascade" }),
+    // The holding (F34 part 2): at most one per group. Only its people can be
+    // granted the group's roll-up.
+    isHolding: boolean("is_holding").notNull().default(false),
     addedBy: uuid("added_by").references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [index("client_group_members_group_idx").on(t.groupId)],
+  (t) => [
+    index("client_group_members_group_idx").on(t.groupId),
+    uniqueIndex("client_group_members_one_holding").on(t.groupId).where(sql`${t.isHolding}`),
+  ],
+);
+
+// Named people of the holding (its admins or managers) whom the firm admin
+// lets read the group's roll-up: pooled counts per member company, nothing
+// to open. Everyone else at a member client never sees the group.
+export const clientGroupViewers = pgTable(
+  "client_group_viewers",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => clientGroups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    grantedBy: uuid("granted_by").references(() => user.id),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("client_group_viewers_user_idx").on(t.userId)],
 );
 
 // A row's department belongs to the row's own org.
