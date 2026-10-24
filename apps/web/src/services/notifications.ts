@@ -94,6 +94,8 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
 function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind === "access_review.due") return "/team";
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=requests`;
+  // Archiving and restoring reach the client's admins, who have no client page.
+  if (kind.startsWith("client.")) return "/";
   switch (entityType) {
     case "action":
       return `/actions/${entityId}`;

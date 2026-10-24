@@ -112,6 +112,7 @@ function actionConditions(principal: Principal, filter: ActionFilter) {
         and(inArray(actions.status, [...OPEN_STATUSES]), lt(actions.dueDate, firmToday())),
         inArray(actions.status, filter.attention),
       ),
+      projectNotClosed,
     );
   }
   return conditions.length ? and(...conditions) : undefined;
@@ -164,6 +165,10 @@ export async function listActions(tx: Tx, principal: Principal, filter: ActionFi
 
 export const PAGE_SIZE = 50;
 
+// A closed project's open actions were settled at closing (each has a
+// disposition), so they are never overdue and never need attention.
+const projectNotClosed = sql`NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = ${actions.projectId} AND p.state::text = 'closed')`;
+
 /** How many actions there are by status (and how many are overdue), per project, counted in the database. */
 export async function actionCounts(tx: Tx, principal: Principal, filter: ActionFilter = {}) {
   const today = firmToday();
@@ -172,7 +177,7 @@ export async function actionCounts(tx: Tx, principal: Principal, filter: ActionF
       projectId: actions.projectId,
       status: actions.status,
       n: sql<number>`count(*)::int`,
-      overdue: sql<number>`(count(*) FILTER (WHERE ${actions.dueDate} < ${today}::date))::int`,
+      overdue: sql<number>`(count(*) FILTER (WHERE ${actions.dueDate} < ${today}::date AND ${projectNotClosed}))::int`,
     })
     .from(actions)
     .where(actionConditions(principal, filter))

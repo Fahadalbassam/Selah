@@ -25,6 +25,8 @@ export interface Principal {
   leadProjectIds: ReadonlySet<string>;
   /** Client users only: the departments they belong to (their team). */
   departmentIds: ReadonlySet<string>;
+  /** Client users only: their client is archived and in its grace period, so they can only read. */
+  readOnly?: boolean;
 }
 
 export type ResourceType =

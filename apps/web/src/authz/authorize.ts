@@ -1,4 +1,4 @@
-import { grantFor, isReadPermission, OPEN_WHEN_CLOSED, type Permission, type Scope } from "./policy";
+import { grantFor, isReadPermission, OPEN_WHEN_ARCHIVED, OPEN_WHEN_CLOSED, type Permission, type Scope } from "./policy";
 import type { Decision, Principal, Resource } from "./types";
 
 /**
@@ -15,8 +15,9 @@ import type { Decision, Principal, Resource } from "./types";
  *                     owner_org / lead / team) cover this record?
  *   5. Label        - does the visibility label allow this user?
  *
- * Then one rule of state: nothing in a closed project is written, except
- * what OPEN_WHEN_CLOSED lists.
+ * Then two rules of state: nothing in a closed project is written, except
+ * what OPEN_WHEN_CLOSED lists, and the people of an archived client only
+ * read, except what OPEN_WHEN_ARCHIVED lists.
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
@@ -37,6 +38,10 @@ export function authorize(principal: Principal, permission: Permission, resource
 
   if (resource.projectState === "closed" && !isReadPermission(permission) && !OPEN_WHEN_CLOSED.has(permission)) {
     return deny("project:closed");
+  }
+
+  if (principal.readOnly && !isReadPermission(permission) && !OPEN_WHEN_ARCHIVED.has(permission)) {
+    return deny("org:archived");
   }
 
   return { allowed: true, reason: "ok" };
