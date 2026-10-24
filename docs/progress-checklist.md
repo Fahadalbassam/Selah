@@ -186,8 +186,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 
 ### Tier 6 · Departments and phases (option B)
 
-- [ ] **F30** Client overview page and client-wide report — tier: 6 · size: M · wave: 1 · decision: D2
-- [~] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #80 (open, part 1)
+- [~] **F30** Client overview page and client-wide report — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #81 (open)
+- [~] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #80 (part 1)
 - [ ] **F32** Workstreams with a lead consultant — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4

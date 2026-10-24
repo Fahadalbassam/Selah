@@ -131,6 +131,7 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | KPI periods start on the 1st | `kpis.kpi_starts_on_first` | database only | `tests/db/metrics.test.ts` |
 | A recommendation and its KPI share a project | `check_recommendation_kpi()` | database only | `tests/db/metrics.test.ts` |
 | Readings: for active KPIs and started periods, verified or rejected once, never by their reporter; a correction replaces a reading of the same period | `check_kpi_reading()` | database only | `tests/db/metrics.test.ts` |
+| A client's numbers pool its projects' counts and work out the percentage from them, never averaging percentages; each reader counts only the work they can open, with each project and department beside the total | `app_client_progress()` | `src/services/client-overview.ts` (`clientOverview()`) | `tests/db/client-overview.test.ts` |
 
 ### Handover
 

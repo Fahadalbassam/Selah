@@ -2,18 +2,20 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import type { Tx } from "@/db/client";
-import { actions, departments, evidenceRequests, organizations } from "@/db/schema";
+import { actions, departments, evidenceRequests, organizations, projects } from "@/db/schema";
 import type { Principal } from "@/authz";
 import type { Locale } from "@/i18n/config";
 import { firmToday } from "@/lib/dates";
 import { localName } from "@/lib/names";
 import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
+import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
 import { renderReportHtml } from "@/lib/report-html";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { NotFoundError, RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
+import { clientOverview } from "./client-overview";
 import { getClosure } from "./closure";
 import { getReport } from "./follow-through";
 import { renderPdf } from "./pdf";
@@ -317,6 +319,63 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
     meta: { format: "pdf", actions: closure.items.length },
   });
   return { bytes, fileName: fileName("selah-closure", "pdf"), contentType: "application/pdf" };
+}
+
+/**
+ * A client's progress across its projects as a PDF (F30): the pooled numbers,
+ * the breakdown per project and per department, and the work that needs
+ * attention (overdue or blocked) on the export day. It holds what the reader's
+ * own client page holds.
+ */
+export async function clientReportPdf(tx: Tx, principal: Principal, clientOrgId: string, locale: Locale): Promise<ExportFile> {
+  const data = await clientOverview(tx, principal, clientOrgId);
+  const [firm] = await tx
+    .select({ name: organizations.name, nameAr: organizations.nameAr })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.firmOrgId))
+    .where(eq(projects.orgId, clientOrgId))
+    .limit(1);
+  const attention = await listActions(tx, principal, { clientOrgId, attention: ["blocked"], limit: 50 });
+  const t = await getTranslations({ locale });
+  const ar = locale === "ar";
+  const today = data.today;
+  const html = renderClientReportHtml({
+    locale,
+    firmName: firm ? localName(firm, ar) : "",
+    clientName: localName(data.client, ar),
+    total: data.total,
+    projects: data.projects.map((p) => ({
+      title: p.sequence ? t("phases.numbered", { n: p.sequence, title: p.title }) : p.title,
+      state: p.state === "active" ? null : t(`phases.states.${p.state}` as "phases.states.active"),
+      numbers: p.numbers,
+    })),
+    departments: data.departments.map((d) => ({
+      name: d.name ? (ar ? d.name.nameAr : (d.name.nameEn ?? d.name.nameAr)) : t("clientProgress.companyWide"),
+      numbers: d.numbers,
+    })),
+    attention: attention.map((a) => ({
+      title: a.title,
+      project: a.projectTitle,
+      owner: a.ownerName,
+      dueDate: a.dueDate,
+      status: t(`status.${a.status}` as "status.draft"),
+      overdue: isOverdue(a, today),
+    })),
+    exportedOn: today,
+    t: (key, values) => t(`clientProgress.pdf.${key}` as "clientProgress.pdf.kind", values as Record<string, string | number>),
+  });
+  if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
+  const bytes = await renderPdf(html, { locale, footer: t("reportPdf.footer", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`)) }) });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "client_report.export",
+    resourceType: "organization",
+    resourceId: clientOrgId,
+    outcome: "allow",
+    meta: { format: "pdf", projects: data.projects.length },
+  });
+  return { bytes, fileName: fileName("selah-client-report", "pdf"), contentType: "application/pdf" };
 }
 
 /** An attachment response: no caching, and the browser must not guess the type. */

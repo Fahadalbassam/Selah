@@ -2948,5 +2948,45 @@
       "reviewed": "reviewed",
       "not_applicable": "not applicable"
     }
+  },
+  "clientProgress": {
+    "title": "Progress across projects",
+    "hint": "Every project you can open, counted together, with each project and department beside the total.",
+    "downloadReport": "Download the client-wide report as PDF",
+    "ofApplies": "{verified} of {applies}",
+    "verifiedCol": "Verified",
+    "byProject": "Project",
+    "byDepartment": "Department",
+    "companyWide": "Company-wide or several departments",
+    "noProjects": "No projects yet.",
+    "pooledNote": "The total counts the actions of all these projects together; it is not an average of their percentages.",
+    "pdf": {
+      "kind": "Client progress report",
+      "title": "{client}: progress across projects",
+      "asOf": "As of {date}",
+      "implemented": "Implemented",
+      "noneYet": "No released actions yet.",
+      "implementedOf": "{verified} of {applies} actions that still apply are verified",
+      "open": "Still open",
+      "overdue": "Overdue",
+      "awaiting": "Awaiting review",
+      "blocked": "Blocked",
+      "byProject": "By project",
+      "byDepartment": "By department",
+      "project": "Project",
+      "department": "Department",
+      "verifiedCol": "Verified",
+      "ofApplies": "{verified} of {applies}",
+      "attentionTitle": "Needs attention: overdue or blocked",
+      "attentionNone": "Nothing is overdue or blocked.",
+      "colAction": "Action",
+      "colOwner": "Owner",
+      "colDue": "Due",
+      "colStatus": "Status",
+      "noOwner": "No owner yet",
+      "overdueMark": "(overdue)",
+      "pooledNote": "The totals count the actions of all projects together; they are not an average of percentages.",
+      "claimNote": "Claimed progress is not verification: only a consultant's review marks an action verified complete."
+    }
   }
 }

@@ -31,6 +31,8 @@ import { LegalProfileCard } from "./legal-profile-card";
 import { getClientProfile } from "@/services/client-profile";
 import { latestConflictSearch } from "@/services/conflicts";
 import { ConflictMatches } from "@/components/conflict-matches";
+import { ClientProgress } from "@/components/client-progress";
+import { clientOverview } from "@/services/client-overview";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,6 +58,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       services: admin ? (await intakeOptions(tx)).services : [],
       // A pitch is checked for conflicts before the firm goes further (item 8).
       conflictSearch: admin ? await latestConflictSearch(tx, { orgId: id }) : null,
+      // Pooled numbers across the client's projects (F30); a pitch has none yet.
+      overview: team.client.prospect ? null : await clientOverview(tx, principal, id).catch(() => null),
     };
   });
   if (!data) notFound();
@@ -160,6 +164,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
+          {data.overview && data.overview.projects.length ? <ClientProgress data={data.overview} /> : null}
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
               <div className="space-y-1.5">

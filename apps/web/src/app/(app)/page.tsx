@@ -13,13 +13,20 @@ import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { dashboard, isOverdue } from "@/services/queries";
 import { SectionHeader } from "@/components/section-header";
+import { ClientProgress } from "@/components/client-progress";
+import { clientOverview } from "@/services/client-overview";
 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
+    // The client's admins and managers see their work across projects (F30).
+    overview:
+      principal.role === "client_admin" || principal.role === "client_manager"
+        ? await clientOverview(tx, principal, principal.orgId).catch(() => null)
+        : null,
   }));
   const t = await getTranslations("dashboard");
 
@@ -63,6 +70,7 @@ export default async function OverviewPage() {
           </AlertDescription>
         </Alert>
       ) : null}
+      {overview && overview.projects.length ? <ClientProgress data={overview} tiles={false} /> : null}
       <section className="space-y-3">
         <SectionHeader title={firm ? t("attentionFirm") : t("attentionClient")} />
         <ActionsTable rows={stats.attention.map((r) => ({ ...r, overdue: isOverdue(r) }))} empty={t("empty")} />
