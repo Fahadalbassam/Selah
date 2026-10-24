@@ -279,6 +279,13 @@ export const OPEN_WHEN_CLOSED: ReadonlySet<Permission> = new Set<Permission>([
   "assistant.query",
 ]);
 
+/**
+ * An observer on a project (migration 0034) reads everything there and
+ * writes only these: notes on actions are their comments, and the assistant
+ * only reads. The database trigger check_not_observer() holds the same line.
+ */
+export const OPEN_TO_OBSERVERS: ReadonlySet<Permission> = new Set<Permission>(["action_note.create", "assistant.query"]);
+
 /** Permissions that only read. They stay open on a closed project. */
 /** What the people of an archived client may still do in its grace period, besides reading. */
 export const OPEN_WHEN_ARCHIVED: ReadonlySet<Permission> = new Set<Permission>(["assistant.query", "organization.export"]);
