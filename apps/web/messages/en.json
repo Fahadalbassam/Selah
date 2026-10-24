@@ -1730,6 +1730,7 @@
       "info_request_overdue": "Requested documents are overdue on {title}",
       "closure_requested": "The client asked to close {title}",
       "closure_started": "The firm started closing {title}",
+      "closure_lead_started": "The lead consultant started closing {title}: you close it once everything is settled",
       "closure_declined": "The firm answered your request to close {title}",
       "project_closed": "{title} was closed",
       "project_reopened": "{title} was reopened",
@@ -2073,6 +2074,7 @@
     "hintActiveInternal": "When the work is done, start closing. Every action still open then needs a decision and the team writes down its lessons. Only then can the project close.",
     "hintActiveClient": "The firm closes the project when the work is done. If you think it is finished, you can ask the firm to close it.",
     "hintClosing": "The project is closing. Settle everything listed below, then close it.",
+    "hintClosingLead": "The project is closing. Settle everything listed below; then the firm admin closes it.",
     "hintClosingClient": "The firm is closing this project. Below is what happens to each action that is still open.",
     "hintClosed": "The project is closed and read-only. Nothing in it can change unless the firm admin reopens it.",
     "start": "Start closing",
@@ -2091,6 +2093,7 @@
     "closedOn": "Closed {date}",
     "someone": "someone",
     "readyToClose": "Everything is settled. The project can close.",
+    "readyForAdmin": "Everything is settled. The firm admin can close the project now.",
     "left": "{n, plural, one {# thing left to settle} other {# things left to settle}}",
     "blocker": {
       "action": "{n, plural, one {# open action needs a decision} other {# open actions need a decision}}",

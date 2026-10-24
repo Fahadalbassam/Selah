@@ -54,7 +54,9 @@ export async function ClosureTab({
     ? t("hintClosed")
     : closing
       ? firm
-        ? t("hintClosing")
+        ? data.can.close
+          ? t("hintClosing")
+          : t("hintClosingLead")
         : t("hintClosingClient")
       : data.can.start || firm
         ? data.kind === "internal"
@@ -128,7 +130,7 @@ export async function ClosureTab({
             data.blockers.length === 0 ? (
               <p className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
                 <CircleCheck className="size-4 text-success" />
-                {t("readyToClose")}
+                {data.can.close ? t("readyToClose") : t("readyForAdmin")}
               </p>
             ) : (
               <div className="space-y-2">

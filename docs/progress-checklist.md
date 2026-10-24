@@ -160,7 +160,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F10** Management response on each recommendation — tier: 3 · size: S · wave: 1 · journey: J09.5, J10.6 · pr: #96
 - [x] **F11** Comment thread on each action — tier: 3 · size: S–M · wave: 1 · journey: J09.6 · pr: #99
 - [x] **F12** Mail choices that respect the Saudi week — tier: 3 · size: S–M · wave: 1 · journey: J11.7 · pr: #78
-- [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: frozen
+- [ ] **F13** Help and “ask your consultant” — tier: 3 · size: S · wave: 3 · decision: Wave 3 pick on 2026-10-24 (two-sided review)
 - [x] **F14** Magic-link sign-in and no-login upload links — tier: 3 · size: M · wave: 2 · decision: D6 D7 · pr: #113 (sign-in links), #114 (upload links)
 
 ### Tier 4 · Following through well
@@ -194,6 +194,8 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F35** Company and department KPIs — tier: 6 · size: L · wave: frozen · waiting on: supervisor (D8) · decision: D8
 - [x] **F36** Closing pulse survey: the client rates the engagement when a project closes — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, the comparable-platforms study lists evaluation and NPS as a common practice; against, it is a firm-improvement tool rather than part of connecting consultant and client, and nobody has asked for it yet · pr: #111
 - [x] **F37** Case-study consent: the client agrees, per project, that the firm may cite the work — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, it keeps a record of a permission firms otherwise get by email; against, it is rare and is handled outside Selah today · pr: #112
+- [ ] **F38** Today page for firm staff: what waits on me across every client (my reviews, overdue work I lead, my follow-ups, this week's meetings, requests waiting on me) — tier: 4 · size: S–M · wave: 3 · evidence: research-team.md §7 recommends building it; time tracking stays out · decision: Wave 3 pick on 2026-10-24 (two-sided review)
+- [ ] **F39** Client assistant: off by default, the firm admin switches it on per client and the client admin consents; read-only answers with sources, only from what that person can already see, with client rules and an output filter — tier: 3 · size: M · wave: 3 · evidence: intake-and-client-ai-db.md §3 · decision: Fahad said yes on 2026-10-24, on condition it is as secure as the staff side with extra rules for clients
 ## Readiness before real client data
 
 - [x] **R1** Terms, consent records, AI notice, data agreement — size: S · wave: 1 · journey: J05.5 · pr: #84
@@ -218,6 +220,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74
 - [x] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25 · pr: #79
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
+- [x] **N11** The client's lead consultant or deputy can start (and stop) closing; only the firm admin closes — wave: 3 · related: F25 · decision: Fahad said yes on 2026-10-24 · pr: #118
 
 ## Decisions still waiting
 
