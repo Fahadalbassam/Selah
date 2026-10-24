@@ -1,4 +1,4 @@
-// The export pack of a leaving client (baseline: Export pack, 0043; journey
+// The export pack of a leaving client (baseline: Export pack, 0033; journey
 // J14.2 and J14.4) against a real Postgres: only an archived client has one,
 // only the firm admin or the client's own admin makes it, it holds only what
 // the client may see (never a firm-only or personal file), every entry's

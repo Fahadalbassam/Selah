@@ -2627,7 +2627,7 @@ export const clientDeletions = pgTable("client_deletions", {
   counts: jsonb("counts").$type<Record<string, number>>().notNull(),
 });
 
-// The export pack handed to a leaving client (baseline: Export pack, 0043):
+// The export pack handed to a leaving client (baseline: Export pack, 0033):
 // a ZIP of what the client may see, kept in storage, with its SHA-256. The
 // client's admin confirms receiving it, or the firm admin records a handover
 // made outside Selah (a client the firm manages has no accounts).
