@@ -46,6 +46,15 @@ Optional and off by default (`organizations.departments_enabled`). Nobody is tur
 - Level 2 of the reminder ladder adds the head of the action's department.
 - A department cuts across projects (HR work shows up in several), so it does not repeat the project scope.
 
+## Client groups
+
+A holding group (F34, decision D4) is a record of its own (`client_groups`: Arabic and English names, firm-only notes), kept by the firm admin. The client stays the tenant boundary, because a holding and a subsidiary are separate controllers under PDPL; a group only pools counts.
+
+- Each member company takes one of two forms, chosen per company. **A linked client** (`client_group_members`, one group per client at most) keeps its data, people and files apart, as for a listed subsidiary. **A company inside a client** is one of that client's departments marked `is_company` by the firm admin while the client is in a group: it shares the client's people and files, and its numbers roll up into the client's. Unlinking a client turns its companies back into departments.
+- `POST /api/client-groups`, `PATCH` and `DELETE /api/client-groups/:id`, `POST /api/client-groups/:id/members` (`clientOrgId`), `DELETE /api/client-groups/:id/members/:clientId`, and `PUT` or `DELETE /api/client-groups/:id/companies/:departmentId`. All are the firm admin's and audited (`client_group.*`).
+- The group page pools the counts of its member companies from `app_client_progress()` under the reader's row-level security, with a row per company: each company inside a client from its department's row, and the client's own row from the rest. The percentage is worked out again from the pooled counts. No group KPIs: those wait on F35.
+- The firm admin sees every group. A consultant sees a group only while assigned to one of its clients, and only those clients and their numbers. The client side reads none of these tables.
+
 ## Minimal records (consultant-managed only)
 
 Some family offices want the firm to keep as little as possible. `PATCH /api/orgs/:id/engagement` with `minimalRecords: true` and a `displayAlias` (firm admin only; baseline: Insight):
@@ -63,5 +72,6 @@ Some family offices want the firm to keep as little as possible. `PATCH /api/org
 
 - **The client page** (`/clients/:id`) has a "How the client takes part" card for firm staff. The firm admin changes the mode there. Before saving, the dialog says what stands in the way of each mode: the number of active accounts, the accounts that are not client admins, the restricted limit, or minimal records being on (`getEngagement` returns this as `fit`, for the firm admin only). The database still decides, and its refusals are shown in the person's language (`engagementError` in `src/lib/engagement.ts`). Minimal records are switched on there too, with an alias, and only while the client has no contacts or files.
 - **Departments**: `/clients/:id/departments` for the firm, and `/departments` for the client's admins and managers. Admins (the firm admin or the client admin) switch departments on or off, add, rename and switch off departments, and add or remove people and heads. Managers see the list.
+- **Client groups**: `/clients/groups` and `/clients/groups/:id` for the firm. The admin creates and edits groups, links and unlinks clients, and marks companies inside a client; consultants read the groups of their clients.
 - **The action page** shows the action's department while the client uses departments. Firm staff who can change the plan file it under a department there, or under none.
 - Files are not filed under a department from a screen yet. Evidence takes its action's department.

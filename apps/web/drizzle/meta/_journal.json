@@ -274,6 +274,13 @@
       "when": 1792831254131,
       "tag": "0051_deputy",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792849360722,
+      "tag": "0052_client_groups",
+      "breakpoints": true
     }
   ]
 }

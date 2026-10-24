@@ -54,6 +54,7 @@ export type ResourceType =
   | "activity"
   | "ai_conversation"
   | "client_assignment"
+  | "client_group"
   | "client_directory"
   | "join_request"
   | "inquiry"
