@@ -1186,7 +1186,9 @@
       "limit": "You've made the most summaries allowed this hour.",
       "unavailable": "Summaries aren't available right now. Try again later.",
       "noText": "This file has no readable text to summarise."
-    }
+    },
+    "needsOcr": "This file is a scan. Its text hasn't been recognised yet, so it can't be searched or summarised.",
+    "needsOcrShort": "Scanned"
   },
   "metrics": {
     "tab": "Progress",
@@ -1857,8 +1859,10 @@
     "assistantState": {
       "pending": "Waiting to be read",
       "searchable": "The assistant can read it",
-      "not_searchable": "No readable text found"
-    }
+      "not_searchable": "No readable text found",
+      "needs_ocr": "A scan: waiting for text recognition"
+    },
+    "ocrPages": "Scanned pages it can't read yet: {pages}"
   },
   "plan": {
     "findings": {

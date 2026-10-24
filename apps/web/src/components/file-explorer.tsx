@@ -637,7 +637,12 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
         {file.can.assistant || file.aiIndexable ? (
           <>
             <dt className="text-muted-foreground">{t("assistant")}</dt>
-            <dd>{file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}</dd>
+            <dd>
+              {file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}
+              {file.aiIndexable && file.textStatus === "searchable" && file.ocrPages.length ? (
+                <span className="block text-xs text-muted-foreground">{t("ocrPages", { pages: format.list(file.ocrPages.map(String), { type: "unit" }) })}</span>
+              ) : null}
+            </dd>
           </>
         ) : null}
         <dt className="text-muted-foreground">{t("sharing")}</dt>

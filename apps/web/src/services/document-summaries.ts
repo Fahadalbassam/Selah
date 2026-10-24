@@ -80,6 +80,7 @@ export async function summarizeDocument(
   const doc = await loadForSummary(tx, principal, documentId);
   if (!doc.aiIndexable) throw new ConflictError("this file is not available to the assistant");
   if (doc.textStatus === "not_searchable") throw new ConflictError("this file's text could not be read");
+  if (doc.textStatus === "needs_ocr") throw new ConflictError("this file is a scan and its text has not been recognised yet");
   if (doc.textStatus !== "searchable") throw new ConflictError("this file has not been indexed yet");
 
   const kept = await keptSummary(tx, doc, lang);

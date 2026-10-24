@@ -208,10 +208,31 @@ describe("search index", () => {
     await owner.query(`DELETE FROM documents WHERE id = $1`, [empty]);
   });
 
+  it("lists scanned pages for text recognition, and marks a file of nothing but scans as needing it", async () => {
+    const scan = id(198);
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
+         ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$4,$5,'deliverable','submitted','scan','shared',true,'k-scan','application/pdf',1,'x','clean')`,
+      [scan, P2, ACME, FIRM, U.admin],
+    );
+    const status = async () =>
+      (await owner.query(`SELECT text_status, ocr_pages FROM documents WHERE id = $1`, [scan])).rows[0] as { text_status: string; ocr_pages: number[] };
+    expect(await indexDocument(owner, scan, [{ n: 1, text: "" }, { n: 2, text: "" }], embed, [1, 2])).toBe(0);
+    expect(await status()).toEqual({ text_status: "needs_ocr", ocr_pages: [1, 2] });
+    expect(await indexDocument(owner, scan, [{ n: 1, text: "Board charter, signed" }, { n: 2, text: "" }], embed, [2])).toBe(1);
+    expect(await status()).toEqual({ text_status: "searchable", ocr_pages: [2] });
+    // Relabelling sends it back to the job, which reads it afresh.
+    await owner.query(`UPDATE documents SET visibility = 'firm_private' WHERE id = $1`, [scan]);
+    expect(await status()).toEqual({ text_status: "pending", ocr_pages: [] });
+    await owner.query(`DELETE FROM documents WHERE id = $1`, [scan]);
+  });
+
   it("only the indexing job sets a file's text status", async () => {
     await expect(sqlAs(U.cons, `UPDATE documents SET text_status = 'pending' WHERE id = $1`, [D.shared])).rejects.toThrow(
       /indexing job/,
     );
+    await expect(sqlAs(U.cons, `UPDATE documents SET ocr_pages = '{3}' WHERE id = $1`, [D.shared])).rejects.toThrow(/indexing job/);
   });
 
   // The leak test: every person, every project, with their real scope and with

@@ -56,9 +56,11 @@ export function passages(pages: Page[]): { page: number; text: string }[] {
 
 /**
  * Index one file from its pages, replacing what was indexed before. Returns
- * the number of passages; 0 means the file was marked not searchable.
+ * the number of passages; 0 means the file was marked not searchable, or
+ * "needs text recognition" when it has scanned pages and nothing else.
+ * `scanned` lists pages with no text layer (extract-text.ts).
  */
-export async function indexDocument(db: Queryable, documentId: string, pages: Page[], embed: Embed): Promise<number> {
+export async function indexDocument(db: Queryable, documentId: string, pages: Page[], embed: Embed, scanned: number[] = []): Promise<number> {
   const { rows } = await db.query<{
     project_id: string;
     org_id: string;
@@ -76,7 +78,11 @@ export async function indexDocument(db: Queryable, documentId: string, pages: Pa
 
   const parts = passages(pages);
   if (!parts.length) {
-    await db.query(`UPDATE documents SET text_status = 'not_searchable' WHERE id = $1`, [documentId]);
+    await db.query(`UPDATE documents SET text_status = $2, ocr_pages = $3 WHERE id = $1`, [
+      documentId,
+      scanned.length ? "needs_ocr" : "not_searchable",
+      scanned,
+    ]);
     return 0;
   }
   const vectors = await embed(parts.map((p) => p.text));
@@ -101,7 +107,7 @@ export async function indexDocument(db: Queryable, documentId: string, pages: Pa
       ],
     );
   }
-  await db.query(`UPDATE documents SET text_status = 'searchable' WHERE id = $1`, [documentId]);
+  await db.query(`UPDATE documents SET text_status = 'searchable', ocr_pages = $2 WHERE id = $1`, [documentId, scanned]);
   return parts.length;
 }
 

@@ -17,7 +17,7 @@ interface Point {
 }
 interface Loaded {
   aiIndexable: boolean;
-  textStatus: "pending" | "searchable" | "not_searchable";
+  textStatus: "pending" | "searchable" | "not_searchable" | "needs_ocr";
   summary: { points: Point[]; createdAt: string } | null;
 }
 
@@ -113,6 +113,8 @@ export function DocumentSummary({ documentId, title }: { documentId: string; tit
             </ol>
           ) : data.textStatus === "not_searchable" ? (
             <p className="text-sm text-muted-foreground">{t("notSearchable")}</p>
+          ) : data.textStatus === "needs_ocr" ? (
+            <p className="text-sm text-muted-foreground">{t("needsOcr")}</p>
           ) : data.textStatus === "pending" ? (
             <p className="text-sm text-muted-foreground">{t("notIndexed")}</p>
           ) : !data.aiIndexable ? (
@@ -143,10 +145,11 @@ function errorKey(message: string | undefined) {
 
 export function TextStatusBadge({ status }: { status: string }) {
   const t = useTranslations("fileSummary");
-  if (status !== "not_searchable") return null;
+  if (status !== "not_searchable" && status !== "needs_ocr") return null;
+  const scan = status === "needs_ocr";
   return (
-    <Badge variant="outline" title={t("notSearchable")}>
-      {t("notSearchableShort")}
+    <Badge variant="outline" title={t(scan ? "needsOcr" : "notSearchable")}>
+      {t(scan ? "needsOcrShort" : "notSearchableShort")}
     </Badge>
   );
 }
