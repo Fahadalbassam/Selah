@@ -4,13 +4,14 @@
 // area too.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { POLICY } from "@/authz/policy";
 import { auditActionKey, auditAreaOf, csvCell } from "@/lib/audit";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 
-const root = new URL("../", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../", import.meta.url));
 const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
@@ -24,7 +25,7 @@ function writtenActions(): string[] {
     const text = readFileSync(f, "utf8");
     for (const m of text.matchAll(/action: "([a-z_]+(?:\.[a-z_]+)+)"/g)) out.add(m[1]!);
     // Sign-in events are chosen in expressions, so every "auth.*" name in the auth module counts.
-    if (f.endsWith("src/auth/auth.ts")) for (const m of text.matchAll(/"(auth(?:\.[a-z_]+)+)"/g)) out.add(m[1]!);
+    if (f.replaceAll("\\", "/").endsWith("src/auth/auth.ts")) for (const m of text.matchAll(/"(auth(?:\.[a-z_]+)+)"/g)) out.add(m[1]!);
     for (const m of text.matchAll(/INSERT INTO audit_log[^;]*;/g)) {
       for (const a of m[0].matchAll(/'([a-z_]+(?:\.[a-z_]+)+)'/g)) out.add(a[1]!);
     }

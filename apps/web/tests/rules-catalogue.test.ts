@@ -3,9 +3,10 @@
 // without a line in the catalogue fails the build, and so does a line naming a
 // file that is not there.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const root = new URL("../", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../", import.meta.url));
 const catalogue = readFileSync(new URL("../../../docs/rules.md", import.meta.url), "utf8");
 const migrations = readdirSync(`${root}drizzle`)
   .filter((f) => f.endsWith(".sql"))

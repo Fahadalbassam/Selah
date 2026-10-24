@@ -1,5 +1,6 @@
 // Apply migrations as the schema owner. Usage: npm run db:migrate
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -7,7 +8,8 @@ import { Pool } from "pg";
 const url = process.env.DATABASE_OWNER_URL;
 if (!url) throw new Error("DATABASE_OWNER_URL is not set");
 
-const folder = new URL("../drizzle", import.meta.url).pathname;
+// fileURLToPath, not .pathname, so the path also works on Windows.
+const folder = fileURLToPath(new URL("../drizzle", import.meta.url));
 const pool = new Pool({ connectionString: url, max: 1 });
 
 // The migrations before 0000_baseline were squashed into it (2026-10-23). A

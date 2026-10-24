@@ -34,6 +34,21 @@ db/init/             Creates database roles on first start
 docs/                Architecture, authorization and OWASP notes
 ```
 
+## Run it locally
+
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running) and [Node.js 22+](https://nodejs.org). Then, from the repo root, in PowerShell or any terminal:
+
+```sh
+npm run dev:local            # the app with sample data on http://localhost:3000
+npm run test:all             # every test suite, end-to-end included (about 30 minutes)
+```
+
+`dev:local` starts Postgres, file storage and a local mail inbox in Docker, installs packages, migrates, seeds, starts the app with hot reload, and prints the sample accounts and their password. The first run writes `.env` and `apps/web/.env.local` with new random secrets (both git-ignored). Mail the app sends shows up at http://localhost:8025.
+
+It starts lean: no virus scanner (uploads are kept unscanned) and no AI assistant, with two-factor sign-in off. `npm run dev:local -- --full` adds the scanner and the local AI (the first start downloads a few GB). `npm run test:all -- --quick` skips the end-to-end suite. `npm run stop:local` stops the containers; `npm run reset:local` also deletes the local sample data.
+
+The script is `scripts/local.mjs`. The sections below are the same steps by hand.
+
 ## Run it
 
 You need Docker Desktop. On Windows, clone with Git for Windows; `.gitattributes` keeps the shell scripts in LF.
