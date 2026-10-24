@@ -112,7 +112,19 @@
     "noMeetings": "No meetings yet.",
     "assessments": "Assessments",
     "noAssessments": "No assessments yet.",
-    "noAssessmentsClient": "No assessment has been shared with you yet."
+    "noAssessmentsClient": "No assessment has been shared with you yet.",
+    "requests": "Requests",
+    "events": {
+      "info_request_added": "asked for a document",
+      "info_requests_added": "added items from the starting list",
+      "info_request_answered": "sent a file for a request",
+      "info_request_file_removed": "took a file off a request",
+      "info_request_reviewed": "reviewed a request",
+      "info_request_returned": "returned a request with a reason",
+      "info_request_reopened": "asked again for an item marked not applicable",
+      "info_request_not_applicable": "marked a request not applicable",
+      "info_request_removed": "removed a request"
+    }
   },
   "priority": {
     "low": "Low",
@@ -1551,7 +1563,11 @@
       "inquiry_assigned": "The inquiry from {title} was handed to you",
       "access_review_due": "It's time to review who has access at {title}",
       "other": "Something changed on {title}",
-      "project_added": "You were added to {title}"
+      "project_added": "You were added to {title}",
+      "info_request_requested": "Documents were requested from you on {title}",
+      "info_request_returned": "A document you sent on {title} was returned",
+      "info_request_received": "The client sent a requested document on {title}",
+      "info_request_not_applicable": "The client marked a requested item not applicable on {title}"
     }
   },
   "people": {
@@ -2636,5 +2652,84 @@
       }
     },
     "choose": "Choose"
+  },
+  "infoRequests": {
+    "title": "Information requests",
+    "hintFirm": "List what you need from the client: they see each item, send files against it, and you review what comes in.",
+    "hintClient": "What the firm needs from you for this project.",
+    "overdueCount": "{n} overdue",
+    "emptyFirm": "Nothing requested yet. Start from the list or add your own item.",
+    "emptyClient": "The firm hasn't asked for anything yet.",
+    "add": "Add item",
+    "fromList": "Add from the starting list",
+    "fromListHint": "Pick what this client should send. Items already on the list are ticked. The owner and due date apply to all of them, and you can change each item later.",
+    "addPicked": "{n, plural, =0 {Add} one {Add # item} other {Add # items}}",
+    "addedCount": "{n, plural, =0 {Nothing new was added} one {# item added} other {# items added}}",
+    "pickSome": "Pick at least one item.",
+    "onList": "On the list",
+    "area": "Area",
+    "areaPick": "Choose an area",
+    "areas": {
+      "legal": "Legal and registration",
+      "governance": "Governance",
+      "strategy": "Strategy and performance",
+      "finance": "Finance",
+      "people": "People and organisation",
+      "family": "Family and ownership",
+      "operations": "Operations",
+      "other": "Other"
+    },
+    "itemTitle": "What you need",
+    "description": "Details for the client",
+    "owner": "Who sends it",
+    "noOwner": "No one named yet",
+    "ownedBy": "From <who>{name}</who>",
+    "due": "Due date",
+    "dueOn": "Due {date}",
+    "overdueOn": "Was due {date}",
+    "overdue": "Overdue",
+    "sensitivity": "Sensitivity",
+    "standard": "Standard",
+    "confidentialOption": "Confidential (kept out of the assistant)",
+    "confidential": "Confidential",
+    "confidentialHint": "This item is confidential: the assistant will not read the file you send for it.",
+    "status": {
+      "requested": "Waiting",
+      "received": "Received",
+      "reviewed": "Reviewed",
+      "not_applicable": "Not applicable"
+    },
+    "returnedNote": "Returned:",
+    "naNote": "Not applicable:",
+    "answer": "Send a file",
+    "addFile": "Add another file",
+    "answerTitle": "Send a file for this item",
+    "uploadNew": "Upload a file",
+    "sharedHint": "The file is shared with the firm and added to the project's documents.",
+    "orExisting": "Or use a file already on the project",
+    "pickFile": "Choose a file",
+    "useFile": "Use this file",
+    "answered": "File sent",
+    "assistantFile": "The assistant reads this file. Turn the assistant off for it before using it on a confidential item.",
+    "removeFile": "Take {name} off this item",
+    "removeFileConfirm": "Take {name} off this item? The file stays in the project's documents.",
+    "review": "Mark reviewed",
+    "return": "Return",
+    "returnHint": "The item goes back to the client with your reason, and they're told.",
+    "reopen": "Ask again",
+    "reopenHint": "The item goes back on the client's list with your reason.",
+    "notApplicable": "Doesn't apply",
+    "naHint": "Say why this item doesn't apply. The firm sees your reason.",
+    "reason": "Reason",
+    "edit": "Edit",
+    "remove": "Remove",
+    "removeConfirm": "Remove “{title}” from the list? Only items nobody has answered can be removed.",
+    "total": "{n, plural, one {# item} other {# items}}",
+    "counted": {
+      "requested": "waiting",
+      "received": "received",
+      "reviewed": "reviewed",
+      "not_applicable": "not applicable"
+    }
   }
 }
