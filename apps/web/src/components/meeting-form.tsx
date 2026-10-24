@@ -128,8 +128,9 @@ export function MeetingForm(props: {
     if (!r.ok) return setError(meetingError(r.message) ?? r.error);
     setOpen(false);
     toast.success(editing ? tc("saved") : t("booked"));
-    if (editing) router.refresh();
-    else router.push(`/meetings/${(r.data as { id: string }).id}`);
+    // Refresh first, so going back to the project shows the new meeting (review L02).
+    router.refresh();
+    if (!editing) router.push(`/meetings/${(r.data as { id: string }).id}`);
   }
 
   const others = props.invitees?.people.filter((p) => p.userId !== props.me) ?? [];

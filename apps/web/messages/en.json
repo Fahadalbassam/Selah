@@ -719,7 +719,8 @@
     "makeDeputyConfirm": "Make this consultant the deputy? They can do everything the lead can and get the lead's alerts. The lead stays the accountable name.",
     "removeDeputy": "Remove deputy",
     "removeDeputyConfirm": "Remove the deputy? They stay on the client's team.",
-    "clientDeputyBadge": "Client deputy · backs up the lead"
+    "clientDeputyBadge": "Client deputy · backs up the lead",
+    "leadOnly": "Only the lead consultant"
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -1731,7 +1732,8 @@
     "marketingYes": "Agreed on {date}",
     "marketingNo": "Not agreed",
     "withdrawMarketing": "Record withdrawal",
-    "withdrawMarketingConfirm": "Record that the requester no longer wants news from the firm? This can't be undone here; only the requester can agree again, through a new inquiry."
+    "withdrawMarketingConfirm": "Record that the requester no longer wants news from the firm? This can't be undone here; only the requester can agree again, through a new inquiry.",
+    "discoveryBooked": "A discovery session is booked for {date}. Once it's held, record how it went under Discovery."
   },
   "notifications": {
     "title": "Notifications",

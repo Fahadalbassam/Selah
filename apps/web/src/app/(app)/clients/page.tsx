@@ -131,7 +131,8 @@ export default async function ClientsPage() {
                     </TableCell>
                     <TableCell className={c.lead ? "" : "text-muted-foreground"}>{c.lead ?? t("noLead")}</TableCell>
                     <TableCell>
-                      <PeopleStack names={c.consultants} empty={tc("none")} />
+                      {/* The lead has their own column; with no one else, say so instead of "none" (review L06). */}
+                      <PeopleStack names={c.consultants} empty={c.lead ? t("leadOnly") : tc("none")} />
                     </TableCell>
                     <TableCell className="text-end tabular-nums">{c.projectCount}</TableCell>
                   </TableRow>

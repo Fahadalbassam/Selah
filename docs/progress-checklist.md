@@ -222,6 +222,31 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
 - [x] **N11** The client's lead consultant or deputy can start (and stop) closing; only the firm admin closes — wave: 3 · related: F25 · decision: Fahad said yes on 2026-10-24 · pr: #118
 
+## Bugs found by the two-sided review
+
+From the review of 2026-10-24 (report `plan/selah-two-sided-review.html`), section A: bug fixes allowed under the freeze. Its improvements (B) and new features (C) wait for Fahad.
+
+- [x] **R01** Closing settles what the gate decided: withdrawn and waived actions close as not applicable, so roll-ups stop counting them open — pr: #117
+- [x] **R02** The closing project state has Arabic and English text — pr: #116
+- [x] **R03** The activity tab names every event, never a raw key — pr: #116
+- [x] **R04** Required fields speak the page's language in every form; an empty date is marked — pr: #116
+- [x] **R05** A response's target date can't be in the past — pr: #116
+- [x] **M01** Asking for a revision answers the evidence items still waiting, so the lead decides once — pr: #117
+- [x] **M04** Overview cards: "In progress" counts claims only; the firm's list includes blocked and revision work — pr: #117
+- [x] **M05** A consultant who only observes a client's projects doesn't add, edit or remove its contacts (notes on actions stay open to observers by design) — pr: #120
+- [x] **M06** An archived client's team card offers no staffing buttons — pr: #120
+- [x] **M10** No PDF button where the PDF service isn't set up — pr: #120
+- [x] **M13** The sample data has no impossible states: evidence behind awaiting review, revision and verified — pr: #120
+- [x] **L01** The sidebar toggle's screen-reader text is translated — pr: #116
+- [x] **L02** The project's Meetings tab shows a new meeting on the way back — pr: #120
+- [x] **L03** Remind owner confirms with a toast — checked: the toast shows once the request returns; not reproduced, no change
+- [x] **L04** A booked discovery session replaces "Book a discovery session" as the next step — pr: #120
+- [x] **L06** The clients list says "Only the lead consultant" instead of "none" — pr: #120
+- [x] **L09** An action owner opening /team gets not-found like other blocked pages — pr: #120
+- [x] **L12** The actions export refuses an unknown parameter instead of an unfiltered sheet that looks filtered — pr: #120
+- [x] **L13** The public upload page sends only the strings its form uses — pr: #116
+- [x] **L14** Local start without a scanner keeps uploads (CLAMD_HOST left empty; the app stays fail-closed) — pr: #115
+
 ## Decisions still waiting
 
 - [ ] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — waiting on: supervisor · blocks: F35

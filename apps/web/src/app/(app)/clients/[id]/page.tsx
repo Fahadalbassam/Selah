@@ -17,7 +17,7 @@ import { NO_PREVIOUS } from "@/lib/phases";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
-import { listContacts } from "@/services/accounts";
+import { canWriteContacts, listContacts } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
 import { listEngagements } from "@/services/engagements";
 import { discardBlock } from "@/services/prospects";
@@ -56,6 +56,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       discard: await discardBlock(tx, id),
       // People at the client without an account; firm staff on the client's team only.
       contacts: await listContacts(tx, principal, id).catch(() => null),
+      // A consultant who only observes this client's projects reads them and writes nothing (M05).
+      editContacts: await canWriteContacts(tx, principal, id),
       // Who fits this client, from the inquiry it came from. The admin decides.
       suggestions: admin ? await suggestClientLeads(tx, principal, id) : null,
       services: admin ? (await intakeOptions(tx)).services : [],
@@ -82,9 +84,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
-  const { client, can } = data;
-  // An archived client is read-only: the database refuses changes, so the page offers none.
+  // An archived client is read-only: the database refuses changes, so the page offers none (staffing included, M06).
   const open = !data.offboarding.archived;
+  const { client } = data;
+  const can = open ? data.can : { ...data.can, manage: false, setLead: false, setDeputy: false };
   const onTeam = new Set(data.team.map((m) => m.userId));
   const contactFields = (c?: { name: string; nameAlt: string | null; title: string | null; email: string | null; phone: string | null }) => [
     { name: "name", label: tCt("name"), required: true, maxLength: 120, defaultValue: c?.name },
@@ -388,7 +391,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   <CardTitle className="text-base">{tCt("title")}</CardTitle>
                   <CardDescription>{data.engagement.minimalRecords ? tCt("minimal") : tCt("hint")}</CardDescription>
                 </div>
-                {data.engagement.minimalRecords || !open ? null : (
+                {data.engagement.minimalRecords || !open || !data.editContacts ? null : (
                   <FormDialog
                     trigger={
                       <Button size="sm" variant="outline">
@@ -432,7 +435,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           )}
                         </p>
                       </div>
-                      {open ? (
+                      {open && data.editContacts ? (
                         <>
                           <FormDialog
                             trigger={

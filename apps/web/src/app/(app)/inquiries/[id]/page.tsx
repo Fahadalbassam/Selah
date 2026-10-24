@@ -168,6 +168,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
       : []),
   ];
 
+  const pendingSession = data.discoverySessions.find((s) => !s.heldAt && !s.outcome);
+
   return (
     <>
       <Link href="/inquiries" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -198,7 +200,9 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                     size="default"
                   />
                 ) : null}
-                {["new", "triaged", "discovery_scheduled"].includes(q.status) ? (
+                {/* A booked session not yet recorded is the next step, not another booking (review L04). */}
+                {pendingSession ? <p className="w-full text-sm text-muted-foreground">{t("discoveryBooked", { date: when(pendingSession.scheduledAt) })}</p> : null}
+                {["new", "triaged", "discovery_scheduled"].includes(q.status) && !pendingSession ? (
                   // One solid button per card: booking steps back when moving the inquiry forward is offered.
                   <BookDiscovery inquiryId={q.id} secondary={can.forward === "triaged" || can.forward === "proposal_sent"} />
                 ) : null}
