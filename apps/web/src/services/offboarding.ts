@@ -182,7 +182,7 @@ export async function myOffboarding(tx: Tx, principal: Principal) {
     .from(clientOffboardings)
     .where(and(eq(clientOffboardings.orgId, principal.orgId), sql`${clientOffboardings.restoredAt} IS NULL`))
     .limit(1);
-  return row ?? null;
+  return row ? { ...row, admin: principal.role === "client_admin" } : null;
 }
 
 /** Clients whose records were deleted after their retention period (firm admin). */

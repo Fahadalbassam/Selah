@@ -1,4 +1,5 @@
 import { Archive } from "lucide-react";
+import Link from "next/link";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
@@ -133,6 +134,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
               <Archive className="size-4 shrink-0" />
               {tOff("clientBanner", { date: format.dateTime(leaving.graceUntil, { dateStyle: "long" }) })}
+              {leaving.admin ? (
+                <Link href="/leaving" className="ms-auto shrink-0 font-medium text-foreground hover:underline">
+                  {tOff("pack.open")}
+                </Link>
+              ) : null}
             </p>
           ) : null}
           {children}

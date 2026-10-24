@@ -8,14 +8,16 @@ import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GRACE_DAYS, OFFBOARDING_LIMITS, RETENTION_YEARS } from "@/lib/offboarding";
+import type { ExportPackRow } from "@/services/export-pack";
 import type { OffboardingView } from "@/services/offboarding";
+import { ExportPacks } from "@/components/export-packs";
 
 /**
  * Leaving (baseline: Offboarding, 0025), on the client page: archive once
  * every project is closed, the grace period and retention date, restoring,
- * and legal holds. Every button is one the database will take.
+ * legal holds and the export pack. Every button is one the database will take.
  */
-export async function OffboardingCard({ clientId, view }: { clientId: string; view: OffboardingView }) {
+export async function OffboardingCard({ clientId, view, packs }: { clientId: string; view: OffboardingView; packs: ExportPackRow[] }) {
   const t = await getTranslations("offboarding");
   const format = await getFormatter();
   const day = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium" });
@@ -140,6 +142,14 @@ export async function OffboardingCard({ clientId, view }: { clientId: string; vi
             />
           ) : null}
         </div>
+
+        {current && view.can.restore ? (
+          <div className="space-y-2 border-t pt-3">
+            <p className="font-medium">{t("pack.title")}</p>
+            <p className="text-muted-foreground">{t("pack.hint")}</p>
+            <ExportPacks clientId={clientId} packs={packs} side="firm" canMake />
+          </div>
+        ) : null}
 
         {view.holds.length ? (
           <div className="space-y-2 border-t pt-3">

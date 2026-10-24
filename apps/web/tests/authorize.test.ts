@@ -9,6 +9,7 @@ import {
   type Role,
 } from "@/authz";
 import { ACME, ACME_PROJ_1, ACME_PROJ_2, BETA, BETA_PROJ, FIRM, acmeRecord, betaRecord, principal } from "./fixtures";
+import { OPEN_WHEN_ARCHIVED } from "@/authz/policy";
 
 const ROLES: Role[] = ["firm_admin", "consultant", "client_admin", "client_manager", "action_owner"];
 
@@ -604,6 +605,17 @@ describe("a client leaving", () => {
     }
   });
 
+  it("the export pack: the firm admin, or the client's own admin even while archived", () => {
+    const org: Resource = { type: "organization", orgId: ACME, firmOrgId: FIRM, projectId: null };
+    expect(authorize(principal("firm_admin"), "organization.export", org).allowed).toBe(true);
+    expect(authorize({ ...principal("client_admin", [ACME_PROJ_1]), readOnly: true }, "organization.export", org).allowed).toBe(true);
+    const lead = principal("consultant", [ACME_PROJ_1], undefined, [], { clients: [ACME] });
+    for (const p of [lead, principal("client_manager", [ACME_PROJ_1]), principal("action_owner", [ACME_PROJ_1])]) {
+      expect(authorize(p, "organization.export", org).allowed, p.role).toBe(false);
+    }
+    expect([...OPEN_WHEN_ARCHIVED].sort()).toEqual(["assistant.query", "organization.export"]);
+  });
+
   it("the people of an archived client in its grace period only read", () => {
     for (const role of ["client_admin", "client_manager", "action_owner"] as Role[]) {
       const p = principal(role, [ACME_PROJ_1]);
@@ -612,7 +624,7 @@ describe("a client leaving", () => {
         const r = acmeRecord("action", { assignees: [p.userId], createdBy: p.userId, ownerOrgId: p.orgId, projectKind: "client" });
         const before = authorize(p, perm, r).allowed;
         const after = authorize(archived, perm, r);
-        if (/\.(read|download)$/.test(perm) || perm === "assistant.query") expect(after.allowed, `${role} ${perm}`).toBe(before);
+        if (/\.(read|download)$/.test(perm) || OPEN_WHEN_ARCHIVED.has(perm)) expect(after.allowed, `${role} ${perm}`).toBe(before);
         else expect(after.allowed, `${role} ${perm}`).toBe(false);
       }
     }
