@@ -496,13 +496,18 @@ export const recommendations = pgTable(
     meetingNoteId: uuid("meeting_note_id").references((): AnyPgColumn => meetingNotes.id, { onDelete: "set null" }),
     decidedOn: date("decided_on"),
     visibility: visibility("visibility").notNull().default("shared"),
+    // Optional: the department it is for (its actions follow), or none for
+    // company-wide and cross-department work, with one accountable person at
+    // the client for the whole of it (F31).
+    departmentId: uuid("department_id"),
+    accountableUserId: uuid("accountable_user_id").references(() => user.id),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [scopedFk("recommendations", t), index("recommendations_project_idx").on(t.projectId)],
+  (t) => [scopedFk("recommendations", t), departmentFk("recommendations", t), index("recommendations_project_idx").on(t.projectId)],
 );
 
 // Status moves are checked twice: by authz/workflow.ts (who may move it) and
@@ -1962,10 +1967,12 @@ export const meetings = pgTable(
     transcriptConsent: boolean("transcript_consent").notNull().default(false),
     consentNotedBy: uuid("consent_noted_by").references(() => user.id),
     visibility: visibility("visibility").notNull().default("shared"),
+    // Optional: a department's meeting; its agenda covers that department's work.
+    departmentId: uuid("department_id"),
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [scopedFk("meetings", t), index("meetings_project_idx").on(t.projectId, t.startsAt), index("meetings_start_idx").on(t.startsAt)],
+  (t) => [scopedFk("meetings", t), departmentFk("meetings", t), index("meetings_project_idx").on(t.projectId, t.startsAt), index("meetings_start_idx").on(t.startsAt)],
 );
 
 // A person with an account, or a client contact without one; never a free-typed address.

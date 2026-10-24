@@ -455,6 +455,104 @@ describe("departments", () => {
   });
 });
 
+describe("departments across the work", () => {
+  const rec = async (fields: { dept?: string | null; accountable?: string | null } = {}) => {
+    const rid = next();
+    await run(
+      U.lead,
+      `INSERT INTO recommendations (id, project_id, org_id, title, department_id, accountable_user_id, created_by) VALUES ($1,$2,$3,'Payroll controls',$4,$5,$6)`,
+      [rid, P.acme, ACME, fields.dept ?? null, fields.accountable ?? null, U.lead],
+    );
+    return rid;
+  };
+  const deptOf = async (aid: string) => (await owner.query(`SELECT department_id FROM actions WHERE id = $1`, [aid])).rows[0].department_id;
+
+  it("keep a department's recommendation inside it, except for whoever owns one of its actions", async () => {
+    const rid = await rec({ dept: DEPT.hr });
+    expect(await sees(U.hr, "recommendations", rid)).toBe(true);
+    expect(await sees(U.fin, "recommendations", rid)).toBe(false);
+    for (const who of [U.cadmin, U.lead]) expect(await sees(who, "recommendations", rid)).toBe(true);
+    const company = await rec();
+    expect(await sees(U.fin, "recommendations", company)).toBe(true);
+    // Finance owns an action under it: they read what they implement.
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, department_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Reconcile payroll',$5,$6,'in_progress',$7)`,
+      [next(), P.acme, ACME, rid, U.fin, DEPT.hr, U.lead],
+    );
+    expect(await sees(U.fin, "recommendations", rid)).toBe(true);
+    // So does the person accountable for it, from any department.
+    const named = await rec({ dept: DEPT.hr, accountable: U.fin });
+    expect(await sees(U.fin, "recommendations", named)).toBe(true);
+  });
+
+  it("file an action under its recommendation's department, and refile it with the recommendation", async () => {
+    const rid = await rec({ dept: DEPT.hr });
+    const aid = next();
+    await run(
+      U.lead,
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by) VALUES ($1,$2,$3,$4,'Write the policy',$5,'assigned',$6)`,
+      [aid, P.acme, ACME, rid, U.hr, U.lead],
+    );
+    expect(await deptOf(aid)).toBe(DEPT.hr);
+    await expect(run(U.lead, `UPDATE actions SET department_id = $1 WHERE id = $2`, [DEPT.fin, aid])).rejects.toThrow(
+      /follows its recommendation's department/,
+    );
+    await run(U.lead, `UPDATE recommendations SET department_id = $1 WHERE id = $2`, [DEPT.fin, rid]);
+    expect(await deptOf(aid)).toBe(DEPT.fin);
+    // A company-wide recommendation's actions may each be a different department's.
+    const company = await rec();
+    const hr = await action(ACME, { dept: DEPT.hr });
+    await owner.query(`UPDATE actions SET recommendation_id = $1 WHERE id = $2`, [company, hr]);
+    expect(await deptOf(hr)).toBe(DEPT.hr);
+  });
+
+  it("name as accountable only someone at the client who is on the project", async () => {
+    for (const who of [U.cadmin, U.cmgr]) await rec({ accountable: who });
+    for (const who of [U.lead, U.radmin]) {
+      await expect(rec({ accountable: who })).rejects.toThrow(/someone at the client on this project/);
+    }
+    const outsider = next();
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'x',$2)`, [outsider, `${outsider}@example.test`]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager')`, [outsider, ACME]);
+    await expect(rec({ accountable: outsider })).rejects.toThrow(/someone at the client on this project/);
+  });
+
+  it("give a department's meeting that department's agenda, and keep its department", async () => {
+    await action(ACME, { dept: DEPT.hr, status: "blocked" });
+    await owner.query(`UPDATE actions SET title = 'HR canary', blocked_reason = 'waiting' WHERE status = 'blocked' AND department_id = $1`, [DEPT.hr]);
+    const fin = await action(ACME, { dept: DEPT.fin, status: "blocked" });
+    await owner.query(`UPDATE actions SET title = 'Finance canary', blocked_reason = 'waiting' WHERE id = $1`, [fin]);
+    const book = async (dept: string | null) =>
+      (
+        await run(
+          U.lead,
+          `INSERT INTO meetings (project_id, org_id, kind, title, starts_at, ends_at, location, organizer_id, ics_uid, department_id)
+           VALUES ($1,$2,'status','Check-in', now() + interval '1 day', now() + interval '1 day 1 hour', 'in_person', $3, 'x', $4)
+           RETURNING id, agenda_md`,
+          [P.acme, ACME, U.lead, dept],
+        )
+      ).rows[0];
+    const hr = await book(DEPT.hr);
+    expect(hr.agenda_md).toContain("HR canary");
+    expect(hr.agenda_md).not.toContain("Finance canary");
+    const whole = await book(null);
+    expect(whole.agenda_md).toContain("Finance canary");
+    await expect(run(U.lead, `UPDATE meetings SET department_id = $1 WHERE id = $2`, [DEPT.fin, hr.id])).rejects.toThrow(
+      /keeps its department/,
+    );
+  });
+
+  it("offer as accountable the client's admins and its people on the project", async () => {
+    const opts = await svc(U.lead, (tx, p) => planOptions(tx, p, P.acme));
+    expect(opts?.accountables.map((a) => a.userId).sort()).toEqual(
+      expect.arrayContaining([U.cadmin, U.cmgr, U.hr, U.fin]),
+    );
+    expect(opts?.accountables.map((a) => a.userId)).not.toContain(U.lead);
+    expect((await svc(U.cons, (tx, p) => planOptions(tx, p, P.managed)))?.accountables).toEqual([]);
+  });
+});
+
 describe("changing mode", () => {
   it("keeps the data: restricted to full keeps client-private files private", async () => {
     const doc = await upload(U.radmin, RESTR);

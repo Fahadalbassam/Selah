@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isUuid } from "@/lib/ids";
-import { localName } from "@/lib/names";
+import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listAssessments, listTemplates } from "@/services/assessments";
 import { listReports, projectMetrics, projectProgress } from "@/services/follow-through";
@@ -126,6 +126,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   ]);
   const ar = (await getLocale()) === "ar";
   const { project } = data;
+  // A new recommendation's department and accountable person (F31).
+  const recScope = { departments: plan?.departments ?? [], accountables: plan?.accountables ?? [] };
 
   return (
     <>
@@ -307,6 +309,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                           <RecommendationDialog
                             projectId={project.id}
                             client={project.kind === "client"}
+                            scope={recScope}
                             findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
                             defaultFindingId={f.id}
                             trigger={
@@ -343,6 +346,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <RecommendationDialog
                     projectId={project.id}
                     client={project.kind === "client"}
+                    scope={recScope}
                     findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
                     trigger={
                       <Button size="sm">
@@ -363,6 +367,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                     <RecommendationDialog
                       projectId={project.id}
                       client={project.kind === "client"}
+                      scope={recScope}
                       findings={data.findings.map((x) => ({ id: x.id, title: x.title }))}
                       trigger={
                         <Button size="sm">
@@ -392,6 +397,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                           {tVis("firm_private")}
                         </Badge>
                       ) : null}
+                      {r.department ? <Badge variant="secondary">{localLabel(r.department, ar)}</Badge> : null}
                       {firmStaff ? (
                         <span className="ms-auto flex items-center gap-1">
                           {plan?.can.action ? (
@@ -405,6 +411,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                                 departments: plan.departments,
                                 canRelease: plan.can.release,
                               }}
+                              recommendationDepartmentId={r.departmentId}
                               trigger={
                                 <Button size="sm" variant="outline">
                                   <Plus />
@@ -421,6 +428,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       <p className="text-xs text-muted-foreground" dir="auto">
                         {tPlan("rec.answers", { finding: finding.title })}
                       </p>
+                    ) : null}
+                    {r.accountableName ? (
+                      <p className="text-xs text-muted-foreground">{tPlan.rich("rec.accountableLine", { name: r.accountableName, who: (c) => <bdi>{c}</bdi> })}</p>
                     ) : null}
                     {r.rationale ? (
                       <Translatable entityType="recommendation" entityId={r.id} field="rationale" text={r.rationale} canReview={firmStaff} className="text-sm text-muted-foreground" />
@@ -449,6 +459,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   firm={firmStaff}
                   invitees={invitees}
                   me={me}
+                  departments={firmStaff ? recScope.departments.map((d) => ({ id: d.id, label: localLabel(d, ar) })) : undefined}
                   trigger={
                     <Button size="sm">
                       <CalendarPlus />

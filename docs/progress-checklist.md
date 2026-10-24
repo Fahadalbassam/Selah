@@ -187,7 +187,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 ### Tier 6 · Departments and phases (option B)
 
 - [ ] **F30** Client overview page and client-wide report — tier: 6 · size: M · wave: 1 · decision: D2
-- [ ] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2
+- [~] **F31** Departments across the work — tier: 6 · size: M · wave: 1 · decision: D2 · pr: #80 (open, part 1)
 - [ ] **F32** Workstreams with a lead consultant — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4
@@ -213,7 +213,7 @@ Added to Wave 1 after the map was drawn. N2 needs a database test before anyone 
 - [x] **N5** The lead of an internal project can close it — wave: 1 · pr: #79
 - [ ] **N6** A read-only observer role for colleagues — wave: 1 · related: F26
 - [x] **N7** Delete a never-signed prospect or a client added by mistake — wave: 1 · related: F27 · pr: #65
-- [~] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74 (open)
+- [x] **N8** The uploader can withdraw a wrong, unreviewed file — wave: 1 · related: F03 · pr: #74
 - [x] **N9** The client sponsor can ask the firm to close — wave: 1 · related: F25 · pr: #79
 - [x] **N10** An optional bilingual decline mail — wave: 1 · journey: J02.4 · related: F08 · pr: #68
 

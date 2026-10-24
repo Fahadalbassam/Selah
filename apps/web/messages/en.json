@@ -958,7 +958,10 @@
         "firmPrivate": "This meeting is firm only, so its records stay firm only.",
         "cannotMove": "A held or cancelled meeting can't be moved.",
         "otherMeeting": "That decision is from another meeting."
-      }
+      },
+      "department": "Department",
+      "wholeProject": "The whole project",
+      "departmentHint": "A department's meeting gets an agenda of that department's work only."
     },
     "record": {
       "mainPoints": "Main points",
@@ -1599,7 +1602,8 @@
       "closure_started": "The firm started closing {title}",
       "closure_declined": "The firm answered your request to close {title}",
       "project_closed": "{title} was closed",
-      "project_reopened": "{title} was reopened"
+      "project_reopened": "{title} was reopened",
+      "recommendation_accountable": "You were named accountable for a recommendation on {title}"
     },
     "mail": {
       "section": "Mail",
@@ -2231,7 +2235,14 @@
       "decidedOn": "Decided on",
       "visibility": "Who can see it",
       "answers": "Answers: {finding}",
-      "save": "Add the recommendation"
+      "save": "Add the recommendation",
+      "department": "Department",
+      "allDepartments": "Company-wide or several departments",
+      "departmentHint": "A department's recommendation is read by that department's people; its actions are filed under it.",
+      "accountable": "Accountable at the client",
+      "noAccountable": "No one named",
+      "accountableHint": "One person who answers for the whole recommendation, even when several departments carry it out.",
+      "accountableLine": "Accountable: <who>{name}</who>"
     },
     "action": {
       "add": "Add an action",
@@ -2257,7 +2268,8 @@
       "releaseHint": "They're told straight away. Otherwise it stays a draft: the owner isn't told, and only the firm can release it later.",
       "save": "Add the action",
       "released": "Action released to its owner",
-      "drafted": "Saved as a draft"
+      "drafted": "Saved as a draft",
+      "departmentFollows": "Follows the recommendation's department."
     },
     "errors": {
       "boardDate": "A board decision needs the date it was decided.",
@@ -2265,7 +2277,8 @@
       "releaseNeeds": "To release it, pick an owner and a due date.",
       "jobTitle": "This client keeps minimal records: give the owner's job title, not a name.",
       "department": "That department is no longer active. Pick another one.",
-      "finding": "That finding isn't in this project."
+      "finding": "That finding isn't in this project.",
+      "accountable": "The accountable person must be someone at the client who is on this project."
     }
   },
   "importExport": {

@@ -59,6 +59,8 @@ export function MeetingForm(props: {
   invitees?: Invitees;
   /** The booker, who attends as organiser. */
   me?: string;
+  /** The client's departments: a department's meeting gets an agenda of its work (F31). */
+  departments?: { id: string; label: string }[];
 }) {
   const t = useTranslations("meeting.form");
   const tm = useTranslations("meeting");
@@ -113,6 +115,7 @@ export function MeetingForm(props: {
       : await callApi(`/api/projects/${props.projectId}/meetings`, "POST", {
           ...values,
           kind: text("kind"),
+          departmentId: text("departmentId") || undefined,
           visibility: props.firm && !shared ? "firm_private" : "shared",
           attendees: [
             ...[...people].map((userId) => ({ userId })),
@@ -170,6 +173,21 @@ export function MeetingForm(props: {
               </div>
             )}
           </div>
+
+          {!editing && props.departments?.length ? (
+            <div className="grid gap-2">
+              <Label htmlFor="m-dept">{t("department")}</Label>
+              <NativeSelect id="m-dept" name="departmentId" defaultValue="">
+                <NativeSelectOption value="">{t("wholeProject")}</NativeSelectOption>
+                {props.departments.map((d) => (
+                  <NativeSelectOption key={d.id} value={d.id}>
+                    {d.label}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <p className="text-xs text-muted-foreground">{t("departmentHint")}</p>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
