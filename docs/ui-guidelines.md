@@ -323,7 +323,7 @@ Who: firm admin, consultants (and the lead consultant per client).
 
 **Purpose of the UI:** oversight and decisions. Dense, scannable, and explicit about what is firm-only.
 
-- **Navigation:** Workspace (Overview, Projects with All / Client / Internal, Clients, Inquiries, Actions, Review queue, Assessment templates, Assistant) and Organization (Team, plus Settings for firm admins).
+- **Navigation:** Workspace (Overview, Today, Projects with All / Client / Internal, Clients, Inquiries, Actions, Review queue, Assessment templates, Assistant) and Organization (Team, plus Settings for firm admins).
 - **Overview:** four summary cards (In progress, Awaiting review, Blocked, Verified), the overdue alert, then "Needs your decision" as an `ActionsTable`. The footnote that claims are not proof stays.
 - **Density:** tables over cards for lists; side panels on detail pages; tabs on the project page.
 - **Firm-only content must look firm-only.** Anything a client cannot see (internal projects, private notes and firm notes on actions, firm-only findings and recommendations, scores, firm-only reports and assessments) carries a `Lock` icon or a "Firm only" badge, and internal projects show the muted banner. Scores are firm-only and never appear on client screens.

@@ -6,6 +6,7 @@
   "nav": {
     "workspace": "Workspace",
     "overview": "Overview",
+    "today": "Today",
     "projects": "Projects",
     "allProjects": "All projects",
     "clientProjects": "Client projects",
@@ -220,6 +221,54 @@
     "title": "Review queue",
     "subtitle": "Evidence clients submitted, waiting for your decision",
     "empty": "Nothing is waiting for review."
+  },
+  "todayPage": {
+    "title": "Today",
+    "subtitle": "What needs you across your clients and projects",
+    "empty": "Nothing needs you today",
+    "emptyHint": "Reviews, due dates, follow-ups, meetings and requests waiting on you will show here.",
+    "internal": "Internal projects",
+    "reviews": {
+      "title": "Waiting for your review",
+      "description": "Submitted work on your projects. Work you own or submitted goes to a colleague.",
+      "since": "Waiting since {date}"
+    },
+    "due": {
+      "title": "Due this week",
+      "description": "Overdue or due within {days} days on the clients and projects you lead, and your own actions."
+    },
+    "followUps": {
+      "title": "Your follow-ups",
+      "description": "Open follow-ups assigned to you, overdue first.",
+      "noDate": "No date"
+    },
+    "meetings": {
+      "title": "Meetings this week",
+      "description": "Today and the next {days} days, meetings you organise or attend.",
+      "today": "Today",
+      "organizer": "You organise",
+      "agenda": "Agenda ready",
+      "noAgenda": "No agenda"
+    },
+    "decisions": {
+      "title": "Waiting on your decision",
+      "description": "Requests that a client's lead or the firm admin settles.",
+      "joinTitle": "{who} asks to join",
+      "proposed": "{who} proposes {date}",
+      "askedBy": "{who} asked on {date}",
+      "kinds": {
+        "join_request": "Join request",
+        "deadline_request": "Deadline change",
+        "closure_request": "Closure request",
+        "info_request": "Request item answered"
+      }
+    },
+    "visits": {
+      "title": "Since your last visit",
+      "description": "Actions that moved since you last opened each of your projects.",
+      "changed": "{count, plural, one {# action changed} other {# actions changed}}",
+      "changedWeek": "{count, plural, one {# action changed this week} other {# actions changed this week}}"
+    }
   },
   "assistant": {
     "title": "Assistant",

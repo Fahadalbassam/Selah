@@ -14,6 +14,7 @@ import {
   Network,
   ScrollText,
   Settings,
+  Sunrise,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import {
 // Icons are referenced by name: server components cannot pass functions.
 const ICONS = {
   overview: LayoutDashboard,
+  today: Sunrise,
   projects: FolderKanban,
   clients: Building2,
   inquiries: Inbox,

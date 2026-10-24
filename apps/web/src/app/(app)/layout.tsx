@@ -23,6 +23,8 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean): NavGr
         label: t("workspace"),
         items: [
           overview,
+          // What needs this person across their clients (Wave 3). Firm staff only.
+          { title: t("today"), href: "/today", icon: "today" },
           {
             title: t("projects"),
             href: "/projects",
