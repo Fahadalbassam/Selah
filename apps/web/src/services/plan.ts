@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -76,7 +76,30 @@ export async function planOptions(tx: Tx, principal: Principal, projectId: strin
         .orderBy(asc(departments.nameAr));
     }
   }
-  return { can: write, kind: project.kind, owners, ownerByName, minimalRecords, departments: departmentList };
+  const accountables = project.kind === "client" && !ownerByName ? await accountablePeople(tx, projectId, project.orgId) : [];
+  return { can: write, kind: project.kind, owners, ownerByName, minimalRecords, departments: departmentList, accountables };
+}
+
+/**
+ * Who can be accountable for a whole recommendation: a client person who sees
+ * the project (its admins, and those staffed on it). The database checks the
+ * same (check_recommendation_accountable).
+ */
+function accountablePeople(tx: Tx, projectId: string, orgId: string, only?: string) {
+  return tx
+    .selectDistinct({ userId: user.id, name: user.name })
+    .from(orgMemberships)
+    .innerJoin(user, eq(user.id, orgMemberships.userId))
+    .leftJoin(projectMembers, and(eq(projectMembers.userId, orgMemberships.userId), eq(projectMembers.projectId, projectId)))
+    .where(
+      and(
+        eq(orgMemberships.orgId, orgId),
+        eq(orgMemberships.active, true),
+        or(eq(orgMemberships.role, "client_admin"), isNotNull(projectMembers.userId)),
+        only ? eq(user.id, only) : undefined,
+      ),
+    )
+    .orderBy(asc(user.name));
 }
 
 export async function createFinding(
@@ -107,6 +130,10 @@ export interface RecommendationInput {
   decidedOn?: string;
   meetingNoteId?: string;
   visibility: Label;
+  /** One department's, or none for company-wide and cross-department work. */
+  departmentId?: string;
+  /** The client person accountable for the whole recommendation. */
+  accountableUserId?: string;
 }
 
 export async function createRecommendation(tx: Tx, principal: Principal, projectId: string, input: RecommendationInput) {
@@ -122,6 +149,11 @@ export async function createRecommendation(tx: Tx, principal: Principal, project
       .limit(1);
     if (!f || f.projectId !== projectId) throw new BadRequestError("the finding is not in this project");
   }
+  if (input.departmentId) await checkOwnership(tx, { projectId, orgId: project.orgId }, { departmentId: input.departmentId });
+  if (input.accountableUserId) {
+    const [ok] = project.kind === "client" ? await accountablePeople(tx, projectId, project.orgId, input.accountableUserId) : [];
+    if (!ok) throw new BadRequestError("the accountable person is someone at the client on this project");
+  }
   const [row] = await tx
     .insert(recommendations)
     .values({ projectId, orgId: project.orgId, ...input, createdBy: principal.userId })
@@ -135,6 +167,10 @@ export async function createRecommendation(tx: Tx, principal: Principal, project
     outcome: "allow",
     meta: { source: input.source },
   });
+  // The accountable person hears of it, unless it is still the firm's own.
+  if (input.accountableUserId && input.visibility === "shared" && input.accountableUserId !== principal.userId) {
+    await tx.insert(notifications).values({ userId: input.accountableUserId, kind: "recommendation.accountable", entityType: "project", entityId: projectId });
+  }
   return row!;
 }
 
