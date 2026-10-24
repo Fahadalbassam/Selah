@@ -3148,7 +3148,8 @@
       "user_email_change": "تغيير عنوان الدخول",
       "user_erase": "محو البيانات الشخصية",
       "user_name_alt": "تعديل الاسم باللغة الأخرى",
-      "closure_export": "تصدير تقرير الإغلاق"
+      "closure_export": "تصدير تقرير الإغلاق",
+      "client_report_export": "تصدير تقرير العميل"
     },
     "csv": {
       "time": "الوقت (UTC)",
