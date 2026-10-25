@@ -10,7 +10,7 @@ import { SectionHeader } from "@/components/section-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FAQ_KEYS } from "@/lib/help";
 import { withPrincipal } from "@/server/page";
@@ -112,9 +112,7 @@ export default async function HelpPage() {
           <CardContent className="space-y-3 px-5 text-sm">
             <p>{t("ask.body")}</p>
             {help.readOnly ? <p className="rounded-lg bg-muted px-4 py-2 text-muted-foreground">{t("ask.readOnly")}</p> : null}
-            <Button asChild variant="outline" size="sm">
-              <Link href="/actions">{role === "action_owner" ? tNav("myActions") : tNav("actions")}</Link>
-            </Button>
+            <Link href="/actions" data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>{role === "action_owner" ? tNav("myActions") : tNav("actions")}</Link>
           </CardContent>
         </Card>
 

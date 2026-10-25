@@ -250,6 +250,14 @@ From the review of 2026-10-24 (report `plan/selah-two-sided-review.html`), secti
 - [x] **L13** The public upload page sends only the strings its form uses — pr: #116
 - [x] **L14** Local start without a scanner keeps uploads (CLAMD_HOST left empty; the app stays fail-closed) — pr: #115
 
+## Team walkthrough (2026-10-25)
+
+Fahad asked for everything his team needs to walk through the whole product locally: accounts for every role on both sides, realistic cases and a working assistant. The guide is `docs/walkthrough.md`; its HTML view is `plan/selah-walkthrough.html` in the project files.
+
+- [x] **W01** One command loads a walkthrough: a firm with every staff role, two clients with every client role, three cases with every action state, the assistant reading them, and a scripted tour (`npm run walkthrough -- --fresh`) — pr: #PRNUM
+- [x] **W02** A client project starts (planned to active) when its first action is released, so reminders, escalation, health history and status packs run for it — pr: #PRNUM
+- [x] **W03** Buttons that are links on server-rendered pages render on the server too (no hydration error on the client page, help, inquiry, privacy and not-found pages) — pr: #PRNUM
+
 ## Decisions still waiting
 
 - [x] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — done: Fahad decided on 2026-10-25 to build company and department indicators without a weighted cascade (F35, #132)

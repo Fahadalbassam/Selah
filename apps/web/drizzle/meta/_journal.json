@@ -358,6 +358,13 @@
       "when": 1792895448771,
       "tag": "0063_client_indicators",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1792903108208,
+      "tag": "0064_project_starts",
+      "breakpoints": true
     }
   ]
 }
