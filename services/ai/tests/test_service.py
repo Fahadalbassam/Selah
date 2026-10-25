@@ -372,3 +372,12 @@ def test_answer_text_decodes_escapes_split_across_pieces():
     for ch in whole:
         a.feed(ch)
     assert a.done and a.text() == 'سطر\n"اقتباس" é'
+
+
+def test_passage_ids_named_in_a_sentence_are_taken_out():
+    from app.prompt import strip_markers
+
+    assert strip_markers("حسب سجل الحالة في P5، لدى العميل 3 حالات.") == "حسب سجل الحالة، لدى العميل 3 حالات."
+    assert strip_markers("According to the summary in P2, three are late [P2].") == "According to the summary, three are late."
+    # A priority label is not a passage id.
+    assert strip_markers("Two P1 actions are late.") == "Two P1 actions are late."

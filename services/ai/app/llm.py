@@ -4,6 +4,7 @@ sends text to an outside company: use it with sample data only unless
 firm approves."""
 
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
@@ -22,6 +23,8 @@ class LLM(Protocol):
         """The same reply as chat_json, in pieces as the model writes it."""
         ...
 
+
+log = logging.getLogger("uvicorn.error")
 
 # How long a local model stays loaded after a request. Ollama's default is five
 # minutes, after which the next question first reloads the model from disk
@@ -65,9 +68,20 @@ class OllamaLLM:
             async for line in res.aiter_lines():
                 if not line.strip():
                     continue
-                piece = json.loads(line).get("message", {}).get("content")
+                event = json.loads(line)
+                piece = event.get("message", {}).get("content")
                 if piece:
                     yield piece
+                if event.get("done"):
+                    # Where a slow answer's time went: reading the passages, or writing.
+                    log.info(
+                        "local model: read %s tokens in %.1f s, wrote %s tokens in %.1f s (load %.1f s)",
+                        event.get("prompt_eval_count"),
+                        event.get("prompt_eval_duration", 0) / 1e9,
+                        event.get("eval_count"),
+                        event.get("eval_duration", 0) / 1e9,
+                        event.get("load_duration", 0) / 1e9,
+                    )
 
 
 class HostedChatLLM:
