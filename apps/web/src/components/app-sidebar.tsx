@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Activity,
   Bot,
   Building2,
   ChevronRight,
-  ClipboardCheck,
   ClipboardList,
   FolderKanban,
   Inbox,
@@ -14,7 +12,6 @@ import {
   ListChecks,
   Network,
   ScrollText,
-  Settings,
   Sunrise,
   Users,
   type LucideIcon,
@@ -51,12 +48,9 @@ const ICONS = {
   clients: Building2,
   inquiries: Inbox,
   actions: ListChecks,
-  review: ClipboardCheck,
-  oversight: Activity,
   templates: ClipboardList,
   assistant: Bot,
   team: Users,
-  settings: Settings,
   audit: ScrollText,
   departments: Network,
 } satisfies Record<string, LucideIcon>;
@@ -68,6 +62,10 @@ export interface NavItem {
   items?: { title: string; href: string }[];
   /** The assistant: opens its floating card instead of a page. */
   card?: boolean;
+  /** Other pages this entry stands for (shown as tabs on them), so it stays marked there. */
+  match?: string[];
+  /** Two short entries side by side in one row (Overview and Today). */
+  half?: boolean;
 }
 
 export interface NavGroup {
@@ -87,6 +85,17 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   railLabel: string;
   /** Client side (F13): the help page, always in the same place at the foot of the menu. */
   help?: { title: string; href: string };
+}
+
+/** Consecutive half-width entries share a row; the rest keep one row each. */
+function rows(items: NavItem[]): (NavItem | NavItem[])[] {
+  const out: (NavItem | NavItem[])[] = [];
+  for (const item of items) {
+    const last = out.at(-1);
+    if (item.half && Array.isArray(last) && last.length < 2) last.push(item);
+    else out.push(item.half ? [item] : item);
+  }
+  return out;
 }
 
 /**
@@ -125,13 +134,33 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>
-              {group.items.map((item) => {
+              {rows(group.items).map((row) => {
+                if (Array.isArray(row)) {
+                  // Expanded: one row, two columns. As an icon rail: one under the other.
+                  return (
+                    <SidebarMenuItem key={row.map((i) => i.href).join(" ")} className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1">
+                      {row.map((item) => {
+                        const Icon = ICONS[item.icon];
+                        return (
+                          <SidebarMenuButton key={item.href} asChild tooltip={item.title} isActive={isActive(item.href)}>
+                            <Link href={item.href}>
+                              <Icon />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        );
+                      })}
+                    </SidebarMenuItem>
+                  );
+                }
+                const item = row;
                 const Icon = ICONS[item.icon];
+                const active = isActive(item.href) || Boolean(item.match?.some(isActive));
                 if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
                 if (!item.items?.length) {
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild tooltip={item.title} isActive={isActive(item.href)}>
+                      <SidebarMenuButton asChild tooltip={item.title} isActive={active}>
                         <Link href={item.href}>
                           <Icon />
                           <span>{item.title}</span>

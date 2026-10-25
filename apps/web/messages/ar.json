@@ -33,6 +33,8 @@
   },
   "header": {
     "language": "English",
+    "languageShort": "EN",
+    "switchLanguage": "التبديل إلى الإنجليزية (English)",
     "theme": "تبديل المظهر",
     "signOut": "تسجيل الخروج",
     "account": "الحساب",

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, Languages, LifeBuoy } from "lucide-react";
+import { ChevronsUpDown, Languages, LifeBuoy, Settings } from "lucide-react";
 import { LogOut } from "@/components/animate-ui/icons/log-out";
 import { Moon } from "@/components/animate-ui/icons/moon";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
@@ -30,9 +30,11 @@ export interface NavUserProps {
   labels: { language: string; theme: string; security: string; signOut: string };
   /** Client side (F13): the help page, also here where people look for their account. */
   help?: { label: string; href: string };
+  /** Firm admin: the firm's settings, here rather than in the menu so the menu fits without scrolling. */
+  settings?: { label: string; href: string };
 }
 
-export function NavUser({ name, email, otherLocale, labels, help }: NavUserProps) {
+export function NavUser({ name, email, otherLocale, labels, help, settings }: NavUserProps) {
   const { isMobile } = useSidebar();
   const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
@@ -75,6 +77,12 @@ export function NavUser({ name, email, otherLocale, labels, help }: NavUserProps
                 {resolvedTheme === "dark" ? <Sun /> : <Moon />}
                 {labels.theme}
               </DropdownMenuItem>
+              {settings ? (
+                <DropdownMenuItem onSelect={() => router.push(settings.href)}>
+                  <Settings />
+                  {settings.label}
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onSelect={() => router.push("/security")}>
                 <ShieldCheck />
                 {labels.security}
