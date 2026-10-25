@@ -257,9 +257,9 @@ Fahad asked for everything his team needs to walk through the whole product loca
 - [x] **W01** One command loads a walkthrough: a firm with every staff role, two clients with every client role, three cases with every action state, the assistant reading them, and a scripted tour (`npm run walkthrough -- --fresh`) — pr: #134
 - [x] **W02** A client project starts (planned to active) when its first action is released, so reminders, escalation, health history and status packs run for it — pr: #134
 - [x] **W03** Buttons that are links on server-rendered pages render on the server too (no hydration error on the client page, help, inquiry, privacy and not-found pages) — pr: #134
-- [x] **W04** The sidebar fits a laptop screen with no second scrollbar (Settings in the user menu, Actions / review queue / oversight as tabs, Overview and Today in one row), with a language button beside the theme toggle — pr: PRNUM
-- [x] **W05** Floating cards (Files, assistant) stay above page transitions instead of the page animating over them — pr: PRNUM
-- [x] **W06** Faster pages: the walkthrough opens every page once before it says ready, and the oversight health query reads the deviations once per project — pr: PRNUM
+- [x] **W04** The sidebar fits a laptop screen with no second scrollbar (Settings in the user menu, Actions / review queue / oversight as tabs, Overview and Today in one row), with a language button beside the theme toggle — pr: #135
+- [x] **W05** Floating cards (Files, assistant) stay above page transitions instead of the page animating over them — pr: #135
+- [x] **W06** Faster pages: the walkthrough opens every page once before it says ready, and the oversight health query reads the deviations once per project — pr: #135
 
 ## Decisions still waiting
 
