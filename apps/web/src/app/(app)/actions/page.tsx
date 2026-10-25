@@ -22,7 +22,7 @@ export default async function ActionsPage({ searchParams }: { searchParams: Prom
   const [t, tExport, tNav] = await Promise.all([getTranslations("actionsPage"), getTranslations("exports"), getTranslations("nav")]);
   return (
     <>
-      {firm ? <ActionsTabs label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} /> : null}
+      {firm ? <ActionsTabs current="/actions" label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} /> : null}
       <PageHeader title={t("title")} description={mine ? t("mine") : t("all")}>
         {total ? <ExportButton endpoint="/api/actions/export" label={tExport("excel")} title={tExport("downloadExcel")} /> : null}
       </PageHeader>

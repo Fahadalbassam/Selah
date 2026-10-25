@@ -75,10 +75,9 @@ Use `md:` and `lg:` breakpoints for layout changes. `sm:` is fine inside shadcn 
 | Part | Size | Rule |
 |---|---|---|
 | Sidebar | `16rem` open, icon rail when collapsed | shadcn `sidebar-07`. On the right in Arabic, on the left in English. Wordmark when open, S mark when collapsed. Never shows its own scrollbar (it fits a 768 px window; below that it still scrolls by wheel or keys). |
-| Top bar | `3rem` | Sidebar toggle and tagline at the start; the language button (EN / عربي), the theme toggle and notifications at the end. |
 | Top bar | `3rem` high, sticky, `border-b`, `bg-background/80` with blur | Sidebar trigger, the product tagline, notifications at the far end. Nothing page-specific goes here. |
 | Main area | `max-w-6xl` (72 rem), centred, padding `p-4` (tablet) / `p-6` (desktop) | Set once in `app/(app)/layout.tsx`. Pages never add their own outer width or padding. |
-| Top bar actions | Theme switch, then notifications, at the far end | `ThemeSwitch` (Animate UI Theme Toggler Button driving the Theme Toggler wipe, which runs from the reading direction's start). |
+| Top bar actions | Language button (EN / عربي), theme switch, then notifications, at the far end | `LocaleToggle` (sets `selah_locale` and re-renders the same page) and `ThemeSwitch` (Animate UI Theme Toggler Button driving the Theme Toggler wipe, which runs from the reading direction's start). |
 | Vertical rhythm | `gap-6` between page blocks | Set by `template.tsx`; the page transition is in the layout (section 8). |
 
 ### Page anatomy

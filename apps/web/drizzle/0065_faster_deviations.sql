@@ -41,11 +41,13 @@ CREATE OR REPLACE VIEW v_deviations WITH (security_invoker = true) AS
   SELECT a.project_id, a.org_id, 'action', a.id, 'orphaned', '{}'::jsonb
     FROM a WHERE a.owner_user_id IS NOT NULL AND NOT app_member_active(a.owner_user_id, a.org_id)
   UNION ALL
-  SELECT r.project_id, r.org_id, 'recommendation', r.id, 'disputed', jsonb_build_object('since', s.responded_at)
+  -- rp.project_id (the same project as r's) so a filter on the project reaches
+  -- app_recommendation_stances() instead of running it for every project.
+  SELECT rp.project_id, r.org_id, 'recommendation', r.id, 'disputed', jsonb_build_object('since', s.responded_at)
     FROM (SELECT DISTINCT x.project_id FROM recommendations x WHERE x.visibility = 'shared' AND x.withdrawn_at IS NULL) rp,
       app_recommendation_stances(rp.project_id) s
       JOIN recommendations r ON r.id = s.recommendation_id
-    WHERE s.stance = 'disagree';
+    WHERE s.stance = 'disagree' AND r.project_id = rp.project_id;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION app_project_health(pid uuid, today date DEFAULT app_firm_today())
 RETURNS TABLE (

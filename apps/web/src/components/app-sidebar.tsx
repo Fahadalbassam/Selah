@@ -64,7 +64,7 @@ export interface NavItem {
   card?: boolean;
   /** Other pages this entry stands for (shown as tabs on them), so it stays marked there. */
   match?: string[];
-  /** Two short entries side by side in one row (Overview and Today). */
+  /** Two short plain links side by side in one row (Overview and Today); not for a card or sub-menu. */
   half?: boolean;
 }
 
@@ -108,6 +108,17 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
   const search = useSearchParams().toString();
   const current = search ? `${pathname}?${search}` : pathname;
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+  const link = (item: NavItem) => {
+    const Icon = ICONS[item.icon];
+    return (
+      <SidebarMenuButton key={item.href} asChild tooltip={item.title} isActive={isActive(item.href) || Boolean(item.match?.some(isActive))}>
+        <Link href={item.href}>
+          <Icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+    );
+  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -135,40 +146,18 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>
               {rows(group.items).map((row) => {
+                // Expanded: one row, two columns. As an icon rail: one under the other.
                 if (Array.isArray(row)) {
-                  // Expanded: one row, two columns. As an icon rail: one under the other.
                   return (
                     <SidebarMenuItem key={row.map((i) => i.href).join(" ")} className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1">
-                      {row.map((item) => {
-                        const Icon = ICONS[item.icon];
-                        return (
-                          <SidebarMenuButton key={item.href} asChild tooltip={item.title} isActive={isActive(item.href)}>
-                            <Link href={item.href}>
-                              <Icon />
-                              <span>{item.title}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        );
-                      })}
+                      {row.map(link)}
                     </SidebarMenuItem>
                   );
                 }
                 const item = row;
                 const Icon = ICONS[item.icon];
-                const active = isActive(item.href) || Boolean(item.match?.some(isActive));
                 if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
-                if (!item.items?.length) {
-                  return (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild tooltip={item.title} isActive={active}>
-                        <Link href={item.href}>
-                          <Icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                }
+                if (!item.items?.length) return <SidebarMenuItem key={item.href}>{link(item)}</SidebarMenuItem>;
                 return (
                   <Collapsible key={item.href} asChild defaultOpen={isActive(item.href)} className="group/collapsible">
                     <SidebarMenuItem>

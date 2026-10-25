@@ -20,7 +20,7 @@ export default async function ReviewPage() {
   const mine = rows.filter((r) => r.canAct).length;
   return (
     <>
-      <ActionsTabs label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
+      <ActionsTabs current="/review" label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
       <PageHeader title={t("title")} description={t("subtitle")} />
       {rows.length === 0 ? (
         <EmptyState icon={<CircleCheck animateOnView />} description={t("empty")} />

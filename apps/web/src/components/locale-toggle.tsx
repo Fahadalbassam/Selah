@@ -21,8 +21,6 @@ export function LocaleToggle({ label, title }: { label: string; title?: string }
       variant="ghost"
       size="sm"
       disabled={pending}
-      lang={locale === "ar" ? "en" : "ar"}
-      aria-label={title}
       title={title}
       onClick={() =>
         startTransition(async () => {
@@ -32,7 +30,8 @@ export function LocaleToggle({ label, title }: { label: string; title?: string }
       }
     >
       <Globe animateOnHover />
-      {label}
+      {/* The label names the other language, in that language. */}
+      <span lang={locale === "ar" ? "en" : "ar"}>{label}</span>
     </Button>
   );
 }

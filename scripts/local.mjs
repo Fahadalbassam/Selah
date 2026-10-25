@@ -273,15 +273,20 @@ async function warm(accounts) {
   say("opening every page once so the first clicks are quick (development builds each page on first use)");
   const started = Date.now();
   const fetched = new Set();
+  // A page that never answers (a service still starting) must not hold up the start.
+  const timeout = () => AbortSignal.timeout(120_000);
+  let warmed = 0;
   const get = async (path, cookie) => {
-    const res = await fetch(APP_URL + path, { headers: cookie ? { cookie } : {}, redirect: "manual" });
-    return res.ok ? res.text() : "";
+    const res = await fetch(APP_URL + path, { headers: cookie ? { cookie } : {}, redirect: "manual", signal: timeout() }).catch(() => null);
+    if (!res?.ok) return "";
+    warmed++;
+    return res.text().catch(() => "");
   };
   // The browser code each page loads is built on first request too.
   const assets = async (html) => {
     const urls = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]).filter((u) => !fetched.has(u));
     urls.forEach((u) => fetched.add(u));
-    await Promise.all(urls.map((u) => fetch(APP_URL + u).then((r) => r.arrayBuffer()).catch(() => {})));
+    await Promise.all(urls.map((u) => fetch(APP_URL + u, { signal: timeout() }).then((r) => r.arrayBuffer()).catch(() => {})));
   };
   try {
     await assets(await get("/sign-in"));
@@ -290,9 +295,12 @@ async function warm(accounts) {
         method: "POST",
         headers: { "content-type": "application/json", origin: APP_URL },
         body: JSON.stringify({ email, password }),
+        signal: timeout(),
       });
+      // With two-factor sign-in on, the answer asks for a code instead of signing in.
+      const body = await res.json().catch(() => ({}));
       const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
-      if (!res.ok || !cookie) continue;
+      if (!res.ok || !cookie || body.twoFactorRedirect) continue;
       // The first page of each kind is enough: the build is per route, not per record.
       const details = new Map();
       for (const page of pages) {
@@ -301,9 +309,15 @@ async function warm(accounts) {
         await assets(html);
       }
       for (const path of details.values()) await assets(await get(path, cookie));
-      await fetch(`${APP_URL}/api/auth/sign-out`, { method: "POST", headers: { cookie, origin: APP_URL, "content-type": "application/json" }, body: "{}" }).catch(() => {});
+      await fetch(`${APP_URL}/api/auth/sign-out`, {
+        method: "POST",
+        headers: { cookie, origin: APP_URL, "content-type": "application/json" },
+        body: "{}",
+        signal: timeout(),
+      }).catch(() => {});
     }
-    say(`pages ready (${Math.round((Date.now() - started) / 1000)} s)`);
+    if (warmed > 1) say(`pages ready (${Math.round((Date.now() - started) / 1000)} s)`);
+    else say("could not sign in to open the pages in advance; the first visit to each page will be slower");
   } catch {
     say("could not open every page in advance; the first visit to each page will be slower");
   }

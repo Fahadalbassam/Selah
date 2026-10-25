@@ -19,7 +19,7 @@ export default async function OversightPage() {
   const [t, tNav] = await Promise.all([getTranslations("oversight"), getTranslations("nav")]);
   return (
     <>
-      <ActionsTabs label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
+      <ActionsTabs current="/oversight" label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
       <PageHeader title={t("title")} description={t("subtitle")} />
       <OversightSummary projects={data.projects} exceptions={data.exceptions} />
       <HealthTable rows={data.projects} />
