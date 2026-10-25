@@ -5,6 +5,7 @@ firm approves."""
 
 import json
 import re
+from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 import httpx
@@ -17,6 +18,16 @@ class LLM(Protocol):
 
     async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str: ...
 
+    def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
+        """The same reply as chat_json, in pieces as the model writes it."""
+        ...
+
+
+# How long a local model stays loaded after a request. Ollama's default is five
+# minutes, after which the next question first reloads the model from disk
+# (tens of seconds on a processor).
+KEEP_ALIVE = "30m"
+
 
 class OllamaLLM:
     """Embeddings and chat through a local Ollama server."""
@@ -26,23 +37,37 @@ class OllamaLLM:
         self._client = httpx.AsyncClient(base_url=settings.ollama_url, timeout=settings.request_timeout_s)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        res = await self._client.post("/api/embed", json={"model": self._s.embed_model, "input": texts})
+        res = await self._client.post("/api/embed", json={"model": self._s.embed_model, "input": texts, "keep_alive": KEEP_ALIVE})
         res.raise_for_status()
         return res.json()["embeddings"]
 
+    def _chat(self, system: str, user: str, schema: dict[str, Any], stream: bool) -> dict[str, Any]:
+        return {
+            "model": self._s.llm_model,
+            "stream": stream,
+            "format": schema,  # structured output: the reply must match the schema
+            # qwen3 otherwise writes a long hidden reasoning before every answer,
+            # which on a processor takes minutes. The passages carry the facts.
+            "think": False,
+            "keep_alive": KEEP_ALIVE,
+            "options": {"temperature": 0},
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        }
+
     async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
-        res = await self._client.post(
-            "/api/chat",
-            json={
-                "model": self._s.llm_model,
-                "stream": False,
-                "format": schema,  # structured output: the reply must match the schema
-                "options": {"temperature": 0},
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            },
-        )
+        res = await self._client.post("/api/chat", json=self._chat(system, user, schema, stream=False))
         res.raise_for_status()
         return res.json()["message"]["content"]
+
+    async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
+        async with self._client.stream("POST", "/api/chat", json=self._chat(system, user, schema, stream=True)) as res:
+            res.raise_for_status()
+            async for line in res.aiter_lines():
+                if not line.strip():
+                    continue
+                piece = json.loads(line).get("message", {}).get("content")
+                if piece:
+                    yield piece
 
 
 class HostedChatLLM:
@@ -75,19 +100,37 @@ class HostedChatLLM:
             found = json_object(await self._complete(retry, schema))
         return found if found is not None else raw
 
-    async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
-        res = await self._client.post(
-            "/chat/completions",
-            json={
-                "model": self._s.llm_model,
-                "temperature": 0,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {"name": "answer", "schema": schema, "strict": True},
-                },
-                "messages": messages,
+    async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
+        # No retry here: the caller checks the whole reply and asks again with chat_json.
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        async with self._client.stream("POST", "/chat/completions", json=self._body(messages, schema, stream=True)) as res:
+            res.raise_for_status()
+            async for line in res.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                choices = json.loads(data).get("choices") or [{}]
+                # A reasoning model's thinking comes in another field and is not shown.
+                piece = (choices[0].get("delta") or {}).get("content")
+                if piece:
+                    yield piece
+
+    def _body(self, messages: list[dict[str, str]], schema: dict[str, Any], stream: bool) -> dict[str, Any]:
+        return {
+            "model": self._s.llm_model,
+            "temperature": 0,
+            "stream": stream,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "answer", "schema": schema, "strict": True},
             },
-        )
+            "messages": messages,
+        }
+
+    async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
+        res = await self._client.post("/chat/completions", json=self._body(messages, schema, stream=False))
         res.raise_for_status()
         return res.json()["choices"][0]["message"]["content"] or ""
 

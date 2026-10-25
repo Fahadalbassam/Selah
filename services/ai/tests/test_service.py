@@ -292,3 +292,83 @@ def test_client_answers_get_the_client_rules_and_staff_answers_do_not(client_wit
         json={"question": "q", "passages": [p.model_dump() for p in PASSAGES], "audience": "admin"},
     )
     assert bad.status_code == 422
+
+
+class FakeStreamingLLM(FakeLLM):
+    """Gives its reply a few characters at a time, as a model does."""
+
+    async def chat_json_stream(self, system: str, user: str, schema: dict):
+        self.calls.append((system, user))
+        for i in range(0, len(self.reply), 4):
+            yield self.reply[i : i + 4]
+
+
+def ask_stream(client: TestClient, passages=PASSAGES):
+    res = client.post(
+        "/v1/answer/stream",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json={"question": "How often does the board meet?", "passages": [p.model_dump() for p in passages]},
+    )
+    return res, [json.loads(line) for line in res.text.splitlines() if line]
+
+
+@pytest.fixture
+def streaming_client():
+    def make(reply: str) -> tuple[TestClient, FakeStreamingLLM]:
+        fake = FakeStreamingLLM(reply)
+        app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
+        app.dependency_overrides[get_llm] = lambda: fake
+        return TestClient(app), fake
+
+    yield make
+    app.dependency_overrides.clear()
+
+
+def test_stream_shows_the_answer_as_it_comes_then_the_checked_answer(streaming_client, monkeypatch):
+    monkeypatch.setattr("app.main.TEXT_EVERY_S", 0)
+    reply = json.dumps({"answer": "The board meets \"quarterly\" [P1], per the charter.", "cited_ids": ["P1", "P9"], "grounded": True})
+    client, _ = streaming_client(reply)
+    res, events = ask_stream(client)
+    assert res.status_code == 200
+    texts = [e["text"] for e in events if e["type"] == "text"]
+    assert texts and all(b.startswith(a) or "[" in a for a, b in zip(texts, texts[1:]))
+    # No passage marker ever shows, not even half written.
+    assert not any("[" in t or "P1" in t for t in texts)
+    assert events[-1] == {"type": "done", "answer": {"answer": 'The board meets "quarterly", per the charter.', "cited_ids": ["P1"], "grounded": True}}
+
+
+def test_stream_needs_the_token_and_the_size_limits(streaming_client):
+    client, _ = streaming_client("{}")
+    assert client.post("/v1/answer/stream", json={"question": "q", "passages": []}).status_code == 401
+    many = [Passage(id=f"P{i}", text="x", source="s") for i in range(50)]
+    res, _ = ask_stream(client, passages=many)
+    assert res.status_code == 413
+
+
+def test_stream_with_no_passages_never_calls_the_model(streaming_client):
+    client, fake = streaming_client("{}")
+    _, events = ask_stream(client, passages=[])
+    assert events == [{"type": "done", "answer": {"answer": "", "cited_ids": [], "grounded": False}}]
+    assert fake.calls == []
+
+
+def test_stream_asks_again_when_the_reply_is_not_json(streaming_client):
+    client, fake = streaming_client("Sure! The board meets quarterly.")
+    fake.reply_after = json.dumps({"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True})
+
+    async def again(system: str, user: str, schema: dict) -> str:
+        return fake.reply_after
+
+    fake.chat_json = again  # type: ignore[method-assign]
+    _, events = ask_stream(client)
+    assert events[-1]["answer"] == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}
+
+
+def test_answer_text_decodes_escapes_split_across_pieces():
+    from app.prompt import AnswerText
+
+    whole = json.dumps({"cited_ids": [], "answer": 'سطر\n"اقتباس" é [P2]', "grounded": False}, ensure_ascii=True)
+    a = AnswerText()
+    for ch in whole:
+        a.feed(ch)
+    assert a.done and a.text() == 'سطر\n"اقتباس" é'
