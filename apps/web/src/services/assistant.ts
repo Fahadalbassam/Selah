@@ -137,6 +137,8 @@ export const answerLanguage = (p: Pick<PreparedAsk, "language" | "question">) =>
 export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput): Promise<PreparedAsk> {
   // A chat keeps the scope it was started with.
   const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId) : null;
+  // A chat named under another scope than its own is not found, as before chats across projects.
+  if (chat && input.projectId !== undefined && (input.projectId ?? null) !== chat.projectId) throw new NotFoundError("conversation");
   const projectId = chat ? chat.projectId : (input.projectId ?? null);
   const targets = projectId ? [await oneProject(tx, principal, projectId, input.language)] : await askableProjects(tx, principal, input.language);
   const scopes = targets.flatMap((p) => {

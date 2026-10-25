@@ -664,6 +664,17 @@ describe("chats across projects (All my clients)", () => {
     expect(audit[1]).toMatchObject({ resource_type: "organization", meta: { scope: "all", projects: 3 } });
   });
 
+  it("keeps a chat to its own scope: named under another, it is not found", async () => {
+    reply = () => ({ answer: "Found.", cited_ids: [], grounded: false });
+    const across = await askAll(U.admin, { question: "zebrapolicy" });
+    const one = await svc(U.admin, (tx, p) => A.ask(tx, p, { projectId: P1, language: "en", question: "zebrapolicy" }));
+    await expect(svc(U.admin, (tx, p) => A.ask(tx, p, { projectId: P1, language: "en", question: "and?", conversationId: across.conversationId }))).rejects.toThrow(/not found/);
+    await expect(askAll(U.admin, { question: "and?", conversationId: one.conversationId })).rejects.toThrow(/not found/);
+    // Left out, the chat's own scope is used.
+    const next = await svc(U.admin, (tx, p) => A.ask(tx, p, { language: "en", question: "and?", conversationId: across.conversationId }));
+    expect(next.conversationId).toBe(across.conversationId);
+  });
+
   it("counts open work by client and project for a status question", async () => {
     reply = (p) => ({ answer: "Open work.", cited_ids: p.filter((x) => x.source === "status").map((x) => x.id), grounded: true });
     const r = await askAll(U.admin, { question: "What is still open?" });

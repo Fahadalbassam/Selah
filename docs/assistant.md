@@ -178,6 +178,8 @@ npx tsx --conditions=react-server scripts/assistant-eval/client-seed.ts > /tmp/c
 CONTENT=/tmp/eval-ids.json CLIENT=/tmp/client-ids.json PAYLOAD_LOG=… OUT=/tmp/client.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/client-run.ts
 ```
 
+Both runs also ask with no project picked ("All my clients" for staff, "All your projects" for a client), added 2026-10-25: 10 staff questions (overdue work across clients in English and Arabic, a decision and a family-council question that live in different clients, a follow-up, and leak probes from a consultant asking about a client they are not staffed on), 5 client questions, and probes that a client role with the assistant off, an action owner and another client's manager are refused, and that a chat named under another scope is not found. Each answer's source projects are checked against the projects the asker is staffed on, and the payload against the other client's words. Run 2026-10-25, same model: all 10 staff and 5 client questions answered or declined correctly with nothing from another client in an answer or in what went to the model, client names masked in the source labels, every probe as expected, median 1.3 s. Results in the project files under `selah-frontend/assistant/all-clients-run/`.
+
 Run the staff run before `client-seed.ts`, or on a fresh seed: the canary files crowd the staff questions' search.
 
 ## Not done yet
