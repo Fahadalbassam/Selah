@@ -30,7 +30,8 @@ All dates are relative to the day you load the data: "overdue" means overdue on 
 
 Two things the team may notice:
 
-- The app runs in development mode, so the first visit to each page takes a few seconds while it is built ("Compiling…" in the corner). Click through the main pages once before the session.
+- The app runs in development mode, which builds each page the first time it is opened. So before it prints the accounts, `npm run walkthrough` opens every main page once, signed in as admin@mizan.test and admin@nukhba.test (about a minute or two; it adds one sign-in per account to the audit log). A page that was not opened ahead (a rarely used dialog's page, a meeting) can still take a few seconds the first time ("Compiling…" in the corner). `--no-warm` skips this.
+- Why not a production build: it is faster still, but Selah refuses to start a production build with uploads unscanned and two-factor sign-in off, and the walkthrough runs with both so nobody needs an authenticator app. To try one anyway, run it like the server does, with the scanner and two-factor on: `npm run dev:local -- --full` once (starts ClamAV), then in `apps/web` set `CLAMD_HOST=localhost`, `SCAN_REQUIRED=true` and `TWO_FACTOR_REQUIRED=true` in `.env.local`, and run `npm run build` and `npm run start`. Every firm admin, consultant and client admin then sets up two-factor sign-in at their first sign-in.
 - Sign-in is rate limited as it is in production: 10 sign-ins per account per 15 minutes, and 20 per minute from one address. If several people share one account and see "too many sign-in attempts", wait 15 minutes or restart with `Ctrl+C` and `npm run walkthrough` (the count is kept in memory). A sign-in lasts 8 hours, so each person only needs to sign in once.
 
 ## 2. The assistant
@@ -117,7 +118,7 @@ Also on this case: the client's answers to two recommendations (agree; partly ag
 
 ## 5. The tour
 
-About an hour for the whole thing; each part stands alone. Two browser windows help: a normal one and a private one, so two people can be signed in at once. The interface opens in Arabic; the user menu at the bottom of the sidebar switches to English (and the sun icon at the top switches dark mode). Every screen, mail and export exists in both.
+About an hour for the whole thing; each part stands alone. Two browser windows help: a normal one and a private one, so two people can be signed in at once. The interface opens in Arabic; the **EN / عربي** button at the top switches the language on the page you are on, and the moon/sun icon beside it switches dark mode. Every screen, mail and export exists in both.
 
 ### 5.1 Start signed out
 1. Open http://localhost:3000. You land on the sign-in page: accounts are by invitation only, there is a "send me a sign-in link" option for client managers and owners, and a link to the public inquiry form.
@@ -129,9 +130,9 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 3. **Clients → Client groups (مجموعات العملاء)**: مجموعة النخبة, the holding and its subsidiary rolled up together, and who on the client side may see the group.
 4. **Inquiries (الطلبات الواردة)**: the two inquiries. Open one to rate it, check conflicts, book discovery and, later, win it into a client.
 5. **Team (الفريق)**: people and the access review, the review and workload table per consultant (team load), and **Expertise (الخبرات)**. Back on **Clients**, مؤسسة الروضة shows "1 request": Omar asked to join its team; approve or decline it on the client page.
-6. **Oversight (الإشراف)**: every running project with its health signal and the exceptions across clients.
+6. **Actions (الإجراءات)**: three tabs at the top: every action, **Awaiting review (بانتظار المراجعة)**, and **Oversight (الإشراف)**: every running project with its health signal and the exceptions across clients.
 7. **Audit log (سجل التدقيق)**: every step the seed took, by the person who took it, with the chain check.
-8. **Settings (الإعدادات)**: reminders, escalation, retention.
+8. **Settings (الإعدادات)**, in the menu under your name at the foot of the sidebar: reminders, escalation, retention.
 9. **Close a project**: Projects → *Strategic Plan 2027* → **Closing (الإغلاق)**. Everything is settled; press **Close project (إغلاق المشروع)** and download the closure report PDF. The project is now read-only for everyone.
 
 ### 5.3 The lead consultant — lead@mizan.test
@@ -240,7 +241,7 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Import a plan from Excel | Firm | Project → Recommendations → import |
 | Client answers to recommendations | Client admin and sponsor | Recommendation page |
 | Action states, blocking, evidence upload, send for review | Owners and managers (firm for firm-run clients) | Action page |
-| Review: accept, ask for a revision, evidence items | Firm (never their own work) | بانتظار المراجعة; action page |
+| Review: accept, ask for a revision, evidence items | Firm (never their own work) | الإجراءات → بانتظار المراجعة; action page |
 | Second sign-off rule | Admin sets per client; consultants sign | Client page; action page |
 | Date change requests | Client asks; firm decides | Action page |
 | Risk acceptance and closing an action | Client signs; firm closes | Action page |
@@ -254,7 +255,7 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Shared progress reports, client report PDF, Excel exports | Firm makes; client reads | Project → التقدم; client page |
 | Business indicators (client-reported) | Client admin and managers enter; firm too | Client page → مؤشرات الأعمال; indicator page |
 | Today page | Firm | اليوم |
-| Oversight; team load (reviews and work per consultant) | Admin | الإشراف; الفريق |
+| Oversight; team load (reviews and work per consultant) | Admin | الإجراءات → الإشراف; الفريق |
 | Closing a project, lessons, handover, case study consent | Lead starts; admin closes; client asks | Project → الإغلاق |
 | Archiving a client, grace period, export pack | Admin | Client page |
 | Notifications and mail choices | Everyone | Bell icon; /notifications |

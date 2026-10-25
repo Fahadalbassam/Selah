@@ -8,6 +8,9 @@
 -- Postgres push the project and rule filters into each branch and skip the
 -- columns a branch does not use: same rows (checked on the walkthrough data),
 -- about eight times faster. Found 2026-10-25 while profiling slow pages.
+--
+-- app_project_health() also read the view three times per project (stale,
+-- orphaned, disputed); it now reads it once for all three counts.
 CREATE OR REPLACE VIEW v_deviations WITH (security_invoker = true) AS
   WITH today AS (SELECT app_firm_today() AS d),
   a AS NOT MATERIALIZED (
@@ -43,3 +46,35 @@ CREATE OR REPLACE VIEW v_deviations WITH (security_invoker = true) AS
       app_recommendation_stances(rp.project_id) s
       JOIN recommendations r ON r.id = s.recommendation_id
     WHERE s.stance = 'disagree';
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app_project_health(pid uuid, today date DEFAULT app_firm_today())
+RETURNS TABLE (
+  total integer, open integer, overdue integer,
+  late_d1_30 integer, late_d31_60 integer, late_d61_90 integer, late_d90_plus integer, late_long integer,
+  extended_twice integer, blocked integer, awaiting_review integer, review_waiting integer, oldest_review_days integer,
+  stale integer, orphaned integer, disputed integer, risk_accepted integer, cautions integer, signal text
+)
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
+  WITH x AS (
+    SELECT g.*,
+      (SELECT count(*) FROM app_action_slips(pid, today) s WHERE s.days_late > app_health_late_days())::int AS late_long,
+      (SELECT count(*) FROM actions a WHERE a.project_id = pid AND a.status = 'blocked' AND a.closure_outcome IS NULL)::int AS blocked,
+      (SELECT count(*) FROM actions a WHERE a.project_id = pid AND a.status = 'awaiting_review')::int AS awaiting_review,
+      (SELECT count(*) FROM actions a WHERE a.project_id = pid AND a.status = 'awaiting_review'
+         AND today - app_firm_date(a.updated_at) > app_review_wait_days())::int AS review_waiting,
+      (SELECT max(today - app_firm_date(a.updated_at)) FROM actions a WHERE a.project_id = pid AND a.status = 'awaiting_review')::int AS oldest_review_days,
+      dv.stale, dv.orphaned, dv.disputed
+    FROM app_project_progress(pid, today) g,
+      -- One read of the deviations for the three counts.
+      (SELECT count(DISTINCT d.entity_id) FILTER (WHERE d.rule = 'stale')::int AS stale,
+              count(DISTINCT d.entity_id) FILTER (WHERE d.rule = 'orphaned')::int AS orphaned,
+              count(DISTINCT d.entity_id) FILTER (WHERE d.rule = 'disputed')::int AS disputed
+       FROM v_deviations d WHERE d.project_id = pid AND d.rule IN ('stale', 'orphaned', 'disputed')) dv
+  ),
+  y AS (SELECT x.*, x.blocked + x.extended_twice + x.orphaned + x.stale + x.review_waiting + x.disputed AS cautions FROM x)
+  SELECT y.total, y.open, y.overdue, y.late_d1_30, y.late_d31_60, y.late_d61_90, y.late_d90_plus, y.late_long,
+    y.extended_twice, y.blocked, y.awaiting_review, y.review_waiting, y.oldest_review_days,
+    y.stale, y.orphaned, y.disputed, y.risk_accepted, y.cautions,
+    app_health_signal(y.total, y.open, y.overdue, y.late_long, y.cautions)
+  FROM y
+$$;
