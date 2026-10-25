@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
 import { teamMetrics } from "@/services/follow-through";
+import { teamLoad, type TeamLoad } from "@/services/team-load";
+import { Badge } from "@/components/ui/badge";
 import { listTeam } from "@/services/queries";
 import { StatTile } from "@/components/stat-tile";
 import { EmptyState } from "@/components/empty-state";
@@ -42,13 +44,14 @@ export default async function TeamPage() {
       team: admin ? [] : await listTeam(tx, principal),
       // The firm admin's staffing view; everyone else gets nothing.
       load: await teamMetrics(tx, principal, since.toISOString().slice(0, 10)).catch(() => null),
+      queue: principal.role === "firm_admin" ? await teamLoad(tx, principal) : null,
       me: principal.userId,
       role: principal.role,
       reviewDays: settings?.days ?? (principal.orgKind === "firm" ? 90 : null),
     };
   });
   if (!data) notFound();
-  const { team, people, load, me, role, reviewDays } = data;
+  const { team, people, load, queue, me, role, reviewDays } = data;
   const [t, tRole] = await Promise.all([getTranslations("team"), getTranslations("role")]);
   return (
     <>
@@ -83,15 +86,20 @@ export default async function TeamPage() {
           </Table>
         </div>
       )}
-      {load ? <Workload load={load} /> : null}
+      {load && queue ? <Workload load={load} queue={queue} /> : null}
     </>
   );
 }
 
 type Load = Awaited<ReturnType<typeof teamMetrics>>;
 
-/** Each colleague's load, by name, and the team's totals. No per-person score. */
-async function Workload({ load }: { load: Load }) {
+/**
+ * Each colleague's load, by name, and the team's totals. No per-person score.
+ * The review columns count what this person could review (not their own
+ * work, not what they submitted or already signed); the due columns count
+ * open work on the projects they work on (services/team-load.ts).
+ */
+async function Workload({ load, queue }: { load: Load; queue: TeamLoad }) {
   const [t, tTeam, tRole] = await Promise.all([getTranslations("metrics"), getTranslations("team"), getTranslations("role")]);
   const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
   const median = n(load.totals?.median_review_days);
@@ -101,7 +109,6 @@ async function Workload({ load }: { load: Load }) {
     role: Parameters<typeof tRole>[0];
     clients: number;
     projects: number;
-    open_reviews: number;
   }[];
   return (
     <section className="space-y-4 pt-4">
@@ -123,19 +130,40 @@ async function Workload({ load }: { load: Load }) {
               <TableHead>{tTeam("role")}</TableHead>
               <TableHead className="text-end">{t("clients")}</TableHead>
               <TableHead className="text-end">{t("openProjects")}</TableHead>
-              <TableHead className="text-end">{t("waiting")}</TableHead>
+              <TableHead className="text-end">{t("toReview")}</TableHead>
+              <TableHead className="text-end">{t("oldestWait")}</TableHead>
+              <TableHead className="text-end">{t("secondSignOffs")}</TableHead>
+              <TableHead className="text-end">{t("overdue")}</TableHead>
+              <TableHead className="text-end">{t("due7")}</TableHead>
+              <TableHead className="text-end">{t("due30")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.user_id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell>{tRole(r.role)}</TableCell>
-                <TableCell className="text-end tabular-nums">{r.clients}</TableCell>
-                <TableCell className="text-end tabular-nums">{r.projects}</TableCell>
-                <TableCell className="text-end tabular-nums">{r.open_reviews}</TableCell>
-              </TableRow>
-            ))}
+            {rows.map((r) => {
+              const q = queue.get(r.user_id);
+              const num = (v: number | undefined) => (v ? v : <span className="text-muted-foreground">0</span>);
+              return (
+                <TableRow key={r.user_id}>
+                  <TableCell className="font-medium">
+                    <span className="flex flex-wrap items-center gap-2">
+                      {r.name}
+                      {q && !q.accepting ? <Badge variant="outline">{t("notAccepting")}</Badge> : null}
+                    </span>
+                  </TableCell>
+                  <TableCell>{tRole(r.role)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{r.clients}</TableCell>
+                  <TableCell className="text-end tabular-nums">{r.projects}</TableCell>
+                  <TableCell className="text-end tabular-nums">{num(q?.backlog)}</TableCell>
+                  <TableCell className="text-end tabular-nums">
+                    {q?.oldestDays == null ? <span className="text-muted-foreground">—</span> : t("days", { n: q.oldestDays })}
+                  </TableCell>
+                  <TableCell className="text-end tabular-nums">{num(q?.second)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{num(q?.overdue)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{num(q?.due7)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{num(q?.due30)}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
