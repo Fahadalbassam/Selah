@@ -1,5 +1,6 @@
 "use client";
 
+import { CopyButton } from "@/components/copy-button";
 import { AutoHeight } from "@animate-ui/react/primitives/effects/auto-height";
 import { Highlight, HighlightItem } from "@animate-ui/react/primitives/effects/highlight";
 import { HighlightText } from "@animate-ui/react/primitives/texts/highlight";
@@ -12,7 +13,6 @@ import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
 import { ArrowRight } from "@/components/animate-ui/icons/arrow-right";
 import { Check } from "@/components/animate-ui/icons/check";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
-import { Copy } from "@/components/animate-ui/icons/copy";
 import { Send } from "@/components/animate-ui/icons/send";
 import { BrandLoader } from "@/components/brand";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -829,16 +829,6 @@ function Review({
 
 function Sent({ refCode, email, onAgain }: { refCode: string; email: string; onAgain: () => void }) {
   const t = useTranslations("inquiry");
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(refCode);
-      setCopied(true);
-      toast.success(t("sent.copied"));
-    } catch {
-      // Clipboard can be blocked; the reference is still on screen to copy by hand.
-    }
-  }
   return (
     <Card className="animate-page-in items-center gap-6 px-6 py-12 text-center shadow-sm lg:self-start" role="status">
       <span className="flex size-14 items-center justify-center rounded-full bg-muted">
@@ -857,9 +847,7 @@ function Sent({ refCode, email, onAgain }: { refCode: string; email: string; onA
             text={refCode}
             className="rounded-md bg-[linear-gradient(var(--accent),var(--accent))] bg-no-repeat px-2 py-0.5 font-mono text-xl font-semibold tracking-wider"
           />
-          <Button type="button" variant="ghost" size="icon" onClick={copy} aria-label={t("sent.copy")}>
-            {copied ? <Check animate className="size-4" /> : <Copy animateOnHover className="size-4" />}
-          </Button>
+          <CopyButton content={refCode} label={t("sent.copy")} onCopied={() => toast.success(t("sent.copied"))} />
         </div>
         <p className="text-xs text-muted-foreground">{t("sent.refHint")}</p>
       </CardContent>

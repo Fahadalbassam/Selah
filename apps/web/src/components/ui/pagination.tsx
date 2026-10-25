@@ -1,4 +1,6 @@
 import * as React from "react"
+import Link from "next/link"
+import * as PaginationPrimitive from "@animate-ui/react/primitives/pagination"
 import { cn } from "@/lib/utils"
 import {
   ChevronLeftIcon,
@@ -6,11 +8,15 @@ import {
   MoreHorizontalIcon,
 } from "lucide-react"
 
-import { buttonVariants, type Button } from "@/components/ui/button"
+import { type Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button-variants"
 
-function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
+function Pagination({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationPrimitive.Root>) {
   return (
-    <nav
+    <PaginationPrimitive.Root
       role="navigation"
       aria-label="pagination"
       data-slot="pagination"
@@ -40,7 +46,7 @@ function PaginationItem({ ...props }: React.ComponentProps<"li">) {
 type PaginationLinkProps = {
   isActive?: boolean
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
-  React.ComponentProps<"a">
+  React.ComponentProps<typeof Link>
 
 function PaginationLink({
   className,
@@ -48,8 +54,10 @@ function PaginationLink({
   size = "icon",
   ...props
 }: PaginationLinkProps) {
+  // A Next.js link, so changing page stays in the app and the current-page
+  // highlight (Animate UI's pagination primitive) can slide to the new one.
   return (
-    <a
+    <Link
       aria-current={isActive ? "page" : undefined}
       data-slot="pagination-link"
       data-active={isActive}

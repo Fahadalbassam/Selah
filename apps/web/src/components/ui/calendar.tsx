@@ -13,7 +13,8 @@ import {
 } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button-variants"
 
 // shadcn/ui calendar (react-day-picker). The day picker handles right-to-left
 // itself when given dir; the chevrons follow its "left"/"right" orientation.
