@@ -260,6 +260,8 @@ Fahad asked for everything his team needs to walk through the whole product loca
 - [x] **W04** The sidebar fits a laptop screen with no second scrollbar (Settings in the user menu, Actions / review queue / oversight as tabs, Overview and Today in one row), with a language button beside the theme toggle — pr: #135
 - [x] **W05** Floating cards (Files, assistant) stay above page transitions instead of the page animating over them — pr: #135
 - [x] **W06** Faster pages: the walkthrough opens every page once before it says ready, and the oversight health query reads the deviations once per project — pr: #135
+- [x] **W07** Ask the assistant without picking a project: "All my clients" for firm staff, "All your projects" for a client person, under the same permissions, each source naming its client and project, and an answer hidden once the person loses any project it drew on — pr: #136
+- [x] **W08** Assistant answers in seconds: the local model's hidden thinking turned off and the model kept loaded, answers shown as they are written, a notice when the slower local model is in use, and the hosted-model settings printed by the walkthrough — pr: #136
 
 ## Decisions still waiting
 
