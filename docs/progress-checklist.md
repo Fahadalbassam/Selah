@@ -19,7 +19,7 @@ This file replaces the earlier "living plan" page, which stopped at PR #24.
 - [x] **X2** Everything ships in Arabic and English: every new message key in both locales, Arabic first, user text translatable — applies to: every item · since: `messages/ar.json` and `messages/en.json` have the same 1,800 keys on 87099c7 · check: both files keep the same keys · wave 1 pass: 3,232 keys in each, no raw keys on any screen (#107)
 - [~] **X3** Every screen is built with its backend and tests, no mock screens and no "demo" labels; desktop and tablet only — applies to: every UI item · since: 2026-10-20
 - [~] **X4** The partner firm is never named in the product, the docs or the UI — applies to: every item · since: 2026-10-20
-- [x] **X5** UI polish on Animate UI (Fahad, 2026-10-24): page transitions with title morphs, theme toggler in the top bar, every shadcn component on its Animate UI version (toast on Base UI), grey card surfaces in both themes, a first-weeks welcome, and one documented place per Animate UI component (`docs/ui-guidelines.md` sections 5.1 and 8) — applies to: every UI item · pr: #124, #126, #127, #PRNUM · report: `selah-frontend/ui-polish/`
+- [x] **X5** UI polish on Animate UI (Fahad, 2026-10-24): page transitions with title morphs, theme toggler in the top bar, every shadcn component on its Animate UI version (toast on Base UI), grey card surfaces in both themes, a first-weeks welcome, and one documented place per Animate UI component (`docs/ui-guidelines.md` sections 5.1 and 8) — applies to: every UI item · pr: #124, #126, #127, #128 · report: `selah-frontend/ui-polish/`
 
 ## Journey steps
 
