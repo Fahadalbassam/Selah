@@ -254,9 +254,9 @@ From the review of 2026-10-24 (report `plan/selah-two-sided-review.html`), secti
 
 Fahad asked for everything his team needs to walk through the whole product locally: accounts for every role on both sides, realistic cases and a working assistant. The guide is `docs/walkthrough.md`; its HTML view is `plan/selah-walkthrough.html` in the project files.
 
-- [x] **W01** One command loads a walkthrough: a firm with every staff role, two clients with every client role, three cases with every action state, the assistant reading them, and a scripted tour (`npm run walkthrough -- --fresh`) — pr: #PRNUM
-- [x] **W02** A client project starts (planned to active) when its first action is released, so reminders, escalation, health history and status packs run for it — pr: #PRNUM
-- [x] **W03** Buttons that are links on server-rendered pages render on the server too (no hydration error on the client page, help, inquiry, privacy and not-found pages) — pr: #PRNUM
+- [x] **W01** One command loads a walkthrough: a firm with every staff role, two clients with every client role, three cases with every action state, the assistant reading them, and a scripted tour (`npm run walkthrough -- --fresh`) — pr: #134
+- [x] **W02** A client project starts (planned to active) when its first action is released, so reminders, escalation, health history and status packs run for it — pr: #134
+- [x] **W03** Buttons that are links on server-rendered pages render on the server too (no hydration error on the client page, help, inquiry, privacy and not-found pages) — pr: #134
 
 ## Decisions still waiting
 
