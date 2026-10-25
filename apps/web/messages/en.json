@@ -33,6 +33,8 @@
   },
   "header": {
     "language": "العربية",
+    "languageShort": "عربي",
+    "switchLanguage": "Switch to Arabic (العربية)",
     "theme": "Toggle theme",
     "signOut": "Sign out",
     "account": "Account",

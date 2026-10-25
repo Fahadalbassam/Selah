@@ -1,3 +1,4 @@
+import { ActionsTabs } from "@/components/actions-tabs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -15,10 +16,11 @@ import { reviewQueue } from "@/services/second-review";
 export default async function ReviewPage() {
   const rows = await withPrincipal(async (tx, principal) => (principal.orgKind === "firm" ? reviewQueue(tx, principal) : null));
   if (!rows) notFound();
-  const [t, tTable, format] = await Promise.all([getTranslations("reviewPage"), getTranslations("table"), getFormatter()]);
+  const [t, tTable, tNav, format] = await Promise.all([getTranslations("reviewPage"), getTranslations("table"), getTranslations("nav"), getFormatter()]);
   const mine = rows.filter((r) => r.canAct).length;
   return (
     <>
+      <ActionsTabs current="/review" label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
       <PageHeader title={t("title")} description={t("subtitle")} />
       {rows.length === 0 ? (
         <EmptyState icon={<CircleCheck animateOnView />} description={t("empty")} />

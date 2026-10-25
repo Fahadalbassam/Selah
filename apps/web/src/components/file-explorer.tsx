@@ -102,7 +102,7 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
           onClose();
         }
       }}
-      className="fixed z-50 flex h-[min(38rem,calc(100vh-2rem))] w-[min(26rem,calc(100vw-2rem))] animate-page-in flex-col overflow-hidden surface-floating rounded-xl border bg-popover text-popover-foreground shadow-2xl"
+      className="floating-card-files fixed z-50 flex h-[min(38rem,calc(100vh-2rem))] w-[min(26rem,calc(100vw-2rem))] animate-page-in flex-col overflow-hidden surface-floating rounded-xl border bg-popover text-popover-foreground shadow-2xl"
       style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, visibility: pos ? "visible" : "hidden" }}
     >
       <div

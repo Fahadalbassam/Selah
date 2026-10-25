@@ -1,3 +1,4 @@
+import { ActionsTabs } from "@/components/actions-tabs";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
@@ -15,9 +16,10 @@ export default async function OversightPage() {
     return { projects: await portfolio(tx, principal), exceptions: await exceptions(tx, principal) };
   });
   if (!data) notFound();
-  const t = await getTranslations("oversight");
+  const [t, tNav] = await Promise.all([getTranslations("oversight"), getTranslations("nav")]);
   return (
     <>
+      <ActionsTabs current="/oversight" label={tNav("actions")} labels={{ actions: tNav("actions"), review: tNav("reviewQueue"), oversight: tNav("oversight") }} />
       <PageHeader title={t("title")} description={t("subtitle")} />
       <OversightSummary projects={data.projects} exceptions={data.exceptions} />
       <HealthTable rows={data.projects} />

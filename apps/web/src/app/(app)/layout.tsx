@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { PageTransition } from "@/components/animate-ui/components/page-transition";
 import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
 import { AssistantHost } from "@/components/assistant/assistant-card";
+import { LocaleToggle } from "@/components/locale-toggle";
 import { MorphCapture } from "@/components/morph";
 import { NotificationBell } from "@/components/notifications";
 import { ThemeSwitch } from "@/components/theme-switch";
@@ -27,9 +28,10 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean, client
       {
         label: t("workspace"),
         items: [
-          overview,
+          // Two short entries side by side, so the menu fits a laptop screen without scrolling.
+          { ...overview, half: true },
           // What needs this person across their clients (Wave 3). Firm staff only.
-          { title: t("today"), href: "/today", icon: "today" },
+          { title: t("today"), href: "/today", icon: "today", half: true },
           {
             title: t("projects"),
             href: "/projects",
@@ -50,9 +52,8 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean, client
             ],
           },
           { title: t("inquiries"), href: "/inquiries", icon: "inquiries" },
-          { title: t("actions"), href: "/actions", icon: "actions" },
-          { title: t("reviewQueue"), href: "/review", icon: "review" },
-          { title: t("oversight"), href: "/oversight", icon: "oversight" },
+          // The review queue and oversight are tabs of Actions (components/actions-tabs.tsx).
+          { title: t("actions"), href: "/actions", icon: "actions", match: ["/review", "/oversight"] },
           { title: t("templates"), href: "/templates", icon: "templates" },
           { title: t("assistant"), href: "/assistant", icon: "assistant", card: true },
         ],
@@ -67,12 +68,8 @@ function navFor(role: Role, t: (key: string) => string, inGroup: boolean, client
               { title: t("expertise"), href: "/team/expertise" },
             ],
           },
-          ...(role === "firm_admin"
-            ? [
-                { title: t("audit"), href: "/audit", icon: "audit" as const },
-                { title: t("settings"), href: "/settings", icon: "settings" as const },
-              ]
-            : []),
+          // Settings sit in the profile menu at the foot of the sidebar.
+          ...(role === "firm_admin" ? [{ title: t("audit"), href: "/audit", icon: "audit" as const }] : []),
         ],
       },
     ];
@@ -151,6 +148,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             otherLocale: rtl ? "en" : "ar",
             labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
             help: viewer.orgKind === "client" ? { label: tNav("help"), href: "/help" } : undefined,
+            settings: viewer.role === "firm_admin" ? { label: tNav("settings"), href: "/settings" } : undefined,
           }}
         />
         {/* The assistant's floating card: stays open while the person moves between pages. */}
@@ -162,6 +160,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
             <span className="text-sm text-muted-foreground">{tApp("tagline")}</span>
             <div className="ms-auto flex items-center gap-1">
+              <LocaleToggle label={tHeader("languageShort")} title={tHeader("switchLanguage")} />
               <ThemeSwitch label={tHeader("theme")} dir={rtl ? "rtl" : "ltr"} />
               <NotificationBell unread={unread} />
             </div>

@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Activity,
   Bot,
   Building2,
   ChevronRight,
-  ClipboardCheck,
   ClipboardList,
   FolderKanban,
   Inbox,
@@ -14,7 +12,6 @@ import {
   ListChecks,
   Network,
   ScrollText,
-  Settings,
   Sunrise,
   Users,
   type LucideIcon,
@@ -51,12 +48,9 @@ const ICONS = {
   clients: Building2,
   inquiries: Inbox,
   actions: ListChecks,
-  review: ClipboardCheck,
-  oversight: Activity,
   templates: ClipboardList,
   assistant: Bot,
   team: Users,
-  settings: Settings,
   audit: ScrollText,
   departments: Network,
 } satisfies Record<string, LucideIcon>;
@@ -68,6 +62,10 @@ export interface NavItem {
   items?: { title: string; href: string }[];
   /** The assistant: opens its floating card instead of a page. */
   card?: boolean;
+  /** Other pages this entry stands for (shown as tabs on them), so it stays marked there. */
+  match?: string[];
+  /** Two short plain links side by side in one row (Overview and Today); not for a card or sub-menu. */
+  half?: boolean;
 }
 
 export interface NavGroup {
@@ -89,6 +87,17 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   help?: { title: string; href: string };
 }
 
+/** Consecutive half-width entries share a row; the rest keep one row each. */
+function rows(items: NavItem[]): (NavItem | NavItem[])[] {
+  const out: (NavItem | NavItem[])[] = [];
+  for (const item of items) {
+    const last = out.at(-1);
+    if (item.half && Array.isArray(last) && last.length < 2) last.push(item);
+    else out.push(item.half ? [item] : item);
+  }
+  return out;
+}
+
 /**
  * Based on shadcn/ui blocks sidebar-07 (collapses to icons) and sidebar-03
  * (sub-menus). The menu only reflects what the server decided this user may
@@ -99,6 +108,17 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
   const search = useSearchParams().toString();
   const current = search ? `${pathname}?${search}` : pathname;
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+  const link = (item: NavItem) => {
+    const Icon = ICONS[item.icon];
+    return (
+      <SidebarMenuButton key={item.href} asChild tooltip={item.title} isActive={isActive(item.href) || Boolean(item.match?.some(isActive))}>
+        <Link href={item.href}>
+          <Icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+    );
+  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -125,21 +145,19 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>
-              {group.items.map((item) => {
-                const Icon = ICONS[item.icon];
-                if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
-                if (!item.items?.length) {
+              {rows(group.items).map((row) => {
+                // Expanded: one row, two columns. As an icon rail: one under the other.
+                if (Array.isArray(row)) {
                   return (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild tooltip={item.title} isActive={isActive(item.href)}>
-                        <Link href={item.href}>
-                          <Icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                    <SidebarMenuItem key={row.map((i) => i.href).join(" ")} className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1">
+                      {row.map(link)}
                     </SidebarMenuItem>
                   );
                 }
+                const item = row;
+                const Icon = ICONS[item.icon];
+                if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
+                if (!item.items?.length) return <SidebarMenuItem key={item.href}>{link(item)}</SidebarMenuItem>;
                 return (
                   <Collapsible key={item.href} asChild defaultOpen={isActive(item.href)} className="group/collapsible">
                     <SidebarMenuItem>

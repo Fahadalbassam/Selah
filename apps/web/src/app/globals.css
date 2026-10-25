@@ -203,6 +203,30 @@
 .stagger > :nth-child(5) { animation-delay: 160ms; }
 .stagger > :nth-child(n + 6) { animation-delay: 200ms; }
 
+/* The floating cards (Files, the assistant) stay above a page transition:
+   each is its own layer that does not move, drawn over the page and over the
+   titles that morph between pages, never faded or blurred with the page. */
+.floating-card-files {
+  view-transition-name: floating-files;
+  view-transition-class: floating-card;
+}
+.floating-card-assistant {
+  view-transition-name: floating-assistant;
+  view-transition-class: floating-card;
+}
+::view-transition-group(*.floating-card) {
+  z-index: 2;
+}
+
+/* The sidebar is sized to fit a laptop screen; on a very short window it can
+   still scroll (wheel, keys), but never shows a second scrollbar beside the page's. */
+[data-sidebar="content"] {
+  scrollbar-width: none;
+}
+[data-sidebar="content"]::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

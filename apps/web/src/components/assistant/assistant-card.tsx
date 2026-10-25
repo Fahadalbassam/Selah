@@ -267,7 +267,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
           else assistant.close();
         }}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden surface-floating rounded-xl border bg-popover text-popover-foreground shadow-2xl",
+          "floating-card-assistant fixed z-50 flex flex-col overflow-hidden surface-floating rounded-xl border bg-popover text-popover-foreground shadow-2xl",
           focused ? "inset-0 m-auto h-[min(48rem,calc(100vh-4rem))] w-[min(72rem,calc(100vw-4rem))]" : "h-[min(40rem,calc(100vh-2rem))] w-[min(28rem,calc(100vw-2rem))]",
         )}
         style={focused ? undefined : { left: pos?.x ?? 0, top: pos?.y ?? 0, visibility: pos ? "visible" : "hidden" }}

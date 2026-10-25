@@ -8,6 +8,7 @@
 //   npm run walkthrough            the team walkthrough: one sign-in per role, three
 //                                  cases, the assistant and PDF exports (docs/walkthrough.md)
 //   npm run walkthrough -- --fresh the same, starting again from clean walkthrough data
+//   (both open every page once before saying ready; --no-warm skips that)
 //   npm run test:all               every test suite, end-to-end included
 //   npm run test:all -- --quick    everything but the end-to-end suite
 //   npm run stop:local             stop the containers (data is kept)
@@ -256,6 +257,72 @@ function printAccounts(users, password) {
   console.log("");
 }
 
+// In development Next.js builds each page, and the browser code it needs, the
+// first time someone opens it: several seconds a page, longer on Windows. So
+// before saying the app is ready, open every main page once, signed in as a
+// firm admin and a client admin, and fetch the scripts and styles each page
+// asks for. Reading pages changes nothing; the only trace is one sign-in each
+// in the audit log. A failure here only means slower first clicks.
+const WARM_FIRM = ["/", "/today", "/projects", "/clients", "/clients/groups", "/inquiries", "/actions", "/review", "/oversight",
+  "/templates", "/team", "/team/expertise", "/audit", "/settings", "/notifications", "/security", "/assistant"];
+const WARM_CLIENT = ["/", "/projects", "/actions", "/team", "/departments", "/help", "/audit"];
+// One page of each kind behind a link on the lists above (a project, an action...).
+const WARM_DETAIL = /href="(\/(?:projects|actions|clients|recommendations|meetings|engagements)\/[0-9a-f-]{36})"/g;
+
+async function warm(accounts) {
+  say("opening every page once so the first clicks are quick (development builds each page on first use)");
+  const started = Date.now();
+  const fetched = new Set();
+  // A page that never answers (a service still starting) must not hold up the start.
+  const timeout = () => AbortSignal.timeout(120_000);
+  let warmed = 0;
+  const get = async (path, cookie) => {
+    const res = await fetch(APP_URL + path, { headers: cookie ? { cookie } : {}, redirect: "manual", signal: timeout() }).catch(() => null);
+    if (!res?.ok) return "";
+    warmed++;
+    return res.text().catch(() => "");
+  };
+  // The browser code each page loads is built on first request too.
+  const assets = async (html) => {
+    const urls = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]).filter((u) => !fetched.has(u));
+    urls.forEach((u) => fetched.add(u));
+    await Promise.all(urls.map((u) => fetch(APP_URL + u, { signal: timeout() }).then((r) => r.arrayBuffer()).catch(() => {})));
+  };
+  try {
+    await assets(await get("/sign-in"));
+    for (const [email, password, pages] of accounts) {
+      const res = await fetch(`${APP_URL}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: APP_URL },
+        body: JSON.stringify({ email, password }),
+        signal: timeout(),
+      });
+      // With two-factor sign-in on, the answer asks for a code instead of signing in.
+      const body = await res.json().catch(() => ({}));
+      const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+      if (!res.ok || !cookie || body.twoFactorRedirect) continue;
+      // The first page of each kind is enough: the build is per route, not per record.
+      const details = new Map();
+      for (const page of pages) {
+        const html = await get(page, cookie);
+        for (const [, path] of html.matchAll(WARM_DETAIL)) if (!details.has(path.split("/")[1])) details.set(path.split("/")[1], path);
+        await assets(html);
+      }
+      for (const path of details.values()) await assets(await get(path, cookie));
+      await fetch(`${APP_URL}/api/auth/sign-out`, {
+        method: "POST",
+        headers: { cookie, origin: APP_URL, "content-type": "application/json" },
+        body: "{}",
+        signal: timeout(),
+      }).catch(() => {});
+    }
+    if (warmed > 1) say(`pages ready (${Math.round((Date.now() - started) / 1000)} s)`);
+    else say("could not sign in to open the pages in advance; the first visit to each page will be slower");
+  } catch {
+    say("could not open every page in advance; the first visit to each page will be slower");
+  }
+}
+
 // ---------- commands ----------
 
 /** Deletes the database and file storage volumes only, keeping the downloaded AI models and virus signatures. */
@@ -372,6 +439,11 @@ async function dev(flags, { walkthrough = false } = {}) {
       return false;
     }
   }, { timeoutS: 300, everyS: 3 });
+  if (!flags.includes("--no-warm")) {
+    const password = walkthrough ? env.WALKTHROUGH_PASSWORD : root.SEED_PASSWORD;
+    const [firm, client] = walkthrough ? ["admin@mizan.test", "admin@nukhba.test"] : ["sara@mizan.example", "fahd@nukhba.example"];
+    await warm([[firm, password, WARM_FIRM], [client, password, WARM_CLIENT]]);
+  }
   if (walkthrough) printAccounts(WALKTHROUGH_USERS, env.WALKTHROUGH_PASSWORD);
   else printAccounts(USERS, root.SEED_PASSWORD);
 }
