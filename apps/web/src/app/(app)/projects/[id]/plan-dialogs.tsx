@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PersonPicker } from "@/components/person-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -293,19 +294,15 @@ export function RecommendationDialog(props: {
               {props.scope.accountables.length ? (
                 <div className="grid gap-2">
                   <Label htmlFor="r-accountable">{t("accountable")}</Label>
-                  <Select name="accountableUserId" defaultValue={editing?.accountableUserId ?? NONE}>
-                    <SelectTrigger id="r-accountable" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>{t("noAccountable")}</SelectItem>
-                      {props.scope.accountables.map((p) => (
-                        <SelectItem key={p.userId} value={p.userId}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Left empty, nobody is accountable. */}
+                  <PersonPicker
+                    id="r-accountable"
+                    name="accountableUserId"
+                    clearable
+                    defaultValue={editing?.accountableUserId ?? undefined}
+                    placeholder={t("noAccountable")}
+                    options={props.scope.accountables.map((p) => ({ value: p.userId, label: p.name }))}
+                  />
                   <p className="text-xs text-muted-foreground">{t("accountableHint")}</p>
                 </div>
               ) : null}
@@ -445,19 +442,16 @@ export function ActionDialog(props: {
             ) : (
               <div className="grid gap-2">
                 <Label htmlFor="a-owner">{t("owner")}</Label>
-                <Select name="ownerUserId" defaultValue={owners.length === 1 ? owners[0]!.userId : NONE} required={release}>
-                  <SelectTrigger id="a-owner" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>{t("noOwner")}</SelectItem>
-                    {owners.map((o) => (
-                      <SelectItem key={o.userId} value={o.userId}>
-                        {o.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Left empty, the action has no owner yet (a release needs one). */}
+                <PersonPicker
+                  id="a-owner"
+                  name="ownerUserId"
+                  clearable
+                  required={release}
+                  defaultValue={owners.length === 1 ? owners[0]!.userId : undefined}
+                  placeholder={t("noOwner")}
+                  options={owners.map((o) => ({ value: o.userId, label: o.name }))}
+                />
                 {owners.length === 0 ? <p className="text-xs text-muted-foreground">{t("noOwners")}</p> : null}
               </div>
             )}

@@ -733,7 +733,9 @@
       "tooLong": "Use at most {n} characters.",
       "tooLow": "Enter {n} or more.",
       "tooHigh": "Enter {n} or less."
-    }
+    },
+    "searchPeople": "Type a name or email",
+    "noMatch": "Nobody matches"
   },
   "pager": {
     "label": "Pages",

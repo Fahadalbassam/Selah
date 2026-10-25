@@ -40,9 +40,9 @@ export async function ProjectPeople({ projectId, clientId, firm, data }: { proje
                 {
                   name: "userId",
                   label: t("person"),
-                  type: "select",
+                  type: "person",
                   required: true,
-                  options: data.candidates.map((c) => ({ value: c.userId, label: `${c.name} · ${tRole(c.role)} · ${c.email}` })),
+                  options: data.candidates.map((c) => ({ value: c.userId, label: c.name, hint: `${tRole(c.role)} · ${c.email}` })),
                 },
               ]}
               submitLabel={t("addButton")}

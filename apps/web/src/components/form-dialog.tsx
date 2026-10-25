@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PersonPicker } from "@/components/person-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -26,11 +27,12 @@ import { useConfirm } from "@/components/confirm-dialog";
 export interface Field {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "select" | "date";
+  /** "person" is a searchable list of people (Combobox); options may carry a hint such as the email. */
+  type?: "text" | "textarea" | "select" | "date" | "person";
   required?: boolean;
   maxLength?: number;
   dir?: "rtl" | "ltr";
-  options?: { value: string; label: string }[];
+  options?: { value: string; label: string; hint?: string }[];
   /** Placeholder (for a date field, also its empty label). */
   placeholder?: string;
   /** The current value, when the dialog edits something. A select with "" starts on its placeholder. */
@@ -143,6 +145,15 @@ export function FormDialog(props: {
                     ))}
                   </SelectContent>
                 </Select>
+              ) : f.type === "person" ? (
+                <PersonPicker
+                  id={`f-${f.name}`}
+                  name={f.name}
+                  required={f.required}
+                  options={f.options ?? []}
+                  defaultValue={f.defaultValue}
+                  placeholder={f.placeholder}
+                />
               ) : f.type === "date" ? (
                 <DatePicker
                   id={`f-${f.name}`}

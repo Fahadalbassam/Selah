@@ -720,9 +720,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                         {
                           name: "userId",
                           label: ts("consultant"),
-                          type: "select",
+                          type: "person",
                           required: true,
-                          options: team.candidates.map((c) => ({ value: c.userId, label: `${c.name} · ${c.email}` })),
+                          options: team.candidates.map((c) => ({ value: c.userId, label: c.name, hint: c.email })),
                         },
                         {
                           name: "as",
