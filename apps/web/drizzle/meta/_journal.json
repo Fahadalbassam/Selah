@@ -351,6 +351,13 @@
       "when": 1792893040782,
       "tag": "0062_second_review",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1792895448771,
+      "tag": "0063_client_indicators",
+      "breakpoints": true
     }
   ]
 }

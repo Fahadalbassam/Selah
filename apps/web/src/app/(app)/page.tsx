@@ -18,6 +18,8 @@ import type { Role } from "@/authz";
 import { SectionHeader } from "@/components/section-header";
 import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
+import { IndicatorsCard } from "@/components/indicators/indicators-card";
+import { listIndicators } from "@/services/indicators";
 
 const WELCOME_DAYS = 14;
 // Where each role's three welcome steps lead, in the order of messages welcome.steps.<role>.
@@ -39,7 +41,7 @@ function firstName(v: { name: string; nameAlt: string | null }, locale: string) 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm, overview, viewer, isNew } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview, indicators, viewer, isNew } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
     viewer: await getViewer(tx, principal),
@@ -49,6 +51,11 @@ export default async function OverviewPage() {
     overview:
       principal.role === "client_admin" || principal.role === "client_manager"
         ? await clientOverview(tx, principal, principal.orgId).catch(() => null)
+        : null,
+    // Beside it, the business indicators they report (KPI layer B).
+    indicators:
+      principal.role === "client_admin" || principal.role === "client_manager"
+        ? await listIndicators(tx, principal, principal.orgId, { includeInactive: true }).catch(() => null)
         : null,
   }));
   const [t, tW, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getLocale()]);
@@ -107,6 +114,7 @@ export default async function OverviewPage() {
         </Alert>
       ) : null}
       {overview && overview.projects.length ? <ClientProgress data={overview} tiles={false} /> : null}
+      {indicators && (indicators.indicators.length || indicators.canManage) ? <IndicatorsCard data={indicators} /> : null}
       <section className="space-y-3">
         <SectionHeader title={firm ? t("attentionFirm") : t("attentionClient")} />
         <ActionsTable rows={stats.attention.map((r) => ({ ...r, overdue: isOverdue(r) }))} empty={t("empty")} />

@@ -159,19 +159,16 @@ export const EXCEPTION_RULES: ExceptionRule[] = [
   "slipped",
   "churn",
   "stale",
-  "kpi_off_target",
-  "kpi_not_reported",
 ];
 
 export interface ExceptionRow {
   projectId: string;
   projectTitle: string;
-  entityType: "action" | "kpi" | "recommendation";
+  entityType: "action" | "recommendation";
   entityId: string;
   rule: ExceptionRule;
   detail: Record<string, string | number | null>;
   title: string | null;
-  titleAr: string | null;
   owner: string | null;
   can: { remind: boolean };
   remindedToday: boolean;
@@ -202,7 +199,6 @@ export async function exceptions(
     rule: ExceptionRule;
     detail: Record<string, string | number | null>;
     title: string | null;
-    title_ar: string | null;
     owner: string | null;
     can_remind: boolean;
     reminded_today: boolean;
@@ -223,7 +219,7 @@ export async function exceptions(
           and ${today}::date - app_firm_date(a.updated_at) > app_review_wait_days()
     )
     select e.project_id, p.title as project_title, e.entity_type, e.entity_id, e.rule, e.detail,
-           coalesce(a.title, rc.title, k.name_en, k.name_ar) as title, k.name_ar as title_ar,
+           coalesce(a.title, rc.title) as title,
            coalesce(u.name, a.owner_name) as owner,
            -- Who can be chased: an open action with another active owner, by someone not observing.
            (e.entity_type = 'action' and a.owner_user_id is not null and a.owner_user_id <> ${principal.userId}::uuid
@@ -236,7 +232,6 @@ export async function exceptions(
     from e
     join p on p.id = e.project_id
     left join actions a on e.entity_type = 'action' and a.id = e.entity_id
-    left join kpis k on e.entity_type = 'kpi' and k.id = e.entity_id
     left join recommendations rc on e.entity_type = 'recommendation' and rc.id = e.entity_id
     left join "user" u on u.id = a.owner_user_id`);
   const order = (r: ExceptionRule) => EXCEPTION_RULES.indexOf(r);
@@ -251,8 +246,7 @@ export async function exceptions(
         rule: r.rule,
         detail: r.detail,
         title: r.title,
-        titleAr: r.title_ar,
-        owner: r.owner,
+            owner: r.owner,
         can: { remind: r.can_remind && !r.reminded_today },
         remindedToday: r.reminded_today,
         lastReminded: r.last_reminded,

@@ -315,7 +315,8 @@
       "finding": "Finding",
       "meeting": "Meeting",
       "document": "File",
-      "project": "Project"
+      "project": "Project",
+      "kpi": "Indicator"
     },
     "rename": "Rename chat",
     "keep": "Keep (don't archive)",
@@ -1900,7 +1901,9 @@
       "client_ai_offered": "The firm offered your company the assistant. Read the notice to switch it on",
       "client_ai_consented": "{title} agreed to the client assistant",
       "client_ai_withdrawn": "{title} switched off the client assistant",
-      "action_second_review": "{title} needs your second sign-off"
+      "action_second_review": "{title} needs your second sign-off",
+      "indicator_due": "Business indicators are waiting for this period's values",
+      "indicator_entered_for_you": "The firm entered a value for {title}"
     },
     "mail": {
       "section": "Mail",
@@ -2041,12 +2044,10 @@
       "suggestionsHint": "On each inquiry, suggest consultants whose declared expertise matches it. It's a match for that inquiry, not a ranking of people."
     },
     "kpis": {
-      "title": "Client KPIs",
-      "hint": "Clients report their own key indicators on projects. Readings are the client's claims until the firm verifies them.",
-      "enabled": "Clients report KPIs",
-      "enabledHint": "Switches KPI reporting on for every client project.",
-      "grace": "Grace before “not reported”",
-      "graceHint": "Days after a period ends before a missing reading shows as not reported."
+      "title": "Business indicators",
+      "hint": "Clients report their own business numbers (complaints, turnover and the like) beside the work. They are the client's figures, not verified impact.",
+      "grace": "Grace before “missing”",
+      "graceHint": "Days after a period ends before an indicator with no value shows as missing."
     },
     "follow": {
       "title": "Follow-through",
@@ -2114,7 +2115,7 @@
     },
     "deviations": {
       "tab": "Needs attention",
-      "hint": "Open actions, client KPIs and disputed recommendations that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
+      "hint": "Open actions and disputed recommendations that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
       "none": "Nothing breaks a deviation rule right now.",
       "item": "Item",
       "rule": "Rule",
@@ -2141,14 +2142,6 @@
           "name": "No active owner",
           "hint": "The owner is no longer an active member of the client."
         },
-        "kpi_not_reported": {
-          "name": "KPI not reported",
-          "hint": "A KPI period passed its grace days with no reading."
-        },
-        "kpi_off_target": {
-          "name": "KPI off target",
-          "hint": "The latest reading is in the red band."
-        },
         "disputed": {
           "name": "Disputed",
           "hint": "The client's latest response disagrees with the recommendation."
@@ -2160,23 +2153,20 @@
         "slipped": "Due date moved {n} times",
         "churn": "Sent back {n} times",
         "orphaned": "The owner has left",
-        "kpi_not_reported": "No reading for the period from {period}",
-        "kpi_off_target": "Off target for the period from {period}",
         "disputed": "Disputed since {date}"
       }
     },
     "trace": {
       "tab": "Trace",
-      "hint": "How each piece of work connects: from what was found to the actions, the evidence and the reviews, and from the objectives to the KPIs meant to show progress.",
+      "hint": "How each piece of work connects: from what was found to the actions, the evidence and the reviews, and from the client's business indicators to the recommendations meant to move them.",
       "empty": "Nothing to trace yet.",
       "work": "From findings to verified work",
       "workHint": "Finding, recommendation, action, then the evidence sent and each review.",
-      "goals": "Objectives and KPIs",
-      "goalsHint": "Each objective's KPIs, and the recommendations meant to move them.",
+      "goals": "Business indicators",
+      "goalsHint": "The client's own indicators, and the recommendations of this project meant to move them. A link states an intent, not an effect.",
       "types": {
         "assessment": "Assessment",
-        "objective": "Objective",
-        "kpi": "KPI",
+        "kpi": "Indicator",
         "finding": "Finding",
         "recommendation": "Recommendation",
         "action": "Action",
@@ -3773,7 +3763,20 @@
       "document_summarize": "Summarize a file",
       "action_sign_off": "First sign-off on evidence",
       "action_second_review": "Second sign-off asked for on an action",
-      "organization_second_review": "Client's second sign-off rule changed"
+      "organization_second_review": "Client's second sign-off rule changed",
+      "indicator_create": "Added a business indicator",
+      "indicator_update": "Changed a business indicator",
+      "indicator_archive": "Switched off a business indicator",
+      "indicator_restore": "Switched on a business indicator",
+      "indicator_delete": "Deleted a business indicator",
+      "indicator_value": "Entered an indicator value",
+      "indicator_correct": "Corrected an indicator value",
+      "indicator_check": "Checked an indicator value against the client's source",
+      "indicator_link": "Linked an indicator to a recommendation",
+      "indicator_unlink": "Unlinked an indicator from a recommendation",
+      "indicator_read": "Read business indicators",
+      "indicator_report": "Enter indicator values",
+      "indicator_manage": "Set up business indicators"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4721,6 +4724,176 @@
           "hint": "How Selah works, and how to reach your consultant."
         }
       ]
+    }
+  },
+  "indicators": {
+    "title": "Business indicators",
+    "departmentTitle": "This department's indicators",
+    "hint": "The client's own measures of its business, entered over time, beside the work.",
+    "new": "New indicator",
+    "counts": {
+      "total": "Indicators",
+      "upToDate": "Up to date",
+      "better": "Better than baseline",
+      "worse": "Worse than baseline"
+    },
+    "emptyManage": "No indicators yet. Add the measures the client already tracks, such as monthly sales or customer complaints, with a starting value.",
+    "empty": "No indicators yet.",
+    "inactiveList": "{n, plural, one {# switched-off indicator} other {# switched-off indicators}}",
+    "claimNote": "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it.",
+    "movement": {
+      "none": "No value yet",
+      "better": "Better than baseline",
+      "worse": "Worse than baseline",
+      "same": "Same as baseline"
+    },
+    "baselineShort": "Baseline {value} {unit}",
+    "targetShort": "target {value} {unit}",
+    "inactive": "Switched off",
+    "missingCount": "{n, plural, one {# period missing} other {# periods missing}}",
+    "trendLabel": "Trend of {name}",
+    "noValue": "No value yet",
+    "noValueShort": "no value",
+    "baselineAt": "Baseline ({period})",
+    "valueCol": "Value",
+    "trend": "Trend",
+    "targetLine": "Target",
+    "showChart": "Show chart",
+    "showTable": "Show as table",
+    "company": "Whole company",
+    "backClient": "Overview",
+    "edit": "Edit",
+    "switchOff": "Switch off",
+    "switchOn": "Switch on",
+    "switchOffConfirm": "Switch this indicator off? It keeps its values and stops asking for new ones.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this indicator? It has no values yet, so nothing is lost.",
+    "enter": "Enter a value",
+    "correct": "Correct",
+    "check": "Mark checked",
+    "checkHint": "You compared this value with the client's own source. This is not verified impact.",
+    "checkedBy": "Checked by {name}",
+    "onBehalf": "Entered by the firm",
+    "correctedBadge": "Corrected",
+    "replaced": "{n, plural, one {# replaced value} other {# replaced values}}",
+    "latest": "Latest value",
+    "sinceBaseline": "Change since baseline",
+    "towardTarget": "Toward target",
+    "noTarget": "No target",
+    "targetBy": "Target {value} {unit} by {date}",
+    "directionHint": {
+      "higher_better": "Higher is better.",
+      "lower_better": "Lower is better."
+    },
+    "values": "Values",
+    "valuesHint": "One value per period. A correction keeps the earlier value in the history, with its note.",
+    "noPeriods": "No period has started since the baseline yet.",
+    "changeCol": "Change from the period before",
+    "byCol": "Entered by",
+    "status": {
+      "reported": "Reported",
+      "due": "Awaiting value",
+      "missing": "Missing"
+    },
+    "linksTitle": "Linked recommendations",
+    "linksHint": "The recommendations this indicator is expected to move.",
+    "noLinks": "Not linked to a recommendation yet.",
+    "unlink": "Unlink",
+    "unlinkConfirm": "Remove this link? The indicator and the recommendation both stay.",
+    "withdrawn": "Withdrawn",
+    "verifiedOf": "{verified} of {applies} actions verified",
+    "linkedTitle": "Linked indicators",
+    "linkedHint": "The client's indicators this recommendation is expected to move.",
+    "noLinkedManage": "No indicator linked yet. Link one the client tracks to follow it beside this recommendation.",
+    "noIndicatorsYet": "The client has no indicators yet. Add them on the client's overview.",
+    "saved": "Indicator saved",
+    "created": "Indicator added",
+    "editTitle": "Edit indicator",
+    "newTitle": "New business indicator",
+    "newHint": "A measure the client already tracks. Values are entered by period from the baseline on.",
+    "fields": {
+      "nameAr": "Name in Arabic",
+      "nameArPlaceholder": "مثال: المبيعات الشهرية",
+      "nameEn": "Name in English",
+      "nameEnPlaceholder": "For example: Monthly sales",
+      "definition": "How it is measured",
+      "definitionPlaceholder": "What counts, and where the number comes from",
+      "unit": "Unit",
+      "unitPlaceholder": "SAR, %, days, complaints",
+      "scope": "Applies to",
+      "direction": "Which way is better",
+      "frequency": "Reported",
+      "baseline": "Baseline value",
+      "baselinePeriod": "Baseline month",
+      "target": "Target value",
+      "targetDate": "Target date",
+      "source": "Source",
+      "sourcePlaceholder": "For example: the finance system's monthly report",
+      "period": "Period",
+      "value": "Value ({unit})",
+      "note": "Note",
+      "correctionNote": "Why it changed",
+      "notePlaceholder": "Anything that explains this figure"
+    },
+    "directions": {
+      "higher_better": "Higher is better",
+      "lower_better": "Lower is better"
+    },
+    "frequencies": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly"
+    },
+    "lockedHint": "This indicator has values, so its baseline, frequency and direction are fixed. Start a new indicator to change them.",
+    "clear": "Clear",
+    "targetHint": "Optional. A target needs a date after the baseline.",
+    "save": "Save",
+    "create": "Add indicator",
+    "corrected": "Value corrected",
+    "entered": "Value saved",
+    "correctTitle": "Correct a value",
+    "valueTitle": "Enter a value",
+    "valueHintFirm": "You are entering this for the client. It is marked as entered by the firm and the client's admins are told.",
+    "valueHint": "The figure from your own records for this period.",
+    "linked": "Linked",
+    "linkTitle": "Link an indicator and a recommendation",
+    "linkHint": "Follow the indicator beside the recommendation. This does not claim the recommendation caused any change.",
+    "linkPick": "Choose",
+    "link": "Link",
+    "errors": {
+      "locked": "This indicator has values, so its baseline, frequency and direction stay. Start a new indicator instead.",
+      "hasValues": "This indicator has values. Switch it off instead of deleting it.",
+      "filled": "That period already has a value. Correct it instead.",
+      "future": "That period has not started yet.",
+      "period": "Choose one of the indicator's periods after its baseline.",
+      "inactive": "Values are entered only for indicators that are switched on.",
+      "archived": "This client is archived, so its indicators can't change.",
+      "ownValue": "A value is checked by someone other than who entered it.",
+      "checked": "This value is already checked, or was corrected. Check the current value.",
+      "department": "Choose one of the client's departments.",
+      "invalid": "Some of the details aren't valid. Check them and try again.",
+      "cannot": "That couldn't be saved. Try again, or refresh the page.",
+      "name": "Give the indicator a name in Arabic or English.",
+      "number": "Enter a number.",
+      "targetPair": "A target needs both a value and a date."
+    },
+    "report": {
+      "title": "Business indicators",
+      "hint": "The client's own measures, as reported by the client.",
+      "indicator": "Indicator",
+      "scope": "Applies to",
+      "baseline": "Baseline",
+      "latest": "Latest",
+      "change": "Change since baseline",
+      "target": "Target",
+      "linked": "Linked recommendations",
+      "company": "Whole company",
+      "noValue": "No value yet",
+      "movement": {
+        "better": "better",
+        "worse": "worse",
+        "same": "same"
+      },
+      "missing": "{n, plural, one {# period missing} other {# periods missing}}"
     }
   }
 }

@@ -13,6 +13,8 @@ import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { departmentOverview } from "@/services/client-overview";
+import { IndicatorsCard } from "@/components/indicators/indicators-card";
+import { listIndicators } from "@/services/indicators";
 
 // One department's page (F31): its numbers across the client's projects,
 // who is in it, and its open actions. The scope is the department, and the
@@ -20,12 +22,19 @@ import { departmentOverview } from "@/services/client-overview";
 export default async function DepartmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) => ({
-    firm: principal.orgKind === "firm",
-    overview: await departmentOverview(tx, principal, id).catch(() => null),
-  }));
+  const data = await withPrincipal(async (tx, principal) => {
+    const overview = await departmentOverview(tx, principal, id).catch(() => null);
+    return {
+      firm: principal.orgKind === "firm",
+      overview,
+      // The department's own business indicators (KPI layer B).
+      indicators: overview
+        ? await listIndicators(tx, principal, overview.client.id, { departmentId: id, includeInactive: true }).catch(() => null)
+        : null,
+    };
+  });
   if (!data.overview) notFound();
-  const { overview, firm } = data;
+  const { overview, firm, indicators } = data;
   const [t, tc] = await Promise.all([getTranslations("departmentPage"), getTranslations("engagement.departments")]);
   const ar = (await getLocale()) === "ar";
   const dept = overview.department;
@@ -73,6 +82,9 @@ export default async function DepartmentPage({ params }: { params: Promise<{ id:
           </CardContent>
         </Card>
       </div>
+      {indicators && (indicators.indicators.length || indicators.canManage) ? (
+        <IndicatorsCard data={indicators} scope="department" departmentId={id} />
+      ) : null}
       <section className="space-y-3">
         <SectionHeader title={t("openTitle")} description={t("openHint")} />
         <ActionsTable rows={overview.open} empty={t("openEmpty")} />

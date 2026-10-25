@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { Sparkline } from "@/components/indicators/sparkline";
+import { formatChange, formatValue, periodLabel } from "@/lib/indicators";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { StatusPack } from "@/services/status-pack";
@@ -29,6 +31,10 @@ export function StatusPackLists({ pack, links }: { pack: StatusPack; links: bool
       </span>
     );
   const moved = MOVED_ORDER.filter((s) => pack.moved[s]);
+  const tK = useTranslations("indicators");
+  const locale = useLocale() as "ar" | "en";
+  const ar = locale === "ar";
+  const indicators = pack.indicators ?? [];
 
   const section = (key: string, count: number, head: string[], rows: React.ReactNode) => (
     <Card className="gap-3 py-5 shadow-xs">
@@ -138,6 +144,69 @@ export function StatusPackLists({ pack, links }: { pack: StatusPack; links: bool
           </CardContent>
         ) : null}
       </Card>
+      {indicators.length ? (
+        <Card className="gap-3 py-5 shadow-xs">
+          <CardHeader className="px-5">
+            <CardTitle className="text-base">{tK("report.title")}</CardTitle>
+            <CardDescription>{tK("report.hint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 px-5">
+            <div className="overflow-hidden rounded-xl border">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>{tK("report.indicator")}</TableHead>
+                    <TableHead>{tK("report.latest")}</TableHead>
+                    <TableHead>{tK("report.change")}</TableHead>
+                    <TableHead className="w-0" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {indicators.map((k) => {
+                    const name = (ar ? (k.nameAr ?? k.nameEn) : (k.nameEn ?? k.nameAr)) ?? "";
+                    const scope = k.departmentId ? ((ar ? k.departmentAr : (k.departmentEn ?? k.departmentAr)) ?? "") : tK("report.company");
+                    return (
+                      <TableRow key={k.id} className="align-top">
+                        <TableCell className="max-w-80 whitespace-normal">
+                          {links ? (
+                            <Link href={`/indicators/${k.id}`} className="font-medium hover:underline" dir="auto">
+                              {name}
+                            </Link>
+                          ) : (
+                            <span className="font-medium" dir="auto">
+                              {name}
+                            </span>
+                          )}
+                          <p className="text-xs text-muted-foreground" dir="auto">
+                            {[scope, ...k.recommendations].join(" · ")}
+                          </p>
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {k.latest ? (
+                            <>
+                              {formatValue(k.latest.value, locale)} <span className="text-xs text-muted-foreground">{k.unit}</span>
+                              <p className="text-xs text-muted-foreground">{periodLabel(k.latest.period, k.frequency, locale)}</p>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">{tK("report.noValue")}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground">
+                          {k.latest ? `${formatChange(k.latest.value - k.baseline, locale)} · ${tK(`report.movement.${k.movement ?? "same"}`)}` : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Sparkline points={k.points} target={k.target} label={tK("trendLabel", { name })} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">{tK("claimNote")}</p>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

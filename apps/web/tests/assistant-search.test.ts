@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatTitle, fuse, keywordQuery, statusIntent } from "@/lib/assistant-search";
+import { chatTitle, fuse, indicatorIntent, keywordQuery, statusIntent } from "@/lib/assistant-search";
 import { createMasker } from "@/lib/masking";
 
 describe("keyword query", () => {
@@ -119,5 +119,16 @@ describe("status questions", () => {
     expect(kinds("What does Article 12 of the charter say?")).toEqual([]);
     expect(kinds("ما صلاحيات لجنة المراجعة في الميثاق؟")).toEqual([]);
     expect(kinds("Who chairs the audit committee?")).toEqual([]);
+  });
+});
+
+describe("indicator intent", () => {
+  it("spots questions about the client's business indicators in both languages", () => {
+    expect(indicatorIntent("How are our KPIs doing against target?")).toBe(true);
+    expect(indicatorIntent("What is the latest value of the complaints indicator?")).toBe(true);
+    expect(indicatorIntent("ما آخر قيمة لمؤشر الشكاوى؟")).toBe(true);
+    expect(indicatorIntent("كم المستهدف لهذا العام؟")).toBe(true);
+    expect(indicatorIntent("What does the charter say about the board?")).toBe(false);
+    expect(indicatorIntent("ما الإجراءات المتأخرة؟")).toBe(false);
   });
 });

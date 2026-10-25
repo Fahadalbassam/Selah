@@ -1,6 +1,5 @@
 "use client";
 
-import { Gauge } from "lucide-react";
 import { Bell } from "@/components/animate-ui/icons/bell";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FolderOpen } from "@/components/animate-ui/icons/folder-open";
@@ -23,7 +22,7 @@ import { cn } from "@/lib/utils";
 import type { ExceptionRow, PortfolioRow } from "@/services/oversight";
 
 const SIGNAL_TONE: Record<HealthSignal, Tone> = { off_track: "problem", watch: "waiting", on_track: "neutral", no_data: "open" };
-const RULES = ["overdue", "review_waiting", "blocked", "orphaned", "disputed", "slipped", "churn", "stale", "kpi_off_target", "kpi_not_reported"] as const;
+const RULES = ["overdue", "review_waiting", "blocked", "orphaned", "disputed", "slipped", "churn", "stale"] as const;
 
 /** Maps the database's words to a message key under oversight.remind.errors. */
 function remindError(message: string | undefined) {
@@ -162,7 +161,6 @@ export function HealthTable({ rows }: { rows: PortfolioRow[] }) {
 export function ExceptionsTable({ rows }: { rows: ExceptionRow[] }) {
   const t = useTranslations("oversight");
   const td = useTranslations("insight.deviations");
-  const ar = useLocale() === "ar";
   const format = useFormatter();
   const router = useRouter();
   const [rule, setRule] = useState<string>("all");
@@ -177,9 +175,6 @@ export function ExceptionsTable({ rows }: { rows: ExceptionRow[] }) {
     if (r.rule === "review_waiting") return t("rules.review_waiting.detail", { n: Number(d.days ?? 0) });
     if (r.rule === "overdue" || r.rule === "stale") return td(`detail.${r.rule}`, { n: Number(d.days ?? 0) });
     if (r.rule === "slipped" || r.rule === "churn") return td(`detail.${r.rule}`, { n: Number(d.count ?? 0) });
-    if (r.rule === "kpi_not_reported" || r.rule === "kpi_off_target") {
-      return td(`detail.${r.rule}`, { period: d.period_start ? format.dateTime(new Date(String(d.period_start)), { dateStyle: "medium" }) : "—" });
-    }
     if (r.rule === "disputed") return td("detail.disputed", { date: d.since ? format.dateTime(new Date(String(d.since)), { dateStyle: "medium" }) : "—" });
     return td(`detail.${r.rule}`);
   };
@@ -233,20 +228,13 @@ export function ExceptionsTable({ rows }: { rows: ExceptionRow[] }) {
                   {shown.map((r) => (
                     <TableRow key={`${r.entityId}-${r.rule}`}>
                       <TableCell className="max-w-80">
-                        {r.entityType !== "kpi" ? (
-                          <Link
-                            href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
-                            className="block truncate font-medium hover:underline"
-                            dir="auto"
-                          >
-                            {r.title}
-                          </Link>
-                        ) : (
-                          <span className="flex items-center gap-2 truncate font-medium">
-                            <Gauge className="size-4 shrink-0 text-muted-foreground" />
-                            {(ar ? r.titleAr : null) ?? r.title}
-                          </span>
-                        )}
+                        <Link
+                          href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
+                          className="block truncate font-medium hover:underline"
+                          dir="auto"
+                        >
+                          {r.title}
+                        </Link>
                         <Link href={`/projects/${r.projectId}`} className="block truncate text-xs text-muted-foreground hover:underline" dir="auto">
                           {r.projectTitle}
                         </Link>

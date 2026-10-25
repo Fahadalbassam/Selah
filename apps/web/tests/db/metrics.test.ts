@@ -1,6 +1,6 @@
 // Metrics (baseline: Metrics) against a real Postgres: the agreed
 // baseline date, implementation metrics under row-level security, the team
-// view without rankings, and the optional client KPIs.
+// view without rankings. Business indicators: tests/db/indicators.test.ts.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { Pool, type PoolClient } from "pg";
@@ -23,7 +23,7 @@ const U = {
   cons: id(13), // staffed on PROJ
   outsider: id(14), // consultant on nothing
   cmgr: id(15), // Acme client manager, staffed
-  cowner: id(16), // Acme action owner, staffed; owns the KPI
+  cowner: id(16), // Acme action owner, staffed
   betaMgr: id(17),
 };
 const PROJ = id(21);
@@ -224,141 +224,5 @@ describe("the team", () => {
       await expect(attempt(u, `SELECT * FROM app_team_workload()`), u).rejects.toThrow(/only the firm admin/);
       await expect(attempt(u, `SELECT * FROM app_team_metrics('2020-01-01')`), u).rejects.toThrow(/only the firm admin/);
     }
-  });
-});
-
-describe("client KPIs (optional)", () => {
-  const OBJ = id(901);
-  const KPI = id(902);
-  const objective = `INSERT INTO strategic_objectives (id, project_id, org_id, perspective, title_en, created_by) VALUES ($1,$2,$3,'internal_process','Run the board well',$4)`;
-  const kpi = (kid: string, ownerId: string, project = PROJ, obj = OBJ) =>
-    run(
-      U.cons,
-      `INSERT INTO kpis (id, project_id, org_id, objective_id, name_en, unit, direction, baseline, target, start_date, target_date, frequency, owner_user_id, created_by)
-       VALUES ($1,$2,$3,$4,'Board meetings held','meetings','higher_better',0,10,'2026-01-01','2026-12-31','quarterly',$5,$6)`,
-      [kid, project, project === PROJ ? ACME : BETA, obj, ownerId, U.cons],
-    );
-  const report = (uid: string, period: string, value: number, extra: { supersedes?: string; status?: string } = {}) =>
-    run(
-      uid,
-      `INSERT INTO kpi_readings (id, project_id, org_id, kpi_id, period_start, value, reported_by, supersedes_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [next(), PROJ, ACME, KPI, period, value, uid, extra.supersedes ?? null, extra.status ?? "reported"],
-    );
-
-  it("stay off until the firm admin turns them on", async () => {
-    await expect(run(U.cons, objective, [OBJ, PROJ, ACME, U.cons])).rejects.toThrow(/row-level security/);
-    await expect(
-      run(U.cons, `INSERT INTO firm_settings (org_id, client_kpis_enabled) VALUES ($1, true)`, [FIRM]),
-    ).rejects.toThrow(/row-level security/);
-    await run(U.admin, `INSERT INTO firm_settings (org_id, client_kpis_enabled) VALUES ($1, true)`, [FIRM]);
-    await expect(run(U.cmgr, objective, [OBJ, PROJ, ACME, U.cmgr])).rejects.toThrow(/row-level security/);
-    await run(U.cons, objective, [OBJ, PROJ, ACME, U.cons]);
-  });
-
-  it("are owned by someone on the client's project team, and linked only within the project", async () => {
-    await expect(kpi(next(), U.betaMgr)).rejects.toThrow(/active member of the project team/);
-    await kpi(KPI, U.cowner);
-    await expect(
-      run(
-        U.cons,
-        `INSERT INTO recommendation_kpis (project_id, org_id, recommendation_id, kpi_id, created_by) VALUES ($1,$2,$3,$4,$5)`,
-        [PROJ, ACME, BETA_REC, KPI, U.cons],
-      ),
-    ).rejects.toThrow(/same project/);
-    await run(
-      U.cons,
-      `INSERT INTO recommendation_kpis (project_id, org_id, recommendation_id, kpi_id, created_by) VALUES ($1,$2,$3,$4,$5)`,
-      [PROJ, ACME, REC, KPI, U.cons],
-    );
-  });
-
-  it("the owner reports; nobody else on the client side does, and no client marks a value verified", async () => {
-    await expect(report(U.cmgr, "2026-01-01", 2)).rejects.toThrow(/row-level security/);
-    await expect(report(U.cowner, "2026-01-01", 2, { status: "verified" })).rejects.toThrow(/starts as reported/);
-    await expect(report(U.cowner, "2026-02-01", 2)).rejects.toThrow(/not one of the KPI's periods/);
-    await report(U.cowner, "2026-01-01", 2);
-    const reading = await owner.query(`SELECT id FROM kpi_readings WHERE kpi_id = $1`, [KPI]);
-    const rid = reading.rows[0].id;
-    expect((await attempt(U.cowner, `UPDATE kpi_readings SET status = 'verified' WHERE id = $1`, [rid])).rowCount).toBe(0);
-    await run(U.cons, `UPDATE kpi_readings SET status = 'verified' WHERE id = $1`, [rid]);
-    const r = (await owner.query(`SELECT status, verified_by FROM kpi_readings WHERE id = $1`, [rid])).rows[0];
-    expect(r).toEqual({ status: "verified", verified_by: U.cons });
-    await expect(attempt(U.cons, `UPDATE kpi_readings SET status = 'rejected' WHERE id = $1`, [rid])).rejects.toThrow(/once/);
-    await expect(attempt(U.cons, `DELETE FROM kpi_readings WHERE id = $1`, [rid])).rejects.toThrow(/permission denied/);
-  });
-
-  it("a missing period shows as not reported, never as zero, and a correction replaces a reading", async () => {
-    // Q1 verified (2), Q2 reported then corrected, Q3 missing, Q4 still due.
-    await report(U.cowner, "2026-04-01", 3);
-    const q2 = (await owner.query(`SELECT id FROM kpi_readings WHERE kpi_id = $1 AND period_start = '2026-04-01'`, [KPI])).rows[0]
-      .id;
-    await report(U.cowner, "2026-04-01", 7, { supersedes: q2 });
-    await expect(report(U.cowner, "2026-04-01", 8, { supersedes: q2 })).rejects.toThrow(/kpi_readings_supersede_once/);
-    const { rows } = await attempt(U.cmgr, `SELECT * FROM app_kpi_periods($1, '2026-11-15')`, [KPI]);
-    expect(rows.map((r) => [day(r.period_start), r.status, r.value === null ? null : Number(r.value), r.rag])).toEqual([
-      ["2026-01-01", "verified", 2, "amber"], // 20% done, 24.7% expected by 31 March
-      ["2026-04-01", "reported", 7, "green"], // 70% done, 49.6% expected by 30 June
-      ["2026-07-01", "not_reported", null, null],
-      ["2026-10-01", "due", null, null],
-    ]);
-  });
-
-  it("are judged against the expected trajectory, not the final target", async () => {
-    const monthly = next();
-    await run(
-      U.cons,
-      `INSERT INTO kpis (id, project_id, org_id, objective_id, name_en, unit, direction, baseline, target, start_date, target_date, frequency, owner_user_id, created_by)
-       VALUES ($1,$2,$3,$4,'Policies approved','policies','higher_better',0,12,'2026-01-01','2026-12-31','monthly',$5,$6)`,
-      [monthly, PROJ, ACME, OBJ, U.cowner, U.cons],
-    );
-    await run(
-      U.cowner,
-      `INSERT INTO kpi_readings (project_id, org_id, kpi_id, period_start, value, reported_by) VALUES ($1,$2,$3,'2026-02-01',2,$4)`,
-      [PROJ, ACME, monthly, U.cowner],
-    );
-    const { rows } = await attempt(U.cons, `SELECT * FROM app_kpi_periods($1, '2026-03-05')`, [monthly]);
-    const feb = rows.find((r) => day(r.period_start) === "2026-02-01");
-    // 2 of 12 (16.7%) by the end of February, when 16.2% of the year has passed: on track.
-    expect([Number(feb.progress_pct), Number(feb.expected_pct), feb.rag]).toEqual([16.7, 16.2, "green"]);
-  });
-
-  it("nobody verifies their own reading, future periods take none, and periods start on the 1st", async () => {
-    await report(U.cons, "2026-07-01", 4);
-    const mine = (await owner.query(`SELECT id FROM kpi_readings WHERE kpi_id = $1 AND period_start = '2026-07-01'`, [KPI]))
-      .rows[0].id;
-    await expect(attempt(U.cons, `UPDATE kpi_readings SET status = 'verified' WHERE id = $1`, [mine])).rejects.toThrow(
-      /other than its reporter/,
-    );
-    await attempt(U.lead, `UPDATE kpi_readings SET status = 'verified' WHERE id = $1`, [mine]);
-    const long = next();
-    await run(
-      U.cons,
-      `INSERT INTO kpis (id, project_id, org_id, objective_id, name_en, unit, direction, baseline, target, start_date, target_date, frequency, created_by)
-       VALUES ($1,$2,$3,$4,'Long','x','higher_better',0,1,'2026-01-01','2099-12-31','monthly',$5)`,
-      [long, PROJ, ACME, OBJ, U.cons],
-    );
-    await expect(
-      run(
-        U.cons,
-        `INSERT INTO kpi_readings (project_id, org_id, kpi_id, period_start, value, reported_by) VALUES ($1,$2,$3,'2098-01-01',1,$4)`,
-        [PROJ, ACME, long, U.cons],
-      ),
-    ).rejects.toThrow(/not started/);
-    await expect(
-      run(
-        U.cons,
-        `INSERT INTO kpis (project_id, org_id, objective_id, name_en, unit, direction, baseline, target, start_date, target_date, frequency, created_by)
-         VALUES ($1,$2,$3,'Drifts','x','higher_better',0,1,'2026-01-31','2026-12-31','monthly',$4)`,
-        [PROJ, ACME, OBJ, U.cons],
-      ),
-    ).rejects.toThrow(/kpi_starts_on_first/);
-  });
-
-  it("disappear again when the firm turns them off", async () => {
-    await run(U.admin, `UPDATE firm_settings SET client_kpis_enabled = false WHERE org_id = $1`, [FIRM]);
-    expect((await attempt(U.cons, `SELECT * FROM kpis`)).rowCount).toBe(0);
-    expect((await attempt(U.cowner, `SELECT * FROM kpi_readings`)).rowCount).toBe(0);
-    await run(U.admin, `UPDATE firm_settings SET client_kpis_enabled = true WHERE org_id = $1`, [FIRM]);
   });
 });

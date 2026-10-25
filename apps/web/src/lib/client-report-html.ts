@@ -5,6 +5,7 @@
  * numbers on the export day, not frozen ones.
  */
 import { escapeHtml, reportStyles } from "./report-html";
+import { indicatorSection, type IndicatorTable } from "./indicator-html";
 
 export interface ClientReportNumbers {
   total: number;
@@ -28,6 +29,8 @@ export interface ClientReportHtmlInput {
   departments: { name: string; numbers: ClientReportNumbers }[];
   attention: { title: string; project: string; owner: string | null; dueDate: string | null; status: string; overdue: boolean }[];
   exportedOn: string;
+  /** The client's business indicators (KPI layer B), with the note that they are the client's own figures. */
+  indicators?: { table: IndicatorTable; claim: string } | null;
   /** Strings under messages "clientProgress.pdf". */
   t: (key: string, values?: Record<string, string | number>) => string;
 }
@@ -134,6 +137,7 @@ ${breakdown(
   input.departments.map((d) => ({ name: d.name, numbers: d.numbers })),
 )}
 ${attention}
+${indicatorSection(input.indicators?.table, input.indicators?.claim ?? "")}
 <p class="claim">${e(t("pooledNote"))} ${e(t("claimNote"))}</p>
 </body>
 </html>`;

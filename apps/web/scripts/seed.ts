@@ -397,5 +397,56 @@ await submitInquiry(
   null,
 );
 
+// Business indicators the client tracks (KPI layer B): a baseline six months
+// back, a value for each month since, one linked to the charter recommendation.
+const monthStart = (back: number) => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - back, 1)).toISOString().slice(0, 10);
+};
+const [meetingsKpi, complaintsKpi] = await db
+  .insert(s.clientKpis)
+  .values([
+    {
+      orgId: nukhba!.id,
+      nameAr: "قرارات المجلس المنفذة في موعدها",
+      nameEn: "Board decisions carried out on time",
+      definition: "نسبة قرارات المجلس التي نُفذت قبل الموعد المحدد في المحضر",
+      unit: "%",
+      direction: "higher_better",
+      frequency: "monthly",
+      baseline: "42",
+      baselinePeriod: monthStart(6),
+      target: "80",
+      targetDate: day(240),
+      source: "سجل متابعة قرارات أمانة المجلس",
+      createdBy: u.consultant,
+    },
+    {
+      orgId: nukhba!.id,
+      nameAr: "شكاوى العملاء",
+      nameEn: "Customer complaints",
+      unit: "شكوى",
+      direction: "lower_better",
+      frequency: "monthly",
+      baseline: "64",
+      baselinePeriod: monthStart(6),
+      createdBy: u.nukhbaAdmin,
+    },
+  ])
+  .returning();
+await db.insert(s.clientKpiValues).values(
+  [
+    [5, "45", "48"],
+    [4, "51", "60"],
+    [3, "55", "57"],
+    [2, "61", "52"],
+    [1, "66", "49"],
+  ].flatMap(([back, onTime, complaints]) => [
+    { kpiId: meetingsKpi!.id, orgId: nukhba!.id, period: monthStart(back as number), value: onTime as string, enteredBy: u.nukhbaManager },
+    { kpiId: complaintsKpi!.id, orgId: nukhba!.id, period: monthStart(back as number), value: complaints as string, enteredBy: u.nukhbaAdmin },
+  ]),
+);
+await db.insert(s.clientKpiLinks).values({ kpiId: meetingsKpi!.id, recommendationId: charter!.id, orgId: nukhba!.id, createdBy: u.consultant });
+
 await pool.end();
 console.log("seeded. Sign in as any of:", Object.keys(u).length, "users, e.g. sara@mizan.example (firm admin), khalid@mizan.example (consultant), reem@nukhba.example (client manager)");

@@ -25,7 +25,7 @@ describe("traceRoots", () => {
   });
 
   it("matches the parent by type as well as id", () => {
-    const rows = [row("objective", "x"), row("kpi", "k1", "objective", "x"), row("finding", "f1", "assessment", "x")];
+    const rows = [row("kpi", "x"), row("recommendation", "r1", "kpi", "x"), row("finding", "f1", "assessment", "x")];
     expect(traceRoots(rows).map((r) => r.nodeId)).toEqual(["x", "f1"]);
   });
 });

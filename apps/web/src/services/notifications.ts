@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations, supportRequests } from "@/db/schema";
+import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations, supportRequests, clientKpis } from "@/db/schema";
 import type { Principal } from "@/authz";
 import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
 import { BadRequestError, NotFoundError } from "@/server/errors";
@@ -88,6 +88,17 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     for (const q of found) titles.set(q.id, { title: q.name ?? q.ref, titleAr: q.nameAr });
   }
 
+  // A business indicator a firm member filled in for the client (KPI layer B).
+  const kpiIds = ids(rows, "kpi");
+  if (kpiIds.length) {
+    for (const k of await tx
+      .select({ id: clientKpis.id, nameEn: clientKpis.nameEn, nameAr: clientKpis.nameAr })
+      .from(clientKpis)
+      .where(inArray(clientKpis.id, kpiIds))) {
+      titles.set(k.id, { title: k.nameEn ?? k.nameAr, titleAr: k.nameAr });
+    }
+  }
+
   // A reported problem (F13) is titled with its client: the firm admin reads which one, the reporter their own.
   const supportIds = ids(rows, "support_request");
   if (supportIds.length) {
@@ -129,6 +140,8 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind === "client.pack_received") return `/clients/${entityId}`;
   // Archiving and restoring reach the client's admins, who have no client page.
   if (kind.startsWith("client.")) return "/";
+  // Indicators waiting for this period's values are listed on the client's overview.
+  if (kind === "indicator.due") return "/";
   switch (entityType) {
     case "action":
       return `/actions/${entityId}`;
@@ -140,6 +153,8 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
       return `/clients/${entityId}`;
     case "inquiry":
       return `/inquiries/${entityId}`;
+    case "kpi":
+      return `/indicators/${entityId}`;
     default:
       return null;
   }

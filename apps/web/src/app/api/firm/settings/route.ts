@@ -10,7 +10,6 @@ const body = z
   .object({
     intakeEmail: z.union([z.email().max(254), z.literal(""), z.null()]),
     suggestionsEnabled: z.boolean(),
-    clientKpisEnabled: z.boolean(),
     kpiGraceDays: days(R.kpiGraceDays),
     staleDays: days(R.staleDays),
     checkinDays: z.array(days([CHECKIN_DAYS.min, CHECKIN_DAYS.max])).max(CHECKIN_DAYS.count),

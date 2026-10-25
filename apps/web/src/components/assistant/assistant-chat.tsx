@@ -650,7 +650,15 @@ function Sources({ citations, projectId }: { citations: Citation[]; projectId: s
           );
         }
         const href =
-          c.sourceType === "action" ? `/actions/${c.sourceId}` : c.sourceType === "meeting" ? `/meetings/${c.sourceId}` : `/projects/${projectId}`;
+          c.sourceType === "action"
+            ? `/actions/${c.sourceId}`
+            : c.sourceType === "meeting"
+              ? `/meetings/${c.sourceId}`
+              : c.sourceType === "recommendation"
+                ? `/recommendations/${c.sourceId}`
+                : c.sourceType === "kpi"
+                  ? `/indicators/${c.sourceId}`
+                  : `/projects/${projectId}`;
         return (
           <Link key={i} href={href} className={cn(chip, "hover:bg-muted")}>
             <span className="text-muted-foreground">{t(`cases.${c.sourceType as CaseType}`)}:</span>
