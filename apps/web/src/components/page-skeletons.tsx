@@ -34,10 +34,10 @@ export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="space-y-3 rounded-xl border bg-card p-5 shadow-xs">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-8 w-14" />
-          <Skeleton className="h-3 w-36" />
+        <div key={i} className="space-y-3 rounded-xl border bg-surface p-5 shadow-xs">
+          <Skeleton className="h-4 w-28 bg-background" />
+          <Skeleton className="h-8 w-14 bg-background" />
+          <Skeleton className="h-3 w-36 bg-background" />
         </div>
       ))}
     </div>

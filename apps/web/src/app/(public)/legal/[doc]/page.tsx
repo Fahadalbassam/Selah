@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ReadingProgress } from "@/components/reading-progress";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -46,6 +47,7 @@ export default async function LegalPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-3xl animate-page-in space-y-8 px-6 py-12">
+      <ReadingProgress />
       <header className="space-y-2">
         {version ? <p className="text-sm text-muted-foreground">{t("version", { version: `\u2066${version}\u2069` })}</p> : null}
         <h1 className="text-2xl font-semibold text-balance">{t(`${doc}.title`)}</h1>

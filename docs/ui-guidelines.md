@@ -170,20 +170,23 @@ All colour comes from the CSS variables in `app/globals.css`. Never use Tailwind
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `background` | 0.985 | 0.145 | Page |
-| `card` / `popover` | 1.0 | 0.185 / 0.2 | Raised surfaces |
+| `background` | 0.97 | 0.13 | Page. A light grey (light) or near black (dark), never the same as a card, so cards don't melt into the page. |
+| `card` / `popover` | 1.0 | 0.195 / 0.215 | Raised surfaces: content cards, tables, dialogs, menus |
+| `surface` | 0.93 | 0.255 | The grey card: summary numbers (`StatTile`, the overview's four cards, their skeletons) and highlights inside a white card. Use `bg-surface text-surface-foreground`. |
 | `foreground` | 0.18 | 0.95 | Text |
-| `muted-foreground` | 0.5 | 0.68 | Secondary text, icons |
-| `muted`, `accent`, `secondary` | 0.95 to 0.96 | 0.24 to 0.26 | Quiet fills, hover |
+| `muted-foreground` | 0.5 | 0.70 | Secondary text, icons |
+| `muted`, `accent`, `secondary` | 0.94 to 0.95 | 0.245 to 0.27 | Quiet fills, hover |
 | `primary` | 0.2 (near black) | 0.93 (near white) | The one strong colour: primary buttons, active states, the "new" badge |
-| `border` | 0.912 | white 10% | Card, table and divider lines |
-| `input` | 0.89 | white 14% | Button and tab outlines, switch track |
-| `field` | 0.64 | white 35% | Borders of text inputs, selects, checkboxes, radios |
+| `border` | 0.905 | white 10% | Card, table and divider lines |
+| `input` | 0.885 | white 14% | Button and tab outlines, switch track |
+| `field` | 0.62 | white 35% | Borders of text inputs, selects, checkboxes, radios |
 | `destructive` | red, low chroma | | Problems: blocked, revision requested, overdue, errors |
 | `warning` | amber, low chroma | | Waiting on someone |
 | `success` | green, low chroma | | Human-verified only |
 
 (Values are OKLCH lightness; all neutrals have zero chroma.)
+
+**Which surface where.** The page is grey and content cards are white (light theme), or the page is near black and cards a lighter charcoal (dark theme), so a card always reads as a card. Summary numbers sit on the darker `surface` grey, which breaks up a page of white cards (or of black ones) without adding colour. Don't put form fields on `surface`: their border drops under 3:1 there.
 
 **Floating surfaces.** The Files card adds the `surface-floating` class, which redefines the tokens above inside it to one charcoal grey that is the same in both themes (`popover` 0.3, `card` 0.355, `muted` 0.255, `accent` 0.42, `foreground` 0.97, `muted-foreground` 0.8, `border` white 16%). The card then stands out from the light page and from the near-black dark page alike, and everything inside it (buttons, badges, fields) stays readable without per-component colours. Use it only for floating, movable panels. Dialogs and menus opened from inside are portalled out and keep the normal theme.
 
@@ -193,15 +196,17 @@ AA needs 4.5:1 for text, 3:1 for large text and for the boundaries of form contr
 
 | Pair | Light | Dark |
 |---|---|---|
-| `foreground` on `background` | 18.0 | 17.1 |
-| `muted-foreground` on `background` | 5.8 | 6.9 |
-| `muted-foreground` on `muted` | 5.3 | 5.7 |
+| `foreground` on `background` | 17.2 | 17.4 |
+| `muted-foreground` on `background` | 5.5 | 7.5 |
+| `muted-foreground` on `muted` | 5.2 | 6.1 |
+| `foreground` on `surface` | 15.3 | 13.6 |
+| `muted-foreground` on `surface` | 4.9 | 5.9 |
 | `destructive` text on `card` | 5.9 | 5.2 |
 | `destructive` text on `destructive/10` | 5.1 | 4.7 |
 | `success` text on `success/15` | 4.7 | 5.7 |
 | `foreground` on `warning/15` | 16.0 | 12.4 |
 | `warning` text on `card` | 4.9 | 8.6 |
-| `field` border on `background` | 3.2 | 3.1 |
+| `field` border on `background` | 3.3 | 3.1 |
 
 Inside `surface-floating` (same in both themes): `foreground` on `popover` 12.5, `muted-foreground` on `popover` 7.3, on `card` 5.9, on `accent` 4.5; `destructive` text on `card` 5.1; `field` border on `card` 6.0.
 
@@ -305,6 +310,34 @@ AI-written text is always labelled as such, shows its sources, and never uses th
 - Under reduced motion, `globals.css` removes every view-transition animation, so pages and themes swap at once with no fade, morph or wipe.
 - Numbers count with `AnimatedNumber`; icons animate per section 1.
 - `prefers-reduced-motion` turns all of it off globally. Don't add motion that bypasses that rule (for example JavaScript loops that ignore it).
+
+### Animate UI components and where they live
+
+Each component from the Animate UI list has one job in Selah. Reuse these places; don't scatter the same effect elsewhere.
+
+| Component | Where | Why there |
+|---|---|---|
+| Page Transition | `app/(app)/layout.tsx` | Every page change (section 8 above). |
+| Theme Toggler + Theme Toggler Button | Top bar (`ThemeSwitch`) | One-click light/dark with a wipe from the reading direction's start. |
+| Typing Text, Highlight Text, Blur, Highlight | `Welcome` on the overview, for two weeks after a person's first sign-in | The greeting types itself, the line under it highlights what Selah is for, and three role-specific places to start blur in with a hover highlight. Dismissible per browser. The inquiry confirmation also highlights the reference code. |
+| Counting Number | `AnimatedNumber` (overview cards, tiles) | Numbers arriving on a page. |
+| Sliding Number | Unread count on the bell; the project's "implemented" headline | Numbers that change while you watch, or the one headline per page. |
+| Avatar Group | `PeopleStack` | Stacked people on cards and headers. |
+| Scroll Fade | Notifications popover | Fades the edges of the list where there is more to scroll. |
+| Scroll Progress | `ReadingProgress` on the legal notices and the privacy notice | Long documents read top to bottom. |
+| Auto Height | `FormDialog` error line | The footer slides down when an error appears. |
+| Particles | `VerifiedBurst` on the action page's status badge | One small green burst right after a consultant accepts the evidence (human verification is the moment worth marking). Never on later visits. |
+| Tilt | Project cards on `/projects` | Cards that are whole links lean slightly (3°) toward the pointer. |
+| Motion Grid | `ExportButton` busy state | A 3×3 ripple while the export is made. |
+| Copy Button | `CopyButton`: inquiry reference, 2FA backup codes | The icon turns into a check after copying. |
+| Button | `ui/button.tsx` | Every button springs to 97% on press. |
+| Pagination | `ListPager` | The current-page highlight slides to the chosen page. |
+| Toast | `ui/toast.tsx` (Base UI) | Every confirmation. |
+| Accordion, Alert Dialog, Checkbox, Collapsible, Dialog, Dropdown Menu, Hover Card, Popover, Progress, Radio Group, Select, Sheet, Switch, Tabs, Toggle, Toggle Group, Tooltip | `components/ui/*` on `@animate-ui/react/primitives/radix-ui` | Same API as shadcn; Motion drives their entrances. Keep new shadcn components on these primitives (`npx @animate-ui/cli animate <name>`). |
+| Topography | Sign-in, invite, upload link pages | Background of signed-out pages. |
+| Lucide icons | `components/animate-ui/icons` | See section 1. |
+
+Not used, on purpose: **Hugeicons** (a second icon family would break the single lucide style), **Scrolling Number** (an odometer strip; Selah has no picker or counter that needs one, Sliding Number covers changing numbers), **Pinned List** (needs a "pin a project" feature that doesn't exist), **Preview Link Card** (Selah links to its own pages, there are no external pages to preview), **Drawer** and **Sheet-style mobile panels** (no phone layouts), **Menubar** and **Navigation Menu** (the sidebar is the navigation; a second menu would crowd the shell), **Slider** (every number in Selah needs an exact value), **Questionnaire** (the inquiry form is already a step-by-step form), **Combobox** (Base UI only; worth adopting when a picker grows past a few dozen people), **Sidebar** (Selah keeps the shadcn `sidebar-07` shell, which already animates).
 
 ---
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** A labelled number, with an optional line of context under it. */
+/** A labelled number, with an optional line of context under it, on the grey summary surface. */
 export function StatTile({
   label,
   value,
@@ -14,7 +14,7 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-1 rounded-xl border bg-card px-4 py-3", className)}>
+    <div className={cn("space-y-1 rounded-xl border bg-surface px-4 py-3 text-surface-foreground", className)}>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

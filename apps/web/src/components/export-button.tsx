@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { Download } from "@/components/animate-ui/icons/download";
-import { BrandLoader } from "@/components/brand";
+import { MotionGrid, MotionGridCells, type Frames } from "@animate-ui/react/primitives/motion-grid";
 import { Button } from "@/components/ui/button";
 
 /** The file name the server chose (the readable title when it sent one). */
@@ -17,6 +17,23 @@ function fileName(disposition: string | null, fallback: string): string {
     }
   }
   return /filename="([^"]+)"/i.exec(disposition ?? "")?.[1] ?? fallback;
+}
+
+// A ripple through a 3x3 grid while the file is made: the centre, the edges, the corners.
+const FRAMES: Frames = [
+  [[1, 1]],
+  [[0, 1], [1, 0], [1, 2], [2, 1]],
+  [[0, 0], [0, 2], [2, 0], [2, 2]],
+  [],
+];
+
+/** The busy mark of an export (Animate UI Motion Grid), in the button's own colour. */
+function Preparing() {
+  return (
+    <MotionGrid gridSize={[3, 3]} frames={FRAMES} duration={140} className="size-4 gap-0.5" aria-hidden>
+      <MotionGridCells className="size-1 rounded-full bg-current opacity-25 data-[active=true]:opacity-100" />
+    </MotionGrid>
+  );
 }
 
 /**
@@ -52,7 +69,7 @@ export function ExportButton({ endpoint, label, title, variant = "outline" }: { 
   return (
     <span className="inline-flex flex-col items-start gap-1">
       <Button variant={variant} size="sm" onClick={run} disabled={busy} title={title}>
-        {busy ? <BrandLoader tone="current" className="size-4" /> : <Download />}
+        {busy ? <Preparing /> : <Download />}
         {busy ? t("preparing") : label}
       </Button>
       {error ? (

@@ -1,4 +1,5 @@
 import { FilePlus2 } from "lucide-react";
+import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -88,7 +89,16 @@ export async function ProgressTab({
         <Card className="gap-3 py-5 shadow-xs">
           <CardHeader className="px-5">
             <CardDescription>{t("implemented")}</CardDescription>
-            <CardTitle className="text-4xl font-semibold tabular-nums">{percent(progress.implementedPct)}</CardTitle>
+            <CardTitle className="text-4xl font-semibold tabular-nums">
+              {/* The headline rolls up digit by digit from zero (Animate UI Sliding Number). */}
+              {progress.implementedPct === null ? (
+                "—"
+              ) : (
+                <span dir="ltr" className="inline-flex">
+                  <SlidingNumber number={Math.round(progress.implementedPct)} fromNumber={0} />%
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 px-5">
             {progress.implementedPct === null ? (

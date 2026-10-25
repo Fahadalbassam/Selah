@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRightLeft, MailWarning } from "lucide-react";
+import { VerifiedBurst } from "@/components/verified-burst";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { MessageSquare } from "@/components/animate-ui/icons/message-square";
@@ -89,7 +90,11 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
-      <PageHeader title={action.title} morph={`action-${action.id}`} meta={<StatusBadge status={action.status} />}>
+      <PageHeader title={action.title} morph={`action-${action.id}`} meta={
+          <VerifiedBurst actionId={action.id} verified={action.status === "verified_complete"}>
+            <StatusBadge status={action.status} />
+          </VerifiedBurst>
+        }>
         {leads && thread.can.write ? <AskConsultant /> : null}
         <MuteButton actionId={action.id} muted={muted} />
         {data.askAssistant ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}

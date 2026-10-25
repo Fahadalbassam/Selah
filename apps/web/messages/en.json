@@ -4558,5 +4558,90 @@
       "withdrawConfirm": "Switch off the assistant for everyone at your company? Their chats stay hidden. The firm can offer it again.",
       "withdrawn": "The assistant is off for your company."
     }
+  },
+  "welcome": {
+    "greeting": "Welcome to Selah, {name}",
+    "dismiss": "Hide this welcome",
+    "intro": {
+      "firm": "Selah follows each recommendation {highlight}.",
+      "client": "Selah shows {highlight}."
+    },
+    "highlight": {
+      "firm": "from the consultant's advice to verified implementation",
+      "client": "what your consultant asks of you, and the proof that it is done"
+    },
+    "lead": "Three places to start:",
+    "steps": {
+      "firm_admin": [
+        {
+          "title": "Add your first client",
+          "hint": "Clients are created by firm admins, with a lead consultant."
+        },
+        {
+          "title": "Invite your team",
+          "hint": "Consultants see only the clients they are assigned to."
+        },
+        {
+          "title": "Set the firm's defaults",
+          "hint": "Inquiry inbox, follow-ups and retention."
+        }
+      ],
+      "consultant": [
+        {
+          "title": "See what needs you today",
+          "hint": "Reviews, overdue work and requests across your clients."
+        },
+        {
+          "title": "Open your projects",
+          "hint": "Recommendations, actions and evidence."
+        },
+        {
+          "title": "Review submitted evidence",
+          "hint": "Accept it or ask for a revision."
+        }
+      ],
+      "client_admin": [
+        {
+          "title": "See your projects",
+          "hint": "What the consultants recommended, and who owns each action."
+        },
+        {
+          "title": "Invite your people",
+          "hint": "Managers and action owners from your organisation."
+        },
+        {
+          "title": "Get help",
+          "hint": "How Selah works, and how to reach your consultant."
+        }
+      ],
+      "client_manager": [
+        {
+          "title": "See your actions",
+          "hint": "Due dates, next steps and what evidence is expected."
+        },
+        {
+          "title": "Follow your projects",
+          "hint": "Progress your consultant has verified."
+        },
+        {
+          "title": "Get help",
+          "hint": "How Selah works, and how to reach your consultant."
+        }
+      ],
+      "action_owner": [
+        {
+          "title": "Open my actions",
+          "hint": "Each one says what to do next."
+        },
+        {
+          "title": "Upload evidence",
+          "hint": "Attach the file on the action itself."
+        },
+        {
+          "title": "Get help",
+          "hint": "How Selah works, and how to reach your consultant."
+        }
+      ]
+    }
   }
 }

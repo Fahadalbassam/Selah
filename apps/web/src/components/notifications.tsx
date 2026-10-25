@@ -1,5 +1,7 @@
 "use client";
 
+import { ScrollFade } from "@animate-ui/react/primitives/effects/scroll-fade";
+import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
 import { Bell } from "@/components/animate-ui/icons/bell";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -152,7 +154,8 @@ export function NotificationBell({ unread }: { unread: number }) {
           <Bell className="size-4" />
           {count > 0 ? (
             <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background tabular-nums">
-              {count > 99 ? "99+" : count}
+              {/* The count rolls digit by digit when new notifications arrive (Animate UI Sliding Number). */}
+              {count > 99 ? "99+" : <SlidingNumber number={count} initiallyStable />}
             </span>
           ) : null}
         </Button>
@@ -162,7 +165,8 @@ export function NotificationBell({ unread }: { unread: number }) {
           <p className="text-sm font-medium">{t("title")}</p>
           {count > 0 ? <MarkAllRead onDone={() => void load()} /> : null}
         </div>
-        <div className="max-h-96 overflow-y-auto">
+        {/* The list's edges fade where there is more to scroll (Animate UI Scroll Fade). */}
+        <ScrollFade className="max-h-96 overflow-y-auto">
           {items ? (
             <NotificationList items={items} onOpen={() => setOpen(false)} />
           ) : (
@@ -170,7 +174,7 @@ export function NotificationBell({ unread }: { unread: number }) {
               <BrandLoader className="size-5" />
             </div>
           )}
-        </div>
+        </ScrollFade>
         <div className="border-t px-4 py-2 text-center">
           <Link
             href="/notifications"
