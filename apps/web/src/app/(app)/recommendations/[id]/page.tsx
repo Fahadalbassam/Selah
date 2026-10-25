@@ -16,12 +16,17 @@ import { isUuid } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { getRecommendation } from "@/services/responses";
+import { LinkedIndicatorsCard } from "@/components/indicators/linked-indicators-card";
+import { recommendationIndicators } from "@/services/indicators";
 import { AnswerDialog, ConfirmResponse, RespondDialog } from "./response-panel";
 
 export default async function RecommendationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal((tx, principal) => getRecommendation(tx, principal, id));
+  const { data, indicators } = await withPrincipal(async (tx, principal) => {
+    const data = await getRecommendation(tx, principal, id);
+    return { data, indicators: await recommendationIndicators(tx, principal, id) };
+  });
   const [t, tr, tPlan, tPrio, tVis, format] = await Promise.all([
     getTranslations("recommendationPage"),
     getTranslations("response"),
@@ -173,6 +178,8 @@ export default async function RecommendationPage({ params }: { params: Promise<{
               </CardContent>
             </Card>
           ) : null}
+
+          {indicators ? <LinkedIndicatorsCard recommendationId={r.id} data={indicators} /> : null}
 
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">

@@ -30,7 +30,6 @@ export const FROZEN_TABLES = [
   "findings",
   "info_request_files",
   "info_requests",
-  "kpis",
   "meeting_attendees",
   "meeting_decisions",
   "meeting_notes",
@@ -44,14 +43,12 @@ export const FROZEN_TABLES = [
   "project_closure_lessons",
   "project_closure_requests",
   "project_members",
-  "recommendation_kpis",
   "recommendation_responses",
   "recommendations",
   "reports",
   "review_signoffs",
   "reviews",
   "risk_acceptances",
-  "strategic_objectives",
 ] as const;
 
 /** Text limits the database enforces. */

@@ -38,6 +38,8 @@ Decided with the product owner on 2026-10-20:
 - Any firm member can create an **internal project** and becomes its lead (`project_members.is_lead`).
 - On internal projects firm staff do the work themselves (`INTERNAL_POLICY` in `policy.ts`), and **nobody reviews their own action** (`workflow:self-review`, mirrored in the `reviews` insert policy).
 
+- **Client business indicators** belong to the client, not a project (`indicator.*`, migration `0062_client_indicators`). Firm staff who work with the client and the client's admins set them up and link them to recommendations; admins and managers, and firm staff, enter values; a manager sees the company's indicators and their own departments'; action owners see none. A link to a firm-private recommendation is visible only to whoever can read that recommendation (docs/metrics.md).
+
 RLS for all of this is in the Staffing and Staffed visibility sections of `drizzle/0000_baseline.sql`.
 
 The `Principal` is built from the session and the database (`services/principal.ts`), never from anything the browser sends.

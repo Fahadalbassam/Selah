@@ -131,7 +131,7 @@ Rules: the Handover section of `drizzle/0000_baseline.sql`. Tests: `tests/db/han
 - **Client roles** (`project_client_roles`): sponsor, coordinator, steering committee, acceptor, observer. Each row is a client account or a client contact (so consultant-managed clients have them too). The sponsor and coordinator are single; a new one replaces the old. Accounts holding the sponsor, coordinator or acceptor role are active admins or managers of the client. The firm admin and the client's lead name anyone; the client's admin names accounts only. Shown on the project's Team tab (`GET/POST /api/projects/:id/client-roles`, `DELETE .../client-roles/:roleId`). The sponsor is added at escalation level 3.
 - **Check-ins.** Setting `projects.handover_on` creates follow-ups at 30, 60 and 90 days (`firm_settings.checkin_days`). They are due at 09:00 Riyadh time, assigned to the client's lead consultant, and firm-private. Moving the handover date moves the check-ins still open.
 - **On the project page** (Progress tab, `getHandover`/`setHandover`, `PATCH /api/projects/:id/handover`): everyone who sees progress sees the handover date and the sponsor. The firm admin sets the date; the sponsor is a client role. Firm staff also see the check-ins, and the assignee or firm staff mark each one done.
-- **Deviations** (`v_deviations`, under the caller's RLS). One row per open action or KPI and the rule it breaks. AI may summarise the rows later; the rules decide what counts.
+- **Deviations** (`v_deviations`, under the caller's RLS). One row per open action and the rule it breaks. AI may summarise the rows later; the rules decide what counts.
 
 | Rule | Meaning |
 |---|---|
@@ -140,8 +140,6 @@ Rules: the Handover section of `drizzle/0000_baseline.sql`. Tests: `tests/db/han
 | `slipped` | 2 or more approved deadline changes. |
 | `churn` | 2 or more revision requests. |
 | `orphaned` | The owner is no longer an active member. |
-| `kpi_not_reported` | A KPI period passed its grace days with no reading (client KPIs on). |
-| `kpi_off_target` | The latest reading is in the red band (client KPIs on). |
 
-- **On the project page:** firm staff get a "Needs attention" tab (`projectDeviations`, permission `deviation.read`), which lists each item and the rule it breaks, most pressing first. Everyone who reads recommendations gets a "Trace" tab (`app_trace`) showing findings → recommendations → actions → evidence and reviews, and objectives → KPIs → the recommendations meant to move them. Everyone who reads actions sees what moved since their last visit (`app_changed_actions`) above the tabs. The page moves the mark after showing it (`PUT /api/projects/:id/since-last-visit`).
+- **On the project page:** firm staff get a "Needs attention" tab (`projectDeviations`, permission `deviation.read`), which lists each item and the rule it breaks, most pressing first. Everyone who reads recommendations gets a "Trace" tab (`app_trace`) showing findings → recommendations → actions → evidence and reviews, and the client's business indicators → the recommendations linked to them (docs/metrics.md). Everyone who reads actions sees what moved since their last visit (`app_changed_actions`) above the tabs. The page moves the mark after showing it (`PUT /api/projects/:id/since-last-visit`).
 - **AI draft outcomes** (`ai_drafts`): whoever saw a draft records whether it was accepted unchanged, edited (with the edit distance) or discarded. The firm reads them to evaluate the drafts. Append-only. The table fills once AI drafting is on.

@@ -27,7 +27,6 @@ function ramadanSpanOk(starts: string | null, ends: string | null) {
 export interface Settings {
   intakeEmail: string | null;
   suggestionsEnabled: boolean;
-  clientKpisEnabled: boolean;
   kpiGraceDays: number;
   staleDays: number;
   checkinDays: number[];
@@ -175,11 +174,8 @@ export function FirmSettingsForm({ initial }: { initial: Settings }) {
         id="kpis"
         title={t("kpis.title")}
         description={t("kpis.hint")}
-        send={save("kpis", ["clientKpisEnabled", "kpiGraceDays"])}
+        send={save("kpis", ["kpiGraceDays"])}
       >
-        <Row id="s-kpis" label={t("kpis.enabled")} hint={t("kpis.enabledHint")}>
-          <Switch id="s-kpis" checked={s.clientKpisEnabled} onCheckedChange={(v) => set("clientKpisEnabled", v)} />
-        </Row>
         <Row id="s-grace" label={t("kpis.grace")} hint={t("kpis.graceHint")}>
           {days("kpiGraceDays", "s-grace")}
         </Row>

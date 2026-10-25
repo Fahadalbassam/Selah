@@ -82,3 +82,15 @@ export function statusIntent(question: string): Set<StatusKind> {
   const q = question.replace(/\p{M}/gu, "");
   return new Set(STATUS.filter(([, re]) => re.test(q)).map(([k]) => k));
 }
+
+// Indicator words in both languages: the client's own business measures (KPI layer B).
+const INDICATOR = /\b(kpis?|indicators?|metrics?|measures?|targets?|baselines?)\b|مؤشر|المؤشرات|مستهدف|المستهدفات|خط (ال)?أساس/iu;
+
+/**
+ * Whether a question asks about the client's business indicators ("how are
+ * sales doing against target?", "ما آخر قيمة لمؤشر الشكاوى؟"). Those live in
+ * their own records, so they are read from there (docs/assistant.md).
+ */
+export function indicatorIntent(question: string): boolean {
+  return INDICATOR.test(question.replace(/\p{M}/gu, ""));
+}

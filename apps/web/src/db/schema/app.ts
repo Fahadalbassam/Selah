@@ -1256,8 +1256,7 @@ export const firmSettings = pgTable("firm_settings", {
   orgId: uuid("org_id")
     .primaryKey()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  clientKpisEnabled: boolean("client_kpis_enabled").notNull().default(false),
-  // Days after a KPI period ends before a missing reading shows as not reported.
+  // Days after an indicator's period ends before a missing value shows as missing.
   kpiGraceDays: integer("kpi_grace_days").notNull().default(10),
   // An open action untouched this many days counts as stale.
   staleDays: integer("stale_days").notNull().default(14),
@@ -1334,117 +1333,115 @@ export const projectHealthWeeks = pgTable(
   (t) => [scopedFk("project_health_weeks", t), uniqueIndex("project_health_weeks_once").on(t.projectId, t.weekStart)],
 );
 
-// Client KPIs (optional, behind firm_settings.client_kpis_enabled): the
-// client's own strategic measures, entered by hand. Readings are the client's
-// claims until the firm verifies them; nothing is computed or pulled in.
-export const kpiPerspective = pgEnum("kpi_perspective", ["financial", "customer", "internal_process", "learning_growth"]);
+// Business indicators (KPI layer B, approved 2026-10-25): numbers the client
+// reports about its own business, for the whole company or one department,
+// month by month or quarter by quarter, linked to the recommendations meant
+// to move them. Entered by hand; nothing is pulled in or computed into a
+// claim of impact. They belong to the client, not to a project, so they
+// outlive any one engagement.
 export const kpiDirection = pgEnum("kpi_direction", ["higher_better", "lower_better"]);
 export const kpiFrequency = pgEnum("kpi_frequency", ["monthly", "quarterly"]);
-export const kpiReadingStatus = pgEnum("kpi_reading_status", ["reported", "verified", "rejected"]);
 
-export const strategicObjectives = pgTable(
-  "strategic_objectives",
+export const clientKpis = pgTable(
+  "client_kpis",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    ...scoped(),
-    perspective: kpiPerspective("perspective").notNull(),
-    titleAr: text("title_ar"),
-    titleEn: text("title_en"),
-    createdBy: uuid("created_by")
+    orgId: uuid("org_id")
       .notNull()
-      .references(() => user.id),
-    createdAt: createdAt(),
-  },
-  (t) => [scopedFk("strategic_objectives", t), check("objective_titled", sql`coalesce(${t.titleAr}, ${t.titleEn}) IS NOT NULL`)],
-);
-
-export const kpis = pgTable(
-  "kpis",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    ...scoped(),
-    objectiveId: uuid("objective_id")
-      .notNull()
-      .references(() => strategicObjectives.id, { onDelete: "cascade" }),
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Null: the whole company.
+    departmentId: uuid("department_id"),
     nameAr: text("name_ar"),
     nameEn: text("name_en"),
+    // How it is measured, in the client's words.
+    definition: text("definition"),
     unit: text("unit").notNull(),
     direction: kpiDirection("direction").notNull(),
+    frequency: kpiFrequency("frequency").notNull().default("monthly"),
+    // The value before the work, and the period it was measured in (a 1st of the month).
     baseline: numeric("baseline").notNull(),
-    target: numeric("target").notNull(),
-    // The first reporting period starts here; readings are due per period.
-    startDate: date("start_date").notNull(),
-    targetDate: date("target_date").notNull(),
-    frequency: kpiFrequency("frequency").notNull(),
-    // The client person who reports it.
-    ownerUserId: uuid("owner_user_id").references(() => user.id),
-    dataSource: text("data_source"),
-    // Percent of the way from baseline to target.
-    greenThreshold: integer("green_threshold").notNull().default(90),
-    amberThreshold: integer("amber_threshold").notNull().default(60),
+    baselinePeriod: date("baseline_period").notNull(),
+    // Optional, together: what the client aims for, and by when.
+    target: numeric("target"),
+    targetDate: date("target_date"),
+    // Where the number comes from (a system, a report).
+    source: text("source"),
     active: boolean("active").notNull().default(true),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
     createdAt: createdAt(),
+    updatedBy: uuid("updated_by").references(() => user.id),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    scopedFk("kpis", t),
-    index("kpis_objective_idx").on(t.objectiveId),
-    check("kpi_named", sql`coalesce(${t.nameAr}, ${t.nameEn}) IS NOT NULL`),
-    check("kpi_dates", sql`${t.targetDate} > ${t.startDate}`),
-    check("kpi_thresholds", sql`0 <= ${t.amberThreshold} AND ${t.amberThreshold} <= ${t.greenThreshold} AND ${t.greenThreshold} <= 100`),
+    departmentFk("client_kpis", t),
+    index("client_kpis_org_idx").on(t.orgId, t.departmentId),
+    check("client_kpi_named", sql`coalesce(${t.nameAr}, ${t.nameEn}) IS NOT NULL`),
+    check("client_kpi_name_length", sql`char_length(coalesce(${t.nameAr}, '')) <= 200 AND char_length(coalesce(${t.nameEn}, '')) <= 200`),
+    check("client_kpi_unit", sql`char_length(btrim(${t.unit})) BETWEEN 1 AND 40`),
+    check("client_kpi_texts", sql`char_length(coalesce(${t.definition}, '')) <= 1000 AND char_length(coalesce(${t.source}, '')) <= 300`),
+    check("client_kpi_baseline_first", sql`extract(day FROM ${t.baselinePeriod}) = 1`),
+    check("client_kpi_target_pair", sql`(${t.target} IS NULL) = (${t.targetDate} IS NULL)`),
+    check("client_kpi_target_after", sql`${t.targetDate} IS NULL OR ${t.targetDate} > ${t.baselinePeriod}`),
   ],
 );
 
-// Append-only, except that the firm verifies or rejects a reported value
-// once. A correction is a new reading that supersedes the old one.
-export const kpiReadings = pgTable(
-  "kpi_readings",
+// One value per period; a correction is a new row that replaces the current
+// one, so every value ever entered stays on record. on_behalf: firm staff
+// entered it for the client (the database sets it). checked_*: a firm person
+// other than the one who entered it compared it with the client's source,
+// once. A check is not a verification of impact.
+export const clientKpiValues = pgTable(
+  "client_kpi_values",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    ...scoped(),
     kpiId: uuid("kpi_id")
       .notNull()
-      .references(() => kpis.id, { onDelete: "cascade" }),
-    periodStart: date("period_start").notNull(),
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    period: date("period").notNull(),
     value: numeric("value").notNull(),
-    reportedBy: uuid("reported_by")
+    note: text("note"),
+    enteredBy: uuid("entered_by")
       .notNull()
       .references(() => user.id),
-    reportedAt: createdAt(),
-    evidenceDocumentId: uuid("evidence_document_id").references(() => documents.id),
-    supersedesId: uuid("supersedes_id").references((): AnyPgColumn => kpiReadings.id),
-    status: kpiReadingStatus("status").notNull().default("reported"),
-    verifiedBy: uuid("verified_by").references(() => user.id),
-    verifiedAt: ts("verified_at"),
-    note: text("note"),
+    enteredAt: ts("entered_at").notNull().defaultNow(),
+    onBehalf: boolean("on_behalf").notNull().default(false),
+    supersedesId: uuid("supersedes_id").references((): AnyPgColumn => clientKpiValues.id),
+    checkedBy: uuid("checked_by").references(() => user.id),
+    checkedAt: ts("checked_at"),
   },
   (t) => [
-    scopedFk("kpi_readings", t),
-    index("kpi_readings_kpi_idx").on(t.kpiId, t.periodStart),
-    uniqueIndex("kpi_readings_supersede_once").on(t.supersedesId),
+    index("client_kpi_values_kpi_idx").on(t.kpiId, t.period),
+    uniqueIndex("client_kpi_values_supersede_once").on(t.supersedesId),
+    check("client_kpi_value_note", sql`char_length(coalesce(${t.note}, '')) <= 1000`),
+    check("client_kpi_value_checked", sql`(${t.checkedBy} IS NULL) = (${t.checkedAt} IS NULL)`),
   ],
 );
 
-// A recommendation is intended to move a KPI. A stated intent, never a claim
-// of cause.
-export const recommendationKpis = pgTable(
-  "recommendation_kpis",
+// A recommendation is meant to move an indicator. A stated intent, never a
+// claim that it did.
+export const clientKpiLinks = pgTable(
+  "client_kpi_links",
   {
-    ...scoped(),
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
     recommendationId: uuid("recommendation_id")
       .notNull()
       .references(() => recommendations.id, { onDelete: "cascade" }),
-    kpiId: uuid("kpi_id")
+    orgId: uuid("org_id")
       .notNull()
-      .references(() => kpis.id, { onDelete: "cascade" }),
+      .references(() => organizations.id, { onDelete: "cascade" }),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id),
     createdAt: createdAt(),
   },
-  (t) => [scopedFk("recommendation_kpis", t), primaryKey({ columns: [t.recommendationId, t.kpiId] })],
+  (t) => [primaryKey({ columns: [t.kpiId, t.recommendationId] }), index("client_kpi_links_rec_idx").on(t.recommendationId)],
 );
 
 // What happened to each AI draft a person saw, so the drafts can be

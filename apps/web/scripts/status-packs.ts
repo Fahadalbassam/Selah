@@ -14,4 +14,4 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) throw new Error("the date must be YYYY-M
 const pool = new Pool({ connectionString: url, max: 1 });
 const out = await runStatusPacks(pool, today);
 await pool.end();
-console.log(`status packs for the month before ${today}: ${out.drafted} drafted`);
+console.log(`status packs for the month before ${today}: ${out.drafted} drafted; ${out.indicatorReminders} clients reminded about indicators`);

@@ -68,6 +68,7 @@ export type ResourceType =
   | "client_contact"
   | "meeting"
   | "department"
+  | "indicator"
   | "assessment_template"
   | "assessment"
   | "engagement"

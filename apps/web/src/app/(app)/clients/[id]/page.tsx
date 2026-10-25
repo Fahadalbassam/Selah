@@ -34,6 +34,8 @@ import { latestConflictSearch } from "@/services/conflicts";
 import { ConflictMatches } from "@/components/conflict-matches";
 import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
+import { IndicatorsCard } from "@/components/indicators/indicators-card";
+import { listIndicators } from "@/services/indicators";
 import { listExportPacks } from "@/services/export-pack";
 import { getOffboarding } from "@/services/offboarding";
 import { OffboardingCard } from "./offboarding-card";
@@ -70,6 +72,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       conflictSearch: admin ? await latestConflictSearch(tx, { orgId: id }) : null,
       // Pooled numbers across the client's projects (F30); a pitch has none yet.
       overview: team.client.prospect ? null : await clientOverview(tx, principal, id).catch(() => null),
+      indicators: team.client.prospect ? null : await listIndicators(tx, principal, id, { includeInactive: true }).catch(() => null),
       // Leaving (F27): archived or not, what blocks it, holds and retention.
       offboarding: await getOffboarding(tx, principal, id),
       packs: await listExportPacks(tx, principal, id),
@@ -199,6 +202,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           {data.overview && data.overview.projects.length ? <ClientProgress data={data.overview} /> : null}
+          {data.indicators && (data.indicators.indicators.length || data.indicators.canManage) ? <IndicatorsCard data={data.indicators} /> : null}
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
               <div className="space-y-1.5">

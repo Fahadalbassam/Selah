@@ -118,7 +118,7 @@ afterAll(async () => {
 
 describe("the monthly job", () => {
   it("drafts last month's pack once per active client project with released work, and tells the lead", async () => {
-    expect(await runStatusPacks(owner, today)).toEqual({ drafted: 1 });
+    expect(await runStatusPacks(owner, today)).toMatchObject({ drafted: 1 });
     const r = (
       await owner.query(
         `SELECT project_id, generated_by, period_start::text AS s, period_end::text AS e, visibility, metrics FROM reports WHERE kind = 'status_pack'`,
@@ -129,7 +129,7 @@ describe("the monthly job", () => {
     const n = (await owner.query(`SELECT user_id, entity_id FROM notifications WHERE kind = 'report.pack_drafted'`)).rows;
     expect(n).toEqual([{ user_id: U.lead, entity_id: P.acme }]);
     // Safe to run again.
-    expect(await runStatusPacks(owner, today)).toEqual({ drafted: 0 });
+    expect(await runStatusPacks(owner, today)).toMatchObject({ drafted: 0 });
     expect((await owner.query(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'report.pack_drafted'`)).rows[0].n).toBe(1);
   });
 

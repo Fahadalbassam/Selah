@@ -13,7 +13,6 @@ import { audit } from "./audit";
 export const FIRM_SETTING_DEFAULTS = {
   intakeEmail: null as string | null,
   suggestionsEnabled: true,
-  clientKpisEnabled: false,
   kpiGraceDays: 10,
   staleDays: 14,
   checkinDays: [30, 60, 90],

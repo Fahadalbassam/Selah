@@ -11,6 +11,8 @@ import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
+import { indicatorTable } from "@/lib/indicator-html";
+import { indicatorSnapshot } from "./indicators";
 import { renderReportHtml } from "@/lib/report-html";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { NotFoundError, RateLimitError } from "@/server/errors";
@@ -281,7 +283,18 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
               head: [tp("item"), tp("owner"), tp("on")],
               rows: pack.pack.verified.map((x) => [x.title, x.owner ?? "—", d(x.on)]),
             },
-          ].map(({ key, ...s }) => ({ ...s, title: tp(`${key}.title`), hint: tp(`${key}.hint`) })),
+          ]
+            .map(({ key, ...s }) => ({ ...s, title: tp(`${key}.title`), hint: tp(`${key}.hint`) }))
+            .concat(
+              pack.pack.indicators?.length
+                ? [
+                    (() => {
+                      const table = indicatorTable(pack.pack.indicators, locale, (k, v) => t(`indicators.report.${k}` as "indicators.report.title", v as Record<string, string | number>));
+                      return { ...table, hint: `${table.hint} ${t("indicators.claimNote")}` };
+                    })(),
+                  ]
+                : [],
+            ),
           moved: {
             title: tp("moved.title"),
             hint: tp(Object.keys(pack.pack.moved).length ? "moved.hint" : "moved.none"),
@@ -353,6 +366,8 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
       sustainer: i.sustainer?.name ?? null,
       note: i.note,
     })),
+    // The client's business indicators as known on the closing day, beside the work (KPI layer B).
+    indicators: project.kind === "client" ? await indicatorPdfTable(tx, t, locale, { clientOrgId: project.orgId, projectId }, closure.current.closedAt ? firmToday(new Date(closure.current.closedAt)) : today) : null,
     t: (key, values) => t(`closurePdf.${key}` as "closurePdf.title", values as Record<string, string | number>),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
@@ -411,6 +426,7 @@ export async function clientReportPdf(tx: Tx, principal: Principal, clientOrgId:
       overdue: isOverdue(a, today),
     })),
     exportedOn: today,
+    indicators: await indicatorPdfTable(tx, t, locale, { clientOrgId }, today),
     t: (key, values) => t(`clientProgress.pdf.${key}` as "clientProgress.pdf.kind", values as Record<string, string | number>),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
@@ -440,4 +456,20 @@ export function download(file: ExportFile, title?: string): Response {
       "x-content-type-options": "nosniff",
     },
   });
+}
+
+/** The client's business indicators as a report table, or nothing when there are none (KPI layer B). */
+async function indicatorPdfTable(
+  tx: Tx,
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  locale: Locale,
+  filter: { clientOrgId: string; projectId?: string },
+  asOf: string,
+) {
+  const list = await indicatorSnapshot(tx, filter, asOf);
+  if (!list.length) return null;
+  return {
+    table: indicatorTable(list, locale, (k, v) => t(`indicators.report.${k}` as "indicators.report.title", v as Record<string, string | number>)),
+    claim: t("indicators.claimNote"),
+  };
 }

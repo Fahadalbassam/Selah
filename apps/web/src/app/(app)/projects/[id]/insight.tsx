@@ -1,13 +1,13 @@
 "use client";
 
-import { ClipboardCheck, Gauge, ListChecks, Target, Lightbulb } from "lucide-react";
+import { ClipboardCheck, Gauge, ListChecks, Lightbulb } from "lucide-react";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Search } from "@/components/animate-ui/icons/search";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { CircleX } from "@/components/animate-ui/icons/circle-x";
 import Link from "next/link";
-import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -70,12 +70,11 @@ export function SinceLastVisit(props: {
 }
 
 export interface DeviationRow {
-  entityType: "action" | "kpi" | "recommendation";
+  entityType: "action" | "recommendation";
   entityId: string;
   rule: string;
   detail: Record<string, string | number | null>;
   title: string | null;
-  titleAr: string | null;
   status: string | null;
   dueDate: string | null;
   owner: string | null;
@@ -84,17 +83,12 @@ export interface DeviationRow {
 /** The deviation rules over the project: what breaks which rule, and by how much. */
 export function Deviations({ rows }: { rows: DeviationRow[] }) {
   const t = useTranslations("insight.deviations");
-  const ar = useLocale() === "ar";
   const format = useFormatter();
   const counts = rows.reduce<Record<string, number>>((m, r) => ((m[r.rule] = (m[r.rule] ?? 0) + 1), m), {});
   const detail = (r: DeviationRow) => {
     const d = r.detail;
     if (r.rule === "overdue" || r.rule === "stale") return t(`detail.${r.rule}`, { n: Number(d.days ?? 0) });
     if (r.rule === "slipped" || r.rule === "churn") return t(`detail.${r.rule}`, { n: Number(d.count ?? 0) });
-    if (r.rule === "kpi_not_reported" || r.rule === "kpi_off_target") {
-      const period = d.period_start ? format.dateTime(new Date(String(d.period_start)), { dateStyle: "medium" }) : "—";
-      return t(`detail.${r.rule}`, { period });
-    }
     if (r.rule === "disputed") {
       return t("detail.disputed", { date: d.since ? format.dateTime(new Date(String(d.since)), { dateStyle: "medium" }) : "—" });
     }
@@ -129,20 +123,13 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
                 {rows.map((r) => (
                   <TableRow key={`${r.entityId}-${r.rule}`}>
                     <TableCell className="max-w-80">
-                      {r.entityType !== "kpi" ? (
-                        <Link
-                          href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
-                          className="block truncate font-medium hover:underline"
-                          dir="auto"
-                        >
-                          {r.title}
-                        </Link>
-                      ) : (
-                        <span className="flex items-center gap-2 truncate font-medium">
-                          <Gauge className="size-4 shrink-0 text-muted-foreground" />
-                          {(ar ? r.titleAr : null) ?? r.title}
-                        </span>
-                      )}
+                      <Link
+                        href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
+                        className="block truncate font-medium hover:underline"
+                        dir="auto"
+                      >
+                        {r.title}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <span title={t(`rules.${r.rule}.hint`)}>{t(`rules.${r.rule}.name`)}</span>
@@ -165,7 +152,7 @@ export function Deviations({ rows }: { rows: DeviationRow[] }) {
 }
 
 export interface TraceNode {
-  nodeType: "objective" | "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
+  nodeType: "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
   nodeId: string;
   parentType: TraceNode["nodeType"] | null;
   parentId: string | null;
@@ -174,7 +161,6 @@ export interface TraceNode {
 }
 
 const ICON = {
-  objective: Target,
   assessment: ClipboardCheck,
   kpi: Gauge,
   finding: Search,
@@ -185,9 +171,9 @@ const ICON = {
 
 /**
  * The project as one tree, from assessments and findings to the evidence
- * and reviews that close them, and from objectives to KPIs and the recommendations meant to
- * move them. A recommendation under a KPI is a cross-reference; it is shown
- * in full under its finding.
+ * and reviews that close them, and from the client's business indicators to
+ * the recommendations meant to move them. A recommendation under an
+ * indicator is a cross-reference; it is shown in full under its finding.
  */
 export function Trace({ rows }: { rows: TraceNode[] }) {
   const t = useTranslations("insight.trace");
@@ -200,7 +186,7 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
   }
   const kids = (n: TraceNode) => children.get(`${n.nodeType}:${n.nodeId}`) ?? [];
   const roots = (type: TraceNode["nodeType"]) => traceRoots(rows).filter((r) => r.nodeType === type);
-  // Recommendations whose only parent is a KPI still belong at the top of the work tree.
+  // Recommendations whose only parent is an indicator still belong at the top of the work tree.
   const withFinding = new Set(
     rows.filter((r) => r.nodeType === "recommendation" && r.parentType === "finding").map((r) => r.nodeId),
   );
@@ -229,8 +215,11 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
         <div className="flex items-center gap-2 text-sm">
           <Icon className="size-4 shrink-0 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{t(`types.${n.nodeType}`)}</span>
-          {n.nodeType === "action" || n.nodeType === "assessment" ? (
-            <Link href={`/${n.nodeType === "action" ? "actions" : "assessments"}/${n.nodeId}`} className="min-w-0 truncate font-medium hover:underline">
+          {n.nodeType === "action" || n.nodeType === "assessment" || n.nodeType === "kpi" ? (
+            <Link
+              href={`/${n.nodeType === "action" ? "actions" : n.nodeType === "kpi" ? "indicators" : "assessments"}/${n.nodeId}`}
+              className="min-w-0 truncate font-medium hover:underline"
+            >
               {label}
             </Link>
           ) : (
@@ -259,9 +248,8 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
 
   const assessments = roots("assessment");
   const findings = [...assessments, ...roots("finding")];
-  const objectives = roots("objective");
-  const orphanKpis = roots("kpi");
-  if (!findings.length && !objectives.length && !loose.length && !orphanKpis.length) {
+  const indicators = roots("kpi");
+  if (!findings.length && !loose.length && !indicators.length) {
     return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
   }
   return (
@@ -285,7 +273,7 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
           </CardContent>
         </Card>
       ) : null}
-      {objectives.length || orphanKpis.length ? (
+      {indicators.length ? (
         <Card className="gap-3 py-5 shadow-xs">
           <CardHeader className="px-5">
             <CardTitle className="text-base">{t("goals")}</CardTitle>
@@ -293,10 +281,7 @@ export function Trace({ rows }: { rows: TraceNode[] }) {
           </CardHeader>
           <CardContent className="px-5">
             <ul>
-              {objectives.map((n) => (
-                <Node key={n.nodeId} n={n} depth={0} />
-              ))}
-              {orphanKpis.map((n) => (
+              {indicators.map((n) => (
                 <Node key={n.nodeId} n={n} depth={0} />
               ))}
             </ul>

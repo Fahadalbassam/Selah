@@ -192,7 +192,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [ ] **F32** Workstreams with a lead consultant — tier: 6 · size: M · wave: frozen · decision: D2
 - [ ] **F33** Client steering meeting across projects — tier: 6 · size: M · wave: frozen · decision: D2
 - [x] **F34** Client groups with flexible member companies — tier: 6 · size: L · wave: 2 · decision: D4 · pr: #109 (groups, linked clients, companies inside a client), #110 (the holding's named people see the roll-up)
-- [ ] **F35** Company and department KPIs — tier: 6 · size: L · wave: frozen · waiting on: supervisor (D8) · decision: D8
+- [x] **F35** Company and department business indicators (KPI layer B): client-entered values over time with notes, corrections kept, firm entries marked and logged, the firm's one-time check, links to recommendations, trend lines on the client overview, department, indicator and recommendation pages, the status pack, closure and client report PDFs, and the assistant under the asker's rights; client-reported, never verified impact; no weighting, integrations or impact claims — tier: 6 · size: L · wave: 4 · decision: Fahad on 2026-10-25 ("go with the recommended amount and the useful amount") · pr: #132
 - [x] **F36** Closing pulse survey: the client rates the engagement when a project closes — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, the comparable-platforms study lists evaluation and NPS as a common practice; against, it is a firm-improvement tool rather than part of connecting consultant and client, and nobody has asked for it yet · pr: #111
 - [x] **F37** Case-study consent: the client agrees, per project, that the firm may cite the work — tier: 5 · size: S · wave: 2 (candidate) · related: F25 · evidence: for, it keeps a record of a permission firms otherwise get by email; against, it is rare and is handled outside Selah today · pr: #112
 - [x] **F38** Today page for firm staff: what waits on me across every client (my reviews, overdue work I lead, my follow-ups, this week's meetings, requests waiting on me) — tier: 4 · size: S–M · wave: 3 · evidence: research-team.md §7 recommends building it; time tracking stays out · decision: Wave 3 pick on 2026-10-24 (two-sided review) · pr: #119
@@ -252,5 +252,5 @@ From the review of 2026-10-24 (report `plan/selah-two-sided-review.html`), secti
 
 ## Decisions still waiting
 
-- [ ] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — waiting on: supervisor · blocks: F35
+- [x] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — done: Fahad decided on 2026-10-25 to build company and department indicators without a weighted cascade (F35, #132)
 - [x] **D11** Rewrite the partner name out of the first commit (force-push, can't be undone for clones) — done: Fahad's go on 2026-10-24; history rewritten and every branch force-pushed, main 71e45d0 became 9d0c72c with identical files · related: X4

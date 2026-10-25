@@ -7,6 +7,8 @@ import { ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { getReport, projectProgress } from "./follow-through";
 import { loadProject } from "./staffing";
+import { firmToday } from "@/lib/dates";
+import { indicatorSnapshot, type IndicatorSnapshot } from "./indicators";
 
 // The monthly status pack (F19). The job drafts it for last month, firm-only
 // (migration status_packs: app_draft_status_packs); the firm reviews it,
@@ -25,19 +27,27 @@ export interface StatusPack {
   verified: (Item & { owner: string | null; on: string })[];
   moved: Record<string, number>;
   decisions: (Item & { kind: "response" | "deadline"; since: string; proposedDueDate?: string })[];
+  /** The client's business indicators as known on the day it was issued (KPI layer B); absent on packs issued before them. */
+  indicators?: IndicatorSnapshot[];
 }
 
 export const PACK_LISTS = ["decisions", "overdue", "slipped", "riskAccepted", "verified"] as const;
 
-async function packFor(tx: Tx, projectId: string, from: string, to: string) {
+async function packFor(tx: Tx, projectId: string, orgId: string, from: string, to: string): Promise<StatusPack> {
   const { rows } = await tx.execute<{ pack: StatusPack }>(sql`select app_status_pack(${projectId}::uuid, ${from}::date, ${to}::date) as pack`);
-  return rows[0]!.pack;
+  return { ...rows[0]!.pack, indicators: await indicatorSnapshot(tx, { clientOrgId: orgId, projectId }, firmToday()) };
 }
 
 /** A client reader sees only the items of departments they can see; the counts stay whole. */
 async function forReader(tx: Tx, principal: Principal, orgId: string, pack: StatusPack): Promise<StatusPack> {
   if (principal.orgKind === "firm") return pack;
-  const depts = [...new Set(PACK_LISTS.flatMap((k) => pack[k].map((i) => i.departmentId)).filter((d): d is string => !!d))];
+  const depts = [
+    ...new Set(
+      [...PACK_LISTS.flatMap((k) => pack[k].map((i) => i.departmentId)), ...(pack.indicators ?? []).map((k) => k.departmentId)].filter(
+        (d): d is string => !!d,
+      ),
+    ),
+  ];
   if (!depts.length) return pack;
   const { rows } = await tx.execute<{ id: string; ok: boolean }>(
     sql`select d as id, app_dept_ok(d, ${orgId}::uuid) as ok from unnest(${sql.param(depts)}::uuid[]) d`,
@@ -51,6 +61,7 @@ async function forReader(tx: Tx, principal: Principal, orgId: string, pack: Stat
     riskAccepted: keep(pack.riskAccepted),
     verified: keep(pack.verified),
     decisions: keep(pack.decisions),
+    indicators: pack.indicators?.filter((k) => !k.departmentId || !hidden.has(k.departmentId)),
   };
 }
 
@@ -65,7 +76,7 @@ export async function reportPack(tx: Tx, principal: Principal, reportId: string)
   if (row.metrics) return { draft: false, pack: await forReader(tx, principal, row.orgId, row.pack as StatusPack), live: null };
   return {
     draft: true,
-    pack: await packFor(tx, row.projectId, row.periodStart, row.periodEnd),
+    pack: await packFor(tx, row.projectId, row.orgId, row.periodStart, row.periodEnd),
     live: await projectProgress(tx, principal, row.projectId, row.periodEnd),
   };
 }
@@ -75,11 +86,11 @@ export async function issueStatusPack(tx: Tx, principal: Principal, reportId: st
   const { report } = await getReport(tx, principal, reportId);
   const { resource } = await loadProject(tx, principal, report.projectId);
   assertAllowed(principal, "report.write", { ...resource, type: "report" });
-  const [row] = await tx.select({ kind: reports.kind, metrics: reports.metrics }).from(reports).where(eq(reports.id, reportId)).limit(1);
+  const [row] = await tx.select({ kind: reports.kind, metrics: reports.metrics, orgId: reports.orgId }).from(reports).where(eq(reports.id, reportId)).limit(1);
   if (row?.kind !== "status_pack") throw new NotFoundError("report");
   if (row.metrics) throw new ConflictError("this status pack was already issued");
   const metrics = await projectProgress(tx, principal, report.projectId, report.periodEnd!);
-  const pack = await packFor(tx, report.projectId, report.periodStart!, report.periodEnd!);
+  const pack = await packFor(tx, report.projectId, row.orgId, report.periodStart!, report.periodEnd!);
   await tx.update(reports).set({ bodyMd: input.bodyMd.trim(), metrics, pack }).where(eq(reports.id, reportId));
   await audit(tx, {
     actorId: principal.userId,

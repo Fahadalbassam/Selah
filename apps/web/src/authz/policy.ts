@@ -239,8 +239,18 @@ export const POLICY = {
   // admin's view of the team's load. No per-person scores or rankings.
   "metrics.read": { ...ALL_BUT_OWNER },
   "team_metrics.read": { firm_admin: "any" },
+  // Business indicators (KPI layer B): the client's own numbers, beside the
+  // work. Read and reported (a value for a period) by the firm and the
+  // client's admins and managers, managers only for the company and their
+  // own departments (the database: app_kpi_readable). Set up, changed and
+  // linked to recommendations by the firm and the client's admin. The firm
+  // checks a value against the client's source, never one it entered.
+  "indicator.read": { ...ALL_BUT_OWNER },
+  "indicator.report": { ...ALL_BUT_OWNER },
+  "indicator.manage": { ...STAFF, client_admin: "any" },
+  "indicator.check": { ...STAFF },
   // The deviation rules (v_deviations) over a project: overdue, stale,
-  // slipped, churn, orphaned, and the client KPI rules. For the firm.
+  // slipped, churn, orphaned and disputed. For the firm.
   "deviation.read": { ...STAFF },
   // Asking an action's owner for an update from the oversight page (F18),
   // once a day. The database decides (check_action_reminder).

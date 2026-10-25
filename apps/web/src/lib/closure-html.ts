@@ -1,4 +1,5 @@
 import { escapeHtml, REPORT_FONTS } from "./report-html";
+import { indicatorSection, type IndicatorTable } from "./indicator-html";
 
 /**
  * The closure report as a printable HTML page, for the PDF service. Pure:
@@ -16,6 +17,8 @@ export interface ClosureHtmlInput {
   closedBy: string | null;
   counts: { total: number; verified: number; closed: number; open: number };
   items: { title: string; recommendation: string; status: string; disposition: string; sustainer: string | null; note: string | null }[];
+  /** The client's business indicators (KPI layer B), with the note that they are the client's own figures. */
+  indicators?: { table: IndicatorTable; claim: string } | null;
   /** Strings under messages "closurePdf". */
   t: (key: string, values?: Record<string, string | number>) => string;
 }
@@ -89,6 +92,7 @@ td{padding:2mm;border-bottom:1px solid #e4e4e4;vertical-align:top;}
       : `<p class="muted">${e(t("noOpen"))}</p>`
   }
 </section>
+${indicatorSection(input.indicators?.table, input.indicators?.claim ?? "")}
 <p class="claim">${e(t("claimNote"))}</p>
 </body>
 </html>`;

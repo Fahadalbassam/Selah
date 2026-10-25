@@ -3,7 +3,7 @@ import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, not
 import type { Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
-import { chatTitle, fuse, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
+import { chatTitle, fuse, indicatorIntent, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
 import { CLIENT_REFUSAL, clientAnswerProblem, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
@@ -11,6 +11,7 @@ import { NotFoundError } from "@/server/errors";
 import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
+import { indicatorSnapshot } from "./indicators";
 import { projectMasker } from "./masking";
 import { listProjects } from "./queries";
 
@@ -25,6 +26,8 @@ const CANDIDATES = 20;
 const MAX_RECORDS = 4;
 // Actions listed for a status question ("what is overdue?").
 const MAX_STATUS_ACTIONS = 8;
+// Indicators sent for a question about them.
+const MAX_INDICATORS = 6;
 // Document passages kept beside them: status lives in records, not files.
 const STATUS_TOP_K = 4;
 // Earlier turns of the same chat given as context. Never as sources.
@@ -95,7 +98,10 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
-  const status = kinds.size ? await statusRecords(tx, eng.id, kinds) : [];
+  const status = [
+    ...(kinds.size ? await statusRecords(tx, eng.id, kinds) : []),
+    ...(eng.kind === "client" && indicatorIntent(input.question) ? await indicatorRecords(tx, eng.orgId, eng.id) : []),
+  ];
   const found = await retrieve(tx, scope, vector, { query: input.question, case: caseRef, sources: "files" });
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
@@ -284,7 +290,7 @@ function scopeFilter(scope: RetrievalScope) {
 // ------------------------------------------------------- linked records
 
 interface RecordPassage {
-  type: "recommendation" | "action" | "finding" | "meeting" | "project";
+  type: "recommendation" | "action" | "finding" | "meeting" | "project" | "kpi";
   id: string;
   text: string;
 }
@@ -341,6 +347,7 @@ export async function linkedRecords(
 async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promise<string | null> {
   switch (type) {
     case "project":
+    case "kpi":
       return null;
     case "recommendation": {
       const [r] = (
@@ -360,6 +367,7 @@ async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promis
         r.target_outcome ? `Expected outcome: "${clip(r.target_outcome, 300)}"` : "",
         r.required_evidence ? `Evidence required: "${clip(r.required_evidence, 300)}"` : "",
         `Actions: ${await actionList(tx, id)}.`,
+        await linkedIndicators(tx, id),
       ]
         .filter(Boolean)
         .join(" ");
@@ -542,6 +550,45 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
     })),
   ];
   return out;
+}
+
+/**
+ * The client's business indicators, for a question about them: each one's
+ * baseline, latest value, target and movement, from the indicator records.
+ * Read under the person's own row-level security, so a client person gets
+ * only the indicators their own screens show (a manager: the company's and
+ * their departments'). The figures are the client's own, and the text says so.
+ */
+export async function indicatorRecords(tx: Tx, clientOrgId: string, projectId: string): Promise<RecordPassage[]> {
+  const list = (await indicatorSnapshot(tx, { clientOrgId, projectId }, firmToday())).slice(0, MAX_INDICATORS);
+  if (!list.length) return [];
+  return list.map((k) => ({
+    type: "kpi" as const,
+    id: k.id,
+    text: [
+      `Business indicator "${clip(k.nameEn ?? k.nameAr, 160)}"${k.nameEn && k.nameAr ? ` (Arabic name "${clip(k.nameAr, 160)}")` : ""}`,
+      ` for ${k.departmentId ? `the ${clip(k.departmentEn ?? k.departmentAr, 80)} department` : "the whole company"}, in ${clip(k.unit, 40)},`,
+      ` ${k.direction === "higher_better" ? "higher is better" : "lower is better"}, reported ${k.frequency}.`,
+      ` Baseline ${k.baseline} (${k.baselinePeriod.slice(0, 7)}).`,
+      k.latest ? ` Latest value ${k.latest.value} for the period starting ${k.latest.period}, ${k.movement} than the baseline.` : " No value reported yet.",
+      k.target !== null ? ` Target ${k.target} by ${k.targetDate}${k.towardTarget !== null ? ` (${Math.round(k.towardTarget)}% of the way)` : ""}.` : " No target set.",
+      k.missing ? ` ${k.missing} period(s) missing a value.` : "",
+      k.recommendations.length ? ` Linked to recommendation(s) ${k.recommendations.map((r) => `"${clip(r, 120)}"`).join(", ")}.` : "",
+      " These are figures reported by the client, not verified impact; a change does not show that a recommendation caused it.",
+    ].join(""),
+  }));
+}
+
+/** The indicators a recommendation is linked to, in one sentence, read under the person's own rights. */
+async function linkedIndicators(tx: Tx, recommendationId: string) {
+  const rows = (
+    await tx.execute<{ name: string; unit: string; baseline: string }>(sql`
+      SELECT coalesce(k.name_en, k.name_ar) AS name, k.unit, k.baseline::text AS baseline
+      FROM client_kpi_links l JOIN client_kpis k ON k.id = l.kpi_id
+      WHERE l.recommendation_id = ${recommendationId} ORDER BY k.created_at LIMIT 4`)
+  ).rows;
+  if (!rows.length) return "";
+  return `Client-reported indicators linked to it: ${rows.map((k) => `"${clip(k.name, 120)}" (baseline ${k.baseline} ${clip(k.unit, 40)})`).join("; ")}.`;
 }
 
 async function actionList(tx: Tx, recommendationId: string) {
@@ -749,6 +796,7 @@ async function citationLabels(tx: Tx, cites: Citation[]) {
     ["finding", sql`SELECT id, title, NULL::int AS version FROM findings`],
     ["meeting", sql`SELECT id, title, NULL::int AS version FROM meetings`],
     ["project", sql`SELECT id, title, NULL::int AS version FROM projects`],
+    ["kpi", sql`SELECT id, coalesce(name_en, name_ar) AS title, NULL::int AS version FROM client_kpis`],
   ];
   for (const [type, select] of tables) {
     const xs = ids(type);
