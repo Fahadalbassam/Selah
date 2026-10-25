@@ -3,7 +3,7 @@ import { ReadingProgress } from "@/components/reading-progress";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/intake";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -32,12 +32,10 @@ export default async function PrivacyPage() {
           </section>
         ))}
       </div>
-      <Button asChild variant="outline">
-        <Link href="/inquiry">
+      <Link href="/inquiry" data-slot="button" className={buttonVariants({ variant: "outline" })}>
           <ArrowLeft animateOnHover className="rtl:-scale-x-100" />
           {t("back")}
         </Link>
-      </Button>
     </article>
   );
 }

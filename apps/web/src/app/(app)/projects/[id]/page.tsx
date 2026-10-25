@@ -24,6 +24,7 @@ import { StanceBadge } from "@/components/stance-badge";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isUuid } from "@/lib/ids";
@@ -372,12 +373,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <ExportButton endpoint={`/api/projects/${project.id}/export`} label={tExport("excel")} title={tExport("downloadExcel")} />
                 ) : null}
                 {plan?.can.finding && plan.can.recommendation && plan.can.action ? (
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href={`/projects/${project.id}/import`}>
+                  <Link href={`/projects/${project.id}/import`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
                       <Upload />
                       {tImport("button")}
                     </Link>
-                  </Button>
                 ) : null}
                 {plan?.can.recommendation && data.recommendations.length ? (
                   <RecommendationDialog

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { LogIn } from "@/components/animate-ui/icons/log-in";
 import { BrandWordmark } from "@/components/brand";
 import { LocaleToggle } from "@/components/locale-toggle";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 // Pages anyone can open without an account: the inquiry form and its
 // privacy notice. Same host as the app; the account decides where a
@@ -20,12 +20,10 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           </Link>
           <nav className="flex items-center gap-1">
             <LocaleToggle label={t("language")} />
-            <Button asChild variant="outline" size="sm">
-              <Link href="/sign-in">
+            <Link href="/sign-in" data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
                 <LogIn animateOnHover className="rtl:-scale-x-100" />
                 {t("signIn")}
               </Link>
-            </Button>
           </nav>
         </div>
       </header>

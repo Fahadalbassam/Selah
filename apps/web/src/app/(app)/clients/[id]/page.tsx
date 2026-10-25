@@ -12,6 +12,7 @@ import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToneBadge } from "@/components/tone-badge";
 import { NO_PREVIOUS } from "@/lib/phases";
@@ -647,12 +648,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               {client.prospect ? (
                 <p className="text-sm text-muted-foreground">{tE("noAccountsYet")}</p>
               ) : (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/clients/${client.id}/people`}>
+              <Link href={`/clients/${client.id}/people`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
                   <UsersRound />
                   {tp("manage")}
                 </Link>
-              </Button>
               )}
             </CardContent>
           </Card>

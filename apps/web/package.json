@@ -16,6 +16,7 @@
     "backup:storage": "tsx scripts/storage-backup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
+    "db:seed:walkthrough": "tsx --conditions=react-server scripts/walkthrough/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
     "job:audit-check": "tsx scripts/audit-check.ts",
     "job:audit-seal": "tsx scripts/audit-seal.ts",

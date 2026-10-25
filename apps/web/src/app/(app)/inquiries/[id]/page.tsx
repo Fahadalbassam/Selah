@@ -11,6 +11,7 @@ import { ConflictMatches } from "@/components/conflict-matches";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FIRM_TIME_ZONE } from "@/lib/dates";
 import { isUuid } from "@/lib/ids";
@@ -608,9 +609,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
             <Card className="gap-3 py-5 shadow-xs">
               <CardContent className="space-y-3 px-5 text-sm">
                 <p>{t("converted")}</p>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/clients/${q.clientOrgId}`}>{t("openClient")}</Link>
-                </Button>
+                <Link href={`/clients/${q.clientOrgId}`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>{t("openClient")}</Link>
               </CardContent>
             </Card>
           ) : can.decide && !closed ? (

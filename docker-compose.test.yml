@@ -10,6 +10,23 @@ services:
       SMTP_URL: smtp://mailpit:1025
     depends_on:
       mailpit: { condition: service_started }
+  # PDF exports for the web app run outside Docker (npm run walkthrough):
+  # the same renderer and flags as "pdf", with a port on this machine only.
+  pdf-local:
+    image: gotenberg/gotenberg:8.38.1-chromium
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-deny-public-ips=true
+      - --chromium-deny-private-ips=true
+      - --chromium-max-queue-size=10
+      - --api-disable-download-from=true
+      - --webhook-disable=true
+      - --pdfengines-disable-routes=true
+      - --prometheus-disable-collect=true
+      - --api-timeout=60s
+      - --log-level=warn
+    ports: ["127.0.0.1:3001:3000"]
   # Sample data: `docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm seed`
   seed:
     profiles: ["seed"]
