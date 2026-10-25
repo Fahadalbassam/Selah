@@ -12,7 +12,7 @@ import {
   type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Download } from "@/components/animate-ui/icons/download";
 import { Folder } from "@/components/animate-ui/icons/folder";
 import { FolderOpen } from "@/components/animate-ui/icons/folder-open";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";

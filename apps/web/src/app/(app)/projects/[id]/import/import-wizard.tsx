@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Upload } from "@/components/animate-ui/icons/upload";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";

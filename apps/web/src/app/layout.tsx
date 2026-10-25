@@ -19,6 +19,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const dir = isLocale(locale) ? direction(locale) : "rtl";
   const t = await getTranslations("common.validity");
+  const tCommon = await getTranslations("common");
   // Raw: the {n} placeholders are filled in the browser from the field's own limits.
   const validity = Object.fromEntries(
     (["required", "choose", "email", "url", "format", "tooShort", "tooLong", "tooLow", "tooHigh"] as const).map((k) => [k, t.raw(k) as string]),
@@ -30,7 +31,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             strings they need, so the public upload page doesn't send the whole
             catalogue to an anonymous visitor (see (public)/upload). */}
         <NextIntlClientProvider messages={null}>
-          <Providers dir={dir} nonce={nonce} validity={validity}>{children}</Providers>
+          <Providers dir={dir} nonce={nonce} validity={validity} closeLabel={tCommon("close")}>{children}</Providers>
         </NextIntlClientProvider>
       </body>
     </html>

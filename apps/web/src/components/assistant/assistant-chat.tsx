@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { openFilePage } from "@/app/(app)/projects/[id]/document-summary";
 import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
 import { FileText } from "@/components/animate-ui/icons/file-text";

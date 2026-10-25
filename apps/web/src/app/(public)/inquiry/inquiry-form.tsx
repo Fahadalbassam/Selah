@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
 import { ArrowRight } from "@/components/animate-ui/icons/arrow-right";
 import { Check } from "@/components/animate-ui/icons/check";

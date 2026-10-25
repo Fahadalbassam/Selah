@@ -19,5 +19,5 @@ export async function pickNextMonthDay(page: Page, fieldId: string) {
 }
 
 export async function toastSaved(page: Page) {
-  await expect(page.locator("[data-sonner-toast]").first()).toBeVisible();
+  await expect(page.locator("[data-slot=toast]").first()).toBeVisible();
 }

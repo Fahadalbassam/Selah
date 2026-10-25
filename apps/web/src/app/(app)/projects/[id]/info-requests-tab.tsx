@@ -4,7 +4,7 @@ import { ClipboardList, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";

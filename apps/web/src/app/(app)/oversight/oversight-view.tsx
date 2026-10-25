@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { callApi } from "@/components/form-dialog";

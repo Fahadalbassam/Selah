@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";

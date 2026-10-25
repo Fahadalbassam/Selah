@@ -6,7 +6,7 @@ import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";

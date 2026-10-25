@@ -6,10 +6,10 @@ import { ThemeProvider } from "next-themes";
 import { Direction } from "radix-ui";
 import type { ReactNode } from "react";
 import { FormValidity, type ValidityMessages } from "@/components/form-validity";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-export function Providers({ dir, nonce, validity, children }: { dir: "rtl" | "ltr"; nonce?: string; validity: ValidityMessages; children: ReactNode }) {
+export function Providers({ dir, nonce, validity, closeLabel, children }: { dir: "rtl" | "ltr"; nonce?: string; validity: ValidityMessages; closeLabel: string; children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" nonce={nonce} defaultTheme="system" enableSystem disableTransitionOnChange>
       <Direction.Provider dir={dir}>
@@ -18,7 +18,8 @@ export function Providers({ dir, nonce, validity, children }: { dir: "rtl" | "lt
           <AnimateUIProvider reducedMotion="user">
             <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
             <FormValidity messages={validity} />
-            <Toaster dir={dir} position={dir === "rtl" ? "bottom-left" : "bottom-right"} />
+            {/* Animate UI toast (Base UI underneath), at the end side of the reading direction. */}
+            <Toaster closeLabel={closeLabel} />
           </AnimateUIProvider>
         </MotionConfig>
       </Direction.Provider>
