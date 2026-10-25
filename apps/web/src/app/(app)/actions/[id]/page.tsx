@@ -29,6 +29,7 @@ import { isActionMuted } from "@/services/notifications";
 import { getActionDetail } from "@/services/queries";
 import { actionSlip } from "@/services/slips";
 import { askMentionFor } from "@/services/help";
+import { actionSecondReview } from "@/services/second-review";
 import { ActionPanel } from "./action-panel";
 import { AskConsultant } from "./ask-consultant";
 import { CommentThread } from "./comment-thread";
@@ -37,6 +38,7 @@ import { DownloadButton } from "./download-button";
 import { DepartmentPicker } from "./department-picker";
 import { DeadlineRequests, EvidenceList } from "./follow-through-panels";
 import { ReminderLadder } from "./reminder-ladder";
+import { SecondReviewCard } from "./second-review";
 
 function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -47,7 +49,7 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads, second } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
       ladder: await actionLadder(tx, principal, id),
@@ -64,6 +66,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       // Client side: whom "Ask your consultant" mentions (F13).
       leads: await askMentionFor(tx, principal),
       slip: await actionSlip(tx, data.action.projectId, id),
+      // Whether this work needs a second consultant's sign-off, and where the round stands (F22).
+      second: await actionSecondReview(tx, principal, id),
       // Internal projects have no departments.
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
     };
@@ -137,6 +141,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             can={data.can}
             close={closing.can.close ? { signed: closing.signed, replacements: closing.replacements } : undefined}
             openItems={follow.items.filter((i) => i.status === "open").map((i) => ({ id: i.id, title: i.title }))}
+            second={second}
+            firmView={firmView}
           />
 
           <EvidenceList actionId={action.id} items={follow.items} canManage={follow.can.manageItems} firmView={firmView} canSubmit={data.can.submitEvidence} />
@@ -210,7 +216,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                         ? FileText
                         : e.kind === "moved"
                           ? ArrowRightLeft
-                          : e.outcome === "accept"
+                          : e.kind === "signoff"
+                            ? CircleCheck
+                            : e.outcome === "accept"
                             ? CircleCheck
                             : e.outcome === "revise"
                               ? RotateCcw
@@ -237,6 +245,11 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                           <Translatable entityType="progress_update" entityId={e.id} field="body" text={e.body} canReview={data.firmStaff} className="text-sm" />
                         ) : null}
                         {e.kind === "review" && e.reason ? <p className="text-sm whitespace-pre-wrap">{e.reason}</p> : null}
+                        {e.kind === "signoff" && e.note ? (
+                          <p className="text-sm whitespace-pre-wrap" dir="auto">
+                            {e.note}
+                          </p>
+                        ) : null}
                         {e.kind === "evidence" ? (
                           <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
                             <FileText className="size-4 text-muted-foreground" />
@@ -315,6 +328,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           canDecide={follow.can.decideDeadline}
         />
         <ReminderLadder running={ladder.running} steps={ladder.steps} />
+        {firmView ? <SecondReviewCard actionId={action.id} view={second} /> : null}
         <RiskAcceptances actionId={action.id} items={closing.acceptances} canSign={closing.can.sign} />
         </div>
       </div>

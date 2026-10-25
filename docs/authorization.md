@@ -70,6 +70,12 @@ The database trigger `check_action_transition` holds the same list and also requ
 
 Nobody reviews or closes an action they own or submitted evidence for. The trigger (Follow-through section of the baseline) also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Client managers and admins may change the owner. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
 
+### Second sign-off (F22)
+
+Some work is verified only after two consultants have checked it. It applies when the client's rule says so (`client_review_settings`: off, after two revisions, high and critical priority work, or every action; each level includes the ones before), or when the action's own switch is on. The firm admin, or the client's lead or deputy (`organization.second_review`), sets the rule on the client page. The same people, or an internal project's lead (`action.second_review`), turn an action's switch on or off.
+
+On such work the first consultant who accepts records a sign-off (`app_sign_off()`, written to `review_signoffs` with the evidence hashes they saw), and the action stays Awaiting Review. Someone else's accept then verifies it. Neither sign-off can come from the owner or from anyone who submitted evidence in the round, and the second never comes from the first reviewer. The trigger `check_second_review` refuses Verified Complete without a first sign-off from a different consultant, and refuses the switch to anyone but the people above. Either reviewer may ask for a revision instead. The next round then needs both sign-offs again. Who could give the second sign-off is told in Selah. The list is the project's staff and the client's lead and deputy. When none of them is left, it falls back to the firm's admins. Clients see that a second consultant checks the work, never the rule or the names of who could check it.
+
 ## AI retrieval
 
 `retrievalScope()` turns the same check into a filter (project, tenant, allowed labels, user). `services/assistant.ts` puts that filter **inside** the pgvector query's `WHERE`, and the query also runs under RLS. Chunks are deleted by trigger when a document's AI flag is turned off, its label changes, or it is archived. The AI service only receives the passages that survived.

@@ -28,6 +28,7 @@ import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
 import type { FileEntry } from "@/services/files";
+import { SecondReviewStatus, SecondSignOffDialog, SignOffDialog, type SecondReviewView } from "./second-review";
 
 interface Props {
   actionId: string;
@@ -39,6 +40,9 @@ interface Props {
   close?: { signed: boolean; replacements: { id: string; title: string }[] };
   /** The evidence list's open items: a file sent for review answers one of them. */
   openItems?: { id: string; title: string }[];
+  /** Second sign-offs (F22); `firmView` decides how much of it is named. */
+  second?: SecondReviewView;
+  firmView?: boolean;
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -51,6 +55,9 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   const m = body.message ?? "";
   // A data rule's refusal is a 409 too; say which rule before falling back to "someone changed it".
   if (m.includes("every evidence request")) return { ok: false, error: "openEvidence" };
+  if (m.includes("two sign-offs")) return { ok: false, error: "needsSignOff" };
+  if (m.includes("already has its first sign-off")) return { ok: false, error: "alreadySigned" };
+  if (m.includes("second sign-off by another")) return { ok: false, error: "secondReviewer" };
   if (m.includes("needs the lead")) return { ok: false, error: "needsLead" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
@@ -72,7 +79,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close, openItems = [] }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -80,6 +87,10 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
   const done = () => router.refresh();
 
   const buttons: ReactNode[] = [];
+  // The first of two sign-offs comes where the accept would (F22).
+  if (status === "awaiting_review" && second?.can.signOff) {
+    buttons.push(<SignOffDialog key="sign-off" actionId={actionId} trigger={<Button>{t("secondReview.signOff")}</Button>} />);
+  }
   for (const to of moves) {
     if (to === "awaiting_review") {
       buttons.push(
@@ -96,6 +107,8 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
           trigger={<Button variant={to === "blocked" ? "outline" : "destructive"}>{t(`move.${to}`)}</Button>}
         />,
       );
+    } else if (to === "verified_complete" && second?.required) {
+      buttons.push(<SecondSignOffDialog key={to} actionId={actionId} trigger={<Button>{t("secondReview.verify")}</Button>} />);
     } else if (to === "verified_complete") {
       buttons.push(
         <ConfirmDialog
@@ -152,6 +165,7 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
       </CardHeader>
       <CardContent className="space-y-5 px-5">
         {buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : <p className="text-sm text-muted-foreground">{note}</p>}
+        {status === "awaiting_review" && second ? <SecondReviewStatus view={second} firmView={firmView} /> : null}
         {status === "revision_requested" && moves.includes("in_progress") ? (
           <p className="text-sm text-muted-foreground">{t("revisionNote")}</p>
         ) : null}

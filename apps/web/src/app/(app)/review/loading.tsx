@@ -4,7 +4,7 @@ export default function Loading() {
   return (
     <LoadingRegion>
       <HeaderSkeleton />
-      <TableSkeleton rows={8} cols={5} />
+      <TableSkeleton rows={8} cols={6} />
     </LoadingRegion>
   );
 }

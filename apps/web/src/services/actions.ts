@@ -173,6 +173,20 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     }
   }
 
+  if (input.to === "verified_complete") {
+    // Work that needs two sign-offs (F22): the first is recorded by
+    // app_sign_off() and leaves the action waiting; only someone else's
+    // accept verifies it. The database checks the same (check_second_review).
+    const { rows } = await tx.execute<{ required: boolean; signed_by: string | null }>(
+      sql`select required, signed_by from app_second_review_state(${id}::uuid)`,
+    );
+    const state = rows[0];
+    if (state?.required && !state.signed_by) throw new BadRequestError("this work needs two sign-offs; sign off first");
+    if (state?.required && state.signed_by === principal.userId) {
+      throw new ForbiddenError("action.review", resource, "workflow:second-reviewer");
+    }
+  }
+
   if (input.to === "verified_complete" || input.to === "revision_requested") {
     if (input.to === "revision_requested" && !input.reason) throw new BadRequestError("a revision request needs a reason");
     // Record exactly what was reviewed: every submission since the previous

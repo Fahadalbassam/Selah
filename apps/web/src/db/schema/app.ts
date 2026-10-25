@@ -84,6 +84,9 @@ export const recommendationSource = pgEnum("recommendation_source", ["consultant
 export const evidenceRequestStatus = pgEnum("evidence_request_status", ["open", "submitted", "accepted", "rejected", "waived"]);
 export const followUpKind = pgEnum("follow_up_kind", ["due_soon", "overdue"]);
 export const reviewOutcome = pgEnum("review_outcome", ["accept", "revise", "reject"]);
+// When a client's evidence needs a second consultant's sign-off before an
+// action is Verified Complete (F22). Each rule includes the ones before it.
+export const secondReviewRule = pgEnum("second_review_rule", ["off", "repeat_revisions", "high_priority", "all"]);
 export const documentPurpose = pgEnum("document_purpose", ["deliverable", "client_document", "evidence"]);
 export const documentState = pgEnum("document_state", ["draft", "submitted", "archived"]);
 // Virus scan result. Only "clean" files can be downloaded (fail closed);
@@ -682,6 +685,9 @@ export const actions = pgTable(
     // measured against what was agreed. baseline: Metrics.
     baselineDueDate: date("baseline_due_date"),
     reopenedAt: ts("reopened_at"),
+    // The client's lead or deputy, or the firm admin, asked for a second
+    // sign-off on this action whatever the client's rule says (F22).
+    secondReview: boolean("second_review").notNull().default(false),
     // Set when status is "closed" (see baseline: Follow-through).
     closureOutcome: closureOutcome("closure_outcome"),
     closureNote: text("closure_note"),
@@ -1121,6 +1127,43 @@ export const reviews = pgTable(
   },
   (t) => [scopedFk("reviews", t), index("reviews_action_idx").on(t.actionId)],
 );
+
+// The first of two sign-offs (F22). The action stays Awaiting Review; a
+// second consultant's accept review then verifies it. Append-only, written
+// by app_sign_off() only, with exactly what the first reviewer saw.
+export const reviewSignoffs = pgTable(
+  "review_signoffs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ...scoped(),
+    actionId: uuid("action_id")
+      .notNull()
+      .references(() => actions.id, { onDelete: "cascade" }),
+    reviewerId: uuid("reviewer_id")
+      .notNull()
+      .references(() => user.id),
+    evidenceSubmissionIds: uuid("evidence_submission_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    evidenceSha256: text("evidence_sha256").array().notNull().default(sql`'{}'::text[]`),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    scopedFk("review_signoffs", t),
+    index("review_signoffs_action_idx").on(t.actionId, t.createdAt),
+    check("review_signoffs_note", sql`${t.note} IS NULL OR length(btrim(${t.note})) BETWEEN 1 AND 4000`),
+  ],
+);
+
+// A client's rule for second sign-offs (F22). No row means "off". The firm
+// admin or the client's lead or deputy sets it (app_set_second_review_rule).
+export const clientReviewSettings = pgTable("client_review_settings", {
+  clientOrgId: uuid("client_org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  rule: secondReviewRule("rule").notNull().default("off"),
+  updatedBy: uuid("updated_by").references(() => user.id),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
 
 // ------------------------------------------------ meetings and reports
 
