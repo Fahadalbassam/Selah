@@ -173,7 +173,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F19** Scheduled status pack — tier: 4 · size: S–M · wave: 1 · journey: J11.3 · pr: #103
 - [ ] **F20** Change request log — tier: 4 · size: S · wave: frozen · journey: J10.3
 - [ ] **F21** Deliverable versions and client acceptance — tier: 4 · size: M–L · wave: frozen · journey: J08.4, J08.5, J12.5
-- [x] **F22** Second reviewer when evidence rounds loop: a client rule (off, after two revisions, high priority work, every action) and a per-action switch for the lead, deputy or firm admin; the first consultant signs off, a different one verifies; never the owner, a submitter or the first reviewer — tier: 4 · size: S · wave: 4 · decision: Fahad said "go ahead do all" on 2026-10-25 · pr: #PR
+- [x] **F22** Second reviewer when evidence rounds loop: a client rule (off, after two revisions, high priority work, every action) and a per-action switch for the lead, deputy or firm admin; the first consultant signs off, a different one verifies; never the owner, a submitter or the first reviewer — tier: 4 · size: S · wave: 4 · decision: Fahad said "go ahead do all" on 2026-10-25 · pr: #130
 - [ ] **F23** Schedule screen — tier: 4 · size: S · wave: frozen
 - [ ] **F24** Decision register — tier: 4 · size: S · wave: frozen
 
