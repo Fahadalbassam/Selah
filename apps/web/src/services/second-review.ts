@@ -217,7 +217,8 @@ export async function reviewQueue(tx: Tx, principal: Principal) {
         canAct: !own && !signedByMe,
       };
     })
-    .sort((a, b) => (a.since?.getTime() ?? Infinity) - (b.since?.getTime() ?? Infinity));
+    // Oldest first; a row without a start time goes last.
+    .sort((a, b) => (a.since?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.since?.getTime() ?? Number.MAX_SAFE_INTEGER));
 }
 
 export type ReviewQueueRow = Awaited<ReturnType<typeof reviewQueue>>[number];
