@@ -44,7 +44,7 @@ export default async function TeamPage() {
       team: admin ? [] : await listTeam(tx, principal),
       // The firm admin's staffing view; everyone else gets nothing.
       load: await teamMetrics(tx, principal, since.toISOString().slice(0, 10)).catch(() => null),
-      queue: principal.role === "firm_admin" ? await teamLoad(tx, principal) : null,
+      queue: principal.role === "firm_admin" ? await teamLoad(tx, principal).catch(() => null) : null,
       me: principal.userId,
       role: principal.role,
       reviewDays: settings?.days ?? (principal.orgKind === "firm" ? 90 : null),
