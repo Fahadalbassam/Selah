@@ -734,7 +734,9 @@
       "tooLong": "Use at most {n} characters.",
       "tooLow": "Enter {n} or more.",
       "tooHigh": "Enter {n} or less."
-    }
+    },
+    "searchPeople": "Type a name or email",
+    "noMatch": "Nobody matches"
   },
   "pager": {
     "label": "Pages",
@@ -1604,7 +1606,7 @@
     "frozen": "Numbers as of {date}",
     "notesTitle": "Notes",
     "team": "Workload",
-    "teamHint": "Sorted by name. For staffing decisions; it is not a score.",
+    "teamHint": "Sorted by name. For staffing decisions; it is not a score. Reviews count work this person could review; due dates count open work on the projects they work on.",
     "clients": "Clients",
     "openProjects": "Open projects",
     "waiting": "Waiting for review",
@@ -1624,7 +1626,13 @@
     "slipDaysHint": "Days added past the dates agreed at release.",
     "lateTitle": "Late against the original date",
     "lateHint": "Open actions by how long they are past the date agreed at release.",
-    "lateNone": "No open action is past its original date."
+    "lateNone": "No open action is past its original date.",
+    "toReview": "To review",
+    "oldestWait": "Oldest wait",
+    "secondSignOffs": "Second sign-offs",
+    "due7": "Due in 7 days",
+    "due30": "Due in 30 days",
+    "notAccepting": "Not taking new clients"
   },
   "inbox": {
     "title": "Inquiries",

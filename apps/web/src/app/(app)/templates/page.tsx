@@ -129,9 +129,9 @@ export default async function TemplatesPage() {
                   {
                     name: "userId",
                     label: t("consultant"),
-                    type: "select",
+                    type: "person",
                     required: true,
-                    options: candidates.map((c) => ({ value: c.userId, label: `${c.name} · ${c.email}` })),
+                    options: candidates.map((c) => ({ value: c.userId, label: c.name, hint: c.email })),
                   },
                 ]}
                 submitLabel={t("add")}

@@ -16,6 +16,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { PersonPicker } from "@/components/person-picker";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { meetingError } from "@/lib/meetings";
@@ -121,14 +122,7 @@ export function AddAttendee(props: { meetingId: string; options: { value: string
         setOpen(false);
       }}
     >
-      <NativeSelect value={pick} onChange={(e) => setPick(e.target.value)} aria-label={t("addAttendee")}>
-        <NativeSelectOption value="">—</NativeSelectOption>
-        {props.options.map((o) => (
-          <NativeSelectOption key={o.value} value={o.value}>
-            {o.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      <PersonPicker onValueChange={setPick} options={props.options} placeholder={t("addAttendee")} />
       <div className="flex gap-2">
         <Submit busy={busy}>{t("add")}</Submit>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -374,14 +368,16 @@ export function FollowUpForm(props: {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label htmlFor="fu-assignee">{t("assignee")}</Label>
-          <NativeSelect id="fu-assignee" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-            <NativeSelectOption value="">{t("nobody")}</NativeSelectOption>
-            {people.map((p) => (
-              <NativeSelectOption key={p.userId} value={p.userId}>
-                {p.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          {/* Starts again when the audience changes, since the list does. */}
+          <PersonPicker
+            key={visibility}
+            id="fu-assignee"
+            clearable
+            defaultValue={people.some((p) => p.userId === assignee) ? assignee : undefined}
+            onValueChange={setAssignee}
+            placeholder={t("nobody")}
+            options={people.map((p) => ({ value: p.userId, label: p.name }))}
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="fu-due">{t("due")}</Label>

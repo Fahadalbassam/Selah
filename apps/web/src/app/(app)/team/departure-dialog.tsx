@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PersonPicker } from "@/components/person-picker";
 import { Textarea } from "@/components/ui/textarea";
 
 type Kind = "action" | "client_lead" | "project_lead" | "review" | "client_role" | "department_head";
@@ -181,18 +181,15 @@ export function DepartureDialog(props: {
               <div className="grid gap-3 rounded-lg bg-muted/50 p-4">
                 <div className="grid gap-2">
                   <Label htmlFor="d-to">{t("to")}</Label>
-                  <Select value={to} onValueChange={setTo}>
-                    <SelectTrigger id="d-to" className="w-full max-w-sm">
-                      <SelectValue placeholder={t("toPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {props.colleagues.map((c) => (
-                        <SelectItem key={c.userId} value={c.userId}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="max-w-sm">
+                    <PersonPicker
+                      id="d-to"
+                      defaultValue={to || undefined}
+                      onValueChange={setTo}
+                      placeholder={t("toPlaceholder")}
+                      options={props.colleagues.map((c) => ({ value: c.userId, label: c.name }))}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">{t("toHint")}</p>
                 </div>
                 {items.some((i) => i.kind === "client_role") ? (
