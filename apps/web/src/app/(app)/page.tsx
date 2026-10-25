@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
 import { AnimatedNumber } from "@/components/animated-number";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
@@ -11,24 +11,49 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
-import { dashboard, isOverdue } from "@/services/queries";
+import { dashboard, getViewer, isOverdue } from "@/services/queries";
+import { isNewcomer } from "@/services/consent";
+import { Welcome } from "@/components/welcome";
+import type { Role } from "@/authz";
 import { SectionHeader } from "@/components/section-header";
 import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
 
+const WELCOME_DAYS = 14;
+// Where each role's three welcome steps lead, in the order of messages welcome.steps.<role>.
+const WELCOME_LINKS: Record<Role, [string, string, string]> = {
+  firm_admin: ["/clients", "/team", "/settings"],
+  consultant: ["/today", "/projects", "/review"],
+  client_admin: ["/projects", "/team", "/help"],
+  client_manager: ["/actions", "/projects", "/help"],
+  action_owner: ["/actions", "/actions", "/help"],
+};
+
+/** The first name in the page's language: the other-language name when the stored one is in the other script. */
+function firstName(v: { name: string; nameAlt: string | null }, locale: string) {
+  const arabic = /[\u0600-\u06FF]/.test(v.name);
+  const name = v.nameAlt && arabic !== (locale === "ar") ? v.nameAlt : v.name;
+  return name.split(" ")[0] ?? name;
+}
+
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm, overview } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview, viewer, isNew } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
+    viewer: await getViewer(tx, principal),
+    // New people (two weeks from their first sign-in) get a short welcome with three places to start.
+    isNew: await isNewcomer(tx, principal, WELCOME_DAYS),
     // The client's admins and managers see their work across projects (F30).
     overview:
       principal.role === "client_admin" || principal.role === "client_manager"
         ? await clientOverview(tx, principal, principal.orgId).catch(() => null)
         : null,
   }));
-  const t = await getTranslations("dashboard");
+  const [t, tW, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getLocale()]);
+  const side = firm ? "firm" : "client";
+  const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
 
   const cards = [
     { label: t("inProgress"), hint: t("inProgressHint"), value: stats.inProgress, icon: LoaderCircle },
@@ -40,9 +65,20 @@ export default async function OverviewPage() {
   return (
     <>
       <PageHeader title={t("title")} />
+      {isNew ? (
+        <Welcome
+          greeting={tW("greeting", { name: firstName(viewer, locale) })}
+          intro={[before, after]}
+          highlight={tW(`highlight.${side}`)}
+          lead={tW("lead")}
+          steps={(tW.raw(`steps.${viewer.role}`) as { title: string; hint: string }[]).map((s, i) => ({ ...s, href: WELCOME_LINKS[viewer.role][i] ?? "/" }))}
+          dismissLabel={tW("dismiss")}
+          dir={locale === "ar" ? "rtl" : "ltr"}
+        />
+      ) : null}
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         {cards.map((c) => (
-          <Card key={c.label} className="group gap-3 py-5 shadow-xs">
+          <Card key={c.label} className="group gap-3 bg-surface py-5 text-surface-foreground shadow-xs">
             <CardHeader className="px-5">
               <CardDescription className="flex items-center gap-2">
                 <c.icon animateOnView animateOnHover className={cn("size-4", c.tone)} />

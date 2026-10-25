@@ -39,7 +39,7 @@ export type ActionRow = Awaited<ReturnType<typeof listActions>>[number];
 
 export async function getViewer(tx: Tx, principal: Principal) {
   const [row] = await tx
-    .select({ name: user.name, email: user.email, orgName: organizations.name, orgNameAr: organizations.nameAr })
+    .select({ name: user.name, nameAlt: user.nameAlt, email: user.email, orgName: organizations.name, orgNameAr: organizations.nameAr })
     .from(user)
     .innerJoin(orgMemberships, eq(orgMemberships.userId, user.id))
     .innerJoin(organizations, eq(organizations.id, orgMemberships.orgId))

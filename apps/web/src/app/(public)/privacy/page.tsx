@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ReadingProgress } from "@/components/reading-progress";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
@@ -17,6 +18,7 @@ export default async function PrivacyPage() {
   const t = await getTranslations("privacy");
   return (
     <article className="mx-auto max-w-2xl animate-page-in space-y-8 px-6 py-12">
+      <ReadingProgress />
       <header className="space-y-2">
         <p className="text-sm text-muted-foreground">{t("version", { version: PRIVACY_NOTICE_VERSION })}</p>
         <h1 className="text-2xl font-semibold text-balance">{t("title")}</h1>

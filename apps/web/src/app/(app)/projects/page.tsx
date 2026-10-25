@@ -1,4 +1,5 @@
 import { Building2 } from "lucide-react";
+import { Tilt, TiltContent } from "@animate-ui/react/primitives/effects/tilt";
 import { MorphTitle } from "@/components/morph";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Plus } from "@/components/animate-ui/icons/plus";
@@ -57,38 +58,43 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
             const pct = p.actionCount ? Math.round((p.verifiedCount / p.actionCount) * 100) : 0;
             return (
               <Link key={p.id} href={`/projects/${p.id}`} className="group">
-                <Card className="h-full gap-3 py-5 shadow-xs transition-[border-color,box-shadow,translate] duration-(--duration-base) ease-(--ease-out-soft) group-hover:-translate-y-0.5 group-hover:border-foreground/20 group-hover:shadow-md">
-                  <CardHeader className="px-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
-                        {p.kind === "internal" ? <Lock className="size-3" /> : <Building2 className="size-3" />}
-                        {tKind(p.kind)}
-                      </Badge>
-                    </div>
-                    <CardTitle className="text-base leading-snug">
-                      <MorphTitle name={`project-${p.id}`}>{p.title}</MorphTitle>
-                    </CardTitle>
-                    {p.kind === "client" ? (
-                      <CardDescription>
-                        {t("client")}: {(ar ? p.orgNameAr : null) ?? p.orgName}
-                      </CardDescription>
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="space-y-2 px-5">
-                    <Progress value={pct} aria-label={`${pct}%`} />
-                    <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
-                      <span>
-                        {p.actionCount} {t("actions")}
-                      </span>
-                      <span>
-                        {p.verifiedCount} {t("verified")}
-                      </span>
-                      <span>
-                        {p.awaitingReviewCount} {t("awaitingReview")}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* The card leans a few degrees toward the pointer (Animate UI Tilt). */}
+                <Tilt maxTilt={3} className="h-full">
+                  <TiltContent className="h-full">
+                    <Card className="h-full gap-3 py-5 shadow-xs transition-[border-color,box-shadow,translate] duration-(--duration-base) ease-(--ease-out-soft) group-hover:-translate-y-0.5 group-hover:border-foreground/20 group-hover:shadow-md">
+                      <CardHeader className="px-5">
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
+                            {p.kind === "internal" ? <Lock className="size-3" /> : <Building2 className="size-3" />}
+                            {tKind(p.kind)}
+                          </Badge>
+                        </div>
+                        <CardTitle className="text-base leading-snug">
+                          <MorphTitle name={`project-${p.id}`}>{p.title}</MorphTitle>
+                        </CardTitle>
+                        {p.kind === "client" ? (
+                          <CardDescription>
+                            {t("client")}: {(ar ? p.orgNameAr : null) ?? p.orgName}
+                          </CardDescription>
+                        ) : null}
+                      </CardHeader>
+                      <CardContent className="space-y-2 px-5">
+                        <Progress value={pct} aria-label={`${pct}%`} />
+                        <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
+                          <span>
+                            {p.actionCount} {t("actions")}
+                          </span>
+                          <span>
+                            {p.verifiedCount} {t("verified")}
+                          </span>
+                          <span>
+                            {p.awaitingReviewCount} {t("awaitingReview")}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TiltContent>
+                </Tilt>
               </Link>
             );
           })}

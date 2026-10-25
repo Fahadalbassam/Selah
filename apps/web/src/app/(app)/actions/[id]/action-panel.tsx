@@ -1,5 +1,6 @@
 "use client";
 
+import { markJustVerified } from "@/components/verified-burst";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -102,7 +103,10 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
           title={t(`move.${to}`)}
           hint={t("acceptHint")}
           run={() => transition(to)}
-          onDone={done}
+          onDone={() => {
+            markJustVerified(actionId);
+            done();
+          }}
           trigger={<Button>{t(`move.${to}`)}</Button>}
         />,
       );

@@ -58,3 +58,15 @@ export async function myConsents(tx: Tx, principal: Principal) {
   );
   return rows.map((r) => ({ doc: r.doc, version: r.version, acceptedAt: new Date(r.accepted_at) }));
 }
+
+/**
+ * Whether the person signed in for the first time within the last `days` days.
+ * Their first sign-in is their first acceptance of the documents (everyone
+ * passes /consent before anything else). The overview shows its welcome then.
+ */
+export async function isNewcomer(tx: Tx, principal: Principal, days: number): Promise<boolean> {
+  const { rows } = await tx.execute<{ fresh: boolean | null }>(
+    sql`select min(accepted_at) > now() - make_interval(days => ${days}) as fresh from consent_records where user_id = ${principal.userId}`,
+  );
+  return rows[0]?.fresh === true;
+}

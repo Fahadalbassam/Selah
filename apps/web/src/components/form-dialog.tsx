@@ -1,5 +1,6 @@
 "use client";
 
+import { AutoHeight } from "@animate-ui/react/primitives/effects/auto-height";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -164,11 +165,15 @@ export function FormDialog(props: {
               )}
             </div>
           ))}
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {t(`errors.${error}`)}
-            </p>
-          ) : null}
+          {/* The error slides the footer down instead of making it jump (Animate UI Auto Height).
+              -mt-4 cancels the grid gap while there is nothing to show. */}
+          <AutoHeight deps={[error]} className="-mt-4">
+            {error ? (
+              <p role="alert" className="pt-4 text-sm text-destructive">
+                {t(`errors.${error}`)}
+              </p>
+            ) : null}
+          </AutoHeight>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {t("cancel")}
