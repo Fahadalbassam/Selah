@@ -269,7 +269,7 @@ Sizes: `sm` in page headers, cards and tables; `default` in dialogs and forms; `
 - Required fields are marked in the label, not by colour.
 - Emails, URLs, codes and numbers are `dir="ltr"` even in Arabic.
 - Dates use `DatePicker` (react-day-picker), never a bare `<input type="date">`.
-- Confirm success with a `sonner` toast; show failures inline next to the action.
+- Confirm success with a toast (`toast.success` from `components/ui/toast`: Animate UI's toast on Base UI, at the end corner of the reading direction); show failures inline next to the action.
 - A `Switch` inside a form sits in `<span className="relative [&>input]:!start-0 [&>input]:![transform:none]">`: Radix renders a hidden input that otherwise overflows the page in RTL.
 - Creating plan records (finding, recommendation, action) happens where they are read: the project's Recommendations tab, with the add button in the `SectionHeader` and on each row (a finding row offers "Add a recommendation" with the finding preselected; a recommendation card offers "Add an action").
 

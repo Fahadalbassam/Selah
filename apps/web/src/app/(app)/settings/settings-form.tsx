@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";

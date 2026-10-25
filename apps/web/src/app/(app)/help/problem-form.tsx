@@ -4,7 +4,7 @@ import { Send } from "@/components/animate-ui/icons/send";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

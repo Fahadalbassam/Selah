@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Maximize } from "@/components/animate-ui/icons/maximize";
 import { MessageSquarePlus } from "@/components/animate-ui/icons/message-square-plus";

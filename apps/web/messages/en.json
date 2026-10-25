@@ -641,6 +641,7 @@
     "saving": "Saving…",
     "saved": "Saved",
     "clear": "Clear",
+    "close": "Close",
     "loading": "Loading…",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",

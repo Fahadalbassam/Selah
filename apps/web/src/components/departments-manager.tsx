@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { Users } from "@/components/animate-ui/icons/users";

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Bell } from "@/components/animate-ui/icons/bell";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";

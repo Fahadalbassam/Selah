@@ -3,7 +3,7 @@
 import { Languages } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { detectLang, type TranslatableType } from "@/lib/translations";
 import { cn } from "@/lib/utils";
