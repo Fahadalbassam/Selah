@@ -86,11 +86,14 @@ const ctx = await auth().$context;
 
 const already = await owner.query(`SELECT 1 FROM organizations LIMIT 1`);
 if (already.rowCount) {
-  const mine = await owner.query(`SELECT 1 FROM "user" WHERE email = 'admin@mizan.test'`);
+  // The first sign-in acceptances are the seed's last step, so they mark a complete load.
+  const mine = await owner.query(
+    `SELECT 1 FROM consent_records c JOIN "user" u ON u.id = c.user_id WHERE u.email = 'admin@mizan.test' LIMIT 1`,
+  );
   console.log(
     mine.rowCount
       ? "the walkthrough data is already loaded; nothing to do"
-      : "this database already has other sample data. Start from an empty one: npm run walkthrough -- --fresh",
+      : "this database has other sample data, or a walkthrough load that stopped halfway. Start from an empty one: npm run walkthrough -- --fresh",
   );
   await Promise.all([owner.end(), app.end()]);
   process.exit(mine.rowCount ? 0 : 1);
@@ -317,10 +320,9 @@ await as(U.lead, (tx, p) => addClientRole(tx, p, board.id, { role: "coordinator"
 await as(U.lead, (tx, p) => addClientRole(tx, p, board.id, { role: "observer", person: `contact:${auditor.id}` }));
 
 // Files the firm shares, and its own notes (firm only).
-const boardDocs: Record<string, string> = {};
-for (const [key, f] of Object.entries(F.nukhbaLibrary)) {
+for (const f of Object.values(F.nukhbaLibrary)) {
   const file = await upload(U.lead, { type: "project", id: board.id }, f);
-  boardDocs[key] = (await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "shared" }))).id;
+  await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "shared" }));
 }
 {
   const file = await upload(U.lead, { type: "project", id: board.id }, F.nukhbaPrivateNotes);

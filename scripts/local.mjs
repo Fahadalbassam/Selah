@@ -268,7 +268,13 @@ function wipeData() {
 /** Keeps the assistant's index current while the app runs: the first run once the embedding model is in, then every minute. */
 function indexLoop(env) {
   let stopped = false;
-  const once = () => run("npm", ["run", "-s", "job:index-documents"], { cwd: WEB, env, allowFail: true, quiet: true });
+  // Runs beside the app, so it never holds up the start or Ctrl+C.
+  const once = () =>
+    new Promise((done) => {
+      const child = spawn("npm", ["run", "-s", "job:index-documents"], { cwd: WEB, env: { ...process.env, ...env }, stdio: "ignore", shell: WIN });
+      child.on("exit", (status) => done({ status }));
+      child.on("error", () => done({ status: 1 }));
+    });
   (async () => {
     // The embedding model downloads once (about 1.2 GB) into the ollama volume.
     while (!stopped) {
@@ -283,7 +289,7 @@ function indexLoop(env) {
     }
     let first = true;
     while (!stopped) {
-      const r = once();
+      const r = await once();
       if (first) {
         say(r.status === 0 ? "the assistant has read the sample files and records; it is ready" : "indexing for the assistant failed; it retries every minute");
         first = false;
@@ -319,13 +325,15 @@ async function dev(flags, { walkthrough = false } = {}) {
     NODE_ENV: "development",
     ...(full ? { CLAMD_HOST: "localhost", SCAN_REQUIRED: "true" } : { CLAMD_HOST: "", SCAN_REQUIRED: "false" }),
     // The web app masks names before a hosted model sees them (docs/assistant.md), so it must know which kind runs.
-    LLM_PROVIDER: root.LLM_PROVIDER || "ollama",
-    AI_MASKING: root.AI_MASKING || "auto",
+    // The root .env sets it for the AI service; apps/web/.env.local keeps its own when the root has none.
+    ...(root.LLM_PROVIDER ? { LLM_PROVIDER: root.LLM_PROVIDER } : {}),
+    ...(root.AI_MASKING ? { AI_MASKING: root.AI_MASKING } : {}),
     ...(walkthrough ? { PDF_SERVICE_URL: "http://localhost:3001", WALKTHROUGH_PASSWORD: root.WALKTHROUGH_PASSWORD || WALKTHROUGH_PASSWORD } : {}),
   };
-  await prepareDatabase(env, walkthrough ? "db:seed:walkthrough" : "db:seed");
+  // The seed's uploads don't wait for the scanner, which is still loading its signatures.
+  await prepareDatabase(walkthrough ? { ...env, CLAMD_HOST: "", SCAN_REQUIRED: "false" } : env, walkthrough ? "db:seed:walkthrough" : "db:seed");
   if (ai) {
-    const hosted = env.LLM_PROVIDER === "openai_compat";
+    const hosted = (env.LLM_PROVIDER || "ollama") === "openai_compat";
     say(
       hosted
         ? `the assistant answers with ${root.LLM_MODEL || "the hosted model"}; only the search model (bge-m3, about 1.2 GB) downloads, once`

@@ -157,6 +157,27 @@ describe("recording what the client signed", () => {
     await owner.query(`DELETE FROM engagements WHERE id = $1`, [engagementId]);
   });
 
+  it("a draft project with released work starts when an engagement covers it", async () => {
+    const pid = id(33);
+    await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Phase 4','draft',$4)`, [
+      pid,
+      ACME,
+      FIRM,
+      U.admin,
+    ]);
+    const rec = (await owner.query(`INSERT INTO recommendations (project_id, org_id, title, priority, created_by) VALUES ($1,$2,'Adopt a policy','high',$3) RETURNING id`, [pid, ACME, U.admin])).rows[0].id;
+    await owner.query(
+      `INSERT INTO actions (project_id, org_id, recommendation_id, title, status, owner_user_id, due_date, created_by) VALUES ($1,$2,$3,'Write it','assigned',$4,'2026-12-01',$5)`,
+      [pid, ACME, rec, U.cmgr, U.admin],
+    );
+    const state = async () => (await owner.query(`SELECT state FROM projects WHERE id = $1`, [pid])).rows[0].state;
+    expect(await state()).toBe("draft");
+    const { id: engagementId } = await svc(U.admin, (tx, p) => recordEngagement(tx, p, ACME, { ...signed, title: "Phase 4", projectIds: [pid] }), true);
+    expect(await state()).toBe("active");
+    await owner.query(`DELETE FROM projects WHERE id = $1`, [pid]);
+    await owner.query(`DELETE FROM engagements WHERE id = $1`, [engagementId]);
+  });
+
   it("the client's admin and consultants read it; managers, other consultants and other clients don't", async () => {
     const count = async (u: string) => (await sqlAs(u, `SELECT count(*)::int AS n FROM engagements`)).rows[0].n;
     expect(await count(U.admin)).toBe(1);
