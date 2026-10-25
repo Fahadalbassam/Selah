@@ -1,5 +1,6 @@
 "use client";
 
+import { CopyButton } from "@/components/copy-button";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import QRCode from "qrcode";
@@ -148,13 +149,9 @@ export function SecurityPanel({ enabled, required }: { enabled: boolean; require
                 </li>
               ))}
             </ul>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => void navigator.clipboard?.writeText(stage.backupCodes.join("\n"))}
-            >
+            <CopyButton content={stage.backupCodes.join("\n")} label={t("copy")} variant="outline" className="w-full">
               {t("copy")}
-            </Button>
+            </CopyButton>
             <Button className="w-full" onClick={finish}>
               {t("saved")}
             </Button>
