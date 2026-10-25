@@ -27,7 +27,8 @@ import { assistant, useAssistant } from "./store";
 // sidebar (or "Ask the assistant" on a record) and stays open while the
 // person moves between pages. Small, it shows one thing at a time: the chats,
 // or one chat. Focused, it moves to the middle of the screen, grows, and
-// shows the chats beside the open chat. Each chat is about one project, and
+// shows the chats beside the open chat. A chat is about every project the
+// person may ask about ("All my clients", the default), or one project and
 // optionally one record in it (docs/assistant.md).
 
 interface Context {
@@ -35,6 +36,47 @@ interface Context {
   projectId: string | null;
   case: NewChatCase | null;
   usage: { used: number; limit: number } | null;
+  /** "local": a model on this machine's processor answers, slowly. */
+  model: "local" | "hosted";
+}
+
+/** A question on its way: what it is, and the answer written so far. */
+export interface Pending {
+  question: string;
+  /** The search is done and the model is writing. */
+  writing: boolean;
+  answer: string;
+}
+
+/**
+ * Asks with the answer streaming in. Gives the saved answer's chat, or why it failed:
+ * "limit" (the client's daily limit) or "error".
+ */
+async function askStreaming(body: unknown, onWriting: () => void, onAnswer: (text: string) => void): Promise<{ conversationId: string } | "limit" | "error"> {
+  const res = await fetch("/api/assistant/query", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/x-ndjson" },
+    body: JSON.stringify(body),
+  }).catch(() => null);
+  if (!res?.ok || !res.body) return res?.status === 429 ? "limit" : "error";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (let r = await reader.read().catch(() => null); r && !r.done; r = await reader.read().catch(() => null)) {
+    buffer += decoder.decode(r.value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      const event = JSON.parse(line) as { type: string; text?: string; conversationId?: string };
+      if (event.type === "writing") onWriting();
+      else if (event.type === "text" && event.text !== undefined) onAnswer(event.text);
+      else if (event.type === "done" && event.conversationId) return { conversationId: event.conversationId };
+      else if (event.type === "error") return "error";
+    }
+  }
+  return "error";
 }
 
 /** The sidebar entry: opens and closes the card. */
@@ -82,8 +124,9 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
   const [listVersion, setListVersion] = useState(0);
   const [chatVersion, setChatVersion] = useState(0);
   const [loaded, setLoaded] = useState<{ key: string; chat: Chat | null } | null>(null);
-  const [draft, setDraft] = useState<{ projectId: string; case: NewChatCase | null }>({ projectId: "", case: null });
-  const [pending, setPending] = useState<string | null>(null);
+  // projectId null: all the projects the person may ask about.
+  const [draft, setDraft] = useState<{ projectId: string | null; case: NewChatCase | null }>({ projectId: null, case: null });
+  const [pending, setPending] = useState<Pending | null>(null);
   // "limit": the person asked their questions for today (the client assistant's daily limit).
   const [failed, setFailed] = useState<false | "error" | "limit">(false);
 
@@ -103,11 +146,8 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
     void getJson<Context>(`/api/assistant/context?${params}`).then((c) => {
       if (!live || !c) return;
       setCtx(c);
-      if (request && "projectId" in request) {
-        setDraft({ projectId: c.case?.projectId ?? c.projectId ?? c.projects[0]?.id ?? "", case: c.case });
-      } else {
-        setDraft((d) => (d.projectId ? d : { projectId: c.projects[0]?.id ?? "", case: null }));
-      }
+      // Opened from a project or a record: that project. Otherwise as it was (all, at first).
+      if (request && "projectId" in request) setDraft({ projectId: c.case?.projectId ?? c.projectId, case: c.case });
     });
     return () => {
       live = false;
@@ -176,7 +216,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
   }
 
   async function ask(question: string) {
-    setPending(question);
+    setPending({ question, writing: false, answer: "" });
     setFailed(false);
     const body = chat
       ? { projectId: chat.projectId, conversationId: chat.id, question, language: locale }
@@ -186,13 +226,17 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
           language: locale,
           ...(draft.case ? { caseType: draft.case.type, caseId: draft.case.id } : {}),
         };
-    const r = await callApi("/api/assistant/query", "POST", body);
+    const r = await askStreaming(
+      body,
+      () => setPending({ question, writing: true, answer: "" }),
+      (answer) => setPending({ question, writing: true, answer }),
+    );
     setPending(null);
-    if (!r.ok) {
-      setFailed(r.status === 429 ? "limit" : "error");
+    if (typeof r === "string") {
+      setFailed(r);
       return false;
     }
-    const { conversationId } = r.data as { conversationId: string };
+    const { conversationId } = r;
     if (conversationId !== chatId) setChatId(conversationId);
     else setChatVersion((v) => v + 1);
     if (ctx?.usage) setCtx({ ...ctx, usage: { ...ctx.usage, used: ctx.usage.used + 1 } });
@@ -374,6 +418,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
                       selected={showChat ? chatId : null}
                       onOpen={openChat}
                       onShowArchived={() => (archived ? setArchived(null) : void loadArchived())}
+                      client={client}
                     />
                   </motion.div>
                 ) : null}
@@ -381,12 +426,19 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
               {showChat ? (
                 <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={chat?.title || t("newChat")}>
                   {chat ? (
-                    <ChatHeader chat={chat} onPatch={patch} onDelete={remove} />
+                    <ChatHeader chat={chat} onPatch={patch} onDelete={remove} client={client} />
                   ) : (
-                    <NewChatHeader projects={ctx.projects} draft={draft} onChange={setDraft} disabled={Boolean(chatId)} />
+                    <NewChatHeader projects={ctx.projects} draft={draft} onChange={setDraft} disabled={Boolean(chatId)} client={client} />
                   )}
-                  <Thread chat={chat} loading={loadingChat} pending={pending} failed={failed} note={client ? t("clientDisclaimer") : t("disclaimer")} />
-                  <Composer onAsk={ask} busy={pending !== null} disabled={!chat && !draft.projectId} usage={ctx.usage} />
+                  <Thread
+                    chat={chat}
+                    loading={loadingChat}
+                    pending={pending}
+                    failed={failed}
+                    note={client ? t("clientDisclaimer") : t("disclaimer")}
+                    slow={ctx.model === "local"}
+                  />
+                  <Composer onAsk={ask} busy={pending !== null} disabled={false} usage={ctx.usage} />
                 </section>
               ) : null}
             </>

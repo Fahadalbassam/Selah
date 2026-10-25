@@ -41,6 +41,7 @@ test.describe("permission probes", () => {
       r.post(`/api/projects/${board}/recommendations`, { data: { title: "probe" } }),
       r.post(`/api/actions/${act}/deadline-requests`, { data: { proposedDueDate: "2027-01-01", reason: "probe" } }),
       r.post(`/api/assistant/query`, { data: { projectId: board, question: "ما هي التوصيات؟" } }),
+      r.post(`/api/assistant/query`, { data: { projectId: null, question: "ما هي التوصيات؟" }, headers: { accept: "application/x-ndjson" } }),
     ];
     for (const res of await Promise.all(writes)) expect(denied(res.status()), `${res.url()} -> ${res.status()}`).toBe(true);
   });

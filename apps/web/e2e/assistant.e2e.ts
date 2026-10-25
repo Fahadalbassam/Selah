@@ -7,6 +7,10 @@ import { open } from "./support/ui";
 // with sources, the language switch, and the project picker's limits.
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
+// The card streams the answer as NDJSON lines; the last one carries the checked answer.
+type Done = { type: "done"; grounded: boolean; answer: string; citations: { sourceType: string; sourceId: string; projectId?: string }[] };
+const done = (ndjson: string) => ndjson.trim().split("\n").map((l) => JSON.parse(l) as { type: string }).findLast((e) => e.type === "done") as Done;
+
 test("consultant asks in Arabic and gets a sourced answer, then switches to English", async ({ browser }) => {
   const page = await open(browser, "khalid", "ar");
   await page.goto(`/assistant`);
@@ -56,7 +60,7 @@ test("a question about a recommendation is answered from the recommendation (Eng
   await box.fill("What does approving the board charter need?");
   await box.press("Enter");
   const res = await page.waitForResponse((r) => r.url().includes("/api/assistant/query") && r.request().method() === "POST", { timeout: 90_000 });
-  const body = (await res.json()) as { grounded: boolean; answer: string; citations: { sourceType: string; sourceId: string }[] };
+  const body = done(await res.text());
   console.log("answer:", body.answer);
   expect(body.grounded).toBe(true);
   expect(body.citations).toContainEqual(expect.objectContaining({ sourceType: "recommendation", sourceId: rec }));
@@ -65,15 +69,33 @@ test("a question about a recommendation is answered from the recommendation (Eng
   await page.screenshot({ path: "e2e-results/shots/assistant-en-recommendation.png", fullPage: true });
 });
 
+// Fahad, 2026-10-25: a question about no one case. "All my clients" is the default scope.
+test("a consultant asks across all their clients without picking a project", async ({ browser }) => {
+  const page = await open(browser, "khalid", "en");
+  await page.goto("/assistant");
+  await page.locator("#assistant-card").getByRole("button", { name: "New chat" }).click();
+  await expect(page.getByRole("combobox", { name: "Ask about" })).toContainText("All my clients");
+  const box = page.getByRole("textbox").last();
+  await box.fill("Which actions are overdue across my clients?");
+  await box.press("Enter");
+  const res = await page.waitForResponse((r) => r.url().includes("/api/assistant/query") && r.request().method() === "POST", { timeout: 90_000 });
+  const body = done(await res.text());
+  console.log("answer:", body.answer);
+  expect(body.grounded).toBe(true);
+  expect(body.citations.some((c) => c.sourceType === "status")).toBe(true);
+  await expect(page.locator("#assistant-card")).toContainText("All my clients");
+  await page.screenshot({ path: "e2e-results/shots/assistant-all-clients.png", fullPage: true });
+});
+
 test("a consultant who isn't staffed can't pick the client's project; client roles get no assistant", async ({ browser }) => {
   const noura = await open(browser, "noura", "en");
   await noura.goto("/assistant");
   await noura.locator("#assistant-card").getByRole("button", { name: "New chat" }).click();
-  await noura.getByRole("combobox", { name: "Project" }).click();
+  await noura.getByRole("combobox", { name: "Ask about" }).click();
   await expect(noura.getByRole("option", { name: /حوكمة مجلس الإدارة/ })).toHaveCount(0);
   await noura.keyboard.press("Escape");
   await noura.goto(`/assistant?project=${ids.board()}`);
-  await expect(noura.getByRole("combobox", { name: "Project" })).not.toContainText("حوكمة مجلس الإدارة");
+  await expect(noura.getByRole("combobox", { name: "Ask about" })).not.toContainText("حوكمة مجلس الإدارة");
 
   const reem = await open(browser, "reem", "en");
   await reem.goto("/");

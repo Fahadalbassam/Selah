@@ -5,19 +5,25 @@ app authorizes the user, runs the permission-filtered retrieval, and sends
 only the surviving passages here. Every call needs the shared service token.
 """
 
+import asyncio
 import hmac
+import json
+import time
+from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import Settings, get_settings
-from .llm import LLM, make_llm
+from .llm import LLM, json_object, make_llm
 from .prompt import (
     ANSWER_SCHEMA,
     SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
     Answer,
+    AnswerText,
     HistoryTurn,
     Passage,
     build_messages,
@@ -108,23 +114,81 @@ async def embed(req: EmbedRequest, llm: Annotated[LLM, Depends(get_llm)]) -> Emb
     return EmbedResponse(vectors=await llm.embed(req.texts))
 
 
+def _check_size(req: AnswerRequest, settings: Settings) -> None:
+    # OWASP LLM10: bound what one request can consume.
+    if len(req.question) > settings.max_question_chars or len(req.passages) > settings.max_passages:
+        raise HTTPException(status_code=413, detail="request too large")
+    if any(len(p.text) > settings.max_passage_chars for p in req.passages):
+        raise HTTPException(status_code=413, detail="passage too large")
+
+
 @app.post("/v1/answer", dependencies=[Depends(require_token)])
 async def answer(
     req: AnswerRequest,
     llm: Annotated[LLM, Depends(get_llm)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Answer:
-    # OWASP LLM10: bound what one request can consume.
-    if len(req.question) > settings.max_question_chars or len(req.passages) > settings.max_passages:
-        raise HTTPException(status_code=413, detail="request too large")
-    if any(len(p.text) > settings.max_passage_chars for p in req.passages):
-        raise HTTPException(status_code=413, detail="passage too large")
+    _check_size(req, settings)
     if not req.passages:
         return Answer(answer="", cited_ids=[], grounded=False)
 
     system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
+
+
+# At most this often a "text" line while the answer is written: the screen
+# needs no more, and each line repeats the answer so far.
+TEXT_EVERY_S = 0.1
+# While a reply is asked for again whole, a {"type": "wait"} line this often keeps the caller's idle timer from firing.
+WAIT_EVERY_S = 15.0
+
+
+@app.post("/v1/answer/stream", dependencies=[Depends(require_token)])
+async def answer_stream(
+    req: AnswerRequest,
+    llm: Annotated[LLM, Depends(get_llm)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> StreamingResponse:
+    """The same answer as /v1/answer, as lines of JSON while the model writes:
+    {"type": "text", "text": the answer so far} now and then, then
+    {"type": "done", "answer": the checked answer}, with {"type": "wait"} now
+    and then while a reply that wasn't JSON is asked for again. Only the done line counts:
+    the text lines are unchecked, for showing progress. A failure after the
+    first line is {"type": "error"}."""
+    _check_size(req, settings)
+
+    async def lines() -> AsyncIterator[str]:
+        if not req.passages:
+            yield _line({"type": "done", "answer": Answer(answer="", cited_ids=[], grounded=False).model_dump()})
+            return
+        system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
+        partial = AnswerText()
+        raw, shown, last = "", "", 0.0
+        try:
+            async for piece in llm.chat_json_stream(system, user, ANSWER_SCHEMA):
+                raw += piece
+                partial.feed(piece)
+                now = time.monotonic()
+                if now - last >= TEXT_EVERY_S and (text := partial.text()) != shown:
+                    shown, last = text, now
+                    yield _line({"type": "text", "text": text})
+            found = json_object(raw)
+            if found is None:
+                # Not JSON: asked again whole, which for a hosted model includes its own retry.
+                again = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
+                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
+                    yield _line({"type": "wait"})
+                found = json_object(again.result())
+            yield _line({"type": "done", "answer": check_answer(found or raw, req.passages).model_dump()})
+        except Exception:  # noqa: BLE001 - the caller only needs to know it failed
+            yield _line({"type": "error"})
+
+    return StreamingResponse(lines(), media_type="application/x-ndjson")
+
+
+def _line(event: dict[str, object]) -> str:
+    return json.dumps(event, ensure_ascii=False) + "\n"
 
 
 @app.post("/v1/translate", dependencies=[Depends(require_token)])

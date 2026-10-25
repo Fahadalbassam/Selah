@@ -372,6 +372,13 @@
       "when": 1792914955215,
       "tag": "0065_faster_deviations",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1792918551884,
+      "tag": "0066_assistant_all_clients",
+      "breakpoints": true
     }
   ]
 }

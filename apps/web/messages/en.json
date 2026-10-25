@@ -297,7 +297,7 @@
     "noProjects": "No projects are available to the assistant.",
     "you": "You",
     "assistantName": "Assistant",
-    "emptyThread": "Pick a project and ask a question. Answers cite the files and records they come from. Each question starts or continues one chat.",
+    "emptyThread": "Ask about everything you can open, or pick one project. Answers cite the files and records they come from. Each question starts or continues one chat.",
     "notGrounded": "No permitted source supports a confident answer.",
     "enterHint": "Enter to send · Shift+Enter for a new line",
     "searching": "Searching the records you can see…",
@@ -318,7 +318,8 @@
       "meeting": "Meeting",
       "document": "File",
       "project": "Project",
-      "kpi": "Indicator"
+      "kpi": "Indicator",
+      "status": "Status of open work"
     },
     "rename": "Rename chat",
     "keep": "Keep (don't archive)",
@@ -363,7 +364,16 @@
       "open": "Open the assistant",
       "pageTitle": "The assistant opens as a card",
       "pageHint": "It floats over any page, so you can keep working beside it. Drag it where you like, or focus it in the middle of the screen. It stays open as you move between pages."
-    }
+    },
+    "scope": {
+      "label": "Ask about",
+      "all": "All my clients",
+      "allClient": "All your projects",
+      "allHint": "Every client and project you can open. Pick one project to narrow the answer.",
+      "allClientHint": "Every project of your company that you can open. Pick one to narrow the answer."
+    },
+    "writing": "Writing the answer…",
+    "localModel": "The assistant runs on this computer, so answers may take a minute."
   },
   "signIn": {
     "title": "Sign in",

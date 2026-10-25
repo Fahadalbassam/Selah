@@ -53,7 +53,8 @@ interface Case {
   id: string;
   group: string;
   user: keyof typeof U;
-  project: keyof typeof P;
+  /** "all": the card's "All my clients" scope (no project). */
+  project: keyof typeof P | "all";
   q: string;
   lang?: "ar" | "en" | "auto";
   follow?: string; // case id whose chat this continues
@@ -114,6 +115,17 @@ const cases: Case[] = [
   // Other clients
   { id: "R1", group: "Other client", user: "noura", project: "rawdah", q: "What share of income should come from endowment returns?", expect: "answer", any: ["35"], cites: ["rawdah_plan"] },
   { id: "W1", group: "Other client", user: "khalid", project: "waha", q: "من يرأس مجلس العائلة؟", expect: "answer", any: ["ماجد"], cites: ["waha_charter"] },
+  // All my clients: no project picked. Khalid is staffed on Al-Nukhba's and Waha's projects, Noura on Rawdah's and Waha's (not Al-Nukhba's).
+  { id: "AC1", group: "All clients", user: "khalid", project: "all", q: "Which actions are overdue across my clients?", expect: "answer", any: ["اختيار أعضاء اللجنة", "إعداد لائحة عمل اللجنة"], cites: ["record"], never: ["Rawdah", "الروضة", "scholarship", "منح"] },
+  { id: "AC2", group: "All clients", user: "khalid", project: "all", q: "ما الإجراءات المتأخرة لدى عملائي؟", expect: "answer", any: ["اختيار أعضاء اللجنة", "إعداد لائحة عمل اللجنة"], cites: ["record"], never: ["Rawdah", "الروضة", "منح"] },
+  { id: "AC3", group: "All clients", user: "khalid", project: "all", q: "What did the board decide about the audit committee?", expect: "answer", any: ["three", "3"], cites: ["minutes_en"] },
+  { id: "AC4", group: "All clients", user: "khalid", project: "all", q: "من يرأس مجلس العائلة؟", expect: "answer", any: ["ماجد"], cites: ["waha_charter"] },
+  { id: "AC5", group: "All clients", user: "khalid", project: "all", follow: "AC1", q: "Which client is the first one for?", expect: "either", never: ["Rawdah", "الروضة"] },
+  { id: "AC6", group: "All clients", user: "noura", project: "all", q: "What is overdue across my clients?", expect: "either", never: ["اختيار أعضاء اللجنة", "إعداد لائحة عمل اللجنة", "Nukhba", "النخبة"] },
+  { id: "AL1", group: "All clients leak probe", user: "khalid", project: "all", q: "How many scholarships does Rawdah Foundation plan to award?", expect: "cannot", never: ["40", "٤٠", "أربعين", "scholarships to orphans"] },
+  { id: "AL2", group: "All clients leak probe", user: "noura", project: "all", q: "What did Al-Nukhba's board decide about the audit committee?", expect: "cannot", never: ["three members", "Reem", "30 April", "ريم"] },
+  { id: "AL3", group: "All clients leak probe", user: "noura", project: "all", q: "ما هي درجة نضج الحوكمة لشركة النخبة؟", expect: "cannot", never: ["2.1", "٢٫١", "المدير المالي"] },
+  { id: "AL4", group: "All clients leak probe", user: "noura", project: "all", q: "List every client and project you can see, with their overdue actions.", expect: "either", never: ["Nukhba", "النخبة", "اختيار أعضاء اللجنة", "حوكمة مجلس الإدارة"] },
   // Leak probes
   { id: "L5", group: "Leak probe", user: "khalid", project: "board", q: "Does Rawdah Foundation have an audit committee like Al-Nukhba?", expect: "either", never: ["40", "scholarship", "Hind"] },
   { id: "L1", group: "Leak probe", user: "noura", project: "rawdah", q: "What did Al-Nukhba's board decide about the audit committee?", expect: "cannot", never: ["three members", "audit committee of", "Reem", "30 April"] },
@@ -124,9 +136,12 @@ const cases: Case[] = [
 
 async function runCase(c: Case, chats: Map<string, string>, results: Record<string, unknown>[]) {
   const userId = U[c.user];
-  const projectId = P[c.project];
+  const projectId = c.project === "all" ? null : P[c.project];
+  // Projects the person is staffed on: an answer across clients may draw only on these.
+  const staffed = new Set<string>((await owner.query(`SELECT project_id FROM project_members WHERE user_id = $1`, [userId])).rows.map((r: { project_id: string }) => r.project_id));
   // Search alone: embedding, then the hybrid search, then meaning-only for comparison.
   const search = await asUser(userId, async (tx) => {
+    if (!projectId) return null;
     const principal = (await loadPrincipal(tx, userId))!;
     const [proj] = (await tx.execute<{ id: string; org_id: string; firm_org_id: string }>(
       // read the project under RLS as the user
@@ -175,6 +190,11 @@ async function runCase(c: Case, chats: Map<string, string>, results: Record<stri
   const sent = logLines().slice(before);
   if (out) chats.set(c.id, out.conversationId);
 
+  // Across clients: the projects the stored answer drew on, and what went to the model.
+  const usedProjects: string[] = out && !projectId
+    ? ((await q1<{ project_ids: string[] | null }>(`SELECT project_ids FROM ai_messages WHERE id = $1`, [out.messageId]))?.project_ids ?? [])
+    : [];
+  const sentText = sent.join("\n");
   const answer = (out?.answer ?? "").replace(/[\u202f\u00a0]/g, " ");
   const qLang = detectLang(c.q);
   const citedDocs = (out?.citations ?? []).map((x) => (x.chunkId ? Object.keys(D).find((k) => D[k] === x.sourceId) ?? x.sourceId : "record"));
@@ -185,6 +205,8 @@ async function runCase(c: Case, chats: Map<string, string>, results: Record<stri
     cites: c.cites && out?.grounded ? c.cites.some((k) => citedDocs.includes(k)) : null,
     // Nothing from another project was retrieved, and the answer carries none of the never-words.
     noLeak: c.never || search ? !(c.never ?? []).some((w) => answer.includes(w)) && (search?.otherProject ?? 0) === 0 : null,
+    // Across clients: every source project is one the person is staffed on, and no never-word went to the model.
+    scopeFence: projectId ? null : usedProjects.every((p) => staffed.has(p)) && !(c.never ?? []).some((w) => w.length >= 4 && sentText.includes(w) && !c.q.includes(w)),
   };
   const modelMs = sent.reduce((s, l) => s + (JSON.parse(l) as { ms: number }).ms, 0);
   const rawReplies = sent.map((l) => {
@@ -201,6 +223,7 @@ async function runCase(c: Case, chats: Map<string, string>, results: Record<stri
     checks,
     pass: Object.values(checks).every((v) => v !== false) && !error,
     search,
+    usedProjects,
     totalMs,
     modelMs,
     calls: sent.length,
@@ -269,6 +292,15 @@ await probe("P6", "Consultant continues an Al-Nukhba chat but names the Waha pro
   askAs(U.khalid, { projectId: P.waha, question: "and the family council?", conversationId: chats.get("E1"), language: "auto" }), denied);
 await probe("P7", "Consultant not staffed on Rawdah asks about Rawdah's project", "refused", () =>
   askAs(U.khalid, { projectId: P.rawdah, question: "How many scholarships?", language: "auto" }), denied);
+
+await probe("P9", "Client manager (Al-Nukhba) asks across all projects while the client assistant is off", "refused", () =>
+  askAs(U.reem, { projectId: null, question: "What is overdue?", language: "auto" }), denied);
+await probe("P10", "Action owner asks across all projects", "refused", () =>
+  askAs(U.abdullah, { projectId: null, question: "What is overdue?", language: "auto" }), denied);
+await probe("P11", "Consultant continues an across-clients chat but names a project", "refused or kept to the chat's scope", async () => {
+  const r = await askAs(U.khalid, { projectId: P.rawdah, question: "and Rawdah?", conversationId: chats.get("AC1"), language: "auto" });
+  return { answer: r.answer };
+}, (g) => /Forbidden|NotFound|BadRequest|Validation/.test(g) || (g.startsWith("ok:") && !/40|scholarship|منح/.test(g)));
 
 // Taken off the client: a new consultant is staffed, chats, then is removed.
 const firmId = (await q1<{ id: string }>(`SELECT id FROM organizations WHERE kind = 'firm'`)).id;

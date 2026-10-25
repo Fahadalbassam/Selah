@@ -25,3 +25,13 @@ export async function projectMasker(tx: Tx, projectId: string, on = maskingOn())
   const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`SELECT kind, term, entity FROM app_mask_terms(${projectId})`);
   return createMasker(rows, { places: true });
 }
+
+/** The masking for a question across several projects: each project's names, together. */
+export async function projectsMasker(tx: Tx, projectIds: string[], on = maskingOn()): Promise<Masker> {
+  if (!on || projectIds.length === 0) return createMasker([]);
+  if (projectIds.length === 1) return projectMasker(tx, projectIds[0]!, on);
+  const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`
+    SELECT DISTINCT t.kind, t.term, t.entity
+    FROM unnest(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) pid, LATERAL app_mask_terms(pid) t`);
+  return createMasker(rows, { places: true });
+}
