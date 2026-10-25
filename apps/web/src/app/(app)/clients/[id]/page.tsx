@@ -329,9 +329,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       {
                         name: "userId",
                         label: t("consultant"),
-                        type: "select",
+                        type: "person",
                         required: true,
-                        options: data.candidates.map((c) => ({ value: c.userId, label: `${c.name} · ${c.email}` })),
+                        options: data.candidates.map((c) => ({ value: c.userId, label: c.name, hint: c.email })),
                       },
                     ]}
                     submitLabel={t("add")}
