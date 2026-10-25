@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -364,6 +365,20 @@ def test_stream_asks_again_when_the_reply_is_not_json(streaming_client):
     assert events[-1]["answer"] == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}
 
 
+def test_stream_keeps_the_caller_waiting_while_it_asks_again(streaming_client, monkeypatch):
+    monkeypatch.setattr("app.main.WAIT_EVERY_S", 0.01)
+    client, fake = streaming_client("Sure! The board meets quarterly.")
+
+    async def slow(system: str, user: str, schema: dict) -> str:
+        await asyncio.sleep(0.08)
+        return json.dumps({"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True})
+
+    fake.chat_json = slow  # type: ignore[method-assign]
+    _, events = ask_stream(client)
+    assert any(e == {"type": "wait"} for e in events)
+    assert events[-1]["answer"]["answer"] == "Quarterly."
+
+
 def test_answer_text_decodes_escapes_split_across_pieces():
     from app.prompt import AnswerText
 
@@ -374,10 +389,9 @@ def test_answer_text_decodes_escapes_split_across_pieces():
     assert a.done and a.text() == 'سطر\n"اقتباس" é'
 
 
-def test_passage_ids_named_in_a_sentence_are_taken_out():
+def test_words_that_look_like_passage_ids_stay():
     from app.prompt import strip_markers
 
-    assert strip_markers("حسب سجل الحالة في P5، لدى العميل 3 حالات.") == "حسب سجل الحالة، لدى العميل 3 حالات."
-    assert strip_markers("According to the summary in P2, three are late [P2].") == "According to the summary, three are late."
-    # A priority label is not a passage id.
+    # Only bracketed markers go; "in P1" can be a priority label, so the prompt asks the model not to name passages in prose.
+    assert strip_markers("Three actions are classified in P1 and two in P2 [P2].") == "Three actions are classified in P1 and two in P2."
     assert strip_markers("Two P1 actions are late.") == "Two P1 actions are late."

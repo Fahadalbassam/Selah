@@ -99,6 +99,7 @@ export async function answerStream(
         const event = streamEvent.parse(JSON.parse(line));
         if (event.type === "text") onText(event.text);
         else if (event.type === "done") return event.answer;
+        else if (event.type === "wait") continue;
         else throw new Error("ai service: the answer failed");
       }
     }
@@ -112,6 +113,8 @@ const streamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("done"), answer: answerSchema }),
   z.object({ type: z.literal("error") }),
+  // The service is asking the model again; it only keeps the idle timer from firing.
+  z.object({ type: z.literal("wait") }),
 ]);
 
 export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {

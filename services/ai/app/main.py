@@ -5,6 +5,7 @@ app authorizes the user, runs the permission-filtered retrieval, and sends
 only the surviving passages here. Every call needs the shared service token.
 """
 
+import asyncio
 import hmac
 import json
 import time
@@ -139,6 +140,8 @@ async def answer(
 # At most this often a "text" line while the answer is written: the screen
 # needs no more, and each line repeats the answer so far.
 TEXT_EVERY_S = 0.1
+# While a reply is asked for again whole, a {"type": "wait"} line this often keeps the caller's idle timer from firing.
+WAIT_EVERY_S = 15.0
 
 
 @app.post("/v1/answer/stream", dependencies=[Depends(require_token)])
@@ -149,7 +152,8 @@ async def answer_stream(
 ) -> StreamingResponse:
     """The same answer as /v1/answer, as lines of JSON while the model writes:
     {"type": "text", "text": the answer so far} now and then, then
-    {"type": "done", "answer": the checked answer}. Only the done line counts:
+    {"type": "done", "answer": the checked answer}, with {"type": "wait"} now
+    and then while a reply that wasn't JSON is asked for again. Only the done line counts:
     the text lines are unchecked, for showing progress. A failure after the
     first line is {"type": "error"}."""
     _check_size(req, settings)
@@ -172,7 +176,10 @@ async def answer_stream(
             found = json_object(raw)
             if found is None:
                 # Not JSON: asked again whole, which for a hosted model includes its own retry.
-                found = json_object(await llm.chat_json(system, user, ANSWER_SCHEMA))
+                again = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
+                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
+                    yield _line({"type": "wait"})
+                found = json_object(again.result())
             yield _line({"type": "done", "answer": check_answer(found or raw, req.passages).model_dump()})
         except Exception:  # noqa: BLE001 - the caller only needs to know it failed
             yield _line({"type": "error"})

@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { asUser, type Tx } from "@/db/client";
+import { env } from "@/env";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type RetrievalScope } from "@/authz";
 import { chatTitle, fuse, indicatorIntent, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
@@ -99,6 +100,8 @@ export interface PreparedAsk {
   /** In a chat across projects, the projects the passages came from (null otherwise). */
   projectIds: string[] | null;
   masker: Masker;
+  /** The firm day the question was counted on, against a client person's daily limit. */
+  countedOn: string;
   meta: Record<string, unknown>;
 }
 
@@ -155,7 +158,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
   const client = scopes[0]!.client === true;
 
   // Counted before the search; a client person past their daily limit is refused (OWASP LLM10).
-  await tx.execute(sql`select app_count_ai_question(${firmToday()}::date)`);
+  const countedOn = firmToday();
+  await tx.execute(sql`select app_count_ai_question(${countedOn}::date)`);
 
   const caseRef = chat ? chat.caseRef : across ? null : (input.case ?? null);
   const [vector] = await embed([input.question]);
@@ -166,15 +170,28 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
   const status = [
     ...(kinds.size ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined) : []),
     // Indicators are a client's own; across clients there is no one set to give.
-    ...(clientOrgs.length === 1 && indicatorIntent(input.question) ? await indicatorRecords(tx, clientOrgs[0]!, across ? undefined : projectId!) : []),
+    // Across projects they belong to the client, so the answer quotes every project of it the person can ask about
+    // (ai_messages.project_ids): taken off any of them, the person no longer reads the answer.
+    ...(clientOrgs.length === 1 && indicatorIntent(input.question)
+      ? (await indicatorRecords(tx, clientOrgs[0]!, across ? undefined : projectId!)).map((r) =>
+          across ? { ...r, projectIds: targets.filter((p) => p.orgId === clientOrgs[0]).map((p) => p.id) } : r,
+        )
+      : []),
   ];
   const found = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
   const hits = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "records" });
-  const linked = await linkedRecords(tx, caseRef, found, hits);
-  // The status count first: it is what a status question is about. The AI service takes MAX_PASSAGES.
-  const records = [...status.slice(0, 1), ...linked, ...status.slice(1).filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
+  // Status lives in records, not files: a status question keeps fewer file passages (at least 2, at most
+  // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
+  const statusRoom = MAX_PASSAGES - 1 - status.length;
+  const chunks = found.slice(0, status.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : TOP_K);
+  const linked = await linkedRecords(tx, caseRef, chunks, hits);
+  // A status question: its rows first (the count, then the actions), then what the search linked.
+  // The AI service takes MAX_PASSAGES, so what is cut is cut from the end.
+  const records = status.length
+    ? [...status, ...linked.filter((r) => !status.some((x) => x.type === r.type && x.id === r.id))]
+    : linked;
 
   // The chat's own record goes first and says so: asked "explain this action", the model
   // otherwise picked whichever action came first (client run, 2026-10-24).
@@ -182,8 +199,6 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
   const subject = records.filter(isCase);
   const others = records.filter((r) => !isCase(r));
   const room = MAX_PASSAGES - subject.length;
-  // Status lives in records, not files: a status question keeps fewer file passages.
-  const chunks = found.slice(0, Math.min(status.length ? STATUS_TOP_K : TOP_K, Math.max(room - others.length, STATUS_TOP_K)));
   const kept = others.slice(0, room - chunks.length);
 
   const at = (pid: string | undefined) => (across && pid && whereOf.has(pid) ? `, ${whereOf.get(pid)}` : "");
@@ -233,6 +248,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
     byPassageId,
     projectIds: across ? [...new Set(sources.flatMap((s) => s.projects))] : null,
     masker,
+    countedOn,
     meta: {
       ...(across ? { scope: "all", projects: ids.length } : {}),
       passages: chunks.length,
@@ -253,7 +269,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
 export function shownSoFar(masker: Masker, text: string) {
   const tail = /\[?([A-Z]+)(_\d*)?$/.exec(text);
   const cut =
-    tail && ["ORG", "PERSON", "DEPT", "PLACE"].some((k) => (tail[2] === undefined ? k.startsWith(tail[1]!) : k === tail[1]))
+    tail && ["ORG", "PERSON", "DEPT", "PLACE", "EMAIL", "PHONE"].some((k) => (tail[2] === undefined ? k.startsWith(tail[1]!) : k === tail[1]))
       ? text.slice(0, tail.index)
       : text;
   return masker.unmask(cut);
@@ -269,9 +285,13 @@ export function shownSoFar(masker: Masker, text: string) {
  */
 export function streamAnswer(principal: Principal, prepared: PreparedAsk): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  // Closed by the person (the card closed, the page left): the answer is still written and saved, for the chat list.
+  let gone = false;
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: Record<string, unknown>) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const send = (event: Record<string, unknown>) => {
+        if (!gone) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
       send({ type: "writing" });
       try {
         const result = prepared.passages.length
@@ -285,10 +305,19 @@ export function streamAnswer(principal: Principal, prepared: PreparedAsk): Reada
             )
           : null;
         send({ type: "done", ...(await asUser(principal.userId, (tx) => finishAsk(tx, principal, prepared, result))) });
-      } catch {
+      } catch (e) {
+        console.error("assistant: the streamed answer failed", e);
+        // Nothing was answered, so the question doesn't count against the daily limit
+        // (as ask()'s rollback does). Counted in the transaction that prepared it, which has ended.
+        await asUser(principal.userId, (tx) => tx.execute(sql`select app_uncount_ai_question(${prepared.countedOn}::date)`)).catch((err) =>
+          console.error("assistant: could not give the question back", err),
+        );
         send({ type: "error" });
       }
-      controller.close();
+      if (!gone) controller.close();
+    },
+    cancel() {
+      gone = true;
     },
   });
 }
@@ -356,8 +385,14 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
  * internal ones. A client person: their own organisation's projects.
  */
 async function askableProjects(tx: Tx, principal: Principal, language: AskInput["language"]): Promise<AskProject[]> {
-  const all = await listProjects(tx, principal);
-  return all
+  // The projects this person can read (RLS, then the app's own check), without listProjects' action counts.
+  const rows = await tx
+    .select({ id: projects.id, orgId: projects.orgId, firmOrgId: projects.firmOrgId, kind: projects.kind, title: projects.title, orgName: organizations.name, orgNameAr: organizations.nameAr })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .orderBy(asc(projects.title));
+  return rows
+    .filter((r) => authorize(principal, "project.read", { type: "project", id: r.id, orgId: r.orgId, firmOrgId: r.firmOrgId, projectId: r.id }).allowed)
     .filter((p) => retrievalScope(principal, { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }) !== null)
     .map((p) => ({ id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, kind: p.kind, where: where(p, language) }));
 }
@@ -1147,6 +1182,6 @@ export async function assistantContext(tx: Tx, principal: Principal, input: { lo
     // The client's people (F39): null for firm staff.
     usage: clientAi ? { used: clientAi.usedToday, limit: clientAi.dailyLimit } : null,
     // "local": answers come from a model on this machine's processor, which can take a minute (docs/walkthrough.md).
-    model: (process.env.LLM_PROVIDER ?? "ollama") === "ollama" ? ("local" as const) : ("hosted" as const),
+    model: env().LLM_PROVIDER === "ollama" ? ("local" as const) : ("hosted" as const),
   };
 }

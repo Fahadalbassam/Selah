@@ -413,6 +413,25 @@ describe("limits and the answer filter", () => {
     expect((await svc(U.cmgr, (tx, p) => C.myClientAi(tx, p)))!.usedToday).toBe(2);
   });
 
+  it("gives a failed streamed question back, only the caller's own and never below zero", async () => {
+    await setAi(true, ["client_manager"], 2);
+    await consent();
+    const day = firmToday();
+    const used = async (uid: string) => (await owner.query(`SELECT queries FROM ai_usage WHERE user_id = $1`, [uid])).rows[0]?.queries ?? 0;
+    await sqlAs(U.cmgr, `SELECT app_count_ai_question($1::date)`, [day]);
+    await sqlAs(U.cmgr, `SELECT app_count_ai_question($1::date)`, [day]);
+    await sqlAs(U.cons, `SELECT app_count_ai_question($1::date)`, [day]);
+    await sqlAs(U.cmgr, `SELECT app_uncount_ai_question($1::date)`, [day]);
+    expect(await used(U.cmgr)).toBe(1);
+    expect(await used(U.cons)).toBe(1);
+    for (let i = 0; i < 3; i++) await sqlAs(U.cmgr, `SELECT app_uncount_ai_question($1::date)`, [day]);
+    expect(await used(U.cmgr)).toBe(0);
+    // With it given back, the limit allows another question.
+    await sqlAs(U.cmgr, `SELECT app_count_ai_question($1::date)`, [day]);
+    await sqlAs(U.cmgr, `SELECT app_count_ai_question($1::date)`, [day]);
+    expect(await used(U.cmgr)).toBe(2);
+  });
+
   it("refuses a legal ruling, a guess at the firm's intentions, and any other client's name", async () => {
     await setAi(true, ["client_manager"]);
     await consent();

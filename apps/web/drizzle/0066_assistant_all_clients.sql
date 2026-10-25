@@ -192,3 +192,16 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
       AND encode(sha256(convert_to(s.body, 'UTF8')), 'hex') = hash
   )
 $$;
+--> statement-breakpoint
+-- A streamed answer that failed gives the question back: ask() counts in the
+-- transaction that answers, so a failure rolls the count back, but a streamed
+-- answer is counted in the transaction that prepared it, which has ended.
+-- Only the caller's own count, never below zero.
+CREATE FUNCTION app_uncount_ai_question(p_day date) RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  UPDATE ai_usage SET queries = queries - 1 WHERE user_id = app_uid() AND day = p_day AND queries > 0;
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_uncount_ai_question(date) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_uncount_ai_question(date) TO selah_app;

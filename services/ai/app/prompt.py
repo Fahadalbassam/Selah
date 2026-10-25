@@ -113,12 +113,10 @@ def check_answer(raw: str, passages: list[Passage]) -> Answer:
 
 # "[P2]" or "(P2, P7)" in the text: the screen lists the sources under the answer, so the ids mean nothing to a reader.
 _MARKERS = re.compile(r"\s*[\[(]\s*P\d+(?:\s*[,،]\s*P\d+)*\s*[\])]")
-# "according to the record in P5", "حسب السجل في P5": the id named in a sentence.
-_NAMED = re.compile(r"[ \t]+(?:in|from|see|في|من|انظر)[ \t]+P\d+\b")
 
 
 def strip_markers(text: str) -> str:
-    return re.sub(r"[ \t]+([.,;:،؛])", r"\1", _NAMED.sub("", _MARKERS.sub("", text))).strip()
+    return re.sub(r"[ \t]+([.,;:،؛])", r"\1", _MARKERS.sub("", text)).strip()
 
 
 class AnswerText:
