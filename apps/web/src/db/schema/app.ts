@@ -2035,9 +2035,8 @@ export const aiConversations = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    // Null: a chat across every project the person may ask about ("All my clients").
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     // The first question, cut short, until the owner renames it.
     title: text("title").notNull().default(""),
     caseType: chatCaseType("case_type"),
@@ -2053,6 +2052,8 @@ export const aiConversations = pgTable(
     index("ai_conversations_user_idx").on(t.userId, t.lastMessageAt),
     index("ai_conversations_case_idx").on(t.caseType, t.caseId),
     check("ai_conversation_case", sql`(${t.caseType} IS NULL) = (${t.caseId} IS NULL)`),
+    // A chat about one record is a chat in that record's project.
+    check("ai_conversation_case_project", sql`${t.caseId} IS NULL OR ${t.projectId} IS NOT NULL`),
     check("ai_conversation_title", sql`length(${t.title}) <= 120`),
   ],
 );
@@ -2075,8 +2076,12 @@ export const aiMessages = pgTable(
     citations:
       // A record (not a file passage) has no chunk.
       jsonb("citations").$type<
-        Array<{ chunkId: string | null; sourceType: string; sourceId: string; version: number; page?: number | null }>
+        Array<{ chunkId: string | null; sourceType: string; sourceId: string; version: number; page?: number | null; projectId?: string }>
       >(),
+    // In a chat across projects: the projects the answer's passages came
+    // from. The question and its answer are readable only while the person
+    // can still see every one of them (row-level security).
+    projectIds: uuid("project_ids").array(),
     createdAt: createdAt(),
   },
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],
@@ -2806,7 +2811,9 @@ export const contentTranslations = pgTable(
   "content_translations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    ...scoped(),
+    // Null only for an assistant answer in a chat across projects.
+    projectId: uuid("project_id"),
+    orgId: uuid("org_id").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     field: text("field").notNull(),

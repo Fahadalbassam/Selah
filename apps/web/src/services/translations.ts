@@ -6,7 +6,7 @@ import type { Principal } from "@/authz";
 import { detectLang, isTranslatable } from "@/lib/translations";
 import { BadRequestError, NotFoundError, UnavailableError } from "@/server/errors";
 import { translateText } from "./ai-client";
-import { projectMasker } from "./masking";
+import { projectsMasker } from "./masking";
 
 // On-demand translations (baseline: Translations). The database
 // lets a person read or make a translation only while they can read the
@@ -36,12 +36,16 @@ type Row = { id: string; text: string; reviewed_by: string | null };
 
 async function source(tx: Tx, r: Omit<TranslationRequest, "to">) {
   if (!isTranslatable(r.entityType, r.field)) throw new BadRequestError("this text cannot be translated");
-  const { rows } = await tx.execute<{ project_id: string; org_id: string; body: string | null }>(
+  const { rows } = await tx.execute<{ project_id: string | null; org_id: string; body: string | null }>(
     sql`select project_id, org_id, body from app_translation_source(${r.entityType}, ${r.entityId}, ${r.field})`,
   );
   const row = rows[0];
   if (!row || !row.body?.trim()) throw new NotFoundError("text");
-  return { projectId: row.project_id, orgId: row.org_id, body: row.body };
+  // An answer in a chat across projects quotes the projects it names (ai_messages.project_ids).
+  const projectIds = row.project_id
+    ? [row.project_id]
+    : ((await tx.execute<{ ids: string[] | null }>(sql`select project_ids as ids from ai_messages where id = ${r.entityId}`)).rows[0]?.ids ?? []);
+  return { projectId: row.project_id, projectIds, orgId: row.org_id, body: row.body };
 }
 
 async function kept(tx: Tx, r: TranslationRequest, hash: string) {
@@ -65,7 +69,7 @@ export async function translate(tx: Tx, principal: Principal, r: TranslationRequ
   let made: { text: string; model: string };
   try {
     // A hosted model gets placeholders for known names (docs/assistant.md).
-    const masker = await projectMasker(tx, src.projectId);
+    const masker = await projectsMasker(tx, src.projectIds);
     made = await translateText(masker.mask(src.body), sourceLang, r.to);
     made = { ...made, text: masker.unmask(made.text) };
   } catch {

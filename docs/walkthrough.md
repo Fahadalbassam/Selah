@@ -53,7 +53,7 @@ The assistant needs two models: a small search model that always runs on your ma
 
 `.env` is never committed. Selah replaces the names of people, clients and departments with placeholders before any text leaves your machine (`AI_MASKING=auto`, docs/assistant.md), but the hosted model still reads the sample files, so keep this to sample data.
 
-**B. Everything on your machine (no key).** Leave `LLM_PROVIDER=ollama`. The walkthrough then downloads qwen3:4b (about 2.5 GB) and answers on the processor, which can take a minute or more per answer. An NVIDIA card helps: uncomment the `deploy:` line under `ollama` in `docker-compose.yml`.
+**B. Everything on your machine (no key).** Leave `LLM_PROVIDER=ollama`. The walkthrough then downloads qwen3:4b (about 2.5 GB) and answers on the processor: on a 4-core test machine about 7 seconds per answer, and half a minute for the first one while the model loads. The answer appears as it is written, and the assistant card says it is running on this computer. When the walkthrough starts with the local model it prints the four lines above to switch. An NVIDIA card helps: uncomment the `deploy:` line under `ollama` in `docker-compose.yml`.
 
 Either way, the assistant reads the sample files and records about a minute after the app starts (it prints "the assistant has read the sample files and records"). Files you add during the walkthrough become searchable within a minute too, once their owner switches on "available to the assistant" on the file.
 

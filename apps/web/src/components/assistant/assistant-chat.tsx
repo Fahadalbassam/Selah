@@ -9,7 +9,9 @@ import { toast } from "@/components/ui/toast";
 import { openFilePage } from "@/app/(app)/projects/[id]/document-summary";
 import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
 import { FileText } from "@/components/animate-ui/icons/file-text";
+import { Hourglass } from "@/components/animate-ui/icons/hourglass";
 import { Search } from "@/components/animate-ui/icons/search";
+import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import { Send } from "@/components/animate-ui/icons/send";
 import { BrandLoader, BrandMark } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -31,7 +33,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
@@ -42,9 +44,10 @@ type CaseType = "recommendation" | "action" | "finding" | "meeting" | "document"
 export interface ChatRow {
   id: string;
   title: string;
-  projectId: string;
-  projectTitle: string;
-  orgName: string;
+  /** Null: a chat across every project the person may ask about. */
+  projectId: string | null;
+  projectTitle: string | null;
+  orgName: string | null;
   orgNameAr: string | null;
   caseType: CaseType | null;
   keep: boolean;
@@ -60,6 +63,9 @@ interface Citation {
   version: number;
   page?: number | null;
   label: string | null;
+  /** In a chat across projects: "Client · Project". */
+  place?: string;
+  projectId?: string;
   available: boolean;
   newer?: boolean;
 }
@@ -73,8 +79,7 @@ interface ChatMessage {
   citations: Citation[];
 }
 
-export interface Chat extends Omit<ChatRow, "projectTitle"> {
-  projectTitle: string;
+export interface Chat extends ChatRow {
   caseId: string | null;
   caseLabel: string | null;
   messages: ChatMessage[];
@@ -123,6 +128,8 @@ export function ChatList(props: {
   selected: string | null;
   onOpen: (id: string) => void;
   onShowArchived: () => void;
+  /** A client person: "All your projects" rather than "All my clients". */
+  client?: boolean;
   className?: string;
 }) {
   const t = useTranslations("assistant");
@@ -130,14 +137,15 @@ export function ChatList(props: {
   const locale = useLocale();
   const [now] = useState(() => Date.now());
   const f = props.filter.trim().toLowerCase();
-  const match = (c: ChatRow) => !f || c.title.toLowerCase().includes(f) || c.projectTitle.toLowerCase().includes(f);
-  // Grouped by client and project, the group with the latest chat first.
+  const allLabel = t(props.client ? "scope.allClient" : "scope.all");
+  const match = (c: ChatRow) => !f || c.title.toLowerCase().includes(f) || (c.projectTitle ?? allLabel).toLowerCase().includes(f);
+  // Grouped by client and project (chats across projects together), the group with the latest chat first.
   const groups = useMemo(() => {
     const out = new Map<string, { label: string; rows: ChatRow[] }>();
     for (const c of props.chats.filter(match)) {
       const client = locale === "ar" && c.orgNameAr ? c.orgNameAr : c.orgName;
-      const key = c.projectId;
-      if (!out.has(key)) out.set(key, { label: `${client} · ${c.projectTitle}`, rows: [] });
+      const key = c.projectId ?? "all";
+      if (!out.has(key)) out.set(key, { label: c.projectId ? `${client} · ${c.projectTitle}` : allLabel, rows: [] });
       out.get(key)!.rows.push(c);
     }
     return [...out.values()];
@@ -213,34 +221,45 @@ export function ChatList(props: {
 
 // ------------------------------------------------------------- headers
 
+const ALL = "all";
+
 export function NewChatHeader({
   projects,
   draft,
   onChange,
   disabled,
+  client,
 }: {
   projects: { id: string; title: string; client: string }[];
-  draft: { projectId: string; case: NewChatCase | null };
-  onChange: (d: { projectId: string; case: NewChatCase | null }) => void;
+  draft: { projectId: string | null; case: NewChatCase | null };
+  onChange: (d: { projectId: string | null; case: NewChatCase | null }) => void;
   disabled: boolean;
+  /** A client person: "All your projects" rather than "All my clients". */
+  client: boolean;
 }) {
   const t = useTranslations("assistant");
   const current = projects.find((p) => p.id === draft.projectId);
+  const allLabel = t(client ? "scope.allClient" : "scope.all");
   return (
     <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
       <Label htmlFor="chat-project" className="shrink-0 text-muted-foreground">
-        {t("project")}
+        {t("scope.label")}
       </Label>
       <Select
-        value={draft.projectId}
+        value={draft.projectId ?? ALL}
         disabled={disabled}
         // A case belongs to its project: picking another project drops it.
-        onValueChange={(v) => onChange({ projectId: v, case: draft.case?.projectId === v ? draft.case : null })}
+        onValueChange={(v) => {
+          const projectId = v === ALL ? null : v;
+          onChange({ projectId, case: draft.case && draft.case.projectId === projectId ? draft.case : null });
+        }}
       >
-        <SelectTrigger id="chat-project" size="sm" className="min-w-56">
-          <SelectValue>{current ? `${current.client} · ${current.title}` : null}</SelectValue>
+        <SelectTrigger id="chat-project" size="sm" className="min-w-56" title={draft.projectId ? undefined : t(client ? "scope.allClientHint" : "scope.allHint")}>
+          <SelectValue>{current ? `${current.client} · ${current.title}` : allLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value={ALL}>{allLabel}</SelectItem>
+          <SelectSeparator />
           {projects.map((p) => (
             <SelectItem key={p.id} value={p.id}>
               {p.client} · {p.title}
@@ -264,8 +283,11 @@ export function ChatHeader({
   chat,
   onPatch,
   onDelete,
+  client: clientPerson,
 }: {
   chat: Chat;
+  /** A client person: "All your projects" rather than "All my clients". */
+  client: boolean;
   onPatch: (c: { title?: string; keep?: boolean; archived?: boolean }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
@@ -296,10 +318,18 @@ export function ChatHeader({
             {chat.title || t("untitled")}
           </h2>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline">{client}</Badge>
-            <Badge variant="outline" asChild>
-              <Link href={`/projects/${chat.projectId}`}>{chat.projectTitle}</Link>
-            </Badge>
+            {chat.projectId ? (
+              <>
+                <Badge variant="outline">{client}</Badge>
+                <Badge variant="outline" asChild>
+                  <Link href={`/projects/${chat.projectId}`}>{chat.projectTitle}</Link>
+                </Badge>
+              </>
+            ) : (
+              <Badge variant="outline" title={t(clientPerson ? "scope.allClientHint" : "scope.allHint")}>
+                {t(clientPerson ? "scope.allClient" : "scope.all")}
+              </Badge>
+            )}
             {chat.caseType ? (
               <Badge variant="outline" className="max-w-72 gap-1">
                 <span className="text-muted-foreground">{t(`cases.${chat.caseType}`)}:</span>
@@ -379,13 +409,17 @@ export function Thread({
   pending,
   failed,
   note,
+  slow,
 }: {
   chat: Chat | null;
   loading: boolean;
-  pending: string | null;
+  /** A question on its way, with the answer written so far. */
+  pending: { question: string; writing: boolean; answer: string } | null;
   failed: false | "error" | "limit";
   /** Under the empty chat's hint: what the assistant does not do. */
   note?: string;
+  /** The model runs on this computer's processor: answers can take a minute. */
+  slow?: boolean;
 }) {
   const t = useTranslations("assistant");
   const locale = useLocale();
@@ -399,6 +433,7 @@ export function Thread({
           <EmptyMedia>{loading ? <BrandLoader className="size-8" /> : <BrandMark className="size-10 opacity-80" />}</EmptyMedia>
           {loading ? null : <EmptyDescription>{t("emptyThread")}</EmptyDescription>}
           {loading || !note ? null : <EmptyDescription className="text-xs">{note}</EmptyDescription>}
+          {loading || !slow ? null : <SlowNotice />}
         </EmptyHeader>
       </Empty>
     );
@@ -427,20 +462,30 @@ export function Thread({
             {pending ? (
               <MessageScrollerItem scrollAnchor>
                 <motion.div {...rise} className="flex flex-col gap-5">
-                  <Question text={pending} />
+                  <Question text={pending.question} />
                   <Message>
                     <MessageAvatar className="size-8 self-start rounded-lg border bg-background">
                       <BrandLoader className="size-4" />
                     </MessageAvatar>
-                    <MessageContent>
-                      <Trace aria-label={t("asking")}>
-                        <TraceLine status="running">
-                          <TraceIcon>
-                            <Search animate loop className="size-4" />
-                          </TraceIcon>
-                          <TraceTitle>{t("searching")}</TraceTitle>
-                        </TraceLine>
-                      </Trace>
+                    <MessageContent className="min-w-0 flex-1">
+                      {pending.answer ? (
+                        <Bubble variant="outline" className="max-w-full">
+                          {/* The answer as it is written, plain text; the saved answer replaces it once checked. */}
+                          <BubbleContent className="whitespace-pre-wrap" dir="auto" aria-live="polite">
+                            {pending.answer}
+                          </BubbleContent>
+                        </Bubble>
+                      ) : (
+                        <Trace aria-label={t("asking")}>
+                          <TraceLine status="running">
+                            <TraceIcon>
+                              {pending.writing ? <Sparkles animate loop className="size-4" /> : <Search animate loop className="size-4" />}
+                            </TraceIcon>
+                            <TraceTitle>{t(pending.writing ? "writing" : "searching")}</TraceTitle>
+                          </TraceLine>
+                        </Trace>
+                      )}
+                      {slow && !pending.answer ? <SlowNotice /> : null}
                     </MessageContent>
                   </Message>
                 </motion.div>
@@ -456,6 +501,19 @@ export function Thread({
         <MessageScrollerButton aria-label={t("toLatest")} />
       </MessageScroller>
     </MessageScrollerProvider>
+  );
+}
+
+/** The model runs on this computer's processor, not a hosted service: answers take longer. */
+function SlowNotice() {
+  const t = useTranslations("assistant");
+  return (
+    <Marker className="text-xs text-muted-foreground">
+      <MarkerIcon>
+        <Hourglass className="size-3.5" />
+      </MarkerIcon>
+      <MarkerContent>{t("localModel")}</MarkerContent>
+    </Marker>
   );
 }
 
@@ -481,7 +539,7 @@ function Question({ text }: { text: string }) {
  * language: a kept translation is shown at once; the latest answer is
  * translated by itself; older ones stay folded until clicked.
  */
-function AnswerView({ message, projectId, latest }: { message: ChatMessage; projectId: string; latest: boolean }) {
+function AnswerView({ message, projectId, latest }: { message: ChatMessage; projectId: string | null; latest: boolean }) {
   const t = useTranslations("assistant");
   const tt = useTranslations("translation");
   const locale = useLocale() as Lang;
@@ -619,7 +677,7 @@ function AnswerView({ message, projectId, latest }: { message: ChatMessage; proj
   );
 }
 
-function Sources({ citations, projectId }: { citations: Citation[]; projectId: string }) {
+function Sources({ citations, projectId }: { citations: Citation[]; projectId: string | null }) {
   const t = useTranslations("assistant");
   const chip = "inline-flex max-w-72 items-center gap-1 rounded-md border bg-background px-2 py-0.5 text-xs";
   return (
@@ -633,6 +691,11 @@ function Sources({ citations, projectId }: { citations: Citation[]; projectId: s
             </span>
             {c.page ? <span className="text-muted-foreground tabular-nums">{t("page", { n: c.page })}</span> : null}
             {c.newer ? <span className="text-muted-foreground">· {t("newerVersion")}</span> : null}
+            {c.place ? (
+              <span className="truncate text-muted-foreground" dir="auto">
+                · {c.place}
+              </span>
+            ) : null}
           </>
         );
         if (!c.available) {
@@ -649,6 +712,13 @@ function Sources({ citations, projectId }: { citations: Citation[]; projectId: s
             </button>
           );
         }
+        if (c.sourceType === "status") {
+          return (
+            <Link key={i} href="/actions" className={cn(chip, "hover:bg-muted")}>
+              {t("cases.status")}
+            </Link>
+          );
+        }
         const href =
           c.sourceType === "action"
             ? `/actions/${c.sourceId}`
@@ -658,7 +728,7 @@ function Sources({ citations, projectId }: { citations: Citation[]; projectId: s
                 ? `/recommendations/${c.sourceId}`
                 : c.sourceType === "kpi"
                   ? `/indicators/${c.sourceId}`
-                  : `/projects/${projectId}`;
+                  : `/projects/${c.projectId ?? projectId}`;
         return (
           <Link key={i} href={href} className={cn(chip, "hover:bg-muted")}>
             <span className="text-muted-foreground">{t(`cases.${c.sourceType as CaseType}`)}:</span>

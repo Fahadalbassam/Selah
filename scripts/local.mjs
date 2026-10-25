@@ -214,7 +214,8 @@ function npmInstall() {
 
 async function startServices(services, root) {
   say(`starting ${services.join(", ")}`);
-  compose(["up", "-d", ...services]);
+  // The AI service is built here from services/ai, so a pull of new code reaches it (the build is cached otherwise).
+  compose(["up", "-d", ...(services.includes("ai") ? ["--build"] : []), ...services]);
   // The database is ready once the init script has made the Selah roles and
   // the server listens on TCP (it does not during the first-start init).
   await waitFor("Postgres", () => {
@@ -244,6 +245,17 @@ async function prepareDatabase(env, seed = "db:seed") {
         : `failed: npm run ${seed}`,
     );
   }
+}
+
+/** The local model answers on the processor, so slowly; these four lines in .env switch to a hosted one (docs/walkthrough.md). */
+function printLocalModelHint() {
+  say("the assistant answers with the local model (qwen3:4b) on this computer's processor: about a minute per answer.");
+  say("For answers in a few seconds, make a free key at https://ollama.com/settings/keys, put these four lines in .env");
+  say("(replacing the LLM_PROVIDER line there), then run this command again:");
+  for (const line of ["LLM_PROVIDER=openai_compat", "LLM_API_BASE=https://ollama.com/v1", "LLM_MODEL=gpt-oss:120b", "LLM_API_KEY=<your key>"]) {
+    console.log(`         ${line}`);
+  }
+  say("Names are masked before any text leaves this computer; use sample data only (docs/walkthrough.md, \"The assistant\").");
 }
 
 function printAccounts(users, password) {
@@ -401,11 +413,8 @@ async function dev(flags, { walkthrough = false } = {}) {
   await prepareDatabase(walkthrough ? { ...env, CLAMD_HOST: "", SCAN_REQUIRED: "false" } : env, walkthrough ? "db:seed:walkthrough" : "db:seed");
   if (ai) {
     const hosted = (env.LLM_PROVIDER || "ollama") === "openai_compat";
-    say(
-      hosted
-        ? `the assistant answers with ${root.LLM_MODEL || "the hosted model"}; only the search model (bge-m3, about 1.2 GB) downloads, once`
-        : "the assistant answers with the local model (qwen3:4b): slow without a GPU. A hosted model is faster: docs/walkthrough.md, \"The assistant\"",
-    );
+    if (hosted) say(`the assistant answers with ${root.LLM_MODEL || "the hosted model"}; only the search model (bge-m3, about 1.2 GB) downloads, once`);
+    else printLocalModelHint();
   }
   if (full) say("the virus scanner loads in the background; the first start downloads its signatures");
   else if (!walkthrough) say("lean start: no virus scanner (uploads are stored unscanned) and no AI assistant. Add --full for both.");

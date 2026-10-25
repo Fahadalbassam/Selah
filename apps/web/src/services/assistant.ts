@@ -1,18 +1,19 @@
 import "server-only";
 import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
-import type { Tx } from "@/db/client";
+import { asUser, type Tx } from "@/db/client";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
-import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type Resource, type RetrievalScope } from "@/authz";
+import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type RetrievalScope } from "@/authz";
 import { chatTitle, fuse, indicatorIntent, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
 import { CLIENT_REFUSAL, clientAnswerProblem, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
-import { answer, embed, type HistoryTurn, type Passage } from "./ai-client";
+import type { Masker } from "@/lib/masking";
+import { answer, answerStream, embed, type Answer, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
 import { indicatorSnapshot } from "./indicators";
-import { projectMasker } from "./masking";
+import { projectsMasker } from "./masking";
 import { listProjects } from "./queries";
 
 const TOP_K = 8;
@@ -32,6 +33,12 @@ const MAX_INDICATORS = 6;
 const STATUS_TOP_K = 4;
 // Earlier turns of the same chat given as context. Never as sources.
 const HISTORY_MESSAGES = 8;
+// The most passages the AI service takes in one question (services/ai max_passages).
+const MAX_PASSAGES = 12;
+// Across projects, a status question lists more actions, each naming its client and project.
+const MAX_STATUS_ACTIONS_ACROSS = 10;
+// Across projects, the status count names at most this many projects.
+const MAX_STATUS_PROJECTS = 8;
 const CANNOT_CONFIRM = {
   ar: "لا أستطيع تأكيد ذلك من المصادر المتاحة لك.",
   en: "I can't confirm this from the sources available to you.",
@@ -44,7 +51,8 @@ export interface CaseRef {
 }
 
 export interface AskInput {
-  projectId: string;
+  /** Null (or left out): every project the person may ask about ("All my clients"). */
+  projectId?: string | null;
   question: string;
   conversationId?: string;
   /** Only when starting a chat: the record it is about. */
@@ -59,125 +67,268 @@ export interface Citation {
   sourceId: string;
   version: number;
   page?: number | null;
+  /** In a chat across projects: the project the source belongs to. */
+  projectId?: string;
+}
+
+/** A project the person may ask about, with the names that say where a passage came from. */
+interface AskProject {
+  id: string;
+  orgId: string;
+  firmOrgId: string;
+  kind: string;
+  /** "Client · Project", in the language asked. */
+  where: string;
+}
+
+/** Everything about a question that is settled before the model is called. */
+export interface PreparedAsk {
+  question: string;
+  language: AskInput["language"];
+  /** The model's audience: a client person gets the client rules and the client filter. */
+  client: boolean;
+  /** Null for a chat across projects. */
+  projectId: string | null;
+  chatId: string | null;
+  case: CaseRef | null;
+  /** Sent to the model: masked. */
+  passages: Passage[];
+  maskedQuestion: string;
+  history: HistoryTurn[];
+  byPassageId: Map<string, Citation>;
+  /** In a chat across projects, the projects the passages came from (null otherwise). */
+  projectIds: string[] | null;
+  masker: Masker;
+  meta: Record<string, unknown>;
 }
 
 /**
- * Answer a question from the project's permitted material.
+ * Answer a question from the permitted material of one project, or of every
+ * project the person may ask about.
  *
- *   1. authorize() decides the retrieval scope (same check as the rest of the app).
- *   2. The scope goes INSIDE both search queries' WHERE clause, and they also
+ *   1. authorize() decides the retrieval scope of each project (same check as
+ *      the rest of the app). Across projects, it is the scopes of each project
+ *      the person may ask about, joined; nothing beyond them.
+ *   2. The scopes go INSIDE both search queries' WHERE clause, and they also
  *      run under RLS, so other tenants' chunks are never scored.
  *   3. Records (the chat's case, the recommendations and actions the search
  *      found, and those behind the files found) are read under the same RLS,
  *      as they stand now. A status question
- *      ("what is overdue?") also gets the project's matching actions first.
- *   4. Only surviving passages go to the AI service, each with a short id.
+ *      ("what is overdue?") also gets the matching actions first.
+ *   4. Only surviving passages go to the AI service, each with a short id and,
+ *      across projects, the client and project it came from.
  *      Earlier turns of the chat go as context, never as sources.
  *   5. Cited ids are checked against the ids we supplied.
  *   6. No passages, or no valid citations: say so instead of guessing.
  */
 export async function ask(tx: Tx, principal: Principal, input: AskInput) {
-  const [eng] = await tx.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
-  if (!eng) throw new NotFoundError("project");
-  const resource: Resource & { type: "project" } = {
-    type: "project",
-    id: eng.id,
-    orgId: eng.orgId,
-    firmOrgId: eng.firmOrgId,
-    projectId: eng.id,
-  };
-  const scope = retrievalScope(principal, resource);
-  if (!scope) throw new ForbiddenError("assistant.query", resource, "retrieval:no-scope");
+  const prepared = await prepareAsk(tx, principal, input);
+  const result = prepared.passages.length
+    ? await answer(prepared.maskedQuestion, prepared.passages, answerLanguage(prepared), prepared.history, prepared.client ? "client" : "staff")
+    : null;
+  return finishAsk(tx, principal, prepared, result);
+}
+
+/** "auto" is settled here: with Arabic records and an English question the model drifted to Arabic. */
+export const answerLanguage = (p: Pick<PreparedAsk, "language" | "question">) =>
+  p.language === "auto" ? detectLang(p.question) : p.language;
+
+/** Steps 1 to 4: checks, search and the passages for the model. Counts the question. */
+export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput): Promise<PreparedAsk> {
+  // A chat keeps the scope it was started with.
+  const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId) : null;
+  const projectId = chat ? chat.projectId : (input.projectId ?? null);
+  const targets = projectId ? [await oneProject(tx, principal, projectId, input.language)] : await askableProjects(tx, principal, input.language);
+  const scopes = targets.flatMap((p) => {
+    const sc = retrievalScope(principal, { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id });
+    return sc ? [sc] : [];
+  });
+  if (projectId && !scopes.length) {
+    const t = targets[0]!;
+    throw new ForbiddenError("assistant.query", { type: "project", id: t.id, orgId: t.orgId, firmOrgId: t.firmOrgId, projectId: t.id }, "retrieval:no-scope");
+  }
+  if (!scopes.length) throw new ForbiddenError("assistant.query", { type: "organization", id: principal.orgId, orgId: principal.orgId, projectId: null }, "retrieval:no-scope");
+  const across = projectId === null;
+  const whereOf = new Map(targets.map((p) => [p.id, p.where]));
+  const client = scopes[0]!.client === true;
 
   // Counted before the search; a client person past their daily limit is refused (OWASP LLM10).
   await tx.execute(sql`select app_count_ai_question(${firmToday()}::date)`);
 
-  const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId, eng.id) : null;
-  const caseRef = chat ? chat.caseRef : (input.case ?? null);
-
+  const caseRef = chat ? chat.caseRef : across ? null : (input.case ?? null);
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
+  const ids = scopes.map((sc) => sc.projectId);
+  const clientOrgs = [...new Set(targets.filter((p) => p.kind === "client").map((p) => p.orgId))];
   const status = [
-    ...(kinds.size ? await statusRecords(tx, eng.id, kinds) : []),
-    ...(eng.kind === "client" && indicatorIntent(input.question) ? await indicatorRecords(tx, eng.orgId, eng.id) : []),
+    ...(kinds.size ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined) : []),
+    // Indicators are a client's own; across clients there is no one set to give.
+    ...(clientOrgs.length === 1 && indicatorIntent(input.question) ? await indicatorRecords(tx, clientOrgs[0]!, across ? undefined : projectId!) : []),
   ];
-  const found = await retrieve(tx, scope, vector, { query: input.question, case: caseRef, sources: "files" });
+  const found = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
-  const hits = await retrieve(tx, scope, vector, { query: input.question, case: caseRef, sources: "records" });
-  const chunks = status.length ? found.slice(0, STATUS_TOP_K) : found;
-  // The case and its links keep their fuller text when a status row repeats one.
-  const linked = await linkedRecords(tx, caseRef, chunks, hits);
-  const records = [...linked, ...status.filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
+  const hits = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "records" });
+  const linked = await linkedRecords(tx, caseRef, found, hits);
+  // The status count first: it is what a status question is about. The AI service takes MAX_PASSAGES.
+  const records = [...status.slice(0, 1), ...linked, ...status.slice(1).filter((r) => !linked.some((x) => x.type === r.type && x.id === r.id))];
 
   // The chat's own record goes first and says so: asked "explain this action", the model
   // otherwise picked whichever action came first (client run, 2026-10-24).
   const isCase = (r: RecordPassage) => caseRef !== null && caseRef.type === r.type && caseRef.id === r.id;
   const subject = records.filter(isCase);
+  const others = records.filter((r) => !isCase(r));
+  const room = MAX_PASSAGES - subject.length;
+  // Status lives in records, not files: a status question keeps fewer file passages.
+  const chunks = found.slice(0, Math.min(status.length ? STATUS_TOP_K : TOP_K, Math.max(room - others.length, STATUS_TOP_K)));
+  const kept = others.slice(0, room - chunks.length);
+
+  const at = (pid: string | undefined) => (across && pid && whereOf.has(pid) ? `, ${whereOf.get(pid)}` : "");
   const toSource = (r: RecordPassage, label: string) => ({
     text: r.text,
-    source: label,
-    citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null },
+    source: `${label}${at(r.projectId)}`,
+    projects: r.projectIds ?? (r.projectId ? [r.projectId] : []),
+    citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null, ...(across && r.projectId ? { projectId: r.projectId } : {}) },
   });
   const sources = [
     ...subject.map((r) => toSource(r, `${r.type}, the record this chat is about`)),
     ...chunks.map((c) => ({
       text: c.content,
-      source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}`,
-      citation: { chunkId: c.id, sourceType: c.sourceType, sourceId: c.sourceId, version: c.sourceVersion, page: c.page },
+      source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}${at(c.projectId)}`,
+      projects: [c.projectId],
+      citation: {
+        chunkId: c.id,
+        sourceType: c.sourceType,
+        sourceId: c.sourceId,
+        version: c.sourceVersion,
+        page: c.page,
+        ...(across ? { projectId: c.projectId } : {}),
+      },
     })),
-    ...records.filter((r) => !isCase(r)).map((r) => toSource(r, r.type)),
+    ...kept.map((r) => toSource(r, r.type)),
   ];
-  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: s.text, source: s.source }));
-  const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation]));
+  // A hosted model gets placeholders for known names, never the names (docs/assistant.md).
+  // Across projects, the source labels name clients, so they are masked too.
+  const masker = await projectsMasker(tx, ids);
+  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
+  const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
   const history = chat ? await recentTurns(tx, chat.id) : [];
+  const question = input.question;
+  // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
+  const maskedQuestion = subject.length ? `${masker.mask(question).slice(0, 1960)}\n(This chat is about passage P1.)` : masker.mask(question);
 
+  return {
+    question,
+    language: input.language,
+    client,
+    projectId,
+    chatId: chat?.id ?? null,
+    case: input.case ?? null,
+    passages,
+    maskedQuestion,
+    history: history.map((h) => ({ ...h, content: masker.mask(h.content) })),
+    byPassageId,
+    projectIds: across ? [...new Set(sources.flatMap((s) => s.projects))] : null,
+    masker,
+    meta: {
+      ...(across ? { scope: "all", projects: ids.length } : {}),
+      passages: chunks.length,
+      records: kept.length + subject.length,
+      ...(kinds.size ? { status: [...kinds].join(",") } : {}),
+      turns: history.length / 2,
+      // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
+      ...(client ? { sent: chunks.map((c) => c.id).join(",") } : {}),
+    },
+  };
+}
+
+/**
+ * A streamed answer so far, for the screen: names put back, and a name's
+ * placeholder still being written ("[PERS", "ORG_1" before "ORG_12") held
+ * back until it is whole.
+ */
+export function shownSoFar(masker: Masker, text: string) {
+  const tail = /\[?([A-Z]+)(_\d*)?$/.exec(text);
+  const cut =
+    tail && ["ORG", "PERSON", "DEPT", "PLACE"].some((k) => (tail[2] === undefined ? k.startsWith(tail[1]!) : k === tail[1]))
+      ? text.slice(0, tail.index)
+      : text;
+  return masker.unmask(cut);
+}
+
+/**
+ * The model's part of a prepared question as lines of JSON (docs/assistant.md,
+ * "Streaming"): {"type": "writing"}, then {"type": "text"} with the answer so
+ * far (firm staff only: a client person's answer is shown only after the
+ * client filter), then {"type": "done"} with the saved answer, or
+ * {"type": "error"}. The answer is saved in a new transaction as the same
+ * person, since the one that prepared the question ends when the stream starts.
+ */
+export function streamAnswer(principal: Principal, prepared: PreparedAsk): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      send({ type: "writing" });
+      try {
+        const result = prepared.passages.length
+          ? await answerStream(
+              prepared.maskedQuestion,
+              prepared.passages,
+              answerLanguage(prepared),
+              prepared.history,
+              prepared.client ? "client" : "staff",
+              prepared.client ? () => {} : (text) => send({ type: "text", text: shownSoFar(prepared.masker, text) }),
+            )
+          : null;
+        send({ type: "done", ...(await asUser(principal.userId, (tx) => finishAsk(tx, principal, prepared, result))) });
+      } catch {
+        send({ type: "error" });
+      }
+      controller.close();
+    },
+  });
+}
+
+/** Steps 5 and 6, then the chat is saved: the model's answer (null when there was nothing to ask it with). */
+export async function finishAsk(tx: Tx, principal: Principal, prepared: PreparedAsk, result: Answer | null) {
+  const { question, language, masker } = prepared;
   let text: string;
   let citations: Citation[] = [];
   let grounded = false;
-  // A hosted model gets placeholders for known names, never the names (docs/assistant.md).
-  const masker = await projectMasker(tx, eng.id);
-  if (passages.length > 0) {
-    const result = await answer(
-      // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
-      subject.length ? `${masker.mask(input.question).slice(0, 1960)}\n(This chat is about passage P1.)` : masker.mask(input.question),
-      passages.map((p) => ({ ...p, text: masker.mask(p.text) })),
-      // "auto" is settled here: with Arabic records and an English question the model drifted to Arabic.
-      input.language === "auto" ? detectLang(input.question) : input.language,
-      history.map((h) => ({ ...h, content: masker.mask(h.content) })),
-      scope.client ? "client" : "staff",
-    );
-    result.answer = masker.unmask(result.answer);
-    citations = result.cited_ids.flatMap((pid) => byPassageId.get(pid) ?? []);
+  if (result) {
+    const said = masker.unmask(result.answer);
+    citations = result.cited_ids.flatMap((pid) => prepared.byPassageId.get(pid) ?? []);
     grounded = result.grounded && citations.length > 0;
-    text = grounded ? result.answer : cannotConfirm(input.language, input.question);
+    text = grounded ? said : cannotConfirm(language, question);
     if (!grounded) citations = [];
   } else {
-    text = cannotConfirm(input.language, input.question);
+    text = cannotConfirm(language, question);
   }
 
   // Every answer to a client passes the client filter before it is shown or kept.
   let filtered: FilterReason | null = null;
-  if (scope.client && grounded) {
+  if (prepared.client && grounded) {
     filtered = await clientFilter(tx, text);
     if (filtered) {
-      const lang = input.language === "auto" ? detectLang(input.question) : input.language;
+      const lang = language === "auto" ? detectLang(question) : language;
       // Another client's name gets the plain "can't confirm": a refusal must not say who else the firm serves.
-      text = filtered === "other_client" ? cannotConfirm(input.language, input.question) : CLIENT_REFUSAL[filtered][lang];
+      text = filtered === "other_client" ? cannotConfirm(language, question) : CLIENT_REFUSAL[filtered][lang];
       citations = [];
       grounded = false;
     }
   }
 
-  const conversationId = chat?.id ?? (await newConversation(tx, principal, eng.id, input.question, input.case));
+  const conversationId = prepared.chatId ?? (await newConversation(tx, principal, prepared.projectId, question, prepared.case ?? undefined));
   // Each message is stored once, in its own language; the other comes from the translation cache.
-  const answerLang = input.language === "auto" ? detectLang(text) : input.language;
+  const answerLang = language === "auto" ? detectLang(text) : language;
+  const projectIds = prepared.projectIds;
   const saved = await tx
     .insert(aiMessages)
     .values([
-      { conversationId, userId: principal.userId, role: "user", content: input.question, lang: detectLang(input.question) },
-      { conversationId, userId: principal.userId, role: "assistant", content: text, lang: answerLang, citations },
+      { conversationId, userId: principal.userId, role: "user", content: question, lang: detectLang(question), projectIds },
+      { conversationId, userId: principal.userId, role: "assistant", content: text, lang: answerLang, citations, projectIds },
     ])
     .returning({ id: aiMessages.id, role: aiMessages.role });
 
@@ -185,26 +336,43 @@ export async function ask(tx: Tx, principal: Principal, input: AskInput) {
     actorId: principal.userId,
     orgId: principal.orgId,
     action: "assistant.query",
-    resourceType: "project",
-    resourceId: eng.id,
+    resourceType: prepared.projectId ? "project" : "organization",
+    resourceId: prepared.projectId ?? principal.orgId,
     outcome: "allow",
-    meta: {
-      passages: chunks.length,
-      records: records.length,
-      ...(kinds.size ? { status: [...kinds].join(",") } : {}),
-      cited: citations.length,
-      grounded,
-      turns: history.length / 2,
-      masked: masker.replaced,
-      // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
-      ...(scope.client ? { sent: chunks.map((c) => c.id).join(","), ...(filtered ? { filtered } : {}) } : {}),
-    },
+    meta: { ...prepared.meta, cited: citations.length, grounded, masked: masker.replaced, ...(filtered ? { filtered } : {}) },
   });
 
   // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").
   const messageId = saved.find((m) => m.role === "assistant")!.id;
   return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations };
 }
+
+/**
+ * The projects the person may ask about, in one call: those they can open
+ * where authorize() gives them a retrieval scope (the same check as one
+ * project). Firm staff: every client project their access reaches, and
+ * internal ones. A client person: their own organisation's projects.
+ */
+async function askableProjects(tx: Tx, principal: Principal, language: AskInput["language"]): Promise<AskProject[]> {
+  const all = await listProjects(tx, principal);
+  return all
+    .filter((p) => retrievalScope(principal, { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }) !== null)
+    .map((p) => ({ id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, kind: p.kind, where: where(p, language) }));
+}
+
+async function oneProject(tx: Tx, principal: Principal, id: string, language: AskInput["language"]): Promise<AskProject> {
+  const [p] = await tx
+    .select({ id: projects.id, orgId: projects.orgId, firmOrgId: projects.firmOrgId, kind: projects.kind, title: projects.title, orgName: organizations.name, orgNameAr: organizations.nameAr })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .where(eq(projects.id, id))
+    .limit(1);
+  if (!p) throw new NotFoundError("project");
+  return { id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, kind: p.kind, where: where(p, language) };
+}
+
+const where = (p: { title: string; orgName: string; orgNameAr: string | null }, language: AskInput["language"]) =>
+  `${language === "ar" && p.orgNameAr ? p.orgNameAr : p.orgName} · ${p.title}`;
 
 export interface RetrieveOptions {
   /** The question's text, for the keyword half of the search. */
@@ -220,9 +388,10 @@ export interface RetrieveOptions {
  * matches, merged by reciprocal rank. The permission filter lives in both
  * WHERE clauses, never after them.
  */
-export async function retrieve(tx: Tx, scope: RetrievalScope, vector: number[], opts: RetrieveOptions = {}) {
+export async function retrieve(tx: Tx, scope: RetrievalScope | RetrievalScope[], vector: number[], opts: RetrieveOptions = {}) {
   const fields = {
     id: aiChunks.id,
+    projectId: aiChunks.projectId,
     content: aiChunks.content,
     sourceType: aiChunks.sourceType,
     sourceId: aiChunks.sourceId,
@@ -264,13 +433,21 @@ export async function clientFilter(tx: Tx, text: string): Promise<FilterReason |
   return rows[0]?.hit ? "other_client" : null;
 }
 
-/** The retrieval scope as SQL, mirroring row-level security on ai_chunks. */
-function scopeFilter(scope: RetrievalScope) {
+/**
+ * The retrieval scope as SQL, mirroring row-level security on ai_chunks.
+ * Several scopes (a question across projects) are one person's scopes for
+ * several projects: each project with its own tenant, the rest shared.
+ */
+function scopeFilter(scopes: RetrievalScope | RetrievalScope[]) {
+  const list = Array.isArray(scopes) ? scopes : [scopes];
+  const scope = list[0]!;
+  if (list.some((s) => s.userId !== scope.userId || s.client !== scope.client || s.labels.join() !== scope.labels.join())) {
+    throw new Error("retrieval scopes of different people or rules");
+  }
   return and(
     // A client person searches files, recommendations and actions only.
     scope.client ? inArray(aiChunks.sourceType, ["document", "recommendation", "action"]) : undefined,
-    eq(aiChunks.projectId, scope.projectId),
-    eq(aiChunks.orgId, scope.orgId),
+    or(...list.map((s) => and(eq(aiChunks.projectId, s.projectId), eq(aiChunks.orgId, s.orgId)))),
     inArray(aiChunks.visibility, [...scope.labels]),
     or(ne(aiChunks.visibility, "user_private"), eq(aiChunks.ownerUserId, scope.userId)),
     // The department rule (baseline: Engagement), as in row-level security.
@@ -290,9 +467,14 @@ function scopeFilter(scope: RetrievalScope) {
 // ------------------------------------------------------- linked records
 
 interface RecordPassage {
-  type: "recommendation" | "action" | "finding" | "meeting" | "project" | "kpi";
+  /** "status": the count of open work across projects, no one record. */
+  type: "recommendation" | "action" | "finding" | "meeting" | "project" | "kpi" | "status";
   id: string;
   text: string;
+  /** The project it belongs to (none for an indicator, which is the client's). */
+  projectId?: string;
+  /** A passage about several projects (the status count across projects): all of them. */
+  projectIds?: string[];
 }
 
 const day = (d: unknown) => (d ? String(d instanceof Date ? d.toISOString() : d).slice(0, 10) : null);
@@ -338,17 +520,29 @@ export async function linkedRecords(
     const key = `${w.type}:${w.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const text = await describe(tx, w.type, w.id);
-    if (text) out.push({ ...w, text });
+    const found = await describe(tx, w.type, w.id);
+    if (found) out.push({ ...w, ...found });
   }
   return out;
 }
 
-async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promise<string | null> {
+async function describe(tx: Tx, type: RecordPassage["type"], id: string): Promise<{ text: string; projectId: string } | null> {
   switch (type) {
     case "project":
     case "kpi":
+    case "status":
       return null;
+    default: {
+      const table = { recommendation: "recommendations", action: "actions", finding: "findings", meeting: "meetings" }[type];
+      const [row] = (await tx.execute<{ project_id: string }>(sql`SELECT project_id FROM ${sql.identifier(table)} WHERE id = ${id}`)).rows;
+      const text = row ? await describeText(tx, type, id) : null;
+      return text && row ? { text, projectId: row.project_id } : null;
+    }
+  }
+}
+
+async function describeText(tx: Tx, type: "recommendation" | "action" | "finding" | "meeting", id: string): Promise<string | null> {
+  switch (type) {
     case "recommendation": {
       const [r] = (
         await tx.execute<{
@@ -448,17 +642,30 @@ const statusWhere = (today: SQL): Record<StatusKind, SQL> => ({
 
 /**
  * The state of the work, for a status question: search finds what files say,
- * not which actions are late. A count of the project's open actions as of
- * today, then the matching actions (most overdue first) and the
- * recommendations past their date with work still open. Read under the
- * person's own row-level security, so a client person sees only what the
- * action screens show them.
+ * not which actions are late. A count of the open actions as of today, then
+ * the matching actions (most overdue first) and the recommendations past
+ * their date with work still open. Read under the person's own row-level
+ * security, so a client person sees only what the action screens show them.
+ *
+ * Across projects (`where` names each project as "Client · Project"), the
+ * count is broken down by project and every action and recommendation says
+ * which client and project it belongs to.
  */
-export async function statusRecords(tx: Tx, projectId: string, kinds: Set<StatusKind>): Promise<RecordPassage[]> {
+export async function statusRecords(
+  tx: Tx,
+  projectIds: string | string[],
+  kinds: Set<StatusKind>,
+  where?: Map<string, string>,
+): Promise<RecordPassage[]> {
+  const ids = Array.isArray(projectIds) ? projectIds : [projectIds];
+  if (!ids.length) return [];
+  const across = where !== undefined;
+  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}])`;
   const today = sql`${firmToday()}::date`;
   const STATUS_WHERE = statusWhere(today);
-  const [c] = (
+  const counts = (
     await tx.execute<{
+      project_id: string | null;
       today: string;
       week_end: string;
       open: number;
@@ -468,15 +675,28 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
       revision: number;
       due_soon: number;
     }>(sql`
-      SELECT ${today}::text AS today, (${today} + 7)::text AS week_end, count(*)::int AS open,
+      SELECT ${across ? sql`a.project_id` : sql`NULL::uuid`} AS project_id,
+        ${today}::text AS today, (${today} + 7)::text AS week_end, count(*)::int AS open,
         count(*) FILTER (WHERE ${STATUS_WHERE.overdue})::int AS overdue,
         count(*) FILTER (WHERE ${STATUS_WHERE.blocked})::int AS blocked,
         count(*) FILTER (WHERE ${STATUS_WHERE.review})::int AS review,
         count(*) FILTER (WHERE ${STATUS_WHERE.revision})::int AS revision,
         count(*) FILTER (WHERE ${STATUS_WHERE.due_soon})::int AS due_soon
-      FROM actions a WHERE a.project_id = ${projectId} AND a.status IN ${OPEN}`)
+      FROM actions a WHERE ${inScope} AND a.status IN ${OPEN}
+      ${across ? sql`GROUP BY a.project_id` : sql``}`)
   ).rows;
-  if (!c) return [];
+  const sum = (k: "open" | "overdue" | "blocked" | "review" | "revision" | "due_soon") => counts.reduce((n, r) => n + r[k], 0);
+  const c = {
+    today: counts[0]?.today ?? firmToday(),
+    week_end: counts[0]?.week_end ?? "",
+    open: sum("open"),
+    overdue: sum("overdue"),
+    blocked: sum("blocked"),
+    review: sum("review"),
+    revision: sum("revision"),
+    due_soon: sum("due_soon"),
+  };
+  if (!across && !counts.length) return [];
 
   const match = sql.join(
     [...kinds].map((k) => sql`(${STATUS_WHERE[k]})`),
@@ -485,6 +705,7 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
   const acts = (
     await tx.execute<{
       id: string;
+      project_id: string;
       title: string;
       status: string;
       due_date: string | null;
@@ -493,18 +714,18 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
       owner: string | null;
       rec: string;
     }>(sql`
-      SELECT a.id, a.title, a.status, a.due_date, ${today} - a.due_date AS late, a.blocked_reason,
+      SELECT a.id, a.project_id, a.title, a.status, a.due_date, ${today} - a.due_date AS late, a.blocked_reason,
         coalesce(u.name, a.owner_name) AS owner, r.title AS rec
       FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
       LEFT JOIN "user" u ON u.id = a.owner_user_id
-      WHERE a.project_id = ${projectId} AND a.status IN ${OPEN} AND (${match})
-      ORDER BY a.due_date ASC NULLS LAST, a.created_at LIMIT ${MAX_STATUS_ACTIONS}`)
+      WHERE ${inScope} AND a.status IN ${OPEN} AND (${match})
+      ORDER BY a.due_date ASC NULLS LAST, a.created_at LIMIT ${across ? MAX_STATUS_ACTIONS_ACROSS : MAX_STATUS_ACTIONS}`)
   ).rows;
   const recs = (
-    await tx.execute<{ id: string; title: string; due_date: string; open: number }>(sql`
-      SELECT r.id, r.title, r.due_date, count(a.id)::int AS open
+    await tx.execute<{ id: string; project_id: string; title: string; due_date: string; open: number }>(sql`
+      SELECT r.id, r.project_id, r.title, r.due_date, count(a.id)::int AS open
       FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status IN ${OPEN}
-      WHERE r.project_id = ${projectId} AND r.due_date < ${today}
+      WHERE ${sql`r.project_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}])`} AND r.due_date < ${today}
       GROUP BY r.id ORDER BY r.due_date LIMIT 3`)
   ).rows;
 
@@ -512,18 +733,36 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
   const lateUnder = (
     await tx.execute<{ title: string; n: number }>(sql`
       SELECT r.title, count(*)::int AS n FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
-      WHERE a.project_id = ${projectId} AND a.status IN ${OPEN} AND ${STATUS_WHERE.overdue}
+      WHERE ${inScope} AND a.status IN ${OPEN} AND ${STATUS_WHERE.overdue}
       GROUP BY r.title ORDER BY n DESC LIMIT 3`)
   ).rows;
 
+  const at = (pid: string) => (across ? ` (${clip(where.get(pid) ?? "", 160)})` : "");
+  // Across projects: the projects with the most overdue, then most open, named one by one.
+  const byProject = across
+    ? [...counts]
+        .sort((x, y) => y.overdue - x.overdue || y.open - x.open)
+        .slice(0, MAX_STATUS_PROJECTS)
+        .map(
+          (r) =>
+            `${clip(where.get(r.project_id!) ?? "", 160)}: ${r.open} open, ${r.overdue} overdue, ${r.blocked} blocked, ` +
+            `${r.review} awaiting review, ${r.revision} sent back for revision`,
+        )
+    : [];
   const out: RecordPassage[] = [
     {
-      type: "project",
-      id: projectId,
+      type: across ? "status" : "project",
+      id: ids[0]!,
+      ...(across ? { projectIds: counts.map((r) => r.project_id!) } : { projectId: ids[0] }),
       text:
-        `Status of the project's actions as of ${c.today} (from the action records, not files): ${c.open} open, ` +
+        (across
+          ? `Status of the actions across the ${ids.length} projects the person can see, as of ${c.today} (from the action records, not files): `
+          : `Status of the project's actions as of ${c.today} (from the action records, not files): `) +
+        `${c.open} open, ` +
         `${c.overdue} overdue (past their due date), ${c.blocked} blocked, ${c.review} awaiting review, ` +
         `${c.revision} sent back for revision, ${c.due_soon} due from today to ${c.week_end}. ` +
+        (byProject.length ? `By client and project: ${byProject.join("; ")}. ` : "") +
+        (across && counts.length < ids.length ? `The other ${ids.length - counts.length} project(s) have no open actions. ` : "") +
         (recs.length
           ? `${recs.length} recommendation(s) are past their own due date with open actions. `
           : "No recommendation is past its own due date. ") +
@@ -535,8 +774,9 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
     ...acts.map((a) => ({
       type: "action" as const,
       id: a.id,
+      projectId: a.project_id,
       text: [
-        `Action "${clip(a.title, 200)}": status ${a.status}`,
+        `Action "${clip(a.title, 200)}"${at(a.project_id)}: status ${a.status}`,
         a.due_date ? `, due ${day(a.due_date)}${a.late && a.late > 0 ? ` (${a.late} days overdue)` : ""}` : ", no due date",
         a.owner ? `, owner ${clip(a.owner, 80)}` : ", no owner",
         `. Recommendation "${clip(a.rec, 160)}".`,
@@ -546,7 +786,8 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
     ...recs.map((r) => ({
       type: "recommendation" as const,
       id: r.id,
-      text: `Recommendation "${clip(r.title, 200)}" was due ${day(r.due_date)} and still has ${r.open} open action(s).`,
+      projectId: r.project_id,
+      text: `Recommendation "${clip(r.title, 200)}"${at(r.project_id)} was due ${day(r.due_date)} and still has ${r.open} open action(s).`,
     })),
   ];
   return out;
@@ -559,7 +800,7 @@ export async function statusRecords(tx: Tx, projectId: string, kinds: Set<Status
  * only the indicators their own screens show (a manager: the company's and
  * their departments'). The figures are the client's own, and the text says so.
  */
-export async function indicatorRecords(tx: Tx, clientOrgId: string, projectId: string): Promise<RecordPassage[]> {
+export async function indicatorRecords(tx: Tx, clientOrgId: string, projectId?: string): Promise<RecordPassage[]> {
   const list = (await indicatorSnapshot(tx, { clientOrgId, projectId }, firmToday())).slice(0, MAX_INDICATORS);
   if (!list.length) return [];
   return list.map((k) => ({
@@ -605,7 +846,7 @@ async function actionList(tx: Tx, recommendationId: string) {
 
 // --------------------------------------------------------------- chats
 
-async function newConversation(tx: Tx, principal: Principal, projectId: string, question: string, caseRef?: CaseRef) {
+async function newConversation(tx: Tx, principal: Principal, projectId: string | null, question: string, caseRef?: CaseRef) {
   const [row] = await tx
     .insert(aiConversations)
     .values({
@@ -619,21 +860,15 @@ async function newConversation(tx: Tx, principal: Principal, projectId: string, 
   return row!.id;
 }
 
-async function ownConversation(tx: Tx, principal: Principal, id: string, projectId: string) {
+async function ownConversation(tx: Tx, principal: Principal, id: string) {
   const [row] = await tx
-    .select({ id: aiConversations.id, caseType: aiConversations.caseType, caseId: aiConversations.caseId })
+    .select({ id: aiConversations.id, projectId: aiConversations.projectId, caseType: aiConversations.caseType, caseId: aiConversations.caseId })
     .from(aiConversations)
-    .where(
-      and(
-        eq(aiConversations.id, id),
-        eq(aiConversations.userId, principal.userId),
-        eq(aiConversations.projectId, projectId),
-      ),
-    )
+    .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, principal.userId)))
     .limit(1);
   if (!row) throw new NotFoundError("conversation");
   const caseRef: CaseRef | null = row.caseType && row.caseId ? { type: row.caseType, id: row.caseId } : null;
-  return { id: row.id, caseRef };
+  return { id: row.id, projectId: row.projectId, caseRef };
 }
 
 /** The chat's last few messages, oldest first, as context for a follow-up. */
@@ -669,11 +904,12 @@ export async function listConversations(tx: Tx, principal: Principal, opts: { ar
       keep: aiConversations.keep,
       archivedAt: aiConversations.archivedAt,
       lastMessageAt: aiConversations.lastMessageAt,
-      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId})`,
+      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId}, ${aiConversations.userId})`,
     })
     .from(aiConversations)
-    .innerJoin(projects, eq(projects.id, aiConversations.projectId))
-    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    // A chat across projects has none.
+    .leftJoin(projects, eq(projects.id, aiConversations.projectId))
+    .leftJoin(organizations, eq(organizations.id, projects.orgId))
     .where(
       and(
         eq(aiConversations.userId, principal.userId),
@@ -686,6 +922,8 @@ export async function listConversations(tx: Tx, principal: Principal, opts: { ar
 
 export interface ShownCitation extends Citation {
   label: string | null;
+  /** In a chat across projects: "Client · Project". */
+  place?: string;
   /** False when the person can no longer open the source. */
   available: boolean;
   /** For a file: true when a newer version has been uploaded since. */
@@ -711,11 +949,12 @@ export async function getConversation(tx: Tx, principal: Principal, id: string, 
       keep: aiConversations.keep,
       archivedAt: aiConversations.archivedAt,
       lastMessageAt: aiConversations.lastMessageAt,
-      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId})`,
+      deleteOn: sql<string>`app_chat_delete_on(${aiConversations.lastMessageAt}, ${aiConversations.projectId}, ${aiConversations.userId})`,
     })
     .from(aiConversations)
-    .innerJoin(projects, eq(projects.id, aiConversations.projectId))
-    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    // A chat across projects has none.
+    .leftJoin(projects, eq(projects.id, aiConversations.projectId))
+    .leftJoin(organizations, eq(organizations.id, projects.orgId))
     .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, principal.userId)));
   if (!chat) throw new NotFoundError("conversation");
 
@@ -739,6 +978,8 @@ export async function getConversation(tx: Tx, principal: Principal, id: string, 
   );
   const all = messages.flatMap((m) => (m.citations ?? []) as Citation[]);
   const labels = await citationLabels(tx, all);
+  // Across projects, each source says which client and project it is from (only those the person can still see).
+  const places = chat.projectId ? new Map<string, string>() : await projectPlaces(tx, all, locale);
   const caseLabel =
     chat.caseType && chat.caseId
       ? (await citationLabels(tx, [{ chunkId: null, sourceType: chat.caseType, sourceId: chat.caseId, version: 1 }])).get(
@@ -757,17 +998,32 @@ export async function getConversation(tx: Tx, principal: Principal, id: string, 
       createdAt: m.createdAt,
       translation: kept.get(m.id) ?? null,
       citations: ((m.citations ?? []) as Citation[]).map((c): ShownCitation => {
-        const l = labels.get(`${c.sourceType}:${c.sourceId}`);
+        // The count of open work across projects is no one record: it stays as long as the answer does.
+        const l = c.sourceType === "status" ? { label: "", version: undefined } : labels.get(`${c.sourceType}:${c.sourceId}`);
+        const place = c.projectId ? places.get(c.projectId) : undefined;
         return {
           ...c,
           chunkId: c.chunkId ?? null,
           label: l?.label ?? null,
+          ...(l && place ? { place } : {}),
           available: Boolean(l),
           ...(c.sourceType === "document" && l ? { newer: (l.version ?? 1) > c.version } : {}),
         };
       }),
     })),
   };
+}
+
+/** "Client · Project" for the projects cited, keyed by project id: only projects the person can still see (row-level security). */
+async function projectPlaces(tx: Tx, cites: Citation[], locale: "ar" | "en") {
+  const ids = [...new Set(cites.flatMap((c) => (c.projectId ? [c.projectId] : [])))];
+  if (!ids.length) return new Map<string, string>();
+  const rows = await tx
+    .select({ id: projects.id, title: projects.title, orgName: organizations.name, orgNameAr: organizations.nameAr })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.orgId))
+    .where(inArray(projects.id, ids));
+  return new Map(rows.map((r) => [r.id, where(r, locale)]));
 }
 
 async function keptTranslations(tx: Tx, ids: string[], locale: "ar" | "en") {
@@ -888,5 +1144,7 @@ export async function assistantContext(tx: Tx, principal: Principal, input: { lo
     case: projectId && input.case && label ? { projectId, type: input.case.type, id: input.case.id, label } : null,
     // The client's people (F39): null for firm staff.
     usage: clientAi ? { used: clientAi.usedToday, limit: clientAi.dailyLimit } : null,
+    // "local": answers come from a model on this machine's processor, which can take a minute (docs/walkthrough.md).
+    model: (process.env.LLM_PROVIDER ?? "ollama") === "ollama" ? ("local" as const) : ("hosted" as const),
   };
 }

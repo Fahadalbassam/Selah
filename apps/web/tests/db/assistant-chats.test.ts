@@ -627,3 +627,141 @@ describe("retention", () => {
     }
   });
 });
+
+describe("chats across projects (All my clients)", () => {
+  const askAll = (uid: string, input: { question: string; conversationId?: string; language?: "ar" | "en" | "auto" }) =>
+    svc(uid, (tx, p) => A.ask(tx, p, { projectId: null, language: "en", ...input }));
+  const zebra = () => sent.at(-1)!.passages.filter((p) => p.text.includes("zebrapolicy"));
+
+  it("searches every project the person may ask about, and no other, naming the client and project", async () => {
+    reply = (p) => ({ answer: "Found.", cited_ids: p.map((x) => x.id), grounded: true });
+    // The firm admin: every client's projects.
+    const all = await askAll(U.admin, { question: "zebrapolicy" });
+    expect(zebra().map((p) => p.text).sort()).toEqual([
+      "HR handbook, zebrapolicy mentioned here too.",
+      "Procurement rules. Article zebrapolicy sets the approval limit for the Finance department.",
+      "Rawdah Group board charter. Article zebrapolicy is secret to Beta.",
+    ]);
+    expect(zebra().map((p) => p.source.replace(/ p\.\d+/, "")).sort()).toEqual([
+      "document v1, Al-Nukhba Holding · Board governance",
+      "document v1, Al-Nukhba Holding · HR policy",
+      "document v1, Rawdah Group · Beta strategy",
+    ]);
+    expect(all.citations.every((c) => c.projectId)).toBe(true);
+    // The consultant staffed on Board governance only: nothing from HR policy or the other client.
+    await askAll(U.cons, { question: "zebrapolicy" });
+    expect(zebra().map((p) => p.source.replace(/ p\.\d+/, ""))).toEqual(["document v1, Al-Nukhba Holding · Board governance"]);
+    expect(JSON.stringify(sent.at(-1))).not.toContain("secret to Beta");
+    expect(JSON.stringify(sent.at(-1))).not.toContain("HR handbook");
+
+    // The chat has no project; each source says where it is from.
+    const chat = await svc(U.admin, (tx, p) => A.getConversation(tx, p, all.conversationId, "en"));
+    expect(chat).toMatchObject({ projectId: null, projectTitle: null });
+    expect(chat.messages[1]!.citations.map((c) => c.place).sort()).toContain("Rawdah Group · Beta strategy");
+    const listed = await svc(U.admin, (tx, p) => A.listConversations(tx, p, { archived: false }));
+    expect(listed.find((c) => c.id === all.conversationId)).toMatchObject({ projectId: null });
+    const audit = (await owner.query(`SELECT resource_type, meta FROM audit_log WHERE action = 'assistant.query' ORDER BY created_at DESC LIMIT 2`)).rows;
+    expect(audit[1]).toMatchObject({ resource_type: "organization", meta: { scope: "all", projects: 3 } });
+  });
+
+  it("counts open work by client and project for a status question", async () => {
+    reply = (p) => ({ answer: "Open work.", cited_ids: p.filter((x) => x.source === "status").map((x) => x.id), grounded: true });
+    const r = await askAll(U.admin, { question: "What is still open?" });
+    const summary = sent.at(-1)!.passages.find((p) => p.source === "status")!;
+    expect(summary.text).toContain("across the 3 projects");
+    expect(summary.text).toContain("Al-Nukhba Holding · Board governance: 1 open");
+    const act = sent.at(-1)!.passages.find((p) => p.source.startsWith("action") && p.text.includes("audit committee"))!;
+    expect(act.text).toContain("(Al-Nukhba Holding · Board governance)");
+    expect(r.citations).toEqual([{ chunkId: null, sourceType: "status", sourceId: expect.any(String), version: 1, page: null }]);
+    const chat = await svc(U.admin, (tx, p) => A.getConversation(tx, p, r.conversationId, "en"));
+    expect(chat.messages[1]!.citations[0]).toMatchObject({ sourceType: "status", available: true });
+  });
+
+  it("masks the clients named in the sources, and puts them back in the answer", async () => {
+    process.env.AI_MASKING = "on";
+    reply = (p) => ({ answer: "[ORG_1] has it.", cited_ids: [p[0]!.id], grounded: true });
+    const r = await askAll(U.admin, { question: "zebrapolicy" });
+    const payload = JSON.stringify(sent.at(-1));
+    for (const name of ["Al-Nukhba", "Rawdah", "Mizan"]) expect(payload, name).not.toContain(name);
+    expect(r.answer).not.toContain("ORG_");
+    // Translating the answer masks the same names.
+    await svc(U.admin, (tx, p) => T.translate(tx, p, { entityType: "ai_message", entityId: r.messageId, field: "content", to: "ar" }));
+    expect(translated.at(-1)).not.toMatch(/Al-Nukhba|Rawdah/);
+  });
+
+  it("hides a question and its answer once the person can't see a project it quotes", async () => {
+    reply = (p) => ({ answer: "Found.", cited_ids: [p[0]!.id], grounded: true });
+    const r = await askAll(U.cons, { question: "zebrapolicy" });
+    const ids = (await owner.query(`SELECT project_ids FROM ai_messages WHERE id = $1`, [r.messageId])).rows[0].project_ids;
+    expect(ids).toContain(P1);
+    const messages = async () => (await sqlAs(U.cons, `SELECT id FROM ai_messages WHERE conversation_id = $1`, [r.conversationId])).rowCount;
+    expect(await messages()).toBe(2);
+    await owner.query(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P1, U.cons]);
+    await owner.query(`DELETE FROM client_assignments WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.cons]);
+    try {
+      expect(await messages()).toBe(0);
+      // The chat stays (it has no project), empty; a follow-up gets no hidden history.
+      expect((await sqlAs(U.cons, `SELECT id FROM ai_conversations WHERE id = $1`, [r.conversationId])).rowCount).toBe(1);
+      await expect(
+        svc(U.cons, (tx, p) => T.translate(tx, p, { entityType: "ai_message", entityId: r.messageId, field: "content", to: "ar" })),
+      ).rejects.toThrow(/not found/);
+    } finally {
+      await owner.query(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [ACME, U.cons]);
+      await owner.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P1, U.cons]);
+    }
+    expect(await messages()).toBe(2);
+  });
+
+  it("keeps the rules of a chat: no case without a project, no projects on a project chat's messages, no moving", async () => {
+    await expect(
+      sqlAs(U.cons, `INSERT INTO ai_conversations (user_id, project_id, case_type, case_id) VALUES ($1, NULL, 'action', $2)`, [U.cons, ACT]),
+    ).rejects.toThrow(/ai_conversation_case_project|case must be a record/);
+    const inProject = await ask(U.cons, { question: "a" });
+    await expect(
+      sqlAs(U.cons, `INSERT INTO ai_messages (conversation_id, user_id, role, content, lang, project_ids) VALUES ($1,$2,'user','x','en',ARRAY[$3::uuid])`, [
+        inProject.conversationId,
+        U.cons,
+        P1,
+      ]),
+    ).rejects.toThrow(/name no projects/);
+    const across = await askAll(U.cons, { question: "a" });
+    await expect(sqlAs(U.cons, `UPDATE ai_conversations SET project_id = $1 WHERE id = $2`, [P1, across.conversationId])).rejects.toThrow(
+      /stays in its project/,
+    );
+    // Nor can a person tag a message with a project they can't see.
+    await expect(
+      sqlAs(U.cons, `INSERT INTO ai_messages (conversation_id, user_id, role, content, lang, project_ids) VALUES ($1,$2,'user','x','en',ARRAY[$3::uuid])`, [
+        across.conversationId,
+        U.cons,
+        BETA_P,
+      ]),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("is deleted after the idle days, and its answers once a project they quote is past its days after closing", async () => {
+    reply = (p) => ({ answer: "Found.", cited_ids: [p[0]!.id], grounded: true });
+    const idle = await askAll(U.cons, { question: "zebrapolicy" });
+    await owner.query(`ALTER TABLE ai_conversations DISABLE TRIGGER check_chat;
+      UPDATE ai_conversations SET last_message_at = now() - interval '181 days' WHERE id = '${idle.conversationId}';
+      ALTER TABLE ai_conversations ENABLE TRIGGER check_chat;`);
+    const due = (
+      await sqlAs(U.cons, `SELECT app_chat_delete_on(last_message_at, project_id, user_id) AS d FROM ai_conversations WHERE id = $1`, [
+        idle.conversationId,
+      ])
+    ).rows[0].d;
+    expect(due).not.toBeNull();
+    const today = `(now() AT TIME ZONE 'Asia/Riyadh')::date`;
+    expect((await owner.query(`SELECT deleted FROM app_purge_chats(${today})`)).rows[0].deleted).toBe(1);
+    const log = await owner.query(`SELECT org_id, reason FROM audit_log WHERE resource_id = $1`, [idle.conversationId]);
+    expect(log.rows).toEqual([{ org_id: FIRM, reason: "retention" }]);
+
+    const quoted = await askAll(U.cons, { question: "zebrapolicy" });
+    await owner.query(`UPDATE projects SET state = 'closed' WHERE id = $1`, [P1]);
+    try {
+      await owner.query(`SELECT app_purge_chats(${today} + 91)`);
+      expect((await owner.query(`SELECT id FROM ai_messages WHERE conversation_id = $1`, [quoted.conversationId])).rowCount).toBe(0);
+    } finally {
+      await owner.query(`UPDATE projects SET state = 'active' WHERE id = $1`, [P1]);
+    }
+  });
+});
