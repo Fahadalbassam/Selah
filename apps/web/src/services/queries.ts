@@ -17,6 +17,7 @@ import {
   projects,
   recommendations,
   reviews,
+  reviewSignoffs,
   user,
 } from "@/db/schema";
 import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
@@ -24,6 +25,7 @@ import { loadAction, roundSubmitters } from "./actions";
 import { fileControls } from "./documents";
 import { recordControls } from "./plan-changes";
 import { recommendationStances } from "./responses";
+import { secondReviewState } from "./second-review";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 
@@ -574,6 +576,20 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
         .where(eq(reviews.actionId, id))
     : [];
 
+  // First sign-offs on work that needs two (F22), read like reviews. The note
+  // is for the second reviewer, so only the firm reads it.
+  const signoffRows = authorize(principal, "review.read", resource).allowed
+    ? await tx
+        .select({
+          at: reviewSignoffs.createdAt,
+          who: user.name,
+          note: principal.orgKind === "firm" ? reviewSignoffs.note : sql<string | null>`null`,
+        })
+        .from(reviewSignoffs)
+        .leftJoin(user, eq(user.id, reviewSignoffs.reviewerId))
+        .where(eq(reviewSignoffs.actionId, id))
+    : [];
+
   // A restructure that moved this action to another department (F31).
   const moveRows = await tx
     .select({ at: activityEvents.createdAt, who: user.name, meta: activityEvents.meta })
@@ -611,6 +627,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     | ({ kind: "update"; id: string; at: Date; who: string | null; body: string } & Recorded)
     | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
     | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null }
+    | { kind: "signoff"; at: Date; who: string | null; note: string | null }
     | ({ kind: "moved" } & (typeof refilings)[number]);
   const timeline: Entry[] = [
     ...updates.map((u) => ({
@@ -625,6 +642,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     })),
     ...evidence.map((e) => ({ kind: "evidence" as const, at: e.submittedAt, who: e.submitterName, evidence: e })),
     ...reviewRows.map((r) => ({ kind: "review" as const, at: r.createdAt, who: r.reviewerName, outcome: r.outcome, reason: r.reason })),
+    ...signoffRows.map((r) => ({ kind: "signoff" as const, at: r.at, who: r.who, note: r.note })),
     ...refilings.map((m) => ({ kind: "moved" as const, ...m })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -634,10 +652,13 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       ? (await tx.execute<{ b: string | null }>(sql`select app_verified_basis(${id}::uuid) as b`)).rows[0]?.b
       : null;
   const submitters = from === "awaiting_review" ? await roundSubmitters(tx, id) : [];
+  // Work that needs two sign-offs (F22) is verified by the second one only.
+  const second = from === "awaiting_review" ? await secondReviewState(tx, id) : null;
   const moves = Object.keys(TRANSITIONS)
     .filter((k) => k.startsWith(`${from}>`))
     .map((k) => k.split(">")[1] as ActionStatus)
-    .filter((to) => canTransition(principal, resource, from, to, submitters).allowed);
+    .filter((to) => canTransition(principal, resource, from, to, submitters).allowed)
+    .filter((to) => !(to === "verified_complete" && second?.required && (!second.signoff || second.signoff.userId === principal.userId)));
 
   return {
     action: {

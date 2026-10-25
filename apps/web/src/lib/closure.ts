@@ -48,6 +48,7 @@ export const FROZEN_TABLES = [
   "recommendation_responses",
   "recommendations",
   "reports",
+  "review_signoffs",
   "reviews",
   "risk_acceptances",
   "strategic_objectives",

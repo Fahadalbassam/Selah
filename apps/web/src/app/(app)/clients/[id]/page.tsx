@@ -39,6 +39,8 @@ import { getOffboarding } from "@/services/offboarding";
 import { OffboardingCard } from "./offboarding-card";
 import { ClientAiCard } from "./client-ai-card";
 import { getClientAi } from "@/services/client-ai";
+import { getClientReviewRule } from "@/services/second-review";
+import { SecondReviewRuleCard } from "./second-review-card";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -73,6 +75,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       packs: await listExportPacks(tx, principal, id),
       // The client assistant (F39): the firm admin offers it, the client's admin consents.
       clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
+      // When evidence needs a second consultant's sign-off (F22).
+      secondReview: team.client.prospect ? null : await getClientReviewRule(tx, principal, id),
     };
   });
   if (!data) notFound();
@@ -608,6 +612,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </CardContent>
         </Card>
+        {data.secondReview ? (
+          <SecondReviewRuleCard clientId={client.id} view={{ ...data.secondReview, canChange: data.secondReview.canChange && open }} />
+        ) : null}
         {data.clientAi ? <ClientAiCard clientId={client.id} view={{ ...data.clientAi, canManage: data.clientAi.canManage && open }} /> : null}
         {client.prospect ? null : <OffboardingCard clientId={client.id} view={data.offboarding} packs={data.packs} />}
         {data.admin && client.prospect ? (

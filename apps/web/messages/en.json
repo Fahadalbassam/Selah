@@ -163,7 +163,8 @@
       "recommendation_responded": "responded to a recommendation",
       "recommendation_response_confirmed": "confirmed a recorded response",
       "recommendation_response_answered": "answered a response to a recommendation",
-      "other": "made a change"
+      "other": "made a change",
+      "second_review_requested": "signed off and asked for a second sign-off"
     }
   },
   "priority": {
@@ -220,8 +221,18 @@
   },
   "reviewPage": {
     "title": "Review queue",
-    "subtitle": "Evidence clients submitted, waiting for your decision",
-    "empty": "Nothing is waiting for review."
+    "subtitle": "Evidence waiting for the firm's decision, the longest wait first",
+    "empty": "Nothing is waiting for review.",
+    "count": "{n, plural, one {1 waiting} other {# waiting}}, {mine, plural, =0 {none yours to check} one {1 yours to check} other {# yours to check}}",
+    "waiting": "Waiting",
+    "stage": "Review",
+    "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
+    "oneReview": "One review",
+    "firstOfTwo": "First of two",
+    "secondOfTwo": "Second of two",
+    "signedBy": "Signed off by {name}",
+    "youSigned": "You signed off",
+    "notYours": "Yours or submitted by you"
   },
   "todayPage": {
     "title": "Today",
@@ -454,7 +465,10 @@
       "sameDate": "That's already the due date.",
       "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened.",
       "notShared": "Only files shared between the client and the firm can be used as evidence.",
-      "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move."
+      "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move.",
+      "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
+      "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
+      "secondReviewer": "You gave the first sign-off. Another consultant gives the second."
     },
     "entry": {
       "update": "posted an update",
@@ -462,7 +476,8 @@
       "accept": "accepted the evidence",
       "revise": "requested a revision",
       "reject": "rejected the evidence",
-      "moved": "moved this from {from} to {to}"
+      "moved": "moved this from {from} to {to}",
+      "signoff": "signed off (first of two)"
     },
     "download": "Download",
     "revisionNote": "Resume work, make the changes, then send it for review again.",
@@ -631,6 +646,66 @@
         "removed": "This comment was already removed.",
         "cannot": "This comment couldn't be saved. The project may be closed, or you may only be observing it."
       }
+    },
+    "secondReview": {
+      "title": "Second sign-off",
+      "hint": "Work that needs two sign-offs is verified only after a second consultant checks it.",
+      "required": "Two sign-offs",
+      "notRequired": "One review",
+      "signOff": "Sign off (first of two)",
+      "signOffHint": "The action stays waiting for review. Another consultant on the team checks the same evidence and verifies it, or asks for changes.",
+      "note": "Note for the second reviewer (optional)",
+      "notePlaceholder": "What you checked, or anything to look at again",
+      "verify": "Second sign-off and verify",
+      "verifyHint": "You are the second consultant to check this evidence. It becomes Verified Complete, and the owner is told.",
+      "needsTwo": "This work needs two sign-offs",
+      "halfDone": "One of two sign-offs done",
+      "signedBy": "{name} signed off on {date}. A different consultant gives the second sign-off.",
+      "signedClient": "One consultant has signed off. A second consultant checks it before it is verified.",
+      "clientHint": "Two consultants check this evidence before it is verified.",
+      "candidates": "Who can give the second sign-off: {names}.",
+      "onlyAdmins": "Nobody else on the team can give the second sign-off, so the firm's admins can: {names}.",
+      "nobody": "Nobody else can give the second sign-off. Ask the client's lead to staff another consultant on this project.",
+      "why": {
+        "flag": "The lead asked for a second sign-off on this action.",
+        "all": "This client's rule asks for two sign-offs on every action.",
+        "high_priority": "This client's rule asks for two sign-offs on high and critical priority work.",
+        "repeat_revisions": "Evidence went back for changes twice, so a second consultant checks it."
+      },
+      "clientRule": "Client's rule: {rule}",
+      "revisions": "{n, plural, one {Sent back for changes once} other {Sent back for changes # times}} since it was released or reopened.",
+      "flag": "Always ask for a second sign-off here",
+      "flagHint": "For work the client's rule doesn't cover.",
+      "flagByRule": "The client's rule already asks for two here; this keeps it on if the rule changes.",
+      "flaggedByLead": "The lead asked for a second sign-off on this action.",
+      "ruleTitle": "Second sign-off on evidence",
+      "ruleHint": "When a second consultant checks the evidence before an action is verified.",
+      "ruleChangeHint": "The submitter, the owner and the first reviewer never give the second sign-off. The lead can also ask for one on a single action.",
+      "ruleNow": "The change applies to work reviewed from now on. Work already verified stays verified.",
+      "change": "Change",
+      "current": "(current)",
+      "on": "On",
+      "off": "Off",
+      "changedBy": "Changed by {name} on {date}",
+      "rules": {
+        "off": {
+          "label": "One review",
+          "hint": "One consultant's accept verifies an action."
+        },
+        "repeat_revisions": {
+          "label": "After two revisions",
+          "hint": "When evidence has gone back for changes twice, a second consultant checks it."
+        },
+        "high_priority": {
+          "label": "High priority work",
+          "hint": "High and critical priority work, and anything sent back twice."
+        },
+        "all": {
+          "label": "Every action",
+          "hint": "Every action of this client needs two sign-offs."
+        }
+      },
+      "onlyOne": "Only {name} on the team can review this, so after the first sign-off the firm's admins give the second."
     }
   },
   "common": {
@@ -1824,7 +1899,8 @@
       "support_handled": "The firm handled the problem you reported",
       "client_ai_offered": "The firm offered your company the assistant. Read the notice to switch it on",
       "client_ai_consented": "{title} agreed to the client assistant",
-      "client_ai_withdrawn": "{title} switched off the client assistant"
+      "client_ai_withdrawn": "{title} switched off the client assistant",
+      "action_second_review": "{title} needs your second sign-off"
     },
     "mail": {
       "section": "Mail",
@@ -3694,7 +3770,10 @@
       "client_ai_consent": "Agreed to the client assistant",
       "client_ai_withdraw": "Switched off the client assistant",
       "client_ai_manage": "Change the client assistant",
-      "document_summarize": "Summarize a file"
+      "document_summarize": "Summarize a file",
+      "action_sign_off": "First sign-off on evidence",
+      "action_second_review": "Second sign-off asked for on an action",
+      "organization_second_review": "Client's second sign-off rule changed"
     },
     "csv": {
       "time": "Time (UTC)",

@@ -38,6 +38,9 @@ export const POLICY = {
   "organization.update": { firm_admin: "any", client_admin: "any" },
   // How a client takes part (full, restricted, consultant-managed). The firm admin's call.
   "organization.engagement": { firm_admin: "any" },
+  // When the client's evidence needs a second sign-off (F22): the firm admin
+  // or the client's lead or deputy (app_set_second_review_rule).
+  "organization.second_review": { firm_admin: "any", consultant: "lead" },
   // A client leaving (F27): archive and restore it, place and release legal holds.
   "organization.archive": { firm_admin: "any" },
   "organization.hold": { firm_admin: "any" },
@@ -157,6 +160,10 @@ export const POLICY = {
   "action.release": { ...STAFF }, // draft -> assigned
   "action.work": { ...DO_WORK }, // start, block, unblock, submit, rework
   "action.review": { ...STAFF }, // accept or request revision
+  // Ask for a second consultant's sign-off on one action (F22): the client's
+  // lead or deputy, an internal project's lead, or the firm admin. The
+  // database checks the same (check_second_review).
+  "action.second_review": { firm_admin: "any", consultant: "lead" },
   // End without verification (partially implemented, risk accepted, not
   // applicable, superseded) or reopen. Risk acceptance also needs a named
   // client person's signed statement (risk.accept).
