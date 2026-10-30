@@ -20,7 +20,19 @@ export const indicatorFields = z.object({
   targetDate: z.iso.date().nullable(),
   source: text(L.source),
   departmentId: z.uuid().nullable(),
+  // The short key the client's files and systems use for it.
+  code: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9][a-z0-9_.-]{0,39}$/)
+    .nullable()
+    .optional(),
 });
+
+export const sourceChanges = z
+  .object({ code: indicatorFields.shape.code, feedOn: z.boolean().optional() })
+  .refine((b) => b.code !== undefined || b.feedOn !== undefined);
 
 export const newIndicator = indicatorFields
   .refine((b) => !!(b.nameAr || b.nameEn), { message: "name the indicator", path: ["nameAr"] })

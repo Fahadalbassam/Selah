@@ -192,6 +192,51 @@ export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.Zo
   };
 }
 
+/**
+ * For a client's own systems sending indicator figures with a key (no
+ * browser, no session, so no cookie to forge and no CSRF check). The key in
+ * the Authorization header is the only proof: `resolve` looks it up with no
+ * user set, then the handler runs as the person who created the key, so
+ * row-level security applies with that person's rights at the time. Same
+ * validation and error handling as route(). tests/route-guard.test.ts lists
+ * the routes allowed to use it.
+ */
+export function keyRoute<B extends z.ZodType, K extends { runAs: string }>(
+  options: { body: B; maxBytes: number; resolve: (tx: Tx, key: string) => Promise<K | null>; limit?: (key: K) => boolean },
+  handler: (ctx: { tx: Tx; principal: Principal; key: K; body: z.infer<B> }) => Promise<unknown>,
+) {
+  return async (req: NextRequest) => {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    try {
+      const token = /^Bearer\s+(\S+)$/.exec(req.headers.get("authorization") ?? "")?.[1];
+      if (!token) return json({ error: "unauthenticated" }, 401);
+      const length = Number(req.headers.get("content-length") ?? NaN);
+      if (!Number.isFinite(length) || length > options.maxBytes) return json({ error: "too_large" }, 413);
+      const key = await asAnonymous((tx) => options.resolve(tx, token));
+      if (!key) {
+        await auditDetached({ actorId: null, action: "indicator.feed_push", resourceType: "indicator_feed", outcome: "deny", reason: "unknown key", ip }).catch(
+          () => undefined,
+        );
+        return json({ error: "unauthenticated" }, 401);
+      }
+      if (options.limit && !options.limit(key)) return json({ error: "rate_limited" }, 429);
+      const result = options.body.safeParse(await readJson(req));
+      if (!result.success) {
+        const fields = [...new Set(result.error.issues.map((i) => i.path.join(".")).filter(Boolean))].slice(0, 20);
+        return json({ error: "bad_request", fields }, 400);
+      }
+      const out = await asUser(key.runAs, async (tx) => {
+        const principal = await loadPrincipal(tx, key.runAs);
+        if (!principal) throw new NoMembershipError();
+        return handler({ tx, principal, key, body: result.data });
+      });
+      return out instanceof Response ? out : json(out ?? { ok: true }, 200);
+    } catch (err) {
+      return toErrorResponse(err, null, ip, req);
+    }
+  };
+}
+
 function parse<T extends z.ZodType>(schema: T | undefined, value: unknown): z.infer<T> | undefined {
   if (!schema) return undefined;
   const result = schema.safeParse(value);

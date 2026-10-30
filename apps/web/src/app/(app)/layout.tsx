@@ -148,7 +148,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             otherLocale: rtl ? "en" : "ar",
             labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
             help: viewer.orgKind === "client" ? { label: tNav("help"), href: "/help" } : undefined,
-            settings: viewer.role === "firm_admin" ? { label: tNav("settings"), href: "/settings" } : undefined,
+            settings:
+              viewer.role === "firm_admin"
+                ? { label: tNav("settings"), href: "/settings" }
+                : viewer.role === "client_admin"
+                  ? { label: tNav("dataSharing"), href: "/indicators/data" }
+                  : undefined,
           }}
         />
         {/* The assistant's floating card: stays open while the person moves between pages. */}

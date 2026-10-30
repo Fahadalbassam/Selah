@@ -142,6 +142,8 @@ function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind.startsWith("client.")) return "/";
   // Indicators waiting for this period's values are listed on the client's overview.
   if (kind === "indicator.due") return "/";
+  // How a client's figures arrive, and what came in, live on its indicator data page.
+  if (kind.startsWith("indicator.data_") || kind === "indicator.imported_for_you" || kind === "indicator.feed_failing") return `/indicators/data?client=${entityId}`;
   switch (entityType) {
     case "action":
       return `/actions/${entityId}`;

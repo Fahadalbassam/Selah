@@ -70,7 +70,9 @@ Roll-ups count indicators (how many are up to date, better or worse than their b
 
 API: `GET/POST /api/clients/:id/indicators`, `GET/PATCH/DELETE /api/indicators/:id`, `POST /api/indicators/:id/values`, `POST /api/indicators/:id/links`, `DELETE /api/indicators/:id/links/:recommendationId`, `POST /api/indicator-values/:id/check`.
 
-Not built, by design: pulls from client systems, weighting formulas, enterprise-wide dashboards, automatic impact claims, consultant rankings.
+How figures arrive is the client's choice, in three modes (typed in, files, connected); see [indicator-data.md](indicator-data.md). Each value records whether it was typed, came from a file, a shared sheet or the client's own system.
+
+Not built, by design: per-vendor connectors to client systems (a client's system sends figures with a key instead), reading arbitrary spreadsheets for analysis, weighting formulas, enterprise-wide dashboards, automatic impact claims, consultant rankings.
 
 ## Verified on whose evidence
 

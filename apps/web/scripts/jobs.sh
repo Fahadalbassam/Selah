@@ -5,7 +5,8 @@
 # everything is up, alerting the administrators when not (job:ops-check).
 # Once a day (Riyadh date): keeps each project's weekly health signal and
 # alerts on quiet clients (job:health, before the reminders so the alert
-# rides the same summary mail), sends follow-up reminders, checks the audit chain
+# rides the same summary mail), reads clients' connected indicator sheets
+# (job:indicator-feeds), sends follow-up reminders, checks the audit chain
 # and runs the retention purges. On the 1st of each month: takes the metrics
 # snapshot and drafts last month's status packs (job:status-packs). A failing job is logged and retried on the next round; it never
 # stops the others.
@@ -21,7 +22,7 @@ while :; do
   run job:ops-check
   day=$(TZ=Asia/Riyadh date +%F)
   if [ "$day" != "$last_day" ]; then
-    for j in job:health job:follow-ups job:audit-check job:purge-chats job:purge-clients job:purge-inquiries job:purge-minimal job:purge-transcripts; do run "$j"; done
+    for j in job:health job:indicator-feeds job:follow-ups job:audit-check job:purge-chats job:purge-clients job:purge-inquiries job:purge-minimal job:purge-transcripts; do run "$j"; done
     last_day="$day"
   fi
   month=$(TZ=Asia/Riyadh date +%Y-%m)

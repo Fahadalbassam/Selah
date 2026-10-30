@@ -1341,6 +1341,10 @@ export const projectHealthWeeks = pgTable(
 // outlive any one engagement.
 export const kpiDirection = pgEnum("kpi_direction", ["higher_better", "lower_better"]);
 export const kpiFrequency = pgEnum("kpi_frequency", ["monthly", "quarterly"]);
+// How figures reach Selah; see client_indicator_settings below.
+export const indicatorDataMode = pgEnum("indicator_data_mode", ["typed", "files", "connected"]);
+export const indicatorChannel = pgEnum("indicator_channel", ["typed", "file", "sheet", "api"]);
+export const indicatorFeedKind = pgEnum("indicator_feed_kind", ["sheet", "api"]);
 
 export const clientKpis = pgTable(
   "client_kpis",
@@ -1366,6 +1370,10 @@ export const clientKpis = pgTable(
     targetDate: date("target_date"),
     // Where the number comes from (a system, a report).
     source: text("source"),
+    // A short key the client's files and systems use for it ("complaints"), unique per client.
+    code: text("code"),
+    // Whether a connection (a sheet, the client's system) may send its values.
+    feedOn: boolean("feed_on").notNull().default(false),
     active: boolean("active").notNull().default(true),
     createdBy: uuid("created_by")
       .notNull()
@@ -1384,6 +1392,8 @@ export const clientKpis = pgTable(
     check("client_kpi_baseline_first", sql`extract(day FROM ${t.baselinePeriod}) = 1`),
     check("client_kpi_target_pair", sql`(${t.target} IS NULL) = (${t.targetDate} IS NULL)`),
     check("client_kpi_target_after", sql`${t.targetDate} IS NULL OR ${t.targetDate} > ${t.baselinePeriod}`),
+    check("client_kpi_code", sql`${t.code} IS NULL OR ${t.code} ~ '^[a-z0-9][a-z0-9_.-]{0,39}$'`),
+    uniqueIndex("client_kpis_code_once").on(t.orgId, t.code),
   ],
 );
 
@@ -1411,11 +1421,15 @@ export const clientKpiValues = pgTable(
     enteredAt: ts("entered_at").notNull().defaultNow(),
     onBehalf: boolean("on_behalf").notNull().default(false),
     supersedesId: uuid("supersedes_id").references((): AnyPgColumn => clientKpiValues.id),
+    // How it reached Selah: typed in, from an uploaded file, read from a sheet, sent by a system.
+    channel: indicatorChannel("channel").notNull().default("typed"),
+    importId: uuid("import_id").references((): AnyPgColumn => indicatorImports.id),
     checkedBy: uuid("checked_by").references(() => user.id),
     checkedAt: ts("checked_at"),
   },
   (t) => [
     index("client_kpi_values_kpi_idx").on(t.kpiId, t.period),
+    index("client_kpi_values_import_idx").on(t.importId),
     uniqueIndex("client_kpi_values_supersede_once").on(t.supersedesId),
     check("client_kpi_value_note", sql`char_length(coalesce(${t.note}, '')) <= 1000`),
     check("client_kpi_value_checked", sql`(${t.checkedBy} IS NULL) = (${t.checkedAt} IS NULL)`),
@@ -1442,6 +1456,96 @@ export const clientKpiLinks = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.kpiId, t.recommendationId] }), index("client_kpi_links_rec_idx").on(t.recommendationId)],
+);
+
+// How a client's indicator figures reach Selah (2026-10-30): the client's own
+// choice of how much it shares. typed: no data leaves its systems, someone
+// types each period's figure; files: it uploads exports (Excel, CSV) and a
+// person reviews them before they count; connected: a sheet Selah reads
+// daily, or its own systems send figures with a key, for the indicators it
+// picks. A client with no row, or that has not chosen yet, is "typed".
+
+export const clientIndicatorSettings = pgTable("client_indicator_settings", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  dataMode: indicatorDataMode("data_mode").notNull().default("typed"),
+  // Set when the client's admin chose; until then the client shares nothing.
+  decidedBy: uuid("decided_by").references(() => user.id),
+  decidedAt: ts("decided_at"),
+  // What the firm suggested after discovery, for the client's admin to confirm.
+  proposedMode: indicatorDataMode("proposed_mode"),
+  proposedBy: uuid("proposed_by").references(() => user.id),
+  proposedAt: ts("proposed_at"),
+});
+
+// A connection: a sheet published as CSV that Selah reads once a day, or a
+// key the client's systems send figures with (only its hash is kept). Values
+// go in under the name of the person who connected it, with that person's
+// rights at the time, so a connection stops working when they lose access.
+export const indicatorFeeds = pgTable(
+  "indicator_feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    kind: indicatorFeedKind("kind").notNull(),
+    label: text("label").notNull(),
+    url: text("url"),
+    tokenHash: text("token_hash").unique(),
+    tokenHint: text("token_hint"),
+    runAs: uuid("run_as")
+      .notNull()
+      .references(() => user.id),
+    createdAt: createdAt(),
+    revokedAt: ts("revoked_at"),
+    revokedBy: uuid("revoked_by").references(() => user.id),
+    lastRunAt: ts("last_run_at"),
+    lastOkAt: ts("last_ok_at"),
+    lastError: text("last_error"),
+    lastAdded: integer("last_added"),
+    failures: integer("failures").notNull().default(0),
+  },
+  (t) => [
+    index("indicator_feeds_org_idx").on(t.orgId),
+    check("indicator_feed_label", sql`char_length(btrim(${t.label})) BETWEEN 1 AND 100`),
+    check(
+      "indicator_feed_shape",
+      sql`(${t.kind} = 'sheet' AND ${t.url} IS NOT NULL AND ${t.tokenHash} IS NULL) OR (${t.kind} = 'api' AND ${t.url} IS NULL AND ${t.tokenHash} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check("indicator_feed_url", sql`${t.url} IS NULL OR (${t.url} ~ '^https://' AND char_length(${t.url}) <= 2000)`),
+  ],
+);
+
+// One batch of values that came in together: a reviewed file, one read of a
+// sheet, one call from the client's system. Values point back to it.
+export const indicatorImports = pgTable(
+  "indicator_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    channel: indicatorChannel("channel").notNull(),
+    feedId: uuid("feed_id").references(() => indicatorFeeds.id),
+    fileName: text("file_name"),
+    sha256: text("sha256"),
+    byUser: uuid("by_user")
+      .notNull()
+      .references(() => user.id),
+    onBehalf: boolean("on_behalf").notNull().default(false),
+    added: integer("added").notNull().default(0),
+    corrected: integer("corrected").notNull().default(0),
+    unchanged: integer("unchanged").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("indicator_imports_org_idx").on(t.orgId, t.createdAt),
+    check("indicator_import_channel", sql`${t.channel} <> 'typed' AND ((${t.channel} = 'file') = (${t.feedId} IS NULL))`),
+    check("indicator_import_counts", sql`${t.added} >= 0 AND ${t.corrected} >= 0 AND ${t.unchanged} >= 0`),
+    check("indicator_import_file", sql`char_length(coalesce(${t.fileName}, '')) <= 200 AND (${t.sha256} IS NULL OR ${t.sha256} ~ '^[0-9a-f]{64}$')`),
+  ],
 );
 
 // What happened to each AI draft a person saw, so the drafts can be

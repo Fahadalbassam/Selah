@@ -29,7 +29,8 @@
     "allClients": "All clients",
     "clientGroups": "Client groups",
     "group": "Our group",
-    "help": "Help"
+    "help": "Help",
+    "dataSharing": "Data sharing"
   },
   "header": {
     "language": "العربية",
@@ -1923,7 +1924,11 @@
       "client_ai_withdrawn": "{title} switched off the client assistant",
       "action_second_review": "{title} needs your second sign-off",
       "indicator_due": "Business indicators are waiting for this period's values",
-      "indicator_entered_for_you": "The firm entered a value for {title}"
+      "indicator_entered_for_you": "The firm entered a value for {title}",
+      "indicator_data_mode": "{title} chose how its indicator figures reach Selah",
+      "indicator_data_proposed": "Your consultant suggested how your indicator figures could reach Selah",
+      "indicator_imported_for_you": "The firm imported indicator figures for {title}",
+      "indicator_feed_failing": "A connection for {title}'s indicator figures has stopped working"
     },
     "mail": {
       "section": "Mail",
@@ -3796,7 +3801,16 @@
       "indicator_unlink": "Unlinked an indicator from a recommendation",
       "indicator_read": "Read business indicators",
       "indicator_report": "Enter indicator values",
-      "indicator_manage": "Set up business indicators"
+      "indicator_manage": "Set up business indicators",
+      "indicator_data": "Chose or managed how indicator figures arrive",
+      "indicator_data_mode": "Chose how indicator figures reach Selah",
+      "indicator_data_propose": "Suggested how indicator figures reach Selah",
+      "indicator_import": "Imported indicator figures",
+      "indicator_import_read": "Read a file of indicator figures",
+      "indicator_feed_connect": "Connected an indicator source",
+      "indicator_feed_revoke": "Disconnected an indicator source",
+      "indicator_feed_push": "A system sent indicator figures",
+      "indicator_source": "Changed an indicator's code or connection"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4853,7 +4867,9 @@
       "value": "Value ({unit})",
       "note": "Note",
       "correctionNote": "Why it changed",
-      "notePlaceholder": "Anything that explains this figure"
+      "notePlaceholder": "Anything that explains this figure",
+      "code": "Code (optional)",
+      "codeHint": "A short key the client's files and systems use for this indicator, such as complaints. Without one, it is matched by name."
     },
     "directions": {
       "higher_better": "Higher is better",
@@ -4894,7 +4910,9 @@
       "cannot": "That couldn't be saved. Try again, or refresh the page.",
       "name": "Give the indicator a name in Arabic or English.",
       "number": "Enter a number.",
-      "targetPair": "A target needs both a value and a date."
+      "targetPair": "A target needs both a value and a date.",
+      "code": "A code uses English letters, digits, dots, dashes or underscores, up to 40.",
+      "codeTaken": "Another of this client's indicators already uses that code."
     },
     "report": {
       "title": "Business indicators",
@@ -4914,6 +4932,268 @@
         "same": "same"
       },
       "missing": "{n, plural, one {# period missing} other {# periods missing}}"
+    },
+    "dataModes": {
+      "typed": "Figures: typed in",
+      "files": "Figures: from files",
+      "connected": "Figures: connected"
+    },
+    "importFigures": "Import figures",
+    "channels": {
+      "typed": "Typed",
+      "file": "From a file",
+      "sheet": "From a sheet",
+      "api": "From the client's system"
+    },
+    "template": {
+      "label": "Start from a common indicator",
+      "own": "The client's own indicator",
+      "hint": "Fills in the name, unit, definition and direction. Change anything; the baseline and target are always the client's.",
+      "areas": {
+        "finance": "Finance",
+        "customers": "Customers",
+        "people": "People",
+        "operations": "Operations",
+        "governance": "Governance"
+      }
+    }
+  },
+  "indicatorData": {
+    "title": "How figures reach Selah",
+    "description": "Your choice of how much of your data you share for your business indicators.",
+    "back": "Overview",
+    "import": "Import figures",
+    "modeTitle": "What you share",
+    "decided": "Chosen by {name}, {when}.",
+    "notChosen": "Not chosen yet: until then figures are typed in and nothing is shared from your systems.",
+    "current": "Current",
+    "change": "Save the change",
+    "confirm": "Confirm",
+    "propose": "Suggest to the client",
+    "proposed": "Suggestion sent to the client's admins",
+    "saved": "Choice saved",
+    "skip": "Decide later",
+    "changeLater": "You can change this any time under Data sharing in your profile menu.",
+    "clientDecides": "The client's admin decides. The firm can suggest a choice.",
+    "proposalNote": "Your consultant ({name}) suggests: {mode}. Confirm it or choose another.",
+    "downgradeConfirm": "This disconnects every connection at once. Figures already received stay. Continue?",
+    "errors": {
+      "generic": "That couldn't be saved. Try again, or refresh the page."
+    },
+    "modes": {
+      "typed": {
+        "title": "No data",
+        "short": "Figures typed in",
+        "how": "Each month or quarter, you or your consultant type in the figure for each indicator.",
+        "privacy": "Nothing leaves your systems. Selah only holds the figures typed."
+      },
+      "files": {
+        "title": "Some data",
+        "short": "Exports you upload",
+        "how": "Upload an Excel or CSV export from your accounting, HR or ERP system when figures are due. You review what was read before anything counts.",
+        "privacy": "You choose each file. Only the figures for your indicators are kept; the file itself is not stored."
+      },
+      "connected": {
+        "title": "All data",
+        "short": "A live connection",
+        "how": "Selah reads a shared Google Sheet once a day, or your system sends figures with a private key. You pick which indicators flow.",
+        "privacy": "Only the indicators you tick are taken. Disconnect at any time; earlier figures stay on record."
+      }
+    },
+    "setup": {
+      "title": "How should your business figures reach Selah?",
+      "hint": "Your consultant tracks a few business indicators beside the work. Choose how much you share; you can change it later."
+    },
+    "channels": {
+      "typed": "Typed",
+      "file": "File",
+      "sheet": "Sheet",
+      "api": "System"
+    },
+    "batches": {
+      "title": "Figures received",
+      "hint": "Each upload, sheet read and system delivery, newest first.",
+      "counts": "{added} added · {corrected} corrected",
+      "onBehalf": "for the client",
+      "empty": "Nothing received yet."
+    },
+    "claimNote": "These are figures the client reports from its own records. They are not verified impact, and a change is not proof that a recommendation caused it.",
+    "sources": {
+      "title": "Indicators and their codes",
+      "hint": "A code makes matching exact when your exports or systems use their own names. Without one, an indicator is matched by its Arabic or English name.",
+      "hintConnected": "Codes make matching exact. Switch on the indicators a connection may fill; the rest stay typed or uploaded.",
+      "indicator": "Indicator",
+      "code": "Code",
+      "flows": "From connections",
+      "codePlaceholder": "e.g. complaints",
+      "save": "Save",
+      "saved": "Saved",
+      "failed": "That couldn't be saved.",
+      "codeTaken": "Another indicator already uses that code.",
+      "codeShape": "A code uses English letters, digits, dots, dashes or underscores.",
+      "on": "On",
+      "off": "Off"
+    },
+    "feeds": {
+      "title": "Connections",
+      "hint": "A shared Google Sheet read once a day, or a key for your own system. Figures come in under the name of whoever connected it.",
+      "addSheet": "Connect a Google Sheet",
+      "addKey": "Create a system key",
+      "kinds": {
+        "sheet": "Sheet",
+        "api": "Key"
+      },
+      "keyEnds": "Key ending …{hint}",
+      "dailyRead": "Read daily",
+      "connectedBy": "Connected by {name}, {when}",
+      "failing": "Not working: {reason}",
+      "lastOk": "Last received {when} ({n} figures)",
+      "notYet": "Nothing received yet",
+      "reasons": {
+        "host": "only Google Sheets links (or hosts your firm allows) can be read",
+        "unreachable": "the sheet could not be reached",
+        "not_shared": "the sheet is not shared for reading",
+        "too_large": "the sheet is larger than 2 MB",
+        "empty": "the sheet is empty",
+        "refused": "the figures were refused; check the person who connected it still has access"
+      },
+      "readNow": "Read now",
+      "disconnect": "Disconnect",
+      "emptyAdmin": "No connection yet. Connect a sheet or create a key for your system.",
+      "empty": "No connection yet. The client's admin connects them.",
+      "howTitle": "How connections work",
+      "howSheet": "Google Sheet: in Google Sheets choose File › Share › Publish to web, pick the tab and CSV, and paste the link. Put months in the first column and one indicator per column (or one indicator per row with months across). Selah reads it once a day.",
+      "howKey": "Your system: create a key, then send figures with an HTTPS POST. Use each indicator's code (or its id). Periods can be 2026-10, Oct 2026 or Q4 2026.",
+      "howAnswer": "Each figure comes back as add, correct, same or refused with the reason. A figure for a period that already has a different value corrects it, and the earlier value stays on record.",
+      "copy": "Copy",
+      "sheetHint": "Paste a Google Sheets link. Other hosts allowed by your firm: {hosts}.",
+      "keyHint": "Name the system that will use it. The key is shown once; keep it with that system.",
+      "label": "Name",
+      "labelPlaceholder": "e.g. Finance ERP",
+      "url": "Sheet link",
+      "check": "Check",
+      "previewOk": "{n} figures read ({layout}). Labels matched to an indicator are ticked:",
+      "layouts": {
+        "rows": "one row per indicator",
+        "columns": "one row per period",
+        "list": "one row per figure"
+      },
+      "previewHint": "Unmatched labels are left out. Give the indicator a code equal to the label to match it.",
+      "sheetPrivacy": "Anyone with a published link can read the sheet, so keep only the indicator figures on that tab.",
+      "cancel": "Cancel",
+      "connect": "Connect",
+      "keyTitle": "Your system key",
+      "keyOnce": "Copy it now: it is not shown again. If it is lost, disconnect it and create another.",
+      "done": "Done",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "disconnectConfirm": "Disconnect this? It stops at once. Figures already received stay.",
+      "readDone": "{n, plural, =0 {Read: nothing new} one {Read: # figure added or corrected} other {Read: # figures added or corrected}}",
+      "errors": {
+        "host": "That isn't a Google Sheets link (or a host your firm allows).",
+        "five": "A client has at most five connections. Disconnect one first.",
+        "generic": "That couldn't be done. Try again, or refresh the page.",
+        "notYours": "Only the person who connected this sheet can read it now; it is read daily anyway."
+      }
+    }
+  },
+  "indicatorImport": {
+    "back": "How figures reach Selah",
+    "title": "Import indicator figures",
+    "description": "Upload an export from your system. You check what was read before anything is saved.",
+    "descriptionFirm": "Upload {client}'s export for them. The figures are marked as brought in by the firm, and the client's admins are told.",
+    "steps": {
+      "upload": "File",
+      "match": "Indicators",
+      "review": "Figures"
+    },
+    "errors": {
+      "scanner": "Files can't be checked for viruses right now. Try again later.",
+      "infected": "The file was refused: it failed the virus check.",
+      "too_large": "The file is too large.",
+      "type": "Upload an Excel (.xlsx) or CSV file.",
+      "nothing": "Nothing to import was found in this file.",
+      "expired": "The import expired. Upload the file again.",
+      "changed": "Some figures changed since you checked them. Review the file again.",
+      "typed": "This client shares no files for its indicators.",
+      "generic": "That didn't work. Try again.",
+      "empty": "Choose a file."
+    },
+    "upload": {
+      "title": "The file",
+      "hint": "An Excel or CSV export from your accounting, HR or ERP system, or a monthly report.",
+      "hintFirm": "An Excel or CSV export the client sent you.",
+      "file": "Excel or CSV file",
+      "reading": "Reading…",
+      "read": "Read the file",
+      "noIndicators": "This client has no indicators switched on yet. Add them first, then import their figures.",
+      "shapesTitle": "What it can read",
+      "rows": "A report: one row per indicator, months across the top.",
+      "columns": "A system export or sheet: one row per month, one column per indicator.",
+      "list": "A list: one row per figure, with indicator, period and value columns.",
+      "periods": "Months as 2026-03, 03/2026, Mar 2026 or مارس 2026; quarters as Q1 2026. Arabic digits and thousands separators are fine."
+    },
+    "match": {
+      "title": "Match the indicators",
+      "hint": "Each label in the file is matched to one of the client's indicators by code or name. Change any match, or leave a label out.",
+      "file": "File",
+      "another": "Another file",
+      "sheet": "Sheet",
+      "layout": "Layout",
+      "headerRow": "Header row",
+      "row": "Row {n}",
+      "labelCol": "Indicator column",
+      "periodCol": "Period column",
+      "valueCol": "Value column",
+      "noteCol": "Note column",
+      "noColumn": "None",
+      "labelsTitle": "{n, plural, one {# label in the file} other {# labels in the file}}",
+      "inFile": "In the file",
+      "indicator": "Indicator",
+      "figures": "Figures",
+      "leaveOut": "Leave out",
+      "nothingRead": "No figures were read. Check the layout and the header row.",
+      "next": "Check the figures"
+    },
+    "layouts": {
+      "rows": "One row per indicator",
+      "columns": "One row per period",
+      "list": "One row per figure"
+    },
+    "review": {
+      "add": "New",
+      "correct": "Corrections",
+      "same": "Unchanged",
+      "left": "Left out",
+      "title": "The figures",
+      "hint": "New figures are added; a different figure for a period that has one corrects it, keeping the earlier one on record.",
+      "hintFirm": "You are importing for the client: the figures are marked as brought in by the firm.",
+      "corrections": "Correct figures that differ",
+      "row": "Row",
+      "period": "Period",
+      "value": "Value",
+      "outcome": "What happens",
+      "back": "Back",
+      "save": "{n, plural, one {Save # figure} other {Save # figures}}",
+      "confirm": "Save {add} new figures and {correct} corrections?",
+      "done": "{n, plural, one {# figure saved} other {# figures saved}}"
+    },
+    "outcomes": {
+      "add": "New",
+      "correct": "Correction",
+      "same": "Same"
+    },
+    "issues": {
+      "unmatched": "No indicator",
+      "no_period": "No period",
+      "bad_value": "Not a number",
+      "baseline": "Baseline month",
+      "not_a_period": "Not one of its periods",
+      "future": "Not started yet",
+      "inactive": "Switched off",
+      "duplicate": "Twice in the file",
+      "not_connected": "Not from connections",
+      "keep": "Kept (differs)"
     }
   }
 }
