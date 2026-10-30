@@ -21,6 +21,7 @@ import {
   sheetHostAllowed,
   type IndicatorRef,
   type PlannedValue,
+  type TableShape,
 } from "@/lib/indicator-import";
 import { readXlsx } from "@/lib/office/xlsx-read";
 import { OfficeFileError } from "@/lib/office/zip";
@@ -98,6 +99,26 @@ async function currentValues(tx: Tx, clientOrgId: string) {
 }
 
 /** What the data page shows: the choice, the firm's suggestion, connections, recent batches. */
+/**
+ * The setup step on a client admin's overview: shown only until the choice
+ * is made, with the firm's suggestion if there is one. Two small queries, as
+ * the overview is the most opened page.
+ */
+export async function dataSetupStep(tx: Tx, principal: Principal, clientOrgId: string) {
+  if (!authorize(principal, "indicator.data", resource(principal, clientOrgId)).allowed) return null;
+  const [setting] = await tx
+    .select({
+      decidedAt: clientIndicatorSettings.decidedAt,
+      proposedMode: clientIndicatorSettings.proposedMode,
+      proposedBy: sql<string | null>`(select name from "user" u where u.id = ${clientIndicatorSettings.proposedBy})`,
+    })
+    .from(clientIndicatorSettings)
+    .where(eq(clientIndicatorSettings.orgId, clientOrgId));
+  if (setting?.decidedAt) return null;
+  if (!(await flag(tx, "app_kpi_data_admin", clientOrgId))) return null;
+  return { clientId: clientOrgId, proposal: setting?.proposedMode ? { mode: setting.proposedMode, by: setting.proposedBy } : null };
+}
+
 export async function dataSettings(tx: Tx, principal: Principal, clientOrgId: string) {
   const client = await clientOf(tx, clientOrgId);
   assertAllowed(principal, "indicator.read", resource(principal, clientOrgId));
@@ -307,20 +328,31 @@ export async function saveBatch(
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-function signFile(file: { orgId: string; userId: string; sha256: string; fileName: string }): string {
+interface SignedFile {
+  orgId: string;
+  userId: string;
+  sha256: string;
+  fileName: string;
+  /** A digest of each sheet as it was read, so a save can only use those cells. */
+  sheets: string[];
+}
+
+const sheetDigest = (rows: string[][]) => createHash("sha256").update(JSON.stringify(rows)).digest("base64url");
+
+function signFile(file: SignedFile): string {
   const payload = Buffer.from(JSON.stringify({ ...file, at: Date.now() })).toString("base64url");
   const mac = createHmac("sha256", env().BETTER_AUTH_SECRET).update(`indicator-import:${payload}`).digest("base64url");
   return `${payload}.${mac}`;
 }
 
-function verifyFile(token: string, orgId: string, userId: string): { sha256: string; fileName: string } {
+function verifyFile(token: string, orgId: string, userId: string): SignedFile {
   const [payload, mac] = token.split(".");
   const expired = new BadRequestError("the import has expired: upload the file again");
   if (!payload || !mac) throw expired;
   const expected = createHmac("sha256", env().BETTER_AUTH_SECRET).update(`indicator-import:${payload}`).digest();
   const given = Buffer.from(mac, "base64url");
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw expired;
-  const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { orgId: string; userId: string; sha256: string; fileName: string; at: number };
+  const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as SignedFile & { at: number };
   if (data.orgId !== orgId || data.userId !== userId || Date.now() - data.at > 24 * 3600_000) throw expired;
   return data;
 }
@@ -352,7 +384,7 @@ export async function parseIndicatorFile(tx: Tx, principal: Principal, clientOrg
   await assertCanImport(tx, principal, clientOrgId);
   let sheets: { name: string; rows: string[][] }[];
   try {
-    if (file.contentType === XLSX) sheets = readXlsx(file.bytes).map((s) => ({ name: s.name, rows: s.rows }));
+    if (file.contentType === XLSX) sheets = readXlsx(file.bytes, { percents: true }).map((s) => ({ name: s.name, rows: s.rows }));
     else if (file.contentType === "text/csv") sheets = [{ name: file.fileName, rows: readCsv(new TextDecoder("utf-8").decode(file.bytes)) }];
     else throw new BadRequestError("file rejected: type");
   } catch (err) {
@@ -370,37 +402,49 @@ export async function parseIndicatorFile(tx: Tx, principal: Principal, clientOrg
     outcome: "allow",
     meta: { sha256: file.sha256, sizeBytes: file.bytes.byteLength, scanned: file.scanned, sheets: sheets.length },
   });
+  // A sheet past a few thousand rows is not an indicator report.
+  const kept = sheets.map((s) => ({ name: s.name, rows: s.rows.slice(0, 3000).map((r) => r.slice(0, 200)) }));
   return {
-    token: signFile({ orgId: clientOrgId, userId: principal.userId, sha256: file.sha256, fileName: file.fileName }),
+    token: signFile({ orgId: clientOrgId, userId: principal.userId, sha256: file.sha256, fileName: file.fileName, sheets: kept.map((s) => sheetDigest(s.rows)) }),
     fileName: file.fileName,
-    // A sheet past a few thousand rows is not an indicator report.
-    sheets: sheets.map((s) => ({ name: s.name, rows: s.rows.slice(0, 3000).map((r) => r.slice(0, 200)) })),
+    sheets: kept,
   };
 }
 
 export interface ConfirmImportInput {
   token: string;
+  /** The sheet the person chose, its cells exactly as the file was read, and how they read it. */
+  sheet: number;
+  rows: string[][];
+  shape: TableShape;
+  /** The person's own matches (null: leave the label out). */
+  chosen: Record<string, string | null>;
   corrections: boolean;
-  values: { line: number; label: string; kpiId: string; period: string; value: number; note: string | null }[];
+  /** What the review showed: the save is refused if the server now plans otherwise. */
+  expect: { add: number; correct: number };
 }
 
-/** Save what a person reviewed. Every figure is checked again here against the database, not the browser. */
+const CHANGED = "rows with errors: review the file again";
+
+/**
+ * Save what a person reviewed. The server reads the figures itself from the
+ * signed sheet, with the person's layout and matches, and plans them against
+ * the database as it is now: if that differs from what the review showed
+ * (someone entered a value meanwhile), nothing is saved.
+ */
 export async function confirmIndicatorImport(tx: Tx, principal: Principal, clientOrgId: string, input: ConfirmImportInput) {
   const file = verifyFile(input.token, clientOrgId, principal.userId);
   await assertCanImport(tx, principal, clientOrgId);
-  if (input.values.length > MAX_IMPORT_VALUES) throw new BadRequestError("too many values");
+  if (file.sheets[input.sheet] !== sheetDigest(input.rows)) throw new BadRequestError(CHANGED);
   const indicators = await indicatorRefs(tx, clientOrgId);
   const known = new Set(indicators.map((k) => k.id));
-  const labelMap: Record<string, string | null> = {};
-  const values = input.values.map((v) => {
-    if (!known.has(v.kpiId)) throw new NotFoundError("indicator");
-    // Each figure carries the indicator the person matched it to.
-    const label = `${v.kpiId}`;
-    labelMap[label] = v.kpiId;
-    return { line: v.line, label, period: v.period, value: v.value, note: v.note };
-  });
-  const plan = planValues(values, labelMap, indicators, await currentValues(tx, clientOrgId), { today: firmToday(), corrections: input.corrections });
-  if (plan.some((p) => p.issue && p.issue !== "keep")) throw new BadRequestError("rows with errors: review the file again");
+  for (const id of Object.values(input.chosen)) if (id !== null && !known.has(id)) throw new NotFoundError("indicator");
+  const read = readValues(input.rows, input.shape);
+  const labelMap = matchLabels([...new Set(read.map((v) => v.label))], indicators, input.chosen);
+  const plan = planValues(read, labelMap, indicators, await currentValues(tx, clientOrgId), { today: firmToday(), corrections: input.corrections });
+  const counts = planCounts(plan);
+  if (counts.add !== input.expect.add || counts.correct !== input.expect.correct) throw new BadRequestError(CHANGED);
+  if (counts.add + counts.correct > MAX_IMPORT_VALUES) throw new BadRequestError("too many values");
   return saveBatch(tx, principal, clientOrgId, plan, { channel: "file", fileName: file.fileName, sha256: file.sha256 });
 }
 
@@ -501,11 +545,14 @@ export async function fetchSheet(url: string, extraHosts = extraSheetHosts()): P
     const chunks: Uint8Array[] = [];
     let size = 0;
     for (;;) {
-      const { done, value } = await reader.read();
+      // The 15-second timeout can also end the transfer half way.
+      const { done, value } = await reader.read().catch(() => {
+        throw new SheetError("unreachable");
+      });
       if (done) break;
       size += value.byteLength;
       if (size > MAX_SHEET_BYTES) {
-        await reader.cancel();
+        await reader.cancel().catch(() => undefined);
         throw new SheetError("too_large");
       }
       chunks.push(value);
@@ -552,9 +599,10 @@ export async function readSheetNow(tx: Tx, principal: Principal, feedId: string)
   assertAllowed(principal, "indicator.data", resource(principal, f.orgId));
   // Values come in the connection's own name; someone else reading it now only checks the link.
   if (f.runAs !== principal.userId) throw new BadRequestError("only the person who connected this sheet can read it now");
-  let csv: string;
   try {
-    csv = await fetchSheet(f.url!);
+    const csv = await fetchSheet(f.url!);
+    // runSheet refuses an empty sheet before it writes anything.
+    return { ok: true as const, ...(await runSheet(tx, principal, { id: f.id, orgId: f.orgId, url: f.url! }, csv)) };
   } catch (err) {
     if (err instanceof SheetError) {
       await tx.execute(sql`select app_indicator_feed_result(${f.id}::uuid, false, ${err.reason}, 0)`);
@@ -562,7 +610,6 @@ export async function readSheetNow(tx: Tx, principal: Principal, feedId: string)
     }
     throw err;
   }
-  return { ok: true as const, ...(await runSheet(tx, principal, { id: f.id, orgId: f.orgId, url: f.url! }, csv)) };
 }
 
 /** What a sheet link shows before it is saved: whether it can be read, and which indicators it matches. */
@@ -622,7 +669,7 @@ export async function pushValues(tx: Tx, principal: Principal, feed: { id: strin
     byKey.set(k.id, k.id);
     if (k.code) byKey.set(k.code, k.id);
   }
-  const labelMap: Record<string, string | null> = {};
+  const labelMap: Record<string, string | null> = Object.create(null);
   const read = values.map((v, i) => {
     const label = String(v.indicator).trim().toLowerCase();
     labelMap[label] = byKey.get(label) ?? null;

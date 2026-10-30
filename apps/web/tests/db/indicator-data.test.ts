@@ -23,6 +23,20 @@ const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
 if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
 
+// The app's configuration (the import token is signed with the auth secret).
+Object.assign(process.env, {
+  APP_URL: "http://selah.test",
+  DATABASE_APP_URL: appUrl,
+  DATABASE_AUTH_URL: process.env.TEST_DATABASE_AUTH_URL ?? appUrl,
+  BETTER_AUTH_SECRET: "a-test-secret-that-is-long-enough-0123456789",
+  S3_ENDPOINT: "http://storage.test",
+  S3_BUCKET: "test",
+  S3_ACCESS_KEY: "test",
+  S3_SECRET_KEY: "test",
+  AI_SERVICE_URL: "http://ai.test",
+  AI_SERVICE_TOKEN: "an-ai-token-that-is-long-enough-0123456789",
+});
+
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
 const app = new Pool({ connectionString: appUrl, max: 2 });
 
@@ -222,6 +236,31 @@ describe("files", () => {
       U.cmgr,
     ]);
     expect(typed.rows[0].channel).toBe("typed");
+  });
+
+  it("the save reads the signed sheet itself and refuses anything that changed since the review", async () => {
+    await mode(U.cadmin, "files");
+    const csv = "Month,complaints,Staff turnover\n2026-02,38,\n2026-04,35,17\n";
+    const bytes = new TextEncoder().encode(csv);
+    const file = { bytes, fileName: "export.csv", contentType: "text/csv", sha256: "b".repeat(64), scanned: true, scanMs: 1 };
+    const read = await svc(U.cmgr, (tx, p) => D.parseIndicatorFile(tx, p, ACME, file));
+    const rows = read.sheets[0]!.rows;
+    const shape = { layout: "columns" as const, headerRow: 0, labelCol: null, periodCol: 0, valueCol: null, noteCol: null };
+    const confirm = (input: Partial<D.ConfirmImportInput>) =>
+      svc(U.cmgr, (tx, p) =>
+        D.confirmIndicatorImport(tx, p, ACME, { token: read.token, sheet: 0, rows, shape, chosen: {}, corrections: false, expect: { add: 3, correct: 0 }, ...input }),
+      );
+    // Cells the file never had are refused.
+    await expect(confirm({ rows: [rows[0]!, ["2026-02", "1", ""]] })).rejects.toThrow(/review the file again/);
+    // Someone enters February meanwhile: the review no longer holds.
+    await sqlAs(U.cadmin, `INSERT INTO client_kpi_values (kpi_id, org_id, period, value, entered_by) VALUES ($1,$2,'2026-02-01',40,$3)`, [K.complaints, ACME, U.cadmin]);
+    await expect(confirm({})).rejects.toThrow(/review the file again/);
+    const saved = await confirm({ expect: { add: 2, correct: 0 } });
+    expect([saved.add, saved.correct, saved.left]).toEqual([2, 0, 1]);
+    const batch = (await owner.query(`SELECT sha256, file_name FROM indicator_imports`)).rows[0];
+    expect(batch).toEqual({ sha256: "b".repeat(64), file_name: "export.csv" });
+    // A label a person left out stays out.
+    await expect(confirm({ chosen: { complaints: null }, expect: { add: 0, correct: 0 } })).resolves.toMatchObject({ importId: null });
   });
 
   it("batches are seen by the firm, the client's admin and whoever made them; action owners can't make one", async () => {

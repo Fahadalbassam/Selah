@@ -17,6 +17,7 @@ import {
   type IndicatorRef,
 } from "@/lib/indicator-import";
 import { INDICATOR_TEMPLATES, TEMPLATE_AREAS } from "@/lib/indicator-templates";
+import { isPercentFormat } from "@/lib/office/xlsx-read";
 
 const K: IndicatorRef[] = [
   { id: "k1", nameAr: "شكاوى العملاء", nameEn: "Customer complaints", code: "complaints", frequency: "monthly", baselinePeriod: "2026-01-01", active: true, feedOn: true },
@@ -76,6 +77,8 @@ describe("numbers", () => {
     ["9,500 ر.س", 9500],
     ["12,5", 12.5],
     ["-3", -3],
+    ["1,000 ﷼", 1000],
+    ["1.5E+3", 1500],
   ])("%s", (raw, want) => expect(parseNumber(raw)).toBe(want));
 
   it("an empty cell or a dash is no value; words are not a number", () => {
@@ -83,6 +86,14 @@ describe("numbers", () => {
     expect(parseNumber("—")).toBeNull();
     expect(parseNumber("n/a")).toBeNull();
     expect(parseNumber("about ten")).toBeNaN();
+  });
+});
+
+describe("Excel percentages", () => {
+  it("knows a percentage format, but not a % inside quoted text", () => {
+    expect(isPercentFormat("0.0%")).toBe(true);
+    expect(isPercentFormat('0" %"')).toBe(false);
+    expect(isPercentFormat("#,##0")).toBe(false);
   });
 });
 
@@ -137,6 +148,8 @@ describe("matching each client's own indicators", () => {
     expect(matchIndicator("Revenue", K)).toBeNull();
     expect(matchIndicator("x", [...K, { ...K[0]!, id: "dup", code: null }].map((k) => ({ ...k, nameEn: "x" })))).toBeNull();
     expect(matchLabels(["Revenue", "complaints"], K, { Revenue: "k2" })).toEqual({ Revenue: "k2", complaints: "k1" });
+    // A label that is also an object's own word is only a label.
+    expect(matchLabels(["constructor", "toString"], K)).toEqual({ constructor: null, toString: null });
   });
 });
 

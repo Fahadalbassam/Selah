@@ -67,8 +67,18 @@ function resolveTarget(target: string): string {
   return out.join("/");
 }
 
-/** Read the visible worksheets of an .xlsx workbook. Formulas are never evaluated: a cell gives its saved value. */
-export function readXlsx(bytes: Uint8Array): SheetData[] {
+/** Whether a number format shows a percentage (outside quoted text). */
+export function isPercentFormat(code: string): boolean {
+  return /%/.test(code.replace(/"[^"]*"/g, "").replace(/\\./g, ""));
+}
+
+/**
+ * Read the visible worksheets of an .xlsx workbook. Formulas are never
+ * evaluated: a cell gives its saved value. With `percents`, a cell formatted
+ * as a percentage gives what it shows ("12.5%" for a stored 0.125), as a CSV
+ * export of the same sheet would.
+ */
+export function readXlsx(bytes: Uint8Array, options: { percents?: boolean } = {}): SheetData[] {
   const files = readEntries(bytes, (p) => p.startsWith("xl/") && (p.endsWith(".xml") || p.endsWith(".rels")));
   const workbookXml = files.get("xl/workbook.xml");
   if (!workbookXml) throw new OfficeFileError("not_office");
@@ -92,6 +102,7 @@ export function readXlsx(bytes: Uint8Array): SheetData[] {
 
   // Which cell styles show dates.
   const dateStyles = new Set<number>();
+  const percentStyles = new Set<number>();
   const stylesXml = files.get("xl/styles.xml");
   if (stylesXml) {
     const sheet = (parseXml(stylesXml, { arrays: ["xf", "numFmt"] }) as Node).styleSheet as Node | undefined;
@@ -100,6 +111,7 @@ export function readXlsx(bytes: Uint8Array): SheetData[] {
     list((sheet?.cellXfs as Node | undefined)?.xf).forEach((xf, i) => {
       const id = Number(attr(xf, "numFmtId") ?? 0);
       if (BUILTIN_DATE_FORMATS.has(id) || (custom.has(id) && isDateFormat(custom.get(id)!))) dateStyles.add(i);
+      else if (options.percents && (id === 9 || id === 10 || (custom.has(id) && isPercentFormat(custom.get(id)!)))) percentStyles.add(i);
     });
   }
 
@@ -129,7 +141,7 @@ export function readXlsx(bytes: Uint8Array): SheetData[] {
           truncated = true;
           continue;
         }
-        cells[col] = cellText(c, shared, dateStyles, date1904);
+        cells[col] = cellText(c, shared, dateStyles, date1904, percentStyles);
       }
       while (rows.length < rowNumber - 1) rows.push([]);
       rows.push(Array.from(cells, (v) => v ?? ""));
@@ -139,7 +151,7 @@ export function readXlsx(bytes: Uint8Array): SheetData[] {
   return sheets;
 }
 
-function cellText(c: Node, shared: string[], dateStyles: Set<number>, date1904: boolean): string {
+function cellText(c: Node, shared: string[], dateStyles: Set<number>, date1904: boolean, percentStyles: Set<number>): string {
   const type = attr(c, "t");
   const v = c.v === undefined ? undefined : stringText(c.v);
   switch (type) {
@@ -157,7 +169,9 @@ function cellText(c: Node, shared: string[], dateStyles: Set<number>, date1904: 
       return (v ?? "").slice(0, 10);
     default: {
       if (v === undefined || v === "") return "";
-      if (dateStyles.has(Number(attr(c, "s") ?? -1))) return serialToIso(Number(v), date1904) ?? v;
+      const style = Number(attr(c, "s") ?? -1);
+      if (dateStyles.has(style)) return serialToIso(Number(v), date1904) ?? v;
+      if (percentStyles.has(style) && Number.isFinite(Number(v))) return `${Number((Number(v) * 100).toPrecision(12))}%`;
       return v;
     }
   }

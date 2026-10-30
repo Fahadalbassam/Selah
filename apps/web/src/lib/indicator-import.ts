@@ -145,13 +145,14 @@ export function parseNumber(raw: string | number | null | undefined): number | n
     s = s.slice(1, -1);
   }
   s = s
-    .replace(/(sar|sr|usd|ر\.?\s?س|ريال|﷼|\$|%|٪)/gi, "")
+    .replace(/(sar|sr|usd|ر\.?\s?س|ريال|ریال|﷼|\$|%|٪)/gi, "")
     .replace(/[\s  ]/g, "")
     .replace(/٬/g, ",")
     .replace(/٫/g, ".");
   if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, "");
   else if (/^-?\d+,\d{1,2}$/.test(s)) s = s.replace(",", ".");
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
+  // Excel writes very large or small stored numbers as 1.5E+15.
+  if (!/^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(s)) return NaN;
   const n = Number(s);
   return negative ? -n : n;
 }
@@ -300,8 +301,9 @@ export function matchIndicator(label: string, indicators: IndicatorRef[]): strin
 
 /** Labels to indicators: the automatic matches, with a person's choices on top (null: leave the label out). */
 export function matchLabels(labels: string[], indicators: IndicatorRef[], chosen: Record<string, string | null> = {}): Record<string, string | null> {
-  const out: Record<string, string | null> = {};
-  for (const l of labels) out[l] = l in chosen ? chosen[l]! : matchIndicator(l, indicators);
+  // No prototype: a label such as "constructor" is only ever a label.
+  const out: Record<string, string | null> = Object.create(null);
+  for (const l of labels) out[l] = Object.hasOwn(chosen, l) ? chosen[l]! : matchIndicator(l, indicators);
   return out;
 }
 
@@ -343,14 +345,14 @@ export function planValues(
   const byId = new Map(indicators.map((k) => [k.id, k]));
   const seen = new Set<string>();
   return values.map((v) => {
-    const kpiId = labelMap[v.label] ?? null;
+    const kpiId = Object.hasOwn(labelMap, v.label) ? (labelMap[v.label] ?? null) : null;
     const base = { line: v.line, label: v.label, kpiId, period: v.period, value: v.value, note: v.note, current: null, status: null };
     const k = kpiId ? byId.get(kpiId) : undefined;
     const issue = (i: PlanIssue): PlannedValue => ({ ...base, issue: i });
     if (!k) return issue("unmatched");
     if (!k.active) return issue("inactive");
     if (opts.connection && !k.feedOn) return issue("not_connected");
-    if (v.value === null || Number.isNaN(v.value)) return issue("bad_value");
+    if (v.value === null || !Number.isFinite(v.value) || Math.abs(v.value) > 1e12) return issue("bad_value");
     if (!v.period) return issue("no_period");
     const diff = monthsBetween(k.baselinePeriod, v.period);
     if (diff === 0) return issue("baseline");

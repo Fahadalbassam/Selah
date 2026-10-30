@@ -20,7 +20,7 @@ import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
 import { IndicatorsCard } from "@/components/indicators/indicators-card";
 import { listIndicators } from "@/services/indicators";
-import { dataSettings } from "@/services/indicator-data";
+import { dataSetupStep } from "@/services/indicator-data";
 import { DataSetupCard } from "@/components/indicators/data-mode-picker";
 
 const WELCOME_DAYS = 14;
@@ -60,7 +60,7 @@ export default async function OverviewPage() {
         ? await listIndicators(tx, principal, principal.orgId, { includeInactive: true }).catch(() => null)
         : null,
     // A client's admin who has not yet said how its figures reach Selah sees a short, skippable setup step.
-    dataSetup: principal.role === "client_admin" ? await dataSettings(tx, principal, principal.orgId).catch(() => null) : null,
+    dataSetup: principal.role === "client_admin" ? await dataSetupStep(tx, principal, principal.orgId) : null,
   }));
   const [t, tW, tD, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getTranslations("indicatorData"), getLocale()]);
   const side = firm ? "firm" : "client";
@@ -87,13 +87,8 @@ export default async function OverviewPage() {
           dir={locale === "ar" ? "rtl" : "ltr"}
         />
       ) : null}
-      {dataSetup && !dataSetup.chosen && dataSetup.canChoose ? (
-        <DataSetupCard
-          title={tD("setup.title")}
-          hint={tD("setup.hint")}
-          clientId={dataSetup.client.id}
-          proposal={dataSetup.proposal ? { mode: dataSetup.proposal.mode, by: dataSetup.proposal.by } : null}
-        />
+      {dataSetup ? (
+        <DataSetupCard title={tD("setup.title")} hint={tD("setup.hint")} clientId={dataSetup.clientId} proposal={dataSetup.proposal} />
       ) : null}
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         {cards.map((c) => (

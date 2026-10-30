@@ -2,6 +2,7 @@ import "server-only";
 import { headers as nextHeaders } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { createAttemptLimiter } from "@/auth/attempts";
 import { auth } from "@/auth/auth";
 import { ForbiddenError, mustSetUpTwoFactor, type Principal } from "@/authz";
 import { asAnonymous, asUser, type Tx } from "@/db/client";
@@ -201,6 +202,10 @@ export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.Zo
  * validation and error handling as route(). tests/route-guard.test.ts lists
  * the routes allowed to use it.
  */
+// Wrong keys from one address: 20 an hour are logged, then refused unlogged,
+// so guessing can't flood the audit log.
+const wrongKeys = createAttemptLimiter({ max: 20, windowSeconds: 60 * 60 });
+
 export function keyRoute<B extends z.ZodType, K extends { runAs: string }>(
   options: { body: B; maxBytes: number; resolve: (tx: Tx, key: string) => Promise<K | null>; limit?: (key: K) => boolean },
   handler: (ctx: { tx: Tx; principal: Principal; key: K; body: z.infer<B> }) => Promise<unknown>,
@@ -214,6 +219,7 @@ export function keyRoute<B extends z.ZodType, K extends { runAs: string }>(
       if (!Number.isFinite(length) || length > options.maxBytes) return json({ error: "too_large" }, 413);
       const key = await asAnonymous((tx) => options.resolve(tx, token));
       if (!key) {
+        if (wrongKeys.take(ip ?? "unknown") !== null) return json({ error: "rate_limited" }, 429);
         await auditDetached({ actorId: null, action: "indicator.feed_push", resourceType: "indicator_feed", outcome: "deny", reason: "unknown key", ip }).catch(
           () => undefined,
         );

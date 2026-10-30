@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
 import { formatValue, periodLabel } from "@/lib/indicators";
-import { detectShape, matchLabels, planCounts, planValues, readValues, type Layout, type TableShape } from "@/lib/indicator-import";
+import { MAX_IMPORT_VALUES, detectShape, matchLabels, planCounts, planValues, readValues, type Layout, type TableShape } from "@/lib/indicator-import";
 import type { IndicatorImportContext } from "@/services/indicator-data";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,7 @@ function errorKey(status: number, message: string | undefined): string {
   if (m.includes("nothing to import")) return "nothing";
   if (m.includes("expired")) return "expired";
   if (m.includes("rows with errors")) return "changed";
+  if (m.includes("too many")) return "tooMany";
   if (m.includes("shares no files")) return "typed";
   return "generic";
 }
@@ -71,7 +72,7 @@ export function IndicatorImportWizard({ clientId, ctx, onBehalf }: { clientId: s
   const [sheet, setSheet] = useState(0);
   const [shape, setShape] = useState<TableShape | null>(null);
   const [chosen, setChosen] = useState<Record<string, string | null>>({});
-  const [corrections, setCorrections] = useState(true);
+  const [corrections, setCorrections] = useState(false);
 
   const active = ctx.indicators.filter((k) => k.active);
   const name = (id: string) => {
@@ -123,18 +124,24 @@ export function IndicatorImportWizard({ clientId, ctx, onBehalf }: { clientId: s
     if (!(await confirm(t("review.confirm", { add: counts.add, correct: counts.correct })))) return;
     setBusy(true);
     setError(null);
-    const values = plan
-      .filter((p) => p.status === "add" || p.status === "correct")
-      .map((p) => ({ line: p.line, label: p.label, kpiId: p.kpiId!, period: p.period!, value: p.value!, note: p.note }));
+    const saved = counts.add + counts.correct;
     try {
       const res = await fetch(`/api/clients/${clientId}/indicator-data/import/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: parsed!.token, corrections, values }),
+        body: JSON.stringify({
+          token: parsed!.token,
+          sheet,
+          rows: rows ?? [],
+          shape,
+          chosen,
+          corrections,
+          expect: { add: counts.add, correct: counts.correct },
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       if (!res.ok) return setError(errorKey(res.status, body.message));
-      toast.success(t("review.done", { n: values.length }));
+      toast.success(t("review.done", { n: saved }));
       router.push(`/indicators/data?client=${clientId}`);
       router.refresh();
     } catch {
@@ -144,7 +151,7 @@ export function IndicatorImportWizard({ clientId, ctx, onBehalf }: { clientId: s
     }
   }
 
-  const errorText = error ? t(`errors.${error}`) : null;
+  const errorText = error ? t(`errors.${error}`, { max: MAX_IMPORT_VALUES }) : null;
   const header = shape ? (rows?.[shape.headerRow] ?? []) : [];
   const colOptions = header.map((h, i) => ({ value: String(i), label: `${letters(i)}${h ? ` · ${h.slice(0, 40)}` : ""}` }));
   const colSelect = (id: string, labelKey: string, value: number | null, onChange: (v: number | null) => void, optional = false) => (
@@ -415,12 +422,16 @@ export function IndicatorImportWizard({ clientId, ctx, onBehalf }: { clientId: s
                 <p role="alert" className="text-xs text-destructive">
                   {errorText}
                 </p>
+              ) : counts.add + counts.correct > MAX_IMPORT_VALUES ? (
+                <p role="alert" className="text-xs text-destructive">
+                  {t("errors.tooMany", { max: MAX_IMPORT_VALUES })}
+                </p>
               ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setStep("match")}>
                   {t("review.back")}
                 </Button>
-                <Button disabled={busy || counts.add + counts.correct === 0} onClick={() => void save()}>
+                <Button disabled={busy || counts.add + counts.correct === 0 || counts.add + counts.correct > MAX_IMPORT_VALUES} onClick={() => void save()}>
                   {busy ? <BrandLoader tone="current" className="size-4" /> : null}
                   {t("review.save", { n: counts.add + counts.correct })}
                 </Button>

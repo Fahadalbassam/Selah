@@ -1,29 +1,30 @@
 import { z } from "zod";
-import { MAX_IMPORT_VALUES } from "@/lib/indicator-import";
 import { route } from "@/server/http";
 import { confirmIndicatorImport } from "@/services/indicator-data";
 
-// Step two: the figures a person reviewed, each matched to an indicator. The
-// server checks them all again and saves them as one batch.
+// Step two: the sheet a person reviewed, how they read it and what the review
+// showed. The server reads the figures itself from the signed cells, checks
+// them against the database and saves them as one batch.
+const column = z.number().int().min(0).max(199).nullable();
+
 export const POST = route(
   {
     params: z.object({ id: z.uuid() }),
     body: z.object({
-      token: z.string().min(1).max(2000),
+      token: z.string().min(1).max(8000),
+      sheet: z.number().int().min(0).max(29),
+      rows: z.array(z.array(z.string())).max(3000),
+      shape: z.object({
+        layout: z.enum(["rows", "columns", "list"]),
+        headerRow: z.number().int().min(0).max(2999),
+        labelCol: column,
+        periodCol: column,
+        valueCol: column,
+        noteCol: column,
+      }),
+      chosen: z.record(z.string(), z.uuid().nullable()),
       corrections: z.boolean(),
-      values: z
-        .array(
-          z.object({
-            line: z.number().int().min(1).max(1_000_000),
-            label: z.string().max(300),
-            kpiId: z.uuid(),
-            period: z.iso.date(),
-            value: z.number().finite().min(-1e12).max(1e12),
-            note: z.string().max(1000).nullable(),
-          }),
-        )
-        .min(1)
-        .max(MAX_IMPORT_VALUES),
+      expect: z.object({ add: z.number().int().min(0), correct: z.number().int().min(0) }),
     }),
   },
   ({ tx, principal, params, body }) => confirmIndicatorImport(tx, principal, params.id, body),

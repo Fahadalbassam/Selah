@@ -5117,7 +5117,8 @@
       "changed": "Some figures changed since you checked them. Review the file again.",
       "typed": "This client shares no files for its indicators.",
       "generic": "That didn't work. Try again.",
-      "empty": "Choose a file."
+      "empty": "Choose a file.",
+      "tooMany": "At most {max} figures can be saved at once. Split the file, or leave out some indicators."
     },
     "upload": {
       "title": "The file",
