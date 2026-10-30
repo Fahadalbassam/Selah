@@ -13,7 +13,7 @@ services:
   # PDF exports for the web app run outside Docker (npm run walkthrough):
   # the same renderer and flags as "pdf", with a port on this machine only.
   pdf-local:
-    image: gotenberg/gotenberg:8.38.1-chromium
+    image: gotenberg/gotenberg:8.39.0-chromium
     command:
       - gotenberg
       - --chromium-disable-javascript=true
