@@ -379,6 +379,13 @@
       "when": 1792918551884,
       "tag": "0066_assistant_all_clients",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1793330971740,
+      "tag": "0067_indicator_data",
+      "breakpoints": true
     }
   ]
 }

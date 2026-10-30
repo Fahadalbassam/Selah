@@ -20,6 +20,8 @@ import { ClientProgress } from "@/components/client-progress";
 import { clientOverview } from "@/services/client-overview";
 import { IndicatorsCard } from "@/components/indicators/indicators-card";
 import { listIndicators } from "@/services/indicators";
+import { dataSetupStep } from "@/services/indicator-data";
+import { DataSetupCard } from "@/components/indicators/data-mode-picker";
 
 const WELCOME_DAYS = 14;
 // Where each role's three welcome steps lead, in the order of messages welcome.steps.<role>.
@@ -41,7 +43,7 @@ function firstName(v: { name: string; nameAlt: string | null }, locale: string) 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm, overview, indicators, viewer, isNew } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview, indicators, viewer, isNew, dataSetup } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
     viewer: await getViewer(tx, principal),
@@ -57,8 +59,10 @@ export default async function OverviewPage() {
       principal.role === "client_admin" || principal.role === "client_manager"
         ? await listIndicators(tx, principal, principal.orgId, { includeInactive: true }).catch(() => null)
         : null,
+    // A client's admin who has not yet said how its figures reach Selah sees a short, skippable setup step.
+    dataSetup: principal.role === "client_admin" ? await dataSetupStep(tx, principal, principal.orgId) : null,
   }));
-  const [t, tW, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getLocale()]);
+  const [t, tW, tD, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getTranslations("indicatorData"), getLocale()]);
   const side = firm ? "firm" : "client";
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
 
@@ -82,6 +86,9 @@ export default async function OverviewPage() {
           dismissLabel={tW("dismiss")}
           dir={locale === "ar" ? "rtl" : "ltr"}
         />
+      ) : null}
+      {dataSetup ? (
+        <DataSetupCard title={tD("setup.title")} hint={tD("setup.hint")} clientId={dataSetup.clientId} proposal={dataSetup.proposal} />
       ) : null}
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         {cards.map((c) => (

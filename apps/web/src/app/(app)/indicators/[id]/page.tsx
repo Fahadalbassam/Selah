@@ -215,6 +215,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
                                   <p className="text-muted-foreground tabular-nums">{when(v.enteredAt)}</p>
                                   <div className="flex flex-wrap gap-1">
                                     {v.onBehalf ? <Badge variant="outline">{t("onBehalf")}</Badge> : null}
+                                    {v.channel !== "typed" ? <Badge variant="outline">{t(`channels.${v.channel}`)}</Badge> : null}
                                     {p.corrected ? <Badge variant="outline">{t("correctedBadge")}</Badge> : null}
                                     {v.checkedAt ? (
                                       <ToneBadge tone="neutral" className="whitespace-normal">

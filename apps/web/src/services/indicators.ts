@@ -39,6 +39,7 @@ export interface IndicatorInput {
   targetDate: string | null;
   source: string | null;
   departmentId: string | null;
+  code?: string | null;
 }
 
 const resource = (p: Principal, orgId: string, departmentId: string | null = null): Resource => ({
@@ -67,6 +68,8 @@ const columns = {
   target: clientKpis.target,
   targetDate: clientKpis.targetDate,
   source: clientKpis.source,
+  code: clientKpis.code,
+  feedOn: clientKpis.feedOn,
   active: clientKpis.active,
   createdAt: clientKpis.createdAt,
 };
@@ -197,13 +200,18 @@ export async function listIndicators(
         .where(and(eq(departments.orgId, clientOrgId), eq(departments.active, true)))
         .orderBy(asc(departments.nameAr))
     : [];
+  // How figures reach Selah for this client (indicator data): files or a connection offer an import.
+  const { rows: mode } = await tx.execute<{ mode: "typed" | "files" | "connected" }>(sql`select app_kpi_data_mode(${clientOrgId}::uuid)::text as mode`);
+  const canReport = can(principal, "indicator.report", clientOrgId);
   return {
     client: { id: client.id, name: client.name, nameAr: client.nameAr },
     today,
     indicators,
     counts: countIndicators(active.map((i) => i.summary)),
     canManage: can(principal, "indicator.manage", clientOrgId),
-    canReport: can(principal, "indicator.report", clientOrgId),
+    canReport,
+    dataMode: mode[0]?.mode ?? "typed",
+    canImport: canReport && (mode[0]?.mode ?? "typed") !== "typed",
     departments: departmentOptions,
   };
 }
@@ -238,6 +246,7 @@ export async function getIndicator(tx: Tx, principal: Principal, id: string, tod
       enteredById: clientKpiValues.enteredBy,
       enteredAt: clientKpiValues.enteredAt,
       onBehalf: clientKpiValues.onBehalf,
+      channel: clientKpiValues.channel,
       supersedesId: clientKpiValues.supersedesId,
       checkedBy: checker.name,
       checkedAt: clientKpiValues.checkedAt,
@@ -383,6 +392,7 @@ export async function createIndicator(tx: Tx, principal: Principal, clientOrgId:
       target: v.target ?? null,
       targetDate: input.targetDate,
       source: v.source ?? null,
+      code: input.code ?? null,
       createdBy: principal.userId,
     })
     .returning({ id: clientKpis.id });

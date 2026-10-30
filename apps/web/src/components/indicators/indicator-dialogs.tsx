@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { INDICATOR_DIRECTIONS, INDICATOR_FREQUENCIES, INDICATOR_LIMITS as L, periodLabel, type IndicatorFrequency } from "@/lib/indicators";
+import { INDICATOR_TEMPLATES, TEMPLATE_AREAS, type IndicatorTemplate } from "@/lib/indicator-templates";
 
 /** Maps a data rule's words (or the route's) to a message key under indicators.errors. */
 function indicatorError(message: string | undefined, error: string) {
@@ -28,6 +29,7 @@ function indicatorError(message: string | undefined, error: string) {
   if (m.includes("someone other")) return "ownValue";
   if (m.includes("checked, once") || m.includes("was corrected")) return "checked";
   if (m.includes("department")) return "department";
+  if (m.includes("refused by a data rule")) return "codeTaken";
   return error === "invalid" ? "invalid" : "cannot";
 }
 
@@ -85,6 +87,7 @@ export interface IndicatorValues {
   targetDate: string | null;
   source: string | null;
   departmentId: string | null;
+  code?: string | null;
 }
 
 const number = (v: FormDataEntryValue | null) => {
@@ -120,7 +123,19 @@ export function IndicatorDialog({
   const [direction, setDirection] = useState(indicator?.direction ?? "higher_better");
   const [frequency, setFrequency] = useState(indicator?.frequency ?? "monthly");
   const [department, setDepartment] = useState(indicator?.departmentId ?? defaultDepartmentId ?? "company");
+  // A new one can start from a common indicator; its fields fill in and stay editable.
+  const [preset, setPreset] = useState<IndicatorTemplate | null>(null);
   const { busy, error, setError, send } = useSend();
+  const v = indicator ?? (preset ? { ...preset, definition: ar ? preset.definitionAr : preset.definitionEn, code: preset.key } : null);
+
+  function choosePreset(key: string) {
+    const p = INDICATOR_TEMPLATES.find((x) => x.key === key) ?? null;
+    setPreset(p);
+    if (p) {
+      setDirection(p.direction);
+      setFrequency(p.frequency);
+    }
+  }
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -133,12 +148,14 @@ export function IndicatorDialog({
     if (!text("nameAr") && !text("nameEn")) return setError("name");
     if (values === null || Number.isNaN(values) || (target !== null && Number.isNaN(target))) return setError("number");
     if ((target === null) !== (targetDate === null)) return setError("targetPair");
+    if (text("code") && !/^[a-z0-9][a-z0-9_.-]{0,39}$/i.test(text("code")!)) return setError("code");
     const body = {
       nameAr: text("nameAr"),
       nameEn: text("nameEn"),
       definition: text("definition"),
       unit: text("unit") ?? "",
       source: text("source"),
+      code: text("code")?.toLowerCase() ?? null,
       target,
       targetDate,
       departmentId: department === "company" ? null : department,
@@ -168,24 +185,49 @@ export function IndicatorDialog({
             <DialogTitle>{indicator ? t("editTitle") : t("newTitle")}</DialogTitle>
             <DialogDescription>{t("newHint")}</DialogDescription>
           </DialogHeader>
+          {indicator ? null : (
+            <div className="grid gap-2 rounded-lg border bg-surface p-3 text-surface-foreground">
+              <Label htmlFor="k-template">{t("template.label")}</Label>
+              <Select value={preset?.key ?? "own"} onValueChange={choosePreset}>
+                <SelectTrigger id="k-template" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="own">{t("template.own")}</SelectItem>
+                  {TEMPLATE_AREAS.map((area) => (
+                    <SelectGroup key={area}>
+                      <SelectLabel>{t(`template.areas.${area}`)}</SelectLabel>
+                      {INDICATOR_TEMPLATES.filter((x) => x.area === area).map((x) => (
+                        <SelectItem key={x.key} value={x.key}>
+                          {ar ? x.nameAr : x.nameEn}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("template.hint")}</p>
+            </div>
+          )}
+          <div key={preset?.key ?? "own"} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="k-name-ar">{t("fields.nameAr")}</Label>
-              <Input id="k-name-ar" name="nameAr" dir="rtl" maxLength={L.name} defaultValue={indicator?.nameAr ?? ""} placeholder={t("fields.nameArPlaceholder")} />
+              <Input id="k-name-ar" name="nameAr" dir="rtl" maxLength={L.name} defaultValue={v?.nameAr ?? ""} placeholder={t("fields.nameArPlaceholder")} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="k-name-en">{t("fields.nameEn")}</Label>
-              <Input id="k-name-en" name="nameEn" dir="ltr" maxLength={L.name} defaultValue={indicator?.nameEn ?? ""} placeholder={t("fields.nameEnPlaceholder")} />
+              <Input id="k-name-en" name="nameEn" dir="ltr" maxLength={L.name} defaultValue={v?.nameEn ?? ""} placeholder={t("fields.nameEnPlaceholder")} />
             </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="k-def">{t("fields.definition")}</Label>
-            <Textarea id="k-def" name="definition" rows={2} dir="auto" maxLength={L.definition} defaultValue={indicator?.definition ?? ""} placeholder={t("fields.definitionPlaceholder")} />
+            <Textarea id="k-def" name="definition" rows={2} dir="auto" maxLength={L.definition} defaultValue={v?.definition ?? ""} placeholder={t("fields.definitionPlaceholder")} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="k-unit">{t("fields.unit")}</Label>
-              <Input id="k-unit" name="unit" required dir="auto" maxLength={L.unit} defaultValue={indicator?.unit ?? ""} placeholder={t("fields.unitPlaceholder")} />
+              <Input id="k-unit" name="unit" required dir="auto" maxLength={L.unit} defaultValue={v?.unit ?? ""} placeholder={t("fields.unitPlaceholder")} />
             </div>
             {departments.length ? (
               <div className="grid gap-2">
@@ -271,6 +313,12 @@ export function IndicatorDialog({
           <div className="grid gap-2">
             <Label htmlFor="k-source">{t("fields.source")}</Label>
             <Input id="k-source" name="source" dir="auto" maxLength={L.source} defaultValue={indicator?.source ?? ""} placeholder={t("fields.sourcePlaceholder")} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="k-code">{t("fields.code")}</Label>
+            <Input id="k-code" name="code" dir="ltr" maxLength={40} defaultValue={v?.code ?? ""} placeholder="complaints" className="font-mono" />
+            <p className="text-xs text-muted-foreground">{t("fields.codeHint")}</p>
+          </div>
           </div>
           <Footer busy={busy} error={error} label={indicator ? t("save") : t("create")} onCancel={() => setOpen(false)} />
         </form>

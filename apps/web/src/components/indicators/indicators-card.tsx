@@ -1,10 +1,11 @@
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Gauge } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, DatabaseZap, FileUp, Gauge } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatChange, formatValue, periodLabel, type IndicatorSummary } from "@/lib/indicators";
 import type { Indicator, IndicatorList } from "@/services/indicators";
@@ -104,6 +105,19 @@ export async function IndicatorsCard({
           </CardTitle>
           <CardDescription>{t("hint")}</CardDescription>
         </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        {scope === "client" && (data.canManage || data.canImport) ? (
+          <Link href={`/indicators/data?client=${data.client.id}`} data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <DatabaseZap />
+            {t(`dataModes.${data.dataMode}`)}
+          </Link>
+        ) : null}
+        {data.canImport && active.length ? (
+          <Link href={`/indicators/import?client=${data.client.id}`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <FileUp />
+            {t("importFigures")}
+          </Link>
+        ) : null}
         {data.canManage ? (
           <IndicatorDialog
             clientOrgId={data.client.id}
@@ -117,6 +131,7 @@ export async function IndicatorsCard({
             }
           />
         ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 px-5">
         {active.length ? (

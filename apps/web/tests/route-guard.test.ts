@@ -26,6 +26,12 @@ const PUBLIC: Record<string, string> = {
   "upload/[token]/route.ts": "someone sending a file through an upload link for one request item (F14)",
 };
 
+// Routes a client's own systems call with a key, through keyRoute(): no
+// session, the key looked up with no user set, then run as the key's person.
+const KEYED: Record<string, string> = {
+  "indicator-feed/route.ts": "a client's system sending indicator figures with its key",
+};
+
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -48,7 +54,7 @@ describe("API route guard", () => {
     expect(source).toMatch(/from "@\/server\/http"/);
     const exported = [...source.matchAll(/export\s+(?:const|async function|function)\s+(GET|POST|PUT|PATCH|DELETE)\b(.*)/g)];
     expect(exported.length).toBeGreaterThan(0);
-    const wrapper = file in PUBLIC ? "publicRoute" : "route";
+    const wrapper = file in PUBLIC ? "publicRoute" : file in KEYED ? "keyRoute" : "route";
     for (const [, method, rest] of exported) {
       expect(rest, `${method} must be "= ${wrapper}(...)"`).toMatch(new RegExp(`^\\s*=\\s*${wrapper}\\(`));
     }

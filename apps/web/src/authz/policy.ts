@@ -249,6 +249,10 @@ export const POLICY = {
   "indicator.report": { ...ALL_BUT_OWNER },
   "indicator.manage": { ...STAFF, client_admin: "any" },
   "indicator.check": { ...STAFF },
+  // How the client's figures reach Selah (typed, files, connected) and its
+  // connections: the client's admin; the firm only for a client with no
+  // accounts of its own (the database: app_kpi_data_admin).
+  "indicator.data": { ...STAFF, client_admin: "any" },
   // The deviation rules (v_deviations) over a project: overdue, stale,
   // slipped, churn, orphaned and disputed. For the firm.
   "deviation.read": { ...STAFF },
