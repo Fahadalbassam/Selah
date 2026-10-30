@@ -26,7 +26,7 @@ services:
   # S3-compatible private object storage. (MinIO's community image is no
   # longer published on Docker Hub, so the stack uses RustFS; any S3 store works.)
   storage:
-    image: rustfs/rustfs:1.0.3
+    image: rustfs/rustfs:1.0.4
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?set in .env}
       RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?set in .env}
