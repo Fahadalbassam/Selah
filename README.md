@@ -13,6 +13,8 @@ Selah connects consulting outputs (recommendations, policies, structures) to own
 - **Client projects** belong to a client organization. A consultant sees a client only when the firm admin assigns them to it (`client_assignments`), and then sees all of that client's projects. Other consultants don't.
 - **Client users** (client admin, client manager, action owner) see only their own organization. Firm documents stay `firm_private` unless someone chooses to share them with the client.
 
+New to the project? Start with [docs/handoff.md](docs/handoff.md): what Selah is, how it works, what is built and what it is built with.
+
 Design documents: the **Scope, Permissions and AI Access Spec** and the **Stack Decision Record** (shared separately). This repo implements them.
 
 ## Layout
