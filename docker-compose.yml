@@ -246,7 +246,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: cloudflare/cloudflared:2025.10.0
+    image: cloudflare/cloudflared:2026.10.4
     profiles: [tunnel]
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
