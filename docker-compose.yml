@@ -217,7 +217,7 @@ services:
   # direct: HTTPS on this server's ports 80 and 443; nothing outside it
   # sees the traffic. Use it before any real client file is uploaded.
   edge:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.11.7-alpine
     profiles: [direct]
     environment:
       SITE_ADDRESS: ${SITE_DOMAIN:-localhost}
@@ -234,7 +234,7 @@ services:
   # is listed as a sub-processor). In the tunnel's settings, route both
   # SITE_DOMAIN and FILES_DOMAIN to http://edge-tunnel:80.
   edge-tunnel:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.11.7-alpine
     profiles: [tunnel]
     environment:
       SITE_ADDRESS: http://${SITE_DOMAIN:-localhost}
