@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.15-slim
 WORKDIR /srv
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.txt .
