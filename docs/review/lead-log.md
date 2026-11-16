@@ -65,3 +65,25 @@ Also taken from it: D9 (now D8) restated, because the first recommendation contr
 Not taken: nothing was rejected outright. Three of its notes are recorded but not acted on in phase 1: the low-confidence note that the Assistant row looks active in the second capture (likely the capture itself), the browser's own "Choose File" text on the Arabic upload page, and the recount of "ways to send a file" and "status labels" (the definitions are in `work/code-recheck.md`).
 
 **Phase 1 ends here, at gate A.** Waiting for Fahad's answers to D1 to D8 in `page-audit.md` section 6.
+
+## Gate A answers (17 Nov 2026)
+
+| Decision | Fahad's answer | What it means for the work |
+|---|---|---|
+| D1 one action to a colleague | Yes | Client admin, and the project's coordinator and sponsor. Batch 4. |
+| D2 Trace, Today, Oversight | Yes | Trace removed in batch 3; Today becomes the home and Oversight the Actions filters in batch 2. |
+| D3 status words | Yes, six words | Verified and Closed stay apart. Batch 5. |
+| D4 observer and indicators | Yes | A consultant changes indicators only when staffed (not as observer) on one of the client's projects, or as lead or deputy. Batch 0. |
+| D5 "Off track" label | Yes: show counts in place of the label | Reverses feature F18; the weekly history keeps counts. Batch 2. |
+| D6 drafts and clients | Yes: clients do not see draft actions until the firm releases them | This reverses the earlier behaviour. Every screen, e-mail, export and assistant answer that relied on it is found and fixed together, and listed here when done. Moved into batch 0, because it is a wrong-person fix. |
+| D7 the firm's name on signed-out pages and mails | Yes, from the firm's own record, never from the code | Batch 1. |
+| D8 department limits | Rule accepted: a department-limited person sees nothing by title from other departments. Fix the four leaks now, in batch 0. | The agenda rebuild waits: Fahad wants the two options side by side, with what each costs and leaves visible, and answers that part only. Until then the leak is closed without a rebuild (the stored agenda's lists are not shown to a reader with limits). |
+
+Also from Fahad:
+- **Order.** Batch 0 first and finished fully before batch 1. The wrong-person leaks are privacy bugs and come before any tidying. Every leak gets a test so it cannot come back.
+- **Merging.** A pull request may be merged once CI is green and a code review finds nothing blocking. No production changes, no rewriting git history.
+- **GitHub.** Permission to run `gh auth login --web` on this PC; he finishes the sign-in in the browser. Then pull requests for the three pushed branches.
+- **Inputs.** He will copy the October review and the research folder into `docs/review/inputs/`. When they are there: check the audit against the full review and report only what changes.
+- Then continue to the next gate.
+
+Batch 0 is larger than "one or two pull requests": it is split by area so that each can be reviewed on its own (privacy leaks; drafts; on-screen bugs; signed-out pages; test dates).
