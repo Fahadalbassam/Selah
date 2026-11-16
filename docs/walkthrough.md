@@ -37,7 +37,7 @@ $env:SELAH_INSTANCE = "review"    # bash: export SELAH_INSTANCE=review
 npm run walkthrough -- --fresh
 ```
 
-That copy gets its own containers and data (`selah-review-…`) and its own ports, each ten above the usual one: Selah on http://localhost:3010, the mail on http://localhost:8035. `--fresh`, `stop:local` and `reset:local` there only touch that copy. Set `SELAH_PORT_OFFSET` for a different distance (20 gives 3020). Keep the variable set for every command you run in that copy; without it the commands act on the first copy. The copy downloads the search model again (about 1.2 GB), and its `apps/web/.env.local` is written for its ports on the first run, so start it with the name from the beginning.
+That copy gets its own containers and data (`selah-review-…`) and its own ports, each ten above the usual one: Selah on http://localhost:3010, the mail on http://localhost:8035. `--fresh`, `stop:local` and `reset:local` there only touch that copy. Set `SELAH_PORT_OFFSET` for a different distance, in tens (20 gives 3020). The end-to-end suite runs in the first copy only; `test:all` in a named copy skips it. Keep the variable set for every command you run in that copy; without it the commands act on the first copy. The copy downloads the search model again (about 1.2 GB), and its `apps/web/.env.local` is written for its ports on the first run, so start it with the name from the beginning.
 
 Two things the team may notice:
 

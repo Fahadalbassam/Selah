@@ -41,8 +41,9 @@ if (INSTANCE && !/^[a-z0-9]{1,16}$/.test(INSTANCE)) {
   process.exit(1);
 }
 const OFFSET = INSTANCE ? Number(process.env.SELAH_PORT_OFFSET || 10) : 0;
-if (!Number.isInteger(OFFSET) || OFFSET < 0 || OFFSET > 1000) {
-  console.error("[selah] SELAH_PORT_OFFSET must be a whole number from 0 to 1000");
+// Tens only: a smaller step would land one of Selah's ports on another (3000 and 3001).
+if (INSTANCE && (!Number.isInteger(OFFSET) || OFFSET < 10 || OFFSET > 1000 || OFFSET % 10 !== 0)) {
+  console.error("[selah] SELAH_PORT_OFFSET must be 10, 20, 30 ... up to 1000");
   process.exit(1);
 }
 /** Compose's project name: the prefix of every container and volume. */
@@ -211,7 +212,7 @@ function ensureEnvFiles() {
       SEED_PASSWORD: root.SEED_PASSWORD,
       SMTP_URL: `smtp://localhost:${P(1025)}`,
       MAIL_FROM: root.MAIL_FROM,
-      ...(INSTANCE ? { APP_URL, S3_ENDPOINT: `http://localhost:${P(9000)}`, AI_SERVICE_URL: `http://localhost:${P(8000)}`, CLAMD_PORT: String(P(3310)) } : {}),
+      ...(INSTANCE ? { SELAH_INSTANCE: INSTANCE, APP_URL, S3_ENDPOINT: `http://localhost:${P(9000)}`, AI_SERVICE_URL: `http://localhost:${P(8000)}`, CLAMD_PORT: String(P(3310)) } : {}),
       // Local development only; the app refuses both in production. With no
       // scanner host, uploads are kept as "skipped"; with one that is down,
       // every upload is refused. --full sets it.
@@ -220,7 +221,22 @@ function ensureEnvFiles() {
       TWO_FACTOR_REQUIRED: "false",
     });
   }
-  return { root, web: parseEnv(WEB_ENV) };
+  const web = parseEnv(WEB_ENV);
+  // apps/web/.env.local holds this copy's ports, so it belongs to one copy:
+  // the name it was written for must be the name in use now. Otherwise a
+  // command here would read, or with --fresh delete, another copy's data.
+  const written = web.SELAH_INSTANCE || "";
+  if (written !== INSTANCE) {
+    fail(
+      written
+        ? `this folder is the copy named "${written}" (apps/web/.env.local). Set SELAH_INSTANCE=${written} and run the command again.`
+        : `apps/web/.env.local here was written for the first copy, but SELAH_INSTANCE=${INSTANCE} is set. Unset it, or delete apps/web/.env.local to have it written for this copy.`,
+    );
+  }
+  if (INSTANCE && web.DATABASE_OWNER_URL && !web.DATABASE_OWNER_URL.includes(`:${P(5432)}/`)) {
+    fail(`apps/web/.env.local was written for another SELAH_PORT_OFFSET. Delete it to have it written again for ${OFFSET}.`);
+  }
+  return { root, web };
 }
 
 // ---------- shared steps ----------
@@ -530,6 +546,9 @@ async function test(flags) {
 
   if (quick) {
     say("skipping the end-to-end tests (--quick)");
+  } else if (INSTANCE) {
+    // The end-to-end stack and its tests use the first copy's addresses (port 3000).
+    say("skipping the end-to-end tests: they run in the first copy only (without SELAH_INSTANCE)");
   } else {
     if (await portOpen(3000)) {
       const r = docker(["inspect", "-f", "{{.State.Running}}", `${PROJECT}-web-1`], { allowFail: true, quiet: true });
