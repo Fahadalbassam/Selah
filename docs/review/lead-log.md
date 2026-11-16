@@ -87,3 +87,21 @@ Also from Fahad:
 - Then continue to the next gate.
 
 Batch 0 is larger than "one or two pull requests": it is split by area so that each can be reviewed on its own (privacy leaks; drafts; on-screen bugs; signed-out pages; test dates).
+
+## Batch 0 (started 17 Nov 2026)
+
+**Pull requests.** GitHub sign-in done by Fahad. #150 (the broken test date) merged after green checks and a code review with no findings. #151 (second copy) and #152 (audit files) were red only in the database check, because `main` still had the broken test; `main` was merged into both branches (no history rewritten) and their checks are running again.
+
+**A failure, explained.** The first full test run on my copy ended with "failed". Two database tests failed: one because of the fixed date (a real fault on `main`, fixed in #150), one because it timed out while the page captures were using the machine (it passes when run alone). The independent reviewer also stopped once at a usage limit and was resumed from its saved work. Neither left anything broken.
+
+**Inputs arrived.** Fahad copied the October review (`plan/`) and the `research/` folder into `docs/review/inputs/` on 17 Nov. A helper is checking the audit against the full review; only what changes will be reported.
+
+**Builders, wave 1** (each in its own working copy with its own test database; briefs follow `work/build-brief.md`):
+
+| Builder | Branch | Task | Status |
+|---|---|---|---|
+| Privacy leaks | `batch0/privacy-leaks` | Recommendation page, department meetings, the activity record, the agenda (closed without a rebuild), the shared report, the Departments links, the observer on indicators (D4), raw status keys and the page error on meetings, the "6 gaps" line. A test per leak that fails without the fix. | running |
+| Signed-out pages | `batch0/signed-out-pages` | Language switch, dead links, the waiting-time text, the page source size, the inquiry review step and focus, the upload page, right-to-left slips. | running |
+| Test dates | `batch0/test-dates` | Every test whose result depends on a fixed date that will pass. | running |
+
+Wave 2, after the privacy builder is merged (both change the database rules): drafts hidden from clients (D6), and the on-screen bugs.
