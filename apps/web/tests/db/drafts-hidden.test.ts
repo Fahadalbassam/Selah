@@ -475,3 +475,31 @@ describe("the departure report (a client admin switches a person off)", () => {
     expect((await svc(U.owner2, (tx, p) => getActionDetail(tx, p, A.leaverDraft))).action.title).toBe("Leaver draft canary");
   });
 });
+
+// ------------------------------------------------------------ review of the branch (drafts-hidden-review.md)
+describe("a deleted draft leaves nothing behind for the client", () => {
+  it("its activity and notices stay hidden from client people once the firm deletes it", async () => {
+    const gone = id(41);
+    // A notice written before the rule existed (before the action, so no trigger sees it), then the draft and its event.
+    await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'action.commented','action',$2)`, [U.owner, gone]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by) VALUES ($1,$2,$3,$4,'Deleted draft canary',$5,'draft',$6)`,
+      [gone, P, ACME, REC, U.owner, U.lead],
+    );
+    await owner.query(
+      `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, to_state) VALUES ($1,$2,$3,'action',$4,'created','draft')`,
+      [P, ACME, U.lead, gone],
+    );
+    expect((await as(U.lead, (c) => c.query(`DELETE FROM actions WHERE id = $1`, [gone]), true)).rowCount).toBe(1);
+    for (const [role, uid] of Object.entries(CLIENT_ROLES)) {
+      expect(await rowsAs(uid, `SELECT event FROM activity_events WHERE entity_id = $1`, [gone]), role).toEqual([]);
+      expect(await rowsAs(uid, `SELECT 1 FROM notifications WHERE entity_id = $1`, [gone]), role).toEqual([]);
+      expect((await rowsAs(uid, `SELECT app_action_visible_to_client($1) AS v`, [gone]))[0].v, role).toBe(false);
+    }
+    // The firm keeps its record, and nothing was deleted with the draft.
+    expect(await rowsAs(U.lead, `SELECT event FROM activity_events WHERE entity_id = $1`, [gone])).toEqual([{ event: "created" }]);
+    expect((await owner.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [gone])).rowCount).toBe(1);
+    // A row that names no action at all keeps its own rules.
+    expect((await rowsAs(U.cadmin, `SELECT app_action_visible_to_client(NULL) AS v`))[0].v).toBe(true);
+  });
+});
