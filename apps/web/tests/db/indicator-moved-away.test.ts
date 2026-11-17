@@ -265,6 +265,49 @@ describe("one notice for a value on the other side of the baseline", () => {
   });
 });
 
+describe("only an ended period is judged", () => {
+  // The running month (firm time), and the 1st of the next, when it has ended.
+  const thisMonth = `${firmToday().slice(0, 7)}-01`;
+  const nextMonth = (() => {
+    const [y, m] = thisMonth.split("-").map(Number) as [number, number];
+    return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  })();
+  const lastMonth = (() => {
+    const [y, m] = thisMonth.split("-").map(Number) as [number, number];
+    return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, "0")}-01`;
+  })();
+  const judge = async (today: string) => (await owner.query(`SELECT app_judge_kpi_periods($1::date) AS n`, [today])).rows[0].n as number;
+
+  it("a month-to-date value tells no one while the month runs; the monthly job judges the month once it has ended, on its latest value, once", async () => {
+    const first = await typed(U.cmgr, K.complaints, thisMonth, 42);
+    await typed(U.cmgr, K.complaints, thisMonth, 45, first.id);
+    expect(await told()).toEqual([]);
+    // The app cannot run the job.
+    await expect(sqlAs(U.cadmin, `SELECT app_judge_kpi_periods($1::date)`, [nextMonth])).rejects.toThrow(/permission denied/);
+    expect(await judge(nextMonth)).toBe(1);
+    const rows = await told();
+    expect(rows.map((r) => r.user_id).sort()).toEqual(TOLD);
+    // About the month's latest value, 45, not the first 42.
+    const current = (await owner.query(`SELECT id FROM client_kpi_values WHERE period = $1 AND value = 45`, [thisMonth])).rows[0].id;
+    expect(rows.every((r) => r.entity_id === current)).toBe(true);
+    expect(await judge(nextMonth)).toBe(0);
+    expect(await told()).toHaveLength(TOLD.length);
+  });
+
+  it("a running month that ends on the right side tells no one", async () => {
+    const first = await typed(U.cmgr, K.complaints, thisMonth, 42);
+    await typed(U.cmgr, K.complaints, thisMonth, 25, first.id);
+    expect(await judge(nextMonth)).toBe(0);
+    expect(await told()).toEqual([]);
+  });
+
+  it("a late figure for a month that has ended is judged when saved, even when the running month has a value", async () => {
+    await typed(U.cmgr, K.complaints, thisMonth, 25);
+    await typed(U.cmgr, K.complaints, lastMonth, 42);
+    expect(await whoFor(lastMonth)).toEqual(TOLD);
+  });
+});
+
 describe("the target date", () => {
   it("once it has passed, a latest value that has not reached the target tells them, even on the right side of the baseline", async () => {
     // Baseline 40, target 20 by 30 June 2026, lower is better: 35 is better than the baseline, short of the target.

@@ -129,7 +129,6 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
         kpiId: clientKpiValues.kpiId,
         period: clientKpiValues.period,
         value: clientKpiValues.value,
-        enteredAt: clientKpiValues.enteredAt,
         nameEn: clientKpis.nameEn,
         nameAr: clientKpis.nameAr,
         unit: clientKpis.unit,
@@ -154,7 +153,8 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
         direction: v.direction as IndicatorDirection,
         target: v.target === null ? null : Number(v.target),
         targetDate: v.targetDate,
-        targetPassed: v.targetDate !== null && firmToday(v.enteredAt) > v.targetDate,
+        // Set per notice below: the day the period was judged is the day the notice was written.
+        targetPassed: false,
         reader: principal.orgKind === "firm" ? "firm" : "client",
       });
     }
@@ -173,7 +173,8 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
 
   const items: NotificationItem[] = rows.map((r) => {
     const t = titles.get(r.entityId);
-    const f = r.entityType === "kpi_value" ? (facts.get(r.entityId) ?? null) : null;
+    const found = r.entityType === "kpi_value" ? facts.get(r.entityId) : undefined;
+    const f = found ? { ...found, targetPassed: found.targetDate !== null && firmToday(r.createdAt) > found.targetDate } : null;
     return {
       ...r,
       title: t?.title ?? null,

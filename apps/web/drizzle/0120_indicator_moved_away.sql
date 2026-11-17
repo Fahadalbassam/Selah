@@ -67,43 +67,109 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT app_kpi_id_readable(kid) AND EXISTS (SELECT 1 FROM app_kpi_moved_away_audience(kid) a WHERE a.user_id = app_uid())
 $$;
 --> statement-breakpoint
--- After a value is stored. Only the indicator's latest figure counts: a
--- period filled in or corrected behind a later one says nothing about where
--- the indicator is now. Once per indicator and period: a later correction,
--- either way, tells no one again, and one that brings the figure back to the
--- right side was never a notice. Whoever typed the figure or brought the
--- file in has just seen it and is not told; a sheet read or a system push
--- tells everyone, since no one looked.
-CREATE FUNCTION notify_kpi_moved_away() RETURNS trigger
+-- Whether a figure of an indicator counts as moved away, judged on a day: on
+-- the other side of the baseline from the chosen direction, or, once the
+-- target date has passed, short of the target.
+CREATE FUNCTION app_kpi_moved(kid uuid, v numeric, on_day date) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+  SELECT coalesce((
+    SELECT app_kpi_wrong_side(k.direction, k.baseline, v)
+      OR (coalesce(k.target_date < on_day, false) AND app_kpi_wrong_side(k.direction, k.target, v))
+    FROM client_kpis k WHERE k.id = kid), false)
+$$;
+--> statement-breakpoint
+-- A period's current value: the latest one nobody has replaced.
+CREATE FUNCTION app_kpi_current_value(kid uuid, p date) RETURNS client_kpi_values
+LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+  SELECT v.* FROM client_kpi_values v
+  WHERE v.kpi_id = kid AND v.period = p AND NOT EXISTS (SELECT 1 FROM client_kpi_values c WHERE c.supersedes_id = v.id)
+  ORDER BY v.entered_at DESC, v.id DESC LIMIT 1
+$$;
+--> statement-breakpoint
+-- Judge one ended period of an indicator, on its current value, once
+-- (kpi_moved_away_log). When it moved away the people told get the notice,
+-- about that value. Whoever typed the figure or brought the file in has seen
+-- it and is not told; a sheet read or a system push tells everyone, since no
+-- one looked. Returns whether anyone was told.
+CREATE FUNCTION app_kpi_judge(kid uuid, p date, on_day date) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
-  k client_kpis;
-  past_baseline boolean;
-  short_of_target boolean;
+  cur client_kpi_values;
   logged integer;
 BEGIN
-  IF EXISTS (SELECT 1 FROM client_kpi_values v WHERE v.kpi_id = NEW.kpi_id AND v.period > NEW.period) THEN
-    RETURN NULL;
+  cur := app_kpi_current_value(kid, p);
+  IF cur.id IS NULL OR NOT app_kpi_moved(kid, cur.value, on_day) THEN
+    RETURN false;
   END IF;
-  SELECT * INTO k FROM client_kpis WHERE id = NEW.kpi_id;
-  past_baseline := app_kpi_wrong_side(k.direction, k.baseline, NEW.value);
-  short_of_target := coalesce(k.target_date < app_firm_today(), false) AND app_kpi_wrong_side(k.direction, k.target, NEW.value);
-  IF NOT (past_baseline OR short_of_target) THEN
-    RETURN NULL;
-  END IF;
-  INSERT INTO kpi_moved_away_log (kpi_id, period, org_id, value_id) VALUES (NEW.kpi_id, NEW.period, NEW.org_id, NEW.id)
+  INSERT INTO kpi_moved_away_log (kpi_id, period, org_id, value_id) VALUES (kid, p, cur.org_id, cur.id)
     ON CONFLICT (kpi_id, period) DO NOTHING;
   GET DIAGNOSTICS logged = ROW_COUNT;
   IF logged = 0 THEN
-    RETURN NULL;
+    RETURN false;
   END IF;
   INSERT INTO notifications (user_id, kind, entity_type, entity_id)
-    SELECT a.user_id, 'indicator.moved_away', 'kpi_value', NEW.id FROM app_kpi_moved_away_audience(NEW.kpi_id) a
-    WHERE NEW.channel IN ('sheet', 'api') OR a.user_id IS DISTINCT FROM NEW.entered_by;
+    SELECT a.user_id, 'indicator.moved_away', 'kpi_value', cur.id FROM app_kpi_moved_away_audience(kid) a
+    WHERE cur.channel IN ('sheet', 'api') OR a.user_id IS DISTINCT FROM cur.entered_by;
+  RETURN true;
+END $$;
+--> statement-breakpoint
+-- After a value is stored. A period is judged only once it has ended: a
+-- month-to-date figure is never compared with a whole month's baseline, and
+-- a value for the running period waits for the monthly job
+-- (app_judge_kpi_periods). A value for a period that has ended (a late
+-- figure, an import of past months, a correction) is judged now, when it is
+-- the latest ended period with a value: one filled in or corrected behind a
+-- later ended one says nothing about where the indicator is now. Once per
+-- indicator and period: a later correction tells no one again.
+CREATE FUNCTION notify_kpi_moved_away() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  step interval;
+BEGIN
+  step := make_interval(months => app_kpi_months((SELECT k.frequency FROM client_kpis k WHERE k.id = NEW.kpi_id)));
+  IF (NEW.period + step)::date > app_firm_today() THEN
+    RETURN NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM client_kpi_values v
+             WHERE v.kpi_id = NEW.kpi_id AND v.period > NEW.period AND (v.period + step)::date <= app_firm_today()) THEN
+    RETURN NULL;
+  END IF;
+  PERFORM app_kpi_judge(NEW.kpi_id, NEW.period, app_firm_today());
   RETURN NULL;
 END $$;
 --> statement-breakpoint
 CREATE TRIGGER client_kpi_value_moved_away AFTER INSERT ON client_kpi_values FOR EACH ROW EXECUTE FUNCTION notify_kpi_moved_away();
+--> statement-breakpoint
+-- The monthly job, after app_remind_kpis: each active indicator of an
+-- active client has its latest ended period with a value judged, if it was
+-- not already told; a value saved while that period ran is judged here once
+-- the period has ended. Safe to run again. As the schema owner; returns how
+-- many periods told someone.
+CREATE FUNCTION app_judge_kpi_periods(today date) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  r record;
+  n integer := 0;
+BEGIN
+  IF app_uid() IS NOT NULL THEN
+    RAISE EXCEPTION 'periods are judged by the monthly job' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  FOR r IN
+    SELECT k.id, last.period FROM client_kpis k
+      JOIN organizations o ON o.id = k.org_id AND o.status = 'active'
+      CROSS JOIN LATERAL (
+        SELECT max(v.period) AS period FROM client_kpi_values v
+        WHERE v.kpi_id = k.id AND (v.period + make_interval(months => app_kpi_months(k.frequency)))::date <= today
+      ) last
+    WHERE k.active AND last.period IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM kpi_moved_away_log l WHERE l.kpi_id = k.id AND l.period = last.period)
+  LOOP
+    IF app_kpi_judge(r.id, r.period, today) THEN
+      n := n + 1;
+    END IF;
+  END LOOP;
+  RETURN n;
+END $$;
 --> statement-breakpoint
 -- The log is the database's own bookkeeping, like follow_up_log: no grant to the app.
 ALTER TABLE kpi_moved_away_log ENABLE ROW LEVEL SECURITY;
@@ -174,6 +240,7 @@ BEGIN
   RETURN n;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app_queue_digests(date), app_kpi_moved_away_audience(uuid), app_kpi_tells_me(uuid), app_kpi_wrong_side(kpi_direction, numeric, numeric) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_queue_digests(date), app_kpi_moved_away_audience(uuid), app_kpi_tells_me(uuid), app_kpi_wrong_side(kpi_direction, numeric, numeric),
+  app_kpi_moved(uuid, numeric, date), app_kpi_current_value(uuid, date), app_kpi_judge(uuid, date, date), app_judge_kpi_periods(date) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_kpi_tells_me(uuid) TO selah_app;

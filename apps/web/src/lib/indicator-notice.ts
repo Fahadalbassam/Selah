@@ -21,7 +21,7 @@ export interface MovedAwayFacts {
   direction: IndicatorDirection;
   target: number | null;
   targetDate: string | null;
-  /** The target's date had passed when the value was saved (firm day): the target is named too. */
+  /** The target's date had passed on the day the period was judged (firm day): the target is named too. */
   targetPassed: boolean;
   /** Who reads it: the client's own people are spoken to ("your company"), the firm reads "the client". */
   reader: "firm" | "client";
