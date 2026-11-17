@@ -104,6 +104,10 @@ export async function bookMeeting(
       .from(departments)
       .where(and(eq(departments.id, input.departmentId), eq(departments.orgId, project.orgId), eq(departments.active, true)));
     if (!d) throw new BadRequestError("that department is not an active department of this client");
+    // A department's meeting carries that department's agenda, so it is booked
+    // by people who see its work: the firm, the client's admin, its own people.
+    const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_dept_ok(${input.departmentId}::uuid, ${project.orgId}::uuid) as ok`);
+    if (!rows[0]?.ok) throw new BadRequestError("book a department's meeting for a department you are in");
   }
   const id = randomUUID();
   await tx.insert(meetings).values({

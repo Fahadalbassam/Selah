@@ -393,6 +393,13 @@
       "when": 1794872601828,
       "tag": "0068_left_out_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794873162386,
+      "tag": "0069_department_meetings",
+      "breakpoints": true
     }
   ]
 }
