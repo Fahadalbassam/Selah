@@ -1658,7 +1658,7 @@
     "totals": "The team, last 90 days",
     "reviewsDone": "Reviews done",
     "medianReview": "Median days to review",
-    "days": "{n} days",
+    "days": "{n, plural, one {# day} other {# days}}",
     "aging": {
       "d1_30": "1–30 days",
       "d31_60": "31–60 days",

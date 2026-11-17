@@ -34,6 +34,16 @@ describe("counts on the Projects cards (page audit 3.8)", () => {
     expect(count("ar", 4)).toBe("4 إجراءات");
     expect(count("ar", 11)).toBe("11 إجراءً");
   });
+
+  it("and the Team workload's days: 1 day, not 1 days (review 4)", () => {
+    const days = (locale: "ar" | "en", n: number) => createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "metrics" })("days", { n });
+    expect(days("en", 1)).toBe("1 day");
+    expect(days("en", 3)).toBe("3 days");
+    expect(days("en", 2.5)).toBe("2.5 days");
+    expect(days("ar", 1)).toBe("يوم واحد");
+    expect(days("ar", 2)).toBe("يومان");
+    expect(days("ar", 5)).toBe("5 أيام");
+  });
 });
 
 describe("history lines name a person without a gendered verb (page audit 3.8)", () => {
