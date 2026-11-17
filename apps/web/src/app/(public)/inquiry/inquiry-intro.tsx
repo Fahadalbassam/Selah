@@ -1,7 +1,6 @@
 "use client";
 
-import { Effect, Effects } from "@animate-ui/react/primitives/effects/effect";
-import { TypingText } from "@animate-ui/react/primitives/texts/typing";
+import { Effects } from "@animate-ui/react/primitives/effects/effect";
 import { useTranslations } from "next-intl";
 import { MessageSquare } from "@/components/animate-ui/icons/message-square";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
@@ -18,14 +17,14 @@ export function InquiryIntro() {
   const t = useTranslations("inquiry");
   return (
     <aside className="space-y-8 lg:sticky lg:top-28 lg:self-start">
-      <Effect fade slide={{ direction: "up", offset: 12 }} className="space-y-3">
+      {/* Plain text in the server's HTML, no entrance effect and no typing: the
+          title is the one line that says what the page is, so it shows at once,
+          before any script runs. */}
+      <div className="space-y-3">
         <p className="text-sm font-medium text-muted-foreground">{t("eyebrow")}</p>
-        <h1 className="min-h-[2lh] text-3xl font-semibold tracking-tight text-balance lg:text-4xl">
-          {/* Typed in once; screen readers get the whole heading at once. */}
-          <TypingText text={t("title")} duration={40} />
-        </h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance lg:text-4xl">{t("title")}</h1>
         <p className="max-w-md leading-relaxed text-muted-foreground">{t("lede")}</p>
-      </Effect>
+      </div>
       <section className="space-y-4">
         <h2 className="text-sm font-medium">{t("nextTitle")}</h2>
         <ol className="grid gap-3 md:grid-cols-3 lg:grid-cols-1">

@@ -10,6 +10,10 @@ services:
       SMTP_URL: smtp://mailpit:1025
     depends_on:
       mailpit: { condition: service_started }
+  # So the sub-processor list says what is true here: mail stays on this machine.
+  web:
+    environment:
+      SMTP_URL: smtp://mailpit:1025
   # PDF exports for the web app run outside Docker (npm run walkthrough):
   # the same renderer and flags as "pdf", with a port on this machine only.
   pdf-local:

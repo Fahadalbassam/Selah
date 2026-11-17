@@ -83,7 +83,11 @@ export function UploadForm({ token }: { token: string }) {
             <Label htmlFor="upload-file">{sent.length ? t("another") : t("file")}</Label>
             <Input id="upload-file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
             <p className="text-xs text-muted-foreground">
-              {t("rules", { types: ACCEPTED_EXTENSIONS.replaceAll(",", " "), mb: MAX_UPLOAD_BYTES / 1024 / 1024 })}
+              {/* The extensions are one left-to-right piece: loose inside the Arabic sentence, the dots and brackets land on the wrong sides. */}
+              {t.rich("rules", {
+                types: () => <bdi dir="ltr">{ACCEPTED_EXTENSIONS.replaceAll(",", " ")}</bdi>,
+                mb: MAX_UPLOAD_BYTES / 1024 / 1024,
+              })}
             </p>
           </div>
           <Button type="submit" disabled={busy} className="justify-self-start">

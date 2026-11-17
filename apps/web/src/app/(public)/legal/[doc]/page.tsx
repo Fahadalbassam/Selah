@@ -6,17 +6,42 @@ import { getTranslations } from "next-intl/server";
 import { ToneBadge } from "@/components/tone-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { env } from "@/env";
-import { edgeMode, LEGAL_DOCS, LEGAL_SLUGS, LEGAL_VERSIONS, legalDocFromSlug, type LegalDoc } from "@/lib/legal";
+import {
+  edgeMode,
+  LEGAL_DOCS,
+  LEGAL_SLUGS,
+  LEGAL_VERSIONS,
+  legalDocFromSlug,
+  splitPageAddresses,
+  SUBPROCESSOR_ROWS,
+  subprocessorsInUse,
+  type LegalDoc,
+} from "@/lib/legal";
 
 type Props = { params: Promise<{ doc: string }> };
+
+/**
+ * A text with the page addresses it names ("/legal/sub-processors") shown as
+ * links. Each is set left to right, so in Arabic the slash stays in front of
+ * the address. The text itself is not changed.
+ */
+function WithPageLinks({ text }: { text: string }) {
+  return splitPageAddresses(text).map((part, i) =>
+    part.href ? (
+      <Link key={i} href={part.href} dir="ltr" className="underline underline-offset-4 hover:text-foreground">
+        {part.text}
+      </Link>
+    ) : (
+      part.text
+    ),
+  );
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const doc = legalDocFromSlug((await params).doc);
   const t = await getTranslations("legal");
   return { title: doc ? t(`${doc}.title`) : t("metaTitle") };
 }
-
-const ROWS = ["edge", "mail", "llm"] as const;
 
 // The documents people accept at their first sign-in (terms, privacy notice,
 // AI-use notice), and the ones a client's legal and IT teams read before
@@ -29,11 +54,12 @@ export default async function LegalPage({ params }: Props) {
   const t = await getTranslations("legal");
   const sections = doc === "subprocessors" ? [] : (t.raw(`${doc}.sections`) as { title: string; body: string }[]);
   const version = doc in LEGAL_VERSIONS ? LEGAL_VERSIONS[doc as keyof typeof LEGAL_VERSIONS] : null;
-  // What this server knows about itself: how traffic comes in and where the model runs.
+  // What this server knows about itself: how traffic comes in, where mail
+  // goes and where the model runs. Every "in use" badge is read from its setting.
   const e = env();
   const edge = edgeMode(e.SELAH_EDGE);
   const hosted = e.LLM_PROVIDER !== "ollama";
-  const inUse = (row: (typeof ROWS)[number]) => (row === "llm" ? hosted : row === "edge" ? edge === "tunnel" : true);
+  const inUse = subprocessorsInUse(e);
   const facts =
     doc === "security"
       ? ([
@@ -51,7 +77,9 @@ export default async function LegalPage({ params }: Props) {
       <header className="space-y-2">
         {version ? <p className="text-sm text-muted-foreground">{t("version", { version: `\u2066${version}\u2069` })}</p> : null}
         <h1 className="text-2xl font-semibold text-balance">{t(`${doc}.title`)}</h1>
-        <p className="leading-relaxed text-muted-foreground">{t(`${doc}.intro`)}</p>
+        <p className="leading-relaxed text-muted-foreground">
+          <WithPageLinks text={t(`${doc}.intro`)} />
+        </p>
         {doc === "data_agreement" ? <p className="text-sm font-medium">{t("template")}</p> : null}
       </header>
 
@@ -80,12 +108,12 @@ export default async function LegalPage({ params }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {ROWS.map((r) => (
+              {SUBPROCESSOR_ROWS.map((r) => (
                 <TableRow key={r} className="align-top">
                   <TableCell className="min-w-36 whitespace-normal">
                     <p className="font-medium">{t(`subprocessors.rows.${r}.who`)}</p>
-                    <ToneBadge tone={inUse(r) ? "open" : "neutral"} className="mt-1">
-                      {inUse(r) ? t("inUse") : t("notInUse")}
+                    <ToneBadge tone={inUse[r] ? "open" : "neutral"} className="mt-1">
+                      {inUse[r] ? t("inUse") : t("notInUse")}
                     </ToneBadge>
                   </TableCell>
                   {(["what", "data", "where", "when"] as const).map((c) => (
@@ -103,7 +131,9 @@ export default async function LegalPage({ params }: Props) {
           {sections.map((s) => (
             <section key={s.title} className="space-y-1.5">
               <h2 className="font-medium">{s.title}</h2>
-              <p className="text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                <WithPageLinks text={s.body} />
+              </p>
             </section>
           ))}
         </div>

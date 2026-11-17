@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
+import { retryAfterProbe } from "@/lib/retry-after";
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-links";
 
 export function SignInForm() {
@@ -20,6 +21,14 @@ export function SignInForm() {
   const [busy, setBusy] = useState(false);
   // "wrong" for a bad password or code, "limited" after too many tries.
   const [failed, setFailed] = useState<false | "wrong" | "limited">(false);
+  // Minutes the server says to wait after too many tries: up to 15 for the
+  // per-account cap, one for the per-address limit; null if it gave no time.
+  const [wait, setWait] = useState<number | null>(null);
+  const limited = (minutes: number | null) => {
+    setWait(minutes);
+    setFailed("limited");
+  };
+  const limitedMessage = wait === null ? t("limitedNoTime") : t("limited", { minutes: wait });
   // After the password: the code from the authenticator app, or a backup code.
   // "link" once a sign-in link was asked for.
   const [step, setStep] = useState<"password" | "totp" | "backup" | "link">("password");
@@ -32,9 +41,10 @@ export function SignInForm() {
     if (!input?.reportValidity()) return;
     setBusy(true);
     setFailed(false);
-    const { error } = await authClient.signIn.magicLink({ email: input.value.trim(), callbackURL: "/" });
+    const probe = retryAfterProbe();
+    const { error } = await authClient.signIn.magicLink({ email: input.value.trim(), callbackURL: "/" }, probe.options);
     setBusy(false);
-    if (error?.status === 429) return setFailed("limited");
+    if (error?.status === 429) return limited(probe.minutes());
     setStep("link");
   }
 
@@ -48,14 +58,17 @@ export function SignInForm() {
     const form = new FormData(e.currentTarget);
     setBusy(true);
     setFailed(false);
-    const { data, error } = await authClient.signIn.email({
-      email: String(form.get("email")),
-      password: String(form.get("password")),
-    });
+    const probe = retryAfterProbe();
+    const { data, error } = await authClient.signIn.email(
+      { email: String(form.get("email")), password: String(form.get("password")) },
+      probe.options,
+    );
     setBusy(false);
     if (error) {
       // Same message for every failure, so it doesn't reveal which accounts exist.
-      setFailed(error.status === 429 ? "limited" : "wrong");
+      // The cap counts tries on the address typed, whether or not it has an account.
+      if (error.status === 429) limited(probe.minutes());
+      else setFailed("wrong");
       return;
     }
     if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) return setStep("totp");
@@ -67,10 +80,13 @@ export function SignInForm() {
     const code = String(new FormData(e.currentTarget).get("code")).replace(/\s+/g, "");
     setBusy(true);
     setFailed(false);
+    const probe = retryAfterProbe();
     const { error } =
-      step === "totp" ? await authClient.twoFactor.verifyTotp({ code }) : await authClient.twoFactor.verifyBackupCode({ code });
+      step === "totp"
+        ? await authClient.twoFactor.verifyTotp({ code }, probe.options)
+        : await authClient.twoFactor.verifyBackupCode({ code }, probe.options);
     setBusy(false);
-    if (error) return setFailed(error.status === 429 ? "limited" : "wrong");
+    if (error) return error.status === 429 ? limited(probe.minutes()) : setFailed("wrong");
     done();
   }
 
@@ -114,7 +130,7 @@ export function SignInForm() {
                 className="text-center font-mono tracking-widest"
               />
             </div>
-            {failed ? <p className="text-sm text-destructive">{t(failed === "limited" ? "limited" : "codeError")}</p> : null}
+            {failed ? <p className="text-sm text-destructive">{failed === "limited" ? limitedMessage : t("codeError")}</p> : null}
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {t("verify")}
@@ -157,7 +173,7 @@ export function SignInForm() {
             </div>
             <Input id="password" name="password" type="password" autoComplete="current-password" dir="ltr" required />
           </div>
-          {failed ? <p className="text-sm text-destructive">{t(failed === "limited" ? "limited" : "error")}</p> : null}
+          {failed ? <p className="text-sm text-destructive">{failed === "limited" ? limitedMessage : t("error")}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <BrandLoader tone="current" className="size-4" /> : null}
             {busy ? t("submitting") : t("submit")}

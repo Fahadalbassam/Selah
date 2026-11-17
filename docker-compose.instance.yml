@@ -1,0 +1,22 @@
+# A second copy of Selah beside the first, on the same machine. Added by
+# scripts/local.mjs when SELAH_INSTANCE is set (docs/walkthrough.md, "A second
+# copy on the same machine"); it also sets the SELAH_PORT_* values. Every port
+# still binds to 127.0.0.1 only. The project name (-p selah-<name>) gives the
+# copy its own containers and volumes.
+services:
+  db:
+    ports: !override ["127.0.0.1:${SELAH_PORT_DB:?set by scripts/local.mjs}:5432"]
+  storage:
+    ports: !override ["127.0.0.1:${SELAH_PORT_S3:?set by scripts/local.mjs}:9000"]
+  clamav:
+    ports: !override ["127.0.0.1:${SELAH_PORT_CLAMD:?set by scripts/local.mjs}:3310"]
+  ollama:
+    ports: !override ["127.0.0.1:${SELAH_PORT_OLLAMA:?set by scripts/local.mjs}:11434"]
+  ai:
+    ports: !override ["127.0.0.1:${SELAH_PORT_AI:?set by scripts/local.mjs}:8000"]
+  web:
+    ports: !override ["127.0.0.1:${SELAH_PORT_WEB:?set by scripts/local.mjs}:3000"]
+  mailpit:
+    ports: !override ["127.0.0.1:${SELAH_PORT_MAIL_UI:?set by scripts/local.mjs}:8025", "127.0.0.1:${SELAH_PORT_SMTP:?set by scripts/local.mjs}:1025"]
+  pdf-local:
+    ports: !override ["127.0.0.1:${SELAH_PORT_PDF:?set by scripts/local.mjs}:3000"]
