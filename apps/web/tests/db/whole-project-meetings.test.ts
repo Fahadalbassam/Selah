@@ -43,13 +43,17 @@ const U = {
   lead: id(12), // both clients' lead consultant
   cons: id(13), // staffed on Nukhba's project
   ncadmin: id(14), // Nukhba's admin
-  nmgr: id(15), // Nukhba manager, Board secretariat only: limited (Finance has work)
-  nsponsor: id(16), // Nukhba manager in the Board secretariat and Finance: no limit applies
+  nmgr: id(15), // Nukhba manager, Board secretariat only: limited
+  nsponsor: id(16), // Nukhba manager in all three departments: no limit applies
   owner: id(17), // owner@nukhba.test: action owner in Legal
   fin: id(18), // action owner in Finance
   radmin: id(19), // Rawdah's admin
   rowner: id(20), // owner@rawdah.test: action owner, no departments
   rmate: id(21), // her colleague
+  // Nukhba manager in the Board secretariat and Finance, not Legal. Legal has no work on the
+  // project, so the rule that looked at released work let her see everything; the stable rule
+  // (a member of every active department) does not, and releasing work changes neither answer.
+  npartial: id(22),
 };
 const REC = { all: id(31), fin: id(32), rawdah: id(33) };
 const A = { wide: id(41), fin: id(42), board: id(43), rmine: id(44), rmate: id(45) };
@@ -128,18 +132,19 @@ beforeAll(async () => {
       ($1,'client',$2,$5,'Nukhba governance','active',$6), ($3,'client',$4,$5,'Rawdah governance','active',$6)`,
     [PN, NUKHBA, PR, RAWDAH, FIRM, U.admin],
   );
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager')`, [U.npartial, NUKHBA]);
   await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$3,true), ($2,$3,true), ($1,$4,false)`, [NUKHBA, RAWDAH, U.lead, U.cons]);
   await q(
-    `INSERT INTO project_members (project_id, user_id) VALUES ($1,$3), ($1,$4), ($1,$5), ($1,$6), ($1,$7), ($2,$8), ($2,$9)`,
-    [PN, PR, U.cons, U.nmgr, U.nsponsor, U.owner, U.fin, U.rowner, U.rmate],
+    `INSERT INTO project_members (project_id, user_id) VALUES ($1,$3), ($1,$4), ($1,$5), ($1,$6), ($1,$7), ($2,$8), ($2,$9), ($1,$10)`,
+    [PN, PR, U.cons, U.nmgr, U.nsponsor, U.owner, U.fin, U.rowner, U.rmate, U.npartial],
   );
   await q(
     `INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$4,'أمانة المجلس','Board secretariat'), ($2,$4,'المالية','Finance'), ($3,$4,'الشؤون القانونية','Legal')`,
     [DEPT.board, DEPT.fin, DEPT.legal, NUKHBA],
   );
   await q(
-    `INSERT INTO department_members (department_id, user_id) VALUES ($1,$4), ($1,$5), ($2,$5), ($3,$6), ($2,$7)`,
-    [DEPT.board, DEPT.fin, DEPT.legal, U.nmgr, U.nsponsor, U.owner, U.fin],
+    `INSERT INTO department_members (department_id, user_id) VALUES ($1,$4), ($1,$5), ($2,$5), ($3,$5), ($3,$6), ($2,$7), ($1,$8), ($2,$8)`,
+    [DEPT.board, DEPT.fin, DEPT.legal, U.nmgr, U.nsponsor, U.owner, U.fin, U.npartial],
   );
   await q(
     `INSERT INTO recommendations (id, project_id, org_id, title, visibility, department_id, created_by) VALUES
@@ -309,6 +314,51 @@ describe("a meeting of the whole project opens only for people who see all of th
       await expect(svc(who, (tx, p) => meetingIcs(tx, p, mid))).rejects.toThrow(NOT_FOUND);
       expect((await svc(who, (tx, p) => listMeetings(tx, p, pid))).map((m) => m.id)).not.toContain(mid);
     }
+  });
+});
+
+// ------------------------------------------------------------ who sees everything
+// The lead's ruling on the review (17 Nov): "may see everything on the project" is stable. Firm
+// staff on the project, the client's admin, and a client manager when the client has departments
+// off or when she is in every active department. It moves only with departments and memberships,
+// never when the firm releases work. Before 0084 it looked at the released work, so a manager in
+// two of three departments saw everything while the third had none.
+describe("who may see everything on the project", () => {
+  const opens = async (who: string, mid = M.steer) => (await rowsAs(who, `SELECT app_can_see_meeting($1) AS ok`, [mid]))[0].ok as boolean;
+
+  it("a manager in all but one department does not, though that department has no work yet", async () => {
+    expect(await opens(U.npartial)).toBe(false);
+    await expect(svc(U.npartial, (tx, p) => getMeeting(tx, p, M.steer))).rejects.toThrow(NOT_FOUND);
+    expect((await svc(U.npartial, (tx, p) => meetingInvitees(tx, p, PN))).wholeProject).toBe(false);
+    await expect(book(U.npartial, PN, { title: "Everything" })).rejects.toThrow(/one of your departments/);
+    const list = await svc(U.lead, (tx, p) => meetingInvitees(tx, p, PN));
+    expect(list.people.find((p) => p.userId === U.npartial)?.wholeProject).toBe(false);
+  });
+
+  it("the answer does not move when the firm releases work in a department", async () => {
+    expect([await opens(U.nsponsor), await opens(U.npartial), await opens(U.nmgr)]).toEqual([true, false, false]);
+    const legal = id(46);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Legal canary',$5,'draft',app_firm_today() + 10,$6,$7)`,
+      [legal, PN, NUKHBA, REC.all, U.owner, DEPT.legal, U.lead],
+    );
+    try {
+      await owner.query(`UPDATE actions SET status = 'assigned' WHERE id = $1`, [legal]);
+      expect([await opens(U.nsponsor), await opens(U.npartial), await opens(U.nmgr)]).toEqual([true, false, false]);
+    } finally {
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [legal]);
+    }
+  });
+
+  it("moves with memberships: joining the last department opens it, and leaving one closes it", async () => {
+    await owner.query(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2)`, [DEPT.legal, U.npartial]);
+    try {
+      expect(await opens(U.npartial)).toBe(true);
+    } finally {
+      await owner.query(`DELETE FROM department_members WHERE department_id = $1 AND user_id = $2`, [DEPT.legal, U.npartial]);
+    }
+    expect(await opens(U.npartial)).toBe(false);
   });
 });
 

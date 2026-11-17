@@ -53,7 +53,7 @@ const U = {
   obs: id(14), // observer on Acme's project
   cadmin: id(15), // Acme's admin
   mgr: id(16), // client manager, Board secretariat only
-  sponsor: id(17), // client manager, Board secretariat and Finance
+  sponsor: id(17), // client manager in all three departments: no department limit applies (he chairs steering)
   owner: id(18), // action owner, Legal
   fin: id(19), // action owner, Finance
   pmgr: id(20), // Plain's manager: no department limits
@@ -162,7 +162,7 @@ beforeAll(async () => {
     ACME,
   ]);
   await q(
-    `INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$4,true), ($1,$5,false), ($2,$5,false), ($3,$6,true), ($2,$7,true)`,
+    `INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$4,true), ($1,$5,false), ($2,$5,false), ($3,$5,false), ($3,$6,true), ($2,$7,true)`,
     [DEPT.board, DEPT.fin, DEPT.legal, U.mgr, U.sponsor, U.owner, U.fin],
   );
   await q(
@@ -454,7 +454,7 @@ describe("the stored agenda is sent only to people who can open all of the proje
     expect((await agenda(U.pmgr, M.plain)).text).toContain("Plain canary");
   });
 
-  it("is still read by that manager when the firm drafts work in a department she is not in: an agenda never names a draft (D6)", async () => {
+  it("does not move with the work: the firm drafting or releasing work in a department changes nothing about who reads it (D6, and the stable rule of 0084)", async () => {
     const draft = id(58);
     await owner.query(
       `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
@@ -466,9 +466,10 @@ describe("the stored agenda is sent only to people who can open all of the proje
       expect(a.withheld).toBe(false);
       expect(a.text).toContain("Finance canary");
       expect(a.all).not.toContain("Legal draft canary");
-      // Released, it is Legal's work she may not open: the whole project's meeting is no longer hers to open (1a).
+      // Released, it changes nothing: who sees everything depends on departments and memberships only.
       await owner.query(`UPDATE actions SET status = 'assigned' WHERE id = $1`, [draft]);
-      await expect(agenda(U.sponsor, M.all)).rejects.toThrow(/not found/i);
+      expect((await agenda(U.sponsor, M.all)).text).toContain("Finance canary");
+      await expect(agenda(U.mgr, M.all)).rejects.toThrow(/not found/i);
     } finally {
       await owner.query(`DELETE FROM actions WHERE id = $1`, [draft]);
     }
@@ -563,7 +564,7 @@ describe("the departments page", () => {
     const open = async (who: string) =>
       Object.fromEntries((await svc(who, (tx, p) => getEngagement(tx, p, ACME))).departments.map((d) => [d.nameEn, d.canOpen]));
     expect(await open(U.mgr)).toEqual({ "Board secretariat": true, Finance: false, Legal: false });
-    expect(await open(U.sponsor)).toEqual({ "Board secretariat": true, Finance: true, Legal: false });
+    expect(await open(U.sponsor)).toEqual({ "Board secretariat": true, Finance: true, Legal: true });
     expect(await open(U.cadmin)).toEqual({ "Board secretariat": true, Finance: true, Legal: true });
     expect(await open(U.lead)).toEqual({ "Board secretariat": true, Finance: true, Legal: true });
   });

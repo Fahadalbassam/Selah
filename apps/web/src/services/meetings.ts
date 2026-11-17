@@ -160,9 +160,14 @@ export async function bookMeeting(
   return { id, queued: rows[0]!.n };
 }
 
-/** Whether the caller may open (and so book) a meeting of the whole project (decision 1a). */
+/**
+ * Whether the caller may see everything on the project, and so open and book
+ * a meeting of the whole project (decision 1a): firm staff on it, the client's
+ * admin, a client manager in every department (or with departments off).
+ * Stable: it never moves when work is released (migration 0084).
+ */
 async function readsWholeProject(tx: Tx, projectId: string) {
-  const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_reads_all_actions(${projectId}::uuid, null) as ok`);
+  const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_sees_whole_project(${projectId}::uuid) as ok`);
   return rows[0]?.ok === true;
 }
 
