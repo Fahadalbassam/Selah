@@ -53,6 +53,8 @@ vi.mock("next-intl/server", async () => {
 });
 
 const { retrieve } = await import("@/services/assistant");
+const A = await import("@/services/assessments");
+const IR = await import("@/services/info-requests");
 const D = await import("@/services/documents");
 const F = await import("@/services/files");
 const M = await import("@/services/meetings");
@@ -135,6 +137,13 @@ const hour = (h: number) => new Date(Date.now() + h * 3_600_000);
 const q = (text: string, params: unknown[] = []) => owner.query(text, params);
 
 let MID = "";
+const REQ = id(81);
+
+/** An audience as the two tables hold it, written by the schema owner (the rules that read it are what is tested). */
+async function narrow(kind: "document" | "meeting", itemId: string, mode: "except" | "only", setBy: string, people: string[]) {
+  await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,$2,$3,$4,$5)`, [NUKHBA, kind, itemId, mode, setBy]);
+  for (const p of people) await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ($1,$2,$3)`, [kind, itemId, p]);
+}
 
 async function doc(docId: string, f: { by: string; ownerOrg: string; title: string; visibility?: string; purpose?: string; ai?: boolean }) {
   await q(
@@ -192,16 +201,19 @@ beforeAll(async () => {
       [PN, NUKHBA, d, `passage of ${d}`, `[${QUERY.join(",")}]`],
     );
   }
-  await q(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [DOC.open, U.owner, U.cons]);
+  await q(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3), ($4,$5,$3)`, [DOC.open, U.owner, U.cons, DOC.deliv, U.nmgr2]);
   // A notice the left-out manager got about the deliverable before it was narrowed.
   await q(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'document.shared','document',$2)`, [U.nmgr, DOC.deliv]);
 
-  // Who sees what, set the way the screens set it.
-  await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, DOC.deliv, { mode: "except", people: [U.nmgr, U.cons2] }), true);
-  await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "except", people: [U.nmgr] }), true);
-  await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, DOC.only, { mode: "only", people: [U.cons, U.nmgr2] }), true);
-  // The firm shares its draft with the client and leaves a colleague out in the same step.
-  await svc(U.cons, (tx, p) => D.shareDocument(tx, p, DOC.firmOnly, { mode: "except", people: [U.cons2] }), true);
+  // Who sees what. Written straight into the two tables, so that each rule below is tested on its
+  // own and removing one fails only its own tests (review N3); setting it the way the screens do
+  // (app_set_audience) has its own tests further down.
+  await narrow("document", DOC.deliv, "except", U.cons, [U.nmgr, U.cons2]);
+  await narrow("document", DOC.client, "except", U.ncadmin, [U.nmgr]);
+  await narrow("document", DOC.only, "only", U.cons, [U.cons, U.nmgr2]);
+  // The firm shares its draft with the client (recorded on the activity record), leaving a colleague out.
+  await svc(U.cons, (tx, p) => D.shareDocument(tx, p, DOC.firmOnly), true);
+  await narrow("document", DOC.firmOnly, "except", U.cons, [U.cons2]);
 
   // A meeting booked by the lead; then the manager and a consultant, both invited as optional, are left out.
   MID = (
@@ -222,7 +234,7 @@ beforeAll(async () => {
       true,
     )
   ).id;
-  await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
+  await narrow("meeting", MID, "except", U.lead, [U.nmgr, U.cons2]);
   await q(`UPDATE meetings SET status = 'held', transcript_consent = true, consent_noted_by = $2 WHERE id = $1`, [MID, U.lead]);
   await q(`INSERT INTO meeting_decisions (project_id, org_id, meeting_id, text, visibility, created_by) VALUES ($1,$2,$3,'Decision canary','shared',$4)`, [PN, NUKHBA, MID, U.lead]);
   await q(`INSERT INTO meeting_summaries (meeting_id, project_id, org_id, lang, main_points_md, confirmed_by, visibility) VALUES ($1,$2,$3,'en','Summary canary',$4,'shared')`, [
@@ -241,6 +253,45 @@ beforeAll(async () => {
     `INSERT INTO follow_ups (project_id, org_id, meeting_id, title, visibility, assignee_user_id, due_at, created_by) VALUES ($1,$2,$3,'Follow-up canary','shared',$4, now() + interval '2 days', $5)`,
     [PN, NUKHBA, MID, U.nmgr2, U.lead],
   );
+
+  // A row in every other table under these items, so "rows only shrink" has something to shrink (review N2).
+  // A translation of the meeting's decision, read under its source's rules.
+  await q(
+    `INSERT INTO content_translations (project_id, org_id, entity_type, entity_id, field, source_lang, target_lang, source_sha256, text, model, created_by)
+     SELECT d.project_id, d.org_id, 'meeting_decision', d.id, 'text', 'en', 'ar', encode(sha256(convert_to(d.text, 'UTF8')), 'hex'), 'قرار', 'fake', $2
+     FROM meeting_decisions d WHERE d.meeting_id = $1`,
+    [MID, U.lead],
+  );
+  // A summary of the deliverable.
+  await q(
+    `INSERT INTO document_summaries (document_id, project_id, org_id, sha256, lang, summary, citations, model, created_by)
+     VALUES ($1,$2,$3,$4,'en','The proposal in one line.','[{"line":1,"pages":[1]}]','fake',$5)`,
+    [DOC.deliv, PN, NUKHBA, `sha-${DOC.deliv}`, U.cons],
+  );
+  // A passage of the meeting's note.
+  await q(
+    `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)
+     SELECT n.project_id, n.org_id, 'meeting_note', n.id, 'shared', 0, 'note passage', $2 FROM meeting_notes n WHERE n.meeting_id = $1`,
+    [MID, `[${QUERY.join(",")}]`],
+  );
+  // An information request answered with the salary file.
+  await q(
+    `INSERT INTO info_requests (id, project_id, org_id, area, title, created_by) VALUES ($1,$2,$3,'people','Pay scales',$4)`,
+    [REQ, PN, NUKHBA, U.lead],
+  );
+  await q(`INSERT INTO info_request_files (request_id, document_id, attached_by) VALUES ($1,$2,$3)`, [REQ, DOC.client, U.nmgr2]);
+  // An assessment that cites the deliverable as evidence for one answer.
+  await q(`UPDATE organizations SET legal_form = 'llc' WHERE id = $1`, [NUKHBA]);
+  const starter = await svc(U.admin, (tx, p) => A.installStarterTemplate(tx, p, { publish: true }), true);
+  const assessment = await svc(U.admin, (tx, p) => A.createAssessment(tx, p, PN, { templateId: starter.id, title: "Baseline" }), true);
+  const [answer] = (await q(`SELECT id FROM assessment_answers WHERE assessment_id = $1 ORDER BY id LIMIT 1`, [assessment.id])).rows;
+  await q(`INSERT INTO assessment_evidence (answer_id, document_id, project_id, org_id, added_by) VALUES ($1,$2,$3,$4,$5)`, [
+    answer.id,
+    DOC.deliv,
+    PN,
+    NUKHBA,
+    U.cons,
+  ]);
 });
 
 afterAll(async () => {
@@ -315,10 +366,15 @@ describe("the database rule only takes people away", () => {
       expect([...rows].filter((r) => !all.has(r)), key).toEqual([]);
       lost += all.size - rows.size;
     }
-    // And it did take something away: the left-out manager and consultant lost rows.
+    // And it did take something away: the left-out manager and consultant lost rows, in every table
+    // the seed puts a row in (all of them but the chats, which have their own test).
     expect(wide.get("nmgr:documents")!.size).toBeGreaterThan(narrowed.get("nmgr:documents")!.size);
     expect(wide.get("nmgr:meetings")!.size).toBeGreaterThan(narrowed.get("nmgr:meetings")!.size);
     expect(wide.get("cons2:documents")!.size).toBeGreaterThan(narrowed.get("cons2:documents")!.size);
+    for (const table of Object.keys(TABLES).filter((t) => !["notifications", "ai_conversations", "activity_events"].includes(t))) {
+      const shrank = ["nmgr", "cons2"].some((who) => wide.get(`${who}:${table}`)!.size > narrowed.get(`${who}:${table}`)!.size);
+      expect(shrank, table).toBe(true);
+    }
     expect(lost).toBeGreaterThan(0);
   });
 
@@ -438,7 +494,8 @@ describe("a person left out sees nothing of the item", () => {
   });
 
   it("the mail queue holds no invite for someone left out, and mail queued before she was left out is withdrawn", async () => {
-    // Their invites, queued at booking, were withdrawn when they were left out; only the others' stay to send.
+    // Their invites were queued at booking; leaving them out (as the screens do) withdraws them, and only the others' stay to send.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
     const queued = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND withdrawn_at IS NULL`, [MID])).rows.map((r) => r.to_email);
     expect(queued).toContain(email(U.nmgr2));
     expect(queued).not.toContain(email(U.nmgr));
@@ -925,6 +982,34 @@ describe("changing who sees an item", () => {
     expect(rows.filter((r) => r.action === "meeting.audience").length).toBeGreaterThanOrEqual(2);
     // Who was left out is not in the log's details: only how many.
     expect(JSON.stringify((await q(`SELECT meta FROM audit_log WHERE action = 'document.audience'`)).rows)).not.toContain(U.nmgr);
+  });
+
+  it("set while answering an information request with a new file", async () => {
+    const upload = { bytes: new TextEncoder().encode("grades"), fileName: "grades.pdf", contentType: "application/pdf", sha256: "sha-grades", scanned: true, scanMs: 1 };
+    const made = await svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, REQ, upload, { mode: "except", people: [U.nmgr] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM info_request_files WHERE document_id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    // The firm still sees the client's file: the client chooses among its own people only.
+    expect(await rowsAs(U.lead, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    expect((await q(`SELECT meta->>'on' AS on FROM audit_log WHERE action = 'document.audience' AND resource_id = $1`, [made.id])).rows).toEqual([{ on: "info_request" }]);
+  });
+
+  it("changed while editing a meeting (PATCH /api/meetings/:id)", async () => {
+    const mid = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title: "Edited session", startsAt: hour(400), endsAt: hour(401), location: "online", joinUrl: MEET, attendees: [{ userId: U.nmgr2 }] }),
+        true,
+      )
+    ).id;
+    await svc(U.lead, (tx, p) => M.updateMeeting(tx, p, mid, { title: "Edited session, renamed", audience: { mode: "except", people: [U.nmgr] } }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT title FROM meetings WHERE id = $1`, [mid])).toEqual([{ title: "Edited session, renamed" }]);
+    expect((await q(`SELECT meta->>'on' AS on FROM audit_log WHERE action = 'meeting.audience' AND resource_id = $1`, [mid])).rows).toEqual([{ on: "edit" }]);
+    // A client manager who organises a meeting runs it but gets no picker: her edit's audience is refused.
+    await expect(svc(U.nmgr2, (tx, p) => M.updateMeeting(tx, p, mid, { audience: { mode: "everyone", people: [] } }))).rejects.toThrow(NOT_FOUND);
   });
 
   it("set while uploading; a refused audience stores no file", async () => {
