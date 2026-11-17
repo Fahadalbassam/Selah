@@ -76,8 +76,10 @@ export async function listProjects(tx: Tx, principal: Principal) {
   }));
 
   // Counts come from the actions this user may read, so an action owner
-  // does not learn how many actions other people have.
-  const counts = allowed.length ? await actionCounts(tx, principal) : [];
+  // does not learn how many actions other people have. Released work only,
+  // for every role, like every other count (metrics.md): the bar is "verified
+  // of released", and a firm draft is not yet part of the plan (page audit B2).
+  const counts = allowed.length ? (await actionCounts(tx, principal)).filter((c) => c.status !== "draft") : [];
   const count = (projectId: string, status?: ActionStatus) =>
     counts.filter((c) => c.projectId === projectId && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
   return allowed.map((p) => ({
@@ -167,6 +169,7 @@ export async function listActions(tx: Tx, principal: Principal, filter: ActionFi
     projectId: r.projectId,
     createdBy: r.createdBy,
     assignees: r.ownerUserId ? [r.ownerUserId] : [],
+    draft: r.status === "draft",
   }));
 }
 

@@ -591,7 +591,10 @@ export interface LadderStep {
  * Empty when the action has no due date or nobody to remind.
  */
 export async function actionLadder(tx: Tx, principal: Principal, actionId: string) {
-  await loadAction(tx, actionId);
+  // Only for an action the person may open (a client: never a draft, D6); the function checks the same.
+  const loaded = await loadAction(tx, actionId);
+  if (!loaded) throw new NotFoundError("action");
+  assertAllowed(principal, "action.read", loaded.resource);
   const { rows } = await tx.execute<{
     kind: LadderStep["kind"];
     level: number;
