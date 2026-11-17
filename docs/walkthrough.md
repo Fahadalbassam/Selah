@@ -121,7 +121,7 @@ Two more clients have no accounts at all, because the firm runs their records: A
 
 Also on this case: the client's answers to two recommendations (agree; partly agree with a reason), a steering meeting held last week with its summary, a decision and three follow-ups (one done, one overdue), the next steering meeting booked with invites sent (see Mailpit), a Finance workshop, a request list for documents (one answered with a confidential file), the baseline assessment, two business indicators with six months of values linked to recommendations, a shared monthly report, a contact without an account (the external auditor), a problem the owner reported from the help page, five shared files and one firm-only file the assistant can read.
 
-**Case 2 — Rawdah, Strategic Plan 2027 (closing).** Mostly English. Three actions verified, one handed over to Rawdah with a named person to keep it going. The client admin asked to close; the lead started closing and wrote the lessons learned; the client agreed to an anonymised case study. The last step, closing, is left for the firm admin to do in the tour.
+**Case 2 — Rawdah, Strategic Plan 2027 (closing).** Mostly English. Three actions verified, one handed over to Rawdah with a named person to keep it going. Two meetings of the whole project: a review held three weeks ago, and the hand-over meeting, to which owner@rawdah.test is invited. The client admin asked to close; the lead started closing and wrote the lessons learned; the client agreed to an anonymised case study. The last step, closing, is left for the firm admin to do in the tour.
 
 **Case 3 — Al-Waha Family Office, family charter.** A firm-run client: no client accounts, owners recorded by name, evidence recorded by the consultant with how and when the client sent it.
 
@@ -176,7 +176,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 ### 5.7 Rawdah
 - **admin@rawdah.test**: the project is closing, at her request; after the admin closes it (5.2 step 9) it is read-only and the closure report is there.
 - **manager@rawdah.test**: Rawdah only.
-- **owner@rawdah.test**: the first sign-in. The terms, privacy notice and AI notice come first; after accepting, the first-week welcome.
+- **owner@rawdah.test**: the first sign-in. The terms, privacy notice and AI notice come first; after accepting, the first-week welcome. Then open the meeting *Hand-over of the quarterly reviews*: she is invited, and its agenda shows only her own actions.
 
 ### 5.8 Things to do live
 - Book a meeting from a project's Meetings tab and watch the invitation arrive in Mailpit with a calendar file.
@@ -197,18 +197,23 @@ Copy an address in one window and paste it in the other. "Not found" is the expe
 | manager@nukhba.test | The recommendation *تحديث مصفوفة تفويض الصلاحيات* or its actions (Finance) | Not found: she is not in Finance |
 | manager@nukhba.test | The firm's internal project | Not found |
 | owner@nukhba.test | *عرض المسودة على المجلس واعتمادها* (Reem's action) | Not found: owners see their own work |
+| owner@nukhba.test | *ترشيح الأعضاء المستقلين للجنة* (Mansour's company-wide action; copy its address from the admin's window) | Not found, by its address and through the API, and on none of his lists, counts, notices or his schedule: an action owner reads only the actions he owns, in the database too (decision 1b). The seed has no second person in Legal; a teammate's action in his own department answers the same (`tests/db/owner-actions.test.ts`). A teammate's file stays visible to him on the Files card, without naming its action |
 | owner@nukhba.test | /assistant | Not found: the client assistant is for admins and managers |
 | any Al-Nukhba person | The project's Documents tab | No *ملاحظات المستشار الداخلية* (firm only) |
 | consultant@mizan.test | Second sign-off on the action he signed first | Not offered |
 | observer@mizan.test | Any button that changes the board project | None shown |
 | observer@mizan.test | The meeting *اجتماع اللجنة التوجيهية الرابع*, and the project's Assessments tab | She reads both. No edit, send invitations, cancel, add attendee, record decision or add follow-up on the meeting; no "Start an assessment" on the tab |
 | observer@mizan.test | Al-Nukhba's client page → Business indicators, then one indicator, then **Data sharing** | She reads all three. No add, edit, pause, enter value, correct, mark checked, link or unlink, and no data-mode choice. consultant@mizan.test (staffed), lead@ and deputy@ still have them |
-| owner@nukhba.test | The recommendation *تشكيل لجنة المراجعة* | Lists only his own action (*إعداد لائحة عمل اللجنة*), then "إجراء واحد آخر لا يظهر لك". No other title, and nothing about the firm's draft |
+| owner@nukhba.test | The recommendation *تشكيل لجنة المراجعة* | Lists only his own action (*إعداد لائحة عمل اللجنة*). No other title and no count of the others (decision 1b), and nothing about the firm's draft |
 | sponsor@nukhba.test | The same recommendation | His own action (*ترشيح الأعضاء المستقلين للجنة*), then the same line for Legal's: he knows the plan is larger than what he sees. The firm's draft is neither listed nor counted |
 | admin@nukhba.test, manager@nukhba.test, sponsor@nukhba.test, owner@nukhba.test | The draft action *اعتماد قرار تشكيل اللجنة ونشره* (copy its address from the lead's window) | Not found, also for admin@nukhba.test, whom it names as owner. It is on no list, count or export of theirs: admin@nukhba.test's Actions page lists 8 and the Projects card counts 8 (the firm's card counts 8 too: released work only). lead@mizan.test opens it; releasing it (إصدار للمسؤول) would show it to them and tell the client admin |
 | manager@nukhba.test, owner@nukhba.test, finance@nukhba.test | The board project | No Activity tab (سجل النشاط). admin@nukhba.test and the firm keep it |
 | manager@nukhba.test | The meeting *جلسة عمل الإدارة المالية: مصفوفة الصلاحيات* (copy its address from the admin's window) | Not found, and not on her Meetings tab: it is Finance's, and she is not invited. finance@nukhba.test (in Finance, invited) opens it |
-| manager@nukhba.test, owner@nukhba.test | The meeting *اجتماع اللجنة التوجيهية الرابع* | In place of the agenda, one line: "يُعرض جدول الأعمال لمن يطّلع على كل أعمال المشروع. اسأل منظّم الاجتماع عمّا يخصّك." admin@nukhba.test and the firm read the agenda |
+| manager@nukhba.test, sponsor@nukhba.test | The meeting *اجتماع اللجنة التوجيهية الرابع* (both are invited; copy its address from the admin's window) | Not found, and not on their Meetings tab, schedule or calendar file: it is the whole project's meeting, and each is limited to departments (Legal has work neither is in), so it opens only for people who see all of the project's work (decision 1a). The seed keeps them invited on purpose: the invitation went out (Mailpit), with no agenda in it. admin@nukhba.test and the firm open it with its whole agenda |
+| owner@nukhba.test | The same meeting (not invited) | Not found |
+| lead@mizan.test | **Book a meeting** on the board project, whole project, ticking ريم الحربي | Before saving, the form names her ("لن يتمكن ريم الحربي من فتح هذا الاجتماع…") and offers "اجعله اجتماع أمانة مجلس الإدارة". Saving anyway is allowed |
+| owner@rawdah.test (after the first sign-in) | Rawdah's meeting *Hand-over of the quarterly reviews* (Rawdah has no departments; she is invited) | Opens it. The agenda says "Only your own actions on this meeting's agenda" and lists her two actions only, never her colleague's; admin@rawdah.test reads all four |
+| admin@nukhba.test | An indicator's page (*قرارات المجلس المنفذة في موعدها*), and the Linked indicators card on the recommendation *اعتماد ميثاق مجلس الإدارة* | He reads the links, and still adds and edits indicators, but there is no Link or Unlink: only the firm links an indicator to a recommendation (decision 1c). lead@mizan.test has both |
 | manager@nukhba.test | The plan, under the finding answered by *تحديث مصفوفة تفويض الصلاحيات* | "تعالجها توصية في إدارة أخرى" (answered in another department), not "no recommendation yet", and no title |
 | manager@nukhba.test | Departments (الإدارات) | Every department with its people; only her own (أمانة مجلس الإدارة) is a link |
 | manager@nukhba.test | A shared status pack (once the firm issues and shares one) | The numbers are whole. Each list shows only her department's items and says how many more were left out; an indicator names only the linked recommendations she can open |
