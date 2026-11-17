@@ -33,6 +33,15 @@ The product owner's answers stand. The full texts: `docs/review/page-audit.md` s
 - **Visibility picker** (documents except evidence, and meetings): only takes people away, never widens; locked chips; people left out see nothing.
 - **Org chart**: positions, not people; never grants or limits access; Selah never designs or judges a structure.
 
+## The screen standard (batches 1 to 5)
+
+Fahad, 17 Nov 2026: every screen must clearly show **what it is for and what to do next**. When you change a screen:
+
+- **One main action per page** (one solid button on the page's first card; the rest outline, ghost or in a menu).
+- **Fewer buttons:** a rare action goes into a row or page menu, not a visible button.
+- **Plain labels** a client would understand, in Arabic first; speak to the reader ("your company"), never about "the client".
+- Do not re-audit screens that have not changed: the Gate A audit (`docs/review/page-audit.md`) is the reference. Only screens that are new or changed since then are re-checked before batch 1.
+
 ## Read before you write
 
 - `apps/web/AGENTS.md`: this Next.js version differs from what you know. Check `apps/web/node_modules/next/dist/docs/` before writing framework code.

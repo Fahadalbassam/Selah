@@ -184,3 +184,27 @@ The database check failed on one test: `indicator-data.test.ts` still expected t
 **Remaining screen bugs**, branch `batch0/screen-bugs`, migrations 0080 and 0081 (renumbered after the drafts merge). All items of batch 0's screen list, each with a test that failed first. The builder also found that on a consultant-managed client the note and evidence forms could not be sent at all (the API wanted how and when the client sent it, the form did not ask); fixed in the same branch. Independent review running (`work/screen-bugs-review.md`).
 
 **Stops.** Every helper stopped once more at a usage limit (the drafts builder and the screen-bugs reviewer at 17:00, both resumed from saved work). Nothing was lost.
+
+## Plan additions from Fahad (17 Nov 2026, late)
+
+Recorded before anything else, as he asked. The current order stays; these are added to it. Stops for Fahad remain only Gate B, Gate C, and anything that could lose data or expose private information.
+
+### 1. Screens, batches 1 to 5: re-check only what changed, then simplify every screen
+
+- **Do not re-audit every screen.** The Gate A audit (`page-audit.md`) stands for the screens that have not changed.
+- **Before batch 1, re-check only the screens that are new or changed since the audit:** drafts hidden from clients (D6), agenda option C and the meeting pages, action owners seeing only their own actions, the visibility picker, the org chart, deliverable hand-over and receipt (4a), the indicator moved-away notice (4b), and anything else a merged pull request touched (the sign-in pages, the privacy fixes, the screen bugs, the firm-run recording fields). Same method as phase 1 (capture by script, a helper per area, an independent check), scoped to those screens, and the result added to `page-audit.md` as a short section.
+- **Then simplify every screen** in batches 1 to 5, so each page clearly shows what it is for and what to do next: **fewer buttons, plain labels, one main action per page.** This is the standard every batch is judged by.
+
+### 2. Added after the assistant, local model and redaction work (section 7 / Gate B), before the 19 (now 21) scenarios
+
+| # | Item | Note |
+|---|---|---|
+| a | **Assistant value test**: does it save a consultant or a client real time on real tasks, measured (the same task timed with and without it) | Criterion C2; plan in phase 3 already mentions about 5 consultants and 6 tasks |
+| b | **Technical docs pack**: setup, architecture, permissions, deployment | Link what `docs/handoff.md`, `docs/operations.md`, `docs/data-architecture.md` already hold; do not duplicate |
+| c | **End-to-end tests on a staging server** | Today they run only on a laptop (tracker review, 16 Nov) |
+| d | **Fix the README permission error** | The README says a consultant assigned to a client sees all its projects; only the lead does, others only projects they are staffed on (tracker review) |
+| e | **A reminder before an engagement's end date** | `engagements.ends_on` is stored and nothing reads it (known gap) |
+| f | **When the lead consultant changes, notify the client and the old lead** | Known gap; the D1 rule applies: the old-owner/old-lead notice must not be an action notice |
+| g | **Review the open Dependabot pull requests** (Fahad counts 18): merge the safe ones when green, close the ones the Next.js update (#158) already covers, and list any that need him | |
+
+Items d, e and f were already parked for Gate B as known gaps; they are now confirmed as work to do, in this slot.
