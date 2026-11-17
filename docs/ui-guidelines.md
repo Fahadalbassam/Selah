@@ -389,8 +389,11 @@ Who: client admin, client manager, action owner.
 ## 12. Public and sign-in pages
 
 - **Auth pages** (`app/(auth)`): centred `max-w-sm` card (`py-6 shadow-xs`) over the `Topography` background, wordmark above, `text-xl` title. Same tokens and components as the app.
-- **Public pages** (`app/(public)`: `/inquiry`, `/privacy`): `max-w-6xl` shell; the inquiry page is a two-column intro and form (`lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]`), the privacy page a single `max-w-2xl` text column. These are the only pages with a hero-sized title. An upload link's page (`/upload/<token>`, F14) is one `max-w-xl` card over the `Topography` background: the requested item, the firm's name and the file field, nothing else.
-- No client data, staff names or internal wording on public pages.
+- **Public pages** (`app/(public)`: `/inquiry`, `/privacy`): `max-w-6xl` shell; the inquiry page is a two-column intro and form (`lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]`), the privacy page a single `max-w-2xl` text column. These are the only pages with a hero-sized title. An upload link's page (`/upload/<token>`, F14) is one `max-w-xl` card over the `Topography` background: the requested item, the firm's name and the file field, nothing else. Its header (`PublicFrame bare`) has the language switch only: no sign-in button, and the wordmark is not a link.
+- **Language switch on every signed-out page**: in the header on public pages, in the top corner at the end side on auth pages and Not found (`CornerLocaleToggle`). It stays on the page it is on.
+- **A dead mail link** says so when the page opens and offers one way on (`DeadLink` in `app/(auth)`).
+- No client data, staff names or internal wording on public pages, in what is shown and in the page's source: a signed-out layout passes `NextIntlClientProvider` only the namespaces its pages read (`src/i18n/signed-out-messages.ts`, checked by `tests/signed-out-messages.test.ts`), never the whole catalogue.
+- A link styled as a button in a server component is an `<a>` or `<Link>` with `buttonVariants(...)`, not `<Button asChild>`: that button's slot renders nothing while its child is still arriving from the server, which fails hydration.
 
 ---
 
