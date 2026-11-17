@@ -574,7 +574,7 @@
       "history": "سجل المواعيد",
       "moved": "{from} ← {to}",
       "movedByRequest": "بموافقة {who} في {date}",
-      "movedByPlan": "تعديل في الخطة من {who} في {date}",
+      "movedByPlan": "تعديل في الخطة بواسطة {who} في {date}",
       "movedOn": "في {date}"
     },
     "reopen": "إعادة الفتح",
@@ -772,7 +772,7 @@
     },
     "searchPeople": "اكتب اسماً أو بريداً",
     "noMatch": "لا يوجد من يطابق",
-    "byLine": "{event} من <who>{name}</who>"
+    "byLine": "{event}، بواسطة <who>{name}</who>"
   },
   "pager": {
     "label": "الصفحات",

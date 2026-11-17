@@ -38,11 +38,43 @@ describe("counts on the Projects cards (page audit 3.8)", () => {
 
 describe("history lines name a person without a gendered verb (page audit 3.8)", () => {
   const line = (locale: "ar" | "en", event: string, name: string) =>
-    createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "common" }).rich("byLine", { event, name, who: (c) => `[${c}]` });
+    String(createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "common" }).rich("byLine", { event, name, who: (c) => `[${c}]` }));
 
-  it("reads 'evidence submitted by Salma' in Arabic, 'Salma submitted evidence' in English", () => {
-    expect(line("ar", ar.action.entry.evidence, "سلمى الشهري")).toBe("دليل مُقدَّم من [سلمى الشهري]");
+  it("reads 'evidence submitted, by Salma' in Arabic, 'Salma submitted evidence' in English", () => {
+    expect(line("ar", ar.action.entry.evidence, "سلمى الشهري")).toBe("دليل مُقدَّم، بواسطة [سلمى الشهري]");
     expect(line("en", en.action.entry.evidence, "Salma Al-Shehri")).toBe("[Salma Al-Shehri] submitted evidence");
+  });
+
+  it("names the person who did it, never someone the event came from (review finding 1)", () => {
+    // With "{event} من {name}" these read the wrong way round: Sara as the old owner, a review of Omar's request.
+    expect(line("ar", ar.inbox.events.owner_changed, "سارة")).toBe("تغيير المسؤول، بواسطة [سارة]");
+    expect(line("ar", ar.project.events.info_request_reviewed, "عمر")).toBe("مراجعة طلب، بواسطة [عمر]");
+    expect(line("ar", ar.action.entry.signoff, "عمر")).toBe("الاعتماد الأول من اعتمادَين، بواسطة [عمر]");
+  });
+
+  it("reads right for every event kind, in both languages", () => {
+    const values = { from: "«أ»", to: "«ب»", name: "خالد", status: "لا تعارض", date: "12 Nov" };
+    const all = (locale: "ar" | "en") => {
+      const m = locale === "ar" ? ar : en;
+      // Every key of the namespace, with whatever values its messages take; typed loosely on purpose.
+      const t = (ns: string) => createTranslator({ locale, messages: m, namespace: ns as never }) as unknown as (key: string, v: typeof values) => string;
+      return [
+        ...Object.keys(m.action.entry).map((k) => t("action.entry")(k, values)),
+        ...Object.keys(m.project.events).map((k) => t("project.events")(k, values)),
+        ...Object.keys(m.inbox.events).map((k) => t("inbox.events")(k, values)),
+        t("project")("changed", values),
+      ];
+    };
+    for (const event of all("ar")) {
+      const out = line("ar", event, "سلمى");
+      // The doer comes once, after a comma, with the one word that can only mean "by".
+      expect(out, out).toMatch(/^[^[]+، بواسطة \[سلمى\]$/);
+      expect(out.match(/بواسطة/g), out).toHaveLength(1);
+      expect(out, out).not.toMatch(/من،/);
+    }
+    for (const event of all("en")) {
+      expect(line("en", event, "Salma")).toMatch(/^\[Salma\] \S/);
+    }
   });
 
   it("puts every Arabic history event in a form that fits a man or a woman", () => {
