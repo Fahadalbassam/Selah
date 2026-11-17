@@ -157,6 +157,9 @@ services:
       OPS_TOKEN: ${OPS_TOKEN:-}
       # Which way in is on, for the sub-processor list and the security page.
       SELAH_EDGE: ${COMPOSE_PROFILES:-}
+      # The mail sender's relay, for the sub-processor list only: the web app
+      # sends no mail and reads just the relay's host from this.
+      SMTP_URL: ${SMTP_URL:-}
     depends_on:
       clamav: { condition: service_healthy }
       setup: { condition: service_completed_successfully }

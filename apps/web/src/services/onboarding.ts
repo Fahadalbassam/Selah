@@ -45,6 +45,35 @@ export async function acceptInvitation(tx: Tx, token: string, input: { name: str
   return { email: inv.email };
 }
 
+/** The shape of the token in /invite/<token> and /confirm-email/<token>: 32 random bytes, base64url. */
+export const isAccountLinkToken = (token: string) => /^[A-Za-z0-9_-]{43}$/.test(token);
+
+/**
+ * The invitation behind a link, or null when the link is dead (malformed,
+ * unknown, expired, revoked or already accepted: one answer for all of them).
+ * Reading it changes nothing, so the page can ask every time it loads.
+ */
+export async function findInvitation(tx: Tx, token: string) {
+  if (!isAccountLinkToken(token)) return null;
+  try {
+    return await openInvitation(tx, token);
+  } catch (err) {
+    if (err instanceof BadRequestError) return null;
+    throw err;
+  }
+}
+
+/**
+ * Whether an address-change link can still be confirmed. The page asks when
+ * it loads; asking confirms nothing and says nothing about whose change it
+ * is (app_email_change_is_open).
+ */
+export async function emailChangeIsOpen(tx: Tx, token: string): Promise<boolean> {
+  if (!isAccountLinkToken(token)) return false;
+  const { rows } = await tx.execute<{ open: boolean }>(sql`select app_email_change_is_open(${tokenHash(token)}) as open`);
+  return rows[0]?.open === true;
+}
+
 export async function confirmEmailChange(tx: Tx, token: string) {
   await tx.execute(sql`select app_confirm_email_change(${tokenHash(token)})`);
   return { ok: true };

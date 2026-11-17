@@ -378,7 +378,7 @@
   },
   "signIn": {
     "title": "Sign in",
-    "subtitle": "Accounts are invite-only. Ask your organization's admin to invite you.",
+    "subtitle": "Accounts are invite-only. Ask your admin to invite you.",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
@@ -398,14 +398,15 @@
     "backupCode": "Backup code",
     "backupHint": "One of the codes you saved when you set it up. Each works once.",
     "codeError": "That code didn't work. Try the newest one.",
-    "limited": "Too many tries. Wait a minute and try again.",
+    "limited": "Too many tries. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+    "limitedNoTime": "Too many tries. Try again a little later.",
     "verify": "Continue",
     "useBackup": "Use a backup code instead",
     "useApp": "Use the authenticator app",
     "link": {
       "or": "or",
       "send": "Email me a sign-in link",
-      "who": "For client managers and action owners. Admins and firm staff sign in with their password.",
+      "who": "If you were invited to follow or do work, we can mail you a sign-in link. Account admins and the firm's team sign in with a password.",
       "sentTitle": "Check your inbox",
       "sent": "If this address can sign in by link, a link is on its way. It works once, for {minutes} minutes.",
       "back": "Back to sign in",
@@ -900,6 +901,7 @@
     "review": {
       "intro": "Check your answers before you send them.",
       "edit": "Edit",
+      "editStep": "Edit: {step}",
       "consent": "I have read the privacy notice and agree that the firm may use these details to respond to this inquiry.",
       "privacyLink": "Read the privacy notice",
       "noFiles": "Please don't send documents yet. Files are shared later, inside your private workspace, after an engagement starts.",
@@ -1056,7 +1058,10 @@
       "subtitle": "Every signed-in device will be signed out.",
       "submit": "Save the password",
       "invalid": "This link has expired or was already used.",
-      "again": "Send a new link"
+      "again": "Send a new link",
+      "deadTitle": "This link doesn't work",
+      "dead": "It has expired or was already used. Ask for a new link to set your password.",
+      "deadAction": "Ask for a new link"
     },
     "invite": {
       "title": "Join {org}",
@@ -1066,13 +1071,17 @@
       "submit": "Create my account",
       "failed": "The account couldn't be created. The invitation may have expired.",
       "invalidTitle": "This invitation can't be used",
-      "invalid": "It has expired, was revoked, or was already accepted. Ask your admin for a new one."
+      "invalid": "It has expired, was revoked, or was already accepted. Ask the person who invited you for a new one, or sign in if you already created your account.",
+      "toSignIn": "Go to sign in"
     },
     "confirmEmail": {
       "title": "Confirm your new address",
       "subtitle": "Your admin moved your account to this address. You'll sign in with it from now on.",
       "submit": "Confirm the address",
-      "invalid": "This link has expired or was already used."
+      "failed": "The address couldn't be confirmed just now. Try again.",
+      "deadTitle": "This link doesn't work",
+      "dead": "It has expired, was cancelled or was already used. If your address was already changed, sign in with the new one. If not, ask your admin for a new link.",
+      "toSignIn": "Go to sign in"
     }
   },
   "security": {
@@ -4105,7 +4114,7 @@
       },
       "privacy": {
         "title": "Privacy notice",
-        "summary": "What we keep about you, who sees it, that it stays in Saudi Arabia, and how to see, correct or erase it.",
+        "summary": "What we keep about you, who sees it, where it is kept, and how to see, correct or erase it, as the notice sets out in full.",
         "accept": "I have read the privacy notice."
       },
       "ai_notice": {
@@ -4467,7 +4476,7 @@
     "until": "This link is for this request only and works until {date}.",
     "file": "Your file",
     "another": "Another file",
-    "rules": "PDF, Word, Excel, PowerPoint, images, text or CSV ({types}), up to {mb} MB. One file at a time.",
+    "rules": "PDF, Word, Excel, PowerPoint, images, text or CSV (<types></types>), up to {mb} MB. One file at a time.",
     "send": "Send",
     "sending": "Sending…",
     "received": "{n, plural, one {Received. Thank you.} other {Received # files. Thank you.}}",

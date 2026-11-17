@@ -7,7 +7,7 @@ import { HighlightText } from "@animate-ui/react/primitives/texts/highlight";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
 import { ArrowRight } from "@/components/animate-ui/icons/arrow-right";
@@ -155,6 +155,18 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
   const [sent, setSent] = useState<{ ref: string; email: string } | null>(null);
   const honeypot = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
+  // Set when the visitor moves to another step, so the step that then opens
+  // takes the keyboard focus (never on the first load of the page).
+  const moved = useRef(false);
+  // Steps 1 and 2 open with the cursor in their first field (autoFocus, which
+  // runs before this). The others start with choices, so focus goes to the
+  // step itself: a screen reader says its name and the next Tab lands on its
+  // first control, instead of staying on the Continue button below it.
+  const focusStep = useCallback((panel: HTMLDivElement | null) => {
+    if (!panel || !moved.current) return;
+    moved.current = false;
+    if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+  }, []);
 
   const family = FAMILY_OWNERSHIP.includes(a.ownershipType);
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => {
@@ -163,6 +175,7 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
   };
 
   function go(to: number) {
+    if (to !== step) moved.current = true;
     setHeading(to > step ? 1 : -1);
     setStep(to);
     setReached((r) => Math.max(r, to));
@@ -290,7 +303,11 @@ export function InquiryForm({ options, locale }: { options: InquiryOptions; loca
               animate="center"
               exit="exit"
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="p-6"
+              ref={focusStep}
+              tabIndex={-1}
+              role="group"
+              aria-label={t(`steps.${current}`)}
+              className="p-6 outline-none"
             >
               {notice ? (
                 <Alert
@@ -751,6 +768,7 @@ function Review({
         [t("contact.email"), <bdi key="e">{a.email}</bdi>],
         [t("contact.phone"), a.phone ? <bdi key="p">{a.phone}</bdi> : none],
         [t("contact.channel"), t(`channel.${a.contactChannel}`)],
+        [t("contact.language"), t(`contact.${a.preferredLanguage}`)],
       ],
     },
     {
@@ -758,7 +776,9 @@ function Review({
       rows: [
         [t("needs.services"), a.services.map((s) => label(options.services, s)).join("، ")],
         [t("review.whyNow"), <span key="w" dir="auto" className="whitespace-pre-wrap">{a.whyNow}</span>],
+        [t("needs.message"), a.message.trim() ? <span key="m" dir="auto" className="whitespace-pre-wrap">{a.message.trim()}</span> : none],
         [t("needs.urgency"), a.urgency ? t(`urgency.${a.urgency}`) : none],
+        [t("needs.heardFrom"), a.heardFrom ? t(`heardFromOption.${a.heardFrom}`) : none],
       ],
     },
     {
@@ -790,7 +810,15 @@ function Review({
                 </div>
               ))}
             </dl>
-            <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => onEdit(sec.step)}>
+            {/* Four buttons read "Edit": the label says which part each one opens. */}
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+              aria-label={t("review.editStep", { step: t(`steps.${STEPS[sec.step]!}`) })}
+              onClick={() => onEdit(sec.step)}
+            >
               {t("review.edit")}
             </Button>
           </div>
@@ -829,15 +857,29 @@ function Review({
 
 function Sent({ refCode, email, onAgain }: { refCode: string; email: string; onAgain: () => void }) {
   const t = useTranslations("inquiry");
+  // The form the focus was in is gone: put it on the confirmation, not nowhere.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus({ preventScroll: true }), []);
   return (
     <Card className="animate-page-in items-center gap-6 px-6 py-12 text-center shadow-sm lg:self-start" role="status">
       <span className="flex size-14 items-center justify-center rounded-full bg-muted">
-        <CircleCheck animate className="size-7 text-success" />
+        {/* The page's normal tone, not green: green is kept for work a consultant has verified. */}
+        <CircleCheck animate className="size-7" />
       </span>
       <div className="max-w-md space-y-2">
-        <h2 className="text-xl font-semibold text-balance">{t("sent.title")}</h2>
+        <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold text-balance outline-none">
+          {t("sent.title")}
+        </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          {t.rich("sent.body", { email: () => <bdi className="text-foreground">{email}</bdi> })}
+          {/* One left-to-right piece that moves to the next line whole, so in Arabic the
+              address is not split at its hyphen and the full stop stays after it. */}
+          {t.rich("sent.body", {
+            email: () => (
+              <bdi dir="ltr" className="inline-block max-w-full text-foreground wrap-anywhere">
+                {email}
+              </bdi>
+            ),
+          })}
         </p>
       </div>
       <CardContent className="w-full max-w-sm space-y-2 rounded-xl border bg-muted/40 p-4">
