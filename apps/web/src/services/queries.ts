@@ -302,6 +302,17 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     .where(eq(findings.projectId, id))
     .orderBy(asc(findings.createdAt));
 
+  // Findings answered by a recommendation filed under a department this
+  // person is not in: a number per finding, never a title, so the plan does
+  // not say "no recommendation yet" where there is one (decision D8).
+  const elsewhere = new Map(
+    principal.orgKind === "client" && findingRows.length
+      ? (
+          await tx.execute<{ finding_id: string; n: number }>(sql`select finding_id, n from app_findings_answered_elsewhere(${id}::uuid)`)
+        ).rows.map((r) => [r.finding_id, r.n])
+      : [],
+  );
+
   const findingResource = (f: (typeof findingRows)[number]): Resource => ({
     type: "finding",
     id: f.id,
@@ -391,6 +402,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     // documents whose label and project the user passes.
     findings: visible(principal, "finding.read", findingRows, findingResource).map((f) => ({
       ...f,
+      answeredElsewhere: elsewhere.get(f.id) ?? 0,
       can: recordControls(principal, findingResource(f), f, {
         liveRecommendations: recs.filter((r) => r.findingId === f.id && !r.withdrawnAt).length,
       }),

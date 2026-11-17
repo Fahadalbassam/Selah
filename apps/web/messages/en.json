@@ -2673,7 +2673,9 @@
       "field": "Finding",
       "description": "Details (optional)",
       "visibility": "Who can see it",
-      "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}"
+      "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}",
+      "answeredElsewhere": "Answered in another department",
+      "answeredElsewhereToo": ", and in another department"
     },
     "rec": {
       "add": "Add a recommendation",
@@ -4331,7 +4333,8 @@
     "client": "Client",
     "actions": "Actions",
     "actionsHint": "The work that carries this recommendation out.",
-    "noActions": "No actions yet."
+    "noActions": "No actions yet.",
+    "actionsLeftOut": "{n, plural, one {# more action is not shown to you} other {# more actions are not shown to you}}"
   },
   "oversight": {
     "title": "Oversight",

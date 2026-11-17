@@ -330,7 +330,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                             </p>
                           ) : (
                             <p className="text-xs text-muted-foreground">
-                              {tPlan("findings.answeredBy", { n: answeredBy })}
+                              {/* A recommendation in a department the reader is not in still answers the finding; it is not named. */}
+                              {f.answeredElsewhere === 0
+                                ? tPlan("findings.answeredBy", { n: answeredBy })
+                                : answeredBy === 0
+                                  ? tPlan("findings.answeredElsewhere")
+                                  : `${tPlan("findings.answeredBy", { n: answeredBy })}${tPlan("findings.answeredElsewhereToo")}`}
                               {f.fromAssessment ? ` · ${tPlan("findings.fromAssessment")}` : ""}
                             </p>
                           )}
