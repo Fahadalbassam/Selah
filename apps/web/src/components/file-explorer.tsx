@@ -276,7 +276,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
             </div>
           ) : null}
           {open && audienceUrl ? (
-            <AudienceField kind="document" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
+            <AudienceField key={project.id} kind="document" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <DialogFooter>
