@@ -643,6 +643,29 @@ describe("the server refuses", () => {
   });
 });
 
+// ------------------------------------------------------------------ re-saving
+describe("an \"only\" list keeps the person who saved it", () => {
+  it("X sets only [A]; Y saves it again unchanged; X still sees the item, as a chip Y could remove on purpose", async () => {
+    const S1 = id(71);
+    await doc(S1, { by: U.cons, ownerOrg: FIRM, title: "Only-list canary" });
+    // X: a consultant on the project, not the uploader, the lead or the deputy.
+    await svc(U.cons2, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "only", people: [U.cons2, U.nmgr2] }), true);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM documents WHERE id = $1`, [S1])).toHaveLength(1);
+    // Y opens the picker: X is on the list as an ordinary chip, not hidden and not locked.
+    const seen = await svc(U.admin, (tx, p) => D.getDocumentAudience(tx, p, S1));
+    expect(seen.selected).toContain(U.cons2);
+    expect(seen.people.find((x) => x.id === U.cons2)?.locked).toBeUndefined();
+    // Y saves what the picker shows, unchanged.
+    await svc(U.admin, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "only", people: seen.selected }), true);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM documents WHERE id = $1`, [S1])).toHaveLength(1);
+    // X, editing it again, sees herself locked (she is the one saving).
+    expect((await svc(U.cons2, (tx, p) => D.getDocumentAudience(tx, p, S1))).people.find((x) => x.id === U.cons2)?.locked).toBe("self");
+    // The saver is never written onto a list of people left out.
+    await svc(U.cons2, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "except", people: [U.nmgr] }), true);
+    expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [S1])).rows.map((r) => r.user_id)).toEqual([U.nmgr]);
+  });
+});
+
 // ------------------------------------------------------------------ copies
 describe("a narrowed file is never copied out of its audience", () => {
   it("a file with a limited audience can't be used as evidence: the service and the database refuse it, and the one left out still sees nothing", async () => {
@@ -697,8 +720,10 @@ describe("people who gain access later", () => {
     await q(`UPDATE client_assignments SET is_deputy = true WHERE client_org_id = $1 AND user_id = $2`, [NUKHBA, U.newDeputy]);
     try {
       expect(await rowsAs(U.newDeputy, `SELECT title FROM documents WHERE id = $1`, [DOC.only])).toEqual([{ title: TITLE.only }]);
-      // The list itself is unchanged: she is let in live, not written onto it.
-      expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [DOC.only])).rows.map((r) => r.user_id)).toEqual([U.nmgr2]);
+      // The list itself is unchanged (the person picked, and the consultant who saved it): she is let in live, not written onto it.
+      expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [DOC.only])).rows.map((r) => r.user_id).sort()).toEqual(
+        [U.cons, U.nmgr2].sort(),
+      );
       // The picker lists her as locked, as the deputy.
       const audience = await svc(U.cons, (tx, p) => D.getDocumentAudience(tx, p, DOC.only));
       expect(audience.people.find((x) => x.id === U.newDeputy)?.locked).toBe("deputy");
