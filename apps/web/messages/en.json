@@ -5062,7 +5062,7 @@
       "dailyRead": "Read daily",
       "connectedBy": "Connected by {name}, {when}",
       "failing": "Not working: {reason}",
-      "noRight": "The person who set up this connection can no longer change this client's figures. Ask the client's lead consultant to set it up again.",
+      "noRight": "The person who set up this connection can no longer change these figures. The lead consultant needs to set it up again.",
       "lastOk": "Last received {when} ({n} figures)",
       "notYet": "Nothing received yet",
       "reasons": {
@@ -5072,7 +5072,7 @@
         "too_large": "the sheet is larger than 2 MB",
         "empty": "the sheet is empty",
         "refused": "the figures were refused; check the person who connected it still has access",
-        "no_right": "its person lost the right"
+        "no_right": "set up by someone who lost access"
       },
       "readNow": "Read now",
       "disconnect": "Disconnect",

@@ -1,7 +1,8 @@
 // Privacy batch 0 (page audit N1, N3, N5; decisions D4 and D8): a person
 // never sees, by title, work they may not open. One fixture, a client with
-// departments switched on, and one describe per leak. Every test here failed
-// before its fix.
+// departments switched on, and one describe per leak. Every leak test here
+// failed before its fix; the department-meeting block at the end guards rules
+// that already held (it was shown to fail with the notes policy removed).
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";
