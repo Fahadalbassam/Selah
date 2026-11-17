@@ -16,7 +16,7 @@ There are two layers. Both must allow a request.
 1. **Organization.** Client users reach only their own organization. Firm staff reach client records only through a project their firm runs, and a consultant only for clients assigned to them.
 2. **Role.** Does `POLICY[permission]` grant this role anything? (`src/authz/policy.ts`)
 3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
-4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), or `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer).
+4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer), or `staffed` (a consultant who is the client's lead or deputy or is staffed on any of its projects, observing or not: who reads its organisation structure).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
 
 ## Internal and client projects
@@ -58,6 +58,31 @@ Decision D8 (2026-11): a person never sees, by title, work they may not open, on
 | The project's activity record | For the firm and the client's admin. Client managers and action owners get neither the tab nor the rows. The client's admin never reads an event about an action under a firm-only recommendation, or about a draft. | `activity.read`; policy `scoped_read` on `activity_events` (migration `0071_activity_readers`), restrictive policies `recommendation_label` and `draft` (migrations `0078`, `0076`) |
 | A shared status pack | Items of other departments are left out of each list, with how many; an indicator names only the linked recommendations the reader can open. The numbers stay whole: a person at the firm chose to share the report. The app role cannot read the column `reports.pack`; an issued pack comes only from `app_report_pack_for()`, which answers nothing to an action owner. | migration `0074_status_pack_readers`; `reportPack()` in `services/status-pack.ts` |
 | The Departments page | Names, members and heads are for everyone at the client; a card links to the department's page only for the firm, the client's admin and the department's own people. | `getEngagement()` (`canOpen`) |
+
+## The client's organisation structure
+
+Gate A follow-ups (17 Nov 2026, feature B; migration `0100_org_chart`; the data in [data-model.md](data-model.md), "The client's organisation structure"). The structure belongs to the client, not to a project, like its indicators. **It never grants or limits access to any work**: a unit linked to a department is a label; who sees an action, a file, a meeting or an indicator is decided by departments and the rules above exactly as before, and no policy outside the chart's own tables reads them (`tests/db/org-chart.test.ts` proves that what every client person reads is the same before and after a chart with linked units is published).
+
+| Who | Reads | Names of the people in positions | Changes |
+|---|---|---|---|
+| Firm admin | The draft, the current version, the history | All | Edits the draft, publishes, changes holders, answers suggestions |
+| The client's lead or deputy | The same | All | The same |
+| A consultant staffed on one of the client's projects (not observing, project not closed) | The same | All | Edits the draft, changes holders, answers suggestions; does not publish |
+| An observer, or a consultant staffed only on closed projects | The same | All | Nothing |
+| A consultant on the client's team staffed on none of its projects | Nothing (404) | | |
+| The client's admin | The current version and the history, never the draft | All | The people in positions on the published structure; the "show names" switch; suggests changes |
+| A client manager | Every unit and position title of the current version and the history | Only in her branch and the chain above it, and none while the version's "show names" is off | Nothing |
+| An action owner | No chart (404). "Your manager" on their profile: the position theirs reports to and who holds it (the name only while names are shown) | | Nothing |
+| Anyone of another client, or a firm person outside the client | Nothing (404) | | |
+
+- **The branch.** The units linked to the manager's departments and every unit under them, plus the chain above it: the positions those positions report to, up to the top, and the head positions of the units above. A client with departments off gives a manager no department of her own, so no branch and no names (`app_org_chart_branch()`).
+- **Names are decided in the database.** A client manager cannot read `position_holders`; `app_org_chart_holders()` sends a name only where `app_org_chart_named_positions()` allows it, and an unnamed holder arrives as filled with no name, person, dates or id. The page never receives a name to hide. The snapshot of a published version carries no names.
+- **"Show names"** is on each published version, owned by the client's admin (`app_set_org_chart_show_names()`), off by default (names are personal data under the PDPL) and carried over to the next published version.
+- **Minimal records** (consultant-managed): titles only. No holder can be stored, and switching a client to minimal records forgets its holders (`forget_org_chart_holders()`). **Restricted clients** have admins only, who see everything as above.
+- **Structure only in the draft.** Units and positions change only while their version is the draft (`check_org_unit()`, `check_position()`), only by the firm's editors (row-level security, `app_org_chart_editor()`); the client's admin and managers get a 404 from the services and a refusal from the database. Publishing is `app_publish_org_chart()` (the firm admin, the lead or the deputy, `app_org_chart_publisher()`); the app cannot write the chart or its versions otherwise.
+- **People in positions.** The client's admin places people only in positions of the published structure; the firm's editors also in the draft (`check_position_holder()`). A change on the published structure is audited and tells the client's lead and deputy (`org_chart.holder_changed`, `notify_position_holder()`).
+- **Suggest a change.** The client's admin writes one (what, where, why); it tells the lead and deputy (`org_chart.change_requested`); the firm's editors mark it done or declined, once.
+- In `authorize()`: `org_chart.read` (scope `staffed` for consultants, from `principal.staffedClientIds`), `org_chart.edit` and `org_chart.holders` (`working`), `org_chart.publish` (`lead`), `org_chart.show_names` and `org_chart_request.create` (client admin), `org_chart_request.read`, `org_chart_request.close`. A draft version is a resource with `draft: true`, which no client role reads.
 
 ## Draft actions
 
