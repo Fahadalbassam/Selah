@@ -845,6 +845,33 @@ describe("names follow the current version's switch, as of today", () => {
   });
 });
 
+describe("your manager", () => {
+  it("is for anyone whose own position is on the published chart, with the name only while it shows names, departments on or off", async () => {
+    // Other has departments off: its manager has no branch, so her chart shows no names at all.
+    await svc(U.admin, (tx, p) => OC.startChart(tx, p, OTHER), true);
+    const u = await svc(U.admin, (tx, p) => OC.addUnit(tx, p, OTHER, { kind: "executive", nameEn: "Management" }), true);
+    const boss = await svc(U.admin, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "General manager", isHead: true }), true);
+    const staff = await svc(U.admin, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Coordinator", reportsToId: boss.id, plannedCount: 2 }), true);
+    const v = await publishAs(U.admin, OTHER);
+    for (const [pos, start] of [
+      [boss.id, { name: "Other Boss Name", from: PAST }],
+      [staff.id, { userId: U.omgr, from: PAST }],
+      [staff.id, { userId: U.oowner, from: PAST }],
+    ] as const) {
+      await svc(U.oadmin, (tx, p) => OC.changeHolder(tx, p, pos, { start }), true);
+    }
+    const mine = async (who: string) => (await svc(who, (tx, p) => OC.myManager(tx, p))).map((m) => [m.titleEn, m.name, m.vacant]);
+    for (const who of [U.omgr, U.oowner]) expect(await mine(who), who).toEqual([["General manager", null, false]]);
+    await svc(U.oadmin, (tx, p) => OC.setShowNames(tx, p, v.versionId, true), true);
+    for (const who of [U.omgr, U.oowner]) expect(await mine(who), who).toEqual([["General manager", "Other Boss Name", false]]);
+    // It names only their own manager: the manager's chart still shows no names here.
+    const chart = await svc(U.omgr, (tx, p) => OC.getPublishedChart(tx, p, OTHER));
+    expect([chart.names, chart.positions.flatMap((p) => p.holders).some((h) => h.name !== null)]).toEqual(["none", false]);
+    // Someone who holds no position has no manager here.
+    expect(await mine(U.oadmin)).toEqual([]);
+  });
+});
+
 describe("publishing at the same moment as something else", () => {
   const RACE = id(60);
   const P_RACE = id(61);
