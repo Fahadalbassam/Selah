@@ -9,6 +9,7 @@ import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 import { DepartmentsSwitch } from "@/components/departments-switch";
 import { SlidingCount } from "@/components/sliding-count";
+import { typedDir } from "@/lib/utils";
 
 const html = (locale: "ar" | "en", node: ReactNode) =>
   renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh", children: node }));
@@ -27,6 +28,15 @@ describe("the departments switch (B4)", () => {
     expect(on).toContain(`>${ar.engagement.on}<`);
     expect(html("en", createElement(DepartmentsSwitch, { on: true, manage: false }))).toContain(">On<");
     expect(html("en", createElement(DepartmentsSwitch, { on: false, manage: false }))).toContain(">Off<");
+  });
+});
+
+describe("a text box people type into (page audit 3.8)", () => {
+  it("follows the page while empty, so an Arabic box starts on the right, and the text once typed", () => {
+    expect(typedDir("")).toBeUndefined();
+    expect(typedDir("  \n")).toBeUndefined();
+    expect(typedDir("Hello")).toBe("auto");
+    expect(typedDir("مرحبا")).toBe("auto");
   });
 });
 

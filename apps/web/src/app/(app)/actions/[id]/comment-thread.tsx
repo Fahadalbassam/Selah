@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { panelVoice } from "@/lib/engagement";
+import { typedDir } from "@/lib/utils";
 import { ASK_EVENT, THREAD_ANCHOR } from "@/lib/help";
 
 interface Person {
@@ -176,7 +177,7 @@ export function CommentThread({
               required
               rows={3}
               maxLength={8000}
-              dir="auto"
+              dir={typedDir(body)}
               placeholder={t("placeholder")}
             />
             {mentions.length ? (
