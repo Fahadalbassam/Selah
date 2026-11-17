@@ -266,6 +266,7 @@ const TABLES: Record<string, string> = {
   content_translations: "id::text",
   activity_events: "id::text",
   notifications: "id::text",
+  ai_conversations: "id::text",
 };
 
 async function snapshot() {
@@ -529,6 +530,36 @@ describe("a person left out sees nothing of the item", () => {
     expect(authorize(p, "organization.export", { type: "organization", orgId: NUKHBA, projectId: null }).allowed).toBe(false);
     // The client's admin always sees what the client can see, so the pack (read under her rules) holds every file.
     expect(await rowsAs(U.ncadmin, `SELECT count(*)::int AS n FROM documents WHERE id = ANY($1)`, [[DOC.deliv, DOC.client, DOC.only]])).toEqual([{ n: 3 }]);
+  });
+
+  it("her old assistant chats about it, or citing it, are hidden like a chat whose project she no longer sees, and kept", async () => {
+    const chat = async (title: string, caseRef: { type: string; id: string } | null, cites: string[]) => {
+      const [c] = (
+        await q(`INSERT INTO ai_conversations (user_id, project_id, title, case_type, case_id) VALUES ($1,$2,$3,$4::chat_case_type,$5) RETURNING id`, [
+          U.nmgr,
+          PN,
+          title,
+          caseRef?.type ?? null,
+          caseRef?.id ?? null,
+        ])
+      ).rows;
+      await q(`INSERT INTO ai_messages (conversation_id, user_id, role, content, lang) VALUES ($1,$2,'user',$3,'en')`, [c.id, U.nmgr, `About ${title}`]);
+      await q(`INSERT INTO ai_messages (conversation_id, user_id, role, content, lang, citations) VALUES ($1,$2,'assistant','An answer','en',$3)`, [
+        c.id,
+        U.nmgr,
+        JSON.stringify(cites.map((d) => ({ chunkId: null, sourceType: "document", sourceId: d, version: 1 }))),
+      ]);
+      return c.id as string;
+    };
+    const aboutIt = await chat("Summarise the salary review", { type: "document", id: DOC.client }, [DOC.client]);
+    const citesIt = await chat("What changes in the secretariat?", null, [DOC.open, DOC.deliv]);
+    const other = await chat("What is in the open plan?", null, [DOC.open]);
+    const ids = (await rowsAs(U.nmgr, `SELECT id FROM ai_conversations WHERE user_id = $1`, [U.nmgr])).map((r) => r.id);
+    expect(ids).toEqual([other]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM ai_messages WHERE conversation_id = ANY($1)`, [[aboutIt, citesIt]])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT count(*)::int AS n FROM ai_messages WHERE conversation_id = $1`, [other])).toEqual([{ n: 2 }]);
+    // Kept, not deleted: opened up again, they come back.
+    expect((await q(`SELECT count(*)::int AS n FROM ai_conversations WHERE id = ANY($1)`, [[aboutIt, citesIt]])).rows).toEqual([{ n: 2 }]);
   });
 
   it("the assistant's search never retrieves a passage of it, with the real scope or a forged one, and citations find nothing", async () => {
