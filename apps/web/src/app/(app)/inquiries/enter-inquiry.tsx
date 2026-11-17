@@ -3,7 +3,7 @@
 import { FilePlus2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export function EnterInquiryDialog(props: { sectors: Option[]; services: Option[
   const select = (
     name: string,
     label: string,
-    options: { value: string; label: string }[],
+    options: { value: string; label: ReactNode }[],
     optional = true,
     onChange?: (v: string) => void,
     value?: string,
@@ -176,9 +176,10 @@ export function EnterInquiryDialog(props: { sectors: Option[]; services: Option[
             {select(
               "employeeBand",
               ti("org.size"),
+              // A range of numbers reads left to right in Arabic too (10–49, not 49–10), as on the list.
               EMPLOYEE_BANDS.map((b) => ({
                 value: b,
-                label: ti(`employeeBand.${b}`),
+                label: <bdi dir="ltr">{ti(`employeeBand.${b}`)}</bdi>,
               })),
             )}
             {select(
