@@ -667,7 +667,7 @@ describe("observers (N6)", () => {
 
 describe("business indicators belong to the client, so what counts is the consultant's standing with the client (D4)", () => {
   const indicator = acmeRecord("indicator", { projectId: null });
-  const WRITES = ["indicator.report", "indicator.manage", "indicator.check", "indicator.data"] as Permission[];
+  const WRITES = ["indicator.report", "indicator.manage", "indicator.link", "indicator.check", "indicator.data"] as Permission[];
   // On Acme's team, with what the principal loader works out: the clients they do the work for.
   const consultant = (working: string[], lead: string[] = []) => ({
     ...principal("consultant", [], undefined, [ACME], { clients: lead }),
@@ -701,6 +701,14 @@ describe("business indicators belong to the client, so what counts is the consul
     expect(authorize(principal("client_manager", [ACME_PROJ_1]), "indicator.manage", indicator).allowed).toBe(false);
     expect(authorize(principal("client_admin"), "indicator.check", indicator).allowed).toBe(false);
     expect(authorize(principal("action_owner", [ACME_PROJ_1]), "indicator.read", indicator).allowed).toBe(false);
+  });
+
+  it("only the firm links an indicator to a recommendation (decision 1c)", () => {
+    for (const role of ["client_admin", "client_manager", "action_owner"] as const) {
+      expect(authorize(principal(role, [ACME_PROJ_1]), "indicator.link", indicator).allowed, role).toBe(false);
+    }
+    expect(authorize(principal("firm_admin"), "indicator.link", indicator).allowed).toBe(true);
+    expect(authorize(consultant([ACME]), "indicator.link", indicator).allowed).toBe(true);
   });
 });
 

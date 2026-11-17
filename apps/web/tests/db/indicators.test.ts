@@ -346,19 +346,21 @@ describe("the series and the summary", () => {
     ]);
     const forRec = await svc(U.cmgr, (tx, p) => I.recommendationIndicators(tx, p, R.shared));
     expect(forRec?.linked.map((k) => k.id)).toEqual([K.company]);
-    expect(forRec?.canManage).toBe(false);
+    expect(forRec?.canLink).toBe(false);
   });
 });
 
 describe("links to recommendations", () => {
-  it("join an indicator and a recommendation of the same client, by those who set indicators up", async () => {
-    await svc(U.cadmin, (tx, p) => I.linkRecommendation(tx, p, K.company, R.shared));
+  it("join an indicator and a recommendation of the same client, by the firm only (decision 1c)", async () => {
+    // The client's admin sets indicators up but no longer links them (tests/db/observer-indicators.test.ts, 1c).
+    await expect(svc(U.cadmin, (tx, p) => I.linkRecommendation(tx, p, K.company, R.shared))).rejects.toThrow();
+    await svc(U.lead, (tx, p) => I.linkRecommendation(tx, p, K.company, R.shared));
     await expect(svc(U.cons, (tx, p) => I.linkRecommendation(tx, p, K.company, R.beta))).rejects.toThrow();
     await expect(
       sqlAs(U.admin, `INSERT INTO client_kpi_links (kpi_id, recommendation_id, org_id, created_by) VALUES ($1,$2,$3,$4)`, [K.company, R.beta, ACME, U.admin]),
     ).rejects.toThrow(/same client/);
     await expect(svc(U.cmgr, (tx, p) => I.linkRecommendation(tx, p, K.company, R.shared))).rejects.toThrow();
-    // A client admin can't link what it can't read: the firm's own recommendation.
+    // Nor in the database, whichever recommendation.
     await expect(
       sqlAs(U.cadmin, `INSERT INTO client_kpi_links (kpi_id, recommendation_id, org_id, created_by) VALUES ($1,$2,$3,$4)`, [K.company, R.firm, ACME, U.cadmin]),
     ).rejects.toThrow(/row-level security/);

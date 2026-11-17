@@ -260,6 +260,8 @@ export async function getIndicator(tx: Tx, principal: Principal, id: string, tod
   const history = values.map((v) => ({ ...v, value: Number(v.value), current: !replaced.has(v.id) }));
   const links = await linkedRecommendations(tx, [id]);
   const canManage = can(principal, "indicator.manage", row.orgId, row.departmentId);
+  // Linking to a recommendation is the firm's statement (decision 1c).
+  const canLink = can(principal, "indicator.link", row.orgId, row.departmentId);
   const canReport = row.active && can(principal, "indicator.report", row.orgId, row.departmentId);
   const canCheck = can(principal, "indicator.check", row.orgId, row.departmentId);
   return {
@@ -285,11 +287,12 @@ export async function getIndicator(tx: Tx, principal: Principal, id: string, tod
         )
       : [],
     canManage,
+    canLink,
     canReport,
     canCheck,
     viewerId: principal.userId,
     canDelete: canManage && history.length === 0,
-    linkable: canManage ? await linkableRecommendations(tx, row.orgId, id) : [],
+    linkable: canLink ? await linkableRecommendations(tx, row.orgId, id) : [],
     departments: canManage && client.departmentsEnabled
       ? await tx
           .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
@@ -528,9 +531,10 @@ async function recommendationOrg(tx: Tx, recommendationId: string) {
   return r.orgId;
 }
 
+/** Firm staff only (decision 1c); the database refuses anyone else (migration 0087). */
 export async function linkRecommendation(tx: Tx, principal: Principal, id: string, recommendationId: string) {
   const row = await loadIndicator(tx, id);
-  assertAllowed(principal, "indicator.manage", resource(principal, row.orgId, row.departmentId));
+  assertAllowed(principal, "indicator.link", resource(principal, row.orgId, row.departmentId));
   if ((await recommendationOrg(tx, recommendationId)) !== row.orgId) throw new NotFoundError("recommendation");
   await tx
     .insert(clientKpiLinks)
@@ -550,7 +554,7 @@ export async function linkRecommendation(tx: Tx, principal: Principal, id: strin
 
 export async function unlinkRecommendation(tx: Tx, principal: Principal, id: string, recommendationId: string) {
   const row = await loadIndicator(tx, id);
-  assertAllowed(principal, "indicator.manage", resource(principal, row.orgId, row.departmentId));
+  assertAllowed(principal, "indicator.link", resource(principal, row.orgId, row.departmentId));
   const gone = await tx
     .delete(clientKpiLinks)
     .where(and(eq(clientKpiLinks.kpiId, id), eq(clientKpiLinks.recommendationId, recommendationId)))
@@ -584,8 +588,9 @@ export async function recommendationIndicators(tx: Tx, principal: Principal, rec
     .where(eq(clientKpiLinks.recommendationId, recommendationId))
     .orderBy(asc(clientKpis.createdAt));
   const linked = await withSummaries(tx, rows, today);
-  const canManage = can(principal, "indicator.manage", orgId);
-  const others = canManage
+  // Linking is the firm's (decision 1c): the client reads the links it may see.
+  const canLink = can(principal, "indicator.link", orgId);
+  const others = canLink
     ? await tx
         .select({ id: clientKpis.id, nameAr: clientKpis.nameAr, nameEn: clientKpis.nameEn })
         .from(clientKpis)
@@ -598,7 +603,7 @@ export async function recommendationIndicators(tx: Tx, principal: Principal, rec
         )
         .orderBy(asc(clientKpis.createdAt))
     : [];
-  return { clientOrgId: orgId, linked, canManage, others };
+  return { clientOrgId: orgId, linked, canLink, others };
 }
 
 /**

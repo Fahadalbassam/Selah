@@ -477,6 +477,13 @@
       "when": 1794933154485,
       "tag": "0086_whole_project_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794933484943,
+      "tag": "0087_indicator_links_firm",
+      "breakpoints": true
     }
   ]
 }
