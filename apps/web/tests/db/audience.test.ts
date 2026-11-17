@@ -617,6 +617,14 @@ describe("the server refuses", () => {
     await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr2] }))).rejects.toThrow(/required attendee/);
   });
 
+  it("an archived file, in the service and in the database", async () => {
+    const OLD = id(72);
+    await doc(OLD, { by: U.cons, ownerOrg: FIRM, title: "Archived canary" });
+    await q(`UPDATE documents SET state = 'archived' WHERE id = $1`, [OLD]);
+    await expect(set(U.cons, OLD, "except", [U.nmgr])).rejects.toThrow(/archived/);
+    await expect(rowsAs(U.cons, `SELECT app_set_audience('document', $1, 'except', ARRAY[$2]::uuid[])`, [OLD, U.nmgr])).rejects.toThrow(/file is archived/);
+  });
+
   it('an "only" list with nobody', async () => {
     await expect(set(U.cons, DOC.open, "only", [])).rejects.toThrow(/at least one person/);
     await expect(rowsAs(U.cons, `SELECT app_set_audience('document', $1, 'only', '{}')`, [DOC.open])).rejects.toThrow(/at least one person/);
