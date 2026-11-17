@@ -17,7 +17,7 @@ export default async function NotificationsPage() {
     support: await listSupportRequests(tx, principal),
   }));
   const [t, tHelp, format, ar] = await Promise.all([getTranslations("notifications"), getTranslations("help.support"), getFormatter(), getLocale().then((l) => l === "ar")]);
-  const { muted, nextMailAt, ...choices } = mail;
+  const { muted, mutedIndicators, nextMailAt, ...choices } = mail;
   return (
     <>
       <PageHeader title={t("title")} description={t("unread", { n: unread })}>
@@ -59,7 +59,7 @@ export default async function NotificationsPage() {
       ) : null}
       <SectionHeader title={t("mail.section")} description={t("mail.sectionHint")} />
       <MailChoicesForm initial={{ ...choices, nextMailAt: nextMailAt?.toISOString() ?? null }} />
-      <MutedActions items={muted} />
+      <MutedActions items={muted} indicators={mutedIndicators} />
     </>
   );
 }
