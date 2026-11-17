@@ -639,6 +639,32 @@ describe("notices written while an action was a draft", () => {
   });
 });
 
+describe("the firm admin's hand-over of someone named on a draft", () => {
+  it("moves the draft with the rest, as before, and tells the new owner only of released work", async () => {
+    const [who, draft, open] = [id(20), id(48), id(49)];
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'handed','handed@example.test')`, [who]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'action_owner')`, [who, ACME]);
+    await owner.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P, who]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by) VALUES
+        ($1,$3,$4,$5,'Handed draft canary',$6,'draft',app_firm_today() + 30,$7),
+        ($2,$3,$4,$5,'Handed open canary',$6,'assigned',app_firm_today() + 30,$7)`,
+      [draft, open, P, ACME, REC, who, U.lead],
+    );
+    const report = async (by: string) => (await svc(by, (tx, p) => personHoldings(tx, p, who))).items.map((i) => i.title).sort();
+    expect(await report(U.admin)).toEqual(["Handed draft canary", "Handed open canary"]);
+    expect(await report(U.cadmin)).toEqual(["Handed open canary"]);
+    await svc(U.admin, (tx, p) => handOver(tx, p, who, { to: U.owner2, kinds: ["action"] }), true);
+    const owners = await owner.query(`SELECT id, owner_user_id FROM actions WHERE id = ANY($1) ORDER BY id`, [[draft, open]]);
+    expect(owners.rows).toEqual([
+      { id: draft, owner_user_id: U.owner2 },
+      { id: open, owner_user_id: U.owner2 },
+    ]);
+    const told = await owner.query(`SELECT entity_id FROM notifications WHERE user_id = $1 AND entity_id = ANY($2)`, [U.owner2, [draft, open]]);
+    expect(told.rows).toEqual([{ entity_id: open }]);
+  });
+});
+
 describe("moving a department's work when all it holds is a draft", () => {
   it("records the move for the firm only: the client admin's activity record does not show it", async () => {
     const [from, moved] = [id(10), id(47)];
@@ -709,5 +735,23 @@ describe("closing a project, and replacing an action, with a draft on it", () =>
       "Phase two draft canary",
       "Phase two open canary",
     ]);
+  });
+
+  it("the client admin names who sustains released work, never a draft handed over before this rule", async () => {
+    const legacy = id(50);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, created_by)
+       VALUES ($1,$2,$3,$4,'Legacy handed draft canary',$5,'draft',$6)`,
+      [legacy, P2, ACME, REC3, U.owner, U.lead],
+    );
+    // Written the way app_dispose_action allowed before 0078.
+    await owner.query(
+      `INSERT INTO project_closure_items (closure_id, action_id, project_id, org_id, disposition, decided_by)
+       VALUES (app_open_closure($1), $2, $1, $3, 'handed_over', $4)`,
+      [P2, legacy, ACME, U.lead],
+    );
+    const name = (act: string) => as(U.cadmin, (c) => c.query(`SELECT app_name_sustainer($1, $2, NULL)`, [act, U.mgr]), true);
+    await expect(name(legacy)).rejects.toThrow(/no such handed-over action/);
+    await name(X.open);
   });
 });
