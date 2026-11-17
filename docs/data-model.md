@@ -92,6 +92,21 @@ Reminders, escalations and workflow events (actions moving, evidence items, date
 - Screens: the bell in the header shows the unread count and the newest ten, and `/notifications` shows the last 100. Opening one marks it read.
 - `GET` and `PUT /api/notifications/mail` read and set the caller's own `mail_preferences` (for now just `followUpDigest`, on by default). No row means the defaults. The switch is under the list on `/notifications`.
 
+## Who sees an item
+
+Feature A of 17 Nov 2026 (docs/authorization.md, "Who sees an item"; migrations `0110_item_audiences`, `0111_audience_rules`). Two generic tables, for documents (never evidence) and meetings:
+
+- `item_audiences (org_id, item_type, item_id, mode, set_by, set_at)`: one row per narrowed item; `item_type` is `document` or `meeting`, `mode` is `except` or `only`. No row means everyone with access. Every version of a file carries the same rows (a new version copies them, `copy_item_audience()`), and the rows go when the item goes (`drop_item_audience()`, and with the client).
+- `item_audience_people (item_type, item_id, user_id)`: the people left out ("except") or let in ("only"), besides those who always see the item. Those are never stored: the setter (`set_by`), the uploaders, the client's admin, the firm admin, the client's lead and deputy, and a meeting's organiser and required attendees are worked out when asked.
+- The app reads both only for an item it may change, and writes them only through `app_set_audience()`. Everyone else learns only whether an item they see is narrowed (`app_audience_mine()`, the "Limited audience" marker).
+
+| Route | Who |
+|---|---|
+| `GET`, `PUT /api/documents/:id/audience` (`?shared=1`: the people as if the firm shared the file with the client) | firm staff on the firm's files, the client's admin on the client's own |
+| `GET`, `PUT /api/meetings/:id/audience` | firm staff on a meeting the firm booked, the client's admin on one a client person booked |
+| `GET /api/projects/:id/audience?kind=&visibility=&departmentId=&attendees=&required=` | the same people, for a file or meeting not saved yet |
+| `audience` on `POST /api/projects/:id/documents`, `POST /api/documents/:id/share`, `POST /api/projects/:id/meetings`, `PATCH /api/meetings/:id` | the same people |
+
 ## Implementation progress
 
 `app_project_progress(project, as_of)` runs with the caller's row-level security, so nobody gets numbers for actions they cannot see. Draft actions are not counted.

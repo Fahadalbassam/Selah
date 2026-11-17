@@ -76,6 +76,18 @@ Decision log: R-14/1 audit committee formed; R-14/2 related-party list requested
 };
 
 /** The consultant's own working notes: firm-only, never shown to the client or the client assistant. */
+/**
+ * A proposal about the Board secretariat, shared with the client but kept
+ * from the manager who heads it until the board announces it: limited with
+ * "everyone with access, except…" (who sees an item, feature A).
+ */
+export const nukhbaRestructuring = word("مقترح إعادة تنظيم أمانة مجلس الإدارة.docx", [
+  "شركة النخبة القابضة — مقترح إعادة تنظيم أمانة مجلس الإدارة (سري إلى أن يُعلن)",
+  "أعدته ميزان للاستشارات لرئيس المجلس والرئيس التنفيذي.",
+  "يقترح نقل متابعة قرارات المجلس من الأمانة إلى مكتب الرئيس التنفيذي، ودمج وظيفتين في الأمانة.",
+  "لا يُعلن قبل أن يعتمده المجلس في اجتماعه القادم.",
+]);
+
 export const nukhbaPrivateNotes = word("ملاحظات المستشار الداخلية.docx", [
   "ملاحظات داخلية — لا تشارك مع العميل.",
   "درجة نضج الحوكمة المبدئية للنخبة: 2.1 من 5.",

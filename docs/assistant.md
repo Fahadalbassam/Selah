@@ -36,10 +36,13 @@ Both searches carry the full permission filter in their `WHERE`; the linked reco
 Rights are applied before retrieval, never by a model:
 
 1. `retrievalScope()` (the same `authorize()` as the rest of the app) gives the project, client and labels. It goes inside the vector query's WHERE clause.
-2. The query runs under row-level security. A file's passages are read only by people who can open the file, while it is open to the assistant and not archived, whatever the passage's own label says.
-3. Only what survives goes to the model.
+2. Who sees an item (feature A, migration `0111`): a passage of a file, or of a meeting's note, that the person is left out of is excluded inside the same WHERE (`app_audience_ok`), never filtered afterwards, so a left-out person's question can never retrieve it and no citation can point to it.
+3. The query runs under row-level security. A file's passages are read only by people who can open the file, while it is open to the assistant and not archived, whatever the passage's own label says; the restrictive policy `audience` on `ai_chunks` leaves out the same passages again.
+4. Only what survives goes to the model.
 
-`tests/db/ai-sources.test.ts` checks this for every test user in every project, with their real scope and with a forged one asking for every label: every passage that comes back is from a file that person can open.
+`tests/db/ai-sources.test.ts` checks this for every test user in every project, with their real scope and with a forged one asking for every label: every passage that comes back is from a file that person can open. `tests/db/audience.test.ts` checks that a person left out of a file gets none of its passages, with their own scope or one naming someone else, and that its title is not found for a citation.
+
+The masking lists (`app_mask_terms`, `app_mask_terms_in`) hold names only, never a file or a meeting, so they need no audience check.
 
 ## Answers
 

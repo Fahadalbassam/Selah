@@ -6,8 +6,8 @@ There are two layers. Both must allow a request.
 
 | Layer | Where | What it decides |
 |---|---|---|
-| `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission |
-| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) and later migrations | Backstop: tenant, project and label isolation, drafts kept from clients (D6), an action owner's own actions only (1b), whole-project meetings for people who see all of the project's work (1a), plus "only firm can review" |
+| `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission, and the sixth (who sees an item) |
+| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) and later migrations | Backstop: tenant, project and label isolation, drafts kept from clients (D6), an action owner's own actions only (1b), whole-project meetings for people who see all of the project's work (1a), people left out of a file or meeting (feature A), plus "only firm can review" |
 
 ## The five questions
 
@@ -18,6 +18,8 @@ There are two layers. Both must allow a request.
 3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
 4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), or `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
+
+After the five, and after the rules of state (closed project, archived client, observer), a **sixth question** only ever says no: was the item (a document that is not evidence, or a meeting) narrowed with the picker, and is this person left out of it? (`resource.audience`, loaded from the database; "Who sees an item" below.) A denial answers 404, like the others.
 
 ## Internal and client projects
 
@@ -109,6 +111,37 @@ Where an owner used to read a teammate's action, and what each does now (the rev
 
 Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments; a former owner after `app_hand_over()`; a catalog check that finds every table referring to an action, by a foreign key to `actions` or to a table under the rule, or by an `entity_type`/`source_type`/`target_type` pair, and fails unless it carries the rule or is named with its reason: `ai_chunks`, which owners never read since they never have the assistant, and `ai_drafts`, the firm's own) and the 1b block of `tests/authorize.test.ts`.
 
+## Who sees an item (the picker)
+
+Decision of 17 Nov 2026, feature A ("everyone except…" / "only…"). Restructuring proposals, salary and disciplinary files and closed board sessions are kept need-to-know until they are announced; departments and labels cannot keep one file from one manager in the same department. The picker does that, and **it can only take people away: it never gives anyone access that the role, project, department, label, draft and owner rules do not already give.** Sharing a file with one more person stays the separate one-by-one share.
+
+**The effective rule.** (today's rules OR a one-by-one share) AND NOT left out AND (no "only" list, OR on it). Two modes: **"Everyone with access, except…"** (the default position of the switch; the people named are left out, and anyone who gains access later sees the item) and **"Only these people…"** (nobody else, ever, until it is changed; saving it with nobody is refused). No audience at all is "everyone with access", the normal case. **Left out beats a share**: a share, an invitation to a meeting, making an attendee required and assigning a meeting's follow-up to someone left out are each refused, never a silent lift of the exclusion.
+
+**Locked people.** Some people always see the item, so the work cannot stall. The server works them out live from the item and the client, never from the page and never frozen at save time: the person who set the audience, whoever uploaded any version of the file, the client's admin (on anything the client can see), the firm admin (on the firm's items), the client's lead and deputy, and a meeting's organiser and required attendees. A lead or deputy named after an "only" list was saved is let in at once; leaving out a locked person is refused.
+
+**Whose item it is, and who uses the picker.**
+
+| Item | Whose | Who sets it | Who can be left out |
+|---|---|---|---|
+| A deliverable, a firm upload (shared with the client or not), a meeting firm staff booked | the firm's | firm staff who manage it (the file's owning side, a meeting's runners); not observers | firm colleagues and client people, except the locked ones |
+| A client upload, a meeting a client person booked | the client's | the client's admin | the client's own people only: a client cannot hide its items from the firm this way (`client_private` does that), so on an "only" list the firm's people still see it |
+
+Client managers and action owners get no picker; the server answers them 404 (`document.audience`, `meeting.audience` in `policy.ts`; `app_can_manage_audience()` in the database).
+
+**Where.** Documents of every kind except evidence (a deliverable, a client document, an information request's file, every version of each), and meetings (with their attendees, decisions, summary and its sources, notes, follow-ups, transcript, calendar file and invitation mail). Not on actions, recommendations, evidence, indicators or the org chart: those are the shared plan.
+
+**People left out see nothing**: no row, no count, no "1 hidden item", no notice about the item or about the change, no invitation, no passage in the assistant. Everyone who still sees a narrowed item gets the "Limited audience" marker on it. Opening it up again ("everyone") tells nobody either.
+
+| Where | Held by |
+|---|---|
+| The database | `app_audience_ok(item_type, item_id, uid)` in a RESTRICTIVE policy `audience` on `documents`, `document_shares`, `document_summaries`, `info_request_files`, `assessment_evidence`, `meetings`, `meeting_attendees`, `meeting_decisions`, `meeting_summaries`, `meeting_summary_sources`, `meeting_transcripts`, `meeting_notes`, `follow_ups`, `ai_chunks`, `content_translations`, `activity_events` (its own label copy notwithstanding; also an event naming a file in its details) and `notifications` (migration `0111_audience_rules`). Restrictive, because a permissive policy would widen. The tables `item_audiences` and `item_audience_people` (0110) are read only by who may change the item and written only by `app_set_audience()`. |
+| Definer functions that read these items past row-level security | `app_can_see_meeting()` and `app_meeting_open_to_me()` (so everything that asks them: the agenda through `app_meeting_agenda_for()`, running a meeting, attendees, decisions, summaries), the live agenda builder `app_meeting_agenda()` ("changed since the last meeting" counts from a meeting the reader opens), and `app_send_meeting_invites()`; `app_set_audience()` withdraws meeting mail still queued for someone now left out; the trigger `drop_left_out_notification()` never stores a notice for someone left out. The rest were checked and read no file or meeting a left-out person could get (docs/rules.md, "Who sees an item"). |
+| `authorize()` | the sixth question, from `resource.audience` (`app_audience_mine()`: the caller's own part only), on every document and meeting resource the services build: `loadDocument()`, `listFiles()`, `getProject()`, `loadMeeting()`, `listMeetings()`, Today, the export pack. |
+| The assistant | `scopeFilter()` in `services/assistant.ts` puts `app_audience_ok` inside the search's `WHERE` (a file's passage, a meeting note's passage), so a left-out person's question never retrieves a passage and no citation points to it; the restrictive policy on `ai_chunks` says the same. |
+| The API | `GET/PUT /api/documents/:id/audience`, `GET/PUT /api/meetings/:id/audience`, `GET /api/projects/:id/audience` (for a file or meeting not saved yet). Uploading, sharing a file with the client, booking and editing a meeting take an optional `audience`. Every change is audited (`document.audience`, `meeting.audience`, with counts only). |
+
+Tests: `tests/audience-authorize.test.ts` (the never-widen property over `authorize()`), `tests/db/audience.test.ts` (its database twin for every seeded user and every table the policy is on, a left-out person on every path, the refusals, people who join later, audit and no notices).
+
 ## How a request flows
 
 ```
@@ -161,7 +194,7 @@ The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists doc
 | Client manager | The company's files outside departments, and their own department's. |
 | Action owner | Their own uploads, their department teammates' files (decided 2026-10-22: the team sees each other's work, the manager and client admin see everything below), and files shared with them one by one. A teammate's evidence file never names the teammate's action (decision 1b). |
 
-A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments).
+A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments). A file narrowed with the picker reaches nobody it leaves out, shared or not, and shows "Limited audience" to the rest ("Who sees an item" above).
 
 ## Observers
 
