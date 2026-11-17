@@ -25,6 +25,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { authorize, type Principal, type RetrievalScope } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { runMail, type OutgoingMail } from "@/jobs/mail";
+import { ownerChecks } from "@/jobs/ops-check";
 import { readXlsx } from "@/lib/office/xlsx-read";
 import { truncateAuditLog } from "./audit-reset";
 
@@ -433,11 +435,76 @@ describe("a person left out sees nothing of the item", () => {
     ).id;
     expect((await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [second])).rows.map((r) => r.to_email)).toContain(email(U.nmgr));
     await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }), true);
-    const after = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [second])).rows.map((r) => r.to_email);
-    expect(after).not.toContain(email(U.nmgr));
-    expect(after).toContain(email(U.nmgr2));
+    // Withdrawn, not deleted (the product owner's decision on the review, B2).
+    const after = (await q(`SELECT to_email, withdrawn_at IS NOT NULL AS withdrawn FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [second])).rows;
+    expect(after).toEqual([
+      { to_email: email(U.nmgr2), withdrawn: false },
+      { to_email: email(U.nmgr), withdrawn: true },
+    ]);
     await svc(U.lead, (tx, p) => M.sendInvites(tx, p, second), true);
-    expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [second, email(U.nmgr)])).rows).toEqual([{ n: 0 }]);
+    // Sending again queues nothing new for her.
+    expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [second, email(U.nmgr)])).rows).toEqual([{ n: 1 }]);
+  });
+
+  // The product owner's decision on the review (B2): nothing is deleted. A queued invite to someone left
+  // out is marked withdrawn and kept; the sender skips it, and checks again just before sending.
+  describe("the mail queue keeps a withdrawn invite and never sends it", () => {
+    const bookWith = (title: string, attendees: { userId: string; optional?: boolean }[], hours: number) =>
+      svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title, startsAt: hour(hours), endsAt: hour(hours + 1), location: "online", joinUrl: MEET, attendees, sendInvites: true }),
+        true,
+      ).then((m) => m.id);
+    const sent: OutgoingMail[] = [];
+    const deliver = async (mail: OutgoingMail) => void sent.push(mail);
+    const onlyThis = (mid: string) => q(`UPDATE outbound_emails SET sent_at = now() WHERE sent_at IS NULL AND meeting_id IS DISTINCT FROM $1`, [mid]);
+
+    it("a queued invite is withdrawn, kept and not sent; the change is audited with the count", async () => {
+      const mid = await bookWith("Withdrawn invite", [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }], 96);
+      await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
+      const rows = (await q(`SELECT to_email, sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows;
+      expect(rows.map((r) => [r.to_email, r.sent_at === null, r.withdrawn_at !== null])).toEqual([
+        [email(U.nmgr2), true, false],
+        [email(U.nmgr), true, true],
+      ]);
+      const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'meeting.audience' AND resource_id = $1`, [mid])).rows;
+      expect(entry.meta.withdrawnMails).toBe(1);
+      await onlyThis(mid);
+      sent.length = 0;
+      const result = await runMail(owner, deliver, "http://selah.test");
+      expect(sent.map((m) => m.to)).toEqual([email(U.nmgr2)]);
+      expect(result).toMatchObject({ sent: 1, failed: 0 });
+      // Kept, still unsent and withdrawn; and it is not mail that "keeps failing".
+      expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2 AND sent_at IS NULL AND withdrawn_at IS NOT NULL`, [mid, email(U.nmgr)])).rows).toEqual([
+        { n: 1 },
+      ]);
+      await q(`UPDATE outbound_emails SET created_at = now() - interval '2 hours', attempts = 3, last_error = 'x' WHERE meeting_id = $1 AND to_email = $2`, [mid, email(U.nmgr)]);
+      expect((await ownerChecks(owner)).find((c) => c.name === "mail")).toMatchObject({ ok: true });
+    });
+
+    it("an invite the sender already picked up is not delivered to someone left out a moment before it goes", async () => {
+      const mid = await bookWith("Picked-up invite", [{ userId: U.nmgr2 }], 120);
+      // The organiser adds her later and sends the invites again: hers is queued after the others.
+      await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+      await svc(U.lead, (tx, p) => M.sendInvites(tx, p, mid), true);
+      await onlyThis(mid);
+      sent.length = 0;
+      let leftOut = false;
+      await runMail(owner, async (mail) => {
+        // While the sender works through the batch it has claimed, the lead leaves her out.
+        if (!leftOut) {
+          leftOut = true;
+          await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
+        }
+        sent.push(mail);
+      }, "http://selah.test");
+      expect(sent.map((m) => m.to)).not.toContain(email(U.nmgr));
+      expect(sent.map((m) => m.to)).toContain(email(U.nmgr2));
+      expect((await q(`SELECT sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [mid, email(U.nmgr)])).rows).toEqual([
+        { sent_at: null, withdrawn_at: expect.any(Date) },
+      ]);
+    });
   });
 
   it("is not in the Excel exports", async () => {

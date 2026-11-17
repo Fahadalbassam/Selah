@@ -35,6 +35,8 @@ interface Row {
 export interface MailRunResult {
   sent: number;
   failed: number;
+  /** Meeting mail not sent because its addressee was left out of the meeting (kept, marked withdrawn). */
+  withdrawn: number;
 }
 
 export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, batch = 20): Promise<MailRunResult> {
@@ -42,7 +44,7 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
     `UPDATE outbound_emails SET attempts = attempts + 1, next_attempt_at = now() + interval '10 minutes'
      WHERE id IN (
        SELECT id FROM outbound_emails
-       WHERE sent_at IS NULL AND failed_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+       WHERE sent_at IS NULL AND failed_at IS NULL AND withdrawn_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
        ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED
      )
      RETURNING id, to_email, kind, link, reference, meeting_id, attempts, created_at`,
@@ -51,9 +53,20 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
   // RETURNING has no order; send oldest first so related mails arrive in order.
   rows.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
 
-  const result: MailRunResult = { sent: 0, failed: 0 };
+  const result: MailRunResult = { sent: 0, failed: 0, withdrawn: 0 };
   for (const row of rows) {
     try {
+      // Who sees the meeting may have changed since this mail was queued, or since this run
+      // claimed it (feature A): asked again just before it goes. Never sent to someone left
+      // out; the row is kept, marked withdrawn (nothing is deleted).
+      if (row.meeting_id) {
+        const { rows: ok } = await db.query<{ ok: boolean }>(`SELECT app_meeting_mail_ok($1, $2) AS ok`, [row.meeting_id, row.to_email]);
+        if (!ok[0]?.ok) {
+          await db.query(`UPDATE outbound_emails SET withdrawn_at = coalesce(withdrawn_at, now()), next_attempt_at = NULL WHERE id = $1`, [row.id]);
+          result.withdrawn++;
+          continue;
+        }
+      }
       const mail: OutgoingMail = { to: row.to_email, ...renderMail(row.kind, row.link, appUrl, row.reference) };
       if (row.meeting_id) {
         const ics = await meetingIcs(db, row.meeting_id);

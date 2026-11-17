@@ -2496,6 +2496,9 @@ export const outboundEmails = pgTable("outbound_emails", {
   nextAttemptAt: ts("next_attempt_at"),
   lastError: text("last_error"),
   failedAt: ts("failed_at"),
+  // A meeting invite withdrawn because its addressee was left out of the
+  // meeting (who sees an item, feature A): kept, never sent, not a failure.
+  withdrawnAt: ts("withdrawn_at"),
 });
 
 // ------------------------------------------------------------- meetings

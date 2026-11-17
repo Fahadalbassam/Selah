@@ -199,8 +199,9 @@ export async function writeAudience(
   const value = savedValue(input);
   if (value?.mode === "only" && value.people.length === 0) throw new BadRequestError('an "only" list needs at least one person');
   const before = (await audienceOf(tx, principal, kind, id))?.mode ?? "everyone";
-  await tx.execute(
-    sql`select app_set_audience(${kind}, ${id}::uuid, ${value?.mode ?? "everyone"}, ${uuidArray(value?.people ?? [])})`,
+  // How many queued meeting mails were withdrawn because their addressee is now left out (kept, never sent).
+  const { rows } = await tx.execute<{ withdrawn: number }>(
+    sql`select app_set_audience(${kind}, ${id}::uuid, ${value?.mode ?? "everyone"}, ${uuidArray(value?.people ?? [])}) as withdrawn`,
   );
   await audit(tx, {
     actorId: principal.userId,
@@ -210,7 +211,7 @@ export async function writeAudience(
     resourceId: id,
     outcome: "allow",
     // Counts only: who was left out stays out of the log's details too.
-    meta: { ...meta, from: before, to: value?.mode ?? "everyone", people: value?.people.length ?? 0 },
+    meta: { ...meta, from: before, to: value?.mode ?? "everyone", people: value?.people.length ?? 0, withdrawnMails: Number(rows[0]?.withdrawn ?? 0) },
   });
   return { mode: value?.mode ?? ("everyone" as const) };
 }
