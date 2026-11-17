@@ -240,6 +240,13 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT app_org_chart_editor(org) OR coalesce(app_org_kind() = 'client' AND app_role() = 'client_admin' AND org = app_org(), false)
 $$;
 --> statement-breakpoint
+-- Who sees every name, on every version and day (the whole history): the
+-- firm's readers and the client's admins.
+CREATE FUNCTION app_org_chart_full_reader(org uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT app_org_chart_firm_reader(org) OR coalesce(app_org_kind() = 'client' AND app_role() = 'client_admin' AND org = app_org(), false)
+$$;
+--> statement-breakpoint
 -- A position that is on a published or past version (not only the firm's draft).
 CREATE FUNCTION app_org_chart_lineage_published(lineage uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -281,40 +288,51 @@ $$;
 --> statement-breakpoint
 -- The positions of a version whose holders' names the caller sees: every one
 -- for the firm's readers and the client's admins; for a client manager, her
--- branch and the chain above it, only while the version's show_names is on
--- and the client has departments (with departments off a manager has no
--- department of her own, so no branch). Nobody at a minimal-records client.
+-- branch and the chain above it, only on the current version, only while its
+-- show_names is on, and only while the client has departments (with
+-- departments off a manager has no department of her own, so no branch).
+-- Older versions are titles only for her. Nobody at a minimal-records client.
 CREATE FUNCTION app_org_chart_named_positions(vid uuid) RETURNS TABLE (position_id uuid)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   WITH v AS (
-    SELECT v.id, v.org_id, v.show_names, o.departments_enabled
+    SELECT v.id, v.org_id, v.state, v.show_names, o.departments_enabled
     FROM org_chart_versions v JOIN organizations o ON o.id = v.org_id
     WHERE v.id = vid AND NOT o.minimal_records AND app_org_chart_version_readable(v.id)
   )
   SELECT p.id FROM v JOIN positions p ON p.version_id = v.id
-  WHERE app_org_chart_firm_reader(v.org_id) OR (app_org_kind() = 'client' AND app_role() = 'client_admin' AND v.org_id = app_org())
+  WHERE app_org_chart_full_reader(v.org_id)
   UNION
   SELECT b.position_id FROM v CROSS JOIN LATERAL app_org_chart_branch(v.id, app_uid()) b
-  WHERE app_org_kind() = 'client' AND app_role() = 'client_manager' AND v.org_id = app_org() AND v.show_names AND v.departments_enabled
+  WHERE app_org_kind() = 'client' AND app_role() = 'client_manager' AND v.org_id = app_org()
+    AND v.state = 'published' AND v.show_names AND v.departments_enabled
 $$;
 --> statement-breakpoint
--- Who holds each position of a version on a day. A holder the caller may not
--- name comes back as filled, with no name, person, dates or id: the name is
--- never sent to be hidden in the page. Nothing for a version the caller can't read.
+-- Who holds each position of a version on a day. The firm's readers and the
+-- client's admins read any version on any day, with every name and date. Any
+-- other reader (a client manager) reads the current version only, as of today
+-- whatever day is asked, and never a holding's dates or id: older versions
+-- are titles only for her, and asking for other days tells her nothing. A
+-- holder she may not name comes back as filled, with no name or person: the
+-- name is never sent to be hidden in the page. Nothing for a version the
+-- caller can't read.
 CREATE FUNCTION app_org_chart_holders(vid uuid, as_of date)
 RETURNS TABLE (position_id uuid, holder_id uuid, user_id uuid, name text, from_date date, to_date date, named boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  WITH v AS (SELECT v.id FROM org_chart_versions v WHERE v.id = vid AND app_org_chart_version_readable(v.id)),
-  named AS (SELECT n.position_id FROM app_org_chart_named_positions(vid) n)
+  WITH v AS (
+    SELECT v.id, v.state, app_org_chart_full_reader(v.org_id) AS full
+    FROM org_chart_versions v WHERE v.id = vid AND app_org_chart_version_readable(v.id)
+  ), d AS (
+    SELECT CASE WHEN v.full THEN as_of ELSE app_firm_today() END AS day FROM v WHERE v.full OR v.state = 'published'
+  ), named AS (SELECT n.position_id FROM app_org_chart_named_positions(vid) n)
   SELECT p.id,
-    CASE WHEN k.ok THEN h.id END,
+    CASE WHEN k.ok AND v.full THEN h.id END,
     CASE WHEN k.ok THEN h.user_id END,
     CASE WHEN k.ok THEN coalesce(h.name, u.name) END,
-    CASE WHEN k.ok THEN h.from_date END,
-    CASE WHEN k.ok THEN h.to_date END,
+    CASE WHEN k.ok AND v.full THEN h.from_date END,
+    CASE WHEN k.ok AND v.full THEN h.to_date END,
     k.ok
-  FROM v JOIN positions p ON p.version_id = v.id
-    JOIN position_holders h ON h.position_lineage_id = p.lineage_id AND h.from_date <= as_of AND (h.to_date IS NULL OR h.to_date >= as_of)
+  FROM v CROSS JOIN d JOIN positions p ON p.version_id = v.id
+    JOIN position_holders h ON h.position_lineage_id = p.lineage_id AND h.from_date <= d.day AND (h.to_date IS NULL OR h.to_date >= d.day)
     LEFT JOIN "user" u ON u.id = h.user_id
     CROSS JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM named WHERE named.position_id = p.id) AS ok) k
   ORDER BY p.id, h.from_date
@@ -960,13 +978,13 @@ CREATE POLICY admin_insert ON org_chart_change_requests FOR INSERT TO selah_app
 CREATE POLICY editor_update ON org_chart_change_requests FOR UPDATE TO selah_app
   USING (app_org_chart_editor(org_id)) WITH CHECK (app_org_chart_editor(org_id));
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid),
+REVOKE ALL ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid), app_org_chart_full_reader(uuid),
   app_org_chart_version_readable(uuid), app_org_chart_holder_writer(uuid), app_org_chart_lineage_published(uuid), app_org_chart_branch(uuid, uuid),
   app_org_chart_named_positions(uuid), app_org_chart_holders(uuid, date), app_my_manager(), app_start_org_chart(uuid),
   app_org_chart_snapshot_of(uuid), app_org_chart_copy(uuid, uuid), app_publish_org_chart(uuid, date, uuid),
   app_set_org_chart_show_names(uuid, boolean) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid),
+GRANT EXECUTE ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid), app_org_chart_full_reader(uuid),
   app_org_chart_version_readable(uuid), app_org_chart_holder_writer(uuid), app_org_chart_lineage_published(uuid),
   app_org_chart_named_positions(uuid), app_org_chart_holders(uuid, date), app_my_manager(), app_start_org_chart(uuid),
   app_publish_org_chart(uuid, date, uuid), app_set_org_chart_show_names(uuid, boolean) TO selah_app;

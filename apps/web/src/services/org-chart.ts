@@ -147,10 +147,17 @@ async function versionIn(tx: Tx, chartId: string, state: OrgChartState) {
   return v ?? null;
 }
 
-function namesShown(p: Principal, client: Client, showNames: boolean): NamesShown {
+/**
+ * Who reads the whole history: every version, any day, every name and date (the firm's readers and
+ * the client's admins). Anyone else reads the current version only, as of today, without dates
+ * (the database decides: app_org_chart_holders).
+ */
+const readsHistory = (p: Principal) => p.orgKind === "firm" || p.role === "client_admin";
+
+function namesShown(p: Principal, client: Client, version: { state: OrgChartState; showNames: boolean }): NamesShown {
   if (client.minimalRecords) return "none";
-  if (p.orgKind === "firm" || p.role === "client_admin") return "all";
-  if (p.role === "client_manager" && showNames && client.departmentsEnabled && p.departmentIds.size > 0) return "branch";
+  if (readsHistory(p)) return "all";
+  if (p.role === "client_manager" && version.state === "published" && version.showNames && client.departmentsEnabled && p.departmentIds.size > 0) return "branch";
   return "none";
 }
 
@@ -252,12 +259,17 @@ async function structureOf(tx: Tx, version: typeof orgChartVersions.$inferSelect
   return { units, positions: rows };
 }
 
-async function withHolders(tx: Tx, client: Client, version: typeof orgChartVersions.$inferSelect, asOf: string) {
+/**
+ * A version's structure with who holds each position. Titles only where the reader keeps no names
+ * (minimal records) or may not read this version's people (a client manager on an older version).
+ */
+async function withHolders(tx: Tx, principal: Principal, client: Client, version: typeof orgChartVersions.$inferSelect, asOf: string) {
   const { units, positions: rows } = await structureOf(tx, version);
-  const holders = client.minimalRecords ? new Map<string, OrgHolder[]>() : await holdersOf(tx, version.id, asOf);
+  const titlesOnly = client.minimalRecords || (!readsHistory(principal) && version.state !== "published");
+  const holders = titlesOnly ? new Map<string, OrgHolder[]>() : await holdersOf(tx, version.id, asOf);
   const list: OrgPosition[] = rows.map((r) => {
     const h = holders.get(r.id) ?? [];
-    return { ...r, holders: h, vacant: client.minimalRecords ? null : h.length === 0 };
+    return { ...r, holders: h, vacant: titlesOnly ? null : h.length === 0 };
   });
   return { units, positions: list };
 }
@@ -304,11 +316,11 @@ export async function getPublishedChart(tx: Tx, principal: Principal, clientOrgI
     ...abilities(principal, client),
   };
   if (!version) return { ...base, version: null, names: "none" as NamesShown, units: [] as OrgUnit[], positions: [] as OrgPosition[] };
-  const { units, positions: list } = await withHolders(tx, client, version, today);
+  const { units, positions: list } = await withHolders(tx, principal, client, version, today);
   return {
     ...base,
     version: summary(version, await publisherName(tx, version.publishedBy)),
-    names: namesShown(principal, client, version.showNames),
+    names: namesShown(principal, client, version),
     units,
     positions: list,
   };
@@ -334,7 +346,7 @@ export async function getDraft(tx: Tx, principal: Principal, clientOrgId: string
     ...abilities(principal, client),
   };
   if (!draft) return { ...base, draft: null, units: [] as OrgUnit[], positions: [] as OrgPosition[] };
-  const { units, positions: list } = await withHolders(tx, client, draft, today);
+  const { units, positions: list } = await withHolders(tx, principal, client, draft, today);
   return { ...base, draft: { id: draft.id, basedOnId: draft.basedOnId, createdAt: draft.createdAt }, units, positions: list };
 }
 
@@ -355,9 +367,11 @@ export async function listVersions(tx: Tx, principal: Principal, clientOrgId: st
 
 /**
  * One version as it was published (its frozen snapshot; the draft from its
- * rows, for the firm), with who held each position on a day: today for the
- * current version and the draft, the day it was replaced for history, or
- * `asOf`. Names follow the same rule as the current structure.
+ * rows, for the firm). For the firm's readers and the client's admins, with
+ * who held each position on a day: today for the current version and the
+ * draft, the day it was replaced for history, or `asOf`. For a client
+ * manager, the current version as of today whatever `asOf` says, and older
+ * versions as titles only (the database holds the same rule).
  */
 export async function getVersion(tx: Tx, principal: Principal, versionId: string, asOf?: string) {
   const [version] = await tx.select().from(orgChartVersions).where(eq(orgChartVersions.id, versionId)).limit(1);
@@ -365,13 +379,15 @@ export async function getVersion(tx: Tx, principal: Principal, versionId: string
   assertAllowed(principal, "org_chart.read", resource(principal, version.orgId, version.state === "draft"));
   const client = await clientOf(tx, version.orgId);
   if (asOf) checkDay(asOf);
-  const day = asOf ?? (version.state === "superseded" && version.supersededAt ? firmToday(version.supersededAt) : firmToday());
-  const { units, positions: list } = await withHolders(tx, client, version, day);
+  const day = !readsHistory(principal)
+    ? firmToday()
+    : (asOf ?? (version.state === "superseded" && version.supersededAt ? firmToday(version.supersededAt) : firmToday()));
+  const { units, positions: list } = await withHolders(tx, principal, client, version, day);
   return {
     client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
     version: summary(version, await publisherName(tx, version.publishedBy)),
     asOf: day,
-    names: namesShown(principal, client, version.showNames),
+    names: namesShown(principal, client, version),
     units,
     positions: list,
   };

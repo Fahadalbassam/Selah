@@ -100,6 +100,8 @@ const readable = async (userId: string) => ({
 const before: Record<string, Awaited<ReturnType<typeof readable>>> = {};
 let CHART = "";
 let V1 = "";
+/** Acme's second version, published at the end of "publishing freezes the snapshot". */
+let V2 = "";
 /** Acme's positions and units by name, as first published. */
 const POS: Record<string, string> = {};
 const UNIT: Record<string, string> = {};
@@ -735,6 +737,7 @@ describe("publishing freezes the snapshot", () => {
 
     // Publishing again: the deputy publishes, version 1 becomes history.
     const v2 = await svc(U.deputy, (tx, p) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }), true);
+    V2 = v2.versionId;
     expect(v2.number).toBe(2);
     const states = (await owner.query(`SELECT number, state FROM org_chart_versions WHERE chart_id = $1 ORDER BY number NULLS LAST`, [CHART])).rows;
     expect(states).toEqual([
@@ -756,6 +759,46 @@ describe("publishing freezes the snapshot", () => {
     // The names switch carried over from version 1 (off here).
     expect(current.version!.showNames).toBe(false);
     await expect(attempt(U.lead, `UPDATE org_units SET name_en = 'x' WHERE id = $1`, [UNIT.fin])).rejects.toThrow(/published structure never changes/);
+  });
+});
+
+describe("names follow the current version's switch, as of today", () => {
+  const holdersOn = (who: string, version: string, day: string) =>
+    attempt(who, `SELECT position_id, name, from_date, to_date FROM app_org_chart_holders($1, $2::date) ORDER BY 1, 2`, [version, day]).then((r) => r.rows);
+
+  it("a manager sees names only on the current version, today, while its switch is on; older versions and other days are titles only", async () => {
+    // Version 1 (history) has names on, version 2 (current) has them off.
+    await owner.query(`UPDATE org_chart_versions SET show_names = (id = $1) WHERE id IN ($1, $2)`, [V1, V2]);
+    const current = await svc(U.mgr, (tx, p) => OC.getPublishedChart(tx, p, ACME));
+    expect(current.positions.flatMap((p) => p.holders).some((h) => h.name !== null)).toBe(false);
+    // Not through the older version either, today or on its own days.
+    for (const asOf of [undefined, firmToday(), PAST]) {
+      const old = await svc(U.mgr, (tx, p) => OC.getVersion(tx, p, V1, asOf));
+      expect(old.names, String(asOf)).toBe("none");
+      expect(old.positions.every((p) => p.holders.length === 0 && p.vacant === null), String(asOf)).toBe(true);
+    }
+    expect(await holdersOn(U.mgr, V1, firmToday())).toEqual([]);
+    expect(await holdersOn(U.mgr, V1, PAST)).toEqual([]);
+
+    // With the current version's switch on: names in her branch, today only. Another day reads as today, never with dates.
+    await owner.query(`UPDATE org_chart_versions SET show_names = true WHERE id = $1`, [V2]);
+    expect(holderNames(await svc(U.mgr, (tx, p) => OC.getPublishedChart(tx, p, ACME)))["Finance director"]).toEqual(["Cfo Person"]);
+    const today = await holdersOn(U.mgr, V2, firmToday());
+    expect(today.length).toBeGreaterThan(0);
+    expect(today.every((r) => r.from_date === null && r.to_date === null)).toBe(true);
+    expect(await holdersOn(U.mgr, V2, "2024-12-31")).toEqual(today);
+    const asked = await svc(U.mgr, (tx, p) => OC.getVersion(tx, p, V2, "2024-12-31"));
+    expect([asked.asOf, holderNames(asked)["Finance director"]]).toEqual([firmToday(), ["Cfo Person"]]);
+    expect(asked.positions.flatMap((p) => p.holders).every((h) => h.from === null && h.to === null)).toBe(true);
+    expect((await svc(U.mgr, (tx, p) => OC.getVersion(tx, p, V1))).positions.flatMap((p) => p.holders)).toEqual([]);
+
+    // The firm and the client's admin keep the whole history, on any version and any day.
+    for (const who of [U.cadmin, U.lead]) {
+      expect((await svc(who, (tx, p) => OC.getVersion(tx, p, V1, "2024-12-31"))).positions.flatMap((p) => p.holders), who).toEqual([]);
+      const then = await svc(who, (tx, p) => OC.getVersion(tx, p, V1, PAST));
+      expect(holderNames(then)["Chief Financial Officer"], who).toEqual(["Cfo Person"]);
+      expect(then.positions.flatMap((p) => p.holders).every((h) => h.from !== null), who).toBe(true);
+    }
   });
 });
 
