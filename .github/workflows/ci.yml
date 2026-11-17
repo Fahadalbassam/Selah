@@ -22,7 +22,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
+      # High or critical advisories fail the build, except the dated entries in audit-allowlist.json.
+      - run: node scripts/npm-audit.mjs
 
   database:
     runs-on: ubuntu-latest
