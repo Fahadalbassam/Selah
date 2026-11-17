@@ -294,6 +294,33 @@ describe("a meeting of the whole project opens only for people who see all of th
     expect(fn.agenda).not.toContain("Finance canary");
   });
 
+  // The lead's ruling on the review (17 Nov): an invited owner reads the meeting's record (its
+  // summary and decisions, written for the people who attended, and the shared notes with them),
+  // the attendee list and replies, and only the follow-ups assigned to her. Before 0086 she also
+  // read every follow-up of the meeting, with the assignee's name.
+  it("an invited owner reads the meeting's record and attendees, and only the follow-ups assigned to her", async () => {
+    await owner.query(
+      `INSERT INTO follow_ups (project_id, org_id, meeting_id, title, visibility, assignee_user_id, due_at, created_by)
+       VALUES ($1,$2,$3,'Owner follow-up','shared',$4, now() + interval '3 days', $5)`,
+      [PN, NUKHBA, M.steer, U.owner, U.lead],
+    );
+    try {
+      const m = await svc(U.owner, (tx, p) => getMeeting(tx, p, M.steer));
+      expect(m.decisions.map((d) => d.text)).toEqual(["Decision canary"]);
+      expect(m.summary?.mainPointsMd).toBe("Summary canary");
+      expect(m.notes.map((n) => n.title)).toEqual(["Note canary"]);
+      expect(m.attendees.map((a) => a.userId)).toEqual(expect.arrayContaining([U.lead, U.nmgr, U.owner, U.nsponsor]));
+      expect(m.attendees.every((a) => a.response)).toBe(true);
+      expect(m.followUps.map((f) => f.title)).toEqual(["Owner follow-up"]);
+      expect(JSON.stringify(m)).not.toMatch(/Steering follow-up canary|Assigned to the manager|Finance canary|Board canary/);
+      expect((await rowsAs(U.owner, `SELECT title FROM follow_ups`)).map((r) => r.title)).toEqual(["Owner follow-up"]);
+      // The others still read every follow-up of the meeting.
+      expect((await rowsAs(U.nsponsor, `SELECT title FROM follow_ups WHERE meeting_id = $1`, [M.steer])).length).toBe(3);
+    } finally {
+      await owner.query(`DELETE FROM follow_ups WHERE title = 'Owner follow-up'`);
+    }
+  });
+
   it("owner@rawdah.test (a client with no departments), invited to a meeting of the whole project, opens it and sees only her own actions", async () => {
     const m = await svc(U.rowner, (tx, p) => getMeeting(tx, p, M.rawdah));
     expect(m.meeting.title).toBe("Rawdah steering");

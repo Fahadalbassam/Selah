@@ -280,10 +280,8 @@ describe("the database: an action owner reads only her own actions and what is u
       [U.rowner, A.rmate],
     ] as const) {
       for (const t of UNDER) {
-        const rows = await rowsAs(who, `SELECT ${t === "follow_ups" ? "title" : "1"} FROM ${t} WHERE action_id = $1`, [aid]);
-        // A follow-up assigned to her she still reads (she has to do it), never the lead's.
-        if (t === "follow_ups") expect(rows, t).toEqual([{ title: "Assigned follow-up" }]);
-        else expect(rows, `${who} reads ${t}`).toEqual([]);
+        // Not even a follow-up assigned to her, when it names a colleague's action (0086): its action id is theirs.
+        expect(await rowsAs(who, `SELECT 1 FROM ${t} WHERE action_id = $1`, [aid]), `${who} reads ${t}`).toEqual([]);
       }
       for (const t of ["activity_events", "notifications", "content_translations"]) {
         expect(await rowsAs(who, `SELECT 1 FROM ${t} WHERE entity_id = $1`, [aid]), t).toEqual([]);
@@ -302,7 +300,10 @@ describe("the database: an action owner reads only her own actions and what is u
       expect(titles(await rowsAs(who, `SELECT title FROM actions WHERE project_id = $1`, [PN]))).toEqual(ALL_N);
     }
     for (const who of [U.mate, U.nmgr, U.lead]) {
-      for (const t of UNDER.filter((x) => !["mail_mutes", "action_notes"].includes(x) && !(x === "project_closure_items" && who !== U.lead))) {
+      // Follow-ups: an owner reads only those assigned to her (0086); the teammate has none here.
+      const skip = (x: string) =>
+        ["mail_mutes", "action_notes"].includes(x) || (x === "project_closure_items" && who !== U.lead) || (x === "follow_ups" && who === U.mate);
+      for (const t of UNDER.filter((x) => !skip(x))) {
         expect((await rowsAs(who, `SELECT 1 FROM ${t} WHERE action_id = $1`, [A.mate])).length, `${who} ${t}`).toBeGreaterThan(0);
       }
     }
@@ -344,7 +345,6 @@ describe("the database: an action owner reads only her own actions and what is u
   it("the schedule names only her own actions and the follow-ups assigned to her", async () => {
     const view = await rowsAs(U.owner, `SELECT item_type, title FROM v_schedule WHERE item_type <> 'meeting' ORDER BY title`);
     expect(view).toEqual([
-      { item_type: "follow_up", title: "Assigned follow-up" },
       { item_type: "action", title: "Handed canary" },
       { item_type: "action", title: "Owner canary" },
     ]);

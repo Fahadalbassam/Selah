@@ -355,9 +355,12 @@ describe("a department's meeting follows the department rule", () => {
       expect((await rowsAs(who, `SELECT item_id FROM v_schedule WHERE item_type = 'meeting'`)).map((r) => r.item_id)).not.toContain(M.fin);
       expect(await rowsAs(who, `SELECT app_can_see_meeting($1) AS ok`, [M.fin])).toEqual([{ ok: false }]);
     }
-    for (const table of ["meeting_attendees", "meeting_decisions", "meeting_summaries", "follow_ups"]) {
+    // The Finance owner reads her department's meeting; of its follow-ups, only one assigned to her (0086).
+    for (const table of ["meeting_attendees", "meeting_decisions", "meeting_summaries"]) {
       expect((await rowsAs(U.fin, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [M.fin])).length).toBeGreaterThan(0);
     }
+    expect(await rowsAs(U.fin, `SELECT 1 FROM follow_ups WHERE meeting_id = $1`, [M.fin])).toEqual([]);
+    expect((await rowsAs(U.sponsor, `SELECT 1 FROM follow_ups WHERE meeting_id = $1`, [M.fin])).length).toBeGreaterThan(0);
   });
 
   it("answers Not found on the page, the calendar file and the schedule", async () => {
