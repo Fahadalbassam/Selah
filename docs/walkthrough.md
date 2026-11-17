@@ -146,7 +146,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 ### 5.4 The other firm roles
 - **consultant@mizan.test**: sees Al-Nukhba's board project and the internal project only. On *عرض المسودة* (before Khalid verifies it) he cannot give the second sign-off himself: he gave the first. Paste the Rawdah project address (copied from the admin's window): "Not found".
 - **deputy@mizan.test**: the same powers as the lead on Al-Nukhba. Also leads the firm-run subsidiary (records progress for a client without accounts) and owns the pitch *مقترح: حوكمة الشركة قبل الطرح*, which no client sees.
-- **observer@mizan.test**: opens the board project and reads everything; there are no buttons to change anything.
+- **observer@mizan.test**: opens the board project and reads everything; there are no buttons to change anything, on the project, on its meetings, or on Al-Nukhba's business indicators (she can still add a firm note to an action and mute its mail).
 - **lead2@mizan.test**: Rawdah (closing) and Al-Waha (firm-run: owners by name, evidence "received by email"). Al-Nukhba does not exist for him.
 
 ### 5.5 The client admin — admin@nukhba.test
@@ -190,6 +190,16 @@ Copy an address in one window and paste it in the other. "Not found" is the expe
 | any Al-Nukhba person | The project's Documents tab | No *ملاحظات المستشار الداخلية* (firm only) |
 | consultant@mizan.test | Second sign-off on the action he signed first | Not offered |
 | observer@mizan.test | Any button that changes the board project | None shown |
+| observer@mizan.test | The meeting *اجتماع اللجنة التوجيهية الرابع*, and the project's Assessments tab | She reads both. No edit, send invitations, cancel, add attendee, record decision or add follow-up on the meeting; no "Start an assessment" on the tab |
+| observer@mizan.test | Al-Nukhba's client page → Business indicators, then one indicator, then **Data sharing** | She reads all three. No add, edit, pause, enter value, correct, mark checked, link or unlink, and no data-mode choice. consultant@mizan.test (staffed), lead@ and deputy@ still have them |
+| owner@nukhba.test | The recommendation *تشكيل لجنة المراجعة* | Lists only his own action (*إعداد لائحة عمل اللجنة*), then "إجراء واحد آخر لا يظهر لك". No other title, and nothing about the firm's draft |
+| sponsor@nukhba.test | The same recommendation | Two actions, then the same line: he knows the plan is larger than what he sees |
+| manager@nukhba.test, owner@nukhba.test, finance@nukhba.test | The board project | No Activity tab (سجل النشاط). admin@nukhba.test and the firm keep it |
+| manager@nukhba.test | The meeting *جلسة عمل الإدارة المالية: مصفوفة الصلاحيات* (copy its address from the admin's window) | Not found, and not on her Meetings tab: it is Finance's, and she is not invited. finance@nukhba.test (in Finance, invited) opens it |
+| manager@nukhba.test, owner@nukhba.test | The meeting *اجتماع اللجنة التوجيهية الرابع* | In place of the agenda, one line: "يُعرض جدول الأعمال لمن يطّلع على كل أعمال المشروع. اسأل منظّم الاجتماع عمّا يخصّك." admin@nukhba.test and the firm read the agenda |
+| manager@nukhba.test | The plan, under the finding answered by *تحديث مصفوفة تفويض الصلاحيات* | "تعالجها توصية في إدارة أخرى" (answered in another department), not "no recommendation yet", and no title |
+| manager@nukhba.test | Departments (الإدارات) | Every department with its people; only her own (أمانة مجلس الإدارة) is a link |
+| manager@nukhba.test | A shared status pack (once the firm issues and shares one) | The numbers are whole. Each list shows only her department's items and says how many more were left out; an indicator names only the linked recommendations she can open |
 
 ## 7. Assistant demo questions
 
@@ -251,9 +261,9 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Requests for documents, no-login upload links | Firm asks; client answers | Project → الطلبات |
 | Files: shared, firm-only, client-private, versions, assistant switch | Owning side | Project → المستندات; الملفات (sidebar) |
 | Assessments and templates (scores firm only) | Firm | Project → التقييمات; قوالب التقييم |
-| Progress, needs attention, trace, activity | Both (attention and trace firm) | Project tabs |
+| Progress, needs attention, trace, activity | Both (attention and trace firm; activity for the firm and the client admin) | Project tabs |
 | Shared progress reports, client report PDF, Excel exports | Firm makes; client reads | Project → التقدم; client page |
-| Business indicators (client-reported) | Client admin and managers enter; firm too | Client page → مؤشرات الأعمال; indicator page |
+| Business indicators (client-reported) | Client admin and managers enter; so do the firm admin and the consultants who do the client's work (lead, deputy, staffed on a project); an observer reads | Client page → مؤشرات الأعمال; indicator page |
 | Today page | Firm | اليوم |
 | Oversight; team load (reviews and work per consultant) | Admin | الإجراءات → الإشراف; الفريق |
 | Closing a project, lessons, handover, case study consent | Lead starts; admin closes; client asks | Project → الإغلاق |

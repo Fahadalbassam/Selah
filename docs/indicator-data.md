@@ -13,6 +13,7 @@ Typing figures in always stays possible, in every mode.
 ## Who decides
 
 - The client's admin chooses (for a client the firm runs without client accounts, firm staff on the client). The choice records who made it and when, and tells the client's lead and deputy.
+- "Firm staff" here and below means the firm admin and the consultants who do the client's work: its lead or deputy, or someone staffed (not as an observer) on one of its projects (decision D4; docs/metrics.md). Any other consultant on the client's team reads this page, its connections and its batches, and changes nothing.
 - Firm staff can only **suggest** a mode, typically during discovery. The client's admins are told, and the suggestion is preselected for them; it changes nothing until an admin confirms.
 - The first time a client's admin opens their overview, a skippable card asks the question with "no data" preselected. It can be changed any time under **Data sharing** in their profile menu (`/indicators/data`).
 - Stepping back from `connected` disconnects every connection at once. Figures already received stay.

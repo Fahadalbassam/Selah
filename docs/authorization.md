@@ -16,7 +16,7 @@ There are two layers. Both must allow a request.
 1. **Organization.** Client users reach only their own organization. Firm staff reach client records only through a project their firm runs, and a consultant only for clients assigned to them.
 2. **Role.** Does `POLICY[permission]` grant this role anything? (`src/authz/policy.ts`)
 3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
-4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), or `owner_org` (who controls a document's labels and AI flag).
+4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), or `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
 
 ## Internal and client projects
@@ -39,10 +39,25 @@ Decided with the product owner on 2026-10-20:
 - On internal projects firm staff do the work themselves (`INTERNAL_POLICY` in `policy.ts`), and **nobody reviews their own action** (`workflow:self-review`, mirrored in the `reviews` insert policy).
 
 - **Client business indicators** belong to the client, not a project (`indicator.*`, migration `0062_client_indicators`). Firm staff who work with the client and the client's admins set them up and link them to recommendations; admins and managers, and firm staff, enter values; a manager sees the company's indicators and their own departments'; action owners see none. A link to a firm-private recommendation is visible only to whoever can read that recommendation (docs/metrics.md).
+- **Which firm staff change a client's indicators** (decision D4, 2026-11; migration `0072_observer_indicators`). Because indicators are the client's, the observer rule below (which looks at the project a record is in) never reached them. So the rule is written from the other side: a consultant enters, corrects or checks a value, adds, edits, pauses or deletes an indicator, links or unlinks a recommendation, or changes how the figures reach Selah **only when staffed, not as an observer, on at least one of that client's projects, or as its lead or deputy**. Every other consultant who works with the client (an observer, or someone on the client's team staffed on nothing) reads. The firm admin and the client's own roles are unchanged. In `authorize()` this is the `working` scope, from `principal.workingClientIds`; in the database, `app_firm_changes_kpis()` behind every write policy on the indicator tables. Tests: `tests/db/observer-indicators.test.ts`.
 
 RLS for all of this is in the Staffing and Staffed visibility sections of `drizzle/0000_baseline.sql`.
 
 The `Principal` is built from the session and the database (`services/principal.ts`), never from anything the browser sends.
+
+## What a person with limits never sees by title
+
+Decision D8 (2026-11): a person never sees, by title, work they may not open, on any screen, whatever role they hold on the project. Two kinds of reader have limits. An **action owner** opens only their own actions. A **client manager at a client with departments switched on** opens company-wide work and the work filed under their own departments (`app_dept_ok()`); the client's Departments page promises exactly that. Where a list leaves something out, the screen says how many, never what. Tests for every row: `tests/db/privacy-leaks.test.ts`.
+
+| Where | Rule | Held by |
+|---|---|---|
+| A recommendation's page | Lists only the actions the reader may open (an action owner: their own), then one line with how many more there are. A draft is not counted for a client. | `getRecommendation()` in `services/responses.ts`; `app_actions_left_out()` |
+| The plan, under a finding | A finding answered only by a recommendation in a department the reader is not in says "answered in another department", not "no recommendation yet". | `getProject()`; `app_findings_answered_elsewhere()` |
+| A department's meeting | Read by the department's people, the client's admins, the firm on the project, the organiser and anyone invited; so are its attendees, decisions, summary, follow-ups, notes, calendar file and its line on the schedule. A follow-up still reaches the person it is assigned to. A meeting with no department is open to everyone on the project, as before. | `app_can_see_meeting()`, policies `department` and `department_book` on `meetings`, `meeting_department` on `follow_ups` and `meeting_notes` (migration `0069_department_meetings`) |
+| A meeting's stored agenda | Sent only to a reader who may open every action it can name: the firm on the project, the client's admin, and a client manager for whom no action of the project (of the department, for a department's meeting) fails the department check. Never to an action owner. Everyone else gets one line saying so. The app role cannot read the column; the text comes only from `app_meeting_agenda_for()`. | migration `0071_agenda_readers`; `getMeeting()` |
+| The project's activity record | For the firm and the client's admin. Client managers and action owners get neither the tab nor the rows. | `activity.read`; policy `scoped_read` on `activity_events` (migration `0070_activity_readers`) |
+| A shared status pack | Items of other departments are left out of each list, with how many; an indicator names only the linked recommendations the reader can open. The numbers stay whole: a person at the firm chose to share the report. | `forReader()` in `services/status-pack.ts` |
+| The Departments page | Names, members and heads are for everyone at the client; a card links to the department's page only for the firm, the client's admin and the department's own people. | `getEngagement()` (`canOpen`) |
 
 ## How a request flows
 
@@ -98,11 +113,15 @@ The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists doc
 
 A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments).
 
+## Observers
+
+An observer on a project (a firm consultant, migration `0034_observers`) reads everything there and changes nothing, except adding a firm note to an action and asking the assistant. `authorize()` refuses every other write on a record of that project, and the trigger `check_not_observer()` refuses it in the database. The screens draw no control the database would refuse: on a meeting the observer gets no edit, invite, cancel, attendee, decision, summary, follow-up or reply control (`canRun`, `canFollowUp`, `canRespond` in `getMeeting()`), and on the project's Assessments tab no "Start an assessment". On the client's business indicators an observer reads only (see Staffing above).
+
 Files are grouped client, then project, then source (evidence by action, deliverables, client documents, meetings, assessments). Only the latest version is listed; downloads go through the usual one-minute signed link.
 
 **Reusing a file as evidence** (`POST /api/actions/:id/evidence/existing`) copies the stored object under a new random key and records a new evidence document. The original keeps its label, department and history; the copy follows the evidence rules. It is refused unless the person can submit evidence on the action and download the original, and the original belongs to the same client, is `shared` (never firm-only or private) and was cleared by the virus scan. Tests: `tests/db/files.test.ts`.
 
-**Adding a file to a project** (`POST /api/projects/:id/documents`, the Files card's "Add a file") is open to firm staff on the project and to client admins and managers. `GET /api/files/targets` lists the projects and the choices each side has: firm staff label a file firm-only or shared (internal work is always firm-only); a client labels it shared or private to the company (a restricted client's files start private); a client admin can file it under any department, a manager under their own. Files are scanned like evidence. The upload is audited but kept off the project's activity feed, which both sides see.
+**Adding a file to a project** (`POST /api/projects/:id/documents`, the Files card's "Add a file") is open to firm staff on the project and to client admins and managers. `GET /api/files/targets` lists the projects and the choices each side has: firm staff label a file firm-only or shared (internal work is always firm-only); a client labels it shared or private to the company (a restricted client's files start private); a client admin can file it under any department, a manager under their own. Files are scanned like evidence. The upload is audited but kept off the project's activity feed, which the firm and the client's admin see.
 
 ## Adding a new record type (checklist)
 
