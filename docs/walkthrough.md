@@ -28,6 +28,17 @@ The first run downloads the containers and, for the assistant, the search model 
 
 All dates are relative to the day you load the data: "overdue" means overdue on that day. If you show it a week later, run `--fresh` first.
 
+### A second copy on the same machine
+
+Every clone of the repository uses the same containers, data and ports, so a second clone cannot run beside the first, and `--fresh` in one deletes the other's data. To test in a second copy while someone uses the first (a reviewer running scenarios, say), make another clone or `git worktree`, and start it with a name:
+
+```powershell
+$env:SELAH_INSTANCE = "review"    # bash: export SELAH_INSTANCE=review
+npm run walkthrough -- --fresh
+```
+
+That copy gets its own containers and data (`selah-review-…`) and its own ports, each ten above the usual one: Selah on http://localhost:3010, the mail on http://localhost:8035. `--fresh`, `stop:local` and `reset:local` there only touch that copy. Set `SELAH_PORT_OFFSET` for a different distance, in tens (20 gives 3020). The end-to-end suite runs in the first copy only; `test:all` in a named copy skips it. Keep the variable set for every command you run in that copy; without it the commands act on the first copy. The copy downloads the search model again (about 1.2 GB), and its `apps/web/.env.local` is written for its ports on the first run, so start it with the name from the beginning.
+
 Two things the team may notice:
 
 - The app runs in development mode, which builds each page the first time it is opened. So before it prints the accounts, `npm run walkthrough` opens every main page once, signed in as admin@mizan.test and admin@nukhba.test (about a minute or two; it adds one sign-in per account to the audit log). A page that was not opened ahead (a rarely used dialog's page, a meeting) can still take a few seconds the first time ("Compiling…" in the corner). `--no-warm` skips this.

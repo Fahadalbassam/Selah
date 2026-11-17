@@ -29,8 +29,36 @@ const WEB = join(ROOT, "apps", "web");
 const ROOT_ENV = join(ROOT, ".env");
 const WEB_ENV = join(WEB, ".env.local");
 const WIN = process.platform === "win32";
-const COMPOSE = ["compose", "-f", "docker-compose.yml", "-f", "docker-compose.test.yml"];
-const APP_URL = "http://localhost:3000";
+
+// A second copy beside the first (docs/walkthrough.md, "A second copy on the
+// same machine"): run from another clone or worktree with SELAH_INSTANCE set
+// to a short name. That copy gets its own containers, its own data and its
+// own ports (every port moved up by SELAH_PORT_OFFSET, 10 unless set), so
+// --fresh or reset there never touches the first copy.
+const INSTANCE = (process.env.SELAH_INSTANCE || "").trim().toLowerCase();
+if (INSTANCE && !/^[a-z0-9]{1,16}$/.test(INSTANCE)) {
+  console.error("[selah] SELAH_INSTANCE must be a short name of letters and digits, for example: review");
+  process.exit(1);
+}
+const OFFSET = INSTANCE ? Number(process.env.SELAH_PORT_OFFSET || 10) : 0;
+// Tens only: a smaller step would land one of Selah's ports on another (3000 and 3001).
+if (INSTANCE && (!Number.isInteger(OFFSET) || OFFSET < 10 || OFFSET > 1000 || OFFSET % 10 !== 0)) {
+  console.error("[selah] SELAH_PORT_OFFSET must be 10, 20, 30 ... up to 1000");
+  process.exit(1);
+}
+/** Compose's project name: the prefix of every container and volume. */
+const PROJECT = INSTANCE ? `selah-${INSTANCE}` : "selah";
+/** A port on this machine, moved for a second copy. */
+const P = (port) => port + OFFSET;
+if (INSTANCE) {
+  // Read by docker-compose.instance.yml.
+  for (const [name, port] of Object.entries({ DB: 5432, S3: 9000, CLAMD: 3310, OLLAMA: 11434, AI: 8000, WEB: 3000, MAIL_UI: 8025, SMTP: 1025, PDF: 3001 })) {
+    process.env[`SELAH_PORT_${name}`] = String(P(port));
+  }
+}
+const COMPOSE = ["compose", "-p", PROJECT, "-f", "docker-compose.yml", "-f", "docker-compose.test.yml", ...(INSTANCE ? ["-f", "docker-compose.instance.yml"] : [])];
+const APP_URL = `http://localhost:${P(3000)}`;
+const MAIL_URL = `http://localhost:${P(8025)}`;
 
 // The walkthrough's sign-ins (apps/web/scripts/walkthrough/seed.ts), all with
 // WALKTHROUGH_PASSWORD from .env, or the default in docs/walkthrough.md.
@@ -168,7 +196,7 @@ function ensureEnvFiles() {
 
   if (!existsSync(WEB_ENV)) {
     say("first run: writing apps/web/.env.local from .env");
-    const db = (role, pw, name = "selah") => `postgres://${role}:${pw}@localhost:5432/${name}`;
+    const db = (role, pw, name = "selah") => `postgres://${role}:${pw}@localhost:${P(5432)}/${name}`;
     writeFromExample(join(WEB, ".env.example"), WEB_ENV, {
       DATABASE_OWNER_URL: db("selah_owner", root.SELAH_OWNER_PASSWORD),
       DATABASE_APP_URL: db("selah_app", root.SELAH_APP_PASSWORD),
@@ -182,8 +210,9 @@ function ensureEnvFiles() {
       S3_BUCKET: root.S3_BUCKET || "selah-evidence",
       AI_SERVICE_TOKEN: root.AI_SERVICE_TOKEN,
       SEED_PASSWORD: root.SEED_PASSWORD,
-      SMTP_URL: "smtp://localhost:1025",
+      SMTP_URL: `smtp://localhost:${P(1025)}`,
       MAIL_FROM: root.MAIL_FROM,
+      ...(INSTANCE ? { SELAH_INSTANCE: INSTANCE, APP_URL, S3_ENDPOINT: `http://localhost:${P(9000)}`, AI_SERVICE_URL: `http://localhost:${P(8000)}`, CLAMD_PORT: String(P(3310)) } : {}),
       // Local development only; the app refuses both in production. With no
       // scanner host, uploads are kept as "skipped"; with one that is down,
       // every upload is refused. --full sets it.
@@ -192,7 +221,22 @@ function ensureEnvFiles() {
       TWO_FACTOR_REQUIRED: "false",
     });
   }
-  return { root, web: parseEnv(WEB_ENV) };
+  const web = parseEnv(WEB_ENV);
+  // apps/web/.env.local holds this copy's ports, so it belongs to one copy:
+  // the name it was written for must be the name in use now. Otherwise a
+  // command here would read, or with --fresh delete, another copy's data.
+  const written = web.SELAH_INSTANCE || "";
+  if (written !== INSTANCE) {
+    fail(
+      written
+        ? `this folder is the copy named "${written}" (apps/web/.env.local). Set SELAH_INSTANCE=${written} and run the command again.`
+        : `apps/web/.env.local here was written for the first copy, but SELAH_INSTANCE=${INSTANCE} is set. Unset it, or delete apps/web/.env.local to have it written for this copy.`,
+    );
+  }
+  if (INSTANCE && web.DATABASE_OWNER_URL && !web.DATABASE_OWNER_URL.includes(`:${P(5432)}/`)) {
+    fail(`apps/web/.env.local was written for another SELAH_PORT_OFFSET. Delete it to have it written again for ${OFFSET}.`);
+  }
+  return { root, web };
 }
 
 // ---------- shared steps ----------
@@ -233,7 +277,7 @@ async function prepareDatabase(env, seed = "db:seed") {
   run("npm", ["run", "db:migrate"], { cwd: WEB, env });
   // RustFS takes a few seconds after its container starts.
   await waitFor("File storage", async () => {
-    if (!(await portOpen(9000))) return false;
+    if (!(await portOpen(P(9000)))) return false;
     return run("npm", ["run", "storage:init"], { cwd: WEB, env, allowFail: true, quiet: true }).status === 0;
   }, { timeoutS: 90 });
   say("file storage is ready");
@@ -262,7 +306,7 @@ function printAccounts(users, password) {
   const width = Math.max(...users.map(([e]) => e.length));
   console.log("");
   say(`Selah is running: ${APP_URL}  (you start signed out; sign in with any account below)`);
-  say(`Mail it sends (invitations, resets): http://localhost:8025`);
+  say(`Mail it sends (invitations, resets): ${MAIL_URL}`);
   say(`Sample accounts, all with the password ${password}`);
   for (const [email, role] of users) console.log(`         ${email.padEnd(width)}  ${role}`);
   say("Ctrl+C stops the app; the containers keep running (npm run stop:local stops them).");
@@ -341,7 +385,7 @@ async function warm(accounts) {
 function wipeData() {
   say("deleting the local database and stored files (the AI models are kept)");
   compose(["rm", "-s", "-f", "-v", "db", "storage"], { allowFail: true, quiet: true });
-  for (const v of ["selah_db-data", "selah_storage-data"]) docker(["volume", "rm", v], { allowFail: true, quiet: true });
+  for (const v of [`${PROJECT}_db-data`, `${PROJECT}_storage-data`]) docker(["volume", "rm", v], { allowFail: true, quiet: true });
 }
 
 /** Keeps the assistant's index current while the app runs: the first run once the embedding model is in, then every minute. */
@@ -357,11 +401,11 @@ function indexLoop(env) {
   (async () => {
     // The embedding model downloads once (about 1.2 GB) into the ollama volume.
     while (!stopped) {
-      const r = docker(["inspect", "-f", "{{.State.Status}} {{.State.ExitCode}}", "selah-ollama-pull-1"], { allowFail: true, quiet: true });
+      const r = docker(["inspect", "-f", "{{.State.Status}} {{.State.ExitCode}}", `${PROJECT}-ollama-pull-1`], { allowFail: true, quiet: true });
       const state = r.stdout?.trim();
       if (state === "exited 0") break;
       if (state?.startsWith("exited")) {
-        say("the AI model download failed; the assistant stays off (see: docker logs selah-ollama-pull-1)");
+        say(`the AI model download failed; the assistant stays off (see: docker logs ${PROJECT}-ollama-pull-1)`);
         return;
       }
       await sleep(10_000);
@@ -386,7 +430,7 @@ async function dev(flags, { walkthrough = false } = {}) {
   const { root, web } = ensureEnvFiles();
   // The end-to-end stack runs its own web app on port 3000.
   compose(["stop", "web", "mail", "jobs"], { allowFail: true, quiet: true });
-  if (await portOpen(3000)) fail("Something else is using port 3000. Close it (another `npm run dev`?) and try again.");
+  if (await portOpen(P(3000))) fail(`Something else is using port ${P(3000)}. Close it (another \`npm run dev\`?) and try again.`);
   if (walkthrough && flags.includes("--fresh")) wipeData();
 
   const services = [
@@ -403,11 +447,13 @@ async function dev(flags, { walkthrough = false } = {}) {
     ...web,
     NODE_ENV: "development",
     ...(full ? { CLAMD_HOST: "localhost", SCAN_REQUIRED: "true" } : { CLAMD_HOST: "", SCAN_REQUIRED: "false" }),
+    // A second copy listens on its own port (next dev reads PORT).
+    ...(INSTANCE ? { PORT: String(P(3000)) } : {}),
     // The web app masks names before a hosted model sees them (docs/assistant.md), so it must know which kind runs.
     // The root .env sets it for the AI service; apps/web/.env.local keeps its own when the root has none.
     ...(root.LLM_PROVIDER ? { LLM_PROVIDER: root.LLM_PROVIDER } : {}),
     ...(root.AI_MASKING ? { AI_MASKING: root.AI_MASKING } : {}),
-    ...(walkthrough ? { PDF_SERVICE_URL: "http://localhost:3001", WALKTHROUGH_PASSWORD: root.WALKTHROUGH_PASSWORD || WALKTHROUGH_PASSWORD } : {}),
+    ...(walkthrough ? { PDF_SERVICE_URL: `http://localhost:${P(3001)}`, WALKTHROUGH_PASSWORD: root.WALKTHROUGH_PASSWORD || WALKTHROUGH_PASSWORD } : {}),
   };
   // The seed's uploads don't wait for the scanner, which is still loading its signatures.
   await prepareDatabase(walkthrough ? { ...env, CLAMD_HOST: "", SCAN_REQUIRED: "false" } : env, walkthrough ? "db:seed:walkthrough" : "db:seed");
@@ -487,7 +533,7 @@ async function test(flags) {
 
   say("waiting for the virus scanner (the first start takes a few minutes)");
   await waitFor("ClamAV", () => {
-    const r = docker(["inspect", "-f", "{{.State.Health.Status}}", "selah-clamav-1"], { allowFail: true, quiet: true });
+    const r = docker(["inspect", "-f", "{{.State.Health.Status}}", `${PROJECT}-clamav-1`], { allowFail: true, quiet: true });
     return r.stdout?.trim() === "healthy";
   }, { timeoutS: 900, everyS: 10 });
   await step("upload scanning tests", () => inWeb(["run", "test:scan"], { CLAMD_HOST: "localhost" }));
@@ -500,9 +546,12 @@ async function test(flags) {
 
   if (quick) {
     say("skipping the end-to-end tests (--quick)");
+  } else if (INSTANCE) {
+    // The end-to-end stack and its tests use the first copy's addresses (port 3000).
+    say("skipping the end-to-end tests: they run in the first copy only (without SELAH_INSTANCE)");
   } else {
     if (await portOpen(3000)) {
-      const r = docker(["inspect", "-f", "{{.State.Running}}", "selah-web-1"], { allowFail: true, quiet: true });
+      const r = docker(["inspect", "-f", "{{.State.Running}}", `${PROJECT}-web-1`], { allowFail: true, quiet: true });
       if (r.stdout?.trim() !== "true") fail("Port 3000 is in use (is `npm run dev:local` still running?). Stop it, then run the tests again.");
     }
     await step("end-to-end tests (the whole stack in Docker, about 30 minutes)", async () => {
