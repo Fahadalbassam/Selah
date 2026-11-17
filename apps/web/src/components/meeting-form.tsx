@@ -2,7 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
@@ -23,8 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
+import { LeftOutWarning } from "@/components/meeting-left-out";
 import {
   callProvider,
   departmentsToOffer,
@@ -82,7 +81,6 @@ export function MeetingForm(props: {
   const t = useTranslations("meeting.form");
   const tm = useTranslations("meeting");
   const tc = useTranslations("common");
-  const format = useFormatter();
   const router = useRouter();
   const editing = Boolean(props.meetingId);
   const start = props.initial ? new Date(props.initial.startsAt) : null;
@@ -362,25 +360,7 @@ export function MeetingForm(props: {
             </fieldset>
           ) : null}
 
-          {leftOut.length ? (
-            <Alert data-testid="meeting-left-out">
-              <CircleAlert />
-              <AlertDescription className="gap-2">
-                <p>{t("leftOut", { names: format.list(leftOut.map((p) => p.name), { type: "conjunction" }), n: leftOut.length })}</p>
-                {offers.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {offers.map((d) => (
-                      <Button key={d.id} type="button" size="sm" variant="outline" onClick={() => setDept(d.id)}>
-                        {t("makeDepartmentMeeting", { department: d.label })}
-                      </Button>
-                    ))}
-                  </div>
-                ) : (
-                  <p>{t("leftOutNoOffer")}</p>
-                )}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+          <LeftOutWarning people={leftOut} offers={offers} onOffer={setDept} />
 
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={send} onCheckedChange={(on) => setSend(on === true)} />

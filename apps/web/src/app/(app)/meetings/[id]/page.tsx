@@ -79,7 +79,12 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     ? [
         ...invitees.people
           .filter((p) => !attending.has(p.userId) && (shared || p.firm))
-          .map((p) => ({ value: `u:${p.userId}`, label: p.name, leftOut: leftOutOfMeeting([p], [p.userId], meeting.departmentId).length > 0 })),
+          .map((p) => ({
+            value: `u:${p.userId}`,
+            label: p.name,
+            leftOut: leftOutOfMeeting([p], [p.userId], meeting.departmentId).length > 0,
+            departmentIds: p.departmentIds,
+          })),
         ...(shared ? invitees.contacts : [])
           .filter((c) => !attending.has(c.contactId))
           .map((c) => ({ value: `c:${c.contactId}`, label: `${c.name}${c.title ? ` · ${c.title}` : ""} (${t("contact")})` })),
