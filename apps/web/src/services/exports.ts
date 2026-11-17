@@ -119,7 +119,8 @@ export async function planWorkbook(tx: Tx, principal: Principal, projectId: stri
     const values: Record<ImportField, CellValue> = {
       finding: f?.title,
       findingDetails: f?.description,
-      recommendation: r?.title,
+      // A finding answered only in a department the reader is not in says so, as the plan page does; the recommendation is not named.
+      recommendation: r ? r.title : f?.answeredElsewhere ? tAll("plan.findings.answeredElsewhere") : null,
       rationale: r?.rationale,
       targetOutcome: r?.targetOutcome,
       priority: r ? tAll(`priority.${r.priority}` as "priority.low") : null,

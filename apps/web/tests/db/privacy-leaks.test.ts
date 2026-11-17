@@ -6,12 +6,24 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { readXlsx } from "@/lib/office/xlsx-read";
 import { getEngagement } from "@/services/engagement";
+import { planWorkbook } from "@/services/exports";
 import { listFiles } from "@/services/files";
+
+// The exports translate on the server; outside a request, the real messages through next-intl's own translator.
+vi.mock("next-intl/server", async () => {
+  const { createTranslator } = await import("next-intl");
+  const messages = { ar: (await import("../../messages/ar.json")).default, en: (await import("../../messages/en.json")).default };
+  return {
+    getTranslations: async ({ locale, namespace }: { locale: "ar" | "en"; namespace?: string }) =>
+      createTranslator({ locale, messages: messages[locale], namespace: namespace as never }),
+  };
+});
 import { bookMeeting, getMeeting, listMeetings, meetingIcs, schedule } from "@/services/meetings";
 import { loadPrincipal } from "@/services/principal";
 import { getActionDetail, getProject } from "@/services/queries";
@@ -287,6 +299,22 @@ describe("a finding answered in another department", () => {
     for (const who of [U.sponsor, U.cadmin, U.lead]) {
       expect(await findings(who)).toEqual({ "No delegation matrix": 0, "No board charter": 0 });
     }
+  });
+
+  it("is not exported as unanswered in the plan workbook either, in both languages", async () => {
+    const recommendationOf = async (who: string, locale: "ar" | "en", finding: string) => {
+      const { bytes } = await svc(who, (tx, p) => planWorkbook(tx, p, P, locale));
+      const [header, ...rows] = readXlsx(bytes)[0]!.rows;
+      const words = (await import(`../../messages/${locale}.json`)).default.importExport.fields as Record<string, string>;
+      const col = header!.indexOf(words.recommendation!);
+      expect(col).toBeGreaterThan(-1);
+      return rows.filter((r) => r[0] === finding).map((r) => r[col]);
+    };
+    expect(await recommendationOf(U.mgr, "en", "No delegation matrix")).toEqual(["Answered in another department"]);
+    expect(await recommendationOf(U.mgr, "ar", "No delegation matrix")).toEqual(["تعالجها توصية في إدارة أخرى"]);
+    // A finding the reader sees answered, and a reader who sees every recommendation, are unchanged.
+    expect(await recommendationOf(U.mgr, "en", "No board charter")).toEqual(["Adopt a board charter"]);
+    expect(await recommendationOf(U.cadmin, "en", "No delegation matrix")).toEqual(["Update the delegation matrix"]);
   });
 
   it("answers nothing to another client", async () => {
