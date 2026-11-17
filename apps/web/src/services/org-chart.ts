@@ -839,15 +839,24 @@ export async function deletePosition(tx: Tx, principal: Principal, positionId: s
  * that the client can see). The current version becomes history, the draft
  * becomes current with its structure frozen, and a copy becomes the next
  * draft. Holdings of positions the new structure drops end today.
+ * `draftId` is the draft the publisher checked (getDraft's `draft.id`): once
+ * it is published, publishing it again is refused ("already published"), so
+ * two publishers at the same moment make one version.
  */
-export async function publish(tx: Tx, principal: Principal, clientOrgId: string, input: { effectiveOn: string; resolutionDocumentId?: string | null }) {
+export async function publish(
+  tx: Tx,
+  principal: Principal,
+  clientOrgId: string,
+  input: { draftId: string; effectiveOn: string; resolutionDocumentId?: string | null },
+) {
   const client = await clientOf(tx, clientOrgId);
   assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
   checkDay(input.effectiveOn);
+  if (!input.draftId) throw new BadRequestError("draft");
   const chart = await chartOf(tx, client.id);
   if (!chart) throw new NotFoundError("draft");
   const { rows } = await tx.execute<{ id: string }>(
-    sql`select app_publish_org_chart(${chart.id}::uuid, ${input.effectiveOn}::date, ${input.resolutionDocumentId ?? null}::uuid) as id`,
+    sql`select app_publish_org_chart(${chart.id}::uuid, ${input.draftId}::uuid, ${input.effectiveOn}::date, ${input.resolutionDocumentId ?? null}::uuid) as id`,
   );
   const id = rows[0]!.id;
   const [v] = await tx.select({ number: orgChartVersions.number }).from(orgChartVersions).where(eq(orgChartVersions.id, id)).limit(1);

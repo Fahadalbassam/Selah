@@ -433,9 +433,11 @@ END $$;
 -- becomes current, numbered, its structure frozen in the snapshot; the
 -- client admin's names switch carries over (off for a first version);
 -- whoever held a position the new structure no longer has stops holding it
--- today; and a fresh draft, a copy, is ready for the next change. Returns the
--- published version.
-CREATE FUNCTION app_publish_org_chart(cid uuid, p_effective date, p_resolution uuid) RETURNS uuid
+-- today; and a fresh draft, a copy, is ready for the next change. The caller
+-- names the draft they checked (p_draft): once it is published, publishing it
+-- again is refused, so two publishers at the same moment make one version,
+-- not a second, unchanged one. Returns the published version.
+CREATE FUNCTION app_publish_org_chart(cid uuid, p_draft uuid, p_effective date, p_resolution uuid) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   c org_charts;
@@ -453,7 +455,10 @@ BEGIN
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext('org_chart'), hashtext(cid::text));
   SELECT * INTO d FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'draft' FOR UPDATE;
-  IF d.id IS NULL OR NOT EXISTS (SELECT 1 FROM org_units u WHERE u.version_id = d.id) THEN
+  IF d.id IS DISTINCT FROM p_draft THEN
+    RAISE EXCEPTION 'that draft was already published; check the new draft, then publish it' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM org_units u WHERE u.version_id = d.id) THEN
     RAISE EXCEPTION 'the draft has no units yet' USING ERRCODE = 'check_violation';
   END IF;
   IF p_resolution IS NOT NULL AND NOT EXISTS (
@@ -990,13 +995,13 @@ CREATE POLICY editor_update ON org_chart_change_requests FOR UPDATE TO selah_app
 REVOKE ALL ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid), app_org_chart_full_reader(uuid),
   app_org_chart_version_readable(uuid), app_org_chart_holder_writer(uuid), app_org_chart_lineage_published(uuid), app_org_chart_branch(uuid, uuid),
   app_org_chart_named_positions(uuid), app_org_chart_holders(uuid, date), app_my_manager(), app_start_org_chart(uuid),
-  app_org_chart_snapshot_of(uuid), app_org_chart_copy(uuid, uuid), app_publish_org_chart(uuid, date, uuid),
+  app_org_chart_snapshot_of(uuid), app_org_chart_copy(uuid, uuid), app_publish_org_chart(uuid, uuid, date, uuid),
   app_set_org_chart_show_names(uuid, boolean) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_org_chart_firm_reader(uuid), app_org_chart_editor(uuid), app_org_chart_publisher(uuid), app_org_chart_readable(uuid), app_org_chart_full_reader(uuid),
   app_org_chart_version_readable(uuid), app_org_chart_holder_writer(uuid), app_org_chart_lineage_published(uuid),
   app_org_chart_named_positions(uuid), app_org_chart_holders(uuid, date), app_my_manager(), app_start_org_chart(uuid),
-  app_publish_org_chart(uuid, date, uuid), app_set_org_chart_show_names(uuid, boolean) TO selah_app;
+  app_publish_org_chart(uuid, uuid, date, uuid), app_set_org_chart_show_names(uuid, boolean) TO selah_app;
 --> statement-breakpoint
 -- 6. Mail: a holder change and a suggestion are work mail to the lead and
 --    deputy (lib/mail-templates.ts MAIL_KINDS, lib/mail-choices.ts WORK_MAIL_KINDS).

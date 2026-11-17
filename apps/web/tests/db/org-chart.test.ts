@@ -90,6 +90,17 @@ const svc = <T>(userId: string, fn: (tx: Tx, p: Principal) => Promise<T>, commit
     commit,
   );
 
+/** A client's current draft (what a publisher checks before publishing), or a stand-in when it has none. */
+const draftIdOf = async (client: string) =>
+  ((
+    await owner.query(`SELECT v.id FROM org_chart_versions v JOIN org_charts c ON c.id = v.chart_id WHERE c.org_id = $1 AND v.state = 'draft'`, [client])
+  ).rows[0]?.id as string | undefined) ?? id(99);
+/** Publish the client's current draft, today. */
+const publishAs = async (who: string, client: string, commit = true) => {
+  const draftId = await draftIdOf(client);
+  return svc(who, (tx, p) => OC.publish(tx, p, client, { draftId, effectiveOn: firmToday() }), commit);
+};
+
 /** What a person may read of the client's work, straight from row-level security. */
 const readable = async (userId: string) => ({
   actions: (await attempt(userId, `SELECT id FROM actions ORDER BY id`)).rows.map((r) => r.id as string),
@@ -198,7 +209,7 @@ beforeAll(async () => {
   await position("clerk", "ap", { titleAr: "محاسب", titleEn: "Clerk", reportsToId: POS.ap, plannedCount: 3 });
   await position("hrd", "hr", { titleAr: "مدير الموارد البشرية", titleEn: "HR director", isHead: true, reportsToId: POS.ceo });
   await position("hro", "hr", { titleAr: "أخصائي موارد بشرية", titleEn: "HR officer", reportsToId: POS.hrd });
-  V1 = (await svc(U.lead, (tx, p) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }), true)).versionId;
+  V1 = (await publishAs(U.lead, ACME)).versionId;
   // The client's admin puts the people in (HR officer stays vacant).
   const hold = (key: string, start: OC.HolderChange["start"]) => svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, POS[key]!, { start }), true);
   await hold("chair", { name: "Hessa Chair", from: PAST });
@@ -294,7 +305,7 @@ describe("another client's chart", () => {
       expect((await attempt(who, `SELECT * FROM app_org_chart_holders($1, app_firm_today())`, [V1])).rowCount).toBe(0);
       expect((await attempt(who, `SELECT * FROM app_org_chart_named_positions($1)`, [V1])).rowCount).toBe(0);
       await expect(attempt(who, `SELECT app_set_org_chart_show_names($1, true)`, [V1])).rejects.toThrow(/no such version/);
-      await expect(attempt(who, `SELECT app_publish_org_chart($1, app_firm_today(), NULL)`, [CHART])).rejects.toThrow(/no such structure/);
+      await expect(attempt(who, `SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [CHART, await draftIdOf(ACME)])).rejects.toThrow(/no such structure/);
     }
   });
 
@@ -411,7 +422,7 @@ describe("a minimal-records client", () => {
     await svc(U.lead, (tx, p) => OC.startChart(tx, p, MANAGED), true);
     const u = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, MANAGED, { kind: "board", nameEn: "Family council" }), true);
     const pos = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Council head", isHead: true }), true);
-    await svc(U.lead, (tx, p) => OC.publish(tx, p, MANAGED, { effectiveOn: firmToday() }), true);
+    await publishAs(U.lead, MANAGED);
     await expect(svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { start: { name: "Family Elder", from: PAST } }))).rejects.toThrow(/minimal_records/);
     const chart = (await owner.query(`SELECT id FROM org_charts WHERE org_id = $1`, [MANAGED])).rows[0].id;
     await expect(
@@ -433,7 +444,7 @@ describe("a minimal-records client", () => {
     await svc(U.lead, (tx, p) => OC.startChart(tx, p, FAMILY), true);
     const u = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, FAMILY, { kind: "board", nameEn: "Family council" }), true);
     const pos = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Council head", isHead: true }), true);
-    await svc(U.lead, (tx, p) => OC.publish(tx, p, FAMILY, { effectiveOn: firmToday() }), true);
+    await publishAs(U.lead, FAMILY);
     const { started } = await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { start: { name: "Family Elder", from: PAST } }), true);
     // A holding that has ended still holds a name.
     await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { end: { holderId: started!, on: firmToday() } }), true);
@@ -495,6 +506,7 @@ describe("a client admin and the structure", () => {
     expect(draft).not.toBeNull();
     const draftUnit = (await owner.query(`SELECT id FROM org_units WHERE version_id = $1 LIMIT 1`, [draft!.id])).rows[0].id;
     const draftPos = (await owner.query(`SELECT id FROM positions WHERE version_id = $1 LIMIT 1`, [draft!.id])).rows[0].id;
+    const acmeDraft = await draftIdOf(ACME);
     const writes: ((tx: Tx, p: Principal) => Promise<unknown>)[] = [
       (tx: Tx, p: Principal) => OC.startChart(tx, p, ACME),
       (tx: Tx, p: Principal) => OC.addUnit(tx, p, ACME, { kind: "unit", nameEn: "Projects office" }),
@@ -509,7 +521,7 @@ describe("a client admin and the structure", () => {
       (tx: Tx, p: Principal) => OC.setSpecialties(tx, p, draftPos, ["x"]),
       (tx: Tx, p: Principal) => OC.movePosition(tx, p, draftPos, { unitId: draftUnit }),
       (tx: Tx, p: Principal) => OC.deletePosition(tx, p, POS.hro!),
-      (tx: Tx, p: Principal) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }),
+      (tx: Tx, p: Principal) => OC.publish(tx, p, ACME, { draftId: acmeDraft, effectiveOn: firmToday() }),
     ];
     for (const fn of writes) {
       await expect(svc(U.cadmin, fn)).rejects.toThrow(REFUSED);
@@ -532,7 +544,7 @@ describe("a client admin and the structure", () => {
     expect((await attempt(U.cadmin, `DELETE FROM positions WHERE org_id = $1`, [ACME])).rowCount).toBe(0);
     expect((await attempt(U.cadmin, `DELETE FROM org_units WHERE org_id = $1`, [ACME])).rowCount).toBe(0);
     await expect(attempt(U.cadmin, `UPDATE org_chart_versions SET published_snapshot = '{}' WHERE id = $1`, [V1])).rejects.toThrow(/permission denied/);
-    await expect(attempt(U.cadmin, `SELECT app_publish_org_chart($1, app_firm_today(), NULL)`, [CHART])).rejects.toThrow(/no such structure/);
+    await expect(attempt(U.cadmin, `SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [CHART, await draftIdOf(ACME)])).rejects.toThrow(/no such structure/);
     await expect(attempt(U.cadmin, `SELECT app_start_org_chart($1)`, [ACME])).rejects.toThrow(/no such client/);
     // A manager no more than the admin.
     await expect(attempt(U.mgr, `INSERT INTO org_units (version_id, org_id, kind, code, name_en) VALUES ($1,$2,'unit','9','x')`, [draft, ACME])).rejects.toThrow(RLS);
@@ -626,12 +638,13 @@ describe("an observer", () => {
     const draft = await svc(U.obs, (tx, p) => OC.getDraft(tx, p, ACME));
     expect([draft.canEditDraft, draft.canPublish, draft.canChangeHolders]).toEqual([false, false, false]);
     const d = draft.positions[0]!;
+    const acmeDraft = await draftIdOf(ACME);
     const writes: ((tx: Tx, p: Principal) => Promise<unknown>)[] = [
       (tx: Tx, p: Principal) => OC.addUnit(tx, p, ACME, { kind: "unit", nameEn: "x" }),
       (tx: Tx, p: Principal) => OC.updateUnit(tx, p, d.unitId, { nameEn: "x" }),
       (tx: Tx, p: Principal) => OC.updatePosition(tx, p, d.id, { titleEn: "x" }),
       (tx: Tx, p: Principal) => OC.deletePosition(tx, p, d.id),
-      (tx: Tx, p: Principal) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }),
+      (tx: Tx, p: Principal) => OC.publish(tx, p, ACME, { draftId: acmeDraft, effectiveOn: firmToday() }),
       (tx: Tx, p: Principal) => OC.changeHolder(tx, p, POS.hro!, { start: { name: "Observer Pick", from: PAST } }),
     ];
     for (const fn of writes) {
@@ -651,7 +664,7 @@ describe("an observer", () => {
     // A staffed consultant edits the draft but does not publish; the lead, the deputy and the firm admin do.
     const cons = await svc(U.cons, (tx, p) => OC.getDraft(tx, p, ACME));
     expect([cons.canEditDraft, cons.canPublish]).toEqual([true, false]);
-    await expect(svc(U.cons, (tx, p) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }))).rejects.toThrow(REFUSED);
+    await expect(publishAs(U.cons, ACME, false)).rejects.toThrow(REFUSED);
     for (const who of [U.lead, U.deputy, U.admin]) expect((await svc(who, (tx, p) => OC.getDraft(tx, p, ACME))).canPublish, who).toBe(true);
   });
 });
@@ -766,7 +779,7 @@ describe("publishing freezes the snapshot", () => {
     await expect(attempt(U.lead, `UPDATE org_chart_versions SET published_snapshot = '{}' WHERE id = $1`, [V1])).rejects.toThrow(/permission denied/);
 
     // Publishing again: the deputy publishes, version 1 becomes history.
-    const v2 = await svc(U.deputy, (tx, p) => OC.publish(tx, p, ACME, { effectiveOn: firmToday() }), true);
+    const v2 = await publishAs(U.deputy, ACME);
     V2 = v2.versionId;
     expect(v2.number).toBe(2);
     const states = (await owner.query(`SELECT number, state FROM org_chart_versions WHERE chart_id = $1 ORDER BY number NULLS LAST`, [CHART])).rows;
@@ -872,7 +885,7 @@ describe("publishing at the same moment as something else", () => {
     const renamer = await begin(U.deputy);
     const adder = await begin(U.deputy);
     try {
-      await publisher.query(`SELECT app_publish_org_chart($1, app_firm_today(), NULL)`, [RCHART]);
+      await publisher.query(`SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [RCHART, draft]);
       const outcome = (q: Promise<unknown>) => q.then(() => "done", (e: Error) => e.message);
       const rename = outcome(renamer.query(`UPDATE positions SET title_en = 'Raced chair' WHERE id = $1`, [chair.id]));
       const add = outcome(
@@ -892,6 +905,25 @@ describe("publishing at the same moment as something else", () => {
     expect((await owner.query(`SELECT count(*)::int AS n FROM positions WHERE org_id = $1 AND title_en LIKE 'Raced%'`, [RACE])).rows[0].n).toBe(0);
     const snap = (await owner.query(`SELECT published_snapshot AS s FROM org_chart_versions WHERE id = $1`, [draft])).rows[0].s;
     expect(snap.positions.map((p: { titleEn: string }) => p.titleEn)).toEqual(["Chair"]);
+  });
+
+  it("two publishes of the same draft at once make one version; the second is refused", async () => {
+    const draft = await draftOf();
+    const versions = async () => (await owner.query(`SELECT count(*)::int AS n FROM org_chart_versions WHERE chart_id = $1 AND state <> 'draft'`, [RCHART])).rows[0].n;
+    const before = await versions();
+    const publish = (who: string) =>
+      svc(who, (tx, p) => OC.publish(tx, p, RACE, { draftId: draft, effectiveOn: firmToday() }), true);
+    const results = await Promise.allSettled([publish(U.lead), publish(U.deputy)]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(String((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason)).toMatch(/already published/);
+    expect(await versions()).toBe(before + 1);
+    // Publishing again means publishing the new draft, by its own id.
+    const next = await draftOf();
+    expect(next).not.toBe(draft);
+    await svc(U.lead, (tx, p) => OC.publish(tx, p, RACE, { draftId: next, effectiveOn: firmToday() }), true);
+    expect(await versions()).toBe(before + 2);
+    // Straight in the database too.
+    await expect(attempt(U.lead, `SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [RCHART, draft])).rejects.toThrow(/already published/);
   });
 });
 
