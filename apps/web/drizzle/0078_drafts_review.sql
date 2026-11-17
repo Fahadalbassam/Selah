@@ -154,3 +154,75 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
+--> statement-breakpoint
+-- 5. Notices about an action written while it was a draft. New ones never
+--    reach a client person (drop_hidden_action_notification), but some were
+--    written before 0076, and they are kept, not deleted. Hidden only while
+--    the action was a draft, they came back at release with their old dates,
+--    and the summary job (which runs past row-level security) still counted
+--    them for a "you have something new" mail. One rule now decides both: a
+--    notice about an action is never shown or summarised to someone outside
+--    the firm when the action is a draft or gone, or when it was written
+--    before the action was released (the owner gets the release notice).
+CREATE FUNCTION app_action_notice_hidden(recipient uuid, aid uuid, written timestamptz) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT NOT EXISTS (SELECT 1 FROM org_memberships m JOIN organizations o ON o.id = m.org_id
+                     WHERE m.user_id = recipient AND o.kind = 'firm')
+    AND (NOT EXISTS (SELECT 1 FROM actions a WHERE a.id = aid AND a.status <> 'draft')
+         OR EXISTS (SELECT 1 FROM activity_events e
+                    WHERE e.entity_type = 'action' AND e.entity_id = aid AND e.event = 'status_changed'
+                      AND e.from_state = 'draft' AND e.created_at > written))
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_action_notice_hidden(uuid, uuid, timestamptz) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_action_notice_hidden(uuid, uuid, timestamptz) TO selah_app;
+--> statement-breakpoint
+DROP POLICY draft ON notifications;
+--> statement-breakpoint
+CREATE POLICY draft ON notifications AS RESTRICTIVE FOR SELECT TO selah_app
+  USING (entity_type <> 'action' OR NOT app_action_notice_hidden(user_id, entity_id, created_at));
+--> statement-breakpoint
+-- The summary job (latest definition: 0050_status_packs), with the same rule.
+CREATE OR REPLACE FUNCTION app_queue_digests(today date) RETURNS integer
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE n integer;
+BEGIN
+  WITH due AS (
+    SELECT x.id FROM notifications x
+    CROSS JOIN LATERAL app_mail_choice(x.user_id) c
+    WHERE x.mailed_at IS NULL AND x.read_at IS NULL
+      AND x.created_at > now() - interval '8 days'
+      AND CASE
+        WHEN x.entity_type = 'action' AND x.kind LIKE 'follow_up.%' THEN app_cadence_due(c.reminders, today)
+        -- information requests waiting on the client (migration 0017), one per project
+        WHEN x.entity_type = 'project' AND x.kind IN ('info_request.due_soon', 'info_request.overdue') THEN app_cadence_due(c.reminders, today)
+        -- a client quiet for two weeks (F18)
+        WHEN x.entity_type = 'project' AND x.kind = 'project.client_quiet' THEN app_cadence_due(c.reminders, today)
+        WHEN x.entity_type = 'project' AND x.kind = 'report.pack_drafted' THEN app_cadence_due(c.reminders, today)
+        WHEN x.entity_type = 'action' AND x.kind = ANY (app_update_mail_kinds()) THEN c.updates <> 'instant' AND app_cadence_due(c.updates, today)
+        ELSE false
+      END
+      AND NOT EXISTS (SELECT 1 FROM mail_mutes m WHERE m.user_id = x.user_id AND m.action_id = x.entity_id)
+      -- Never a notice its reader may not see (D6): about a draft, or written before its release.
+      AND NOT (x.entity_type = 'action' AND app_action_notice_hidden(x.user_id, x.entity_id, x.created_at))
+    FOR UPDATE OF x SKIP LOCKED
+  ),
+  marked AS (
+    UPDATE notifications x SET mailed_at = now() FROM due WHERE x.id = due.id RETURNING x.user_id
+  ),
+  mailed AS (
+    INSERT INTO outbound_emails (to_email, kind, link)
+    SELECT u.email, 'follow_up.digest', '/notifications'
+    FROM (SELECT DISTINCT user_id FROM marked) m
+    JOIN "user" u ON u.id = m.user_id
+    WHERE app_can_reset_password(m.user_id)
+      AND NOT EXISTS (
+        SELECT 1 FROM outbound_emails o
+        WHERE o.kind = 'follow_up.digest' AND lower(o.to_email) = lower(u.email) AND app_firm_date(o.created_at) = app_firm_today()
+      )
+    RETURNING 1
+  )
+  SELECT count(*) INTO n FROM mailed;
+  RETURN n;
+END $$;

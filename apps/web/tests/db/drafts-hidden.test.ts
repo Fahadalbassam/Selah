@@ -606,6 +606,39 @@ describe("a client cannot tell a draft from an action that does not exist", () =
   });
 });
 
+describe("notices written while an action was a draft", () => {
+  it("never bring a client person a summary mail about something they cannot see", async () => {
+    // An old notice for the manager about a draft (written before the action, so no trigger saw it), unread and
+    // unmailed; the manager takes a daily summary.
+    const early = id(46);
+    await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'action.commented','action',$2)`, [U.mgr, early]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, status, created_by) VALUES ($1,$2,$3,$4,'Early notice canary','draft',$5)`,
+      [early, P, ACME, REC, U.lead],
+    );
+    await owner.query(`INSERT INTO mail_preferences (user_id, updates) VALUES ($1,'daily') ON CONFLICT (user_id) DO UPDATE SET updates = 'daily'`, [U.mgr]);
+    await owner.query(`SELECT app_queue_digests(app_firm_today())`);
+    // Not taken into a summary (the job marks what it mails), and no summary for it.
+    expect((await owner.query(`SELECT mailed_at FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.mgr, early])).rows).toEqual([{ mailed_at: null }]);
+    expect((await owner.query(`SELECT 1 FROM outbound_emails WHERE kind = 'follow_up.digest' AND to_email = 'mgr@example.test'`)).rowCount).toBe(0);
+  });
+
+  it("stay hidden after release: the owner sees the release notice only, not the old ones with old dates", async () => {
+    const later = id(45);
+    await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'action.commented','action',$2)`, [U.owner2, later]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Later release canary',$5,'draft',app_firm_today() + 30,$6)`,
+      [later, P, ACME, REC, U.owner2, U.lead],
+    );
+    await svc(U.lead, (tx, p) => transitionAction(tx, p, later, { to: "assigned" }), true);
+    const mine = await rowsAs(U.owner2, `SELECT kind FROM notifications WHERE entity_id = $1`, [later]);
+    expect(mine).toEqual([{ kind: "action.assigned" }]);
+    // The firm's own notices are not touched by this rule.
+    expect((await owner.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [later])).rowCount).toBe(2);
+  });
+});
+
 describe("closing a project, and replacing an action, with a draft on it", () => {
   // A second project of the same client, so closing it leaves the first alone.
   const P2 = id(8);
