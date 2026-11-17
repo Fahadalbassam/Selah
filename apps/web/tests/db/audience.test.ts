@@ -203,7 +203,7 @@ beforeAll(async () => {
   // The firm shares its draft with the client and leaves a colleague out in the same step.
   await svc(U.cons, (tx, p) => D.shareDocument(tx, p, DOC.firmOnly, { mode: "except", people: [U.cons2] }), true);
 
-  // A meeting booked by the lead, leaving the manager out (she was invited, optional).
+  // A meeting booked by the lead; then the manager and a consultant, both invited as optional, are left out.
   MID = (
     await svc(
       U.lead,
@@ -218,11 +218,11 @@ beforeAll(async () => {
           spokenLang: "en",
           attendees: [{ userId: U.nmgr, optional: true }, { userId: U.cons2, optional: true }, { userId: U.nmgr2 }],
           sendInvites: true,
-          audience: { mode: "except", people: [U.nmgr, U.cons2] },
         }),
       true,
     )
   ).id;
+  await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
   await q(`UPDATE meetings SET status = 'held', transcript_consent = true, consent_noted_by = $2 WHERE id = $1`, [MID, U.lead]);
   await q(`INSERT INTO meeting_decisions (project_id, org_id, meeting_id, text, visibility, created_by) VALUES ($1,$2,$3,'Decision canary','shared',$4)`, [PN, NUKHBA, MID, U.lead]);
   await q(`INSERT INTO meeting_summaries (meeting_id, project_id, org_id, lang, main_points_md, confirmed_by, visibility) VALUES ($1,$2,$3,'en','Summary canary',$4,'shared')`, [
@@ -411,7 +411,8 @@ describe("a person left out sees nothing of the item", () => {
   });
 
   it("the mail queue holds no invite for someone left out, and mail queued before she was left out is withdrawn", async () => {
-    const queued = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [MID])).rows.map((r) => r.to_email);
+    // Their invites, queued at booking, were withdrawn when they were left out; only the others' stay to send.
+    const queued = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND withdrawn_at IS NULL`, [MID])).rows.map((r) => r.to_email);
     expect(queued).toContain(email(U.nmgr2));
     expect(queued).not.toContain(email(U.nmgr));
     expect(queued).not.toContain(email(U.cons2));
@@ -597,6 +598,30 @@ describe("the server refuses", () => {
       await expect(rowsAs(who, `SELECT app_set_audience('document', $1, 'except', ARRAY[$2]::uuid[])`, [docId, U.nmgr])).rejects.toThrow(/not allowed/);
     }
     await expect(svc(U.nmgr2, (tx, p) => M.getMeetingAudience(tx, p, MID))).rejects.toThrow(NOT_FOUND);
+  });
+
+  it("booking a meeting that invites someone it leaves out in the same step", async () => {
+    const booking = (audience: { mode: "except" | "only"; people: string[] }) =>
+      svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "status",
+            title: "Refused booking",
+            startsAt: hour(200),
+            endsAt: hour(201),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }],
+            sendInvites: true,
+            audience,
+          }),
+        true,
+      );
+    await expect(booking({ mode: "except", people: [U.nmgr] })).rejects.toThrow(/invited and left out/);
+    await expect(booking({ mode: "only", people: [U.lead, U.nmgr2] })).rejects.toThrow(/invited and left out/);
+    // Nothing was booked or queued.
+    expect((await q(`SELECT count(*)::int AS n FROM meetings WHERE title = 'Refused booking'`)).rows).toEqual([{ n: 0 }]);
   });
 
   it("a share, an invitation or a follow-up to someone left out, and none of them lifts the exclusion", async () => {

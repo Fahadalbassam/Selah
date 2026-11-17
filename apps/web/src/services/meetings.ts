@@ -129,6 +129,19 @@ export async function bookMeeting(
   const { project, resource } = await loadProject(tx, principal, projectId);
   const visibility = input.visibility ?? "shared";
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility });
+  // Inviting someone the same booking leaves out is refused, as inviting them afterwards is
+  // (feature A; review S2): named on an "except" list, or an optional invitee missing from an
+  // "only" list (a required one always sees the meeting). Before anything is written.
+  if (audience && audience.mode !== "everyone") {
+    const listed = new Set(audience.people);
+    const leftOut = attendees.some(
+      (a) =>
+        a.userId &&
+        a.userId !== principal.userId &&
+        (audience.mode === "except" ? listed.has(a.userId) : !listed.has(a.userId) && a.optional),
+    );
+    if (leftOut) throw new BadRequestError("someone is invited and left out of this meeting: take them off the invitations or the list");
+  }
   if (principal.orgKind === "client" && visibility !== "shared") throw new BadRequestError("client meetings are shared");
   if (input.departmentId) {
     const [d] = await tx
