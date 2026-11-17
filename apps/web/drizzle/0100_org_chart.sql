@@ -989,24 +989,26 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path = public, pg_temp AS $$
     'org_chart.holder_changed', 'org_chart.change_requested']
 $$;
 --> statement-breakpoint
--- 7. Masking (latest definition: 0000_baseline, Assistant chats): the typed
---    names of people in the client's structure are masked before a hosted
---    model sees them, like contacts and action owners without an account.
---    People with accounts are already masked through their memberships.
-CREATE OR REPLACE FUNCTION app_mask_terms(pid uuid) RETURNS TABLE (kind text, term text, entity text)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+-- 7. Masking: the typed names of people in the client's structure are masked
+--    before a hosted model sees them, like contacts and action owners without
+--    an account (people with accounts already are, through their
+--    memberships). The project's names (latest definition: app_mask_names in
+--    0089_mask_terms_in_text) gain them; app_mask_terms() and
+--    app_mask_terms_in() read that list and are unchanged.
+CREATE OR REPLACE FUNCTION app_mask_names(pid uuid) RETURNS TABLE (kind text, term text, entity text)
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
   WITH p AS (
-    SELECT org_id, firm_org_id FROM projects
-    WHERE id = pid AND (session_user <> 'selah_app' OR app_can_see_project(pid))
+    SELECT x.org_id, x.firm_org_id FROM projects x
+    WHERE x.id = pid AND (session_user <> 'selah_app' OR app_can_see_project(pid))
   ), orgs AS (
     SELECT o.id, o.name, o.name_ar, o.display_alias, o.short_names FROM organizations o, p WHERE o.id IN (p.org_id, p.firm_org_id)
     UNION
     SELECT o.id, o.name, o.name_ar, o.display_alias, o.short_names FROM organizations o, p
     WHERE o.kind = 'client'
       AND (session_user <> 'selah_app' OR app_org() = p.firm_org_id)
-      AND EXISTS (SELECT 1 FROM projects x WHERE x.org_id = o.id AND x.firm_org_id = p.firm_org_id)
+      AND EXISTS (SELECT 1 FROM projects y WHERE y.org_id = o.id AND y.firm_org_id = p.firm_org_id)
   ), terms AS (
-    SELECT 'ORG' AS kind, unnest(ARRAY[o.name, o.name_ar, o.display_alias] || o.short_names) AS term, 'org:' || o.id AS entity
+    SELECT 'ORG'::text AS kind, unnest(ARRAY[o.name, o.name_ar, o.display_alias] || o.short_names) AS term, 'org:' || o.id AS entity
       FROM orgs o
     UNION
     SELECT 'PERSON', unnest(ARRAY[u.name, u.name_alt]), 'user:' || u.id FROM "user" u JOIN org_memberships m ON m.user_id = u.id, p
@@ -1021,8 +1023,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
       SELECT DISTINCT btrim(regexp_replace(a.owner_name, '\s*\(.*\)\s*$', '')) AS n FROM actions a WHERE a.project_id = pid AND a.owner_name IS NOT NULL
     ) o
     UNION
-    -- People typed into a position of the client's structure (org chart), current or past.
+    -- People typed into a position of the client's structure (org chart, migration 0100), current or past.
     SELECT 'PERSON', h.name, 'holder:' || md5(lower(btrim(h.name))) FROM position_holders h, p WHERE h.org_id = p.org_id AND h.name IS NOT NULL
   )
-  SELECT DISTINCT kind, btrim(term), entity FROM terms WHERE term IS NOT NULL AND length(btrim(term)) >= 2
+  SELECT DISTINCT t.kind, btrim(t.term), t.entity FROM terms t WHERE t.term IS NOT NULL AND length(btrim(t.term)) >= 2
 $$;
