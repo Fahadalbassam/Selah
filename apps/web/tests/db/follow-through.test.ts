@@ -201,7 +201,9 @@ describe("the plan is the firm's", () => {
 
   it("only the firm releases a draft", async () => {
     const aid = await action({ status: "draft" });
-    await expect(attempt(U.cmgr, `UPDATE actions SET status = 'assigned' WHERE id = $1`, [aid])).rejects.toThrow(/only the firm/);
+    // A client does not even see the draft (D6), so the update touches nothing.
+    expect((await attempt(U.cmgr, `UPDATE actions SET status = 'assigned' WHERE id = $1`, [aid])).rowCount).toBe(0);
+    expect((await owner.query(`SELECT status FROM actions WHERE id = $1`, [aid])).rows[0].status).toBe("draft");
     await attempt(U.cons, `UPDATE actions SET status = 'assigned' WHERE id = $1`, [aid]);
   });
 
@@ -695,7 +697,8 @@ describe("action lists, pages and counts", () => {
       }
       expect(paged.map((r) => r.id)).toEqual(all.map((r) => r.id));
       const projects = await svc(who, (tx, p) => Q.listProjects(tx, p));
-      expect(projects.reduce((n, p) => n + p.actionCount, 0)).toBe(all.length);
+      // The Projects card counts released work, for every role (page audit B2); a client lists no draft at all (D6).
+      expect(projects.reduce((n, p) => n + p.actionCount, 0)).toBe(all.filter((r) => r.status !== "draft").length);
     }
     // An action owner counts only their own, never the others in the project.
     const mine = await svc(U.cowner, (tx, p) => Q.listActions(tx, p));

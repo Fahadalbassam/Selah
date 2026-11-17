@@ -247,17 +247,19 @@ describe("the recommendation page lists only actions the reader may open", () =>
     expect(JSON.stringify(r)).not.toMatch(/Sponsor canary|Draft canary|Finance canary/);
   });
 
-  it("a manager outside Finance sees the company-wide ones and is told one more exists", async () => {
+  it("a manager outside Finance sees the company-wide released ones and is told one more exists", async () => {
     const r = await page(U.mgr);
-    expect(titles(r.actions)).toEqual(["Draft canary", "Owner canary", "Sponsor canary"]);
+    // The firm's draft is neither listed nor counted for a client (D6, tests/db/drafts-hidden.test.ts).
+    expect(titles(r.actions)).toEqual(["Owner canary", "Sponsor canary"]);
     expect(r.actionsLeftOut).toBe(1);
-    expect(JSON.stringify(r)).not.toContain("Finance canary");
+    expect(JSON.stringify(r)).not.toMatch(/Finance canary|Draft canary/);
   });
 
-  it("the sponsor in Finance, the client admin and the firm see all of them and no line", async () => {
+  it("the sponsor in Finance and the client admin see all the released ones, the firm the draft too, and no line", async () => {
     for (const who of [U.sponsor, U.cadmin, U.lead, U.cons, U.obs, U.admin]) {
       const r = await page(who);
-      expect(titles(r.actions)).toEqual(["Draft canary", "Finance canary", "Owner canary", "Sponsor canary"]);
+      const firm = [U.lead, U.cons, U.obs, U.admin].includes(who);
+      expect(titles(r.actions)).toEqual([...(firm ? ["Draft canary"] : []), "Finance canary", "Owner canary", "Sponsor canary"]);
       expect(r.actionsLeftOut).toBe(0);
     }
   });

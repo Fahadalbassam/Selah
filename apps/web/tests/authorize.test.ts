@@ -721,3 +721,30 @@ describe("the project's activity record is for the firm and the client admin (D8
     expect(authorize(principal("client_admin", [], BETA), "activity.read", feed).allowed).toBe(false);
   });
 });
+
+describe("a draft action is the firm's until it is released (D6)", () => {
+  const draft = (extra: Partial<Resource> = {}) => ({ ...acmeRecord("action", { draft: true, ...extra }), type: "action" as const });
+
+  it("no client role reads a draft or anything under it, not even its named owner", () => {
+    const admin = principal("client_admin");
+    const manager = principal("client_manager", [ACME_PROJ_1]);
+    const owner = principal("action_owner", [ACME_PROJ_1]);
+    for (const p of [admin, manager, owner]) {
+      const mine = { assignees: [p.userId] };
+      expect(authorize(p, "action.read", draft(mine)), p.role).toEqual({ allowed: false, reason: "action:draft" });
+      expect(authorize(p, "action_comment.read", { ...draft(mine), type: "action_comment" }).allowed, p.role).toBe(false);
+      expect(authorize(p, "evidence_request.read", { ...draft(mine), type: "evidence_request" }).allowed, p.role).toBe(false);
+      // The same action once released.
+      expect(authorize(p, "action.read", acmeRecord("action", mine)).allowed, p.role).toBe(true);
+    }
+    expect(canTransition(manager, draft(), "draft", "assigned").allowed).toBe(false);
+  });
+
+  it("firm roles read and release it as before", () => {
+    const consultant = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    for (const p of [principal("firm_admin"), consultant]) {
+      expect(authorize(p, "action.read", draft()).allowed, p.role).toBe(true);
+      expect(canTransition(p, draft(), "draft", "assigned").allowed, p.role).toBe(true);
+    }
+  });
+});
