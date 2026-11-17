@@ -29,6 +29,8 @@ export interface StatusPack {
   decisions: (Item & { kind: "response" | "deadline"; since: string; proposedDueDate?: string })[];
   /** The client's business indicators as known on the day it was issued (KPI layer B); absent on packs issued before them. */
   indicators?: IndicatorSnapshot[];
+  /** For a reader with department limits: how many items each list leaves out. Worked out when the pack is read, never stored. */
+  leftOut?: Record<(typeof PACK_LISTS)[number], number>;
 }
 
 export const PACK_LISTS = ["decisions", "overdue", "slipped", "riskAccepted", "verified"] as const;
@@ -38,30 +40,51 @@ async function packFor(tx: Tx, projectId: string, orgId: string, from: string, t
   return { ...rows[0]!.pack, indicators: await indicatorSnapshot(tx, { clientOrgId: orgId, projectId }, firmToday()) };
 }
 
-/** A client reader sees only the items of departments they can see; the counts stay whole. */
+/**
+ * A client reader sees only the items of departments they can see, and is
+ * told how many were left out of each list, never which (decision D8). The
+ * numbers stay whole: a person at the firm chose to share the report.
+ */
 async function forReader(tx: Tx, principal: Principal, orgId: string, pack: StatusPack): Promise<StatusPack> {
-  if (principal.orgKind === "firm") return pack;
-  const depts = [
-    ...new Set(
-      [...PACK_LISTS.flatMap((k) => pack[k].map((i) => i.departmentId)), ...(pack.indicators ?? []).map((k) => k.departmentId)].filter(
-        (d): d is string => !!d,
-      ),
-    ),
-  ];
-  if (!depts.length) return pack;
-  const { rows } = await tx.execute<{ id: string; ok: boolean }>(
-    sql`select d as id, app_dept_ok(d, ${orgId}::uuid) as ok from unnest(${sql.param(depts)}::uuid[]) d`,
+  // The firm and the client's admin read every department.
+  if (principal.orgKind === "firm" || principal.role === "client_admin") return pack;
+  const { rows } = await tx.execute<{ id: string }>(
+    sql`select d.id from departments d where d.org_id = ${orgId}::uuid and not app_dept_ok(d.id, d.org_id)`,
   );
-  const hidden = new Set(rows.filter((r) => !r.ok).map((r) => r.id));
-  const keep = <T extends Item>(xs: T[]) => xs.filter((i) => !i.departmentId || !hidden.has(i.departmentId));
+  // No department is closed to this reader: departments are off, or they are in all of them.
+  if (!rows.length) return pack;
+  const hidden = new Set(rows.map((r) => r.id));
+  const shown = (i: { departmentId: string | null }) => !i.departmentId || !hidden.has(i.departmentId);
+  const keep = <T extends Item>(xs: T[]) => xs.filter(shown);
+  const indicators = (pack.indicators ?? []).filter(shown);
+  // An indicator's linked recommendations were frozen by title. Only the ones
+  // this reader can open today are named; a title that cannot be matched
+  // (another department's, or one renamed since) is counted, not shown.
+  const links = indicators.length
+    ? (
+        await tx.execute<{ kpi_id: string; title: string }>(sql`
+          select l.kpi_id, r.title from client_kpi_links l join recommendations r on r.id = l.recommendation_id
+          where l.kpi_id = any(${sql.param(indicators.map((k) => k.id))}::uuid[])`)
+      ).rows
+    : [];
+  const readable = new Set(links.map((l) => `${l.kpi_id}\n${l.title}`));
+  const lists = { overdue: keep(pack.overdue), slipped: keep(pack.slipped), riskAccepted: keep(pack.riskAccepted), verified: keep(pack.verified), decisions: keep(pack.decisions) };
   return {
     ...pack,
-    overdue: keep(pack.overdue),
-    slipped: keep(pack.slipped),
-    riskAccepted: keep(pack.riskAccepted),
-    verified: keep(pack.verified),
-    decisions: keep(pack.decisions),
-    indicators: pack.indicators?.filter((k) => !k.departmentId || !hidden.has(k.departmentId)),
+    ...lists,
+    leftOut: {
+      decisions: pack.decisions.length - lists.decisions.length,
+      overdue: pack.overdue.length - lists.overdue.length,
+      slipped: pack.slipped.length - lists.slipped.length,
+      riskAccepted: pack.riskAccepted.length - lists.riskAccepted.length,
+      verified: pack.verified.length - lists.verified.length,
+    },
+    indicators: pack.indicators
+      ? indicators.map((k) => {
+          const recommendations = k.recommendations.filter((title) => readable.has(`${k.id}\n${title}`));
+          return { ...k, recommendations, recommendationsLeftOut: k.recommendations.length - recommendations.length };
+        })
+      : undefined,
   };
 }
 

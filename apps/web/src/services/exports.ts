@@ -284,12 +284,20 @@ export async function reportPdf(tx: Tx, principal: Principal, reportId: string, 
               rows: pack.pack.verified.map((x) => [x.title, x.owner ?? "—", d(x.on)]),
             },
           ]
-            .map(({ key, ...s }) => ({ ...s, title: tp(`${key}.title`), hint: tp(`${key}.hint`) }))
+            .map(({ key, ...s }) => {
+              // For a reader with department limits: how many items the list leaves out, never which (decision D8).
+              const leftOut = pack.pack.leftOut?.[key as keyof NonNullable<typeof pack.pack.leftOut>] ?? 0;
+              return { ...s, title: tp(`${key}.title`), hint: leftOut ? `${tp(`${key}.hint`)} ${tp("leftOut", { n: leftOut })}` : tp(`${key}.hint`) };
+            })
             .concat(
               pack.pack.indicators?.length
                 ? [
                     (() => {
-                      const table = indicatorTable(pack.pack.indicators, locale, (k, v) => t(`indicators.report.${k}` as "indicators.report.title", v as Record<string, string | number>));
+                      const tK = (k: string, v?: Record<string, string | number>) => t(`indicators.report.${k}` as "indicators.report.title", v as Record<string, string | number>);
+                      const named = pack.pack.indicators.map((k) =>
+                        k.recommendationsLeftOut ? { ...k, recommendations: [...k.recommendations, tK("recsLeftOut", { n: k.recommendationsLeftOut })] } : k,
+                      );
+                      const table = indicatorTable(named, locale, tK);
                       return { ...table, hint: `${table.hint} ${t("indicators.claimNote")}` };
                     })(),
                   ]

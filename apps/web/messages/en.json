@@ -4425,6 +4425,7 @@
     "draftTitle": "Draft, seen only by the firm",
     "draftHint": "The monthly job drafted this pack. The numbers below are live until you issue it.",
     "item": "Item",
+    "leftOut": "{n, plural, one {# more item in another department is not shown to you} other {# more items in other departments are not shown to you}}",
     "since": "Since",
     "owner": "Owner",
     "due": "Due",
@@ -4928,6 +4929,7 @@
       "change": "Change since baseline",
       "target": "Target",
       "linked": "Linked recommendations",
+      "recsLeftOut": "{n, plural, one {# more recommendation in another department} other {# more recommendations in other departments}}",
       "company": "Whole company",
       "noValue": "No value yet",
       "movement": {

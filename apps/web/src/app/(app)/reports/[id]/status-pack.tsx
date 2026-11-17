@@ -6,7 +6,7 @@ import { Sparkline } from "@/components/indicators/sparkline";
 import { formatChange, formatValue, periodLabel } from "@/lib/indicators";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { StatusPack } from "@/services/status-pack";
+import type { PACK_LISTS, StatusPack } from "@/services/status-pack";
 
 const MOVED_ORDER = ["in_progress", "blocked", "awaiting_review", "revision_requested", "verified_complete", "closed"];
 
@@ -36,34 +36,41 @@ export function StatusPackLists({ pack, links }: { pack: StatusPack; links: bool
   const ar = locale === "ar";
   const indicators = pack.indicators ?? [];
 
-  const section = (key: string, count: number, head: string[], rows: React.ReactNode) => (
-    <Card className="gap-3 py-5 shadow-xs">
-      <CardHeader className="px-5">
-        <CardTitle className="text-base">
-          {t(`${key}.title`)} <span className="text-muted-foreground tabular-nums">{count}</span>
-        </CardTitle>
-        <CardDescription>{t(`${key}.hint`)}</CardDescription>
-      </CardHeader>
-      {count ? (
-        <CardContent className="px-5">
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  {head.map((h, i) => (
-                    <TableHead key={h} className={i > 1 ? "text-end" : undefined}>
-                      {h}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>{rows}</TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      ) : null}
-    </Card>
-  );
+  const section = (key: (typeof PACK_LISTS)[number], count: number, head: string[], rows: React.ReactNode) => {
+    // Items of departments this reader is not in: a number, never the titles.
+    const leftOut = pack.leftOut?.[key] ?? 0;
+    return (
+      <Card className="gap-3 py-5 shadow-xs">
+        <CardHeader className="px-5">
+          <CardTitle className="text-base">
+            {t(`${key}.title`)} <span className="text-muted-foreground tabular-nums">{count}</span>
+          </CardTitle>
+          <CardDescription>{t(`${key}.hint`)}</CardDescription>
+        </CardHeader>
+        {count || leftOut ? (
+          <CardContent className="space-y-3 px-5">
+            {count ? (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      {head.map((h, i) => (
+                        <TableHead key={h} className={i > 1 ? "text-end" : undefined}>
+                          {h}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>{rows}</TableBody>
+                </Table>
+              </div>
+            ) : null}
+            {leftOut ? <p className="text-sm text-muted-foreground">{t("leftOut", { n: leftOut })}</p> : null}
+          </CardContent>
+        ) : null}
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -178,7 +185,7 @@ export function StatusPackLists({ pack, links }: { pack: StatusPack; links: bool
                             </span>
                           )}
                           <p className="text-xs text-muted-foreground" dir="auto">
-                            {[scope, ...k.recommendations].join(" · ")}
+                            {[scope, ...k.recommendations, ...(k.recommendationsLeftOut ? [tK("report.recsLeftOut", { n: k.recommendationsLeftOut })] : [])].join(" · ")}
                           </p>
                         </TableCell>
                         <TableCell className="tabular-nums">
