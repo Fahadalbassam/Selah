@@ -117,6 +117,11 @@ export interface Resource {
   clientOrgId?: string;
   /** State of the record's project. A closed project is read-only (policy.ts OPEN_WHEN_CLOSED). */
   projectState?: "draft" | "planned" | "active" | "closing" | "closed";
+  /**
+   * An action (or a record under one) that is still the firm's draft. Nobody at
+   * the client reads it until the firm releases it (decision D6; migration 0076).
+   */
+  draft?: boolean;
 }
 
 export interface Decision {

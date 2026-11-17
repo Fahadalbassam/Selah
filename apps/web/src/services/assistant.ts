@@ -495,9 +495,12 @@ function scopeFilter(scopes: RetrievalScope | RetrievalScope[]) {
       and(eq(documents.aiIndexable, true), ne(documents.state, "archived"), eq(documents.version, aiChunks.sourceVersion)),
     ),
     // A record's passage only while the person can read the record (baseline: Record passages), as in row-level security.
+    // For a client person, never a draft action's (D6): the passage carries the action's id, and its
+    // status is read here, inside the search, not after it.
     sql`(${aiChunks.sourceType} NOT IN ('recommendation', 'action')
       OR (${aiChunks.sourceType} = 'recommendation' AND EXISTS (SELECT 1 FROM recommendations r WHERE r.id = ${aiChunks.sourceId}))
-      OR (${aiChunks.sourceType} = 'action' AND EXISTS (SELECT 1 FROM actions a WHERE a.id = ${aiChunks.sourceId})))`,
+      OR (${aiChunks.sourceType} = 'action' AND EXISTS (SELECT 1 FROM actions a WHERE a.id = ${aiChunks.sourceId}
+            ${scope.client ? sql`AND a.status <> 'draft'` : sql``})))`,
   );
 }
 

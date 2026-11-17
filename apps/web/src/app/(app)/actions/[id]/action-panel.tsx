@@ -43,6 +43,8 @@ interface Props {
   /** Second sign-offs (F22); `firmView` decides how much of it is named. */
   second?: SecondReviewView;
   firmView?: boolean;
+  /** A draft whose named owner is no longer an active member of the project team: release would be refused. */
+  ownerGone?: boolean;
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -59,6 +61,8 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("already has its first sign-off")) return { ok: false, error: "alreadySigned" };
   if (m.includes("second sign-off by another")) return { ok: false, error: "secondReviewer" };
   if (m.includes("needs the lead")) return { ok: false, error: "needsLead" };
+  if (m.includes("owner must be an active member")) return { ok: false, error: "ownerGone" };
+  if (m.includes("replacement is still a draft")) return { ok: false, error: "replacementDraft" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
   if (m.includes("too large")) return { ok: false, error: "too_large" };
@@ -79,7 +83,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false, ownerGone = false }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -164,6 +168,8 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
         <CardTitle className="text-base">{t("nextStep")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 px-5">
+        {/* Said before the click, in the words the refusal would use. */}
+        {status === "draft" && ownerGone ? <p className="text-sm text-destructive">{t("errors.ownerGone")}</p> : null}
         {buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : <p className="text-sm text-muted-foreground">{note}</p>}
         {status === "awaiting_review" && second ? <SecondReviewStatus view={second} firmView={firmView} /> : null}
         {status === "revision_requested" && moves.includes("in_progress") ? (

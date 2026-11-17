@@ -465,6 +465,7 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "saving": "Saving…",
+    "draftNotice": "Not visible to the client until you release it. Comments here become visible to the client after release.",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "Someone else changed this action. Reload to see the latest.",
@@ -483,7 +484,9 @@
       "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move.",
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
-      "secondReviewer": "You gave the first sign-off. Another consultant gives the second."
+      "secondReviewer": "You gave the first sign-off. Another consultant gives the second.",
+      "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
+      "replacementDraft": "The replacement is still a draft the client can't see. Release it first."
     },
     "entry": {
       "update": "posted an update",
@@ -2739,7 +2742,7 @@
       "addItem": "Add an item",
       "removeItem": "Remove item {n}",
       "release": "Release to the owner now",
-      "releaseHint": "They're told straight away. Otherwise it stays a draft: the owner isn't told, and only the firm can release it later.",
+      "releaseHint": "They're told straight away. Otherwise it stays a draft: no one at the client sees it, the owner included, and only the firm can release it later.",
       "save": "Add the action",
       "released": "Action released to its owner",
       "drafted": "Saved as a draft",
@@ -2906,7 +2909,7 @@
       "toCheck": "{n} to check",
       "visibility": "Who sees the new findings and recommendations",
       "release": "Send actions that have an owner and a due date to their owners now",
-      "releaseHint": "They are told straight away. Every other action stays a draft, which owners aren't told about until the firm sends it.",
+      "releaseHint": "They are told straight away. Every other action stays a draft, which the client doesn't see and owners aren't told about until the firm sends it.",
       "include": "Import row {n}",
       "line": "Row",
       "plan": "Finding and recommendation",

@@ -58,6 +58,8 @@ export async function loadAction(tx: Tx, id: string) {
     // An action takes its recommendation's label: a firm-only recommendation
     // keeps its actions firm-only (0006).
     visibility: row.label,
+    // A draft is the firm's until released (D6); so is everything under it.
+    draft: row.action.status === "draft",
   };
   return { action: row.action, resource };
 }

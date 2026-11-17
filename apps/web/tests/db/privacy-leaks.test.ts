@@ -247,17 +247,19 @@ describe("the recommendation page lists only actions the reader may open", () =>
     expect(JSON.stringify(r)).not.toMatch(/Sponsor canary|Draft canary|Finance canary/);
   });
 
-  it("a manager outside Finance sees the company-wide ones and is told one more exists", async () => {
+  it("a manager outside Finance sees the company-wide released ones and is told one more exists", async () => {
     const r = await page(U.mgr);
-    expect(titles(r.actions)).toEqual(["Draft canary", "Owner canary", "Sponsor canary"]);
+    // The firm's draft is neither listed nor counted for a client (D6, tests/db/drafts-hidden.test.ts).
+    expect(titles(r.actions)).toEqual(["Owner canary", "Sponsor canary"]);
     expect(r.actionsLeftOut).toBe(1);
-    expect(JSON.stringify(r)).not.toContain("Finance canary");
+    expect(JSON.stringify(r)).not.toMatch(/Finance canary|Draft canary/);
   });
 
-  it("the sponsor in Finance, the client admin and the firm see all of them and no line", async () => {
+  it("the sponsor in Finance and the client admin see all the released ones, the firm the draft too, and no line", async () => {
     for (const who of [U.sponsor, U.cadmin, U.lead, U.cons, U.obs, U.admin]) {
       const r = await page(who);
-      expect(titles(r.actions)).toEqual(["Draft canary", "Finance canary", "Owner canary", "Sponsor canary"]);
+      const firm = [U.lead, U.cons, U.obs, U.admin].includes(who);
+      expect(titles(r.actions)).toEqual([...(firm ? ["Draft canary"] : []), "Finance canary", "Owner canary", "Sponsor canary"]);
       expect(r.actionsLeftOut).toBe(0);
     }
   });
@@ -445,6 +447,26 @@ describe("the stored agenda is sent only to people who can open all of the proje
     expect((await agenda(U.sponsor, M.all)).text).toContain("Finance canary");
     // A client with departments switched off.
     expect((await agenda(U.pmgr, M.plain)).text).toContain("Plain canary");
+  });
+
+  it("is still read by that manager when the firm drafts work in a department she is not in: an agenda never names a draft (D6)", async () => {
+    const draft = id(58);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Legal draft canary',$5,'draft',app_firm_today() - 3,$6,$7)`,
+      [draft, P, ACME, REC.all, U.owner, DEPT.legal, U.lead],
+    );
+    try {
+      const a = await agenda(U.sponsor, M.all);
+      expect(a.withheld).toBe(false);
+      expect(a.text).toContain("Finance canary");
+      expect(a.all).not.toContain("Legal draft canary");
+      // Released, it is Legal's work she may not open, and the agenda is withheld as before.
+      await owner.query(`UPDATE actions SET status = 'assigned' WHERE id = $1`, [draft]);
+      expect((await agenda(U.sponsor, M.all)).withheld).toBe(true);
+    } finally {
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [draft]);
+    }
   });
 
   it("a department's agenda is read by a manager of that department, not by an invited outsider", async () => {
