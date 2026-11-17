@@ -527,7 +527,7 @@ describe("departments across the work", () => {
     await owner.query(`UPDATE actions SET title = 'HR canary', blocked_reason = 'waiting' WHERE status = 'blocked' AND department_id = $1`, [DEPT.hr]);
     const fin = await action(ACME, { dept: DEPT.fin, status: "blocked" });
     await owner.query(`UPDATE actions SET title = 'Finance canary', blocked_reason = 'waiting' WHERE id = $1`, [fin]);
-    // The app role does not read the agenda column itself (migration 0071), so the test reads what was stored as the owner.
+    // The app role does not read the agenda column itself (migration 0072), so the test reads what was stored as the owner.
     const book = async (dept: string | null) => {
       const { id } = (
         await run(

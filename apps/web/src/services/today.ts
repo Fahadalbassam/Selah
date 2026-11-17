@@ -341,7 +341,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
           orgId: meetings.orgId,
           organizerId: meetings.organizerId,
           visibility: meetings.visibility,
-          // The agenda column is read only through its function (migration 0071); Today is the firm's page, which reads every agenda.
+          // The agenda column is read only through its function (migration 0072); Today is the firm's page, which reads every agenda.
           hasAgenda: sql<boolean>`exists (select 1 from app_meeting_agenda_for(${meetings.id}) g where coalesce(length(btrim(g.agenda)), 0) > 0)`,
         })
         .from(meetings)

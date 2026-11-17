@@ -138,7 +138,7 @@ export async function dataSettings(tx: Tx, principal: Principal, clientOrgId: st
   const canChoose = client.status === "active" && (await flag(tx, "app_kpi_data_admin", clientOrgId));
   // Reading the connections is for every consultant who works with the client and for its admin
   // (the database: app_kpi_writer). Changing anything is narrower: an observer, or a consultant
-  // staffed on none of the client's projects, only reads (decision D4, migration 0072).
+  // staffed on none of the client's projects, only reads (decision D4, migration 0073).
   const canSeeFeeds = principal.orgKind === "firm" || principal.role === "client_admin";
   const canManage = authorize(principal, "indicator.manage", resource(principal, clientOrgId)).allowed;
   const feeds = canSeeFeeds

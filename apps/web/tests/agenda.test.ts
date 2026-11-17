@@ -1,4 +1,4 @@
-// Agendas stored before migration 0071 carry status keys and plain dates.
+// Agendas stored before migration 0072 carry status keys and plain dates.
 // The meeting page draws them in words; the stored text is never rewritten.
 import { describe, expect, it } from "vitest";
 import { agendaLines } from "@/lib/agenda";

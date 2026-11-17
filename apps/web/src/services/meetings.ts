@@ -35,7 +35,7 @@ type Visibility = "shared" | "firm_private";
 type Kind = (typeof meetings.$inferSelect)["kind"];
 
 // Every column but the stored agenda: the app role cannot read that one from
-// the table (migration 0071). It comes from app_meeting_agenda_for(), which
+// the table (migration 0072). It comes from app_meeting_agenda_for(), which
 // gives it only to a reader who may open every action it names.
 const { agendaMd: _agendaColumn, ...meetingColumns } = getTableColumns(meetings);
 void _agendaColumn;

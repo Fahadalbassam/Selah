@@ -57,7 +57,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
   const shared = meeting.visibility === "shared";
   const lang: "ar" | "en" = meeting.spokenLang === "en" ? "en" : "ar";
   // The agenda is one stored text in the meeting's language, whatever language
-  // the page is in. Agendas stored before migration 0071 carry status keys and
+  // the page is in. Agendas stored before migration 0072 carry status keys and
   // plain dates; they are drawn in words, in that same language (lib/agenda.ts).
   const agenda = meeting.agendaMd
     ? await (async () => {

@@ -1,6 +1,6 @@
 // The stored meeting agenda (docs/meetings.md) is one text the database wrote
 // when the meeting was booked: "## heading" lines and "- item" lines. Until
-// migration 0071 it wrote an action's status as its database key
+// migration 0072 it wrote an action's status as its database key
 // ("(in_progress)") and its date as "2026-11-12". Agendas already stored keep
 // their text; this turns those two into words and a date when the page draws
 // them. The stored text is never rewritten, so a title that happens to end in

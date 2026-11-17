@@ -367,7 +367,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
 
   // The activity record is for the firm and the client's admin (decision D8):
   // it names who did what across the whole project. Nobody else gets it, or
-  // the tab; the database's row policy says the same (migration 0070).
+  // the tab; the database's row policy says the same (migration 0071).
   const activity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed
     ? await tx
         .select({
@@ -609,7 +609,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
 
   // A restructure that moved this action to another department (F31).
   // The activity feed itself is the firm's and the client admin's; this one
-  // fact about the action reaches everyone who may open it (migration 0070).
+  // fact about the action reaches everyone who may open it (migration 0071).
   const { rows: refiled } = await tx.execute<{ at: string; who: string | null; from_department: string; to_department: string }>(sql`
     select r.at, u.name as who, r.from_department, r.to_department
     from app_action_refilings(${id}::uuid) r left join ${user} u on u.id = r.actor_id`);
