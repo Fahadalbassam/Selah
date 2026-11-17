@@ -25,6 +25,13 @@ export interface Principal {
   leadProjectIds: ReadonlySet<string>;
   /** Projects the user only observes: they read and comment, and change nothing else. */
   observedProjectIds?: ReadonlySet<string>;
+  /**
+   * Consultants only: the clients they do the work for, as lead or deputy, or staffed (not as an
+   * observer) on at least one of the client's projects. Records that belong to the client rather
+   * than to a project (its business indicators) are changed only by these; every other consultant
+   * on the client's team reads (decision D4).
+   */
+  workingClientIds?: ReadonlySet<string>;
   /** Client users only: the departments they belong to (their team). */
   departmentIds: ReadonlySet<string>;
   /** Client users only: their client is archived and in its grace period, so they can only read. */

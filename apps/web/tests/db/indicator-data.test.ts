@@ -134,6 +134,15 @@ beforeAll(async () => {
     [U.admin, U.lead, U.cons, U.cadmin, U.cmgr, U.owner1, U.bAdmin, FIRM, ACME, BETA],
   );
   await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,true), ($1,$3,false), ($4,$2,true)`, [ACME, U.lead, U.cons, QUIET]);
+  // A consultant changes a client's indicators only when staffed on one of its projects (decision D4,
+  // tests/db/observer-indicators.test.ts), so the consultant here is staffed on Acme's.
+  await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Acme governance','active',$4)`, [
+    id(5),
+    ACME,
+    FIRM,
+    U.admin,
+  ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [id(5), U.cons]);
 });
 
 beforeEach(reset);

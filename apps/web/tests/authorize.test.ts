@@ -664,3 +664,60 @@ describe("observers (N6)", () => {
     expect(authorize(base, "recommendation.write", acmeRecord("recommendation")).allowed).toBe(true);
   });
 });
+
+describe("business indicators belong to the client, so what counts is the consultant's standing with the client (D4)", () => {
+  const indicator = acmeRecord("indicator", { projectId: null });
+  const WRITES = ["indicator.report", "indicator.manage", "indicator.check", "indicator.data"] as Permission[];
+  // On Acme's team, with what the principal loader works out: the clients they do the work for.
+  const consultant = (working: string[], lead: string[] = []) => ({
+    ...principal("consultant", [], undefined, [ACME], { clients: lead }),
+    workingClientIds: new Set(working),
+  });
+
+  it("a consultant staffed on one of the client's projects, its lead and its deputy change them", () => {
+    for (const p of WRITES) {
+      expect(authorize(consultant([ACME]), p, indicator).allowed, p).toBe(true);
+      expect(authorize(consultant([ACME], [ACME]), p, indicator).allowed, p).toBe(true);
+      expect(authorize(principal("firm_admin"), p, indicator).allowed, p).toBe(true);
+    }
+  });
+
+  it("an observer, and a consultant on the client's team staffed on none of its projects, read only", () => {
+    const readers = [
+      consultant([]), // on the team, staffed on nothing
+      { ...consultant([]), projectIds: new Set([ACME_PROJ_1]), observedProjectIds: new Set([ACME_PROJ_1]) }, // observes its only project
+      consultant([BETA]), // does another client's work
+    ];
+    for (const reader of readers) {
+      expect(authorize(reader, "indicator.read", indicator).allowed).toBe(true);
+      for (const p of WRITES) expect(authorize(reader, p, indicator), p).toMatchObject({ allowed: false, reason: "scope:working" });
+    }
+  });
+
+  it("the client's own roles are unchanged", () => {
+    expect(authorize(principal("client_admin"), "indicator.manage", indicator).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "indicator.data", indicator).allowed).toBe(true);
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "indicator.report", indicator).allowed).toBe(true);
+    expect(authorize(principal("client_manager", [ACME_PROJ_1]), "indicator.manage", indicator).allowed).toBe(false);
+    expect(authorize(principal("client_admin"), "indicator.check", indicator).allowed).toBe(false);
+    expect(authorize(principal("action_owner", [ACME_PROJ_1]), "indicator.read", indicator).allowed).toBe(false);
+  });
+});
+
+describe("the project's activity record is for the firm and the client admin (D8)", () => {
+  const feed = acmeRecord("activity");
+
+  it("is read by firm staff on the project and by the client's admin", () => {
+    expect(authorize(principal("firm_admin"), "activity.read", feed).allowed).toBe(true);
+    expect(authorize(principal("consultant", [ACME_PROJ_1], undefined, [ACME]), "activity.read", feed).allowed).toBe(true);
+    expect(authorize(principal("client_admin"), "activity.read", feed).allowed).toBe(true);
+  });
+
+  it("is not read by a client manager or an action owner, even one who owns work there", () => {
+    const manager = principal("client_manager", [ACME_PROJ_1]);
+    const owner = principal("action_owner", [ACME_PROJ_1]);
+    expect(authorize(manager, "activity.read", feed).allowed).toBe(false);
+    expect(authorize(owner, "activity.read", { ...feed, assignees: [owner.userId] }).allowed).toBe(false);
+    expect(authorize(principal("client_admin", [], BETA), "activity.read", feed).allowed).toBe(false);
+  });
+});

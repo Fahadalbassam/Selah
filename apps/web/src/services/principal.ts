@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { clientAssignments, departmentMembers, orgMemberships, organizations, projectMembers } from "@/db/schema";
+import { clientAssignments, departmentMembers, orgMemberships, organizations, projectMembers, projects } from "@/db/schema";
 import type { Principal } from "@/authz";
 
 /**
@@ -38,6 +38,17 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
           .where(eq(clientAssignments.userId, userId))
       : [];
 
+  // The clients a consultant does the work for: staffed, not as an observer, on at least one of
+  // the client's projects (the lead and deputy are added below). The database: app_firm_changes_kpis().
+  const staffedClients =
+    membership.role === "consultant"
+      ? await tx
+          .selectDistinct({ clientOrgId: projects.orgId })
+          .from(projectMembers)
+          .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+          .where(and(eq(projectMembers.userId, userId), eq(projectMembers.observer, false), eq(projects.kind, "client")))
+      : [];
+
   // A client user's team: the departments they belong to.
   const departments =
     membership.orgKind === "client"
@@ -55,6 +66,11 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
     leadClientIds: new Set(assignments.filter((a) => a.isLead || a.isDeputy).map((a) => a.clientOrgId)),
     leadProjectIds: new Set(rows.filter((r) => r.isLead).map((r) => r.projectId)),
     observedProjectIds: new Set(rows.filter((r) => r.observer).map((r) => r.projectId)),
+    workingClientIds: new Set([
+      ...assignments.filter((a) => a.isLead || a.isDeputy).map((a) => a.clientOrgId),
+      // Only clients they are still assigned to: leaving a client's team takes them off its projects.
+      ...staffedClients.map((s) => s.clientOrgId).filter((c) => assignments.some((a) => a.clientOrgId === c)),
+    ]),
     departmentIds: new Set(departments.map((d) => d.id)),
     readOnly: membership.status === "archived",
     clientAssistant: membership.orgKind === "client" ? await clientAssistantOn(tx) : false,

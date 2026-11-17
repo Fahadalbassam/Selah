@@ -72,9 +72,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     return {
       // Client projects only; roles that can't read assessments get no tab.
       assessments: client ? await listAssessments(tx, principal, id).catch(() => null) : null,
-      // Published templates to start from, for firm staff.
+      // Published templates to start from, for firm staff. Not for an observer:
+      // the database refuses an assessment of theirs (migration 0034), so the button is not drawn.
       templates:
-        client && principal.orgKind === "firm"
+        client && principal.orgKind === "firm" && !principal.observedProjectIds?.has(id)
           ? (await listTemplates(tx, principal)).templates.filter((x) => x.published && !x.archivedAt)
           : null,
       data,
