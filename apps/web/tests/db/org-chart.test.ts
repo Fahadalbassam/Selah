@@ -668,6 +668,19 @@ describe("suggest a change", () => {
       [U.lead, U.deputy].sort(),
     );
     expect((await owner.query(`SELECT count(*)::int AS n FROM outbound_emails WHERE kind = 'org_chart.change_requested'`)).rows[0].n).toBe(2);
+    // More suggestions: one unread notice per client at a time, and one mail a firm day to each.
+    const notices = async () => (await owner.query(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'org_chart.change_requested'`)).rows[0].n;
+    const mails = async () => (await owner.query(`SELECT count(*)::int AS n FROM outbound_emails WHERE kind = 'org_chart.change_requested'`)).rows[0].n;
+    const more = await svc(U.cadmin, (tx, p) => OC.suggestChange(tx, p, ACME, { what: "Rename payables" }), true);
+    expect([await notices(), await mails()]).toEqual([2, 2]);
+    await owner.query(`UPDATE notifications SET read_at = now() WHERE kind = 'org_chart.change_requested'`);
+    const third = await svc(U.cadmin, (tx, p) => OC.suggestChange(tx, p, ACME, { what: "Add a projects office" }), true);
+    expect([await notices(), await mails()]).toEqual([4, 2]);
+    // Neither carries the suggestion: the notice is about the client, the mail is a line and a link.
+    const sent = (await owner.query(`SELECT DISTINCT entity_type, entity_id FROM notifications WHERE kind = 'org_chart.change_requested'`)).rows;
+    expect(sent).toEqual([{ entity_type: "organization", entity_id: ACME }]);
+    expect((await owner.query(`SELECT DISTINCT link FROM outbound_emails WHERE kind = 'org_chart.change_requested'`)).rows).toEqual([{ link: `/clients/${ACME}` }]);
+    for (const extra of [more.id, third.id]) await svc(U.lead, (tx, p) => OC.closeChangeRequest(tx, p, extra, "declined"), true);
     for (const who of [U.mgr, U.owner, U.lead]) await expect(svc(who, (tx, p) => OC.suggestChange(tx, p, ACME, { what: "Something else" }))).rejects.toThrow(REFUSED);
     await expect(
       attempt(U.mgr, `INSERT INTO org_chart_change_requests (chart_id, org_id, what, created_by) VALUES ($1,$2,'Something else',$3)`, [CHART, ACME, U.mgr]),
@@ -681,8 +694,10 @@ describe("suggest a change", () => {
     expect(forged.rows).toEqual([{ created_by: U.cadmin, status: "open" }]);
     expect((await svc(U.lead, (tx, p) => OC.listChangeRequests(tx, p, ACME))).items.map((r) => [r.what, r.status, r.byName])).toEqual([
       ["Split payables in two", "open", "cadmin person"],
+      ["Add a projects office", "declined", "cadmin person"],
+      ["Rename payables", "declined", "cadmin person"],
     ]);
-    const forAdmin = await svc(U.cadmin, (tx, p) => OC.listChangeRequests(tx, p, ACME));
+    const forAdmin = await svc(U.cadmin, (tx, p) => OC.listChangeRequests(tx, p, ACME, { status: "open" }));
     expect([forAdmin.items.length, forAdmin.canClose]).toEqual([1, false]);
     await expect(svc(U.mgr, (tx, p) => OC.listChangeRequests(tx, p, ACME))).rejects.toThrow(REFUSED);
     await expect(svc(U.cadmin, (tx, p) => OC.closeChangeRequest(tx, p, rid, "done"))).rejects.toThrow(REFUSED);

@@ -842,7 +842,8 @@ CREATE TRIGGER org_chart_change_request_rules BEFORE INSERT OR UPDATE ON org_cha
   FOR EACH ROW EXECUTE FUNCTION check_org_chart_change_request();
 --> statement-breakpoint
 -- A suggestion reaches the client's lead and deputy, in Selah and by work
--- mail, without its text (read in Selah).
+-- mail, without its text (read in Selah): one unread notice per client at a
+-- time, and at most one mail a firm day to each, as for holder changes.
 CREATE FUNCTION notify_org_chart_change_request() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
@@ -851,11 +852,17 @@ BEGIN
       SELECT ca.user_id, 'org_chart.change_requested', 'organization', NEW.org_id
       FROM client_assignments ca JOIN org_memberships m ON m.user_id = ca.user_id AND m.active
       WHERE ca.client_org_id = NEW.org_id AND (ca.is_lead OR ca.is_deputy)
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications x
+          WHERE x.user_id = ca.user_id AND x.kind = 'org_chart.change_requested' AND x.entity_id = NEW.org_id AND x.read_at IS NULL)
     RETURNING user_id
   )
   INSERT INTO outbound_emails (to_email, kind, link)
     SELECT u.email, 'org_chart.change_requested', '/clients/' || NEW.org_id FROM told t JOIN "user" u ON u.id = t.user_id
-    WHERE app_can_reset_password(t.user_id);
+    WHERE app_can_reset_password(t.user_id)
+      AND NOT EXISTS (
+        SELECT 1 FROM outbound_emails o
+        WHERE o.kind = 'org_chart.change_requested' AND lower(o.to_email) = lower(u.email) AND app_firm_date(o.created_at) = app_firm_today());
   RETURN NULL;
 END $$;
 --> statement-breakpoint
