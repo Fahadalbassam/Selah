@@ -27,7 +27,7 @@ The product owner's answers stand. The full texts: `docs/review/page-audit.md` s
 - **D6** Clients do not see draft actions until the firm releases them, enforced in the database.
 - **D7** Signed-out pages and mails name the firm from its own record, never from code.
 - **D8** A department-limited person sees nothing by title from other departments, anywhere.
-- **Agenda** "follows the meeting": a department's meeting lists that department's work; a whole-project meeting opens only for people who may see everything on the project (an invited action owner sees only their own actions on it); the organiser is warned when inviting someone with limits.
+- **Agenda** "follows the meeting": a department's meeting lists that department's work; a whole-project meeting opens only for people who may see everything on the project (an action owner may open any meeting they are invited to, whole-project or not, and its agenda shows them only their own actions; decided 17 Nov, with a test for an owner invited to a whole-project meeting at a client with no departments); the organiser is warned when inviting someone with limits.
 - **Action owners** read only actions they own, in the database (and everything under them); no titles and no counts of others' actions. Files keep their rule.
 - **Indicator links** to recommendations: firm staff only.
 - **Visibility picker** (documents except evidence, and meetings): only takes people away, never widens; locked chips; people left out see nothing.
