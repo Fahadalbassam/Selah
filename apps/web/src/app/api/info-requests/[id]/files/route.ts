@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 import { BadRequestError } from "@/server/errors";
 import { route } from "@/server/http";
+import { audienceField } from "@/services/audience";
 import { prepareUpload } from "@/services/evidence";
 import { answerWithUpload } from "@/services/info-requests";
 
@@ -9,7 +10,8 @@ import { answerWithUpload } from "@/services/info-requests";
 export const POST = route(
   {
     params: z.object({ id: z.uuid() }),
-    body: z.object({}),
+    // Who sees the file (feature A), as JSON: { mode, people }. None: everyone with access.
+    body: z.object({ audience: audienceField }),
     form: { maxBytes: MAX_UPLOAD_BYTES },
     prepare: ({ userId, params, files }) => {
       const file = files.get("file");
@@ -17,5 +19,5 @@ export const POST = route(
       return prepareUpload(userId, { type: "info_request", id: params.id }, file);
     },
   },
-  ({ tx, principal, params, prepared }) => answerWithUpload(tx, principal, params.id, prepared),
+  ({ tx, principal, params, body, prepared }) => answerWithUpload(tx, principal, params.id, prepared, body.audience ?? null),
 );

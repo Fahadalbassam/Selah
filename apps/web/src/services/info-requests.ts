@@ -9,6 +9,8 @@ import { INFO_REQUEST_TEMPLATES, templateByKey, type InfoRequestInput, type info
 import { firmToday } from "@/lib/dates";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { writeAudience, type AudienceInput } from "./audience";
+import { loadDocument } from "./documents";
 import type { PreparedUpload } from "./evidence";
 import { loadProject } from "./staffing";
 import { putObject } from "./storage";
@@ -299,7 +301,7 @@ async function answered(tx: Tx, principal: Principal, request: typeof infoReques
  * transaction, stored under a random key, and shared with both sides; the
  * database marks the item received.
  */
-export async function answerWithUpload(tx: Tx, principal: Principal, id: string, file: PreparedUpload) {
+export async function answerWithUpload(tx: Tx, principal: Principal, id: string, file: PreparedUpload, audience?: AudienceInput | null) {
   const { request, resource } = await loadRequest(tx, principal, id);
   assertAllowed(principal, "info_request.answer", resource);
   const storageKey = randomUUID();
@@ -332,6 +334,12 @@ export async function answerWithUpload(tx: Tx, principal: Principal, id: string,
     outcome: "allow",
     meta: { requestId: id, sizeBytes: file.bytes.byteLength, scanned: file.scanned, scanMs: file.scanMs },
   });
+  // Who sees it, when the person who may narrow it did (feature A): checked on the file, in this transaction.
+  if (audience && audience.mode !== "everyone") {
+    const loaded = await loadDocument(tx, doc!.id, principal);
+    if (!loaded) throw new NotFoundError("document");
+    await writeAudience(tx, principal, "document", doc!.id, loaded.resource, audience, { on: "info_request" });
+  }
   await putObject(storageKey, file.bytes, file.contentType, file.sha256);
   return { id: doc!.id };
 }

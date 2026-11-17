@@ -56,11 +56,13 @@ export function AudienceField(props: {
     let live = true;
     fetch(props.url)
       .then(async (res) => {
+        // Not found: this person gets no picker here (a client manager, an action owner). Nothing is drawn.
+        if (res.status === 404) return null;
         if (!res.ok) throw new Error(String(res.status));
         return (await res.json()) as Source;
       })
       .then((s) => {
-        if (!live) return;
+        if (!live || !s) return;
         setSource(s);
         setFailed(false);
         // An item's saved audience is where the picker starts; a new item starts with everyone.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { AudienceField, type AudienceValue } from "@/components/audience-field";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
@@ -92,7 +93,7 @@ export function InfoRequestsTab({ projectId, list }: { projectId: string; list: 
               {items
                 .filter((i) => i.area === area)
                 .map((i) => (
-                  <ItemRow key={i.id} item={i} ar={ar} files={list.files} ownerOptions={ownerOptions} />
+                  <ItemRow key={i.id} item={i} ar={ar} files={list.files} ownerOptions={ownerOptions} projectId={projectId} />
                 ))}
             </ul>
           </section>
@@ -139,11 +140,13 @@ function ItemRow({
   ar,
   files,
   ownerOptions,
+  projectId,
 }: {
   item: Item;
   ar: boolean;
   files: InfoRequestList["files"];
   ownerOptions: { value: string; label: string }[];
+  projectId: string;
 }) {
   const t = useTranslations("infoRequests");
   const tc = useTranslations("common");
@@ -272,7 +275,7 @@ function ItemRow({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {i.can.answer ? <AnswerDialog item={i} title={title} files={files} /> : null}
+        {i.can.answer ? <AnswerDialog item={i} title={title} files={files} projectId={projectId} /> : null}
         {i.can.sendLink ? (
           <FormDialog
             trigger={
@@ -328,7 +331,7 @@ function ItemRow({
 }
 
 /** Answer an item: upload a file, or pick one already shared on the project. */
-function AnswerDialog({ item, title, files }: { item: Item; title: string; files: InfoRequestList["files"] }) {
+function AnswerDialog({ item, title, files, projectId }: { item: Item; title: string; files: InfoRequestList["files"]; projectId: string }) {
   const t = useTranslations("infoRequests");
   const tf = useTranslations("fileActions");
   const tc = useTranslations("common");
@@ -337,6 +340,8 @@ function AnswerDialog({ item, title, files }: { item: Item; title: string; files
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState("");
+  // Who sees the new file (feature A): for the people who get the picker; null while it cannot be saved.
+  const [audience, setAudience] = useState<{ value: AudienceValue | null; dirty: boolean }>({ value: null, dirty: false });
   const choices = files.filter((f) => !item.files.some((x) => x.documentId === f.id));
 
   function finish() {
@@ -350,6 +355,8 @@ function AnswerDialog({ item, title, files }: { item: Item; title: string; files
     const form = new FormData(e.currentTarget);
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) return;
+    if (audience.dirty && !audience.value) return;
+    if (audience.dirty && audience.value && audience.value.mode !== "everyone") form.set("audience", JSON.stringify(audience.value));
     setBusy(true);
     setError(null);
     try {
@@ -385,7 +392,7 @@ function AnswerDialog({ item, title, files }: { item: Item; title: string; files
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setExisting(""))}>
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setExisting(""), setAudience({ value: null, dirty: false }))}>
       <DialogTrigger asChild>
         {/* One per row, so outline: a card keeps a single solid button. */}
         <Button size="sm" variant="outline">
@@ -410,6 +417,14 @@ function AnswerDialog({ item, title, files }: { item: Item; title: string; files
             <Input id={`answer-${item.id}`} name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
             <p className="text-xs text-muted-foreground">{t("sharedHint")}</p>
           </div>
+          {open ? (
+            <AudienceField
+              kind="document"
+              url={`/api/projects/${projectId}/audience?kind=document&visibility=shared`}
+              onChange={(value, dirty) => setAudience({ value, dirty })}
+              disabled={busy}
+            />
+          ) : null}
           {choices.length ? (
             <div className="grid gap-2">
               <Label htmlFor={`existing-${item.id}`}>{t("orExisting")}</Label>
@@ -441,7 +456,7 @@ function AnswerDialog({ item, title, files }: { item: Item; title: string; files
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {tf("upload")}
             </Button>
