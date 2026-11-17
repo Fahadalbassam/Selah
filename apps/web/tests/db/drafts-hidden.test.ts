@@ -478,11 +478,16 @@ describe("the departure report (a client admin switches a person off)", () => {
     expect((await svc(U.cadmin, (tx, p) => setActive(tx, p, U.leaver, { active: false, reason: "left" }), true)).changed).toBe(true);
   });
 
-  it("the firm cannot release work to someone who has left; it names another owner first", async () => {
+  it("the firm cannot release work to someone who has left; it is told before the click, and names another owner first", async () => {
+    const page = () => svc(U.lead, (tx, p) => getActionDetail(tx, p, A.leaverDraft));
+    // The draft page says so before Release is pressed (action-panel shows action.errors.ownerGone).
+    expect((await page()).ownerGone).toBe(true);
+    expect((await svc(U.lead, (tx, p) => getActionDetail(tx, p, A.draft))).ownerGone).toBe(false);
     await expect(svc(U.lead, (tx, p) => transitionAction(tx, p, A.leaverDraft, { to: "assigned" }), true)).rejects.toThrow(
       /owner must be an active member of the project team/,
     );
     await svc(U.lead, (tx, p) => updateAction(tx, p, A.leaverDraft, { ownerUserId: U.owner2 }), true);
+    expect((await page()).ownerGone).toBe(false);
     await svc(U.lead, (tx, p) => transitionAction(tx, p, A.leaverDraft, { to: "assigned" }), true);
     expect((await svc(U.owner2, (tx, p) => getActionDetail(tx, p, A.leaverDraft))).action.title).toBe("Leaver draft canary");
   });
@@ -513,6 +518,26 @@ describe("a deleted draft leaves nothing behind for the client", () => {
     expect((await owner.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [gone])).rowCount).toBe(1);
     // A row that names no action at all keeps its own rules.
     expect((await rowsAs(U.cadmin, `SELECT app_action_visible_to_client(NULL) AS v`))[0].v).toBe(true);
+  });
+});
+
+describe("releasing a draft whose named owner came off the project team", () => {
+  it("is refused, and the draft page says so before the click", async () => {
+    const [who, draft] = [id(19), id(42)];
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'moved','moved@example.test')`, [who]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'action_owner')`, [who, ACME]);
+    await owner.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P, who]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Moved owner draft canary',$5,'draft',app_firm_today() + 30,$6)`,
+      [draft, P, ACME, REC, who, U.lead],
+    );
+    // Taking someone off the project never waited for drafts.
+    await owner.query(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P, who]);
+    expect((await svc(U.lead, (tx, p) => getActionDetail(tx, p, draft))).ownerGone).toBe(true);
+    await expect(svc(U.lead, (tx, p) => transitionAction(tx, p, draft, { to: "assigned" }), true)).rejects.toThrow(
+      /owner must be an active member of the project team/,
+    );
   });
 });
 

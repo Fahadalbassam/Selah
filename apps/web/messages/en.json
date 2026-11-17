@@ -483,7 +483,8 @@
       "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move.",
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
-      "secondReviewer": "You gave the first sign-off. Another consultant gives the second."
+      "secondReviewer": "You gave the first sign-off. Another consultant gives the second.",
+      "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing."
     },
     "entry": {
       "update": "posted an update",
