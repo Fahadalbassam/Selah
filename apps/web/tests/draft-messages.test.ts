@@ -24,3 +24,13 @@ describe("a draft whose named owner has gone", () => {
     expect(panel).toContain(`status === "draft" && ownerGone ? <p className="text-sm text-destructive">{t("errors.ownerGone")}</p>`);
   });
 });
+
+describe("a draft offered as a replacement", () => {
+  it("is refused in plain words in both languages", () => {
+    expect(en.action.errors.replacementDraft).toBe("The replacement is still a draft the client can't see. Release it first.");
+    expect(ar.action.errors.replacementDraft).toMatch(/[؀-ۿ]/);
+    const mapped = panel.indexOf(`"replacement is still a draft")) return { ok: false, error: "replacementDraft" }`);
+    expect(mapped).toBeGreaterThan(-1);
+    expect(mapped).toBeLessThan(panel.indexOf(`if (res.status === 409) return { ok: false, error: "conflict" }`));
+  });
+});

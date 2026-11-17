@@ -27,6 +27,7 @@ vi.mock("next-intl/server", async () => {
 });
 import { getAction, transitionAction } from "@/services/actions";
 import { handOver, personHoldings, setActive } from "@/services/accounts";
+import { getClosure } from "@/services/closure";
 import { actionPeople, actionThread, postComment } from "@/services/comments";
 import { actionsWorkbook, planWorkbook } from "@/services/exports";
 import { listFiles } from "@/services/files";
@@ -602,5 +603,59 @@ describe("a client cannot tell a draft from an action that does not exist", () =
         expect(draft, `${role}: ${q}`).toEqual(missing);
       }
     }
+  });
+});
+
+describe("closing a project, and replacing an action, with a draft on it", () => {
+  // A second project of the same client, so closing it leaves the first alone.
+  const P2 = id(8);
+  const REC3 = id(9);
+  const X = { open: id(43), draft: id(44) };
+  beforeAll(async () => {
+    const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
+    await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Acme phase two','active',$4)`, [
+      P2,
+      ACME,
+      FIRM,
+      U.admin,
+    ]);
+    await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3)`, [P2, U.owner, U.mgr]);
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Phase two canary','shared',$4)`, [
+      REC3,
+      P2,
+      ACME,
+      U.lead,
+    ]);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by) VALUES
+        ($1,$3,$4,$5,'Phase two open canary',$6,'assigned',app_firm_today() + 30,$7),
+        ($2,$3,$4,$5,'Phase two draft canary',$6,'draft',app_firm_today() + 30,$7)`,
+      [X.open, X.draft, P2, ACME, REC3, U.owner, U.lead],
+    );
+  });
+
+  it("an action is never replaced by a draft: the list leaves drafts out and the database refuses", async () => {
+    const offered = (await svc(U.lead, (tx, p) => actionClosure(tx, p, X.open))).replacements.map((r) => r.id);
+    expect(offered).not.toContain(X.draft);
+    await expect(
+      svc(U.lead, (tx, p) => transitionAction(tx, p, X.open, { to: "closed", closure: { outcome: "superseded", note: "replaced", supersededBy: X.draft } })),
+    ).rejects.toThrow(/replacement is still a draft/);
+  });
+
+  it("a draft is never handed over to the client at closing; it can be withdrawn, and the client's closure page never lists it", async () => {
+    await as(U.lead, (c) => c.query(`SELECT app_start_closing($1)`, [P2]), true);
+    const dispose = (act: string, how: string, who: string | null) =>
+      as(U.lead, (c) => c.query(`SELECT app_dispose_action($1, $2::closure_disposition, 'settled', $3::uuid, NULL)`, [act, how, who]), true);
+    await expect(dispose(X.draft, "handed_over", U.owner)).rejects.toThrow(/draft cannot be handed over/);
+    await dispose(X.draft, "withdrawn", null);
+    await dispose(X.open, "handed_over", U.owner);
+    for (const uid of [U.cadmin, U.mgr, U.owner]) {
+      const page = await svc(uid, (tx, p) => getClosure(tx, p, P2));
+      expect(page.items.map((i) => i.title), uid).toEqual(["Phase two open canary"]);
+    }
+    expect((await svc(U.lead, (tx, p) => getClosure(tx, p, P2))).items.map((i) => i.title).sort()).toEqual([
+      "Phase two draft canary",
+      "Phase two open canary",
+    ]);
   });
 });

@@ -199,7 +199,8 @@ export async function actionClosure(tx: Tx, principal: Principal, actionId: stri
     ? await tx
         .select({ id: actions.id, title: actions.title })
         .from(actions)
-        .where(and(eq(actions.projectId, action.projectId), ne(actions.id, actionId), notInArray(actions.status, ["closed"])))
+        // Never a draft: the client could not open what replaced its work (D6; check_action_transition refuses it).
+        .where(and(eq(actions.projectId, action.projectId), ne(actions.id, actionId), notInArray(actions.status, ["closed", "draft"])))
         .orderBy(asc(actions.title))
     : [];
   return {

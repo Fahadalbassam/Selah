@@ -62,6 +62,7 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("second sign-off by another")) return { ok: false, error: "secondReviewer" };
   if (m.includes("needs the lead")) return { ok: false, error: "needsLead" };
   if (m.includes("owner must be an active member")) return { ok: false, error: "ownerGone" };
+  if (m.includes("replacement is still a draft")) return { ok: false, error: "replacementDraft" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
   if (m.includes("too large")) return { ok: false, error: "too_large" };

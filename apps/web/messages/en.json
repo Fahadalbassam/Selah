@@ -484,7 +484,8 @@
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
       "secondReviewer": "You gave the first sign-off. Another consultant gives the second.",
-      "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing."
+      "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
+      "replacementDraft": "The replacement is still a draft the client can't see. Release it first."
     },
     "entry": {
       "update": "posted an update",
