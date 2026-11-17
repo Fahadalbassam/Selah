@@ -25,6 +25,17 @@ export function firmRun(projectKind: string | null | undefined, engagementMode: 
 }
 
 /**
+ * What a progress note or a file sends about how and when the client sent
+ * it: on a client the firm runs, the choice made in the dialog (a missing
+ * one is left out, so the server says what is missing); anywhere else,
+ * nothing, as the server takes none from anyone but the firm recording.
+ */
+export function receivedPayload(recordFor: boolean, via: ReceivedVia | "", on: string | undefined): Partial<Received> {
+  if (!recordFor) return {};
+  return { ...(via ? { receivedVia: via } : {}), ...(on ? { receivedOn: on } : {}) };
+}
+
+/**
  * Which wording an action's panels use: the client's own ("Client"), the
  * firm's working with a client that signs in ("Firm"), or the firm's on a
  * client it runs ("FirmRun"). Message keys end with it (hintClient, hintFirm, hintFirmRun).

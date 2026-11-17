@@ -24,6 +24,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
+import { firmToday } from "@/lib/dates";
+import { RECEIVED_VIA, receivedPayload, type ReceivedVia } from "@/lib/engagement";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
@@ -43,6 +46,8 @@ interface Props {
   /** Second sign-offs (F22); `firmView` decides how much of it is named. */
   second?: SecondReviewView;
   firmView?: boolean;
+  /** Firm staff recording for a client the firm runs: each note and file says how and when the client sent it. */
+  recordFor?: boolean;
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -59,6 +64,9 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("already has its first sign-off")) return { ok: false, error: "alreadySigned" };
   if (m.includes("second sign-off by another")) return { ok: false, error: "secondReviewer" };
   if (m.includes("needs the lead")) return { ok: false, error: "needsLead" };
+  // Recording for a client the firm runs: how and when the client sent it.
+  if (m.includes("received_on cannot be in the future")) return { ok: false, error: "receivedFuture" };
+  if (m.includes("say how and when the client told you")) return { ok: false, error: "received" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
   if (m.includes("too large")) return { ok: false, error: "too_large" };
@@ -79,7 +87,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false, recordFor = false }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -94,7 +102,15 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
   for (const to of moves) {
     if (to === "awaiting_review") {
       buttons.push(
-        <EvidenceDialog key={to} actionId={actionId} submit items={openItems} onDone={done} trigger={<Button>{t("move.awaiting_review")}</Button>} />,
+        <EvidenceDialog
+          key={to}
+          actionId={actionId}
+          submit
+          items={openItems}
+          recordFor={recordFor}
+          onDone={done}
+          trigger={<Button>{t("move.awaiting_review")}</Button>}
+        />,
       );
     } else if (to === "blocked" || to === "revision_requested") {
       buttons.push(
@@ -152,7 +168,14 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
   }
   if (can.submitEvidence) {
     buttons.push(
-      <EvidenceDialog key="evidence" actionId={actionId} submit={false} onDone={done} trigger={<Button variant="outline">{t("uploadOnly")}</Button>} />,
+      <EvidenceDialog
+        key="evidence"
+        actionId={actionId}
+        submit={false}
+        recordFor={recordFor}
+        onDone={done}
+        trigger={<Button variant="outline">{t("uploadOnly")}</Button>}
+      />,
     );
   }
 
@@ -169,7 +192,7 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
         {status === "revision_requested" && moves.includes("in_progress") ? (
           <p className="text-sm text-muted-foreground">{t("revisionNote")}</p>
         ) : null}
-        {can.addUpdate ? <UpdateForm actionId={actionId} onDone={done} /> : null}
+        {can.addUpdate ? <UpdateForm actionId={actionId} recordFor={recordFor} onDone={done} /> : null}
       </CardContent>
     </Card>
   );
@@ -393,21 +416,26 @@ export function EvidenceDialog(props: {
   evidenceRequestId?: string;
   items?: { id: string; title: string }[];
   title?: string;
+  /** Firm staff recording for a client the firm runs: ask how and when the client sent the file. */
+  recordFor?: boolean;
 }) {
   const t = useTranslations("action");
   const [open, setOpen] = useState(false);
+  const received = useReceived(props.recordFor ?? false);
   const choose = props.submit && !props.evidenceRequestId && (props.items?.length ?? 0) > 1;
   const [item, setItem] = useState("");
   const itemId = props.evidenceRequestId ?? (choose && item !== NO_ITEM ? item || undefined : undefined);
   const [mode, setMode] = useState<"upload" | "pick">("upload");
   const [note, setNote] = useState("");
-  const { busy, error, go } = useRun(props.onDone);
+  const { busy, error, go, setError } = useRun(props.onDone);
   function close(next: boolean) {
     setOpen(next);
+    setError(null);
     if (!next) {
       setMode("upload");
       setNote("");
       setItem("");
+      received.reset();
     }
   }
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -427,9 +455,13 @@ export function EvidenceDialog(props: {
     }
     form.set("submitForReview", String(props.submit));
     if (itemId) form.set("evidenceRequestId", itemId);
+    form.delete("receivedOn");
+    for (const [k, v] of Object.entries(received.payload)) form.set(k, v);
+    if (!received.ready) return setError("received");
     go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => close(false));
   }
   function pick(file: FileEntry) {
+    if (!received.ready) return setError("received");
     go(
       () =>
         send(
@@ -439,6 +471,7 @@ export function EvidenceDialog(props: {
             note: note.trim() || undefined,
             submitForReview: props.submit,
             evidenceRequestId: itemId,
+            ...received.payload,
           }),
         ),
       () => close(false),
@@ -486,6 +519,7 @@ export function EvidenceDialog(props: {
             </TabsList>
           </Tabs>
           {itemField}
+          {props.recordFor ? <ReceivedFields idPrefix="ev" {...received} /> : null}
           {mode === "upload" ? (
             <>
               <div className="grid gap-2">
@@ -520,18 +554,86 @@ export function EvidenceDialog(props: {
 
 const NO_ITEM = "none";
 
-function UpdateForm({ actionId, onDone }: { actionId: string; onDone: () => void }) {
+/**
+ * How and when the client sent what the firm records for it (a client the
+ * firm runs): the choice and the day, today by default and never later.
+ * `payload` is what the request carries; `ready` says both are there.
+ */
+export function useReceived(recordFor: boolean) {
+  const [via, setVia] = useState<ReceivedVia | "">("");
+  const [on, setOn] = useState<string | undefined>(() => firmToday());
+  const payload = receivedPayload(recordFor, via, on);
+  return {
+    via,
+    setVia,
+    on,
+    setOn,
+    payload,
+    ready: !recordFor || (!!payload.receivedVia && !!payload.receivedOn),
+    reset: () => (setVia(""), setOn(firmToday())),
+  };
+}
+
+/** The two fields of useReceived(), in a note or file dialog. */
+export function ReceivedFields({
+  idPrefix,
+  via,
+  setVia,
+  on,
+  setOn,
+}: {
+  idPrefix: string;
+  via: ReceivedVia | "";
+  setVia: (v: ReceivedVia) => void;
+  on: string | undefined;
+  setOn: (v: string | undefined) => void;
+}) {
+  const t = useTranslations("action.recordFor");
+  const [y, m, d] = firmToday().split("-").map(Number);
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-2">
+        <Label htmlFor={`${idPrefix}-via`}>{t("via")}</Label>
+        <Select value={via} onValueChange={(v) => setVia(v as ReceivedVia)}>
+          <SelectTrigger id={`${idPrefix}-via`} className="w-full">
+            <SelectValue placeholder={t("choose")} />
+          </SelectTrigger>
+          <SelectContent>
+            {RECEIVED_VIA.map((v) => (
+              <SelectItem key={v} value={v}>
+                {t(`vias.${v}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`${idPrefix}-on`}>{t("on")}</Label>
+        <DatePicker id={`${idPrefix}-on`} name="receivedOn" value={on} onChange={setOn} placeholder={t("on")} disabled={{ after: new Date(y!, m! - 1, d!) }} />
+      </div>
+    </div>
+  );
+}
+
+export function UpdateForm({ actionId, onDone, recordFor = false }: { actionId: string; onDone: () => void; recordFor?: boolean }) {
   const t = useTranslations("action");
   const [body, setBody] = useState("");
-  const { busy, error, go } = useRun(onDone);
+  const received = useReceived(recordFor);
+  const { busy, error, go, setError } = useRun(onDone);
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (body.trim()) go(() => send(`/api/actions/${actionId}/updates`, json({ body: body.trim() })), () => setBody(""));
+    if (!body.trim()) return;
+    if (!received.ready) return setError("received");
+    go(
+      () => send(`/api/actions/${actionId}/updates`, json({ body: body.trim(), ...received.payload })),
+      () => (setBody(""), received.reset()),
+    );
   }
   return (
     <form onSubmit={submit} className="grid gap-2 border-t pt-4">
       <Label htmlFor="update">{t("addUpdate")}</Label>
       <Textarea id="update" rows={3} maxLength={4000} placeholder={t("updatePlaceholder")} value={body} onChange={(e) => setBody(e.target.value)} />
+      {recordFor ? <ReceivedFields idPrefix="up" {...received} /> : null}
       <ErrorText error={error} />
       <div>
         <Button type="submit" variant="secondary" size="sm" disabled={busy || !body.trim()}>

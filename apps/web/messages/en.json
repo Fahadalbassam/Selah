@@ -485,7 +485,9 @@
       "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move.",
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
-      "secondReviewer": "You gave the first sign-off. Another consultant gives the second."
+      "secondReviewer": "You gave the first sign-off. Another consultant gives the second.",
+      "received": "Say how and when it came from the client.",
+      "receivedFuture": "The day it was received can't be after today."
     },
     "entry": {
       "update": "posted an update",
@@ -503,6 +505,17 @@
     "firmReviewer": "The consultant",
     "someone": "Someone",
     "received": "Received from the client {via, select, meeting {in a meeting} email {by email} phone {by phone} document {in a document} other {}} on {date}",
+    "recordFor": {
+      "via": "How it came from the client",
+      "on": "Received on",
+      "choose": "Choose",
+      "vias": {
+        "meeting": "In a meeting",
+        "email": "By email",
+        "phone": "By phone",
+        "document": "In a document"
+      }
+    },
     "items": {
       "title": "Evidence list",
       "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button. A file sent with \"Submit for review\" answers the only open item, or the one you choose when several are open. The consultant accepts it or says what's missing.",

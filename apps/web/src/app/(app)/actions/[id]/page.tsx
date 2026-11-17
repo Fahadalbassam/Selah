@@ -158,6 +158,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             openItems={follow.items.filter((i) => i.status === "open").map((i) => ({ id: i.id, title: i.title }))}
             second={second}
             firmView={firmView}
+            recordFor={firmView && recordedForClient}
           />
 
           <EvidenceList

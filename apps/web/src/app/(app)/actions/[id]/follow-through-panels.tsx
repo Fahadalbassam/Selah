@@ -143,6 +143,7 @@ export function EvidenceList(props: {
                     actionId={props.actionId}
                     submit={false}
                     evidenceRequestId={i.id}
+                    recordFor={voice === "FirmRun"}
                     title={t("answerTitle", { item: i.title })}
                     onDone={done}
                     trigger={<Button size="sm">{t("answer")}</Button>}
