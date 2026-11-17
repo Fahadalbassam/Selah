@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "Regular-expression slowdown in glob matching. No fixed version exists (every version up to 4.0.7 is affected). It reaches Selah only through next-intl -> @parcel/watcher, which next-intl loads for its message extractor (SourceFileWatcher); Selah does not turn the extractor on (next.config.ts calls createNextIntlPlugin with a request file only), and no glob pattern in Selah comes from a user. Remove this entry when a fixed picomatch is published.",
+    "added": "2026-11-17",
+    "reviewBy": "2027-01-15"
+  }
+]
