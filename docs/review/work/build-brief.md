@@ -33,6 +33,15 @@ The product owner's answers stand. The full texts: `docs/review/page-audit.md` s
 - **Visibility picker** (documents except evidence, and meetings): only takes people away, never widens; locked chips; people left out see nothing.
 - **Org chart**: positions, not people; never grants or limits access; Selah never designs or judges a structure.
 
+Decided by the lead inside those answers (17 and 18 Nov; logged in `lead-log.md`, "18 Nov 2026"):
+
+- **"May see everything on the project"** is one stable rule: firm staff on the project, the client admin, and a manager when departments are off or when they are in every active department.
+- **An action owner invited to a meeting** sees its summary, decisions, shared notes, attendees and their own follow-ups only.
+- **A department head who cannot open an action**: the escalation goes to the client admins instead.
+- **Translation masking** (`app_mask_terms_in`) returns only the names that appear in the text it is given.
+- **Org chart names for a manager**: only on the current published version, as of today, in their own branch, while "show names" is on; never holding dates. "Your manager" is shown to anyone whose position is in the chart and respects "show names".
+- **Indicator moved-away notice**: judges only periods that have ended; a notice a correction fixed is hidden; the client reads "Your company's reported figures, not verified impact" / «أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا».
+
 ## The screen standard (batches 1 to 5)
 
 Fahad, 17 Nov 2026: every screen must clearly show **what it is for and what to do next**. When you change a screen:
