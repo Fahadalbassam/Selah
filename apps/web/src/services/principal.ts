@@ -50,6 +50,17 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
           .where(and(eq(projectMembers.userId, userId), eq(projectMembers.observer, false), eq(projects.kind, "client"), ne(projects.state, "closed")))
       : [];
 
+  // The clients a consultant is staffed on at all (observing, or on a closed project, too): they
+  // read its organisation structure. The database: app_org_chart_firm_reader().
+  const anyStaffing =
+    membership.role === "consultant"
+      ? await tx
+          .selectDistinct({ clientOrgId: projects.orgId })
+          .from(projectMembers)
+          .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+          .where(and(eq(projectMembers.userId, userId), eq(projects.kind, "client")))
+      : [];
+
   // A client user's team: the departments they belong to.
   const departments =
     membership.orgKind === "client"
@@ -71,6 +82,10 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
       ...assignments.filter((a) => a.isLead || a.isDeputy).map((a) => a.clientOrgId),
       // Only clients they are still assigned to: leaving a client's team takes them off its projects.
       ...staffedClients.map((s) => s.clientOrgId).filter((c) => assignments.some((a) => a.clientOrgId === c)),
+    ]),
+    staffedClientIds: new Set([
+      ...assignments.filter((a) => a.isLead || a.isDeputy).map((a) => a.clientOrgId),
+      ...anyStaffing.map((s) => s.clientOrgId).filter((c) => assignments.some((a) => a.clientOrgId === c)),
     ]),
     departmentIds: new Set(departments.map((d) => d.id)),
     readOnly: membership.status === "archived",

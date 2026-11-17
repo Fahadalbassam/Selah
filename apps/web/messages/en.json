@@ -1963,7 +1963,9 @@
       "indicator_data_mode": "{title} chose how its indicator figures reach Selah",
       "indicator_data_proposed": "Your consultant suggested how your indicator figures could reach Selah",
       "indicator_imported_for_you": "The firm imported indicator figures for {title}",
-      "indicator_feed_failing": "A connection for {title}'s indicator figures has stopped working"
+      "indicator_feed_failing": "A connection for {title}'s indicator figures has stopped working",
+      "org_chart_holder_changed": "Who holds positions in {title}'s organisation structure changed",
+      "org_chart_change_requested": "{title} suggested a change to its organisation structure"
     },
     "mail": {
       "section": "Mail",
@@ -3848,7 +3850,26 @@
       "indicator_feed_connect": "Connected an indicator source",
       "indicator_feed_revoke": "Disconnected an indicator source",
       "indicator_feed_push": "A system sent indicator figures",
-      "indicator_source": "Changed an indicator's code or connection"
+      "indicator_source": "Changed an indicator's code or connection",
+      "org_chart_create": "Started a client's organisation structure",
+      "org_chart_unit_add": "Added a unit to the structure's draft",
+      "org_chart_unit_update": "Changed a unit in the structure's draft",
+      "org_chart_unit_move": "Moved a unit in the structure's draft",
+      "org_chart_unit_delete": "Removed a unit from the structure's draft",
+      "org_chart_position_add": "Added a position to the structure's draft",
+      "org_chart_position_update": "Changed a position in the structure's draft",
+      "org_chart_position_move": "Moved a position in the structure's draft",
+      "org_chart_position_delete": "Removed a position from the structure's draft",
+      "org_chart_publish": "Published a new version of the organisation structure",
+      "org_chart_show_names": "Changed whether managers see names in the organisation structure",
+      "org_chart_holder_start": "Placed someone in a position of the organisation structure",
+      "org_chart_holder_end": "Ended someone's holding of a position in the organisation structure",
+      "org_chart_read": "Read the organisation structure",
+      "org_chart_edit": "Edit the organisation structure's draft",
+      "org_chart_holders": "Change who holds positions in the organisation structure",
+      "org_chart_request_read": "Read suggested changes to the organisation structure",
+      "org_chart_request_create": "Suggested a change to the organisation structure",
+      "org_chart_request_close": "Answered a suggested change to the organisation structure"
     },
     "csv": {
       "time": "Time (UTC)",

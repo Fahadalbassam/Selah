@@ -1963,7 +1963,9 @@
       "indicator_data_mode": "اختار {title} طريقة وصول أرقام مؤشراته إلى صلة",
       "indicator_data_proposed": "اقترح مستشاركم طريقة لوصول أرقام مؤشراتكم إلى صلة",
       "indicator_imported_for_you": "استورد المكتب أرقام مؤشرات لـ{title}",
-      "indicator_feed_failing": "توقف ربط لأرقام مؤشرات {title} عن العمل"
+      "indicator_feed_failing": "توقف ربط لأرقام مؤشرات {title} عن العمل",
+      "org_chart_holder_changed": "تغيّر من يشغل مناصب في الهيكل التنظيمي لـ{title}",
+      "org_chart_change_requested": "اقترح {title} تعديلًا على هيكله التنظيمي"
     },
     "mail": {
       "section": "البريد",
@@ -3848,7 +3850,26 @@
       "indicator_feed_connect": "ربط مصدرًا لأرقام المؤشرات",
       "indicator_feed_revoke": "فصل مصدرًا لأرقام المؤشرات",
       "indicator_feed_push": "أرسل نظام أرقام مؤشرات",
-      "indicator_source": "غيّر رمز مؤشر أو ربطه"
+      "indicator_source": "غيّر رمز مؤشر أو ربطه",
+      "org_chart_create": "بدأ الهيكل التنظيمي لعميل",
+      "org_chart_unit_add": "أضاف وحدة إلى مسودة الهيكل التنظيمي",
+      "org_chart_unit_update": "عدّل وحدة في مسودة الهيكل التنظيمي",
+      "org_chart_unit_move": "نقل وحدة في مسودة الهيكل التنظيمي",
+      "org_chart_unit_delete": "حذف وحدة من مسودة الهيكل التنظيمي",
+      "org_chart_position_add": "أضاف منصبًا إلى مسودة الهيكل التنظيمي",
+      "org_chart_position_update": "عدّل منصبًا في مسودة الهيكل التنظيمي",
+      "org_chart_position_move": "نقل منصبًا في مسودة الهيكل التنظيمي",
+      "org_chart_position_delete": "حذف منصبًا من مسودة الهيكل التنظيمي",
+      "org_chart_publish": "اعتمد نسخة جديدة من الهيكل التنظيمي",
+      "org_chart_show_names": "غيّر ظهور الأسماء للمديرين في الهيكل التنظيمي",
+      "org_chart_holder_start": "عيّن شاغلًا لمنصب في الهيكل التنظيمي",
+      "org_chart_holder_end": "أنهى شغل منصب في الهيكل التنظيمي",
+      "org_chart_read": "قراءة الهيكل التنظيمي",
+      "org_chart_edit": "تعديل مسودة الهيكل التنظيمي",
+      "org_chart_holders": "تغيير شاغلي المناصب في الهيكل التنظيمي",
+      "org_chart_request_read": "قراءة اقتراحات تعديل الهيكل التنظيمي",
+      "org_chart_request_create": "اقترح تعديلًا على الهيكل التنظيمي",
+      "org_chart_request_close": "أجاب عن اقتراح تعديل على الهيكل التنظيمي"
     },
     "csv": {
       "time": "الوقت (UTC)",

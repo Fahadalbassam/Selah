@@ -13,8 +13,10 @@ import type { EngagementMode, Role } from "./types";
  *               filed under one of their departments
  *   working   - only clients the consultant does the work for: lead or deputy,
  *               or staffed (not as an observer) on one of the client's projects
+ *   staffed   - only clients the consultant leads or deputises for, or is
+ *               staffed on any project of (observers and closed projects too)
  */
-export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead" | "team" | "working";
+export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead" | "team" | "working" | "staffed";
 
 type Grants = Partial<Record<Role, Scope>>;
 
@@ -264,6 +266,32 @@ export const POLICY = {
   // connections: the client's admin; the firm only for a client with no
   // accounts of its own (the database: app_kpi_data_admin).
   "indicator.data": { firm_admin: "any", consultant: "working", client_admin: "any" },
+  // The client's organisation structure (org chart, migration 0100): positions,
+  // not people. It belongs to the client, not to a project, and it never grants
+  // or limits access to any work (departments stay the only rule for that).
+  // Read by the firm admin, the client's lead and deputy, consultants staffed on
+  // any of its projects ("staffed": observers read too), and the client's admins
+  // and managers. A manager sees every unit and title, and holders' names only in
+  // her own branch and the chain above it, and none while the version's
+  // show_names is off (the database: app_org_chart_named_positions). A draft is
+  // the firm's (resource.draft). Action owners get "your manager" only.
+  "org_chart.read": { firm_admin: "any", consultant: "staffed", client_admin: "any", client_manager: "any" },
+  // The structure (units, positions, reporting lines) is the firm's: the firm
+  // admin, the lead, the deputy and consultants staffed, not observing, on an
+  // open project of the client edit the draft (app_org_chart_editor); the firm
+  // admin, the lead or the deputy publish it (app_org_chart_publisher).
+  "org_chart.edit": { firm_admin: "any", consultant: "working" },
+  "org_chart.publish": { firm_admin: "any", consultant: "lead" },
+  // The people in positions: the client's admin on the published structure, and
+  // the firm's editors (app_org_chart_holder_writer). The lead is told.
+  "org_chart.holders": { firm_admin: "any", consultant: "working", client_admin: "any" },
+  // Whether the client's managers see names on a published version at all: the client's admin.
+  "org_chart.show_names": { client_admin: "any" },
+  // "Suggest a change": the client's admin writes one; the firm's readers read
+  // them and its editors mark them done or declined.
+  "org_chart_request.read": { firm_admin: "any", consultant: "staffed", client_admin: "any" },
+  "org_chart_request.create": { client_admin: "any" },
+  "org_chart_request.close": { firm_admin: "any", consultant: "working" },
   // The deviation rules (v_deviations) over a project: overdue, stale,
   // slipped, churn, orphaned and disputed. For the firm.
   "deviation.read": { ...STAFF },

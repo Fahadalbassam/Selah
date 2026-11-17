@@ -29,6 +29,12 @@ export const CLIENT_FROZEN_TABLES = [
   "indicator_imports",
   "invitations",
   "join_requests",
+  "org_chart_change_requests",
+  "org_chart_versions",
+  "org_charts",
+  "org_units",
+  "position_holders",
+  "positions",
   "projects",
 ] as const;
 
