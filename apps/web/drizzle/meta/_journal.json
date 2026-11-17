@@ -442,6 +442,13 @@
       "when": 1794917745233,
       "tag": "0075_closed_project_indicators",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794924551773,
+      "tag": "0080_received_on_firm_day",
+      "breakpoints": true
     }
   ]
 }
