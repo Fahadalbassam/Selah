@@ -733,6 +733,9 @@ BEGIN
     RAISE EXCEPTION 'a holder is one of the client''s own active people, or a typed name' USING ERRCODE = 'check_violation';
   END IF;
   IF app_uid() IS NOT NULL THEN
+    -- The chart's publish lock, shared: a holding added while a publish of the chart is under way
+    -- waits for it, then is checked against what was published (a position it dropped is refused).
+    PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(lchart::text));
     in_current := EXISTS (
       SELECT 1 FROM positions p JOIN org_chart_versions v ON v.id = p.version_id
       WHERE p.lineage_id = NEW.position_lineage_id AND v.chart_id = lchart AND v.state = 'published');

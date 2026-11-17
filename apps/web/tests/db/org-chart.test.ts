@@ -1075,6 +1075,41 @@ describe("publishing at the same moment as something else", () => {
     expect(snap.positions.map((p: { titleEn: string }) => p.titleEn)).toEqual(["Chair"]);
   });
 
+  it("a holder added while a publish that drops the position runs waits, then is refused, and no holding stays open on it", async () => {
+    // Publish a Secretary position, then take it out of the next draft.
+    const board = (await owner.query(`SELECT u.id FROM org_units u WHERE u.version_id = $1`, [await draftOf()])).rows[0].id;
+    const secretary = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, board, { titleEn: "Secretary" }), true);
+    await publishAs(U.lead, RACE);
+    const draft = await draftOf();
+    const copy = (await owner.query(`SELECT id FROM positions WHERE version_id = $1 AND lineage_id = $2`, [draft, secretary.id])).rows[0].id;
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, copy), true);
+    const publisher = await begin(U.lead);
+    const adder = await begin(U.deputy);
+    try {
+      await publisher.query(`SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [RCHART, draft]);
+      const add = adder
+        .query(`INSERT INTO position_holders (position_lineage_id, chart_id, org_id, name, from_date, created_by) VALUES ($1,$2,$3,'Late Secretary',$4,$5)`, [
+          secretary.id,
+          RCHART,
+          RACE,
+          PAST,
+          U.deputy,
+        ])
+        .then(
+          () => "done",
+          (e: Error) => e.message,
+        );
+      expect(await soon(add)).toBe("waiting");
+      await publisher.query("COMMIT");
+      expect(await add).toMatch(/positions of the published structure/);
+    } finally {
+      await publisher.query("ROLLBACK").catch(() => undefined);
+      await adder.query("ROLLBACK").catch(() => undefined);
+      for (const c of [publisher, adder]) c.release();
+    }
+    expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE position_lineage_id = $1 AND to_date IS NULL`, [secretary.id])).rows[0].n).toBe(0);
+  });
+
   it("two publishes of the same draft at once make one version; the second is refused", async () => {
     const draft = await draftOf();
     const versions = async () => (await owner.query(`SELECT count(*)::int AS n FROM org_chart_versions WHERE chart_id = $1 AND state <> 'draft'`, [RCHART])).rows[0].n;
