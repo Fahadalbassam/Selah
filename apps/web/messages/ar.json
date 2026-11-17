@@ -1518,7 +1518,7 @@
       "evidenced": "بأدلة",
       "verified": "تم التحقق",
       "overdue": "متأخرة",
-      "gapsCount": "{n} فجوات"
+      "gapsSuggested": "{n, plural, zero {لا فجوات مقترحة} one {فجوة مقترحة واحدة} two {فجوتان مقترحتان} few {# فجوات مقترحة} many {# فجوة مقترحة} other {# فجوة مقترحة}}، {confirmed} مؤكدة"
     },
     "compare": {
       "title": "مقارنة التقييمات",

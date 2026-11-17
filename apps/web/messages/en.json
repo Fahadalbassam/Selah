@@ -1518,7 +1518,7 @@
       "evidenced": "With evidence",
       "verified": "Verified",
       "overdue": "Overdue",
-      "gapsCount": "{n, plural, one {# gap} other {# gaps}}"
+      "gapsSuggested": "{n, plural, one {# suggested gap} other {# suggested gaps}}, {confirmed} confirmed"
     },
     "compare": {
       "title": "Compare assessments",

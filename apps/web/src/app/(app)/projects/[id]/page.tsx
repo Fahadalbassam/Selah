@@ -597,9 +597,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       {format.dateTime(x.createdAt, { dateStyle: "medium" })}
                     </span>
                     <span className="ms-auto flex items-center gap-2">
+                      {/* The firm's working view, in the assessment page's own words: gaps are suggested until a consultant confirms them. */}
                       {x.total ? (
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {x.total.pct === null ? "—" : `${x.total.pct}%`} · {tRun("gapsCount", { n: x.total.gaps })}
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums" title={tRun("indicative")}>
+                          <Lock className="size-3" />
+                          {tRun("firmOnly")} · {x.total.pct === null ? "—" : `${x.total.pct}%`} ·{" "}
+                          {tRun("gapsSuggested", { n: x.total.gaps, confirmed: x.total.confirmed })}
                         </span>
                       ) : null}
                       {firmStaff && x.sharedWithClient ? <Badge variant="outline">{tRun("sharedWithClient")}</Badge> : null}
