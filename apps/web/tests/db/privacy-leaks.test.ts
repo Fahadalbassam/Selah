@@ -425,17 +425,17 @@ describe("the activity record is for the firm and the client admin", () => {
 });
 
 // ------------------------------------------------------------------ item 4
-describe("the stored agenda is sent only to people who can open all of the project's work", () => {
+describe("the stored agenda is sent only to people who may see everything on the project", () => {
   const agenda = async (who: string, mid: string) => {
     const m = await svc(who, (tx, p) => getMeeting(tx, p, mid));
-    return { text: m.meeting.agendaMd, withheld: m.agendaWithheld, all: JSON.stringify(m) };
+    return { text: m.meeting.agendaMd, scope: m.agendaScope, all: JSON.stringify(m) };
   };
 
   it("names Finance's late action to the firm and the client admin", async () => {
     for (const who of [U.lead, U.cons, U.obs, U.admin, U.cadmin]) {
       const a = await agenda(who, M.all);
       expect(a.text).toContain("Finance canary");
-      expect(a.withheld).toBe(false);
+      expect(a.scope).toBe("all");
     }
   });
 
@@ -463,7 +463,7 @@ describe("the stored agenda is sent only to people who can open all of the proje
     );
     try {
       const a = await agenda(U.sponsor, M.all);
-      expect(a.withheld).toBe(false);
+      expect(a.scope).toBe("all");
       expect(a.text).toContain("Finance canary");
       expect(a.all).not.toContain("Legal draft canary");
       // Released, it changes nothing: who sees everything depends on departments and memberships only.
@@ -475,11 +475,12 @@ describe("the stored agenda is sent only to people who can open all of the proje
     }
   });
 
-  it("a department's agenda is read by a manager of that department, not by an invited outsider", async () => {
+  it("a department's agenda: the stored text for who sees everything, and an invited outsider only the work she can open", async () => {
     expect((await agenda(U.sponsor, M.finInvited)).text).toContain("Finance canary");
     const outsider = await agenda(U.mgr, M.finInvited);
     expect(outsider.text).toBeNull();
-    expect(outsider.withheld).toBe(true);
+    expect(outsider.scope).toBe("readable");
+    expect(outsider.all).not.toContain("Finance canary");
   });
 
   it("cannot be read straight from the table by anyone", async () => {
@@ -488,8 +489,8 @@ describe("the stored agenda is sent only to people who can open all of the proje
       await expect(rowsAs(who, `SELECT * FROM meetings WHERE id = $1`, [M.all])).rejects.toThrow(/permission denied/);
     }
     const viaFunction = async (who: string, mid: string) => (await rowsAs(who, `SELECT * FROM app_meeting_agenda_for($1)`, [mid]))[0];
-    // An invited outsider of a department's meeting is told there is one (the stop-gap, kept as a second line).
-    expect(await viaFunction(U.mgr, M.finInvited)).toEqual({ agenda: null, withheld: true, own: false });
+    // An invited outsider of a department's meeting gets the lists built for her: none of Finance's work.
+    expect(await viaFunction(U.mgr, M.finInvited)).toEqual({ agenda: null, live: true });
     expect((await viaFunction(U.cadmin, M.all)).agenda).toContain("Finance canary");
     // A meeting the caller cannot open at all: no row, as if it did not exist (the whole project's, since 1a).
     expect(await viaFunction(U.mgr, M.all)).toBeUndefined();
@@ -810,8 +811,8 @@ describe("a department's meeting: its notes, summary sources and transcript, and
       // Someone else outside the department, not invited, reads none of it.
       expect(await count(U.owner, table, M.finInvited)).toBe(0);
     }
-    // The transcript is still the firm's, and the stored agenda is still withheld from her (item 4).
+    // The transcript is still the firm's, and the stored agenda never reaches her (item 4; 0085).
     expect(await count(U.mgr, "meeting_transcripts", M.finInvited)).toBe(0);
-    expect(await rowsAs(U.mgr, `SELECT * FROM app_meeting_agenda_for($1)`, [M.finInvited])).toEqual([{ agenda: null, withheld: true, own: false }]);
+    expect(await rowsAs(U.mgr, `SELECT * FROM app_meeting_agenda_for($1)`, [M.finInvited])).toEqual([{ agenda: null, live: true }]);
   });
 });

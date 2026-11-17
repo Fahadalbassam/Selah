@@ -293,14 +293,15 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
   // every write of theirs here (migration 0034), so no control is offered.
   const observing = principal.observedProjectIds?.has(meeting.projectId) ?? false;
   const canRun = !observing && (principal.orgKind === "firm" || meeting.organizerId === principal.userId);
-  // The stored agenda names the project's late, waiting and blocked actions.
-  // Only a reader who may open all of them gets the text; an action owner gets
-  // the same lists worked out now from their own actions only (decision 1a);
-  // anyone else is told there is one (decision D8), and the text never leaves
-  // the database.
-  const { rows: agendaRows } = await tx.execute<{ agenda: string | null; withheld: boolean; own: boolean }>(
-    sql`select agenda, withheld, own from app_meeting_agenda_for(${id}::uuid)`,
+  // The stored agenda names the project's late, waiting and blocked actions,
+  // as they stood at booking. Only a reader who may see everything on the
+  // project gets that text; everyone else gets the same lists built now from
+  // the actions they can read (an action owner: her own), so the text never
+  // leaves the database for them (decision 1a, the lead's ruling, 0085).
+  const { rows: agendaRows } = await tx.execute<{ agenda: string | null; live: boolean }>(
+    sql`select agenda, live from app_meeting_agenda_for(${id}::uuid)`,
   );
+  const agendaScope: "all" | "own" | "readable" = !agendaRows[0]?.live ? "all" : principal.role === "action_owner" ? "own" : "readable";
   const sources = summary ? await summarySources(tx, id) : [];
   // Files a summary line can cite: this project's, as row-level security shows them to firm staff who run it.
   const sourceFiles =
@@ -318,9 +319,8 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
       : [];
   return {
     meeting: { ...meeting, agendaMd: agendaRows[0]?.agenda ?? null },
-    agendaWithheld: agendaRows[0]?.withheld ?? false,
-    /** The agenda shown is the reader's own actions only (an action owner). */
-    agendaOwn: agendaRows[0]?.own ?? false,
+    /** "all": the stored agenda; "own": built from the reader's own actions; "readable": from the work they can open. */
+    agendaScope,
     attendees,
     decisions,
     followUps: follow,

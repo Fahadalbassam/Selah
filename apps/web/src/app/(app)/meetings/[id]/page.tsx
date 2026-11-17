@@ -51,7 +51,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     getTranslations("visibility"),
     getFormatter(),
   ]);
-  const { meeting, agendaWithheld, agendaOwn, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
+  const { meeting, agendaScope, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
   const when = `${format.dateTime(meeting.startsAt, { dateStyle: "full", timeStyle: "short" })} – ${format.dateTime(meeting.endsAt, { timeStyle: "short" })}`;
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
@@ -188,19 +188,26 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
-          {agendaOwn && !agenda ? (
-            // An action owner sees only their own actions on a meeting's agenda (decision 1a).
+          {agendaScope !== "all" && !agenda ? (
+            // Built for this reader from the work they can open (an action owner: their own), and
+            // none of it is on this meeting's agenda (decision 1a).
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("agenda")}</CardTitle>
               </CardHeader>
-              <CardContent className="px-5 text-sm text-muted-foreground">{t("agendaOwnNone")}</CardContent>
+              <CardContent className="px-5 text-sm text-muted-foreground">
+                {agendaScope === "own" ? t("agendaOwnNone") : t("agendaReadableNone")}
+              </CardContent>
             </Card>
           ) : agenda ? (
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("agenda")}</CardTitle>
-                {agendaOwn ? <CardDescription>{t("agendaOwn")}</CardDescription> : null}
+                {agendaScope === "own" ? (
+                  <CardDescription>{t("agendaOwn")}</CardDescription>
+                ) : agendaScope === "readable" ? (
+                  <CardDescription>{t("agendaReadable")}</CardDescription>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-1 px-5 text-sm" dir="auto">
                 {/* The database writes it as "## heading" and "- item" lines. */}
@@ -218,15 +225,6 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                   ),
                 )}
               </CardContent>
-            </Card>
-          ) : agendaWithheld ? (
-            // The agenda names the project's late and waiting actions by title, so it goes only to
-            // people who can open all of them; the text was not sent to this reader (decision D8).
-            <Card className="gap-3 py-5 shadow-xs">
-              <CardHeader className="px-5">
-                <CardTitle className="text-base">{t("agenda")}</CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 text-sm text-muted-foreground">{t("agendaWithheld")}</CardContent>
             </Card>
           ) : null}
 

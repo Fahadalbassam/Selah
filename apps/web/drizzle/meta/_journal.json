@@ -505,6 +505,13 @@
       "when": 1794939785524,
       "tag": "0084_whole_project_readers",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794940143360,
+      "tag": "0085_live_agenda",
+      "breakpoints": true
     }
   ]
 }

@@ -228,9 +228,10 @@ describe("a department's meeting lists only that department's work", () => {
       const m = await svc(who, (tx, p) => getMeeting(tx, p, M.finance));
       const all = JSON.stringify(m);
       expect(all, who).not.toMatch(/Wide canary|Board canary|Rawdah/);
-      // The stored agenda is Finance's work; an invited outsider (the Board manager) is told there is one.
-      if (who === U.nmgr) expect(m.agendaWithheld).toBe(true);
-      else if (who === U.fin) expect([m.agendaOwn, m.meeting.agendaMd]).toEqual([true, expect.stringContaining("Finance canary")]);
+      // The stored agenda is Finance's work, for who sees everything; the Finance owner gets her own, and an
+      // invited outsider (the Board manager) the work she can open, which here is none of it.
+      if (who === U.nmgr) expect([m.agendaScope, m.meeting.agendaMd]).toEqual(["readable", null]);
+      else if (who === U.fin) expect([m.agendaScope, m.meeting.agendaMd]).toEqual(["own", expect.stringContaining("Finance canary")]);
       else expect(m.meeting.agendaMd, who).toContain("Finance canary");
     }
   });
@@ -274,29 +275,29 @@ describe("a meeting of the whole project opens only for people who see all of th
       const m = await svc(who, (tx, p) => getMeeting(tx, p, M.steer));
       expect(m.meeting.agendaMd, who).toContain("Finance canary");
       expect(m.meeting.agendaMd, who).toContain("Wide canary");
-      expect([m.agendaWithheld, m.agendaOwn]).toEqual([false, false]);
+      expect(m.agendaScope).toBe("all");
     }
-    // At a client with departments switched off, every manager reads all of the work.
-    const { rows } = await owner.query(`SELECT app_user_reads_all_actions($1, $2, NULL) AS ok`, [U.radmin, PR]);
+    // At a client with departments switched off, every manager may see everything.
+    const { rows } = await owner.query(`SELECT app_user_sees_whole_project($1, $2) AS ok`, [U.radmin, PR]);
     expect(rows).toEqual([{ ok: true }]);
   });
 
   it("an action owner invited to it opens it and sees only her own actions on its agenda", async () => {
     const m = await svc(U.owner, (tx, p) => getMeeting(tx, p, M.steer));
     expect(m.meeting.title).toBe("Steering committee");
-    expect(m.agendaOwn).toBe(true);
+    expect(m.agendaScope).toBe("own");
     expect(m.meeting.agendaMd).toContain("Wide canary");
     expect(JSON.stringify(m)).not.toMatch(/Finance canary|Board canary/);
     // The stored text never reaches her.
     const fn = (await rowsAs(U.owner, `SELECT * FROM app_meeting_agenda_for($1)`, [M.steer]))[0];
-    expect(fn).toMatchObject({ withheld: false, own: true });
+    expect(fn).toMatchObject({ live: true });
     expect(fn.agenda).not.toContain("Finance canary");
   });
 
   it("owner@rawdah.test (a client with no departments), invited to a meeting of the whole project, opens it and sees only her own actions", async () => {
     const m = await svc(U.rowner, (tx, p) => getMeeting(tx, p, M.rawdah));
     expect(m.meeting.title).toBe("Rawdah steering");
-    expect(m.agendaOwn).toBe(true);
+    expect(m.agendaScope).toBe("own");
     expect(m.meeting.agendaMd).toContain("Rawdah owner canary");
     expect(JSON.stringify(m)).not.toContain("Rawdah colleague canary");
     expect((await svc(U.rowner, (tx, p) => meetingIcs(tx, p, M.rawdah))).status).toBe(200);
@@ -359,6 +360,71 @@ describe("who may see everything on the project", () => {
       await owner.query(`DELETE FROM department_members WHERE department_id = $1 AND user_id = $2`, [DEPT.legal, U.npartial]);
     }
     expect(await opens(U.npartial)).toBe(false);
+  });
+});
+
+// ------------------------------------------------------------ the agenda each reader gets
+// The lead's ruling on the review (17 Nov): the stored text goes only to readers who may see
+// everything on the project. Everyone else, on any meeting they open, department meetings
+// included, gets the agenda built from the actions they can read now; for a meeting already
+// past, "late" is counted as of the meeting's day. Before 0085 the stored text was checked
+// against where the work is filed now, so work moved out of a department after booking still
+// reached that department's people by title.
+describe("the agenda each reader gets", () => {
+  const agendaOf = async (who: string, mid: string) => {
+    const m = await svc(who, (tx, p) => getMeeting(tx, p, mid));
+    return { text: m.meeting.agendaMd ?? "", scope: m.agendaScope, all: JSON.stringify(m) };
+  };
+
+  it("work moved to another department after booking is not named to the first department's people", async () => {
+    const board = (await book(U.lead, PN, { title: "Board meeting", departmentId: DEPT.board, attendees: [{ userId: U.nmgr }] })).id;
+    try {
+      expect((await agendaOf(U.lead, board)).text).toContain("Board canary");
+      // The blocked Board action is refiled under Finance.
+      await owner.query(`UPDATE actions SET department_id = $2 WHERE id = $1`, [A.board, DEPT.fin]);
+      const hers = await agendaOf(U.nmgr, board);
+      expect(hers.scope).toBe("readable");
+      expect(hers.all).not.toContain("Board canary");
+      // Who sees everything still reads the text as written at booking.
+      expect((await agendaOf(U.nsponsor, board)).scope).toBe("all");
+    } finally {
+      await owner.query(`UPDATE actions SET department_id = $2 WHERE id = $1`, [A.board, DEPT.board]);
+      await owner.query(`DELETE FROM meetings WHERE id = $1`, [board]);
+    }
+  });
+
+  it("someone who does not see everything gets the work she can open, never the stored text", async () => {
+    // In Finance (not in every department): Finance's work, built for her.
+    const partial = await agendaOf(U.npartial, M.finance);
+    expect([partial.scope, partial.text]).toEqual(["readable", expect.stringContaining("Finance canary")]);
+    // Invited to Finance's meeting from the Board secretariat: nothing of Finance's, and no stored text.
+    const outsider = await agendaOf(U.nmgr, M.finance);
+    expect(outsider.scope).toBe("readable");
+    expect(outsider.all).not.toContain("Finance canary");
+    // The client's admin and the firm read the stored text.
+    for (const who of [U.ncadmin, U.lead]) expect((await agendaOf(who, M.finance)).scope).toBe("all");
+  });
+
+  it("for a meeting already past, late work is counted as of the meeting's day, not today", async () => {
+    const lateSince = id(47);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Late since yesterday canary',$5,'in_progress',app_firm_today() - 1,$6)`,
+      [lateSince, PR, RAWDAH, REC.rawdah, U.rowner, U.lead],
+    );
+    const past = (
+      await book(U.lead, PR, { title: "Rawdah review", startsAt: hour(-72), endsAt: hour(-71), attendees: [{ userId: U.rowner }] })
+    ).id;
+    try {
+      await owner.query(`UPDATE meetings SET status = 'held' WHERE id = $1`, [past]);
+      const hers = await agendaOf(U.rowner, past);
+      expect(hers.scope).toBe("own");
+      expect(hers.text).toContain("Rawdah owner canary"); // due five days ago: already late at the meeting
+      expect(hers.text).not.toContain("Late since yesterday canary"); // not yet late three days ago
+    } finally {
+      await owner.query(`DELETE FROM meetings WHERE id = $1`, [past]);
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [lateSince]);
+    }
   });
 });
 
