@@ -446,7 +446,8 @@ function TreeNode({ node, pick }: { node: Node; pick: boolean }) {
   const labels = useLabels();
   if (node.type === "file") {
     const f = node.file;
-    const usable = !pick || (f.available && f.visibility === "shared");
+    // A narrowed file is never copied into evidence (feature A): it would reach the people it was kept from.
+    const usable = !pick || (f.available && f.visibility === "shared" && !f.limited);
     return (
       <FileTreeFile
         path={node.path}
@@ -535,7 +536,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
           : `/projects/${file.project.id}`;
   const sourceName = "title" in file.source && file.source.title ? file.source.title : file.project.title;
   const department = (rtl ? file.departmentName : (file.departmentNameEn ?? file.departmentName)) ?? null;
-  const usable = file.available && file.visibility === "shared";
+  const usable = file.available && file.visibility === "shared" && !file.limited;
 
   return (
     <div className="grid animate-page-in gap-3 rounded-xl border bg-card p-4 shadow-xs">
@@ -610,6 +611,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
         ) : null}
       </div>
       {pick && file.available && file.visibility !== "shared" ? <p className="text-xs text-muted-foreground">{t("notShared")}</p> : null}
+      {pick && file.available && file.visibility === "shared" && file.limited ? <p className="text-xs text-muted-foreground">{t("narrowedNotEvidence")}</p> : null}
     </div>
   );
 }

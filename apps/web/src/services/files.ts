@@ -332,6 +332,10 @@ export async function attachExistingEvidence(tx: Tx, principal: Principal, actio
   assertAllowed(principal, "document.download", source.resource);
   if (source.doc.orgId !== action.orgId) throw new BadRequestError("pick a file of the same client");
   if (source.doc.visibility !== "shared") throw new BadRequestError("only files shared with the firm can be evidence");
+  // A narrowed file (feature A) would reach the people it was kept from: evidence has no audience.
+  // Asked of the file itself, not only of the caller (the database refuses the copy too).
+  const { rows: narrowed } = await tx.execute<{ yes: boolean }>(sql`select app_document_narrowed(${source.doc.id}::uuid) as yes`);
+  if (narrowed[0]?.yes) throw new BadRequestError("a file with a limited audience can't be used as evidence");
   if (source.doc.state === "archived") throw new BadRequestError("this file is archived");
   if (!downloadable(source.doc.scanStatus)) throw new ConflictError("this file has not been cleared for download");
   const received = receivedFor(principal, resource.projectKind, input.received);

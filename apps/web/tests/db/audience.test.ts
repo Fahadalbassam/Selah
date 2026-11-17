@@ -138,8 +138,8 @@ async function doc(docId: string, f: { by: string; ownerOrg: string; title: stri
   await q(
     `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
        storage_key, content_type, size_bytes, sha256, scan_status, ai_indexable)
-     VALUES ($1,$2,$3,$4,$5,$6,'submitted',$7,$8,$9,'application/pdf',10,'abc','clean',$10)`,
-    [docId, PN, NUKHBA, f.ownerOrg, f.by, f.purpose ?? "deliverable", f.title, f.visibility ?? "shared", `k-${docId}`, f.ai ?? false],
+     VALUES ($1,$2,$3,$4,$5,$6,'submitted',$7,$8,$9,'application/pdf',10,$11,'clean',$10)`,
+    [docId, PN, NUKHBA, f.ownerOrg, f.by, f.purpose ?? "deliverable", f.title, f.visibility ?? "shared", `k-${docId}`, f.ai ?? false, `sha-${docId}`],
   );
 }
 
@@ -573,6 +573,45 @@ describe("the server refuses", () => {
       /left out of this meeting/,
     );
     expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.deliv])).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------ copies
+describe("a narrowed file is never copied out of its audience", () => {
+  it("a file with a limited audience can't be used as evidence: the service and the database refuse it, and the one left out still sees nothing", async () => {
+    const REC = id(61);
+    const ACT = id(62);
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Pay policy','shared',$4) ON CONFLICT DO NOTHING`, [
+      REC,
+      PN,
+      NUKHBA,
+      U.lead,
+    ]);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Adopt the pay scales',$5,'in_progress',app_firm_today() + 10,$6) ON CONFLICT DO NOTHING`,
+      [ACT, PN, NUKHBA, REC, U.nmgr2, U.lead],
+    );
+    // nmgr2 still sees the salary file (it is narrowed to leave out nmgr) and owns an open action.
+    await expect(
+      svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.client, submitForReview: false }), true),
+    ).rejects.toThrow(/limited audience/);
+    // The database refuses the copy too, whoever writes it.
+    await expect(
+      rowsAs(
+        U.nmgr2,
+        `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+         SELECT project_id, org_id, $2, $3, 'evidence', 'submitted', title, 'shared', 'k-copy', content_type, size_bytes, sha256, scan_status FROM documents WHERE id = $1`,
+        [DOC.client, NUKHBA, U.nmgr2],
+      ),
+    ).rejects.toThrow(/limited audience/);
+    expect(await rowsAs(U.nmgr, `SELECT id FROM documents WHERE title = $1`, [TITLE.client])).toEqual([]);
+    // A file nobody narrowed is still used as before.
+    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.open, submitForReview: false }), true);
+    expect(await rowsAs(U.nmgr, `SELECT purpose FROM documents WHERE title = $1 ORDER BY purpose`, [TITLE.open])).toEqual([
+      { purpose: "deliverable" },
+      { purpose: "evidence" },
+    ]);
   });
 });
 
