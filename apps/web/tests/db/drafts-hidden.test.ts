@@ -29,10 +29,22 @@ import { getAction, transitionAction } from "@/services/actions";
 import { handOver, personHoldings, setActive } from "@/services/accounts";
 import { actionPeople, actionThread, postComment } from "@/services/comments";
 import { actionsWorkbook, planWorkbook } from "@/services/exports";
-import { actionFollowThrough, actionLadder, listEvidenceRequests } from "@/services/follow-through";
-import { listNotifications } from "@/services/notifications";
+import { listFiles } from "@/services/files";
+import {
+  actionClosure,
+  actionFollowThrough,
+  actionLadder,
+  listEvidenceRequests,
+  listRiskAcceptances,
+  requestDeadlineChange,
+  signRiskAcceptance,
+} from "@/services/follow-through";
+import { isActionMuted, listNotifications, setActionMuted } from "@/services/notifications";
 import { updateAction } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
+import { addProgressUpdate } from "@/services/progress";
+import { actionSecondReview } from "@/services/second-review";
+import { translate } from "@/services/translations";
 import { actionCounts, dashboard, getActionDetail, getProject, listActions, listProjects } from "@/services/queries";
 import { getRecommendation } from "@/services/responses";
 
@@ -501,5 +513,69 @@ describe("a deleted draft leaves nothing behind for the client", () => {
     expect((await owner.query(`SELECT 1 FROM notifications WHERE entity_id = $1`, [gone])).rowCount).toBe(1);
     // A row that names no action at all keeps its own rules.
     expect((await rowsAs(U.cadmin, `SELECT app_action_visible_to_client(NULL) AS v`))[0].v).toBe(true);
+  });
+});
+
+describe("a client cannot tell a draft from an action that does not exist", () => {
+  const nowhere = "00000000-0000-4000-d6d6-0000000009ff";
+  // What a call answers: its value, or the words of its refusal.
+  const outcome = (p: Promise<unknown>) =>
+    p.then(
+      (v) => ({ ok: JSON.stringify(v ?? null) }),
+      (e: Error) => ({ err: e.message }),
+    );
+  const services: [string, (tx: Tx, p: Principal, id: string) => Promise<unknown>][] = [
+    ["action page", (tx, p, x) => getActionDetail(tx, p, x)],
+    ["action API", (tx, p, x) => getAction(tx, p, x)],
+    ["thread", (tx, p, x) => actionThread(tx, p, x)],
+    ["comment", (tx, p, x) => postComment(tx, p, x, { body: "hello" })],
+    ["follow-through", (tx, p, x) => actionFollowThrough(tx, p, x)],
+    ["evidence list", (tx, p, x) => listEvidenceRequests(tx, p, x)],
+    ["ladder", (tx, p, x) => actionLadder(tx, p, x)],
+    ["closure", (tx, p, x) => actionClosure(tx, p, x)],
+    ["risk acceptances", (tx, p, x) => listRiskAcceptances(tx, p, x)],
+    ["sign a risk acceptance", (tx, p, x) => signRiskAcceptance(tx, p, x, { statement: "We accept the risk of not doing this." })],
+    ["ask for a new date", (tx, p, x) => requestDeadlineChange(tx, p, x, { proposedDueDate: "2099-01-01", reason: "busy" })],
+    ["progress", (tx, p, x) => addProgressUpdate(tx, p, x, "Done half")],
+    ["move", (tx, p, x) => transitionAction(tx, p, x, { to: "in_progress" })],
+    ["give to a colleague", (tx, p, x) => updateAction(tx, p, x, { ownerUserId: U.owner2 })],
+    ["mute", (tx, p, x) => setActionMuted(tx, p, x, true)],
+    ["muted?", (tx, p, x) => isActionMuted(tx, p, x)],
+    ["second sign-off", (tx, p, x) => actionSecondReview(tx, p, x)],
+    ["translate", (tx, p, x) => translate(tx, p, { entityType: "action", entityId: x, field: "title", to: "ar" })],
+    ["files of the action", (tx, p, x) => listFiles(tx, p, { actionId: x })],
+  ];
+  const functions = [
+    `SELECT app_action_visible_to_client($1) AS r`,
+    `SELECT app_can_see_action($1) AS r`,
+    `SELECT count(*)::int AS r FROM app_action_ladder($1)`,
+    `SELECT count(*)::int AS r FROM app_action_people($1)`,
+    `SELECT app_action_extensions($1) AS r`,
+    `SELECT count(*)::int AS r FROM app_action_refilings($1)`,
+    `SELECT count(*)::int AS r FROM app_second_review_state($1)`,
+    `SELECT app_can_extend($1) AS r`,
+    `SELECT app_submitted_this_round($1) AS r`,
+    `SELECT app_verified_basis($1) AS r`,
+    `SELECT count(*)::int AS r FROM app_translation_source('action', $1, 'title')`,
+  ];
+
+  it("every service a client reaches answers the same, word for word", async () => {
+    for (const [role, uid] of Object.entries(CLIENT_ROLES)) {
+      for (const [what, call] of services) {
+        const draft = await outcome(svc(uid, (tx, p) => call(tx, p, A.draft)));
+        const missing = await outcome(svc(uid, (tx, p) => call(tx, p, nowhere)));
+        expect(JSON.stringify(draft).replaceAll(A.draft, "<id>"), `${role}: ${what}`).toBe(JSON.stringify(missing).replaceAll(nowhere, "<id>"));
+      }
+    }
+  });
+
+  it("every function the app may call answers the same", async () => {
+    for (const [role, uid] of Object.entries(CLIENT_ROLES)) {
+      for (const q of functions) {
+        const draft = await outcome(rowsAs(uid, q, [A.draft]));
+        const missing = await outcome(rowsAs(uid, q, [nowhere]));
+        expect(draft, `${role}: ${q}`).toEqual(missing);
+      }
+    }
   });
 });
