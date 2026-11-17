@@ -142,7 +142,7 @@ beforeAll(async () => {
   );
   await q(
     `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, status, due_date, created_by)
-     VALUES ($1,$2,$3,$4,'Update the audit committee mandate','in_progress','2031-11-15',$5)`,
+     VALUES ($1,$2,$3,$4,'Update the audit committee mandate','in_progress','2099-11-15',$5)`,
     [ACT, P1, ACME, REC, U.cons],
   );
 });
@@ -206,7 +206,7 @@ describe("asking", () => {
     expect(passages[0]!.source).toBe("action, the record this chat is about");
     expect(sent[0]!.question).toMatch(/\(This chat is about passage P1\.\)$/);
     expect(records.map((p) => p.source)).toEqual(["action, the record this chat is about", "recommendation"]);
-    expect(records[0]!.text).toContain("status in_progress, due 2031-11-15");
+    expect(records[0]!.text).toContain("status in_progress, due 2099-11-15");
     expect(records[1]!.text).toContain("Update the audit committee mandate");
     expect(first.citations).toEqual([
       { chunkId: null, sourceType: "recommendation", sourceId: REC, version: 1, page: null },
