@@ -154,6 +154,8 @@ export function FeedsCard({
                   <p className="text-xs text-muted-foreground">
                     {f.kind === "api" ? t("keyEnds", { hint: f.tokenHint ?? "" }) : t("dailyRead")} · {t("connectedBy", { name: f.runAs, when: when(f.createdAt) })}
                   </p>
+                  {/* Set up by firm staff who may no longer change the figures (decision D4): what to do about it. */}
+                  {f.failures > 0 && f.lastError === "no_right" ? <p className="text-xs">{t("noRight")}</p> : null}
                 </div>
                 <div className="text-xs">
                   {f.failures > 0 ? (

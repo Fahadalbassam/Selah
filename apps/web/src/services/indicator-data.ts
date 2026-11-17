@@ -568,9 +568,22 @@ export async function fetchSheet(url: string, extraHosts = extraSheetHosts()): P
 }
 
 export class SheetError extends Error {
-  constructor(readonly reason: "host" | "unreachable" | "not_shared" | "too_large" | "empty") {
+  /** no_right: the connection's person is firm staff who may no longer change the client's figures (connectionMayWrite). */
+  constructor(readonly reason: "host" | "unreachable" | "not_shared" | "too_large" | "empty" | "no_right") {
     super(`sheet: ${reason}`);
   }
+}
+
+/**
+ * A connection brings figures in under its person's name and rights. Firm
+ * staff who set one up and may no longer change the client's figures (now
+ * an observer, staffed only on closed projects, or off the client's team:
+ * decision D4, migrations 0073 and 0075) bring nothing in. The run is then
+ * recorded as failed with the reason no_right, which the data page says in
+ * plain words to the client's lead and admin, so that it is set up again.
+ */
+export function connectionMayWrite(principal: Principal, orgId: string): boolean {
+  return principal.orgKind !== "firm" || authorize(principal, "indicator.report", resource(principal, orgId)).allowed;
 }
 
 /**
@@ -665,9 +678,15 @@ export interface PushedValue {
  * Figures a client's system sent with its key, saved in the name of whoever
  * created the key, for indicators the client lets connections fill. A
  * figure for a period that already has a different one corrects it (the
- * system is the source). Each figure's outcome comes back.
+ * system is the source). Each figure's outcome comes back. Null, with the
+ * failure recorded on the connection, when the key's person may no longer
+ * change the client's figures (connectionMayWrite).
  */
 export async function pushValues(tx: Tx, principal: Principal, feed: { id: string; orgId: string }, values: PushedValue[]) {
+  if (!connectionMayWrite(principal, feed.orgId)) {
+    await tx.execute(sql`select app_indicator_feed_result(${feed.id}::uuid, false, 'no_right', 0)`);
+    return null;
+  }
   const indicators = await indicatorRefs(tx, feed.orgId);
   const byKey = new Map<string, string>();
   for (const k of indicators) {

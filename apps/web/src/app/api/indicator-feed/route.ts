@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { keyRoute } from "@/server/http";
@@ -29,5 +30,9 @@ export const POST = keyRoute(
         .max(500),
     }),
   },
-  ({ tx, principal, key, body }) => pushValues(tx, principal, { id: key.id, orgId: key.orgId }, body.values),
+  async ({ tx, principal, key, body }) =>
+    // Null: the key's person may no longer change the client's figures. The failure is recorded on the
+    // connection (the transaction commits), and the data page says so to the client's lead and admin.
+    (await pushValues(tx, principal, { id: key.id, orgId: key.orgId }, body.values)) ??
+    NextResponse.json({ error: "forbidden", reason: "no_right" }, { status: 403, headers: { "cache-control": "no-store" } }),
 );
