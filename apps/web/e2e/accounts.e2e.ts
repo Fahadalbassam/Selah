@@ -80,10 +80,13 @@ test("forgotten password: mail, reset link, new password works, old one doesn't,
   const next = `Reset-Pass-${stamp}!`;
   await setPassword(page, next);
   await page.waitForURL(/sign-in/);
-  // The link can't be used twice.
+  // The link can't be used twice: the page says so as soon as it opens (no
+  // form to fill in first), and offers the way to ask for a new one.
+  const t = L("ar");
   await page.goto(new URL(link).pathname + new URL(link).search);
-  await setPassword(page, "Another-Pass-2026!!");
-  await expect(page.locator("form .text-destructive")).toBeVisible();
+  await expect(page.getByRole("heading", { name: t("account.reset.deadTitle") })).toBeVisible();
+  await expect(page.locator("#password")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: t("account.reset.deadAction") })).toHaveAttribute("href", "/forgot-password");
   await page.goto("/sign-in");
   await hydrated(page, "form");
   await page.locator("#email").fill(email);

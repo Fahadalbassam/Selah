@@ -40,6 +40,11 @@ const schema = z.object({
   // The compose profiles in use (R5): "direct" or "tunnel" says how traffic
   // reaches the site, shown on the sub-processor list and the security page.
   SELAH_EDGE: z.string().optional(),
+  // The mail sender's relay (its own setting, repeated here). The app sends
+  // no mail itself; it reads only the relay's host, to say on the
+  // sub-processor list whether an outside mail service is in use
+  // (mailRelay() in src/lib/legal.ts).
+  SMTP_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   // Shows the details of /api/ready to ops/readiness.sh and the alert job
   // (docs/operations.md). Without it, the probe answers only its status.
   OPS_TOKEN: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
