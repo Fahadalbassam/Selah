@@ -211,6 +211,7 @@ Database names are trigger functions (`name()`) or check constraints (`table.nam
 | One sponsor and one coordinator per project; naming a new one replaces the old | `check_client_role()` and the unique index project_client_roles_single | `src/services/client-roles.ts` (`SINGLE_ROLES`) | `tests/db/client-roles.test.ts` |
 | Client roles are named or removed, never edited | `forbid_change()` on project_client_roles | none (no update path) | `tests/db/client-roles.test.ts` |
 | The sponsor role's holder, while an active admin or manager, is told at escalation level 3 | `app_follow_ups_due()` | `src/jobs/follow-ups.ts` | `tests/db/client-roles.test.ts` |
+| The department head's escalation (level 2) goes to a head who can open the action (a manager, or the action's own owner); when the department has heads but none can (each an action owner, 1b), it goes to the client's admins instead, and the action's ladder names them in the head's place | `app_follow_ups_due()`, `app_action_ladder()`, `app_head_opens()` (migration 0088) | `src/jobs/follow-ups.ts`, `src/app/(app)/actions/[id]/reminder-ladder.tsx` | `tests/db/owner-actions.test.ts`, `tests/db/engagement.test.ts` |
 | Setting the handover date schedules check-ins; moving it moves the open ones | `schedule_checkins()` | database only | `tests/db/handover.test.ts` |
 
 Retired: `check_project_sponsor()` (migration 0010). The sponsor moved from the project row to the client roles above.

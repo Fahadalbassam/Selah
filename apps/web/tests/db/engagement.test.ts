@@ -459,12 +459,15 @@ describe("departments", () => {
     await expect(run(U.admin, `INSERT INTO departments (org_id, name_ar) VALUES ($1,'x')`, [FIRM])).rejects.toThrow(
       /belong to a client/,
     );
-    // A department's head is reminded at level 2, besides the client's managers.
+    // A department's head is reminded from level 2, besides the client's managers. This head is an
+    // action owner, who cannot open a colleague's action (1b), so she is left out (0088; at level 2
+    // the client's admins are told in her place: tests/db/owner-actions.test.ts).
     await run(U.cadmin, `INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$2,true)`, [DEPT.fin, U.hr]);
     const aid = await action(ACME, { dept: DEPT.fin, owner: U.fin, due: "2026-09-01" });
     const recipients = async (a: string) =>
       (await owner.query(`SELECT * FROM app_follow_ups_due('2026-10-12') WHERE action_id = $1`, [a])).rows[0].recipients;
-    expect(await recipients(aid)).toEqual(expect.arrayContaining([U.fin, U.hr, U.cmgr, U.lead]));
+    expect(await recipients(aid)).toEqual(expect.arrayContaining([U.fin, U.cadmin, U.cmgr, U.lead]));
+    expect(await recipients(aid)).not.toContain(U.hr);
     const noDept = await action(ACME, { owner: U.fin, due: "2026-09-01" });
     expect(await recipients(noDept)).not.toContain(U.hr);
   });

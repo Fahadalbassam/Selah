@@ -526,6 +526,13 @@
       "when": 1794941266147,
       "tag": "0087_owner_definers",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794941692243,
+      "tag": "0088_head_escalation",
+      "breakpoints": true
     }
   ]
 }

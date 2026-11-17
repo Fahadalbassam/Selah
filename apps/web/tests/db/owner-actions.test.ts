@@ -155,7 +155,8 @@ beforeAll(async () => {
     [DEPT.legal, DEPT.fin, DEPT.board, NUKHBA],
   );
   await q(
-    `INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$4,false), ($1,$5,true), ($1,$6,false), ($2,$7,false), ($3,$8,false)`,
+    // As in the walkthrough, Legal's and Finance's heads are action owners.
+    `INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$4,false), ($1,$5,true), ($1,$6,false), ($2,$7,true), ($3,$8,false)`,
     [DEPT.legal, DEPT.fin, DEPT.board, U.nmgr, U.owner, U.mate, U.fin, U.nboard],
   );
   await q(
@@ -488,6 +489,44 @@ describe("every screen and route: her own actions only, a colleague's is Not fou
     expect((await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'follow_up.overdue','action',$2)`, [U.nmgr, A.mate])).rowCount).toBe(1);
     expect((await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'follow_up.due_soon','action',$2)`, [U.owner, A.mine])).rowCount).toBe(1);
     await owner.query(`DELETE FROM notifications WHERE kind LIKE 'follow_up.%'`);
+  });
+
+  // The lead's ruling on the review (17 Nov): when the department's head cannot open the action
+  // (an action owner, not its owner), the escalation that would have gone to her goes to the
+  // client's admins, on the ladder the action shows and in what the reminder job sends, so the
+  // step never reaches nobody. Before 0088 the ladder said "department head" and the job chose her,
+  // and the notice was then dropped.
+  it("an escalation the department's head could not open goes to the client's admins instead", async () => {
+    const legal = id(50);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Legal teammate canary',$5,'in_progress',app_firm_today() - 1,$6,$7)`,
+      [legal, PN, NUKHBA, REC.legal, U.mate, DEPT.legal, U.lead],
+    );
+    const ladder = async (aid: string) =>
+      Object.fromEntries((await rowsAs(U.lead, `SELECT level, audience FROM app_action_ladder($1)`, [aid])).map((r) => [r.level, r.audience]));
+    // Legal's head (owner@nukhba.test's like) owns neither: the client's admins in her place.
+    expect((await ladder(legal))[2]).toEqual(expect.arrayContaining(["client_admins_for_head"]));
+    expect((await ladder(legal))[2]).not.toContain("department_head");
+    // Finance's head owns the Finance action: she is told, as before.
+    expect((await ladder(A.fin))[2]).toContain("department_head");
+    expect((await ladder(A.fin))[2]).not.toContain("client_admins_for_head");
+    // What the job sends at level 2 for the Legal action.
+    const due = async (aid: string) =>
+      (
+        await owner.query(
+          `SELECT level, recipients FROM app_follow_ups_due((SELECT a.due_date + p.escalate_level2_days FROM actions a JOIN projects p ON p.id = a.project_id WHERE a.id = $1))
+           WHERE action_id = $1`,
+          [aid],
+        )
+      ).rows[0] as { level: number; recipients: string[] };
+    const step = await due(legal);
+    expect(step.level).toBe(2);
+    expect(step.recipients).toContain(U.ncadmin);
+    expect(step.recipients).not.toContain(U.owner);
+    const fin = await due(A.fin);
+    expect(fin.recipients).toContain(U.fin);
+    expect(fin.recipients).not.toContain(U.ncadmin);
   });
 
   it("the Files card keeps a teammate's file (files keep their rule) and never names the teammate's action", async () => {

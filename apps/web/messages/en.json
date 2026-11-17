@@ -650,6 +650,7 @@
         "project_lead": "Project lead",
         "sponsor": "Sponsor",
         "client_admins": "Client admins",
+        "client_admins_for_head": "Client admins, in place of the department head, who can't open this action",
         "watching_firm_admins": "Firm admins watching"
       }
     },
