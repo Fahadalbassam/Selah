@@ -1976,7 +1976,7 @@
       "indicator_imported_for_you": "استورد المكتب أرقام مؤشرات لـ{title}",
       "indicator_feed_failing": "توقف ربط لأرقام مؤشرات {title} عن العمل",
       "org_chart_holder_changed": "تغيّر من يشغل مناصب في الهيكل التنظيمي لـ{title}",
-      "org_chart_change_requested": "اقترح {title} تعديلًا على هيكله التنظيمي"
+      "org_chart_change_requested": "اقتراح تعديل على الهيكل التنظيمي لـ{title}"
     },
     "mail": {
       "section": "البريد",
