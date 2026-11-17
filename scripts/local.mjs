@@ -243,7 +243,9 @@ function ensureEnvFiles() {
 
 function checkTools() {
   const major = Number(process.versions.node.split(".")[0]);
-  if (major < 22) fail(`Node.js 22 or newer is needed (this is ${process.versions.node}). Get it from https://nodejs.org`);
+  // Tailwind's CSS build needs Node 22.12 or later (an ES-module-only dependency since 4.3.4).
+  const [, minor] = process.versions.node.split(".").map(Number);
+  if (major < 22 || (major === 22 && minor < 12)) fail(`Node.js 22.12 or newer is needed (this is ${process.versions.node}). Get it from https://nodejs.org`);
   const r = docker(["info", "--format", "{{.ServerVersion}}"], { allowFail: true, quiet: true });
   if (r.error) fail("Docker is not installed. Install Docker Desktop: https://www.docker.com/products/docker-desktop/");
   if (r.status !== 0) fail("Docker is installed but not running. Start Docker Desktop, wait until it says it is running, then try again.");
