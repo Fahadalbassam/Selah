@@ -23,6 +23,8 @@ export interface MovedAwayFacts {
   targetDate: string | null;
   /** The target's date had passed when the value was saved (firm day): the target is named too. */
   targetPassed: boolean;
+  /** Who reads it: the client's own people are spoken to ("your company"), the firm reads "the client". */
+  reader: "firm" | "client";
 }
 
 /** The sentence's values in the reader's language: numbers and periods as the indicator page writes them. */
@@ -34,6 +36,7 @@ export function movedAwayValues(f: MovedAwayFacts, locale: "ar" | "en"): Record<
     period: periodLabel(f.period, f.frequency, locale),
     baseline: formatValue(f.baseline, locale),
     direction: f.direction,
+    reader: f.reader,
     withTarget: withTarget ? "yes" : "no",
     target: withTarget ? formatValue(f.target!, locale) : "",
     targetDate: withTarget

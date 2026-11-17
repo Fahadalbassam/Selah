@@ -27,6 +27,7 @@ const complaints: MovedAwayFacts = {
   target: null,
   targetDate: null,
   targetPassed: false,
+  reader: "firm",
 };
 const onTime: MovedAwayFacts = {
   kpiId: "k2",
@@ -39,11 +40,13 @@ const onTime: MovedAwayFacts = {
   target: 80,
   targetDate: "2026-09-30",
   targetPassed: true,
+  reader: "client",
 };
 const cases = [
   { title: { ar: "الشكاوى", en: "Complaints" }, facts: complaints },
+  { title: { ar: "الشكاوى", en: "Complaints" }, facts: { ...complaints, reader: "client" as const } },
   { title: { ar: "الطلبات في موعدها", en: "Orders on time" }, facts: onTime },
-  { title: { ar: "الطلبات في موعدها", en: "Orders on time" }, facts: { ...onTime, targetPassed: false } },
+  { title: { ar: "الطلبات في موعدها", en: "Orders on time" }, facts: { ...onTime, targetPassed: false, reader: "firm" as const } },
   { title: { ar: "الشكاوى", en: "Complaints" }, facts: { ...complaints, direction: "higher_better" as const, value: 20 } },
 ];
 
@@ -62,6 +65,16 @@ describe("the moved-away notice", () => {
     };
     expect(line("ar", "الشكاوى", complaints)).toBe(expected.ar);
     expect(line("en", "Complaints", complaints)).toBe(expected.en);
+  });
+
+  it("speaks to the client's own people about their company, and to the firm about the client", () => {
+    const client = { ...complaints, reader: "client" as const };
+    expect(line("ar", "الشكاوى", client)).toMatch(/الأقل أفضل\. أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا\.$/);
+    expect(line("en", "Complaints", client)).toMatch(/lower is better\. Your company's reported figures, not verified impact\.$/);
+    for (const locale of ["ar", "en"] as const) {
+      expect(line(locale, "x", client)).not.toMatch(/العميل|the client/);
+      expect(line(locale, "x", complaints)).toMatch(locale === "ar" ? /يبلّغ عنها العميل/ : /reported by the client/);
+    }
   });
 
   it("names the target, with its date, once the target date had passed", () => {

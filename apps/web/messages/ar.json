@@ -1975,7 +1975,7 @@
       "indicator_data_proposed": "اقترح مستشاركم طريقة لوصول أرقام مؤشراتكم إلى صلة",
       "indicator_imported_for_you": "استورد المكتب أرقام مؤشرات لـ{title}",
       "indicator_feed_failing": "توقف ربط لأرقام مؤشرات {title} عن العمل",
-      "indicator_moved_away": "{title}: {value} {unit} في {period}، خط الأساس {baseline} {unit}{withTarget, select, yes {، والمستهدف {target} {unit} بحلول {targetDate}} other {}}، {direction, select, lower_better {الأقل أفضل} other {الأعلى أفضل}}. أرقام يبلّغ عنها العميل، وليست أثرًا موثّقًا."
+      "indicator_moved_away": "{title}: {value} {unit} في {period}، خط الأساس {baseline} {unit}{withTarget, select, yes {، والمستهدف {target} {unit} بحلول {targetDate}} other {}}، {direction, select, lower_better {الأقل أفضل} other {الأعلى أفضل}}. {reader, select, client {أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا.} other {أرقام يبلّغ عنها العميل، وليست أثرًا موثّقًا.}}"
     },
     "mail": {
       "section": "البريد",

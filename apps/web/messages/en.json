@@ -1975,7 +1975,7 @@
       "indicator_data_proposed": "Your consultant suggested how your indicator figures could reach Selah",
       "indicator_imported_for_you": "The firm imported indicator figures for {title}",
       "indicator_feed_failing": "A connection for {title}'s indicator figures has stopped working",
-      "indicator_moved_away": "{title}: {value} {unit} in {period}, baseline {baseline} {unit}{withTarget, select, yes {, target {target} {unit} by {targetDate}} other {}}, {direction, select, lower_better {lower is better} other {higher is better}}. Figures reported by the client, not verified impact."
+      "indicator_moved_away": "{title}: {value} {unit} in {period}, baseline {baseline} {unit}{withTarget, select, yes {, target {target} {unit} by {targetDate}} other {}}, {direction, select, lower_better {lower is better} other {higher is better}}. {reader, select, client {Your company's reported figures, not verified impact.} other {Figures reported by the client, not verified impact.}}"
     },
     "mail": {
       "section": "Mail",

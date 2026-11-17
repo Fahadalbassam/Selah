@@ -211,6 +211,10 @@ describe("one notice for a value on the other side of the baseline", () => {
     const item = list.items.find((i) => i.kind === "indicator.moved_away")!;
     expect([item.title, item.titleAr, item.href]).toEqual(["Complaints", "الشكاوى", `/indicators/${K.complaints}`]);
     expect(item.facts).toMatchObject({ value: 42, period: "2026-02-01", baseline: 30, direction: "lower_better", unit: "complaints", targetPassed: false });
+    // The firm reads "reported by the client"; the client's admin is spoken to about their company.
+    expect(item.facts?.reader).toBe("firm");
+    const theirs = (await svc(U.cadmin2, (tx, p) => N.listNotifications(tx, p))).items.find((i) => i.kind === "indicator.moved_away")!;
+    expect(theirs.facts?.reader).toBe("client");
   });
 
   it("tells no one about a value on the right side, or on the baseline itself; the next one past it does", async () => {

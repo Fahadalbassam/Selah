@@ -155,6 +155,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
         target: v.target === null ? null : Number(v.target),
         targetDate: v.targetDate,
         targetPassed: v.targetDate !== null && firmToday(v.enteredAt) > v.targetDate,
+        reader: principal.orgKind === "firm" ? "firm" : "client",
       });
     }
   }
