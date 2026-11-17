@@ -8,7 +8,7 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
@@ -19,6 +19,23 @@ import { getEngagement, setEngagement } from "@/services/engagement";
 import * as OC from "@/services/org-chart";
 import { loadPrincipal } from "@/services/principal";
 import { truncateAuditLog } from "./audit-reset";
+
+// The assistant's model, faked: it keeps what reached it and answers with the question it got,
+// plus a placeholder of a name nobody wrote.
+const toModel = vi.hoisted(() => [] as { question: string; passages: { text: string; source: string }[]; history: { content: string }[] }[]);
+vi.mock("@/services/ai-client", () => ({
+  embed: async (texts: string[]) => texts.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0))),
+  answer: async (question: string, passages: { id: string; text: string; source: string }[], _lang: string, history: { content: string }[]) => {
+    toModel.push({ question, passages, history });
+    return { answer: `${question} [PERSON_99]`, cited_ids: [passages[0]!.id], grounded: true };
+  },
+  translateText: async () => {
+    throw new Error("not in tests");
+  },
+  summarizePages: async () => {
+    throw new Error("not in tests");
+  },
+}));
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -777,6 +794,46 @@ describe("masking for the assistant", () => {
     // A name written in the text she is translating is still masked.
     const inText = (await attempt(U.mgr, `SELECT term FROM app_mask_terms_in($1, 'Auditor Person signed it')`, [P])).rows.map((r) => r.term);
     expect(inText).toContain("Auditor Person");
+  });
+});
+
+describe("the assistant masks every typed holder name, whoever asks", () => {
+  const typed = ["Auditor Person", "Cfo Person", "Clerk One", "Hessa Chair", "Nasser Ceo", "Payables Lead"];
+
+  it("a manager with names off, the client admin and a consultant: no typed name reaches the model, and the answer gives back only what they wrote", async () => {
+    const A = await import("@/services/assistant");
+    const C = await import("@/services/client-ai");
+    const { CLIENT_AI_VERSION } = await import("@/lib/client-ai");
+    await svc(U.admin, (tx, p) => C.setClientAi(tx, p, ACME, { enabled: true, roles: ["client_admin", "client_manager"], dailyLimit: 50 }), true);
+    await svc(U.cadmin, (tx, p) => C.consentClientAi(tx, p, { version: CLIENT_AI_VERSION, locale: "ar" }), true);
+    // The action the chat is about names two more of them in its title (a passage), and the chat's earlier turn names them again (history).
+    await owner.query(`UPDATE actions SET title = 'Clerk One prepared it and Nasser Ceo approved it' WHERE id = $1`, [ACT.fin]);
+    process.env.AI_MASKING = "on";
+    try {
+      const question = "Did Auditor Person sign it, and was Hessa Chair there?";
+      for (const who of [U.mgr, U.cadmin, U.cons]) {
+        toModel.length = 0;
+        const first = await svc(who, (tx, p) => A.ask(tx, p, { projectId: P, question, language: "en", case: { type: "action", id: ACT.fin } }), true);
+        const again = await svc(who, (tx, p) => A.ask(tx, p, { projectId: P, conversationId: first.conversationId, question: "And Payables Lead?", language: "en" }), true);
+        expect(toModel, who).toHaveLength(2);
+        for (const got of toModel) {
+          const outgoing = [got.question, ...got.passages.flatMap((x) => [x.text, x.source]), ...got.history.map((h) => h.content)].join("\n");
+          for (const name of typed) expect(outgoing, `${who} sent ${name}`).not.toContain(name);
+          expect(got.question, who).toMatch(/\[PERSON_\d+\]/);
+        }
+        expect(toModel[0]!.passages.some((x) => /\[PERSON_\d+\] prepared it/.test(x.text)), who).toBe(true);
+        expect(toModel[1]!.history.length, who).toBeGreaterThan(0);
+        // What comes back is unmasked to the names the person wrote, and to nothing else.
+        expect(first.answer, who).toContain("Auditor Person");
+        expect(first.answer, who).toContain("Hessa Chair");
+        for (const name of typed.filter((n) => !question.includes(n))) expect(first.answer, `${who} got ${name}`).not.toContain(name);
+        expect(again.answer, who).toContain("Payables Lead");
+      }
+    } finally {
+      delete process.env.AI_MASKING;
+      await owner.query(`UPDATE actions SET title = 'Finance canary' WHERE id = $1`, [ACT.fin]);
+      for (const t of ["client_ai_consents", "client_ai_settings", "ai_usage"]) await owner.query(`DELETE FROM ${t}`);
+    }
   });
 });
 
