@@ -276,9 +276,13 @@ const dept = {
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.legal.id, C.nOwner, { isHead: true }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.finance.id, C.nOwner2, { isHead: true }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.secretariat.id, C.nManager, { isHead: true }));
-// A manager sees company-wide work and their departments' (docs/authorization.md): the CEO sits in two.
+// A manager sees company-wide work and their departments' (docs/authorization.md). The CEO, the
+// project's sponsor, chairs the steering committee, so he sits in all three: no department limit
+// applies to him and he opens the whole project's meetings (decision 1a; the agenda options paper:
+// remove that one person's department limit). Reem stays limited to the board secretariat.
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.secretariat.id, C.nSponsor, { isHead: false }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.finance.id, C.nSponsor, { isHead: false }));
+await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.legal.id, C.nSponsor, { isHead: false }));
 
 // A person at the client without an account: the external auditor.
 const auditor = await as(U.lead, (tx, p) =>
@@ -707,6 +711,36 @@ for (const [a, who, f] of [
   await as(U.lead2, (tx, p) => transitionAction(tx, p, a, { to: "verified_complete" }));
 }
 await start(RA.review.id, C.rOwner);
+// Two meetings of the whole project (Rawdah has no departments): a review held three
+// weeks ago, and the hand-over meeting, to which owner@rawdah.test is invited. She
+// opens it and its agenda shows only her own actions (decision 1a); the client's
+// admin and the firm read all four. manager@rawdah.test, not invited, reads it too:
+// no department limit applies at Rawdah.
+const rReview = await as(U.lead2, (tx, p) =>
+  bookMeeting(tx, p, plan.id, {
+    kind: "status",
+    title: "Strategy review with the trustees",
+    startsAt: at(-21, 10),
+    endsAt: at(-21, 11),
+    location: "in_person",
+    locationText: "Rawdah head office",
+    spokenLang: "en",
+    attendees: [{ userId: C.rAdmin }, { userId: C.rManager }],
+  }),
+);
+await as(U.lead2, (tx, p) => updateMeeting(tx, p, rReview.id, { status: "held" }));
+await as(U.lead2, (tx, p) =>
+  bookMeeting(tx, p, plan.id, {
+    kind: "handover",
+    title: "Hand-over of the quarterly reviews",
+    startsAt: at(3, 11),
+    endsAt: at(3, 12),
+    location: "online",
+    joinUrl: "https://meet.google.com/rwd-hand-ovr",
+    spokenLang: "en",
+    attendees: [{ userId: C.rAdmin }, { userId: C.rOwner }],
+  }),
+);
 // The sponsor asks to close; the lead starts the closing gate, hands the one
 // open action to Rawdah with a named person to keep it going, and writes the
 // lessons. Closing itself is left for the firm admin to do in the walkthrough.

@@ -325,7 +325,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
                 <CardTitle className="text-base">{t("linksTitle")}</CardTitle>
                 <CardDescription>{t("linksHint")}</CardDescription>
               </div>
-              {detail.canManage && detail.linkable.length ? (
+              {detail.canLink && detail.linkable.length ? (
                 <LinkDialog
                   options={detail.linkable.map((r) => ({ value: `${k.id}:${r.id}`, label: r.title, group: r.projectTitle }))}
                   trigger={
@@ -348,7 +348,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
                         <Link href={`/recommendations/${l.id}`} className="min-w-0 flex-1 font-medium hover:underline" dir="auto">
                           {l.title}
                         </Link>
-                        {detail.canManage ? (
+                        {detail.canLink ? (
                           <ApiButton endpoint={`/api/indicators/${k.id}/links/${l.id}`} method="DELETE" label={t("unlink")} variant="ghost" confirm={t("unlinkConfirm")} />
                         ) : null}
                       </div>

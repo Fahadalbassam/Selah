@@ -248,9 +248,12 @@ export const POLICY = {
   // Business indicators (KPI layer B): the client's own numbers, beside the
   // work. Read and reported (a value for a period) by the firm and the
   // client's admins and managers, managers only for the company and their
-  // own departments (the database: app_kpi_readable). Set up, changed and
-  // linked to recommendations by the firm and the client's admin. The firm
-  // checks a value against the client's source, never one it entered.
+  // own departments (the database: app_kpi_readable). Set up and changed by
+  // the firm and the client's admin. Linked to a recommendation only by the
+  // firm (decision 1c, 17 Nov 2026): the link is the consultant's statement
+  // that the recommendation is expected to move the number; the client reads
+  // the links it may see. The firm checks a value against the client's
+  // source, never one it entered.
   // Indicators belong to the client, not to a project, so the observer rule
   // does not reach them. A consultant changes them only where they do the
   // client's work ("working": lead or deputy, or staffed on one of its
@@ -259,6 +262,9 @@ export const POLICY = {
   "indicator.read": { ...ALL_BUT_OWNER },
   "indicator.report": { ...ALL_BUT_OWNER, consultant: "working" },
   "indicator.manage": { firm_admin: "any", consultant: "working", client_admin: "any" },
+  // Link and unlink a recommendation: firm staff only (the database: links
+  // writer policies, app_firm_changes_kpis, migration 0083).
+  "indicator.link": { firm_admin: "any", consultant: "working" },
   "indicator.check": { firm_admin: "any", consultant: "working" },
   // How the client's figures reach Selah (typed, files, connected) and its
   // connections: the client's admin; the firm only for a client with no

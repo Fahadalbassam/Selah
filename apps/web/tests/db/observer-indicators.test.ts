@@ -168,7 +168,7 @@ afterAll(async () => {
 describe("who changes a client's indicators", () => {
   it("the permission check: the admin, the lead, the deputy and a staffed consultant; not an observer or a team-only consultant", async () => {
     const res = { type: "indicator" as const, orgId: ACME, firmOrgId: FIRM, projectId: null };
-    for (const permission of ["indicator.report", "indicator.manage", "indicator.check", "indicator.data"] as const) {
+    for (const permission of ["indicator.report", "indicator.manage", "indicator.link", "indicator.check", "indicator.data"] as const) {
       for (const who of CHANGERS) expect(authorize(await svc(who, async (_tx, p) => p), permission, res).allowed).toBe(true);
       for (const who of READERS) expect(authorize(await svc(who, async (_tx, p) => p), permission, res).allowed).toBe(false);
     }
@@ -187,7 +187,7 @@ describe("who changes a client's indicators", () => {
       expect([detail.canManage, detail.canReport, detail.canCheck, detail.canDelete]).toEqual([false, false, false, false]);
       expect(detail.linkable).toEqual([]);
       // The recommendation page's link and unlink (the observer opens the project; the team-only consultant does not).
-      if (who === U.obs) expect((await svc(who, (tx, p) => I.recommendationIndicators(tx, p, REC)))?.canManage).toBe(false);
+      if (who === U.obs) expect((await svc(who, (tx, p) => I.recommendationIndicators(tx, p, REC)))?.canLink).toBe(false);
       const data = await svc(who, (tx, p) => dataSettings(tx, p, MANAGED));
       expect([data.canChoose, data.canPropose, data.canConnect, data.canManage]).toEqual([false, false, false, false]);
 
@@ -325,6 +325,50 @@ describe("who changes a client's indicators", () => {
     // Another firm's reach is unchanged: nobody from outside the client's team.
     expect((await attempt(U.deputy, `SELECT app_firm_changes_kpis($1) AS ok`, [MANAGED])).rows[0].ok).toBe(false);
     for (const who of [U.cadmin, U.cmgr]) expect((await attempt(who, `SELECT app_firm_changes_kpis($1) AS ok`, [ACME])).rows[0].ok).toBe(false);
+  });
+});
+
+// Decision 1c (product owner, 17 Nov 2026; migration 0083_indicator_links_firm): only
+// firm staff link an indicator to a recommendation. The link is the consultant's
+// statement that the recommendation should move the number; the client reads the
+// links it may see, and still sets up and changes its own indicators. This block
+// failed before 0083 and the policy.ts change (the client admin could link and unlink).
+describe("linking an indicator to a recommendation is the firm's", () => {
+  it("a client admin's link and unlink are refused (Not found) through the API, and the page offers neither", async () => {
+    await expect(svc(U.cadmin, (tx, p) => I.linkRecommendation(tx, p, K.acme, REC))).rejects.toThrow(/forbidden/);
+    await svc(U.lead, (tx, p) => I.linkRecommendation(tx, p, K.acme, REC), true);
+    await expect(svc(U.cadmin, (tx, p) => I.unlinkRecommendation(tx, p, K.acme, REC))).rejects.toThrow(/forbidden/);
+    const res = { type: "indicator" as const, orgId: ACME, firmOrgId: FIRM, projectId: null };
+    for (const who of [U.cadmin, U.cmgr]) expect(authorize(await svc(who, async (_tx, p) => p), "indicator.link", res).allowed).toBe(false);
+    // She still reads the link, sets up and changes her indicators, and enters values.
+    const detail = await svc(U.cadmin, (tx, p) => I.getIndicator(tx, p, K.acme));
+    expect(detail.links.map((l) => l.id)).toEqual([REC]);
+    expect([detail.canManage, detail.canLink, detail.linkable]).toEqual([true, false, []]);
+    expect(await svc(U.cadmin, (tx, p) => I.recommendationIndicators(tx, p, REC))).toMatchObject({ canLink: false, others: [] });
+    const mine = await svc(U.cadmin, (tx, p) => I.createIndicator(tx, p, ACME, INPUT), true);
+    await svc(U.cadmin, (tx, p) => I.updateIndicator(tx, p, mine.id, { nameEn: "Renamed" }), true);
+  });
+
+  it("refused straight in the database too, while the link still shows to her", async () => {
+    await owner.query(`INSERT INTO client_kpi_links (kpi_id, org_id, recommendation_id, created_by) VALUES ($1,$2,$3,$4)`, [K.acme, ACME, REC, U.lead]);
+    expect((await attempt(U.cadmin, `SELECT 1 FROM client_kpi_links`)).rowCount).toBe(1);
+    expect((await attempt(U.cadmin, `DELETE FROM client_kpi_links WHERE kpi_id = $1`, [K.acme])).rowCount).toBe(0);
+    await owner.query(`DELETE FROM client_kpi_links`);
+    await expect(
+      attempt(U.cadmin, `INSERT INTO client_kpi_links (kpi_id, org_id, recommendation_id, created_by) VALUES ($1,$2,$3,$4)`, [K.acme, ACME, REC, U.cadmin]),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("the lead and a staffed consultant link and unlink; an observer cannot (D4)", async () => {
+    for (const who of [U.lead, U.cons]) {
+      await svc(who, (tx, p) => I.linkRecommendation(tx, p, K.acme, REC), true);
+      expect((await svc(who, (tx, p) => I.getIndicator(tx, p, K.acme))).canLink).toBe(true);
+      await svc(who, (tx, p) => I.unlinkRecommendation(tx, p, K.acme, REC), true);
+    }
+    await expect(svc(U.obs, (tx, p) => I.linkRecommendation(tx, p, K.acme, REC))).rejects.toThrow(REFUSED);
+    await expect(
+      attempt(U.obs, `INSERT INTO client_kpi_links (kpi_id, org_id, recommendation_id, created_by) VALUES ($1,$2,$3,$4)`, [K.acme, ACME, REC, U.obs]),
+    ).rejects.toThrow(/row-level security/);
   });
 });
 

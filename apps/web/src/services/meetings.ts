@@ -15,6 +15,7 @@ import {
   meetingTranscripts,
   documents,
   meetings,
+  organizations,
   projects,
   user,
 } from "@/db/schema";
@@ -114,6 +115,11 @@ export async function bookMeeting(
     // by people who see its work: the firm, the client's admin, its own people.
     const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_dept_ok(${input.departmentId}::uuid, ${project.orgId}::uuid) as ok`);
     if (!rows[0]?.ok) throw new BadRequestError("book a department's meeting for a department you are in");
+  } else if (!(await readsWholeProject(tx, projectId))) {
+    // A whole-project meeting opens only for people who may see all of the
+    // project's work (decision 1a); its organiser too. The database refuses the
+    // same (policy whole_project on meetings).
+    throw new BadRequestError("book a meeting for one of your departments: a whole-project meeting is for people who see all of the project's work");
   }
   const id = randomUUID();
   await tx.insert(meetings).values({
@@ -155,17 +161,57 @@ export async function bookMeeting(
 }
 
 /**
+ * Whether the caller may see everything on the project, and so open and book
+ * a meeting of the whole project (decision 1a): firm staff on it, the client's
+ * admin, a client manager in every department (or with departments off).
+ * Stable: it never moves when work is released (migration 0084).
+ */
+async function readsWholeProject(tx: Tx, projectId: string) {
+  const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_sees_whole_project(${projectId}::uuid) as ok`);
+  return rows[0]?.ok === true;
+}
+
+/**
  * Whom the user can invite to a meeting on the project: people with an
- * account who can open it and, for the firm, the client's contacts.
+ * account who can open it and, for the firm, the client's contacts. For each
+ * person, whether they could open a meeting of the whole project, and their
+ * departments: the booking form warns before saving when someone could not
+ * (decision 1a). With the departments the caller may book a meeting for, and
+ * whether they may book one for the whole project.
  */
 export async function meetingInvitees(tx: Tx, principal: Principal, projectId: string) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility: "shared" });
-  const { rows } = await tx.execute<{ user_id: string; name: string; firm: boolean }>(
+  const { rows } = await tx.execute<{ user_id: string; name: string; firm: boolean; whole_project: boolean; departments: string[] }>(
     sql`select * from app_meeting_invitees(${projectId})`,
   );
   // The user themselves included: they can be assigned a follow-up.
-  const people = rows.map((r) => ({ userId: r.user_id, name: r.name, firm: r.firm }));
+  const people = rows.map((r) => ({
+    userId: r.user_id,
+    name: r.name,
+    firm: r.firm,
+    wholeProject: r.whole_project,
+    departmentIds: r.departments ?? [],
+  }));
+  // The client's departments the caller may book a meeting for (the firm and
+  // the client's admin: all of them; a manager: her own). Row-level security
+  // and the department check decide, as when booking.
+  const bookable =
+    project.kind === "client"
+      ? await tx
+          .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+          .from(departments)
+          .innerJoin(organizations, eq(organizations.id, departments.orgId))
+          .where(
+            and(
+              eq(departments.orgId, project.orgId),
+              eq(departments.active, true),
+              eq(organizations.departmentsEnabled, true),
+              sql`app_dept_ok(${departments.id}, ${departments.orgId})`,
+            ),
+          )
+          .orderBy(asc(departments.nameAr))
+      : [];
   // Only the firm keeps the contact list (RLS returns nothing to anyone else).
   const contacts =
     principal.orgKind === "firm" && project.kind === "client"
@@ -180,7 +226,7 @@ export async function meetingInvitees(tx: Tx, principal: Principal, projectId: s
           .where(eq(clientContacts.orgId, project.orgId))
           .orderBy(asc(clientContacts.name))
       : [];
-  return { people, contacts };
+  return { people, contacts, departments: bookable, wholeProject: await readsWholeProject(tx, projectId) };
 }
 
 export async function getMeeting(tx: Tx, principal: Principal, id: string) {
@@ -247,12 +293,15 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
   // every write of theirs here (migration 0034), so no control is offered.
   const observing = principal.observedProjectIds?.has(meeting.projectId) ?? false;
   const canRun = !observing && (principal.orgKind === "firm" || meeting.organizerId === principal.userId);
-  // The stored agenda names the project's late, waiting and blocked actions.
-  // Only a reader who may open all of them gets the text; anyone else is told
-  // there is one (decision D8), and the text never leaves the database.
-  const { rows: agendaRows } = await tx.execute<{ agenda: string | null; withheld: boolean }>(
-    sql`select agenda, withheld from app_meeting_agenda_for(${id}::uuid)`,
+  // The stored agenda names the project's late, waiting and blocked actions,
+  // as they stood at booking. Only a reader who may see everything on the
+  // project gets that text; everyone else gets the same lists built now from
+  // the actions they can read (an action owner: her own), so the text never
+  // leaves the database for them (decision 1a, the lead's ruling, 0085).
+  const { rows: agendaRows } = await tx.execute<{ agenda: string | null; live: boolean }>(
+    sql`select agenda, live from app_meeting_agenda_for(${id}::uuid)`,
   );
+  const agendaScope: "all" | "own" | "readable" = !agendaRows[0]?.live ? "all" : principal.role === "action_owner" ? "own" : "readable";
   const sources = summary ? await summarySources(tx, id) : [];
   // Files a summary line can cite: this project's, as row-level security shows them to firm staff who run it.
   const sourceFiles =
@@ -270,7 +319,8 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
       : [];
   return {
     meeting: { ...meeting, agendaMd: agendaRows[0]?.agenda ?? null },
-    agendaWithheld: agendaRows[0]?.withheld ?? false,
+    /** "all": the stored agenda; "own": built from the reader's own actions; "readable": from the work they can open. */
+    agendaScope,
     attendees,
     decisions,
     followUps: follow,
@@ -707,8 +757,8 @@ export async function schedule(tx: Tx, principal: Principal, filter: ScheduleFil
       ${filter.clientId ? sql`and s.org_id = ${filter.clientId}` : sql``}
       ${filter.userId ? sql`and ${filter.userId}::uuid = any (s.people)` : sql``}
       ${
-        // An action owner opens only their own actions and follow-ups (policy.ts: "assigned"); row-level
-        // security alone would also list their colleagues' action titles here. Meetings stay as they are.
+        // An action owner opens only their own actions and follow-ups (policy.ts: "assigned"). Row-level
+        // security says the same since migration 0081; this stays as a second lock. Meetings stay as they are.
         principal.role === "action_owner" ? sql`and (s.item_type = 'meeting' or ${principal.userId}::uuid = any (s.people))` : sql``
       }
     order by s.starts_at, s.title

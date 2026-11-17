@@ -477,6 +477,69 @@
       "when": 1794933057004,
       "tag": "0080_ladder_firm_run",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794936368476,
+      "tag": "0081_owner_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794936376148,
+      "tag": "0082_whole_project_meetings",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1794936383775,
+      "tag": "0083_indicator_links_firm",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794939785524,
+      "tag": "0084_whole_project_readers",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794940143360,
+      "tag": "0085_live_agenda",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1794940528748,
+      "tag": "0086_owner_follow_ups",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794941266147,
+      "tag": "0087_owner_definers",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794941692243,
+      "tag": "0088_head_escalation",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794944794464,
+      "tag": "0089_mask_terms_in_text",
+      "breakpoints": true
     }
   ]
 }

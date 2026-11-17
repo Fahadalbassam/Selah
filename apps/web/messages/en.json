@@ -650,6 +650,7 @@
         "project_lead": "Project lead",
         "sponsor": "Sponsor",
         "client_admins": "Client admins",
+        "client_admins_for_head": "Client admins, in place of the department head, who can't open this action",
         "watching_firm_admins": "Firm admins watching"
       }
     },
@@ -1150,7 +1151,10 @@
     "calendar": "Add to calendar",
     "markHeld": "Mark as held",
     "agenda": "Agenda",
-    "agendaWithheld": "The agenda is shown to people who can open all of the project's work. Ask the organiser what concerns you.",
+    "agendaReadable": "Only the work you can open on this meeting's agenda.",
+    "agendaReadableNone": "Nothing you can open is on this meeting's agenda.",
+    "agendaOwn": "Only your own actions on this meeting's agenda.",
+    "agendaOwnNone": "None of your actions is on this meeting's agenda.",
     "summary": "Summary",
     "noSummary": "No summary yet.",
     "decisions": "Decisions",
@@ -1269,11 +1273,18 @@
         "cannotOpen": "One of the people chosen can't open this project, or can't see a firm-only meeting.",
         "firmPrivate": "This meeting is firm only, so its records stay firm only.",
         "cannotMove": "A held or cancelled meeting can't be moved.",
-        "otherMeeting": "That decision is from another meeting."
+        "otherMeeting": "That decision is from another meeting.",
+        "wholeProject": "A whole-project meeting is booked by people who see all of the project's work. Choose one of your departments."
       },
       "department": "Department",
       "wholeProject": "The whole project",
-      "departmentHint": "A department's meeting gets an agenda of that department's work only."
+      "departmentHint": "A department's meeting gets an agenda of that department's work only. A whole-project meeting opens only for people who see all of the project's work.",
+      "departmentOnlyHint": "A whole-project meeting opens only for people who see all of the project's work, so you book one for one of your departments.",
+      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. You can still save it.",
+      "makeDepartmentMeeting": "Make it a {department} meeting",
+      "leftOutNoOffer": "To include them, book a meeting for their department instead.",
+      "leftOutNoDepartment": "{n, plural, one {Someone in no department is not included by any department's meeting either: have them added to a department first, or leave them out.} other {People in no department are not included by any department's meeting either: have them added to a department first, or leave them out.}}",
+      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department. You can still add them; they won't be able to open it."
     },
     "record": {
       "mainPoints": "Main points",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callProvider, localInstant, localParts, meetingError } from "@/lib/meetings";
+import { callProvider, departmentsToOffer, leftOutOfMeeting, localInstant, localParts, meetingError } from "@/lib/meetings";
 
 describe("meeting form helpers", () => {
   it("accept the same call links as the database", () => {
@@ -24,5 +24,37 @@ describe("meeting form helpers", () => {
     expect(meetingError("use a Google Meet, Teams or Zoom link starting with https://")).toBe("badLink");
     expect(meetingError("that person cannot open this meeting's project")).toBe("cannotOpen");
     expect(meetingError("refused by a data rule")).toBeNull();
+    expect(meetingError("book a meeting for one of your departments: a whole-project meeting is for people who see all of the project's work")).toBe(
+      "wholeProject",
+    );
+  });
+});
+
+// Decision 1a: the booking form says, before saving, who could not open a
+// meeting of the whole project, and offers a department's meeting instead.
+describe("the invite warning", () => {
+  const people = [
+    { userId: "a", name: "Sara", wholeProject: false, departmentIds: ["board"] },
+    { userId: "b", name: "Huda", wholeProject: true, departmentIds: ["legal"] },
+    { userId: "c", name: "Omar", wholeProject: false, departmentIds: ["board", "legal"] },
+  ];
+  const bookable = [
+    { id: "board", label: "Board secretariat" },
+    { id: "finance", label: "Finance" },
+  ];
+
+  it("names the people chosen who could not open a meeting of the whole project", () => {
+    expect(leftOutOfMeeting(people, ["a", "b"], null).map((p) => p.name)).toEqual(["Sara"]);
+    expect(leftOutOfMeeting(people, ["a", "b", "c"], null).map((p) => p.name)).toEqual(["Sara", "Omar"]);
+    expect(leftOutOfMeeting(people, ["b"], null)).toEqual([]);
+  });
+
+  it("says nothing for a department's meeting: whoever is invited to one opens it", () => {
+    expect(leftOutOfMeeting(people, ["a", "c"], "finance")).toEqual([]);
+  });
+
+  it("offers the departments of the people left out that the organiser may book for", () => {
+    expect(departmentsToOffer(leftOutOfMeeting(people, ["a", "c"], null), bookable).map((d) => d.label)).toEqual(["Board secretariat"]);
+    expect(departmentsToOffer([], bookable)).toEqual([]);
   });
 });

@@ -18,7 +18,7 @@ export async function LinkedIndicatorsCard({ recommendationId, data }: { recomme
   const [t, locale] = await Promise.all([getTranslations("indicators"), getLocale()]);
   const ar = locale === "ar";
   const lang = ar ? "ar" : "en";
-  if (!data.linked.length && !data.canManage) return null;
+  if (!data.linked.length && !data.canLink) return null;
   return (
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
@@ -26,7 +26,7 @@ export async function LinkedIndicatorsCard({ recommendationId, data }: { recomme
           <CardTitle className="text-base">{t("linkedTitle")}</CardTitle>
           <CardDescription>{t("linkedHint")}</CardDescription>
         </div>
-        {data.canManage && data.others.length ? (
+        {data.canLink && data.others.length ? (
           <LinkDialog
             options={data.others.map((k) => ({ value: `${k.id}:${recommendationId}`, label: indicatorName(k, ar) }))}
             trigger={
@@ -59,7 +59,7 @@ export async function LinkedIndicatorsCard({ recommendationId, data }: { recomme
                 </div>
                 <Sparkline points={k.summary.points} target={k.target} label={t("trendLabel", { name: indicatorName(k, ar) })} />
                 <MovementBadge summary={k.summary} />
-                {data.canManage ? (
+                {data.canLink ? (
                   <ApiButton endpoint={`/api/indicators/${k.id}/links/${recommendationId}`} method="DELETE" label={t("unlink")} variant="ghost" confirm={t("unlinkConfirm")} />
                 ) : null}
               </li>
