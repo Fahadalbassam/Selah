@@ -169,3 +169,18 @@ Fahad's answers and two approved features. His full text is kept in `docs/review
 ### #156: the failing check, explained
 
 The database check failed on one test: `indicator-data.test.ts` still expected the old wording of the new "connection" message. I had reworded that message (so it reads right for the client admin as well as the firm) and ran only the unit tests and lint afterwards, not the database tests. Fixed by updating the test; the file passes (13 tests). My mistake: from now on any change to a message string is followed by the database tests too.
+
+### 17 Nov, evening (batch 0 continued)
+
+| Pull request | What | Checked |
+|---|---|---|
+| #155 | Tests with fixed dates that stop working as time passes (4 dates moved; 461 others read and left) | CI green; low code review, no findings |
+| #156 | The privacy leaks (recommendation page, department meetings, activity record, agenda stop-gap, status pack in the database, Departments links, plan and Excel wording, Files card, `/api/schedule`, observer rule D4, assessments tab) | Independent review: 1 blocking (Files card) and 6 should-fix, all fixed; screen check on a copy of the walkthrough data (`selah_check`); CI green after one failure of mine (a reworded message whose database test I had not re-run) |
+| #157 | Gate A follow-ups recorded; the helper brief lists every decision; Fahad's answer that an invited action owner may open any meeting and sees only their own actions | documents only |
+| #158 | Package update (Next.js 16.4.2 → 16.4.6 and 14 others, from Dependabot's #149, which it closed); Node 22.12 or newer required (Tailwind 4.3.4+) | full suite, production build, `npm audit --omit=dev` 0; release notes read; the new menu animation reads the text direction and respects reduced motion; low code review, no findings. One slip caught before CI: a local npm rewrite dropped the lock file's platform fields; restored |
+
+**Drafts hidden from clients (D6)**, branch `batch0/drafts-hidden`, migrations 0076 and 0077. Built with the full list of what relied on clients seeing drafts (in the builder's hand-back). Two corrections from me: the migration no longer deletes old notifications (the new rule hides them; deleting user data needs Fahad's OK), and a draft no longer withholds the agenda (`app_reads_all_actions`). Independent review (`work/drafts-hidden-review.md`): no blocking finding; three should-fix and the notes that matter are being fixed, including an older leak it found (the client admin's activity record showed actions under firm-only recommendations) and a firm-side line on drafts ("not visible to the client until you release it; comments become visible after release").
+
+**Remaining screen bugs**, branch `batch0/screen-bugs`, migrations 0080 and 0081 (renumbered after the drafts merge). All items of batch 0's screen list, each with a test that failed first. The builder also found that on a consultant-managed client the note and evidence forms could not be sent at all (the API wanted how and when the client sent it, the form did not ask); fixed in the same branch. Independent review running (`work/screen-bugs-review.md`).
+
+**Stops.** Every helper stopped once more at a usage limit (the drafts builder and the screen-bugs reviewer at 17:00, both resumed from saved work). Nothing was lost.
