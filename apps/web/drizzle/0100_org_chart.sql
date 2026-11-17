@@ -1048,3 +1048,23 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
   )
   SELECT DISTINCT t.kind, btrim(t.term), t.entity FROM terms t WHERE t.term IS NOT NULL AND length(btrim(t.term)) >= 2
 $$;
+--> statement-breakpoint
+-- The whole list (latest definition: 0089_mask_terms_in_text), still refused
+-- to action owners, now without the typed holder names the caller may not
+-- read: all of them for the firm's readers and the client's admins; for
+-- anyone else (a client manager) only those named for her on the current
+-- version today (app_org_chart_holders). app_mask_terms_in() keeps them: it
+-- gives only the names written in the text itself.
+CREATE OR REPLACE FUNCTION app_mask_terms(pid uuid) RETURNS TABLE (kind text, term text, entity text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE client uuid := (SELECT x.org_id FROM projects x WHERE x.id = pid);
+BEGIN
+  IF session_user = 'selah_app' AND app_role() = 'action_owner' THEN
+    RAISE EXCEPTION 'the masking list is not for action owners' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN QUERY SELECT n.kind, n.term, n.entity FROM app_mask_names(pid) n
+    WHERE n.entity NOT LIKE 'holder:%' OR session_user <> 'selah_app' OR app_org_chart_full_reader(client)
+      OR lower(n.term) IN (
+        SELECT lower(btrim(h.name)) FROM org_chart_versions v CROSS JOIN LATERAL app_org_chart_holders(v.id, app_firm_today()) h
+        WHERE v.org_id = client AND v.state = 'published' AND h.named AND h.name IS NOT NULL);
+END $$;

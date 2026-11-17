@@ -700,6 +700,21 @@ describe("masking for the assistant", () => {
     expect(await terms(U.cons)).toEqual(expect.arrayContaining(["Cfo Person", "Hessa Chair", "Clerk One"]));
     expect(await terms(U.omgr)).toEqual([]);
   });
+
+  it("gives a client manager only the typed holder names she may read; a text's own names are still found", async () => {
+    const holders = async (uid: string) =>
+      (await attempt(uid, `SELECT term FROM app_mask_terms($1) WHERE entity LIKE 'holder:%' ORDER BY 1`, [P])).rows.map((r) => r.term as string);
+    const typed = ["Auditor Person", "Cfo Person", "Clerk One", "Hessa Chair", "Nasser Ceo", "Payables Lead"];
+    // The firm's readers and the client's admin: every typed name.
+    for (const who of [U.cons, U.cadmin]) expect(await holders(who), who).toEqual(expect.arrayContaining(typed));
+    // A manager, names off: none. Names on: only her branch and the chain above it (not the internal auditor).
+    expect(await holders(U.mgr)).toEqual([]);
+    await owner.query(`UPDATE org_chart_versions SET show_names = true WHERE id = $1`, [V1]);
+    expect(await holders(U.mgr)).toEqual(["Cfo Person", "Clerk One", "Hessa Chair", "Nasser Ceo", "Payables Lead"]);
+    // A name written in the text she is translating is still masked.
+    const inText = (await attempt(U.mgr, `SELECT term FROM app_mask_terms_in($1, 'Auditor Person signed it')`, [P])).rows.map((r) => r.term);
+    expect(inText).toContain("Auditor Person");
+  });
 });
 
 describe("publishing freezes the snapshot", () => {
