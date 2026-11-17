@@ -674,7 +674,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className="ms-auto">
                     {tVis(d.visibility)}
                   </Badge>
-                  {d.aiIndexable ? (
+                  {d.aiIndexable && data.assistantReads ? (
                     <Badge variant="outline" className="gap-1">
                       <Bot className="size-3" />
                       {t("aiIndexed")}

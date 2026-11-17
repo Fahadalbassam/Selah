@@ -395,6 +395,10 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
 
   return {
     project: p,
+    // Whether an assistant answers this reader on this project: the firm's for its
+    // staff, the client's own once it is on for them. "Available to assistant"
+    // on a file means nothing where none does (page audit 3.8).
+    assistantReads: authorize(principal, "assistant.query", { ...projectResource, projectKind: p.kind, projectState: p.state }).allowed,
     recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => {
       const recActions = projectActions.filter((a) => a.recommendationId === r.id);
       return {

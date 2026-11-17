@@ -5,7 +5,7 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { dataSetupStep } from "@/services/indicator-data";
-import { listProjects } from "@/services/queries";
+import { getProject, listProjects } from "@/services/queries";
 import { ACME, end, owner, P, RAWDAH, seed, svc, U } from "./screen-bugs-fixture";
 
 beforeAll(seed);
@@ -36,5 +36,16 @@ describe("how the client's figures reach Selah, on the client admin's home", () 
       [RAWDAH, U.radmin],
     );
     expect(await svc(U.radmin, (tx, p) => dataSetupStep(tx, p, RAWDAH))).toMatchObject({ clientId: RAWDAH });
+  });
+});
+
+describe('"Available to assistant" on a project\'s files', () => {
+  it("is shown only to a reader an assistant answers on that project", async () => {
+    // Rawdah has no client assistant: the badge would mean nothing to its admin.
+    expect((await svc(U.radmin, (tx, p) => getProject(tx, p, P.rawdah))).assistantReads).toBe(false);
+    // The firm's assistant reads the client's files for its staff.
+    expect((await svc(U.wlead, (tx, p) => getProject(tx, p, P.rawdah))).assistantReads).toBe(true);
+    // An action owner never has one.
+    expect((await svc(U.cowner, (tx, p) => getProject(tx, p, P.acme))).assistantReads).toBe(false);
   });
 });
