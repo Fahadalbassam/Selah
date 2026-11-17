@@ -1458,6 +1458,30 @@ export const clientKpiLinks = pgTable(
   (t) => [primaryKey({ columns: [t.kpiId, t.recommendationId] }), index("client_kpi_links_rec_idx").on(t.recommendationId)],
 );
 
+// One row per indicator and period whose latest value was on the other side
+// of the baseline from the client's chosen direction, or short of the target
+// after its date: the people told were told once for that period
+// (indicator.moved_away, migration 0090). Written only by the database; the
+// app has no grant on it.
+export const kpiMovedAwayLog = pgTable(
+  "kpi_moved_away_log",
+  {
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
+    period: date("period").notNull(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // The value that was saved when the notice went out.
+    valueId: uuid("value_id")
+      .notNull()
+      .references(() => clientKpiValues.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.kpiId, t.period] })],
+);
+
 // How a client's indicator figures reach Selah (2026-10-30): the client's own
 // choice of how much it shares. typed: no data leaves its systems, someone
 // types each period's figure; files: it uploads exports (Excel, CSV) and a
@@ -2090,6 +2114,22 @@ export const mailMutes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.actionId] })],
+);
+
+// Mail about one business indicator (indicator.moved_away) switched off by
+// one person, beside the action mutes. The in-app notices still come.
+export const mailKpiMutes = pgTable(
+  "mail_kpi_mutes",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kpiId] })],
 );
 
 // ------------------------------------------------------------------- AI

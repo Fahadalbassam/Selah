@@ -58,6 +58,10 @@ curl -X POST https://selah.example/api/indicator-feed \
 
 Each result is `add`, `correct`, `same` or `refused` with a `reason` (`unmatched`, `not_connected`, `no_period`, `bad_value`, `baseline`, `not_a_period`, `future`, `inactive`, `duplicate`). An unknown or disconnected key gets 401 and is written to the audit log.
 
+## When a figure arrives on the wrong side
+
+Whichever way a figure arrives (typed, a file, a sheet read, a system push), the database looks at it once it is stored (`notify_kpi_moved_away()`, migration 0090). A period is judged only once it has ended, on its latest value: a figure for a month or quarter that has ended is judged when it is saved, and a figure for the running one (a month-to-date row in a sheet, say) waits until the period ends, when the monthly job judges it (`app_judge_kpi_periods()`). When the period's latest figure is on the other side of the baseline from the chosen direction, or the target date has passed and it has not reached the target, the client's lead and deputy and the client's admins get one notice, `indicator.moved_away`, at most once per indicator and period. It states the figures only ("Complaints: 42 complaints in Oct 2026, baseline 30 complaints, lower is better. Figures reported by the client, not verified impact."; the client's admins read "Your company's reported figures, not verified impact.") and goes into their summary mail unless they muted the indicator. A file that fills in several months tells about the latest ended one only. The person who typed the figure or brought the file in is not told (they have just seen it); a sheet read or a system push tells everyone, including the person who connected it, since no one looked. Details: [metrics.md](metrics.md#when-an-indicator-moves-away).
+
 ## Records
 
 - `client_indicator_settings`: the client's mode, who chose it and when, and the firm's latest suggestion.
