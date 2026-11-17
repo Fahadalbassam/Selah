@@ -86,6 +86,34 @@ describe("history lines name a person without a gendered verb (page audit 3.8)",
   });
 });
 
+describe("lines that say who did something name the person without a gendered verb (review 3)", () => {
+  it("never pairs a masculine verb with a person's name", () => {
+    const lines: [string, string][] = [];
+    const walk = (o: object, path: string) => {
+      for (const [k, v] of Object.entries(o)) {
+        const p = path ? `${path}.${k}` : k;
+        if (typeof v === "string") {
+          if (/\{(name|who)\}/.test(v)) lines.push([p, v]);
+        } else walk(v as object, p);
+      }
+    };
+    walk(ar, "");
+    // A verb carrying its object ("اعتمده"، "أعطاها"، "يتولاه") right before the name, or one of the bare
+    // masculine verbs the lines used ("وافق {name}"، "أكّد الاستلام {name}"، "لن يراه"). Nouns ending in ه are listed.
+    const nouns = new Set(["اتجاه"]);
+    const verbBeforeName = /([ء-يً-ْ]+(?:ه|ها)) (?:<who>)?\{(?:name|who)\}/;
+    const bareVerbs = /(^|[\s،.])(وافق|أكّد الاستلام|وسجّل ذلك|لن يراه|لن يرى|يستطيع [^{]*إلا) /;
+    const wrong = lines.filter(([, v]) => {
+      const m = verbBeforeName.exec(v);
+      return (m && !nouns.has(m[1]!.replace(/[ً-ْ]/g, ""))) || bareVerbs.test(v);
+    });
+    expect(wrong).toEqual([]);
+    // The two on the action page, by name.
+    expect(ar.action.secondReview.signedBy).toContain("بواسطة {name}");
+    expect(ar.action.secondReview.changedBy).toContain("بواسطة {name}");
+  });
+});
+
 describe("the product's Arabic name (page audit 3.8)", () => {
   it('is spelled "صلة" everywhere but in the accepted, versioned legal texts', () => {
     // Changing those would ask everyone to accept them again (src/lib/legal.ts LEGAL_VERSIONS); they keep "صِلَة" until their next version.
