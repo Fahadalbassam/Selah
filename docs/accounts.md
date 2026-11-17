@@ -109,6 +109,7 @@ Everyone accepts the terms of use, the privacy notice and the AI-use notice befo
 
 - `/team` is where an admin manages their own organisation. The firm's admins and a client's admins get the same screen: invite (only roles that fit the organisation; a consultant-managed client has no logins), open invitations with revoke, and a menu per person to change the address, reset two-factor sign-in, switch off with a reason, switch back on, or erase (firm admins only). The same screen also covers the email domains and the access review, where everyone ticked stays and each unticked person needs a reason.
 - `/clients/:id/people` gives the firm's admins that screen for a client, reached from the client page.
+- Everyone else with the right to read their organisation's team (consultants, client managers) gets the list on `/team`: name, address, role, and **Projects**: the projects the person is on (staffed, observing, a client person on it, or the client's lead or deputy consultant) that the reader may open too (`listTeam()` in `src/services/queries.ts`). Two readers can see different numbers, but only by what each may open; a project the reader cannot open is never counted.
 - `listPeople` returns the organisation's kind and engagement mode, who has two-factor on (through `app_two_factor_status`, so only admins see it), and `can.erase`. The server checks every action again.
 
 ## Help for client people
