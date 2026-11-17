@@ -428,6 +428,13 @@
       "when": 1794914149934,
       "tag": "0073_observer_indicators",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794917176693,
+      "tag": "0074_status_pack_readers",
+      "breakpoints": true
     }
   ]
 }

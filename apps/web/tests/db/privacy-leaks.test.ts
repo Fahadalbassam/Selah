@@ -598,6 +598,42 @@ describe("a shared status pack", () => {
       expect(r.pack.indicators![0]!.recommendationsLeftOut ?? 0).toBe(0);
     }
   });
+
+  it("cannot be read straight from the table by anyone", async () => {
+    for (const who of [U.mgr, U.sponsor, U.cadmin, U.lead]) {
+      await expect(rowsAs(who, `SELECT pack FROM reports WHERE id = $1`, [REPORT])).rejects.toThrow(/permission denied/);
+      await expect(rowsAs(who, `SELECT * FROM reports WHERE id = $1`, [REPORT])).rejects.toThrow(/permission denied/);
+      // The rest of the report is read as before.
+      expect(await rowsAs(who, `SELECT title FROM reports WHERE id = $1`, [REPORT])).toEqual([{ title: "Status pack" }]);
+    }
+  });
+
+  it("is handed out by the database with the reader's limits applied", async () => {
+    const viaFunction = async (who: string) => (await rowsAs(who, `SELECT app_report_pack_for($1) AS pack`, [REPORT]))[0].pack as StatusPack | null;
+    const limited = (await viaFunction(U.mgr))!;
+    expect(titles(limited.overdue)).toEqual(["Board canary"]);
+    expect(limited.verified).toEqual([]);
+    expect(limited.decisions).toEqual([]);
+    expect(limited.leftOut).toEqual({ decisions: 1, overdue: 1, slipped: 0, riskAccepted: 0, verified: 1 });
+    expect(limited.moved).toEqual({ in_progress: 4 });
+    expect(limited.indicators![0]!.recommendations).toEqual(["Adopt a board charter"]);
+    expect(limited.indicators![0]!.recommendationsLeftOut).toBe(1);
+    expect(JSON.stringify(limited)).not.toMatch(/Finance canary|Finance matrix canary|Update the delegation matrix/);
+    for (const who of [U.sponsor, U.cadmin, U.lead]) {
+      expect(titles((await viaFunction(who))!.overdue)).toEqual(["Board canary", "Finance canary"]);
+    }
+    // Nothing for action owners (they do not read reports), another client, or a client without the project.
+    for (const who of [U.owner, U.fin, U.oadmin, U.pmgr]) expect(await viaFunction(who)).toBeNull();
+  });
+
+  it("every other column of a report is still granted to the app (a new column needs its own GRANT in a migration)", async () => {
+    const { rows } = await owner.query(
+      `SELECT c.column_name FROM information_schema.columns c
+       WHERE c.table_schema = 'public' AND c.table_name = 'reports'
+         AND NOT has_column_privilege('selah_app', 'public.reports', c.column_name, 'SELECT')`,
+    );
+    expect(rows.map((r) => r.column_name)).toEqual(["pack"]);
+  });
 });
 
 // ------------------------------------------------------------ the Files card
