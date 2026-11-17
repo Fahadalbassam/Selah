@@ -76,8 +76,10 @@ export async function listProjects(tx: Tx, principal: Principal) {
   }));
 
   // Counts come from the actions this user may read, so an action owner
-  // does not learn how many actions other people have.
-  const counts = allowed.length ? await actionCounts(tx, principal) : [];
+  // does not learn how many actions other people have. Released work only,
+  // for every role, like every other count (metrics.md): the bar is "verified
+  // of released", and a firm draft is not yet part of the plan (page audit B2).
+  const counts = allowed.length ? (await actionCounts(tx, principal)).filter((c) => c.status !== "draft") : [];
   const count = (projectId: string, status?: ActionStatus) =>
     counts.filter((c) => c.projectId === projectId && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
   return allowed.map((p) => ({
@@ -169,6 +171,7 @@ export async function listActions(tx: Tx, principal: Principal, filter: ActionFi
     projectId: r.projectId,
     createdBy: r.createdBy,
     assignees: r.ownerUserId ? [r.ownerUserId] : [],
+    draft: r.status === "draft",
   }));
 }
 
@@ -694,6 +697,17 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const from = action.status as ActionStatus;
+  // A draft named for someone who has since left or come off the team: releasing it is refused
+  // (check_action_owner), so the firm is told before it presses Release.
+  const ownerGone =
+    principal.orgKind === "firm" && from === "draft" && action.ownerUserId
+      ? !(
+          await tx.execute<{ ok: boolean }>(sql`
+            select app_member_active(${action.ownerUserId}::uuid, ${action.orgId}::uuid)
+              and exists (select 1 from project_members pm where pm.project_id = ${action.projectId}::uuid
+                          and pm.user_id = ${action.ownerUserId}::uuid and not pm.observer) as ok`)
+        ).rows[0]?.ok
+      : false;
   const verifiedBasis =
     from === "verified_complete"
       ? (await tx.execute<{ b: string | null }>(sql`select app_verified_basis(${id}::uuid) as b`)).rows[0]?.b
@@ -728,6 +742,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     context: context!,
     timeline,
     moves,
+    ownerGone,
     // Firm staff may mark a translation of this page's text reviewed.
     firmStaff: principal.orgKind === "firm",
     // "Ask about this": firm staff, and a client's people once their assistant is on (F39).

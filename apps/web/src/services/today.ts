@@ -199,7 +199,15 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
     awaitingReviewAt: actions.awaitingReviewAt,
     label: recommendations.visibility,
   };
-  type ActionRow = { id: string; projectId: string; orgId: string; ownerUserId: string | null; createdBy: string; label: Resource["visibility"] };
+  type ActionRow = {
+    id: string;
+    status: string;
+    projectId: string;
+    orgId: string;
+    ownerUserId: string | null;
+    createdBy: string;
+    label: Resource["visibility"];
+  };
   const actionResource = (a: ActionRow): Resource & { type: "action" } => {
     const p = byId.get(a.projectId)!;
     return {
@@ -209,8 +217,9 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
       orgId: a.orgId,
       createdBy: a.createdBy,
       assignees: a.ownerUserId ? [a.ownerUserId] : [],
-      // An action takes its recommendation's label (0006).
+      // An action takes its recommendation's label (0006), and a draft is the firm's (D6).
       visibility: a.label,
+      draft: a.status === "draft",
     };
   };
 

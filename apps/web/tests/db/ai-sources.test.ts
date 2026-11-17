@@ -651,9 +651,9 @@ describe("the plan's records as passages", () => {
       for (const c of await recordChunks(uid)) expect(records, `${uid} reads the passage of ${c}`).toContain(c);
     }
     expect(await recordChunks(U.cons)).toEqual(Object.values({ ...R, ...A }).sort());
-    // Clients read the plan, drafts included (docs/data-model.md), but not the firm's own recommendations.
-    expect(await recordChunks(U.cadmin)).toEqual([R.shared, A.draft, A.open, A.finance].sort());
-    expect(await recordChunks(U.cmgr)).toEqual([R.shared, A.draft, A.open].sort());
+    // Clients read the released plan, never a draft (D6) or the firm's own recommendations.
+    expect(await recordChunks(U.cadmin)).toEqual([R.shared, A.open, A.finance].sort());
+    expect(await recordChunks(U.cmgr)).toEqual([R.shared, A.open].sort());
     expect(await recordChunks(U.bmgr)).toEqual([]);
   });
 
@@ -665,9 +665,20 @@ describe("the plan's records as passages", () => {
         return retrieve(tx, { projectId: P1, orgId: ACME, labels: ALL, userId: uid }, QUERY, { query: "charter board CFO" });
       });
       const ids = got.map((r) => r.sourceId);
-      const hidden = uid === U.cmgr || uid === U.hr ? [R.firm, A.finance] : Object.values({ ...R, ...A });
+      // The forged scope claims nothing about the draft: row-level security alone keeps it out (D6).
+      const hidden = uid === U.cmgr || uid === U.hr ? [R.firm, A.finance, A.draft] : Object.values({ ...R, ...A });
       for (const h of hidden) expect(ids, uid).not.toContain(h);
     }
+  });
+
+  it("a client's own search leaves a draft's passage out inside the query, and the firm's keeps it (D6)", async () => {
+    const search = (uid: string) =>
+      svc(uid, async (tx, p) => {
+        const scope = retrievalScope(p, { type: "project", id: P1, orgId: ACME, firmOrgId: FIRM, projectId: P1 })!;
+        return (await retrieve(tx, scope, QUERY, { query: "Draft the charter", sources: "records" })).map((r) => r.sourceId);
+      });
+    expect(await search(U.cadmin)).not.toContain(A.draft);
+    expect(await search(U.cons)).toContain(A.draft);
   });
 
   it("are found by their words, and reach the model as the live record", async () => {

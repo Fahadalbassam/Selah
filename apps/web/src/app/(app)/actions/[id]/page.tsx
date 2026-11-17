@@ -121,6 +121,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       {action.description ? (
         <Translatable entityType="action" entityId={action.id} field="description" text={action.description} canReview={data.firmStaff} className="-mt-3 max-w-3xl text-sm text-muted-foreground" />
       ) : null}
+      {/* The firm's draft (D6): the client sees it, and its thread, only once it is released. */}
+      {firmView && action.status === "draft" ? <p className="text-sm text-muted-foreground">{t("draftNotice")}</p> : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
@@ -159,6 +161,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             second={second}
             firmView={firmView}
             recordFor={firmView && recordedForClient}
+            ownerGone={data.ownerGone}
           />
 
           <EvidenceList

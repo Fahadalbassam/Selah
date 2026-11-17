@@ -220,8 +220,12 @@ export async function ClosureTab({
                                   label: t("disposition"),
                                   type: "select",
                                   required: true,
-                                  defaultValue: i.disposition ?? "handed_over",
-                                  options: DISPOSITIONS.map((d) => ({ value: d, label: `${t(`dispositions.${d}`)}: ${t(`dispositionHints.${d}`)}` })),
+                                  // A draft is never handed over: the client has never seen it (D6; app_dispose_action refuses).
+                                  defaultValue: i.disposition ?? (i.status === "draft" ? "withdrawn" : "handed_over"),
+                                  options: DISPOSITIONS.filter((d) => i.status !== "draft" || d !== "handed_over").map((d) => ({
+                                    value: d,
+                                    label: `${t(`dispositions.${d}`)}: ${t(`dispositionHints.${d}`)}`,
+                                  })),
                                 },
                                 ...(people.length
                                   ? [{ name: "sustainer", label: t("sustainer"), type: "select" as const, defaultValue: choiceOf(i.sustainer), options: sustainerChoices }]

@@ -13,7 +13,9 @@ import type { Decision, Principal, Resource } from "./types";
  *                     consultants) assigned to its client?
  *   4. Assignment   - does the grant's scope (assigned / own / shared /
  *                     owner_org / lead / team / working) cover this record?
- *   5. Label        - does the visibility label allow this user?
+ *   5. Label        - does the visibility label allow this user? (An action
+ *                     that is still the firm's draft is firm-only, like a
+ *                     firm_private label, until it is released: D6.)
  *
  * Then three rules of state: nothing in a closed project is written, except
  * what OPEN_WHEN_CLOSED lists; the people of an archived client only read,
@@ -44,6 +46,9 @@ export function authorize(principal: Principal, permission: Permission, resource
 
   const label = checkLabel(principal, resource);
   if (!label.allowed) return label;
+
+  // A draft action, and everything under it, is the firm's until released (D6).
+  if (resource.draft && principal.orgKind !== "firm") return deny("action:draft");
 
   if (resource.projectState === "closed" && !isReadPermission(permission) && !OPEN_WHEN_CLOSED.has(permission)) {
     return deny("project:closed");

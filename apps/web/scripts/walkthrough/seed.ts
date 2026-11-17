@@ -415,7 +415,8 @@ const A = {
   // Closed: the client signed a risk acceptance for the two missing disclosures.
   disclosures: await release(rec.coi.id, "جمع إقرارات الأعضاء لعام 2026", C.nOwner, 20, { departmentId: dept.legal.id }),
 };
-// Still a draft: the firm is preparing it (clients can read drafts too, by design).
+// Still a draft: the firm is preparing it. Only the firm sees it (decision D6): it names the
+// client admin as owner, who neither sees it nor is told of it until the firm releases it.
 await as(U.lead, (tx, p) =>
   createAction(tx, p, rec.audit.id, { title: "اعتماد قرار تشكيل اللجنة ونشره", ownerUserId: C.nAdmin, dueDate: day(25), release: false }),
 );

@@ -136,6 +136,7 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
           id: a.id,
           createdBy: a.createdBy,
           assignees: a.ownerUserId ? [a.ownerUserId] : [],
+          draft: a.status === "draft",
         }).allowed,
     )
     .map((a) => ({ id: a.id, title: a.title, status: a.status, dueDate: a.dueDate, ownerName: a.ownerName }));

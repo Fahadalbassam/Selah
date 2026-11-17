@@ -178,6 +178,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         documentId: evidenceSubmissions.documentId,
         actionId: actions.id,
         title: actions.title,
+        status: actions.status,
         orgId: actions.orgId,
         projectId: actions.projectId,
         createdBy: actions.createdBy,
@@ -222,6 +223,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         createdBy: e.createdBy,
         assignees: e.ownerUserId ? [e.ownerUserId] : [],
         visibility: e.label ?? undefined,
+        draft: e.status === "draft",
       }).allowed;
     // The file stays (it is the reader's to open); the action it belongs to is not named.
     return { documentId: e.documentId, actionId: opens ? e.actionId : null, title: opens ? e.title : null };

@@ -38,7 +38,7 @@ docs/                Architecture, authorization and OWASP notes
 
 ## Run it locally
 
-You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running) and [Node.js 22+](https://nodejs.org). Then, from the repo root, in PowerShell or any terminal:
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running) and [Node.js 22.12 or newer](https://nodejs.org). Then, from the repo root, in PowerShell or any terminal:
 
 ```sh
 npm run dev:local            # the app with sample data on http://localhost:3000

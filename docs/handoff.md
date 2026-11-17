@@ -233,7 +233,7 @@ Every business rule is listed in `docs/rules.md` with where the database enforce
 
 ## 7. Running it locally
 
-You need Docker Desktop (running) and Node.js 22+. From the repository root:
+You need Docker Desktop (running) and Node.js 22.12 or newer. From the repository root:
 
 ```sh
 npm run dev:local             # app with sample data on http://localhost:3000, mail at http://localhost:8025

@@ -199,7 +199,8 @@ export async function actionClosure(tx: Tx, principal: Principal, actionId: stri
     ? await tx
         .select({ id: actions.id, title: actions.title })
         .from(actions)
-        .where(and(eq(actions.projectId, action.projectId), ne(actions.id, actionId), notInArray(actions.status, ["closed"])))
+        // Never a draft: the client could not open what replaced its work (D6; check_action_transition refuses it).
+        .where(and(eq(actions.projectId, action.projectId), ne(actions.id, actionId), notInArray(actions.status, ["closed", "draft"])))
         .orderBy(asc(actions.title))
     : [];
   return {
@@ -593,8 +594,12 @@ export interface LadderStep {
  * one that is verified or closed (page audit B3: the card is not drawn).
  */
 export async function actionLadder(tx: Tx, principal: Principal, actionId: string) {
+  // Only for an action the person may open (a client: never a draft, D6); the function checks the same.
   const loaded = await loadAction(tx, actionId);
-  if (!loaded || !(OPEN_STATUSES as readonly string[]).includes(loaded.action.status)) return { running: false, steps: [] as LadderStep[] };
+  if (!loaded) throw new NotFoundError("action");
+  assertAllowed(principal, "action.read", loaded.resource);
+  // Nobody is reminded about a draft, a verified or a closed action: no steps, no card (B3).
+  if (!(OPEN_STATUSES as readonly string[]).includes(loaded.action.status)) return { running: false, steps: [] as LadderStep[] };
   const { rows } = await tx.execute<{
     kind: LadderStep["kind"];
     level: number;
