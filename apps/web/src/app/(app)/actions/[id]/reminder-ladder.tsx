@@ -7,7 +7,8 @@ import type { LadderStep } from "@/services/follow-through";
 /**
  * The reminder ladder of an action (F12): each step for the current due
  * date, who it reaches, and whether it has gone out. Shown to everyone who
- * can see the action, so the owner knows who hears about it next.
+ * can see the action, so the owner knows who hears about it next; not drawn
+ * at all for a draft, verified or closed action (actionLadder() gives no steps).
  */
 export async function ReminderLadder({ running, steps }: { running: boolean; steps: LadderStep[] }) {
   if (steps.length === 0) return null;

@@ -15,7 +15,7 @@ import {
   riskAcceptances,
   user,
 } from "@/db/schema";
-import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, OPEN_STATUSES, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import type { LadderAudience } from "@/lib/mail-choices";
 import type { AgingBucket } from "@/lib/slips";
@@ -588,10 +588,13 @@ export interface LadderStep {
 /**
  * The reminder ladder of an action for its current due date (migration
  * 0016): each step, the day it fires, who it reaches and when it went out.
- * Empty when the action has no due date or nobody to remind.
+ * Empty when the action has no due date or nobody to remind, and for an
+ * action nobody is reminded about: a draft the firm has not released, or
+ * one that is verified or closed (page audit B3: the card is not drawn).
  */
 export async function actionLadder(tx: Tx, principal: Principal, actionId: string) {
-  await loadAction(tx, actionId);
+  const loaded = await loadAction(tx, actionId);
+  if (!loaded || !(OPEN_STATUSES as readonly string[]).includes(loaded.action.status)) return { running: false, steps: [] as LadderStep[] };
   const { rows } = await tx.execute<{
     kind: LadderStep["kind"];
     level: number;
