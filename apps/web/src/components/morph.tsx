@@ -47,9 +47,9 @@ export function MorphCapture() {
 }
 
 /** A title that morphs into (or out of) the matching title on the next page. */
-export function MorphTitle({ name, className, children }: { name: string; className?: string; children: React.ReactNode }) {
+export function MorphTitle({ name, className, dir, children }: { name: string; className?: string; dir?: "auto" | "ltr" | "rtl"; children: React.ReactNode }) {
   return (
-    <PageTransitionShared name={name} data-morph={name} className={cn("w-fit max-w-full", className)}>
+    <PageTransitionShared name={name} data-morph={name} dir={dir} className={cn("w-fit max-w-full", className)}>
       {children}
     </PageTransitionShared>
   );

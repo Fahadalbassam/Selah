@@ -169,7 +169,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
   // Sources. Each lookup runs under RLS too: an action or meeting the person
   // cannot open leaves the file under a plain "Evidence" folder, unnamed.
   // An action owner reads only their own actions (row-level security since
-  // migration 0085); the action is also checked the way the action page checks
+  // migration 0081); the action is also checked the way the action page checks
   // it, as a second lock. A teammate's file stays; its action is not named.
   const actionProject = alias(projects, "action_project");
   const actionOrg = alias(organizations, "action_org");

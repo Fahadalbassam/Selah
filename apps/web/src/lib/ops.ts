@@ -56,15 +56,15 @@ export function alertText(
 ) {
   if (kind === "recovered") {
     return {
-      subject: `Selah: all checks pass again · صِلَة: عادت جميع الفحوص سليمة`,
-      text: `${site}\n\nEverything Selah checks is working again.\nكل ما يفحصه صِلَة يعمل من جديد.\n`,
+      subject: `Selah: all checks pass again · صلة: عادت جميع الفحوص سليمة`,
+      text: `${site}\n\nEverything Selah checks is working again.\nكل ما يفحصه صلة يعمل من جديد.\n`,
     };
   }
   const lines = failing
     .map((f) => `- ${f}${details[f] ? `: ${details[f]}` : ""}`)
     .join("\n");
   return {
-    subject: `Selah: ${failing.length} check${failing.length === 1 ? "" : "s"} failing · صِلَة: فحوص لا تعمل`,
+    subject: `Selah: ${failing.length} check${failing.length === 1 ? "" : "s"} failing · صلة: فحوص لا تعمل`,
     text:
       `${site}\n\nThese checks are failing:\nهذه الفحوص لا تعمل:\n\n${lines}\n\n` +
       `See docs/operations.md, "When something goes wrong", and run ops/readiness.sh on the server.\n` +

@@ -84,6 +84,8 @@ export async function listProjects(tx: Tx, principal: Principal) {
     counts.filter((c) => c.projectId === projectId && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
   return allowed.map((p) => ({
     ...p,
+    // A client project no signed engagement covers yet: a pitch, the firm's only.
+    pitch: p.kind === "client" && p.state === "draft",
     actionCount: count(p.id),
     verifiedCount: count(p.id, "verified_complete"),
     awaitingReviewCount: count(p.id, "awaiting_review"),
@@ -105,7 +107,7 @@ export interface ActionFilter {
 /**
  * The SQL side of what a person may read. An action owner reads only their
  * own actions ("assigned" in authorize(); row-level security since migration
- * 0085), and the narrowing stays here as a second lock. Counts and pages then
+ * 0081), and the narrowing stays here as a second lock. Counts and pages then
  * agree with the rows each person could open; visible() still checks every row.
  */
 function actionConditions(principal: Principal, filter: ActionFilter) {
@@ -244,6 +246,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
       minimalRecords: organizations.minimalRecords,
+      // consultant_managed: the firm records this client's work (N24).
+      engagementMode: organizations.engagementMode,
       // RLS leaves it out for those who may not read the engagement.
       engagementId: engagements.id,
       engagementTitle: engagements.title,
@@ -394,6 +398,10 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
 
   return {
     project: p,
+    // Whether an assistant answers this reader on this project: the firm's for its
+    // staff, the client's own once it is on for them. "Available to assistant"
+    // on a file means nothing where none does (page audit 3.8).
+    assistantReads: authorize(principal, "assistant.query", { ...projectResource, projectKind: p.kind, projectState: p.state }).allowed,
     recommendations: visible(principal, "recommendation.read", recs, recResource).map((r) => {
       const recActions = projectActions.filter((a) => a.recommendationId === r.id);
       return {
@@ -479,10 +487,35 @@ export async function listTeam(tx: Tx, principal: Principal) {
     .innerJoin(user, eq(user.id, orgMemberships.userId))
     .where(eq(orgMemberships.orgId, principal.orgId))
     .orderBy(asc(user.name));
-  const memberships = await tx
-    .select({ userId: projectMembers.userId })
-    .from(projectMembers)
-    .where(inArray(projectMembers.userId, rows.map((r) => r.id).concat(principal.userId)));
+  // "Projects" beside each person: the projects they are on (staffed, observing,
+  // a client person on it, or the client's lead or deputy consultant) that
+  // this reader may open too. The same rule for every reader, so a lead sees
+  // his own projects (page audit N13), and never a project the reader cannot see.
+  const people = rows.map((r) => r.id);
+  const seen = visible(
+    principal,
+    "project.read",
+    await tx.select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId }).from(projects),
+    (p) => ({ type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }),
+  );
+  const seenIds = new Set(seen.map((p) => p.id));
+  const memberships = people.length
+    ? await tx
+        .select({ userId: projectMembers.userId, projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .where(inArray(projectMembers.userId, people))
+    : [];
+  const leading = people.length
+    ? await tx
+        .select({ userId: clientAssignments.userId, clientOrgId: clientAssignments.clientOrgId })
+        .from(clientAssignments)
+        .where(and(inArray(clientAssignments.userId, people), or(eq(clientAssignments.isLead, true), eq(clientAssignments.isDeputy, true))))
+    : [];
+  const projectCount = (userId: string) =>
+    new Set([
+      ...memberships.filter((m) => m.userId === userId && seenIds.has(m.projectId)).map((m) => m.projectId),
+      ...seen.filter((p) => p.kind === "client" && leading.some((l) => l.userId === userId && l.clientOrgId === p.orgId)).map((p) => p.id),
+    ]).size;
   // Admins also see who has two-factor sign-in on, and may reset it for the
   // people the database lets them (app_reset_two_factor): never themselves,
   // and a client admin not a fellow admin.
@@ -496,7 +529,7 @@ export async function listTeam(tx: Tx, principal: Principal) {
     : null;
   return rows.map((r) => ({
     ...r,
-    projectCount: memberships.filter((m) => m.userId === r.id).length,
+    projectCount: projectCount(r.id),
     twoFactor: twoFactor ? (twoFactor.get(r.id) ?? false) : null,
     canResetTwoFactor:
       admin && r.id !== principal.userId && r.active && (principal.role === "firm_admin" || r.role !== "client_admin") && twoFactor?.get(r.id) === true,
@@ -522,6 +555,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       projectKind: projects.kind,
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
+      // consultant_managed: the firm records this client's work (N24).
+      engagementMode: organizations.engagementMode,
       recommendationTitle: recommendations.title,
       requiredEvidence: recommendations.requiredEvidence,
     })

@@ -115,7 +115,7 @@ Two more clients have no accounts at all, because the firm runs their records: A
 | ترشيح الأعضاء المستقلين للجنة | Blocked (متعثر), overdue | Blocked reason from the client; past its date |
 | إعداد لائحة عمل اللجنة | Revision requested (مطلوب تعديل), overdue | Sent back with the consultant's reason; the owner replied |
 | مراجعة حدود الصلاحيات المالية | In progress (قيد التنفيذ), overdue | A request to move the date waits for the firm |
-| تحديث مصفوفة الصلاحيات ورفعها للمجلس | In progress | Its date already moved once (approved); an evidence list with one item answered; a firm-only note |
+| تحديث مصفوفة الصلاحيات ورفعها للمجلس | In progress | Its date already moved once (approved); an evidence list with one item answered (the comparison memo) and one open (the matrix); a firm-only note |
 | جمع إقرارات الأعضاء لعام 2026 | Closed (مغلق), risk accepted | The client admin signed a risk acceptance, then the lead closed it |
 | اعتماد قرار تشكيل اللجنة ونشره | Draft (مسودة) | Still being prepared by the firm. It names the client admin as owner, but no one at Al-Nukhba sees it, or is told of it, until the firm releases it (decision D6) |
 
@@ -294,4 +294,4 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 
 ## 9. How the data is made
 
-`apps/web/scripts/walkthrough/seed.ts` (run by `npm run walkthrough`, or `npm run db:seed:walkthrough` in `apps/web` on an empty database) takes every step as the person who would take it, through the same services, row-level security and database rules as the screens. So the history, notifications, mail and audit log are real, and no record is in a state the app could not reach. The only direct writes are the accounts, a few due dates moved into the past, and the first sign-in acceptances dated 60 days back. The files it uploads are in `apps/web/scripts/walkthrough/files.ts`.
+`apps/web/scripts/walkthrough/seed.ts` (run by `npm run walkthrough`, or `npm run db:seed:walkthrough` in `apps/web` on an empty database) takes every step as the person who would take it, through the same services, row-level security and database rules as the screens. So the history, notifications, mail and audit log are real, and no record is in a state the app could not reach. The only direct writes are the accounts (with their names in the other language), the first sign-in acceptances dated 60 days back, and the e-mail domains of Al-Nukhba and Rawdah (`organizations.allowed_email_domains`). Late actions are released with a date that has already passed, so, like real late work, they have no date history; the one move in the sample is the matrix's approved request. The matrix action has two evidence items: the comparison memo, answered through its own "Send a file", and the updated matrix, still open. `tests/db/walkthrough-seed.test.ts` runs the seed and checks the late actions and the matrix's two items. The files it uploads are in `apps/web/scripts/walkthrough/files.ts`.

@@ -126,7 +126,7 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
     .orderBy(asc(actions.createdAt));
   // Only the actions this person may open (an action owner: their own), as on
   // the project page. Row-level security holds the owner rule too (migration
-  // 0085); each row is still checked the way the action page checks it.
+  // 0081); each row is still checked the way the action page checks it.
   const recActions = underIt
     .filter(
       (a) =>

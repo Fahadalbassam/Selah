@@ -1,6 +1,6 @@
 // Decision 1a (product owner, 17 Nov 2026), "the agenda follows the
 // meeting", with his answer of the same day on action owners (migration
-// 0086_whole_project_meetings):
+// 0082_whole_project_meetings):
 //   - a department's meeting lists only that department's work, for every
 //     reader, and opens as before (0070);
 //   - a meeting with no department opens only for people who may see all of
@@ -9,7 +9,7 @@
 //     meeting and everything under it, and it is left out of every list;
 //   - the organiser is warned, by name, before inviting someone who could not
 //     open it; saving anyway is allowed, and the invitation carries no agenda.
-// Every case for a limited manager or an owner failed before 0086 and the
+// Every case for a limited manager or an owner failed before 0082 and the
 // service changes; the other roles guard what must not change.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db

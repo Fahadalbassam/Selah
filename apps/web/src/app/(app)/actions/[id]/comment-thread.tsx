@@ -17,6 +17,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { panelVoice } from "@/lib/engagement";
+import { typedDir } from "@/lib/utils";
 import { ASK_EVENT, THREAD_ANCHOR } from "@/lib/help";
 
 interface Person {
@@ -56,6 +58,7 @@ export function CommentThread({
   people,
   canWrite,
   firmView,
+  firmRun = false,
   askMention,
 }: {
   actionId: string;
@@ -63,6 +66,8 @@ export function CommentThread({
   people: Person[];
   canWrite: boolean;
   firmView: boolean;
+  /** A client the firm runs (no accounts): nobody at the client reads the thread (N24). */
+  firmRun?: boolean;
   /** Client side (F13): who "Ask your consultant" mentions, the client's lead when they can see the action. */
   askMention?: string | null;
 }) {
@@ -118,7 +123,7 @@ export function CommentThread({
     <Card id={THREAD_ANCHOR} className="scroll-mt-16 gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-base">{t("title")}</CardTitle>
-        <CardDescription>{firmView ? t("hintFirm") : t("hintClient")}</CardDescription>
+        <CardDescription>{t(`hint${panelVoice(firmView, firmRun)}`)}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-5">
         {comments.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
@@ -172,7 +177,7 @@ export function CommentThread({
               required
               rows={3}
               maxLength={8000}
-              dir="auto"
+              dir={typedDir(body)}
               placeholder={t("placeholder")}
             />
             {mentions.length ? (

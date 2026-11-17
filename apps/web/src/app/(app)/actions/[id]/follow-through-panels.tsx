@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { firmToday } from "@/lib/dates";
+import { panelVoice } from "@/lib/engagement";
 import type { AgingBucket } from "@/lib/slips";
 import { DownloadButton } from "./download-button";
 import { ErrorText, EvidenceDialog, json, ReasonDialog, RunButton, send, useRun } from "./action-panel";
@@ -81,6 +82,8 @@ export function EvidenceList(props: {
   canManage: boolean;
   /** The viewer is firm staff: picks the hint, which shouldn't follow canManage (off once verified). */
   firmView: boolean;
+  /** A client the firm runs (no accounts): the firm records what the client sends (N24). */
+  firmRun?: boolean;
   /** The user may attach evidence now (the action is open for it). */
   canSubmit: boolean;
 }) {
@@ -89,6 +92,9 @@ export function EvidenceList(props: {
   const format = useFormatter();
   const router = useRouter();
   const done = () => router.refresh();
+  const voice = panelVoice(props.firmView, props.firmRun ?? false);
+  // On a client the firm runs nobody at the client reads Selah: no "the client sees this".
+  const run = voice === "FirmRun" ? "FirmRun" : "";
   if (!props.items.length && !props.canManage) return null;
 
   return (
@@ -96,9 +102,9 @@ export function EvidenceList(props: {
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
           <CardTitle className="text-base">{t("title")}</CardTitle>
-          <CardDescription>{props.firmView ? t("hintFirm") : t("hintClient")}</CardDescription>
+          <CardDescription>{t(`hint${voice}`)}</CardDescription>
         </div>
-        {props.canManage ? <AddItem actionId={props.actionId} onDone={done} /> : null}
+        {props.canManage ? <AddItem actionId={props.actionId} onDone={done} hint={t(`addHint${run}`)} /> : null}
       </CardHeader>
       <CardContent className="px-5">
         {props.items.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
@@ -137,6 +143,7 @@ export function EvidenceList(props: {
                     actionId={props.actionId}
                     submit={false}
                     evidenceRequestId={i.id}
+                    recordFor={voice === "FirmRun"}
                     title={t("answerTitle", { item: i.title })}
                     onDone={done}
                     trigger={<Button size="sm">{t("answer")}</Button>}
@@ -151,7 +158,7 @@ export function EvidenceList(props: {
                     />
                     <ReasonDialog
                       title={t("reject")}
-                      hint={t("rejectHint")}
+                      hint={t(`rejectHint${run}`)}
                       run={(note) => send(`/api/evidence-requests/${i.id}`, patch({ status: "rejected", note }))}
                       onDone={done}
                       trigger={<Button variant="outline">{t("reject")}</Button>}
@@ -161,7 +168,7 @@ export function EvidenceList(props: {
                 {props.canManage && (i.status === "open" || i.status === "submitted" || i.status === "rejected") ? (
                   <ReasonDialog
                     title={t("waive")}
-                    hint={t("waiveHint")}
+                    hint={t(`waiveHint${run}`)}
                     run={(note) => send(`/api/evidence-requests/${i.id}`, patch({ status: "waived", note }))}
                     onDone={done}
                     trigger={<Button variant="outline">{t("waive")}</Button>}
@@ -183,7 +190,7 @@ export function EvidenceList(props: {
   );
 }
 
-function AddItem({ actionId, onDone }: { actionId: string; onDone: () => void }) {
+function AddItem({ actionId, onDone, hint }: { actionId: string; onDone: () => void; hint: string }) {
   const t = useTranslations("action.items");
   const ta = useTranslations("action");
   const [open, setOpen] = useState(false);
@@ -213,7 +220,7 @@ function AddItem({ actionId, onDone }: { actionId: string; onDone: () => void })
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("add")}</DialogTitle>
-            <DialogDescription>{t("addHint")}</DialogDescription>
+            <DialogDescription>{hint}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="item-title">{t("itemTitle")}</Label>

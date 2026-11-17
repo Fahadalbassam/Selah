@@ -531,7 +531,7 @@ async function recommendationOrg(tx: Tx, recommendationId: string) {
   return r.orgId;
 }
 
-/** Firm staff only (decision 1c); the database refuses anyone else (migration 0087). */
+/** Firm staff only (decision 1c); the database refuses anyone else (migration 0083). */
 export async function linkRecommendation(tx: Tx, principal: Principal, id: string, recommendationId: string) {
   const row = await loadIndicator(tx, id);
   assertAllowed(principal, "indicator.link", resource(principal, row.orgId, row.departmentId));

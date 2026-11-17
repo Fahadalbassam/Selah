@@ -1,5 +1,5 @@
 // Decision 1b (product owner, 17 Nov 2026): an action owner reads only the
-// actions they own, enforced in the database (migration 0085_owner_actions),
+// actions they own, enforced in the database (migration 0081_owner_actions),
 // mirrored in authorize() ("assigned"). No titles and no counts of anyone
 // else's actions, anywhere: the recommendation page, notices and mail, the
 // mute list, the "replaced by" line, translations, the Files card, project
@@ -8,7 +8,7 @@
 //
 // Two owners in the walkthrough's style: one at a client with departments
 // (owner@nukhba.test has a teammate in Legal) and one at a client without
-// (owner@rawdah.test). Every owner case failed before 0085 and the service
+// (owner@rawdah.test). Every owner case failed before 0081 and the service
 // changes; the other roles guard what must not change.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
@@ -466,7 +466,7 @@ describe("a former owner, after a hand-over", () => {
   });
 
   it("the summary mail does not count an old notice about it", async () => {
-    // Unread and not mailed, with a daily summary: before 0085 the summary job queued a mail for it.
+    // Unread and not mailed, with a daily summary: before 0081 the summary job queued a mail for it.
     await owner.query(`UPDATE notifications SET mailed_at = NULL, read_at = NULL, created_at = now() - interval '1 hour' WHERE user_id = $1`, [U.owner]);
     await owner.query(`DELETE FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.owner, A.mine]);
     await owner.query(`UPDATE notifications SET kind = 'follow_up.overdue' WHERE user_id = $1`, [U.owner]);

@@ -328,11 +328,11 @@ describe("who changes a client's indicators", () => {
   });
 });
 
-// Decision 1c (product owner, 17 Nov 2026; migration 0087_indicator_links_firm): only
+// Decision 1c (product owner, 17 Nov 2026; migration 0083_indicator_links_firm): only
 // firm staff link an indicator to a recommendation. The link is the consultant's
 // statement that the recommendation should move the number; the client reads the
 // links it may see, and still sets up and changes its own indicators. This block
-// failed before 0087 and the policy.ts change (the client admin could link and unlink).
+// failed before 0083 and the policy.ts change (the client admin could link and unlink).
 describe("linking an indicator to a recommendation is the firm's", () => {
   it("a client admin's link and unlink are refused (Not found) through the API, and the page offers neither", async () => {
     await expect(svc(U.cadmin, (tx, p) => I.linkRecommendation(tx, p, K.acme, REC))).rejects.toThrow(/forbidden/);

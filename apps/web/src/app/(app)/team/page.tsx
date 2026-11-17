@@ -86,6 +86,7 @@ export default async function TeamPage() {
           </Table>
         </div>
       )}
+      {!people && team.length ? <p className="text-xs text-muted-foreground">{t("projectsHint")}</p> : null}
       {load && queue ? <Workload load={load} queue={queue} /> : null}
     </>
   );

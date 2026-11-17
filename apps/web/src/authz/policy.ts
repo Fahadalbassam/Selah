@@ -263,7 +263,7 @@ export const POLICY = {
   "indicator.report": { ...ALL_BUT_OWNER, consultant: "working" },
   "indicator.manage": { firm_admin: "any", consultant: "working", client_admin: "any" },
   // Link and unlink a recommendation: firm staff only (the database: links
-  // writer policies, app_firm_changes_kpis, migration 0087).
+  // writer policies, app_firm_changes_kpis, migration 0083).
   "indicator.link": { firm_admin: "any", consultant: "working" },
   "indicator.check": { firm_admin: "any", consultant: "working" },
   // How the client's figures reach Selah (typed, files, connected) and its
