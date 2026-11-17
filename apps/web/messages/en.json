@@ -1125,6 +1125,7 @@
     "calendar": "Add to calendar",
     "markHeld": "Mark as held",
     "agenda": "Agenda",
+    "agendaWithheld": "The agenda is shown to people who can open all of the project's work. Ask the organiser what concerns you.",
     "summary": "Summary",
     "noSummary": "No summary yet.",
     "decisions": "Decisions",
@@ -1526,7 +1527,7 @@
       "evidenced": "With evidence",
       "verified": "Verified",
       "overdue": "Overdue",
-      "gapsCount": "{n, plural, one {# gap} other {# gaps}}"
+      "gapsSuggested": "{n, plural, one {# suggested gap} other {# suggested gaps}}, {confirmed} confirmed"
     },
     "compare": {
       "title": "Compare assessments",
@@ -2682,7 +2683,9 @@
       "field": "Finding",
       "description": "Details (optional)",
       "visibility": "Who can see it",
-      "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}"
+      "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}",
+      "answeredElsewhere": "Answered in another department",
+      "answeredElsewhereToo": ", and in another department"
     },
     "rec": {
       "add": "Add a recommendation",
@@ -4340,7 +4343,8 @@
     "client": "Client",
     "actions": "Actions",
     "actionsHint": "The work that carries this recommendation out.",
-    "noActions": "No actions yet."
+    "noActions": "No actions yet.",
+    "actionsLeftOut": "{n, plural, one {# more action is not shown to you} other {# more actions are not shown to you}}"
   },
   "oversight": {
     "title": "Oversight",
@@ -4430,6 +4434,7 @@
     "draftTitle": "Draft, seen only by the firm",
     "draftHint": "The monthly job drafted this pack. The numbers below are live until you issue it.",
     "item": "Item",
+    "leftOut": "{n, plural, one {# more item in another department is not shown to you} other {# more items in other departments are not shown to you}}",
     "since": "Since",
     "owner": "Owner",
     "due": "Due",
@@ -4933,6 +4938,7 @@
       "change": "Change since baseline",
       "target": "Target",
       "linked": "Linked recommendations",
+      "recsLeftOut": "{n, plural, one {# more recommendation in another department} other {# more recommendations in other departments}}",
       "company": "Whole company",
       "noValue": "No value yet",
       "movement": {
@@ -5056,6 +5062,7 @@
       "dailyRead": "Read daily",
       "connectedBy": "Connected by {name}, {when}",
       "failing": "Not working: {reason}",
+      "noRight": "The person who set up this connection can no longer change these figures. The lead consultant needs to set it up again.",
       "lastOk": "Last received {when} ({n} figures)",
       "notYet": "Nothing received yet",
       "reasons": {
@@ -5064,7 +5071,8 @@
         "not_shared": "the sheet is not shared for reading",
         "too_large": "the sheet is larger than 2 MB",
         "empty": "the sheet is empty",
-        "refused": "the figures were refused; check the person who connected it still has access"
+        "refused": "the figures were refused; check the person who connected it still has access",
+        "no_right": "set up by someone who lost access"
       },
       "readNow": "Read now",
       "disconnect": "Disconnect",

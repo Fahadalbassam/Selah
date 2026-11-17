@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
   actions,
@@ -16,6 +17,7 @@ import {
   meetings,
   organizations,
   projects,
+  recommendations,
   user,
 } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
@@ -166,11 +168,31 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
 
   // Sources. Each lookup runs under RLS too: an action or meeting the person
   // cannot open leaves the file under a plain "Evidence" folder, unnamed.
-  const [evidence, assessed, cited] = await Promise.all([
+  // Row-level security alone lets an action owner read a colleague's action,
+  // so the action is also checked the way the action page checks it.
+  const actionProject = alias(projects, "action_project");
+  const actionOrg = alias(organizations, "action_org");
+  const [evidenceRows, assessed, cited] = await Promise.all([
     tx
-      .select({ documentId: evidenceSubmissions.documentId, actionId: actions.id, title: actions.title })
+      .select({
+        documentId: evidenceSubmissions.documentId,
+        actionId: actions.id,
+        title: actions.title,
+        orgId: actions.orgId,
+        projectId: actions.projectId,
+        createdBy: actions.createdBy,
+        ownerUserId: actions.ownerUserId,
+        label: recommendations.visibility,
+        firmOrgId: actionProject.firmOrgId,
+        projectKind: actionProject.kind,
+        projectState: actionProject.state,
+        engagementMode: actionOrg.engagementMode,
+      })
       .from(evidenceSubmissions)
       .leftJoin(actions, eq(actions.id, evidenceSubmissions.actionId))
+      .leftJoin(recommendations, eq(recommendations.id, actions.recommendationId))
+      .leftJoin(actionProject, eq(actionProject.id, actions.projectId))
+      .leftJoin(actionOrg, eq(actionOrg.id, actions.orgId))
       .where(inArray(evidenceSubmissions.documentId, visibleIds)),
     tx
       .select({ documentId: assessmentEvidence.documentId, id: assessments.id, title: assessments.title })
@@ -184,6 +206,26 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       .innerJoin(meetings, eq(meetings.id, meetingSummarySources.meetingId))
       .where(inArray(meetingSummarySources.documentId, visibleIds)),
   ]);
+  const evidence = evidenceRows.map((e) => {
+    const opens =
+      e.actionId !== null &&
+      e.orgId !== null &&
+      authorize(principal, "action.read", {
+        type: "action",
+        id: e.actionId,
+        orgId: e.orgId,
+        firmOrgId: e.firmOrgId ?? undefined,
+        projectId: e.projectId,
+        projectKind: e.projectKind ?? undefined,
+        projectState: e.projectState ?? undefined,
+        engagementMode: e.engagementMode,
+        createdBy: e.createdBy,
+        assignees: e.ownerUserId ? [e.ownerUserId] : [],
+        visibility: e.label ?? undefined,
+      }).allowed;
+    // The file stays (it is the reader's to open); the action it belongs to is not named.
+    return { documentId: e.documentId, actionId: opens ? e.actionId : null, title: opens ? e.title : null };
+  });
   const first = <T extends { documentId: string | null }>(list: T[]) => {
     const m = new Map<string, T>();
     for (const x of list) if (x.documentId && !m.has(x.documentId)) m.set(x.documentId, x);

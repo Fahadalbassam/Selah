@@ -13,6 +13,7 @@ Typing figures in always stays possible, in every mode.
 ## Who decides
 
 - The client's admin chooses (for a client the firm runs without client accounts, firm staff on the client). The choice records who made it and when, and tells the client's lead and deputy.
+- "Firm staff" here and below means the firm admin and the consultants who do the client's work: its lead or deputy, or someone staffed (not as an observer) on one of its projects that is not closed (decision D4; docs/metrics.md). Any other consultant on the client's team reads this page, its connections and its batches, and changes nothing.
 - Firm staff can only **suggest** a mode, typically during discovery. The client's admins are told, and the suggestion is preselected for them; it changes nothing until an admin confirms.
 - The first time a client's admin opens their overview, a skippable card asks the question with "no data" preselected. It can be changed any time under **Data sharing** in their profile menu (`/indicators/data`).
 - Stepping back from `connected` disconnects every connection at once. Figures already received stay.
@@ -35,6 +36,8 @@ Firm staff may import for the client (for example, an export the client emailed)
 ## Connections (`connected` mode only)
 
 At most five per client; only the client's admin adds or disconnects them. Figures arrive under the name of the person who connected it and under that person's access, so someone who loses access brings nothing more in. Only indicators the admin switches on under **From connections** accept figures from a connection.
+
+A connection set up by firm staff (for a client the firm runs without accounts) stops when that person may no longer change the client's figures: they now only observe, are staffed only on closed projects, or left the client's team (decision D4). Each run is then recorded as failed with the reason `no_right`, and the data page says so on the connection, to the client's lead and the client's admin: "The person who set up this connection can no longer change this client's figures. Ask the client's lead consultant to set it up again." A key's request then answers 403 `{"error":"forbidden","reason":"no_right"}`. Nothing is brought in until someone who may change the figures sets it up again (`connectionMayWrite()` in `src/services/indicator-data.ts`).
 
 **Google Sheet.** In Google Sheets: File › Share › Publish to web, pick the tab and CSV, and paste the link (an ordinary share link to a sheet anyone with the link can view also works). Selah checks the link before connecting and shows which labels matched. The `job:indicator-feeds` job reads each sheet once a day (corrections on). Three failures in a row tell the person who connected it. Only `docs.google.com` and Google's own download hosts are read; a firm can allow more hosts with `INDICATOR_SHEET_HOSTS` (comma-separated). Links must be HTTPS, redirects are checked at every hop, and a sheet over 2 MB is refused.
 

@@ -11,8 +11,10 @@ import type { EngagementMode, Role } from "./types";
  *   lead      - only clients (or internal projects) the user leads
  *   team      - the user's own records, records shared with them, and records
  *               filed under one of their departments
+ *   working   - only clients the consultant does the work for: lead or deputy,
+ *               or staffed (not as an observer) on one of the client's projects
  */
-export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead" | "team";
+export type Scope = "any" | "assigned" | "own" | "shared" | "owner_org" | "lead" | "team" | "working";
 
 type Grants = Partial<Record<Role, Scope>>;
 
@@ -234,7 +236,11 @@ export const POLICY = {
   "report.read": { ...ALL_BUT_OWNER },
   "report.write": { ...STAFF },
   "report.share": { ...STAFF },
-  "activity.read": { ...READ_WORK },
+  // The project's activity record: who did what, across the whole project.
+  // For the firm and the client's admin (decision D8); a manager limited to
+  // her departments and an action owner would read other people's work in
+  // it. The row policy on activity_events says the same (migration 0071).
+  "activity.read": { ...STAFF, client_admin: "any" },
   // Implementation metrics of a project (computed, never typed in), and the
   // admin's view of the team's load. No per-person scores or rankings.
   "metrics.read": { ...ALL_BUT_OWNER },
@@ -245,14 +251,19 @@ export const POLICY = {
   // own departments (the database: app_kpi_readable). Set up, changed and
   // linked to recommendations by the firm and the client's admin. The firm
   // checks a value against the client's source, never one it entered.
+  // Indicators belong to the client, not to a project, so the observer rule
+  // does not reach them. A consultant changes them only where they do the
+  // client's work ("working": lead or deputy, or staffed on one of its
+  // projects, not as an observer); every other consultant on the client's
+  // team reads (decision D4; the database: app_firm_changes_kpis).
   "indicator.read": { ...ALL_BUT_OWNER },
-  "indicator.report": { ...ALL_BUT_OWNER },
-  "indicator.manage": { ...STAFF, client_admin: "any" },
-  "indicator.check": { ...STAFF },
+  "indicator.report": { ...ALL_BUT_OWNER, consultant: "working" },
+  "indicator.manage": { firm_admin: "any", consultant: "working", client_admin: "any" },
+  "indicator.check": { firm_admin: "any", consultant: "working" },
   // How the client's figures reach Selah (typed, files, connected) and its
   // connections: the client's admin; the firm only for a client with no
   // accounts of its own (the database: app_kpi_data_admin).
-  "indicator.data": { ...STAFF, client_admin: "any" },
+  "indicator.data": { firm_admin: "any", consultant: "working", client_admin: "any" },
   // The deviation rules (v_deviations) over a project: overdue, stale,
   // slipped, churn, orphaned and disputed. For the firm.
   "deviation.read": { ...STAFF },

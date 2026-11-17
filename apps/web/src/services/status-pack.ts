@@ -29,6 +29,8 @@ export interface StatusPack {
   decisions: (Item & { kind: "response" | "deadline"; since: string; proposedDueDate?: string })[];
   /** The client's business indicators as known on the day it was issued (KPI layer B); absent on packs issued before them. */
   indicators?: IndicatorSnapshot[];
+  /** For a reader with department limits: how many items each list leaves out. Worked out when the pack is read (app_report_pack_for), never stored. */
+  leftOut?: Record<(typeof PACK_LISTS)[number], number>;
 }
 
 export const PACK_LISTS = ["decisions", "overdue", "slipped", "riskAccepted", "verified"] as const;
@@ -38,42 +40,31 @@ async function packFor(tx: Tx, projectId: string, orgId: string, from: string, t
   return { ...rows[0]!.pack, indicators: await indicatorSnapshot(tx, { clientOrgId: orgId, projectId }, firmToday()) };
 }
 
-/** A client reader sees only the items of departments they can see; the counts stay whole. */
-async function forReader(tx: Tx, principal: Principal, orgId: string, pack: StatusPack): Promise<StatusPack> {
-  if (principal.orgKind === "firm") return pack;
-  const depts = [
-    ...new Set(
-      [...PACK_LISTS.flatMap((k) => pack[k].map((i) => i.departmentId)), ...(pack.indicators ?? []).map((k) => k.departmentId)].filter(
-        (d): d is string => !!d,
-      ),
-    ),
-  ];
-  if (!depts.length) return pack;
-  const { rows } = await tx.execute<{ id: string; ok: boolean }>(
-    sql`select d as id, app_dept_ok(d, ${orgId}::uuid) as ok from unnest(${sql.param(depts)}::uuid[]) d`,
-  );
-  const hidden = new Set(rows.filter((r) => !r.ok).map((r) => r.id));
-  const keep = <T extends Item>(xs: T[]) => xs.filter((i) => !i.departmentId || !hidden.has(i.departmentId));
-  return {
-    ...pack,
-    overdue: keep(pack.overdue),
-    slipped: keep(pack.slipped),
-    riskAccepted: keep(pack.riskAccepted),
-    verified: keep(pack.verified),
-    decisions: keep(pack.decisions),
-    indicators: pack.indicators?.filter((k) => !k.departmentId || !hidden.has(k.departmentId)),
-  };
-}
-
-/** The pack on a report: frozen once issued, worked out live while a draft (only the firm sees a draft). */
+/**
+ * The pack on a report: frozen once issued, worked out live while a draft (only the firm sees a draft).
+ *
+ * An issued pack is read only through app_report_pack_for() (migration
+ * 0074): the app role cannot read reports.pack. The function hands a client
+ * reader only the items of departments they can see, and says how many were
+ * left out of each list, never which (decision D8). The numbers stay whole:
+ * a person at the firm chose to share the report.
+ */
 export async function reportPack(tx: Tx, principal: Principal, reportId: string) {
   const [row] = await tx
-    .select({ kind: reports.kind, pack: reports.pack, metrics: reports.metrics, projectId: reports.projectId, orgId: reports.orgId, periodStart: reports.periodStart, periodEnd: reports.periodEnd })
+    .select({
+      kind: reports.kind,
+      pack: sql<StatusPack | null>`app_report_pack_for(${reports.id})`,
+      metrics: reports.metrics,
+      projectId: reports.projectId,
+      orgId: reports.orgId,
+      periodStart: reports.periodStart,
+      periodEnd: reports.periodEnd,
+    })
     .from(reports)
     .where(eq(reports.id, reportId))
     .limit(1);
   if (!row || row.kind !== "status_pack" || !row.periodStart || !row.periodEnd) return null;
-  if (row.metrics) return { draft: false, pack: await forReader(tx, principal, row.orgId, row.pack as StatusPack), live: null };
+  if (row.metrics) return row.pack ? { draft: false, pack: row.pack, live: null } : null;
   return {
     draft: true,
     pack: await packFor(tx, row.projectId, row.orgId, row.periodStart, row.periodEnd),

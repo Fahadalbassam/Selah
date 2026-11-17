@@ -1,5 +1,5 @@
 import type { Principal } from "@/authz";
-import { DUE_SHEETS_SQL, SheetError, fetchSheet, runSheet } from "@/services/indicator-data";
+import { DUE_SHEETS_SQL, SheetError, connectionMayWrite, fetchSheet, runSheet } from "@/services/indicator-data";
 import { loadPrincipal } from "@/services/principal";
 
 // The daily read of connected sheets (indicator data). The schema owner
@@ -35,6 +35,8 @@ export async function runIndicatorFeeds(
       const out = await asUser(r.run_as, async (tx) => {
         const principal = await loadPrincipal(tx, r.run_as);
         if (!principal) throw new SheetError("not_shared");
+        // Firm staff who may no longer change the client's figures: said so on the data page.
+        if (!connectionMayWrite(principal, feed.orgId)) throw new SheetError("no_right");
         return runSheet(tx, principal as Principal, feed, csv!);
       });
       read++;

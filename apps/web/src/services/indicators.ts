@@ -628,6 +628,8 @@ export interface IndicatorSnapshot {
   points: number[];
   /** Linked recommendations in this scope, by title. */
   recommendations: string[];
+  /** In a frozen status pack read by someone with department limits: how many linked recommendations are not named to them. */
+  recommendationsLeftOut?: number;
 }
 
 export async function indicatorSnapshot(

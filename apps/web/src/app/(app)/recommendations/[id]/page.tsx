@@ -187,7 +187,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
               <CardDescription>{t("actionsHint")}</CardDescription>
             </CardHeader>
             <CardContent className="px-5">
-              {data.actions.length === 0 ? <p className="text-sm text-muted-foreground">{t("noActions")}</p> : null}
+              {data.actions.length === 0 && data.actionsLeftOut === 0 ? <p className="text-sm text-muted-foreground">{t("noActions")}</p> : null}
               <ul className="divide-y">
                 {data.actions.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
@@ -202,6 +202,12 @@ export default async function RecommendationPage({ params }: { params: Promise<{
                   </li>
                 ))}
               </ul>
+              {/* A number only: the reader may not open these, so they are not named. */}
+              {data.actionsLeftOut > 0 ? (
+                <p className={cn("text-sm text-muted-foreground", data.actions.length > 0 && "border-t pt-3")}>
+                  {t("actionsLeftOut", { n: data.actionsLeftOut })}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         </div>

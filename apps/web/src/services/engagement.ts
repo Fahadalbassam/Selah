@@ -69,7 +69,17 @@ export async function getEngagement(tx: Tx, principal: Principal, orgId: string)
     canChangeMode,
     canManageDepartments: authorize(principal, "department.manage", orgRecord(principal, "department", orgId)).allowed,
     canMoveWork: authorize(principal, "department.move_work", orgRecord(principal, "department", orgId)).allowed,
-    departments: depts.map((d) => ({ ...d, members: members.filter((m) => m.departmentId === d.id) })),
+    departments: depts.map((d) => ({
+      ...d,
+      members: members.filter((m) => m.departmentId === d.id),
+      // Names, members and heads are for everyone here; the department's page (its work) is for the
+      // firm, the client's admin and the department's own people, as departmentOverview() decides.
+      // A card links to the page only for them, so nobody is sent to "Not found".
+      canOpen:
+        principal.orgKind === "firm" ||
+        principal.role === "client_admin" ||
+        (principal.role === "client_manager" && principal.departmentIds.has(d.id)),
+    })),
     fit: canChangeMode ? await modeFit(tx, principal, orgId) : null,
   };
 }

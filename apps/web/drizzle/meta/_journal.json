@@ -393,6 +393,55 @@
       "when": 1794871934169,
       "tag": "0068_email_change_is_open",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794914120990,
+      "tag": "0069_left_out_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1794914128052,
+      "tag": "0070_department_meetings",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794914135324,
+      "tag": "0071_activity_readers",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794914142498,
+      "tag": "0072_agenda_readers",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794914149934,
+      "tag": "0073_observer_indicators",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794917176693,
+      "tag": "0074_status_pack_readers",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1794917745233,
+      "tag": "0075_closed_project_indicators",
+      "breakpoints": true
     }
   ]
 }

@@ -72,9 +72,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     return {
       // Client projects only; roles that can't read assessments get no tab.
       assessments: client ? await listAssessments(tx, principal, id).catch(() => null) : null,
-      // Published templates to start from, for firm staff.
+      // Published templates to start from, for firm staff. Not for an observer:
+      // the database refuses an assessment of theirs (migration 0034), so the button is not drawn.
       templates:
-        client && principal.orgKind === "firm"
+        client && principal.orgKind === "firm" && !principal.observedProjectIds?.has(id)
           ? (await listTemplates(tx, principal)).templates.filter((x) => x.published && !x.archivedAt)
           : null,
       data,
@@ -248,7 +249,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
       {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
 
-      <Tabs defaultValue={tab && TABS.includes(tab) ? tab : "recs"} className="gap-4">
+      {/* A link to a tab this person does not get (the activity record is the firm's and the client admin's) opens the plan. */}
+      <Tabs defaultValue={tab && TABS.includes(tab) && (tab !== "activity" || data.activity) ? tab : "recs"} className="gap-4">
         {/* Up to ten tabs: scroll inside the bar at tablet width rather than widen the page. */}
         <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
@@ -264,7 +266,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           {requests ? <TabsTrigger value="requests">{t("requests")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
-          <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
+          {data.activity ? <TabsTrigger value="activity">{t("activity")}</TabsTrigger> : null}
           {team || people || roles ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
           {closure ? <TabsTrigger value="closing">{tClose("tab")}</TabsTrigger> : null}
         </TabsList>
@@ -330,7 +332,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                             </p>
                           ) : (
                             <p className="text-xs text-muted-foreground">
-                              {tPlan("findings.answeredBy", { n: answeredBy })}
+                              {/* A recommendation in a department the reader is not in still answers the finding; it is not named. */}
+                              {f.answeredElsewhere === 0
+                                ? tPlan("findings.answeredBy", { n: answeredBy })
+                                : answeredBy === 0
+                                  ? tPlan("findings.answeredElsewhere")
+                                  : `${tPlan("findings.answeredBy", { n: answeredBy })}${tPlan("findings.answeredElsewhereToo")}`}
                               {f.fromAssessment ? ` · ${tPlan("findings.fromAssessment")}` : ""}
                             </p>
                           )}
@@ -590,9 +597,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       {format.dateTime(x.createdAt, { dateStyle: "medium" })}
                     </span>
                     <span className="ms-auto flex items-center gap-2">
+                      {/* The firm's working view, in the assessment page's own words: gaps are suggested until a consultant confirms them. */}
                       {x.total ? (
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {x.total.pct === null ? "—" : `${x.total.pct}%`} · {tRun("gapsCount", { n: x.total.gaps })}
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums" title={tRun("indicative")}>
+                          <Lock className="size-3" />
+                          {tRun("firmOnly")} · {x.total.pct === null ? "—" : `${x.total.pct}%`} ·{" "}
+                          {tRun("gapsSuggested", { n: x.total.gaps, confirmed: x.total.confirmed })}
                         </span>
                       ) : null}
                       {firmStaff && x.sharedWithClient ? <Badge variant="outline">{tRun("sharedWithClient")}</Badge> : null}
@@ -672,6 +682,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           )}
         </TabsContent>
 
+        {data.activity ? (
         <TabsContent value="activity">
           {data.activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noActivity")}</p>
@@ -694,6 +705,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </ol>
           )}
         </TabsContent>
+        ) : null}
         {team || people || roles ? (
           <TabsContent value="team" className={team && people ? "grid gap-6 lg:grid-cols-2" : "flex flex-col gap-6"}>
             {team ? (

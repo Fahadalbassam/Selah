@@ -134,6 +134,15 @@ beforeAll(async () => {
     [U.admin, U.lead, U.cons, U.cadmin, U.cmgr, U.owner1, U.bAdmin, FIRM, ACME, BETA],
   );
   await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,true), ($1,$3,false), ($4,$2,true)`, [ACME, U.lead, U.cons, QUIET]);
+  // A consultant changes a client's indicators only when staffed on one of its projects (decision D4,
+  // tests/db/observer-indicators.test.ts), so the consultant here is staffed on Acme's.
+  await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Acme governance','active',$4)`, [
+    id(5),
+    ACME,
+    FIRM,
+    U.admin,
+  ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [id(5), U.cons]);
 });
 
 beforeEach(reset);
@@ -303,13 +312,13 @@ describe("connections", () => {
           { indicator: "nothing-like-it", period: "2026-02", value: 1 },
         ]),
       );
-    let out = await push();
+    let out = (await push())!;
     expect(out.results.map((r) => r.reason)).toEqual(["not_connected", "not_connected", "unmatched"]);
     // Which indicators flow is the client's call, not the firm's.
     await expect(svc(U.lead, (tx, p) => D.setIndicatorSource(tx, p, K.complaints, { feedOn: true }))).rejects.toThrow(/chooses which indicators/);
     await svc(U.cadmin, (tx, p) => D.setIndicatorSource(tx, p, K.complaints, { feedOn: true }));
     await svc(U.cadmin, (tx, p) => D.setIndicatorSource(tx, p, K.turnover, { feedOn: true }));
-    out = await push();
+    out = (await push())!;
     expect([out.added, out.results.map((r) => r.status)]).toEqual([2, ["add", "add", "refused"]]);
     const v = (await owner.query(`SELECT channel, entered_by, on_behalf FROM client_kpi_values ORDER BY period`)).rows;
     expect(v).toEqual([
@@ -351,5 +360,51 @@ describe("connections", () => {
     }
     expect((await owner.query(`SELECT failures, last_error FROM indicator_feeds`)).rows[0]).toEqual({ failures: 3, last_error: "not_shared" });
     expect(await notes("indicator.feed_failing")).toEqual([U.cadmin]);
+  });
+
+  it("a connection whose consultant may no longer change the client's figures stops, and the data page says why", async () => {
+    await mode(U.cadmin, "connected");
+    await svc(U.cadmin, (tx, p) => D.setIndicatorSource(tx, p, K.complaints, { feedOn: true }));
+    // A sheet and a key set up by the staffed consultant (as when the firm ran the client's data).
+    const token = `slk_${"a".repeat(43)}`;
+    const { createHash } = await import("node:crypto");
+    await owner.query(
+      `INSERT INTO indicator_feeds (org_id, kind, label, url, token_hash, token_hint, run_as) VALUES
+        ($1,'sheet','Monthly KPIs','https://docs.google.com/spreadsheets/d/e/2PACX-abc/pub?output=csv',NULL,NULL,$2),
+        ($1,'api','ERP',NULL,$3,'aaaa',$2)`,
+      [ACME, U.cons, createHash("sha256").update(token).digest("hex")],
+    );
+    const csv = "Month,Customer complaints\n2026-02,38\n";
+    const key = (await asUser(U.cons, (tx) => D.feedByKey(tx, token)))!;
+    const push = (period: string, value: number) => svc(key.runAs, (tx, p) => D.pushValues(tx, p, key, [{ indicator: "complaints", period, value }]));
+    // While they are staffed on the client's project, both bring figures in.
+    expect(await runIndicatorFeeds(owner, asUser, async () => csv)).toEqual({ read: 1, failed: 0, added: 1 });
+    expect((await push("2026-03", 36))?.added).toBe(1);
+
+    // Now they only observe that project: they may read the client's indicators, not change them (D4).
+    await owner.query(`UPDATE project_members SET observer = true WHERE project_id = $1 AND user_id = $2`, [id(5), U.cons]);
+    try {
+      await owner.query(`UPDATE indicator_feeds SET last_run_at = now() - interval '1 day'`);
+      expect(await runIndicatorFeeds(owner, asUser, async () => "Month,Customer complaints\n2026-04,30\n")).toEqual({ read: 0, failed: 1, added: 0 });
+      expect(await push("2026-05", 29)).toBeNull();
+      expect((await owner.query(`SELECT count(*)::int AS n FROM client_kpi_values`)).rows[0].n).toBe(2);
+      expect((await owner.query(`SELECT kind, failures, last_error FROM indicator_feeds ORDER BY kind::text`)).rows).toEqual([
+        { kind: "api", failures: 1, last_error: "no_right" },
+        { kind: "sheet", failures: 1, last_error: "no_right" },
+      ]);
+      // The client's lead and the client's admin see it on the data page, in plain words.
+      for (const who of [U.lead, U.cadmin]) {
+        const feeds = (await svc(who, (tx, p) => D.dataSettings(tx, p, ACME))).feeds;
+        expect(feeds.map((f) => [f.label, f.failures, f.lastError]).sort()).toEqual([
+          ["ERP", 1, "no_right"],
+          ["Monthly KPIs", 1, "no_right"],
+        ]);
+      }
+      const words = async (lang: "ar" | "en") => (await import(`../../messages/${lang}.json`)).default.indicatorData.feeds.noRight as string;
+      expect(await words("ar")).toBe("لم يعد لمن أعدّ هذا الربط صلاحية تعديل هذه الأرقام. يحتاج المستشار الرئيسي إلى إعداده من جديد.");
+      expect(await words("en")).toBe("The person who set up this connection can no longer change these figures. The lead consultant needs to set it up again.");
+    } finally {
+      await owner.query(`UPDATE project_members SET observer = false WHERE project_id = $1 AND user_id = $2`, [id(5), U.cons]);
+    }
   });
 });

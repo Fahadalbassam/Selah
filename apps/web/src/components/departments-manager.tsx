@@ -33,6 +33,8 @@ export interface DepartmentsData {
     nameAr: string;
     nameEn: string | null;
     active: boolean;
+    /** Whether this reader may open the department's page (its work). Names and members are for everyone. */
+    canOpen: boolean;
     members: { userId: string; name: string; isHead: boolean }[];
   }[];
 }
@@ -120,9 +122,14 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
                 <CardHeader className="flex flex-row items-start justify-between gap-3 px-5">
                   <div className="min-w-0 space-y-1">
                     <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                      <Link href={`/departments/${d.id}`} className="hover:underline">
-                        {name(d)}
-                      </Link>
+                      {/* A link only where the reader may open the department's page (its work). */}
+                      {d.canOpen ? (
+                        <Link href={`/departments/${d.id}`} className="hover:underline">
+                          {name(d)}
+                        </Link>
+                      ) : (
+                        <span>{name(d)}</span>
+                      )}
                       {d.active ? null : <ToneBadge tone="neutral">{t("switchedOff")}</ToneBadge>}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">{ar ? d.nameEn : d.nameEn ? d.nameAr : null}</p>

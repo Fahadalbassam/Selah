@@ -2,6 +2,7 @@ import { ArrowLeft, Ban, CalendarPlus, Pencil, Video } from "lucide-react";
 import { Send } from "@/components/animate-ui/icons/send";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { createTranslator } from "next-intl";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ApiButton } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
@@ -10,7 +11,10 @@ import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { messagesFor } from "@/i18n/messages";
+import { agendaLines } from "@/lib/agenda";
 import { isUuid } from "@/lib/ids";
 import { withPrincipal } from "@/server/page";
 import { getMeeting, meetingInvitees } from "@/services/meetings";
@@ -46,12 +50,22 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     getTranslations("visibility"),
     getFormatter(),
   ]);
-  const { meeting, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, me } = data;
+  const { meeting, agendaWithheld, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
   const when = `${format.dateTime(meeting.startsAt, { dateStyle: "full", timeStyle: "short" })} – ${format.dateTime(meeting.endsAt, { timeStyle: "short" })}`;
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
   const shared = meeting.visibility === "shared";
   const lang: "ar" | "en" = meeting.spokenLang === "en" ? "en" : "ar";
+  // The agenda is one stored text in the meeting's language, whatever language
+  // the page is in. Agendas stored before migration 0072 carry status keys and
+  // plain dates; they are drawn in words, in that same language (lib/agenda.ts).
+  const agenda = meeting.agendaMd
+    ? await (async () => {
+        const status = createTranslator({ locale: lang, messages: await messagesFor(lang), namespace: "status" });
+        const dayIn = new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeZone: "UTC" });
+        return agendaLines(meeting.agendaMd!, { status: (key) => status(key), date: (iso) => dayIn.format(new Date(`${iso}T00:00:00Z`)) });
+      })()
+    : null;
   const mine = attendees.find((a) => a.userId === me && a.role !== "organizer");
   const replaced = new Set(decisions.map((d) => d.supersedesId).filter(Boolean));
   const decisionNo = new Map(decisions.map((d, i) => [d.id, i + 1]));
@@ -98,22 +112,22 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             <CardContent className="space-y-3 px-5 text-sm">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="tabular-nums">{when}</span>
+                {/* Plain links styled as buttons, as on the other server pages. Wrapped in the client
+                    <Button asChild>, the link reached its Slot as a lazy reference while the icon inside
+                    (a client component) was still loading, the Slot drew nothing where the server had
+                    drawn the link, and every scheduled meeting failed hydration. */}
                 {meeting.joinUrl && scheduled ? (
-                  <Button asChild size="sm">
-                    <a href={meeting.joinUrl} target="_blank" rel="noopener noreferrer">
-                      <Video />
-                      {t("join")}
-                    </a>
-                  </Button>
+                  <a href={meeting.joinUrl} target="_blank" rel="noopener noreferrer" data-slot="button" className={buttonVariants({ size: "sm" })}>
+                    <Video />
+                    {t("join")}
+                  </a>
                 ) : null}
                 {meeting.locationText ? <span className="text-muted-foreground">{meeting.locationText}</span> : null}
                 {meeting.status !== "held" ? (
-                  <Button asChild size="sm" variant="outline">
-                    <a href={`/api/meetings/${meeting.id}/ics`}>
-                      <CalendarPlus />
-                      {t("calendar")}
-                    </a>
-                  </Button>
+                  <a href={`/api/meetings/${meeting.id}/ics`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    <CalendarPlus />
+                    {t("calendar")}
+                  </a>
                 ) : null}
               </div>
               {canRun && meeting.status !== "held" ? (
@@ -166,31 +180,40 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                   ) : null}
                 </div>
               ) : null}
-              {mine && scheduled ? <RespondButtons meetingId={meeting.id} current={mine.response} /> : null}
+              {mine && scheduled && canRespond ? <RespondButtons meetingId={meeting.id} current={mine.response} /> : null}
             </CardContent>
           </Card>
 
-          {meeting.agendaMd ? (
+          {agenda ? (
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("agenda")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1 px-5 text-sm" dir="auto">
                 {/* The database writes it as "## heading" and "- item" lines. */}
-                {meeting.agendaMd.split("\n").map((line, i) =>
-                  line.startsWith("## ") ? (
+                {agenda.map((line, i) =>
+                  line.kind === "heading" ? (
                     <p key={i} className="pt-2 font-medium first:pt-0">
-                      {line.slice(3)}
+                      {line.text}
                     </p>
-                  ) : line.startsWith("- ") ? (
+                  ) : line.kind === "item" ? (
                     <p key={i} className="ps-3 text-muted-foreground">
-                      • {line.slice(2)}
+                      • {line.text}
                     </p>
-                  ) : line ? (
-                    <p key={i}>{line}</p>
-                  ) : null,
+                  ) : (
+                    <p key={i}>{line.text}</p>
+                  ),
                 )}
               </CardContent>
+            </Card>
+          ) : agendaWithheld ? (
+            // The agenda names the project's late and waiting actions by title, so it goes only to
+            // people who can open all of them; the text was not sent to this reader (decision D8).
+            <Card className="gap-3 py-5 shadow-xs">
+              <CardHeader className="px-5">
+                <CardTitle className="text-base">{t("agenda")}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 text-sm text-muted-foreground">{t("agendaWithheld")}</CardContent>
             </Card>
           ) : null}
 

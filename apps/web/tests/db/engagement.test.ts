@@ -527,16 +527,19 @@ describe("departments across the work", () => {
     await owner.query(`UPDATE actions SET title = 'HR canary', blocked_reason = 'waiting' WHERE status = 'blocked' AND department_id = $1`, [DEPT.hr]);
     const fin = await action(ACME, { dept: DEPT.fin, status: "blocked" });
     await owner.query(`UPDATE actions SET title = 'Finance canary', blocked_reason = 'waiting' WHERE id = $1`, [fin]);
-    const book = async (dept: string | null) =>
-      (
+    // The app role does not read the agenda column itself (migration 0072), so the test reads what was stored as the owner.
+    const book = async (dept: string | null) => {
+      const { id } = (
         await run(
           U.lead,
           `INSERT INTO meetings (project_id, org_id, kind, title, starts_at, ends_at, location, organizer_id, ics_uid, department_id)
            VALUES ($1,$2,'status','Check-in', now() + interval '1 day', now() + interval '1 day 1 hour', 'in_person', $3, 'x', $4)
-           RETURNING id, agenda_md`,
+           RETURNING id`,
           [P.acme, ACME, U.lead, dept],
         )
       ).rows[0];
+      return (await owner.query(`SELECT id, agenda_md FROM meetings WHERE id = $1`, [id])).rows[0];
+    };
     const hr = await book(DEPT.hr);
     expect(hr.agenda_md).toContain("HR canary");
     expect(hr.agenda_md).not.toContain("Finance canary");

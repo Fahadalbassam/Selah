@@ -12,13 +12,16 @@ import type { Decision, Principal, Resource } from "./types";
  *   3. Membership   - is the user a member of the record's project, or (for
  *                     consultants) assigned to its client?
  *   4. Assignment   - does the grant's scope (assigned / own / shared /
- *                     owner_org / lead / team) cover this record?
+ *                     owner_org / lead / team / working) cover this record?
  *   5. Label        - does the visibility label allow this user?
  *
  * Then three rules of state: nothing in a closed project is written, except
  * what OPEN_WHEN_CLOSED lists; the people of an archived client only read,
  * except what OPEN_WHEN_ARCHIVED lists; and an observer writes nothing in
- * the project they observe, except what OPEN_TO_OBSERVERS lists.
+ * the project they observe, except what OPEN_TO_OBSERVERS lists. (Records
+ * that belong to a client and not to a project, its business indicators,
+ * have no project to observe: there the "working" scope keeps an observer
+ * to reading. See policy.ts, "indicator.*".)
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
@@ -131,6 +134,8 @@ function scopeCovers(scope: Scope, p: Principal, r: Resource): boolean {
       );
     case "lead":
       return p.leadClientIds.has(r.clientOrgId ?? r.orgId) || (r.projectId !== null && p.leadProjectIds.has(r.projectId));
+    case "working":
+      return p.workingClientIds?.has(r.clientOrgId ?? r.orgId) ?? false;
   }
 }
 

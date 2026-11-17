@@ -110,18 +110,39 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
     ? (await tx.select({ id: findings.id, title: findings.title }).from(findings).where(eq(findings.id, rec.findingId)).limit(1))[0] ?? null
     : null;
   const owner = alias(user, "owner");
-  const recActions = await tx
+  const underIt = await tx
     .select({
       id: actions.id,
       title: actions.title,
       status: actions.status,
       dueDate: actions.dueDate,
+      ownerUserId: actions.ownerUserId,
+      createdBy: actions.createdBy,
       ownerName: sql<string | null>`coalesce(${owner.name}, ${actions.ownerName})`,
     })
     .from(actions)
     .leftJoin(owner, eq(owner.id, actions.ownerUserId))
     .where(eq(actions.recommendationId, id))
     .orderBy(asc(actions.createdAt));
+  // Only the actions this person may open (an action owner: their own), as on
+  // the project page. Row-level security alone lets an owner read their
+  // colleagues' actions, so each row is checked the way the action page checks it.
+  const recActions = underIt
+    .filter(
+      (a) =>
+        authorize(principal, "action.read", {
+          ...resource,
+          type: "action",
+          id: a.id,
+          createdBy: a.createdBy,
+          assignees: a.ownerUserId ? [a.ownerUserId] : [],
+        }).allowed,
+    )
+    .map((a) => ({ id: a.id, title: a.title, status: a.status, dueDate: a.dueDate, ownerName: a.ownerName }));
+  // How many more there are, as a number only: a sponsor answering the
+  // recommendation should know the plan is larger than what he sees.
+  const shown = `{${recActions.map((a) => a.id).join(",")}}`;
+  const { rows: left } = await tx.execute<{ n: number }>(sql`select app_actions_left_out(${id}::uuid, ${shown}::uuid[]) as n`);
   const stance = rec.visibility === "shared" ? (await recommendationStances(tx, rec.projectId)).get(id) ?? null : null;
   const review = authorize(principal, "recommendation_response.review", resource).allowed;
   return {
@@ -136,6 +157,7 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
     },
     finding,
     actions: recActions,
+    actionsLeftOut: left[0]?.n ?? 0,
     stance,
     responses: responses.map((r) => ({
       ...r,

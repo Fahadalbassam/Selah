@@ -145,10 +145,11 @@ describe("booking", () => {
 
   it("writes the agenda from the project's open work", async () => {
     const m = await meeting(await book(U.cons));
-    expect(m.agenda_md).toContain("## متأخرة\n- Adopt the charter (الاستحقاق 2020-01-01)");
+    // The date as the screens print it in the meeting's language (migration 0072), not the raw 2020-01-01.
+    expect(m.agenda_md).toContain("## متأخرة\n- Adopt the charter (الاستحقاق 01‏/01‏/2020)");
     expect(m.agenda_md).toContain("## متوقفة\n- Approve the matrix: board not convened");
     const en = (await owner.query(`SELECT app_meeting_agenda($1, now(), 'en') AS md`, [PROJ])).rows[0].md;
-    expect(en).toContain("## Overdue\n- Adopt the charter (due 2020-01-01)");
+    expect(en).toContain("## Overdue\n- Adopt the charter (due Jan 1, 2020)");
   });
 
   it("is open to the firm on the project and to client managers for shared meetings", async () => {

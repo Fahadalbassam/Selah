@@ -70,7 +70,8 @@ export default async function IndicatorDataPage({ searchParams }: { searchParams
         </CardContent>
       </Card>
 
-      {s.mode === "connected" && s.canManage ? (
+      {/* Every consultant who works with the client reads the connections; only those who may change its indicators get controls. */}
+      {s.mode === "connected" && s.canSeeFeeds ? (
         <FeedsCard
           clientId={s.client.id}
           feeds={s.feeds.map((f) => ({ ...f, createdAt: f.createdAt.toISOString(), lastRunAt: f.lastRunAt?.toISOString() ?? null, lastOkAt: f.lastOkAt?.toISOString() ?? null }))}
