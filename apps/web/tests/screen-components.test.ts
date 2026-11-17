@@ -1,6 +1,6 @@
 // Small screen faults from the page audit (batch 0), checked by rendering the
 // component to HTML with the real messages: the departments switch for
-// readers (B4).
+// readers (B4) and the notification count's direction (N12).
 import { NextIntlClientProvider } from "next-intl";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 import { DepartmentsSwitch } from "@/components/departments-switch";
+import { SlidingCount } from "@/components/sliding-count";
 
 const html = (locale: "ar" | "en", node: ReactNode) =>
   renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh" }, node));
@@ -26,5 +27,14 @@ describe("the departments switch (B4)", () => {
     expect(on).toContain(`>${ar.engagement.on}<`);
     expect(html("en", createElement(DepartmentsSwitch, { on: true, manage: false }))).toContain(">On<");
     expect(html("en", createElement(DepartmentsSwitch, { on: false, manage: false }))).toContain(">Off<");
+  });
+});
+
+describe("a rolling count (N12)", () => {
+  it("lays its digits out left to right on an Arabic page too", () => {
+    const out = html("ar", createElement("div", { dir: "rtl" }, createElement(SlidingCount, { number: 17, initiallyStable: true })));
+    // The count is a row of one box per digit; without its own direction it follows the page's, and 17 reads 71.
+    expect(out).toMatch(/data-slot="sliding-number"[^>]*dir="ltr"|dir="ltr"[^>]*data-slot="sliding-number"/);
+    expect(out).toContain(">17<");
   });
 });
