@@ -38,8 +38,8 @@ test.beforeAll(() => {
         columns: [{ header: `خطة التنفيذ ${stamp}` }, ...Array.from({ length: 6 }, () => ({ header: "" }))],
         rows: [
           ["الملاحظة", "التوصية", "الأولوية", "الإجراء", "المسؤول", "تاريخ الاستحقاق", "قائمة الأدلة"],
-          [`لا توجد سياسة لتعارض المصالح ${stamp}`, rec1, "عالية", "إعداد مسودة السياسة", "ريم الحربي", { date: "2027-03-15" }, "مسودة السياسة\nمحضر الاعتماد"],
-          [null, null, null, "اعتماد السياسة من المجلس", "abdullah@nukhba.example", "١٥/٠٩/١٤٤٨هـ", "محضر الاجتماع؛ قرار المجلس"],
+          [`لا توجد سياسة لتعارض المصالح ${stamp}`, rec1, "عالية", "إعداد مسودة السياسة", "ريم الحربي", { date: "2099-03-15" }, "مسودة السياسة\nمحضر الاعتماد"],
+          [null, null, null, "اعتماد السياسة من المجلس", "abdullah@nukhba.example", "١٥/٠٩/١٥٢٠هـ", "محضر الاجتماع؛ قرار المجلس"],
           [null, rec2, "حرجة", "تسمية أعضاء اللجنة", "شخص غير معروف", "2027-13-40", null],
         ],
       },
@@ -95,14 +95,14 @@ test("consultant imports an Arabic Excel plan: map, fix, release, confirm", asyn
   await expect(rows).toHaveCount(3);
   // The second row took its finding and recommendation from the merged cells; its Hijri date was read.
   await expect(rows.nth(1)).toContainText(t("planImport.review.sameAbove"));
-  await expect(rows.nth(1)).toContainText("2027-02-22");
+  await expect(rows.nth(1)).toContainText("2096-12-30");
   // The third has a date Selah can't read and an owner who isn't on the team.
   await expect(rows.nth(2)).toContainText(t("planImport.review.fix"));
   await expect(rows.nth(2)).toContainText("شخص غير معروف");
   await expect(page.getByRole("button", { name: t("planImport.review.import"), exact: true })).toBeDisabled();
 
   await rows.nth(2).getByRole("button", { name: t("planImport.review.edit", { n: 5 }) }).click();
-  await page.getByRole("dialog").locator("#edit-dueDate").fill("2027-05-01");
+  await page.getByRole("dialog").locator("#edit-dueDate").fill("2099-05-01");
   await page.getByRole("dialog").getByRole("button", { name: t("planImport.review.apply") }).click();
   await expect(rows.nth(2)).not.toContainText(t("planImport.review.fix"));
   await page.locator("#import-release").click();
@@ -123,7 +123,7 @@ test("consultant imports an Arabic Excel plan: map, fix, release, confirm", asyn
     ["اعتماد السياسة من المجلس", "assigned", "abdullah@nukhba.example"],
     ["تسمية أعضاء اللجنة", "draft", "-"],
   ]);
-  expect(one(`select a.due_date from actions a join recommendations r on r.id=a.recommendation_id where a.title='اعتماد السياسة من المجلس' and r.title in ('${rec1}','${rec2}')`)).toBe("2027-02-22");
+  expect(one(`select a.due_date from actions a join recommendations r on r.id=a.recommendation_id where a.title='اعتماد السياسة من المجلس' and r.title in ('${rec1}','${rec2}')`)).toBe("2096-12-30");
   expect(one(`select count(*) from evidence_requests e join actions a on a.id=e.action_id join recommendations r on r.id=a.recommendation_id where a.title='إعداد مسودة السياسة' and r.title='${rec1}'`)).toBe("2");
   expect(one(`select priority from recommendations where title='${rec2}'`)).toBe("critical");
   expect(one(`select count(*) from activity_events where meta->>'import'='true' and entity_id in (select a.id from actions a join recommendations r on r.id=a.recommendation_id where r.title in ('${rec1}','${rec2}'))`)).toBe("3");
@@ -176,7 +176,7 @@ test("the plan exports to Excel with what each person may see", async ({ browser
   const flat = sheet!.rows.map((r) => r.join("|")).join("\n");
   expect(flat).toContain(rec1);
   expect(flat).toContain(wordRec);
-  expect(flat).toContain("2027-02-22");
+  expect(flat).toContain("2096-12-30");
 
   // The client's manager gets the same plan without the firm-only rows or the "who sees it" column.
   const reem = await as("reem");

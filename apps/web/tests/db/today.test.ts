@@ -146,7 +146,7 @@ beforeAll(async () => {
   // Decisions: a join request to Acme, a deadline change, a closure request, an answered request-list item.
   await q(`INSERT INTO join_requests (client_org_id, user_id, reason) VALUES ($1,$2,'I know the sector')`, [ACME, U.stranger]);
   await q(
-    `INSERT INTO deadline_change_requests (project_id, org_id, action_id, requested_by, proposed_due_date, reason) VALUES ($1,$2,$3,$4,'2026-12-01','Board')`,
+    `INSERT INTO deadline_change_requests (project_id, org_id, action_id, requested_by, proposed_due_date, reason) VALUES ($1,$2,$3,$4,'2099-12-01','Board')`,
     [P.one, ACME, A.overdue, U.doer],
   );
   await q(`INSERT INTO project_closure_requests (project_id, org_id, requested_by, note) VALUES ($1,$2,$3,'We are done')`, [P.two, ACME, U.cadmin]);
@@ -206,7 +206,7 @@ describe("the Today page", () => {
       [A.soon, false],
     ]);
     expect(new Set(t.decisions.map((d) => d.kind))).toEqual(new Set(["join_request", "deadline_request", "info_request"]));
-    expect(t.decisions.find((d) => d.kind === "deadline_request")).toMatchObject({ href: `/actions/${A.overdue}`, proposed: "2026-12-01", who: "doer" });
+    expect(t.decisions.find((d) => d.kind === "deadline_request")).toMatchObject({ href: `/actions/${A.overdue}`, proposed: "2099-12-01", who: "doer" });
     // Only the firm admin decides a client's closure request.
     expect(t.decisions.some((d) => d.kind === "closure_request")).toBe(false);
   });
