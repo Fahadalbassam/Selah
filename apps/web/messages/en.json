@@ -1985,7 +1985,7 @@
       "updates": "Updates on your actions",
       "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
       "reminders": "Reminders and escalations",
-      "remindersHint": "Due-soon and overdue reminders, requested documents and indicator notices, gathered into one summary.",
+      "remindersHint": "Due-soon and overdue reminders, requested documents, and an indicator's latest figure compared with its baseline or target, gathered into one summary.",
       "cadence": {
         "instant": "Right away",
         "daily": "Daily summary",

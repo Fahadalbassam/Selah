@@ -8,6 +8,7 @@ import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 import { movedAwayValues, type MovedAwayFacts } from "@/lib/indicator-notice";
 import { formatValue, periodLabel } from "@/lib/indicators";
+import { renderMail } from "@/lib/mail-templates";
 
 const messages = { ar, en };
 const line = (locale: "ar" | "en", title: string, f: MovedAwayFacts) =>
@@ -99,6 +100,15 @@ describe("the moved-away notice", () => {
       }
     });
   }
+
+  it("the reminders choice and the summary mail say they carry the indicator's figure, and claim no other indicator notice", () => {
+    expect(en.notifications.mail.remindersHint).toMatch(/an indicator's latest figure compared with its baseline or target/);
+    expect(ar.notifications.mail.remindersHint).toMatch(/وآخر قيمة لمؤشر مقارنةً بخط الأساس أو المستهدف/);
+    for (const locale of ["ar", "en"] as const) expect(messages[locale].notifications.mail.remindersHint).not.toMatch(/indicator notices|إشعارات المؤشرات/);
+    const mail = renderMail("follow_up.digest", "/notifications", "http://selah.test");
+    expect(mail.text).toContain("عن إجراءاتك أو المستندات المطلوبة أو المؤشرات");
+    expect(mail.text).toContain("about your actions, requested documents or indicators");
+  });
 
   it("the words around the notice judge nothing either", () => {
     for (const locale of ["ar", "en"] as const) {
