@@ -555,10 +555,9 @@ describe("the server refuses", () => {
     for (const locked of [U.cons, U.ncadmin, U.admin, U.lead, U.deputy]) {
       await expect(set(U.cons, DOC.open, "except", [locked]), locked).rejects.toThrow(/always sees it/);
     }
-    // A meeting's organiser and required attendees.
-    for (const locked of [U.lead, U.nmgr2]) {
-      await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [locked] }))).rejects.toThrow(/always sees it/);
-    }
+    // A meeting's organiser (who is also the lead), and a required attendee, who is told what to change first.
+    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.lead] }))).rejects.toThrow(/always sees it/);
+    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr2] }))).rejects.toThrow(/required attendee/);
   });
 
   it('an "only" list with nobody', async () => {
@@ -598,6 +597,47 @@ describe("the server refuses", () => {
       await expect(rowsAs(who, `SELECT app_set_audience('document', $1, 'except', ARRAY[$2]::uuid[])`, [docId, U.nmgr])).rejects.toThrow(/not allowed/);
     }
     await expect(svc(U.nmgr2, (tx, p) => M.getMeetingAudience(tx, p, MID))).rejects.toThrow(NOT_FOUND);
+  });
+
+  it("leaving out a required attendee, or someone with an open follow-up on the meeting, saying what to change first", async () => {
+    const mid = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "workshop",
+            title: "Follow-up session",
+            startsAt: hour(300),
+            endsAt: hour(301),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr }, { userId: U.nmgr2, optional: true }],
+          }),
+        true,
+      )
+    ).id;
+    await svc(U.lead, (tx, p) => M.addFollowUp(tx, p, mid, { title: "Send the pay tables", assigneeUserId: U.nmgr2 }), true);
+    const leave = (mode: "except" | "only", people: string[]) => svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode, people }));
+    await expect(leave("except", [U.nmgr])).rejects.toThrow(/required attendee: make them optional or take them off the meeting first/);
+    await expect(leave("except", [U.nmgr2])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
+    await expect(leave("only", [U.lead, U.nmgr])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
+    // Once the follow-up is done, she can be left out.
+    await q(`UPDATE follow_ups SET status = 'done' WHERE meeting_id = $1`, [mid]);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr2] }), true);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+  });
+
+  it("a follow-up written from one of the meeting's decisions is refused for someone left out, too", async () => {
+    const [decision] = (await q(`SELECT id FROM meeting_decisions WHERE meeting_id = $1`, [MID])).rows;
+    await expect(
+      rowsAs(U.lead, `INSERT INTO follow_ups (project_id, org_id, meeting_decision_id, title, visibility, assignee_user_id, created_by) VALUES ($1,$2,$3,'x','shared',$4,$5)`, [
+        PN,
+        NUKHBA,
+        decision.id,
+        U.nmgr,
+        U.lead,
+      ]),
+    ).rejects.toThrow(/left out of this meeting/);
   });
 
   it("booking a meeting that invites someone it leaves out in the same step", async () => {
