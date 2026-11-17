@@ -15,6 +15,24 @@ Selah is a production web app (Next.js App Router, TypeScript, Postgres with row
 7. **UI rules: `docs/ui-guidelines.md`.** shadcn/ui and the existing Selah components; tokens only, no palette colours; logical (RTL-safe) classes only; at most one solid button per card; 768 px and wider; `useConfirm`, never `window.confirm`.
 8. **Synthetic data only.** Never put a key, a password or a real name into a committed file.
 
+## Decisions already made (do not reopen them)
+
+The product owner's answers stand. The full texts: `docs/review/page-audit.md` section 6 (gate A), `docs/review/lead-log.md` ("Gate A answers" and "Gate A follow-ups"), and `docs/review/decisions/2026-11-17-gate-a-followups.md` (wins where texts differ).
+
+- **D1** A client admin, the project's coordinator and its sponsor may give one open action to a colleague in their own organisation; the status does not change; the new and old owner, the client's lead and deputy and the staffed consultants are told; audited.
+- **D2** Trace goes; Today becomes the home; Oversight becomes filters on Actions.
+- **D3** Six visible status words: Not started, In progress, Waiting for the firm / the client, Needs attention, Verified, Closed.
+- **D4** A consultant changes a client's indicators only when staffed (not as observer) on an open project of that client, or as its lead or deputy. Observers change nothing.
+- **D5** No "Off track / Watch / On track" label: counts instead.
+- **D6** Clients do not see draft actions until the firm releases them, enforced in the database.
+- **D7** Signed-out pages and mails name the firm from its own record, never from code.
+- **D8** A department-limited person sees nothing by title from other departments, anywhere.
+- **Agenda** "follows the meeting": a department's meeting lists that department's work; a whole-project meeting opens only for people who may see everything on the project (an invited action owner sees only their own actions on it); the organiser is warned when inviting someone with limits.
+- **Action owners** read only actions they own, in the database (and everything under them); no titles and no counts of others' actions. Files keep their rule.
+- **Indicator links** to recommendations: firm staff only.
+- **Visibility picker** (documents except evidence, and meetings): only takes people away, never widens; locked chips; people left out see nothing.
+- **Org chart**: positions, not people; never grants or limits access; Selah never designs or judges a structure.
+
 ## Read before you write
 
 - `apps/web/AGENTS.md`: this Next.js version differs from what you know. Check `apps/web/node_modules/next/dist/docs/` before writing framework code.
@@ -65,7 +83,7 @@ All of lint, typecheck, unit tests and database tests must pass before you hand 
 ## The pull request
 
 - Commit on your branch with clear messages that say what changed and why. End every commit message with this line, after a blank line:
-  `Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (helpers run on Opus while Fable is at its limit)
 - Do not push, do not open a pull request, do not merge. The lead does that after checking your work.
 - Do not rewrite history on any branch that exists on origin. Never run `git push --force`, `git reset --hard origin/...` on someone else's branch, or `git stash` (the stash is shared between worktrees; use a WIP commit instead).
 - Update the docs your change makes untrue: `docs/rules.md`, `docs/authorization.md`, the area doc, and `docs/walkthrough.md` when a screen or a "who sees what" row changes.
