@@ -869,6 +869,55 @@ export const documentShares = pgTable(
   (t) => [primaryKey({ columns: [t.documentId, t.userId] })],
 );
 
+// Who sees an item (decision of 17 Nov 2026, feature A): "everyone with
+// access, except…" or "only these people…", on documents (never evidence)
+// and meetings. It only takes people away: the restrictive policies of
+// migration 0111 (app_audience_ok) AND it onto the other rules, and the
+// people who always see the item are worked out live, never stored. No row
+// means everyone with access. Every version of a file carries the same rows.
+export const itemAudiences = pgTable(
+  "item_audiences",
+  {
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    itemType: text("item_type").notNull(),
+    itemId: uuid("item_id").notNull(),
+    mode: text("mode").notNull(),
+    setBy: uuid("set_by")
+      .notNull()
+      .references(() => user.id),
+    setAt: ts("set_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.itemType, t.itemId] }),
+    check("item_audience_type", sql`${t.itemType} IN ('document', 'meeting')`),
+    check("item_audience_mode", sql`${t.mode} IN ('except', 'only')`),
+  ],
+);
+
+// The people an audience names: left out ("except") or the only ones who
+// see it ("only", besides the people who always do).
+export const itemAudiencePeople = pgTable(
+  "item_audience_people",
+  {
+    itemType: text("item_type").notNull(),
+    itemId: uuid("item_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.itemType, t.itemId, t.userId] }),
+    foreignKey({
+      name: "item_audience_people_audience_fk",
+      columns: [t.itemType, t.itemId],
+      foreignColumns: [itemAudiences.itemType, itemAudiences.itemId],
+    }).onDelete("cascade"),
+    index("item_audience_people_user_idx").on(t.userId),
+  ],
+);
+
 export const evidenceSubmissions = pgTable(
   "evidence_submissions",
   {
