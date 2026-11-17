@@ -288,3 +288,12 @@ BEGIN
   END IF;
   RETURN QUERY SELECT cardinality(recs), cardinality(acts), cardinality(docs);
 END $$;
+--> statement-breakpoint
+-- 7. An action's activity takes its recommendation's label (found by the same
+--    review; older than D6). Events are written with the default label, so the
+--    client admin read "added an action" and its status changes for an action
+--    under a firm-only recommendation, while the action itself was hidden
+--    (0006). Restrictive, like recommendation_label on the action's own tables.
+CREATE POLICY recommendation_label ON activity_events AS RESTRICTIVE FOR ALL TO selah_app
+  USING (entity_type <> 'action' OR app_action_label_ok(entity_id))
+  WITH CHECK (entity_type <> 'action' OR app_action_label_ok(entity_id));

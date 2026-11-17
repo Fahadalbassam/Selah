@@ -162,6 +162,20 @@ describe("an action under a firm-only recommendation", () => {
     await owner.query(`DELETE FROM notifications`);
   });
 
+  it("leaves no trace in the activity record the client admin reads", async () => {
+    // Events are written with the default label, so the action's own label decides (page audit review, finding 12).
+    await owner.query(
+      `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, to_state) VALUES
+        ($1,$2,$3,'action',$4,'created','assigned'), ($1,$2,$3,'action',$5,'created','assigned')`,
+      [P, ACME, U.cons, A.shared, A.private],
+    );
+    const events = (u: string) =>
+      as(u, async (c) => (await c.query(`SELECT DISTINCT entity_id FROM activity_events WHERE entity_type = 'action' ORDER BY entity_id`)).rows.map((r) => r.entity_id));
+    expect(await events(U.cadmin)).toEqual([A.shared]);
+    expect(await events(U.cons)).toEqual([A.shared, A.private]);
+    expect(await events(U.admin)).toEqual([A.shared, A.private]);
+  });
+
   it("is left out of a meeting's agenda, which the client may see", async () => {
     const agenda = (await owner.query(`SELECT app_meeting_agenda($1, now(), 'en') AS md`, [P])).rows[0].md as string;
     expect(agenda).toContain("Adopt the charter");
