@@ -276,9 +276,13 @@ const dept = {
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.legal.id, C.nOwner, { isHead: true }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.finance.id, C.nOwner2, { isHead: true }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.secretariat.id, C.nManager, { isHead: true }));
-// A manager sees company-wide work and their departments' (docs/authorization.md): the CEO sits in two.
+// A manager sees company-wide work and their departments' (docs/authorization.md). The CEO, the
+// project's sponsor, chairs the steering committee, so he sits in all three: no department limit
+// applies to him and he opens the whole project's meetings (decision 1a; the agenda options paper:
+// remove that one person's department limit). Reem stays limited to the board secretariat.
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.secretariat.id, C.nSponsor, { isHead: false }));
 await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.finance.id, C.nSponsor, { isHead: false }));
+await as(C.nAdmin, (tx, p) => putDepartmentMember(tx, p, dept.legal.id, C.nSponsor, { isHead: false }));
 
 // A person at the client without an account: the external auditor.
 const auditor = await as(U.lead, (tx, p) =>
