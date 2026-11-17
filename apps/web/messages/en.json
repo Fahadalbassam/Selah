@@ -2011,7 +2011,7 @@
       "unmuted": "Mail about this action is back on.",
       "indicatorMutedDone": "No more mail about this indicator.",
       "indicatorUnmuted": "Mail about this indicator is back on.",
-      "indicatorMuteHint": "You are told when this indicator's latest value is on the other side of its baseline from the chosen direction, or has not reached its target once the target date has passed. Muting stops only the mail about it."
+      "indicatorMuteHint": "You are told when a period ends and this indicator's latest value is above its baseline where lower is better, below it where higher is better, or short of its target after the target date. Muting stops only the mail; the notice still appears in Selah."
     }
   },
   "people": {
