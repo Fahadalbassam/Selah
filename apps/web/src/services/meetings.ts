@@ -34,8 +34,14 @@ import { loadProject } from "./staffing";
 type Visibility = "shared" | "firm_private";
 type Kind = (typeof meetings.$inferSelect)["kind"];
 
+// Every column but the stored agenda: the app role cannot read that one from
+// the table (migration 0071). It comes from app_meeting_agenda_for(), which
+// gives it only to a reader who may open every action it names.
+const { agendaMd: _agendaColumn, ...meetingColumns } = getTableColumns(meetings);
+void _agendaColumn;
+
 async function loadMeeting(tx: Tx, principal: Principal, id: string) {
-  const [m] = await tx.select().from(meetings).where(eq(meetings.id, id)).limit(1);
+  const [m] = await tx.select(meetingColumns).from(meetings).where(eq(meetings.id, id)).limit(1);
   if (!m) throw new NotFoundError("meeting");
   const { resource: project } = await loadProject(tx, principal, m.projectId);
   const resource: Resource = { ...project, type: "meeting", id: m.id, visibility: m.visibility, createdBy: m.organizerId };
@@ -237,7 +243,16 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .leftJoin(assignee, eq(assignee.id, followUps.assigneeUserId))
     .where(eq(followUps.meetingId, id))
     .orderBy(asc(followUps.createdAt));
-  const canRun = principal.orgKind === "firm" || meeting.organizerId === principal.userId;
+  // An observer reads the meeting and changes nothing: the database refuses
+  // every write of theirs here (migration 0034), so no control is offered.
+  const observing = principal.observedProjectIds?.has(meeting.projectId) ?? false;
+  const canRun = !observing && (principal.orgKind === "firm" || meeting.organizerId === principal.userId);
+  // The stored agenda names the project's late, waiting and blocked actions.
+  // Only a reader who may open all of them gets the text; anyone else is told
+  // there is one (decision D8), and the text never leaves the database.
+  const { rows: agendaRows } = await tx.execute<{ agenda: string | null; withheld: boolean }>(
+    sql`select agenda, withheld from app_meeting_agenda_for(${id}::uuid)`,
+  );
   const sources = summary ? await summarySources(tx, id) : [];
   // Files a summary line can cite: this project's, as row-level security shows them to firm staff who run it.
   const sourceFiles =
@@ -254,7 +269,8 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
           .orderBy(asc(documents.title))
       : [];
   return {
-    meeting,
+    meeting: { ...meeting, agendaMd: agendaRows[0]?.agenda ?? null },
+    agendaWithheld: agendaRows[0]?.withheld ?? false,
     attendees,
     decisions,
     followUps: follow,
@@ -264,7 +280,9 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     notes,
     transcript: transcript ?? null,
     canRun,
-    canFollowUp: principal.orgKind === "firm",
+    canFollowUp: principal.orgKind === "firm" && !observing,
+    // An invited observer cannot answer either (the attendee table is read-only to them).
+    canRespond: !observing,
     me: principal.userId,
   };
 }
@@ -688,6 +706,11 @@ export async function schedule(tx: Tx, principal: Principal, filter: ScheduleFil
       ${filter.projectId ? sql`and s.project_id = ${filter.projectId}` : sql``}
       ${filter.clientId ? sql`and s.org_id = ${filter.clientId}` : sql``}
       ${filter.userId ? sql`and ${filter.userId}::uuid = any (s.people)` : sql``}
+      ${
+        // An action owner opens only their own actions and follow-ups (policy.ts: "assigned"); row-level
+        // security alone would also list their colleagues' action titles here. Meetings stay as they are.
+        principal.role === "action_owner" ? sql`and (s.item_type = 'meeting' or ${principal.userId}::uuid = any (s.people))` : sql``
+      }
     order by s.starts_at, s.title
     limit 1000`);
   return rows.map((r) => ({

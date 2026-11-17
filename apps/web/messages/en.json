@@ -1116,6 +1116,7 @@
     "calendar": "Add to calendar",
     "markHeld": "Mark as held",
     "agenda": "Agenda",
+    "agendaWithheld": "The agenda is shown to people who can open all of the project's work. Ask the organiser what concerns you.",
     "summary": "Summary",
     "noSummary": "No summary yet.",
     "decisions": "Decisions",

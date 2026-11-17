@@ -407,6 +407,13 @@
       "when": 1794873169886,
       "tag": "0070_activity_readers",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794873177536,
+      "tag": "0071_agenda_readers",
+      "breakpoints": true
     }
   ]
 }
