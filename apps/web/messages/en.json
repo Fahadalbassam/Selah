@@ -268,7 +268,7 @@
     },
     "decisions": {
       "title": "Waiting on your decision",
-      "description": "Requests that a client's lead or the firm admin settles.",
+      "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
       "joinTitle": "{who} asks to join",
       "proposed": "{who} proposes {date}",
       "askedBy": "{who} asked on {date}",
