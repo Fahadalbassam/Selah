@@ -386,6 +386,13 @@
       "when": 1793330971740,
       "tag": "0067_indicator_data",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794871934169,
+      "tag": "0068_email_change_is_open",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { LogIn } from "@/components/animate-ui/icons/log-in";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { isSignInLinkToken, signInLinkVerifyPath } from "@/lib/sign-in-links";
 import { AuthShell } from "../../../auth-shell";
+import { DeadLink } from "../../../dead-link";
 
 /**
  * Where a sign-in link mail lands (F14). Opening this page uses nothing up:
@@ -15,27 +15,21 @@ export default async function SignInLinkPage({ params }: { params: Promise<{ tok
   const { token } = await params;
   const t = await getTranslations("signIn.link");
   if (!isSignInLinkToken(token)) {
-    return (
-      <AuthShell title={t("invalidTitle")} subtitle={t("invalid")}>
-        <p className="text-center text-sm">
-          <Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-            {t("toSignIn")}
-          </Link>
-        </p>
-      </AuthShell>
-    );
+    return <DeadLink title={t("invalidTitle")} body={t("invalid")} href="/sign-in" action={t("toSignIn")} />;
   }
   return (
     <AuthShell title={t("pageTitle")} subtitle={t("pageSubtitle")}>
       <Card className="py-6 shadow-xs">
         <CardContent className="space-y-4 px-6">
-          <Button asChild className="w-full">
-            {/* A plain navigation: Better Auth sets the session cookie and redirects. */}
-            <a href={signInLinkVerifyPath(token)} rel="nofollow">
-              <LogIn animateOnHover className="rtl:-scale-x-100" />
-              {t("continue")}
-            </a>
-          </Button>
+          {/* A plain navigation: Better Auth sets the session cookie and redirects.
+              Styled as a button here, not wrapped in <Button asChild>: that button's
+              slot renders nothing while the link it was handed is still arriving
+              from the server, so the server's HTML and the browser's first render
+              disagreed and the page failed to hydrate on every load. */}
+          <a href={signInLinkVerifyPath(token)} rel="nofollow" data-slot="button" className={buttonVariants({ className: "w-full" })}>
+            <LogIn animateOnHover className="rtl:-scale-x-100" />
+            {t("continue")}
+          </a>
           <p className="text-center text-xs text-muted-foreground">{t("once")}</p>
         </CardContent>
       </Card>

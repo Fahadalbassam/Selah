@@ -1,25 +1,17 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { BadRequestError } from "@/server/errors";
 import { withAnonymous } from "@/server/page";
-import { openInvitation } from "@/services/onboarding";
+import { findInvitation } from "@/services/onboarding";
 import { AuthShell } from "../../auth-shell";
+import { DeadLink } from "../../dead-link";
 import { AcceptForm } from "./accept-form";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const [t, tRole, locale] = await Promise.all([getTranslations("account.invite"), getTranslations("role"), getLocale()]);
-  const invitation = /^[A-Za-z0-9_-]{43}$/.test(token)
-    ? await withAnonymous((tx) => openInvitation(tx, token)).catch((err) => {
-        if (err instanceof BadRequestError) return null;
-        throw err;
-      })
-    : null;
+  // Reading the invitation changes nothing, so it is safe on every load.
+  const invitation = await withAnonymous((tx) => findInvitation(tx, token));
   if (!invitation) {
-    return (
-      <AuthShell title={t("invalidTitle")} subtitle={t("invalid")}>
-        {null}
-      </AuthShell>
-    );
+    return <DeadLink title={t("invalidTitle")} body={t("invalid")} href="/sign-in" action={t("toSignIn")} />;
   }
   const org = locale === "ar" && invitation.orgNameAr ? invitation.orgNameAr : invitation.orgName;
   return (

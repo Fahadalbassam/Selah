@@ -20,7 +20,8 @@ export default async function PrivacyPage() {
     <article className="mx-auto max-w-2xl animate-page-in space-y-8 px-6 py-12">
       <ReadingProgress />
       <header className="space-y-2">
-        <p className="text-sm text-muted-foreground">{t("version", { version: PRIVACY_NOTICE_VERSION })}</p>
+        {/* Isolated as left to right, like the /legal pages: inside Arabic text a bare 2026-10-24 reads 24-10-2026. */}
+        <p className="text-sm text-muted-foreground">{t("version", { version: `⁦${PRIVACY_NOTICE_VERSION}⁩` })}</p>
         <h1 className="text-2xl font-semibold text-balance">{t("title")}</h1>
         <p className="leading-relaxed text-muted-foreground">{t("intro")}</p>
       </header>

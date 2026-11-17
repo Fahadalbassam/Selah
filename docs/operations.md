@@ -26,6 +26,8 @@ The visitor's address, which the sign-in and inquiry limits use, is always set b
 
 The sub-processor list and the security overview (`/legal/sub-processors`, `/legal/security`) read the same setting, so what clients are told follows what runs.
 
+The list's mail row follows the mail relay in the same way. The web app reads `SMTP_URL` when it has it (a development copy, and the end-to-end stack in `docker-compose.test.yml`, which points at the local mailbox); it sends no mail and reads only the relay's host (`mailRelay()` in `src/lib/legal.ts`). `docker-compose.yml` does not give the production web app `SMTP_URL`, so the relay's password stays with the mail sender alone. A relay on the internet marks the mail service "in use on this site". A mailbox on this machine or on the server's own network (`localhost`, a container name such as `mailpit`, a private address) does not, and neither does a development copy with no relay. When the app cannot tell (a production copy that was not given `SMTP_URL`), it says "in use" rather than deny it.
+
 ## Security overview for clients' IT teams
 
 `/legal/security`, in Arabic and English, is the security pack to send a client's IT or security team: where Selah runs, how traffic reaches it, how clients are kept apart, sign-in, files, the AI assistant, audit and monitoring, backups, incidents and how it is built, with a panel showing this site's actual setup (way in, where the model runs, scanning, two-factor). It links to the sub-processor list and the data processing agreement template. Keep it true: when a control changes, change its text in `messages/*.json` in the same pull request. For a detailed review, `docs/security.md` maps the controls to OWASP ASVS 5.0 and the OWASP Top 10 for LLM applications.

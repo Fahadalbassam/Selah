@@ -5,6 +5,7 @@ import { Link2Off } from "lucide-react";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Topography } from "@/components/topography";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { signedOutMessages } from "@/i18n/signed-out-messages";
 import { isUploadLinkToken } from "@/lib/upload-links";
 import { withAnonymous } from "@/server/page";
 import { openUploadLink } from "@/services/upload-links";
@@ -33,8 +34,11 @@ export default async function UploadLinkPage({ params }: { params: Promise<{ tok
           <Card className="shadow-xs">
             <CardHeader className="gap-2">
               <p className="text-sm text-muted-foreground">{t("from", { firm: item.firmName })}</p>
+              {/* The page's main heading: the one thing that is asked for. */}
               <CardTitle className="text-xl">
-                <bdi>{item.title}</bdi>
+                <h1>
+                  <bdi>{item.title}</bdi>
+                </h1>
               </CardTitle>
               {item.description ? (
                 <CardDescription className="whitespace-pre-line">
@@ -50,7 +54,7 @@ export default async function UploadLinkPage({ params }: { params: Promise<{ tok
                 </p>
               ) : null}
               {/* Only the strings the form uses reach an anonymous visitor (L13). */}
-              <NextIntlClientProvider messages={{ uploadLink: messages.uploadLink, fileActions: messages.fileActions, common: messages.common }}>
+              <NextIntlClientProvider messages={signedOutMessages(messages, "upload")}>
                 <UploadForm token={token} />
               </NextIntlClientProvider>
               <p className="text-xs text-muted-foreground">
@@ -62,7 +66,9 @@ export default async function UploadLinkPage({ params }: { params: Promise<{ tok
           <Card className="shadow-xs">
             <CardHeader className="items-center gap-2 text-center">
               <Link2Off className="mx-auto size-8 text-muted-foreground" />
-              <CardTitle className="text-xl">{t("deadTitle")}</CardTitle>
+              <CardTitle className="text-xl">
+                <h1>{t("deadTitle")}</h1>
+              </CardTitle>
               <CardDescription>{t("dead")}</CardDescription>
             </CardHeader>
           </Card>
