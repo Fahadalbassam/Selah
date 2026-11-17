@@ -56,6 +56,7 @@ const U = {
   deputy: id(13), // Acme's deputy consultant
   cons: id(14), // on Acme's team and staffed, neither lead nor deputy
   betaLead: id(15), // Beta's lead consultant
+  observer: id(16), // on Acme's team, observes its project
   cadmin: id(21),
   cadmin2: id(22),
   cmgr: id(23), // manager in Sales
@@ -168,15 +169,17 @@ beforeAll(async () => {
       ($10,$14,'action_owner',true), ($11,$14,'client_admin',false), ($12,$15,'client_admin',true)`,
     [U.admin, U.lead, U.deputy, U.cons, U.betaLead, U.cadmin, U.cadmin2, U.cmgr, U.fin, U.owner1, U.gone, U.bAdmin, FIRM, ACME, BETA],
   );
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'consultant')`, [U.observer, FIRM]);
   await q(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$3,'المبيعات','Sales'), ($2,$3,'المالية','Finance')`, [DEPT.sales, DEPT.finance, ACME]);
   await q(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2), ($3,$4)`, [DEPT.sales, U.cmgr, DEPT.finance, U.fin]);
   await q(
     `INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES
-      ($1,$2,true,false), ($1,$3,false,true), ($1,$4,false,false), ($5,$6,true,false)`,
-    [ACME, U.lead, U.deputy, U.cons, BETA, U.betaLead],
+      ($1,$2,true,false), ($1,$3,false,true), ($1,$4,false,false), ($5,$6,true,false), ($1,$7,false,false)`,
+    [ACME, U.lead, U.deputy, U.cons, BETA, U.betaLead, U.observer],
   );
   await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Acme governance','active',$4)`, [P1, ACME, FIRM, U.admin]);
   await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3), ($1,$4), ($1,$5)`, [P1, U.cons, U.cmgr, U.fin, U.owner1]);
+  await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,true)`, [P1, U.observer]);
   await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Set up a complaints desk','shared',$4)`, [
     id(61),
     P1,
@@ -355,18 +358,40 @@ describe("every way a value arrives", () => {
     expect(by("typed")).toEqual(TOLD);
   });
 
-  it("a file that fills in several periods tells them about the latest one only", async () => {
+  it("a file that fills in several periods tells them about the latest one only, and not the admin who brought it in", async () => {
     await svc(U.cadmin, (tx, p) => D.chooseDataMode(tx, p, ACME, "files"));
-    await fileBatch(U.cmgr, [
+    await fileBatch(U.cadmin, [
       { kpiId: K.complaints, period: "2026-02-01", value: 41 },
       { kpiId: K.complaints, period: "2026-03-01", value: 42 },
       { kpiId: K.complaints, period: "2026-04-01", value: 43 },
     ]);
-    expect((await told()).map((r) => r.period)).toEqual(Array(TOLD.length).fill("2026-04-01"));
+    const others = TOLD.filter((u) => u !== U.cadmin);
+    expect((await told()).map((r) => r.period)).toEqual(Array(others.length).fill("2026-04-01"));
+    expect(await whoFor("2026-04-01")).toEqual(others);
   });
 });
 
 describe("nobody else is told", () => {
+  it("a lead or deputy whose firm account is switched off is not told; the other is", async () => {
+    await owner.query(`UPDATE org_memberships SET active = false WHERE user_id = $1`, [U.deputy]);
+    await typed(U.cmgr, K.complaints, "2026-02-01", 42);
+    expect(await whoFor("2026-02-01")).toEqual(TOLD.filter((u) => u !== U.deputy));
+    await owner.query(`UPDATE org_memberships SET active = true WHERE user_id = $1`, [U.deputy]);
+    await owner.query(`UPDATE org_memberships SET active = false WHERE user_id = $1`, [U.lead]);
+    await typed(U.cmgr, K.complaints, "2026-03-01", 43);
+    expect(await whoFor("2026-03-01")).toEqual(TOLD.filter((u) => u !== U.lead));
+  });
+
+  it("an observer on the client's project reads the indicator but is never told, and is offered no mute", async () => {
+    await typed(U.cmgr, K.complaints, "2026-02-01", 42);
+    await typed(U.cadmin, K.finance, "2026-02-01", 70);
+    const who = (await told()).map((r) => r.user_id);
+    expect(who).toContain(U.lead);
+    expect(who).not.toContain(U.observer);
+    expect((await sqlAs(U.observer, `SELECT id FROM client_kpis WHERE id = $1`, [K.complaints])).rowCount).toBe(1);
+    expect(await svc(U.observer, (tx, p) => N.indicatorMail(tx, p, K.complaints))).toEqual({ told: false, muted: false });
+  });
+
   it("a manager limited to a department hears nothing about another department's indicator (managers are never told); the lead does", async () => {
     await typed(U.cadmin, K.finance, "2026-02-01", 70); // Finance's, higher is better, baseline 80
     const who = await whoFor("2026-02-01", K.finance);
