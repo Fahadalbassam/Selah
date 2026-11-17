@@ -56,6 +56,8 @@ const U = {
 const REC = { all: id(41), hr: id(42) };
 const ACT = { fin: id(43), hr: id(44), all: id(45) };
 const KPI = { all: id(46), hr: id(47) };
+const DOC = { all: id(48), fin: id(49), hr: id(50) };
+const MEET = { all: id(51), fin: id(52), hr: id(53) };
 
 const REFUSED = /forbidden|row-level security|insufficient|not allowed|not found|no such/i;
 const RLS = /row-level security/;
@@ -106,6 +108,8 @@ const readable = async (userId: string) => ({
   actions: (await attempt(userId, `SELECT id FROM actions ORDER BY id`)).rows.map((r) => r.id as string),
   recommendations: (await attempt(userId, `SELECT id FROM recommendations ORDER BY id`)).rows.map((r) => r.id as string),
   indicators: (await attempt(userId, `SELECT id FROM client_kpis ORDER BY id`)).rows.map((r) => r.id as string),
+  files: (await attempt(userId, `SELECT id FROM documents ORDER BY id`)).rows.map((r) => r.id as string),
+  meetings: (await attempt(userId, `SELECT id FROM meetings ORDER BY id`)).rows.map((r) => r.id as string),
 });
 
 const before: Record<string, Awaited<ReturnType<typeof readable>>> = {};
@@ -183,6 +187,29 @@ beforeAll(async () => {
       ($2,$3,$4,'Staff turnover','%','lower_better','monthly',12,'2020-01-01',$5)`,
     [KPI.all, KPI.hr, ACME, DEPT.hr, U.admin],
   );
+  // Files and meetings: company-wide, Finance's and HR's.
+  for (const [doc, dept, title] of [
+    [DOC.all, null, "Company policy"],
+    [DOC.fin, DEPT.fin, "Finance procedures"],
+    [DOC.hr, DEPT.hr, "Salary scale"],
+  ] as const) {
+    await q(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$3,$4,'client_document','submitted',$5,'shared',$6,$7,'application/pdf',1,'s','clean')`,
+      [doc, P, ACME, U.cadmin, title, dept, `k-${doc}`],
+    );
+  }
+  for (const [meeting, dept, title] of [
+    [MEET.all, null, "Steering"],
+    [MEET.fin, DEPT.fin, "Finance review"],
+    [MEET.hr, DEPT.hr, "HR review"],
+  ] as const) {
+    await q(
+      `INSERT INTO meetings (id, project_id, org_id, kind, title, starts_at, ends_at, location, organizer_id, ics_uid, department_id)
+       VALUES ($1,$2,$3,'status',$4, now() + interval '1 day', now() + interval '25 hours', 'in_person', $5, $6, $7)`,
+      [meeting, P, ACME, title, U.lead, `ics-${meeting}`, dept],
+    );
+  }
   // What each client person reads before Acme has any structure.
   for (const who of [U.cadmin, U.mgr, U.mgr2, U.owner]) before[who] = await readable(who);
 
@@ -413,6 +440,14 @@ describe("the chart never grants or limits access", () => {
     expect(before[U.mgr]!.actions).not.toContain(ACT.hr);
     expect(before[U.mgr]!.recommendations).not.toContain(REC.hr);
     expect(before[U.mgr]!.indicators).toEqual([KPI.all]);
+    // Nor HR's files or HR's meeting; Finance's (her own department) she reads, as before.
+    expect(before[U.mgr]!.files).toContain(DOC.fin);
+    expect(before[U.mgr]!.files).not.toContain(DOC.hr);
+    expect(before[U.mgr]!.meetings).toContain(MEET.fin);
+    expect(before[U.mgr]!.meetings).not.toContain(MEET.hr);
+    // The client's admin reads every file and meeting, before as after.
+    expect(before[U.cadmin]!.files).toEqual([DOC.all, DOC.fin, DOC.hr]);
+    expect(before[U.cadmin]!.meetings).toEqual([MEET.all, MEET.fin, MEET.hr]);
     expect((await attempt(U.mgr, `SELECT app_dept_ok($1, $2) AS ok`, [DEPT.hr, ACME])).rows[0].ok).toBe(false);
   });
 });
