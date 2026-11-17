@@ -6,7 +6,7 @@ The accounts and companies are fictional and live only on your machine. Never pu
 
 ## 1. Run it
 
-You need Docker Desktop (running) and Node.js 22 or newer. From the repository folder, in PowerShell:
+You need Docker Desktop (running) and Node.js 22.12 or newer. From the repository folder, in PowerShell:
 
 ```powershell
 npm run walkthrough -- --fresh    # the first time, and whenever you want the data back as it was
