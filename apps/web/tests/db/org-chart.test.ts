@@ -937,6 +937,55 @@ describe("names follow the current version's switch, as of today", () => {
   });
 });
 
+describe("mail to a lead with several clients", () => {
+  const A = { org: id(70), project: id(74), admin: id(72) };
+  const B = { org: id(71), project: id(75), admin: id(73) };
+  const position: Record<string, string> = {};
+
+  beforeAll(async () => {
+    for (const [c, name] of [
+      [A, "Twin A"],
+      [B, "Twin B"],
+    ] as const) {
+      await owner.query(`INSERT INTO organizations (id, kind, name, engagement_mode) VALUES ($1,'client',$2,'full')`, [c.org, name]);
+      await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,$4,'active',$5)`, [
+        c.project,
+        c.org,
+        FIRM,
+        `${name} governance`,
+        U.admin,
+      ]);
+      await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,true)`, [c.org, U.lead]);
+      await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,$2,$3)`, [c.admin, `${name} admin`, `admin-${c.org.slice(-2)}@example.test`]);
+      await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_admin')`, [c.admin, c.org]);
+      await svc(U.lead, (tx, p) => OC.startChart(tx, p, c.org), true);
+      const u = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, c.org, { kind: "board", nameEn: "Board" }), true);
+      position[c.org] = (await svc(U.lead, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Member", plannedCount: 5 }), true)).id;
+      await publishAs(U.lead, c.org);
+    }
+  });
+
+  it("gets each client's first mail of the day, for suggestions and for holder changes", async () => {
+    await owner.query(`DELETE FROM notifications`);
+    await owner.query(`DELETE FROM outbound_emails`);
+    const toLead = async (kind: string) =>
+      (await owner.query(`SELECT link FROM outbound_emails WHERE kind = $1 AND to_email = 'lead@example.test' ORDER BY link`, [kind])).rows.map((r) => r.link);
+    for (const c of [A, B]) {
+      await svc(c.admin, (tx, p) => OC.suggestChange(tx, p, c.org, { what: "Add a committee" }), true);
+      await svc(c.admin, (tx, p) => OC.changeHolder(tx, p, position[c.org]!, { start: { name: `Member of ${c.org.slice(-2)}`, from: PAST } }), true);
+    }
+    const links = [`/clients/${A.org}`, `/clients/${B.org}`];
+    expect(await toLead("org_chart.change_requested")).toEqual(links);
+    expect(await toLead("org_chart.holder_changed")).toEqual(links);
+    // A second one from the same client that day, once the notice is read: still one mail for that client.
+    await owner.query(`UPDATE notifications SET read_at = now()`);
+    await svc(A.admin, (tx, p) => OC.suggestChange(tx, p, A.org, { what: "Add another committee" }), true);
+    await svc(A.admin, (tx, p) => OC.changeHolder(tx, p, position[A.org]!, { start: { name: "Second member", from: PAST } }), true);
+    expect(await toLead("org_chart.change_requested")).toEqual(links);
+    expect(await toLead("org_chart.holder_changed")).toEqual(links);
+  });
+});
+
 describe("your manager", () => {
   it("is for anyone whose own position is on the published chart, with the name only while it shows names, departments on or off", async () => {
     // Other has departments off: its manager has no branch, so her chart shows no names at all.

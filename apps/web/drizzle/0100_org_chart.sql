@@ -768,7 +768,7 @@ CREATE TRIGGER position_holder_rules BEFORE INSERT OR UPDATE ON position_holders
 -- A change of who holds a position on the published structure tells the
 -- client's lead and deputy (not the person who made it), in Selah and by
 -- work mail: one unread notice per client at a time, and at most one mail a
--- firm day. Neither carries the name.
+-- firm day for each client. Neither carries the name.
 CREATE FUNCTION notify_position_holder() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
@@ -795,7 +795,8 @@ BEGIN
     WHERE app_can_reset_password(t.user_id)
       AND NOT EXISTS (
         SELECT 1 FROM outbound_emails o
-        WHERE o.kind = 'org_chart.holder_changed' AND lower(o.to_email) = lower(u.email) AND app_firm_date(o.created_at) = app_firm_today());
+        WHERE o.kind = 'org_chart.holder_changed' AND o.link = '/clients/' || NEW.org_id AND lower(o.to_email) = lower(u.email)
+          AND app_firm_date(o.created_at) = app_firm_today());
   RETURN NULL;
 END $$;
 --> statement-breakpoint
@@ -848,7 +849,7 @@ CREATE TRIGGER org_chart_change_request_rules BEFORE INSERT OR UPDATE ON org_cha
 --> statement-breakpoint
 -- A suggestion reaches the client's lead and deputy, in Selah and by work
 -- mail, without its text (read in Selah): one unread notice per client at a
--- time, and at most one mail a firm day to each, as for holder changes.
+-- time, and at most one mail a firm day to each for each client, as for holder changes.
 CREATE FUNCTION notify_org_chart_change_request() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
@@ -867,7 +868,8 @@ BEGIN
     WHERE app_can_reset_password(t.user_id)
       AND NOT EXISTS (
         SELECT 1 FROM outbound_emails o
-        WHERE o.kind = 'org_chart.change_requested' AND lower(o.to_email) = lower(u.email) AND app_firm_date(o.created_at) = app_firm_today());
+        WHERE o.kind = 'org_chart.change_requested' AND o.link = '/clients/' || NEW.org_id AND lower(o.to_email) = lower(u.email)
+          AND app_firm_date(o.created_at) = app_firm_today());
   RETURN NULL;
 END $$;
 --> statement-breakpoint
