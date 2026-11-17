@@ -56,6 +56,8 @@ const HIDDEN_REC = id(32); // firm-only
 const ACT = id(41);
 const HIDDEN_ACT = id(42);
 const DOC = { shared: id(51), clientOnly: id(52), firmOnly: id(53), personal: id(54), infected: id(55) };
+const ENGAGEMENT = id(60);
+const DELIVERABLE = id(61);
 
 async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
   const c = await app.connect();
@@ -146,6 +148,21 @@ beforeAll(async () => {
       [did, DONE, ACME, vis === "client_private" ? ACME : FIRM, by, title, vis, key, body.byteLength, sha(body), scan],
     );
   }
+  // A deliverable the firm handed over and the client's admin received (F21), before the project closed.
+  await q(`INSERT INTO engagements (id, firm_org_id, client_org_id, title, signed_on, scope) VALUES ($1,$2,$3,'Acme engagement',app_firm_today() - 60,'Board work')`, [
+    ENGAGEMENT,
+    FIRM,
+    ACME,
+  ]);
+  await q(`UPDATE projects SET engagement_id = $2 WHERE id = $1`, [DONE, ENGAGEMENT]);
+  await q(`INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Charter hand-over'), ($4,$2,$3,'Annex never sent')`, [
+    DELIVERABLE,
+    ENGAGEMENT,
+    DONE,
+    id(62),
+  ]);
+  await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [DELIVERABLE, DOC.shared]);
+  await run(U.cadmin, `SELECT app_confirm_deliverable_receipt($1, 1)`, [DELIVERABLE]);
   await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [DONE]);
 });
 
@@ -181,8 +198,14 @@ describe("making a pack", () => {
 
     const names = Object.keys(files).sort();
     expect(names).toEqual(
-      ["README.txt", "actions.csv", "files.csv", "files/Acme governance/Board charter.pdf", "manifest.json", "projects.csv", "recommendations.csv"].sort(),
+      ["README.txt", "actions.csv", "deliverables.csv", "files.csv", "files/Acme governance/Board charter.pdf", "manifest.json", "projects.csv", "recommendations.csv"].sort(),
     );
+    // What the firm handed over and its receipt (F21): every hand-over, and the deliverable never handed over.
+    const deliverablesCsv = strFromU8(files["deliverables.csv"]!);
+    expect(deliverablesCsv).toContain("Charter hand-over");
+    expect(deliverablesCsv).toContain("deliverables.status.received");
+    expect(deliverablesCsv).toMatch(/deliverables\.text\.received [^\r\n]*cadmin/);
+    expect(deliverablesCsv).toMatch(/Annex never sent[^\r\n]*deliverables\.status\.not_handed_over/);
     // The client's private file is not the firm admin's to read, so the firm's pack leaves it out;
     // the firm-only, personal and infected files are in no pack.
     expect(row.file_count).toBe(1);

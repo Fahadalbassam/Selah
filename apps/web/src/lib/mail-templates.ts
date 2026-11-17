@@ -28,6 +28,8 @@ export const MAIL_KINDS = [
   "sign_in_link",
   "info_request.upload_link",
   "support.requested",
+  "deliverable.handed_over",
+  "deliverable.commented",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -240,7 +242,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     ar: {
       subject: "ملخص جديد في صلة",
       lines: [
-        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة.",
+        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو الملفات المسلَّمة إليك.",
         "سجّل الدخول لتراها. يمكنك تغيير عدد هذه الرسائل وتوقيتها من صفحة الإشعارات.",
       ],
       action: "فتح الإشعارات",
@@ -248,7 +250,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Your Selah summary",
       lines: [
-        "You have new reminders or updates about your actions or requested documents.",
+        "You have new reminders or updates about your actions, requested documents or files handed over to you.",
         "Sign in to see them. You can change how often and when this mail comes on the notifications page.",
       ],
       action: "Open notifications",
@@ -341,6 +343,40 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       subject: "A client reported a technical problem",
       lines: ["Someone at a client reported a technical problem in Selah.", "Read the report in Selah, and mark it handled once you have answered them."],
       action: "Read the report",
+    },
+  },
+  // F21: to the client's acceptor (else its admin, else its sponsor) when the
+  // firm hands a deliverable over. Receipt only, never acceptance; no title.
+  "deliverable.handed_over": {
+    ar: {
+      subject: "سلّم المكتب ملفات لشركتكم",
+      lines: [
+        "سلّمكم المكتب في صلة ملفات أحد المخرجات المتفق عليها.",
+        "سجّل الدخول لتنزيلها، ثم أكّد استلامها أو اكتب ملاحظة. تأكيد الاستلام يعني أن الملفات وصلتكم فقط، لا أنكم وافقتم عليها.",
+      ],
+      action: "فتح صلة",
+    },
+    en: {
+      subject: "The firm handed files over to your company",
+      lines: [
+        "The firm handed over the files of one of the agreed deliverables to you in Selah.",
+        "Sign in to download them, then confirm you received them or write a comment. Confirming receipt only says the files reached you, not that you accept them.",
+      ],
+      action: "Open Selah",
+    },
+  },
+  // F21: to the client's lead consultant and deputy when the client comments
+  // on a deliverable handed over. The comment is read in Selah, not in the mail.
+  "deliverable.commented": {
+    ar: {
+      subject: "ملاحظة من العميل على ملفات مسلَّمة",
+      lines: ["كتب العميل ملاحظة بدل تأكيد استلام أحد المخرجات التي سلّمتموها.", "اقرأها في صلة، ويمكنك تسليم نسخة جديدة."],
+      action: "قراءة الملاحظة",
+    },
+    en: {
+      subject: "The client commented on files handed over",
+      lines: ["The client wrote a comment instead of confirming receipt of a deliverable you handed over.", "Read it in Selah; you can hand over a new version."],
+      action: "Read the comment",
     },
   },
 };

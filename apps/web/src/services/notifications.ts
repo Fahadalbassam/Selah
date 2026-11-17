@@ -1,7 +1,19 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations, supportRequests, clientKpis } from "@/db/schema";
+import {
+  actions,
+  clientKpis,
+  engagementDeliverables,
+  inquiries,
+  mailMutes,
+  mailPreferences,
+  notifications,
+  organizations,
+  projects,
+  recommendations,
+  supportRequests,
+} from "@/db/schema";
 import type { Principal } from "@/authz";
 import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
 import { BadRequestError, NotFoundError } from "@/server/errors";
@@ -99,6 +111,20 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     }
   }
 
+  // A deliverable handed over (F21): titled under the reader's rights, so a client person reads it
+  // only while they answer for it; the firm's notice opens its engagement, the client's their home.
+  const deliverableIds = ids(rows, "deliverable");
+  const deliverableLinks = new Map<string, string>();
+  if (deliverableIds.length) {
+    for (const d of await tx
+      .select({ id: engagementDeliverables.id, title: engagementDeliverables.title, engagementId: engagementDeliverables.engagementId })
+      .from(engagementDeliverables)
+      .where(inArray(engagementDeliverables.id, deliverableIds))) {
+      titles.set(d.id, { title: d.title, titleAr: null });
+      deliverableLinks.set(d.id, principal.orgKind === "firm" ? `/engagements/${d.engagementId}` : "/");
+    }
+  }
+
   // A reported problem (F13) is titled with its client: the firm admin reads which one, the reporter their own.
   const supportIds = ids(rows, "support_request");
   if (supportIds.length) {
@@ -116,7 +142,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
       ...r,
       title: t?.title ?? null,
       titleAr: t?.titleAr ?? null,
-      href: t ? hrefFor(r.kind, r.entityType, r.entityId) : null,
+      href: t ? (r.entityType === "deliverable" ? (deliverableLinks.get(r.entityId) ?? null) : hrefFor(r.kind, r.entityType, r.entityId)) : null,
     };
   });
   return { items, unread: await unreadCount(tx, principal) };

@@ -1,11 +1,12 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { engagementDeliverables, engagements, inquiries, organizations, projects, user } from "@/db/schema";
+import { deliverableHandovers, engagementDeliverables, engagements, inquiries, organizations, projects, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import type { DeliverableInput, EngagementInput } from "@/lib/engagements";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { listDeliverables, statusCounts } from "./deliverables";
 
 // The signed engagement (wave 1, item 5) and what it covers. A client
 // project no engagement covers is a draft the client never sees; covering it
@@ -141,6 +142,13 @@ export async function addDeliverable(tx: Tx, principal: Principal, engagementId:
 export async function removeDeliverable(tx: Tx, principal: Principal, engagementId: string, deliverableId: string) {
   const { resource } = await loadEngagement(tx, principal, engagementId);
   assertAllowed(principal, "engagement.write", resource);
+  // A deliverable that was handed over stays on record with its rounds (the database refuses too: check_deliverable_handover).
+  const [handed] = await tx
+    .select({ id: deliverableHandovers.id })
+    .from(deliverableHandovers)
+    .where(eq(deliverableHandovers.deliverableId, deliverableId))
+    .limit(1);
+  if (handed) throw new BadRequestError("a deliverable that was handed over stays on record");
   const gone = await tx
     .delete(engagementDeliverables)
     .where(and(eq(engagementDeliverables.id, deliverableId), eq(engagementDeliverables.engagementId, engagementId)))
@@ -173,8 +181,14 @@ export async function listEngagements(tx: Tx, principal: Principal, clientOrgId:
         .where(inArray(projects.engagementId, rows.map((r) => r.id)))
         .orderBy(asc(projects.sequence), asc(projects.createdAt))
     : [];
+  // How many deliverables of each engagement are not handed over, waiting, received or commented on (F21): counts, no percentage.
+  const counts = rows.length ? await statusCounts(tx, principal, clientOrgId) : new Map();
   return {
-    engagements: rows.map((r) => ({ ...r, projects: covered.filter((p) => p.engagementId === r.id).map(({ id, title }) => ({ id, title })) })),
+    engagements: rows.map((r) => ({
+      ...r,
+      projects: covered.filter((p) => p.engagementId === r.id).map(({ id, title }) => ({ id, title })),
+      deliverables: counts.get(r.id) ?? {},
+    })),
     can: { record: authorize(principal, "engagement.write", resource).allowed },
   };
 }
@@ -183,7 +197,7 @@ export async function listEngagements(tx: Tx, principal: Principal, clientOrgId:
 export async function getEngagement(tx: Tx, principal: Principal, id: string) {
   const { row, resource } = await loadEngagement(tx, principal, id);
   const [client] = await tx
-    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr })
+    .select({ id: organizations.id, name: organizations.name, nameAr: organizations.nameAr, engagementMode: organizations.engagementMode })
     .from(organizations)
     .where(eq(organizations.id, row.clientOrgId))
     .limit(1);
@@ -197,17 +211,8 @@ export async function getEngagement(tx: Tx, principal: Principal, id: string) {
     .from(projects)
     .where(and(eq(projects.orgId, row.clientOrgId), eq(projects.kind, "client"), isNull(projects.engagementId)))
     .orderBy(asc(projects.createdAt));
-  const deliverables = await tx
-    .select({
-      id: engagementDeliverables.id,
-      title: engagementDeliverables.title,
-      acceptanceCriteria: engagementDeliverables.acceptanceCriteria,
-      dueOn: engagementDeliverables.dueOn,
-      projectId: engagementDeliverables.projectId,
-    })
-    .from(engagementDeliverables)
-    .where(eq(engagementDeliverables.engagementId, id))
-    .orderBy(asc(engagementDeliverables.dueOn), asc(engagementDeliverables.createdAt));
+  // Each with its hand-over rounds, its status word and what the reader may do (F21).
+  const deliverables = await listDeliverables(tx, principal, { engagementId: id });
   // Firm staff see where it came from; the client's admin sees what was agreed.
   const firm = principal.orgKind === "firm";
   const [inquiry] =
@@ -236,6 +241,7 @@ export async function getEngagement(tx: Tx, principal: Principal, id: string) {
     projects: covered,
     drafts: edit ? drafts : [],
     deliverables,
+    firmRun: client?.engagementMode === "consultant_managed",
     can: { edit, delete: edit && covered.length === 0 },
   };
 }

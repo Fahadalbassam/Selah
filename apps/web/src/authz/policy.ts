@@ -80,6 +80,18 @@ export const POLICY = {
   // and its admin read it; the firm admin records it. baseline: Engagements.
   "engagement.read": { ...STAFF, client_admin: "any" },
   "engagement.write": { firm_admin: "any" },
+  // A deliverable handed over and the client's receipt (F21, minimal; 0130).
+  // The firm on the client reads every round; at the client, only the people
+  // who answer for it (its acceptors, admins and sponsor, who open every
+  // file: the database decides, app_can_read_handover). The client's lead,
+  // deputy or a consultant staffed (not observing) on one of its projects
+  // hands over ("working"). The client confirms receipt or comments; for a
+  // client the firm runs, the consultant records the receipt instead
+  // (CONSULTANT_MANAGED_POLICY). Receipt is never acceptance.
+  "deliverable.read": { ...STAFF, client_admin: "any", client_manager: "any" },
+  "deliverable.hand_over": { consultant: "working" },
+  "deliverable.receive": { client_admin: "any", client_manager: "any" },
+  "deliverable.comment": { client_admin: "any", client_manager: "any" },
   // Oversight without being staffed: the admin follows a client or project.
   "project.watch": { firm_admin: "any" },
   // Closing is a gate (baseline: Closing, 0020). The firm admin or the
@@ -359,6 +371,8 @@ const CONSULTANT_MANAGED_POLICY: Partial<Record<Permission, Grants>> = {
   "action.work": { ...STAFF },
   "evidence.submit": { ...STAFF },
   "progress_update.create": { ...STAFF },
+  // The consultant records who at the client received a deliverable, how and when (F21).
+  "deliverable.receive": { consultant: "working" },
 };
 
 /**

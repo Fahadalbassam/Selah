@@ -79,6 +79,7 @@ export type ResourceType =
   | "assessment_template"
   | "assessment"
   | "engagement"
+  | "deliverable"
   | "support_request";
 
 /**

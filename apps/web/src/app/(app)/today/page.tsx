@@ -112,7 +112,9 @@ export default async function TodayPage() {
                 ? t("decisions.proposed", { date: day(r.proposed), who: r.who ?? "—" })
                 : r.kind === "closure_request" && r.who
                   ? t("decisions.askedBy", { who: r.who, date: day(r.at) })
-                  : day(r.at)}
+                  : r.kind === "deliverable_comment" && r.who
+                    ? t("decisions.commentedBy", { who: r.who, date: day(r.at) })
+                    : day(r.at)}
             </TableCell>
           </>
         )}

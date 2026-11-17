@@ -30,6 +30,7 @@ export const AUDIT_AREAS = {
     "pulse",
     "case_study",
     "engagement",
+    "deliverable",
     "client_role",
     "plan",
     "report",

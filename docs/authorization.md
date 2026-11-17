@@ -109,6 +109,25 @@ Where an owner used to read a teammate's action, and what each does now (the rev
 
 Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments; a former owner after `app_hand_over()`; a catalog check that finds every table referring to an action, by a foreign key to `actions` or to a table under the rule, or by an `entity_type`/`source_type`/`target_type` pair, and fails unless it carries the rule or is named with its reason: `ai_chunks`, which owners never read since they never have the assistant, and `ai_drafts`, the firm's own) and the 1b block of `tests/authorize.test.ts`.
 
+## Deliverables handed over
+
+F21 in its minimal form (gate A follow-ups, 17 Nov 2026, 4a; migration `0130_deliverable_receipts`). An engagement's deliverable is handed over with the exact file versions, in rounds, and the client confirms receipt or comments. **Received is receipt only**: it never says the client accepted the work.
+
+| Who | Reads the rounds | Does |
+|---|---|---|
+| Firm admin | Every client's | Reads only: hands nothing over unless staffed as a consultant would be (the decision names the lead, the deputy and staffed consultants) |
+| The client's lead or deputy, or a consultant staffed (not as an observer) on one of its projects that is not closed | Their clients' | Hands over (`deliverable.hand_over`, scope `working`, as D4 for indicators); for a client the firm runs, records who at the client received it, how and when (`deliverable.receive` through `CONSULTANT_MANAGED_POLICY`) |
+| Other consultants on the client's team (observers, staffed on nothing) | Their clients' | Nothing |
+| The client's admin | Every deliverable of the engagement, as before, and each round whose files they open | Confirms receipt or comments |
+| A client manager who is an acceptor or the sponsor on a project the deliverable relates to | Only those deliverables, and only rounds whose every file they open (not the engagement itself) | Confirms receipt or comments |
+| Any other manager, every action owner, another client | Nothing: Not found | Nothing |
+
+- **Who is asked.** The acceptors on the related projects (the deliverable's own, or every project its engagement covers), else the client's admins, else its sponsor; in each, only people who open every file (department, project membership and one-by-one shares as the files' own rules). A file a reader cannot open keeps the whole round from them, so nobody is shown a deliverable round they cannot open (`app_deliverable_receiver_ok()`, `app_user_opens_document()`).
+- **The firm never confirms for a client that signs in.** It records a receipt only for a consultant-managed client, like `consultant_recorded` evidence.
+- A comment goes to the client's lead and deputy (the firm's admins when it has neither): in their notifications and in Today's decisions list, until a new version is handed over. The new home (D2) does not exist yet.
+- Writes go only through the database functions (`app_hand_over_deliverable()`, `app_confirm_deliverable_receipt()`, `app_comment_on_deliverable()`, `app_record_deliverable_receipt()`); the app role reads the table and writes nothing. Each is audited (`deliverable.*`). A denial answers 404.
+- Tests: `tests/db/deliverable-receipts.test.ts`.
+
 ## How a request flows
 
 ```

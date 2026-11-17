@@ -8,7 +8,9 @@ import { LoaderCircle } from "@/components/animate-ui/icons/loader-circle";
 import { TriangleAlert } from "@/components/animate-ui/icons/triangle-alert";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeliverableList } from "@/components/deliverables/deliverable-list";
+import { deliverablesToAnswer } from "@/services/deliverables";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { dashboard, getViewer, isOverdue } from "@/services/queries";
@@ -43,7 +45,7 @@ function firstName(v: { name: string; nameAlt: string | null }, locale: string) 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm, overview, indicators, viewer, isNew, dataSetup } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview, indicators, viewer, isNew, dataSetup, handedOver } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
     viewer: await getViewer(tx, principal),
@@ -61,8 +63,18 @@ export default async function OverviewPage() {
         : null,
     // A client's admin who has not yet said how its figures reach Selah sees a short, skippable setup step.
     dataSetup: principal.role === "client_admin" ? await dataSetupStep(tx, principal, principal.orgId) : null,
+    // Deliverables the firm handed over that this person answers for (F21): the acceptor, else the admin, else the sponsor.
+    handedOver: await deliverablesToAnswer(tx, principal),
   }));
-  const [t, tW, tD, locale] = await Promise.all([getTranslations("dashboard"), getTranslations("welcome"), getTranslations("indicatorData"), getLocale()]);
+  const [t, tW, tD, tDl, locale] = await Promise.all([
+    getTranslations("dashboard"),
+    getTranslations("welcome"),
+    getTranslations("indicatorData"),
+    getTranslations("deliverables"),
+    getLocale(),
+  ]);
+  // What still waits for this person's answer comes first.
+  const toAnswer = [...handedOver].sort((a, b) => Number(b.can.confirm) - Number(a.can.confirm));
   const side = firm ? "firm" : "client";
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
 
@@ -119,6 +131,17 @@ export default async function OverviewPage() {
             </span>
           </AlertDescription>
         </Alert>
+      ) : null}
+      {toAnswer.length ? (
+        <Card className="gap-4 py-5 shadow-xs">
+          <CardHeader className="px-5">
+            <CardTitle className="text-base">{tDl("cardTitle")}</CardTitle>
+            <CardDescription>{tDl("cardHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="px-5">
+            <DeliverableList deliverables={toAnswer} firmRun={false} showProject />
+          </CardContent>
+        </Card>
       ) : null}
       {overview && overview.projects.length ? <ClientProgress data={overview} tiles={false} /> : null}
       {indicators && (indicators.indicators.length || indicators.canManage) ? <IndicatorsCard data={indicators} /> : null}
