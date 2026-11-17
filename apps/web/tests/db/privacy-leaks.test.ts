@@ -11,6 +11,7 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { getEngagement } from "@/services/engagement";
+import { listFiles } from "@/services/files";
 import { bookMeeting, getMeeting, listMeetings, meetingIcs, schedule } from "@/services/meetings";
 import { loadPrincipal } from "@/services/principal";
 import { getActionDetail, getProject } from "@/services/queries";
@@ -595,6 +596,45 @@ describe("a shared status pack", () => {
       expect(r.pack.indicators![0]!.recommendations).toEqual(["Adopt a board charter", "Update the delegation matrix"]);
       expect(Object.values(r.pack.leftOut ?? {}).reduce((a, b) => a + b, 0)).toBe(0);
       expect(r.pack.indicators![0]!.recommendationsLeftOut ?? 0).toBe(0);
+    }
+  });
+});
+
+// ------------------------------------------------------------ the Files card
+describe("the Files card names a file's action only to someone who may open that action", () => {
+  const DOC = { sponsors: id(71), owners: id(72) };
+  const sourceOf = async (who: string, doc: string) => (await svc(who, (tx, p) => listFiles(tx, p))).find((f) => f.id === doc)?.source;
+
+  beforeAll(async () => {
+    // The sponsor's evidence on his own action, shared with the Legal owner one by one; and the owner's own evidence.
+    for (const [doc, action, by, title] of [
+      [DOC.sponsors, A.sponsors, U.sponsor, "Assembly minutes"],
+      [DOC.owners, A.owners, U.owner, "Committee bylaws"],
+    ] as const) {
+      await owner.query(
+        `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+         VALUES ($1,$2,$3,$3,$4,'evidence','submitted',$5,'shared',$6,'application/pdf',1,'s','clean')`,
+        [doc, P, ACME, by, title, `k-${doc}`],
+      );
+      await owner.query(`INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`, [P, ACME, action, doc, by]);
+    }
+    await owner.query(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [DOC.sponsors, U.owner, U.sponsor]);
+  });
+
+  it("an action owner keeps a file shared with him, without the colleague's action it belongs to", async () => {
+    // The file itself is his to open: it was shared with him.
+    expect(await sourceOf(U.owner, DOC.sponsors)).toEqual({ kind: "evidence", id: null, title: null });
+    const all = JSON.stringify(await svc(U.owner, (tx, p) => listFiles(tx, p)));
+    expect(all).toContain("Assembly minutes");
+    expect(all).not.toContain("Sponsor canary");
+    expect(all).not.toContain(A.sponsors);
+    // His own action is still named.
+    expect(await sourceOf(U.owner, DOC.owners)).toEqual({ kind: "evidence", id: A.owners, title: "Owner canary" });
+  });
+
+  it("people who may open the action still see which action the file is evidence for", async () => {
+    for (const who of [U.sponsor, U.mgr, U.cadmin, U.lead]) {
+      expect(await sourceOf(who, DOC.sponsors)).toEqual({ kind: "evidence", id: A.sponsors, title: "Sponsor canary" });
     }
   });
 });
