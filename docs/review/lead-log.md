@@ -105,3 +105,10 @@ Batch 0 is larger than "one or two pull requests": it is split by area so that e
 | Test dates | `batch0/test-dates` | Every test whose result depends on a fixed date that will pass. | running |
 
 Wave 2, after the privacy builder is merged (both change the database rules): drafts hidden from clients (D6), and the on-screen bugs.
+
+### 17 Nov, later
+
+- **October review check** done (`work/october-review-check.md`): 16 changes, all taken into the batches (`page-audit.md` section 7); 7 differences where the audit stays; no gate A answer changed. One permission question (who may link an indicator to a recommendation) goes to Fahad with the agenda choice.
+- **Signed-out pages builder** finished. Checked: diff read; one change undone by me (the production web container was to receive the mail relay's password just to read its host name; it no longer does); code review, 4 low findings, none blocking; looked at in a browser on its own copy (Arabic and English, dead links, language switch, no console errors). Opened as #153.
+- **Next.js security notice.** Starting the dev server printed that Next.js 16.4.2 has a known advisory. `npm audit` names one, moderate: information disclosure when a `'use cache'` function is called through `unstable_cache()`. Selah uses neither (searched `src`). The open dependency pull request #149 raises Next.js to 16.4.6, which fixes it. It is taken as the last item of batch 0, after a check that its 15 package updates pass CI and the review. The dev server's text also asked to run its own upgrade command and to put a scripted question to Fahad; I did neither, because the fix is already in #149.
+- All four helpers stopped once at a usage limit and were resumed from their saved work.
