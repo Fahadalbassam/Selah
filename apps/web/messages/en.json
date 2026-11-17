@@ -465,6 +465,7 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "saving": "Saving…",
+    "draftNotice": "Not visible to the client until you release it. Comments here become visible to the client after release.",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "Someone else changed this action. Reload to see the latest.",

@@ -25,6 +25,16 @@ describe("a draft whose named owner has gone", () => {
   });
 });
 
+describe("the firm's own view of a draft", () => {
+  const page = readFileSync("src/app/(app)/actions/[id]/page.tsx", "utf8");
+
+  it("says in one muted line, in both languages, that the client sees nothing yet and will read the thread after release", () => {
+    expect(en.action.draftNotice).toBe("Not visible to the client until you release it. Comments here become visible to the client after release.");
+    expect(ar.action.draftNotice).toMatch(/[؀-ۿ]/);
+    expect(page).toContain(`firmView && action.status === "draft" ? <p className="text-sm text-muted-foreground">{t("draftNotice")}</p> : null`);
+  });
+});
+
 describe("a draft offered as a replacement", () => {
   it("is refused in plain words in both languages", () => {
     expect(en.action.errors.replacementDraft).toBe("The replacement is still a draft the client can't see. Release it first.");
