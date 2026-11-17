@@ -26,7 +26,7 @@ The visitor's address, which the sign-in and inquiry limits use, is always set b
 
 The sub-processor list and the security overview (`/legal/sub-processors`, `/legal/security`) read the same setting, so what clients are told follows what runs.
 
-The list's mail row follows the mail relay in the same way. `docker-compose.yml` passes `SMTP_URL` to the web app as well as to the mail sender; the app sends no mail and reads only the relay's host from it (`mailRelay()` in `src/lib/legal.ts`). A relay on the internet marks the mail service "in use on this site". A mailbox on this machine or on the server's own network (`localhost`, a container name such as `mailpit`, a private address) does not, and neither does a development copy with no relay. When the app cannot tell (a production copy that was not given `SMTP_URL`), it says "in use" rather than deny it.
+The list's mail row follows the mail relay in the same way. The web app reads `SMTP_URL` when it has it (a development copy, and the end-to-end stack in `docker-compose.test.yml`, which points at the local mailbox); it sends no mail and reads only the relay's host (`mailRelay()` in `src/lib/legal.ts`). `docker-compose.yml` does not give the production web app `SMTP_URL`, so the relay's password stays with the mail sender alone. A relay on the internet marks the mail service "in use on this site". A mailbox on this machine or on the server's own network (`localhost`, a container name such as `mailpit`, a private address) does not, and neither does a development copy with no relay. When the app cannot tell (a production copy that was not given `SMTP_URL`), it says "in use" rather than deny it.
 
 ## Security overview for clients' IT teams
 
