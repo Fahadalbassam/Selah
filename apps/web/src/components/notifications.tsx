@@ -11,6 +11,7 @@ import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MOVED_AWAY_KIND, movedAwayValues, type MovedAwayFacts } from "@/lib/indicator-notice";
 import { cn } from "@/lib/utils";
 
 export interface NotificationRow {
@@ -19,6 +20,8 @@ export interface NotificationRow {
   title: string | null;
   titleAr: string | null;
   href: string | null;
+  /** indicator.moved_away: the figures its line states. */
+  facts?: MovedAwayFacts | null;
   readAt: string | Date | null;
   createdAt: string | Date;
 }
@@ -30,6 +33,8 @@ function useText() {
   return (n: NotificationRow) => {
     const title = (ar ? n.titleAr : null) ?? n.title;
     if (!title) return t("gone");
+    // Facts only: the value, its period, the baseline and the chosen direction (decision 4b).
+    if (n.kind === MOVED_AWAY_KIND && n.facts) return t("kinds.indicator_moved_away", { title, ...movedAwayValues(n.facts, ar ? "ar" : "en") });
     const [head, kind, step] = n.kind.split(".");
     const level = Number(step ?? 0);
     const key =

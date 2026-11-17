@@ -3,7 +3,7 @@
 import { BellOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { Bell } from "@/components/animate-ui/icons/bell";
@@ -191,9 +191,16 @@ export function MailChoicesForm({ initial }: { initial: MailChoicesView }) {
   );
 }
 
-/** The actions the caller muted, each with a way back. */
-export function MutedActions({ items }: { items: { actionId: string; title: string }[] }) {
+/** The actions and indicators the caller muted, each with a way back. */
+export function MutedActions({
+  items,
+  indicators = [],
+}: {
+  items: { actionId: string; title: string }[];
+  indicators?: { kpiId: string; nameAr: string | null; nameEn: string | null }[];
+}) {
   const t = useTranslations("notifications.mail");
+  const ar = useLocale() === "ar";
   return (
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
@@ -201,7 +208,7 @@ export function MutedActions({ items }: { items: { actionId: string; title: stri
         <CardDescription>{t("mutedHint")}</CardDescription>
       </CardHeader>
       <CardContent className="px-5">
-        {items.length === 0 ? (
+        {items.length === 0 && indicators.length === 0 ? (
           <EmptyState icon={<Bell animateOnView className="size-5" />} description={t("mutedNone")} className="py-6 md:py-6" />
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -213,6 +220,14 @@ export function MutedActions({ items }: { items: { actionId: string; title: stri
                 <MuteButton actionId={m.actionId} muted />
               </li>
             ))}
+            {indicators.map((k) => (
+              <li key={k.kpiId} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                <Link href={`/indicators/${k.kpiId}`} className="truncate text-sm font-medium hover:underline" dir="auto">
+                  {(ar ? (k.nameAr ?? k.nameEn) : (k.nameEn ?? k.nameAr)) ?? ""}
+                </Link>
+                <MuteButton indicatorId={k.kpiId} muted />
+              </li>
+            ))}
           </ul>
         )}
       </CardContent>
@@ -220,22 +235,32 @@ export function MutedActions({ items }: { items: { actionId: string; title: stri
   );
 }
 
-/** Mute or unmute mail about one action. In-app notices keep coming either way. */
-export function MuteButton({ actionId, muted }: { actionId: string; muted: boolean }) {
+/**
+ * Mute or unmute mail about one action, or about one indicator (its
+ * indicator.moved_away notices). In-app notices keep coming either way.
+ */
+export function MuteButton({
+  actionId,
+  indicatorId,
+  muted,
+  title,
+}: { muted: boolean; title?: string } & ({ actionId: string; indicatorId?: never } | { indicatorId: string; actionId?: never })) {
   const t = useTranslations("notifications.mail");
   const tc = useTranslations("common");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   async function toggle() {
     setBusy(true);
-    const r = await callApi(`/api/actions/${actionId}/mute`, "PUT", { muted: !muted });
+    const endpoint = actionId ? `/api/actions/${actionId}/mute` : `/api/indicators/${indicatorId}/mute`;
+    const r = await callApi(endpoint, "PUT", { muted: !muted });
     setBusy(false);
     if (!r.ok) return toast.error(tc(`errors.${r.error}`));
-    toast.success(muted ? t("unmuted") : t("mutedDone"));
+    if (actionId) toast.success(muted ? t("unmuted") : t("mutedDone"));
+    else toast.success(muted ? t("indicatorUnmuted") : t("indicatorMutedDone"));
     router.refresh();
   }
   return (
-    <Button type="button" variant={muted ? "ghost" : "outline"} size="sm" disabled={busy} onClick={toggle}>
+    <Button type="button" variant={muted ? "ghost" : "outline"} size="sm" disabled={busy} onClick={toggle} title={title}>
       {busy ? <BrandLoader tone="current" className="size-4" /> : <BellOff />}
       {muted ? t("unmute") : t("mute")}
     </Button>

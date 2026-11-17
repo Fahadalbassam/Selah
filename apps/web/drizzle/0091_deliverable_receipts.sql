@@ -399,8 +399,10 @@ BEGIN
   RETURN n;
 END $$;
 --> statement-breakpoint
--- The summary mail (latest: 0081_owner_actions), now with the deliverable
--- reminder, by the reader's reminders cadence.
+-- The summary mail (latest: 0090_indicator_moved_away, every line of it
+-- kept), now with the deliverable reminder, by the reader's reminders
+-- cadence, and only while its round still waits and the reader still answers
+-- for it (so never to someone who can no longer open its files).
 CREATE OR REPLACE FUNCTION app_queue_digests(today date) RETURNS integer
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE n integer;
@@ -417,12 +419,28 @@ BEGIN
         -- a client quiet for two weeks (F18)
         WHEN x.entity_type = 'project' AND x.kind = 'project.client_quiet' THEN app_cadence_due(c.reminders, today)
         WHEN x.entity_type = 'project' AND x.kind = 'report.pack_drafted' THEN app_cadence_due(c.reminders, today)
-        -- a deliverable handed over and still waiting after ten working days (F21)
+        -- an indicator whose latest value moved away (0090)
+        WHEN x.entity_type = 'kpi_value' AND x.kind = 'indicator.moved_away' THEN app_cadence_due(c.reminders, today)
+        -- a deliverable handed over and still waiting after ten working days (F21, 0091)
         WHEN x.entity_type = 'deliverable' AND x.kind = 'deliverable.reminder' THEN app_cadence_due(c.reminders, today)
         WHEN x.entity_type = 'action' AND x.kind = ANY (app_update_mail_kinds()) THEN c.updates <> 'instant' AND app_cadence_due(c.updates, today)
         ELSE false
       END
       AND NOT EXISTS (SELECT 1 FROM mail_mutes m WHERE m.user_id = x.user_id AND m.action_id = x.entity_id)
+      AND NOT (x.entity_type = 'kpi_value' AND EXISTS (
+        SELECT 1 FROM client_kpi_values v JOIN mail_kpi_mutes km ON km.kpi_id = v.kpi_id
+        WHERE v.id = x.entity_id AND km.user_id = x.user_id))
+      AND NOT (x.entity_type = 'kpi_value' AND NOT EXISTS (
+        SELECT 1 FROM client_kpi_values v CROSS JOIN LATERAL app_kpi_moved_away_audience(v.kpi_id) a
+        WHERE v.id = x.entity_id AND a.user_id = x.user_id))
+      -- Nor one whose figure a correction has since brought back.
+      AND NOT (x.entity_type = 'kpi_value' AND app_kpi_notice_fixed(x.entity_id, x.created_at))
+      -- A deliverable's reminder: its latest round still waits, and the reader still answers for it.
+      AND NOT (x.entity_type = 'deliverable' AND NOT EXISTS (
+        SELECT 1 FROM deliverable_handovers h
+        WHERE h.deliverable_id = x.entity_id AND h.received_at IS NULL AND h.commented_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM deliverable_handovers l WHERE l.deliverable_id = h.deliverable_id AND l.round > h.round)
+          AND app_deliverable_receiver_ok(h.deliverable_id, x.user_id, h.version_ids)))
       -- Never a notice its reader may not see (D6): about a draft, or written before its release.
       AND NOT (x.entity_type = 'action' AND app_action_notice_hidden(x.user_id, x.entity_id, x.created_at))
       -- Nor one about an action an owner does not own (1b).

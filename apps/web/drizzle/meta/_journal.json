@@ -544,8 +544,15 @@
     {
       "idx": 90,
       "version": "7",
-      "when": 1794952427950,
-      "tag": "0130_deliverable_receipts",
+      "when": 1794948017401,
+      "tag": "0090_indicator_moved_away",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1794956604875,
+      "tag": "0091_deliverable_receipts",
       "breakpoints": true
     }
   ]

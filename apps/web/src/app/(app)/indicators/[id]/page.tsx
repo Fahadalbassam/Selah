@@ -8,6 +8,7 @@ import { ApiButton } from "@/components/form-dialog";
 import { IndicatorDialog, LinkDialog, ValueDialog } from "@/components/indicators/indicator-dialogs";
 import { indicatorName, MovementBadge } from "@/components/indicators/indicators-card";
 import { IndicatorTrend } from "@/components/indicators/indicator-trend";
+import { MuteButton } from "@/components/mail-choices";
 import { PageHeader } from "@/components/page-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { formatChange, formatValue, periodLabel } from "@/lib/indicators";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { getIndicator } from "@/services/indicators";
+import { indicatorMail } from "@/services/notifications";
 
 // One business indicator (KPI layer B): its trend, every period's value and
 // who gave it, the corrections, and the recommendations meant to move it.
@@ -26,14 +28,19 @@ import { getIndicator } from "@/services/indicators";
 export default async function IndicatorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) => ({
-    firm: principal.orgKind === "firm",
-    detail: await getIndicator(tx, principal, id).catch(() => null),
-  }));
+  const data = await withPrincipal(async (tx, principal) => {
+    const detail = await getIndicator(tx, principal, id).catch(() => null);
+    return {
+      firm: principal.orgKind === "firm",
+      detail,
+      // The client's lead and deputy and its admins are told when the latest value moves away; they may mute the mail.
+      mail: detail ? await indicatorMail(tx, principal, id) : null,
+    };
+  });
   if (!data.detail) notFound();
-  const { detail, firm } = data;
+  const { detail, firm, mail } = data;
   const { indicator: k, series, history, links } = detail;
-  const [t, format, locale] = await Promise.all([getTranslations("indicators"), getFormatter(), getLocale()]);
+  const [t, tMail, format, locale] = await Promise.all([getTranslations("indicators"), getTranslations("notifications.mail"), getFormatter(), getLocale()]);
   const ar = locale === "ar";
   const lang = ar ? "ar" : "en";
   const s = k.summary;
@@ -116,6 +123,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
             ) : null}
           </>
         ) : null}
+        {mail?.told ? <MuteButton indicatorId={k.id} muted={mail.muted} title={tMail("indicatorMuteHint")} /> : null}
       </PageHeader>
       <p className="-mt-3 flex max-w-3xl items-start gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
         <Gauge className="mt-0.5 size-4 shrink-0" />

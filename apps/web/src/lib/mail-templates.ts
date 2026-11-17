@@ -242,7 +242,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     ar: {
       subject: "ملخص جديد في صلة",
       lines: [
-        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو الملفات المسلَّمة إليك.",
+        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو المؤشرات أو الملفات المسلَّمة إليك.",
         "سجّل الدخول لتراها. يمكنك تغيير عدد هذه الرسائل وتوقيتها من صفحة الإشعارات.",
       ],
       action: "فتح الإشعارات",
@@ -250,7 +250,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Your Selah summary",
       lines: [
-        "You have new reminders or updates about your actions, requested documents or files handed over to you.",
+        "You have new reminders or updates about your actions, requested documents or indicators, or files handed over to you.",
         "Sign in to see them. You can change how often and when this mail comes on the notifications page.",
       ],
       action: "Open notifications",

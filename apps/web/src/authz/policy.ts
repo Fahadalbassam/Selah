@@ -80,7 +80,7 @@ export const POLICY = {
   // and its admin read it; the firm admin records it. baseline: Engagements.
   "engagement.read": { ...STAFF, client_admin: "any" },
   "engagement.write": { firm_admin: "any" },
-  // A deliverable handed over and the client's receipt (F21, minimal; 0130).
+  // A deliverable handed over and the client's receipt (F21, minimal; 0091).
   // The firm on the client reads every round; at the client, only the people
   // who answer for it (its acceptors, admins and sponsor, who open every
   // file: the database decides, app_can_read_handover). The client's lead,

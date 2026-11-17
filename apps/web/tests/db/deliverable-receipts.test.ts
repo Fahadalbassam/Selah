@@ -1,6 +1,6 @@
 // A deliverable handed over, and the client confirms receipt (F21 in its
 // minimal form; the gate A follow-ups of 17 Nov 2026, 4a; migration
-// 0130_deliverable_receipts) against a real Postgres. Another client never
+// 0091_deliverable_receipts) against a real Postgres. Another client never
 // reaches it; only the client's acceptor, admin or sponsor answers, asked in
 // that order; the firm records a receipt only for a client it runs; a receipt
 // keeps the exact versions; the reminder goes once after ten Saudi working
@@ -42,6 +42,7 @@ const { today } = await import("@/services/today");
 const { moveClosure, writeLessons } = await import("@/services/closure");
 const { closurePdf } = await import("@/services/exports");
 const { loadPrincipal } = await import("@/services/principal");
+const { addValue } = await import("@/services/indicators");
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -125,6 +126,13 @@ async function file(org: string, project: string, title: string, opts: { visibil
 const handOver = (who: string, did: string, versions: string[]) => svc(who, (tx, p) => handOverDeliverable(tx, p, did, versions));
 const told = async (kind: string, did: string) =>
   (await q(`SELECT user_id FROM notifications WHERE kind = $1 AND entity_id = $2 ORDER BY user_id`, [kind, did])).rows.map((r) => r.user_id);
+/** The first day with `target` working days after `day`, counted by the database. */
+async function afterWorkingDays(day: string, target: number): Promise<string> {
+  for (let k = 1; ; k++) {
+    const r = (await q(`SELECT ($1::date + $2::int)::text AS d, app_working_days($1::date, $1::date + $2::int) AS n`, [day, k])).rows[0];
+    if (r.n === target) return r.d as string;
+  }
+}
 const mailedTo = async (kind: string) => (await q(`SELECT to_email FROM outbound_emails WHERE kind = $1 ORDER BY to_email`, [kind])).rows.map((r) => r.to_email);
 
 beforeAll(async () => {
@@ -380,12 +388,7 @@ describe("the reminder", () => {
     await handOver(U.lead, did, [doc]);
     const day = (await q(`SELECT app_firm_today()::text AS d`)).rows[0].d as string;
     // The first day with nine working days since the hand-over, and the first with ten.
-    const after = async (target: number) => {
-      for (let k = 1; ; k++) {
-        const r = (await q(`SELECT ($1::date + $2::int)::text AS d, app_working_days($1::date, $1::date + $2::int) AS n`, [day, k])).rows[0];
-        if (r.n === target) return r.d as string;
-      }
-    };
+    const after = (target: number) => afterWorkingDays(day, target);
     const nine = await after(DELIVERABLE_REMINDER_WORKING_DAYS - 1);
     const ten = await after(DELIVERABLE_REMINDER_WORKING_DAYS);
     const remind = async (on: string) => (await q(`SELECT app_remind_deliverables($1::date) AS n`, [on])).rows[0].n;
@@ -404,6 +407,32 @@ describe("the reminder", () => {
     await handOver(U.lead, answered, [doc]);
     await svc(U.acceptor, (tx, p) => recordReceipt(tx, p, answered, { round: 1 }));
     expect(await remind(ten)).toBe(0);
+  });
+
+  it("goes in the same summary mail as an indicator that moved away (0090), on the same day, for the same person", async () => {
+    await q(`UPDATE deliverable_handovers SET reminded_at = now() WHERE reminded_at IS NULL`);
+    // No acceptor on the second project: the client's admin is asked.
+    const did = await deliverable(G.acme, P.closing, "Board pack");
+    const doc = await file(ACME, P.closing, "Board pack.pdf");
+    await handOver(U.lead, did, [doc]);
+    expect(await told("deliverable.handed_over", did)).toEqual([U.cadmin]);
+    // An indicator whose latest value, typed by the staffed consultant, moved away from its baseline: the client's admin is told too.
+    const kpi = id(n++);
+    await q(
+      `INSERT INTO client_kpis (id, org_id, name_en, name_ar, unit, direction, frequency, baseline, baseline_period, created_by)
+       VALUES ($1,$2,'Complaints','الشكاوى','complaints','lower_better','monthly',30,'2026-01-01',$3)`,
+      [kpi, ACME, U.admin],
+    );
+    await svc(U.cons, (tx, p) => addValue(tx, p, kpi, { period: "2026-02-01", value: 42, note: null }));
+    expect((await q(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'indicator.moved_away' AND user_id = $1`, [U.cadmin])).rows[0].n).toBe(1);
+
+    const ten = await afterWorkingDays((await q(`SELECT app_firm_today()::text AS d`)).rows[0].d, DELIVERABLE_REMINDER_WORKING_DAYS);
+    expect((await q(`SELECT app_remind_deliverables($1::date) AS n`, [ten])).rows[0].n).toBe(1);
+    await q(`SELECT app_queue_digests($1::date)`, [ten]);
+    // Both notices went into her one summary mail; the hand-over notice had its own mail already.
+    const mailed = (await q(`SELECT kind FROM notifications WHERE user_id = $1 AND mailed_at IS NOT NULL ORDER BY kind`, [U.cadmin])).rows.map((r) => r.kind);
+    expect(mailed).toEqual(["deliverable.reminder", "indicator.moved_away"]);
+    expect((await mailedTo("follow_up.digest")).filter((m) => m === "cadmin@example.test")).toHaveLength(1);
   });
 });
 

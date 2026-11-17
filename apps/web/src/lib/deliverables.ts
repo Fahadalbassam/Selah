@@ -3,7 +3,7 @@ import { FIRM_TIME_ZONE } from "./dates";
 import { RECEIVED_VIA } from "./engagement";
 
 // A deliverable handed over and the client's receipt (F21, minimal; migration
-// 0130_deliverable_receipts). Shared by the screens, the services and the
+// 0091_deliverable_receipts). Shared by the screens, the services and the
 // tests; the database holds the same limits. "Received" is receipt only: it
 // never says the work was accepted as good.
 
