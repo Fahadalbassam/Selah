@@ -15,6 +15,25 @@ export interface Received {
   receivedOn: string;
 }
 
+/**
+ * A client project the firm runs: the client has no accounts and the firm
+ * records its work (consultant_managed). Its screens say so, and never ask
+ * the client to sign in, send or read anything (page audit N24).
+ */
+export function firmRun(projectKind: string | null | undefined, engagementMode: string | null | undefined): boolean {
+  return projectKind === "client" && engagementMode === "consultant_managed";
+}
+
+/**
+ * Which wording an action's panels use: the client's own ("Client"), the
+ * firm's working with a client that signs in ("Firm"), or the firm's on a
+ * client it runs ("FirmRun"). Message keys end with it (hintClient, hintFirm, hintFirmRun).
+ */
+export function panelVoice(firmView: boolean, isFirmRun: boolean): "Client" | "Firm" | "FirmRun" {
+  if (!firmView) return "Client";
+  return isFirmRun ? "FirmRun" : "Firm";
+}
+
 /** Maps a data rule's message about modes and departments to a message key. */
 export function engagementError(message: string | undefined): string | null {
   if (!message) return null;

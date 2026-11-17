@@ -241,6 +241,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
       minimalRecords: organizations.minimalRecords,
+      // consultant_managed: the firm records this client's work (N24).
+      engagementMode: organizations.engagementMode,
       // RLS leaves it out for those who may not read the engagement.
       engagementId: engagements.id,
       engagementTitle: engagements.title,
@@ -544,6 +546,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       projectKind: projects.kind,
       orgName: organizations.name,
       orgNameAr: organizations.nameAr,
+      // consultant_managed: the firm records this client's work (N24).
+      engagementMode: organizations.engagementMode,
       recommendationTitle: recommendations.title,
       requiredEvidence: recommendations.requiredEvidence,
     })

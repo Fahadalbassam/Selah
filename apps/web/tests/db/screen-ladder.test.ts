@@ -1,10 +1,11 @@
 // The reminder ladder on the action page (page audit B3): drawn for an open
-// action only, never for a verified, closed or draft one.
+// action only, never for a verified, closed or draft one. On a client the
+// firm runs, it names only people who exist there (N24).
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { actionLadder } from "@/services/follow-through";
-import { action, end, owner, seed, svc, U } from "./screen-bugs-fixture";
+import { action, end, owner, P, REC, seed, svc, U, WAHA } from "./screen-bugs-fixture";
 
 beforeAll(seed);
 afterAll(end);
@@ -39,5 +40,25 @@ describe("the reminder ladder on finished and draft actions (B3)", () => {
     const ladder = await svc(U.cowner, (tx, p) => actionLadder(tx, p, waiting));
     expect(ladder.running).toBe(false);
     expect(ladder.steps).toHaveLength(4);
+  });
+});
+
+describe("the reminder ladder on a client the firm runs (N24)", () => {
+  it("names only people who exist there: the lead consultant, then the watching firm admins", async () => {
+    // Waha has no accounts: the owner is a name, and nobody at the client signs in.
+    const aid = await action({ project: P.waha, org: WAHA, rec: REC.waha, owner: null, ownerName: "Office manager", due: await inDays(20) });
+    const ladder = await svc(U.wlead, (tx, p) => actionLadder(tx, p, aid));
+    expect(ladder.steps.map((s) => [s.level, s.audience])).toEqual([
+      [0, ["client_lead"]],
+      [1, ["client_lead"]],
+      [2, ["client_lead"]],
+      [3, ["client_lead", "watching_firm_admins"]],
+    ]);
+  });
+
+  it("still names the client's managers, sponsor and admins where the client signs in", async () => {
+    const aid = await action({ due: await inDays(20) });
+    const top = (await svc(U.cons, (tx, p) => actionLadder(tx, p, aid))).steps.at(-1)!;
+    expect(top.audience).toEqual(["owner", "client_managers", "client_lead", "sponsor", "client_admins", "watching_firm_admins"]);
   });
 });

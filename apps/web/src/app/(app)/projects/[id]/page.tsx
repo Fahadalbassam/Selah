@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, ClipboardPen, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
 import { MorphTitle } from "@/components/morph";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { firmRun } from "@/lib/engagement";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     getTranslations("closure"),
     getFormatter(),
   ]);
+  const tEng = await getTranslations("engagement");
   const ar = (await getLocale()) === "ar";
   const { project } = data;
   // A new recommendation's department and accountable person (F31).
@@ -224,6 +226,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
           {t("internalBanner")}
+        </p>
+      ) : null}
+      {firmRun(project.kind, project.engagementMode) ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <ClipboardPen className="size-4" />
+          {tEng("recordsForClient")}
         </p>
       ) : null}
       {project.state === "draft" ? (

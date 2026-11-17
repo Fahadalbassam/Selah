@@ -501,10 +501,12 @@
     "verifiedNote": "Verified by the firm.",
     "firmReviewer": "The consultant",
     "someone": "Someone",
+    "received": "Received from the client {via, select, meeting {in a meeting} email {by email} phone {by phone} document {in a document} other {}} on {date}",
     "items": {
       "title": "Evidence list",
       "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button. A file sent with \"Submit for review\" answers the only open item, or the one you choose when several are open. The consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
+      "hintFirmRun": "What the client needs to provide for this action. The client has no account in Selah, so record each file when it reaches you, then accept, reject or waive the item.",
       "none": "No items yet.",
       "due": "Due {date}",
       "status": {
@@ -521,11 +523,14 @@
       "accept": "Accept",
       "reject": "Not accepted",
       "rejectHint": "Say what's missing. The client sees this and can send another file.",
+      "rejectHintFirmRun": "Say what's missing, so the firm can ask the client for it.",
       "waive": "Not needed",
       "waiveHint": "Say why this item is no longer needed. The client sees this.",
+      "waiveHintFirmRun": "Say why this item is no longer needed.",
       "reopen": "Ask again",
       "add": "Add an item",
       "addHint": "Name a document or record the client should send. They're told about it.",
+      "addHintFirmRun": "Name a document or record the client needs to provide. Selah does not tell the client, so ask them yourself.",
       "itemTitle": "What to send",
       "itemDescription": "Details (optional)",
       "itemDue": "Due date (optional)"
@@ -636,6 +641,7 @@
     "thread": {
       "title": "Discussion",
       "hintFirm": "Talk with the client about this action. Everyone who can see the action reads this thread; use firm notes for anything the client shouldn't see.",
+      "hintFirmRun": "The firm's team discusses this action here. The client has no account in Selah, so nothing written here reaches them.",
       "hintClient": "Ask the consulting team about this action, or answer them. Everyone who can see the action reads this thread.",
       "none": "No comments yet.",
       "label": "Comment",
@@ -2471,6 +2477,7 @@
     "nothingDeleted": "Nothing is deleted. Accounts that don't fit the new mode must be switched off first.",
     "on": "On",
     "off": "Off",
+    "recordsForClient": "The firm records this work on the client's behalf.",
     "modes": {
       "full": {
         "label": "Full",
