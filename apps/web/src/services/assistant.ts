@@ -494,6 +494,11 @@ function scopeFilter(scopes: RetrievalScope | RetrievalScope[]) {
       ne(aiChunks.sourceType, "document"),
       and(eq(documents.aiIndexable, true), ne(documents.state, "archived"), eq(documents.version, aiChunks.sourceVersion)),
     ),
+    // Who sees an item (feature A): never a passage of a file, or of a meeting's note, the person is
+    // left out of. Here, inside the search, so it can never be retrieved or cited; the restrictive
+    // policy audience on ai_chunks says the same.
+    sql`(${aiChunks.sourceType} <> 'document' OR app_audience_ok('document', ${aiChunks.sourceId}, ${scope.userId}::uuid))`,
+    sql`(${aiChunks.sourceType} <> 'meeting_note' OR app_audience_entity_ok('meeting_note', ${aiChunks.sourceId}, ${scope.userId}::uuid))`,
     // A record's passage only while the person can read the record (baseline: Record passages), as in row-level security.
     // For a client person, never a draft action's (D6): the passage carries the action's id, and its
     // status is read here, inside the search, not after it.

@@ -3859,7 +3859,9 @@
       "indicator_feed_connect": "Connected an indicator source",
       "indicator_feed_revoke": "Disconnected an indicator source",
       "indicator_feed_push": "A system sent indicator figures",
-      "indicator_source": "Changed an indicator's code or connection"
+      "indicator_source": "Changed an indicator's code or connection",
+      "document_audience": "Who sees a file changed",
+      "meeting_audience": "Who sees a meeting changed"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -5302,6 +5304,10 @@
     "marker": {
       "label": "Limited audience",
       "hint": "Only some of the people with access see this {kind, select, meeting {meeting} other {file}}."
-    }
+    },
+    "menu": "Who sees it",
+    "dialogTitle": "Who sees this {kind, select, meeting {meeting} other {file}}",
+    "dialogHint": "You can only take people away here; it never gives anyone access they don't already have. The people you leave out aren't told.",
+    "loadFailed": "Couldn't load who can see this. Try again in a moment."
   }
 }

@@ -3859,7 +3859,9 @@
       "indicator_feed_connect": "ربط مصدرًا لأرقام المؤشرات",
       "indicator_feed_revoke": "فصل مصدرًا لأرقام المؤشرات",
       "indicator_feed_push": "أرسل نظام أرقام مؤشرات",
-      "indicator_source": "غيّر رمز مؤشر أو ربطه"
+      "indicator_source": "غيّر رمز مؤشر أو ربطه",
+      "document_audience": "تغيير من يرى ملفًا",
+      "meeting_audience": "تغيير من يرى اجتماعًا"
     },
     "csv": {
       "time": "الوقت (UTC)",
@@ -5302,6 +5304,10 @@
     "marker": {
       "label": "جمهور محدود",
       "hint": "يرى {kind, select, meeting {هذا الاجتماع} other {هذا الملف}} بعضُ من لهم صلاحية فقط."
-    }
+    },
+    "menu": "من يراه",
+    "dialogTitle": "من يرى {kind, select, meeting {هذا الاجتماع} other {هذا الملف}}",
+    "dialogHint": "يمكنك هنا إبعاد أشخاص فقط، ولا يمنح هذا أحدًا صلاحية لا يملكها أصلًا. لن يُبلَّغ من تُبعدهم.",
+    "loadFailed": "تعذّر تحميل قائمة من يرون هذا. حاول مرة أخرى بعد قليل."
   }
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 import { BadRequestError } from "@/server/errors";
 import { route } from "@/server/http";
+import { audienceField } from "@/services/audience";
 import { prepareUpload } from "@/services/evidence";
 import { uploadProjectDocument } from "@/services/files";
 
@@ -13,6 +14,8 @@ export const POST = route(
     body: z.object({
       visibility: z.enum(["shared", "firm_private", "client_private"]),
       departmentId: z.uuid().optional(),
+      // Who sees it (feature A), as JSON: { mode, people }. None: everyone with access.
+      audience: audienceField,
     }),
     form: { maxBytes: MAX_UPLOAD_BYTES },
     prepare: ({ userId, params, files }) => {
@@ -26,5 +29,6 @@ export const POST = route(
       file: prepared,
       visibility: body.visibility,
       departmentId: body.departmentId || undefined,
+      audience: body.audience ?? null,
     }),
 );

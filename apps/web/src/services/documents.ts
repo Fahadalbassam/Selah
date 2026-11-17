@@ -6,11 +6,12 @@ import { documentShares, documents, organizations, projects } from "@/db/schema"
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { audienceOf, readAudience, writeAudience, type AudienceInput } from "./audience";
 import type { PreparedUpload } from "./evidence";
 import { downloadable } from "./scan";
 import { DOWNLOAD_TTL_SECONDS, putObject, signedDownloadUrl } from "./storage";
 
-export async function loadDocument(tx: Tx, id: string) {
+export async function loadDocument(tx: Tx, id: string, principal: Principal) {
   const [row] = await tx
     .select({
       doc: documents,
@@ -41,6 +42,9 @@ export async function loadDocument(tx: Tx, id: string) {
     ownerOrgId: row.doc.ownerOrgId,
     departmentId: row.doc.departmentId,
     projectState: row.projectState,
+    projectKind: row.projectKind,
+    // Who sees it, when narrowed (feature A): the caller's own part, from the database.
+    audience: await audienceOf(tx, principal, "document", id),
   };
   const latest = !(await tx.select({ id: documents.id }).from(documents).where(eq(documents.supersedesId, id)).limit(1)).length;
   const [{ settled } = { settled: true }] = await tx.execute<{ settled: boolean }>(sql`select app_document_settled(${id}::uuid) as settled`).then((r) => r.rows);
@@ -84,6 +88,7 @@ export interface ControlledFile {
  *   assistant       - the owning side switches "available to the assistant"
  *   newVersion      - the owning side uploads the next version
  *   withdraw        - the uploader takes back a wrong first version nobody relied on yet, on an open project (N8)
+ *   audience        - the owning side's firm staff, or the client's admin, choose who sees it (feature A)
  * Evidence has none of these: it is shared by submitting it, and never changes.
  */
 export function fileControls(principal: Principal, loaded: ControlledFile) {
@@ -98,6 +103,7 @@ export function fileControls(principal: Principal, loaded: ControlledFile) {
     assistant: manage && live && !evidence && !context.minimal && doc.visibility !== "user_private",
     newVersion: manage && live && !evidence && !context.projectClosed,
     withdraw: live && !evidence && !context.projectClosed && resource.createdBy === principal.userId && context.firstVersion && !context.settled,
+    audience: live && !evidence && authorize(principal, "document.audience", resource).allowed,
   };
 }
 
@@ -108,7 +114,7 @@ export type FileControls = ReturnType<typeof fileControls>;
  * created after authorize() passes, and every download is audited.
  */
 export async function createDownloadLink(tx: Tx, principal: Principal, id: string, ip: string | null) {
-  const loaded = await loadDocument(tx, id);
+  const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.download", loaded.resource);
   // Fail closed: only files the scanner cleared can leave the bucket.
@@ -134,8 +140,8 @@ export async function createDownloadLink(tx: Tx, principal: Principal, id: strin
  * firm-only file with the client. Neither is ever made private again (the
  * database refuses it). The share is recorded in the project's history.
  */
-export async function shareDocument(tx: Tx, principal: Principal, id: string) {
-  const loaded = await loadDocument(tx, id);
+export async function shareDocument(tx: Tx, principal: Principal, id: string, audience?: AudienceInput | null) {
+  const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.read", loaded.resource);
   const can = fileControls(principal, loaded);
@@ -154,12 +160,40 @@ export async function shareDocument(tx: Tx, principal: Principal, id: string) {
     outcome: "allow",
     meta: { from: loaded.doc.visibility },
   });
+  // The firm sharing a deliverable with the client may choose who sees it in
+  // the same step (feature A); checked against the file as it is now shared.
+  if (audience) {
+    await writeAudience(tx, principal, "document", id, { ...loaded.resource, visibility: "shared" }, audience, { on: "share" });
+  }
   return { id, visibility: "shared" as const };
+}
+
+/**
+ * Who sees a file (feature A), for the people who may change it: everyone
+ * who can already see it, which of them always do and why, and who is left
+ * out or let in. With `asShared`, as if the firm shared it with the client
+ * (the Share dialog picks the audience before sharing). Not found for anyone
+ * else, and on evidence.
+ */
+export async function getDocumentAudience(tx: Tx, principal: Principal, id: string, opts: { asShared?: boolean } = {}) {
+  const loaded = await loadDocument(tx, id, principal);
+  if (!loaded || loaded.doc.purpose === "evidence") throw new NotFoundError("document");
+  assertAllowed(principal, "document.read", loaded.resource);
+  return readAudience(tx, principal, "document", id, loaded.resource, opts);
+}
+
+/** Set, change or clear who sees a file; every version follows. Audited; nobody is told. */
+export async function setDocumentAudience(tx: Tx, principal: Principal, id: string, input: AudienceInput) {
+  const loaded = await loadDocument(tx, id, principal);
+  if (!loaded || loaded.doc.purpose === "evidence") throw new NotFoundError("document");
+  assertAllowed(principal, "document.read", loaded.resource);
+  if (loaded.doc.state === "archived") throw new BadRequestError("this file is archived");
+  return writeAudience(tx, principal, "document", id, loaded.resource, input);
 }
 
 /** The owning side decides whether the assistant may read a file. */
 export async function setAssistantFlag(tx: Tx, principal: Principal, id: string, on: boolean) {
-  const loaded = await loadDocument(tx, id);
+  const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.manage", loaded.resource);
   if (!fileControls(principal, loaded).assistant) throw new BadRequestError("this file's assistant flag cannot be changed");
@@ -181,7 +215,7 @@ export async function setAssistantFlag(tx: Tx, principal: Principal, id: string,
  * the assistant (the database retires it).
  */
 export async function uploadNewVersion(tx: Tx, principal: Principal, id: string, file: PreparedUpload) {
-  const loaded = await loadDocument(tx, id);
+  const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.manage", loaded.resource);
   if (!fileControls(principal, loaded).newVersion) throw new BadRequestError("a new version cannot be added to this file");
@@ -230,7 +264,7 @@ export async function uploadNewVersion(tx: Tx, principal: Principal, id: string,
  * checks the same rules (app_withdraw_document).
  */
 export async function withdrawDocument(tx: Tx, principal: Principal, id: string, reason: string) {
-  const loaded = await loadDocument(tx, id);
+  const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.read", loaded.resource);
   if (!fileControls(principal, loaded).withdraw) throw new BadRequestError("this file cannot be withdrawn");

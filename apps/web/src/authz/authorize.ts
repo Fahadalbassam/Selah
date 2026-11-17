@@ -25,6 +25,13 @@ import type { Decision, Principal, Resource } from "./types";
  * have no project to observe: there the "working" scope keeps an observer
  * to reading. See policy.ts, "indicator.*".)
  *
+ * Last, a sixth question:
+ *   6. Audience   - was the item (a document, a meeting) narrowed with the
+ *                   picker, and is this person left out? It only ever says
+ *                   no: whoever always sees the item passes, and nobody gets
+ *                   in who the five questions kept out (the restrictive
+ *                   policies of migration 0111 say the same).
+ *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
 export function authorize(principal: Principal, permission: Permission, resource: Resource): Decision {
@@ -66,6 +73,9 @@ export function authorize(principal: Principal, permission: Permission, resource
   ) {
     return deny("project:observer");
   }
+
+  const audience = checkAudience(principal, resource);
+  if (!audience.allowed) return audience;
 
   return { allowed: true, reason: "ok" };
 }
@@ -156,6 +166,19 @@ function checkLabel(p: Principal, r: Resource): Decision {
     case "user_private":
       return r.createdBy === p.userId ? ok : deny("label:user_private");
   }
+}
+
+/**
+ * Left out ("except" and named, or "only" and not named) is a no, unless the
+ * person always sees the item. Never a yes the other questions did not give.
+ */
+function checkAudience(p: Principal, r: Resource): Decision {
+  const a = r.audience;
+  if (!a || a.locked.includes(p.userId)) return ok;
+  const named = a.people.includes(p.userId);
+  if (a.mode === "except" && named) return deny("audience:left-out");
+  if (a.mode === "only" && !named) return deny("audience:not-listed");
+  return ok;
 }
 
 const ok: Decision = { allowed: true, reason: "ok" };

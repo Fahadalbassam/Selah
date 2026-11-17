@@ -25,6 +25,7 @@ import type { Received } from "@/lib/engagement";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { loadAction, transitionAction } from "./actions";
 import { audit } from "./audit";
+import { audiencesForMe, writeAudience, type AudienceInput } from "./audience";
 import { fileControls, loadDocument, type FileControls } from "./documents";
 import { receivedFor } from "./progress";
 import { downloadable } from "./scan";
@@ -65,8 +66,13 @@ export interface FileEntry {
   textStatus: "pending" | "searchable" | "not_searchable" | "needs_ocr";
   /** Scanned pages the assistant can't read yet (no text layer). */
   ocrPages: number[];
-  /** What this person may change (share, assistant flag, new version). */
+  /** What this person may change (share, assistant flag, new version, who sees it). */
   can: FileControls;
+  /**
+   * Narrowed with the picker ("Limited audience"): shown to the people who
+   * still see it. Someone left out never gets the file at all.
+   */
+  limited: boolean;
   org: { id: string; kind: "firm" | "client"; name: string; nameAr: string | null };
   project: { id: string; title: string; kind: "internal" | "client" };
   source: FileSource;
@@ -146,6 +152,9 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
     .where(inArray(documentShares.documentId, ids));
   const sharesOf = new Map<string, { userId: string; name: string | null }[]>();
   for (const s of shares) sharesOf.set(s.documentId, [...(sharesOf.get(s.documentId) ?? []), s]);
+  // Who sees each file, when narrowed: the database already left out the
+  // files this person is left out of; authorize() asks again (its sixth question).
+  const audiences = await audiencesForMe(tx, principal, "document", ids);
 
   const resourceOf = (r: (typeof rows)[number]): Resource => ({
       type: "document",
@@ -161,6 +170,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
       sharedWith: (sharesOf.get(r.doc.id) ?? []).map((s) => s.userId),
       ownerOrgId: r.doc.ownerOrgId,
       departmentId: r.doc.departmentId,
+      audience: audiences.get(r.doc.id),
   });
   const visibleRows = rows.filter((r) => authorize(principal, "document.download", resourceOf(r)).allowed);
   if (visibleRows.length === 0) return [];
@@ -281,6 +291,7 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
           settled: r.doc.settled,
         },
       }),
+      limited: audiences.has(r.doc.id),
       org: { id: r.doc.orgId, kind: r.org.kind, name: r.org.name, nameAr: r.org.nameAr },
       project: { id: r.doc.projectId, title: r.project.title, kind: r.project.kind },
       source,
@@ -316,7 +327,7 @@ export async function attachExistingEvidence(tx: Tx, principal: Principal, actio
   assertAllowed(principal, "evidence.submit", resource);
   if (!OPEN_FOR_EVIDENCE.has(action.status)) throw new BadRequestError("this action is not open for evidence");
 
-  const source = await loadDocument(tx, input.documentId);
+  const source = await loadDocument(tx, input.documentId, principal);
   if (!source) throw new NotFoundError("document");
   assertAllowed(principal, "document.download", source.resource);
   if (source.doc.orgId !== action.orgId) throw new BadRequestError("pick a file of the same client");
@@ -451,6 +462,16 @@ export async function uploadTargets(tx: Tx, principal: Principal) {
             ? ["client_private"]
             : ["shared", "client_private"]) as UploadVisibility[],
       departments: r.departmentsEnabled ? departmentChoices : [],
+      // Who may choose who sees the file (feature A): firm staff, and the client's admin. Not managers or owners.
+      audience: authorize(principal, "document.audience", {
+        type: "document",
+        orgId: r.orgId,
+        firmOrgId: r.firmOrgId,
+        projectId: r.id,
+        projectKind: r.kind,
+        engagementMode: r.mode,
+        ownerOrgId: principal.orgId,
+      }).allowed,
     })),
   };
 }
@@ -459,6 +480,8 @@ export interface ProjectUploadInput {
   file: PreparedUpload;
   visibility: UploadVisibility;
   departmentId?: string;
+  /** Who sees it, chosen at upload (feature A); none: everyone with access. */
+  audience?: AudienceInput | null;
 }
 
 /**
@@ -509,6 +532,13 @@ export async function uploadProjectDocument(tx: Tx, principal: Principal, projec
     outcome: "allow",
     meta: { projectId, sizeBytes: bytes.byteLength, scanned: input.file.scanned, scanMs: input.file.scanMs },
   });
+  // Who sees it, when the uploader narrowed it: checked on the file itself, in
+  // the same transaction, so a refused audience stores no file either.
+  if (input.audience && input.audience.mode !== "everyone") {
+    const loaded = await loadDocument(tx, doc!.id, principal);
+    if (!loaded) throw new NotFoundError("document");
+    await writeAudience(tx, principal, "document", doc!.id, loaded.resource, input.audience, { on: "upload" });
+  }
   await putObject(storageKey, bytes, input.file.contentType, sha256);
   return { id: doc!.id };
 }

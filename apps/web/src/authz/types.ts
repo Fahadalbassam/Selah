@@ -122,6 +122,27 @@ export interface Resource {
    * the client reads it until the firm releases it (decision D6; migration 0076).
    */
   draft?: boolean;
+  /**
+   * Who sees the item, when it was narrowed with the picker (documents but
+   * evidence, and meetings; decision of 17 Nov 2026, feature A). Loaded from
+   * the database (app_audience_mine), never from the request. None: everyone
+   * the other rules let in.
+   */
+  audience?: ResourceAudience;
+}
+
+/**
+ * An item's audience as authorize() needs it. `people` are those left out
+ * ("except") or the only ones let in ("only"); `locked` those who always see
+ * it whatever the list says (the setter, the uploader, the client's admin,
+ * the firm admin, the client's lead and deputy, a meeting's organiser and
+ * required attendees), worked out live by the database. A service may give
+ * only the part about the person asking: authorize() asks about nobody else.
+ */
+export interface ResourceAudience {
+  mode: "except" | "only";
+  people: readonly string[];
+  locked: readonly string[];
 }
 
 export interface Decision {

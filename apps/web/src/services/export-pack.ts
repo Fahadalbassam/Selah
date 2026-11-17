@@ -24,6 +24,7 @@ import { PACK_LABELS, PACK_MAX_BYTES, packPath } from "@/lib/offboarding";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { ConflictError, NotFoundError, RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
+import { audiencesForMe } from "./audience";
 import { downloadable } from "./scan";
 import { getObject, putObject, signedDownloadUrl, DOWNLOAD_TTL_SECONDS } from "./storage";
 
@@ -179,6 +180,14 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
         )
         .orderBy(asc(documents.createdAt))
     : [];
+  // Who sees each file (feature A): the maker's row-level security already
+  // left out any file they are left out of; authorize() asks again.
+  const narrowed = await audiencesForMe(
+    tx,
+    principal,
+    "document",
+    docRows.map((d) => d.id),
+  );
   const readable = docRows.filter(
     (d) =>
       downloadable(d.scanStatus) &&
@@ -196,6 +205,7 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
         sharedWith: [],
         ownerOrgId: d.ownerOrgId,
         departmentId: d.departmentId,
+        audience: narrowed.get(d.id),
       }).allowed,
   );
 
