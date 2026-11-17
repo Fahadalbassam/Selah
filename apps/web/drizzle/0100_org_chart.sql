@@ -842,15 +842,15 @@ END $$;
 CREATE TRIGGER org_chart_change_request_notify AFTER INSERT ON org_chart_change_requests
   FOR EACH ROW EXECUTE FUNCTION notify_org_chart_change_request();
 --> statement-breakpoint
--- Minimal records (latest definition: 0000_baseline, Insight). The switch is
+-- Minimal records (latest definition: 0009_prospects). The switch is
 -- refused, like for contacts and files, while the client's structure holds
 -- the name of anyone, now or in the past: nothing is deleted to make way for
 -- it (the product owner is asked before anything deletes data). Unchanged
 -- otherwise.
 CREATE OR REPLACE FUNCTION check_minimal_records() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE switched boolean := TG_OP = 'INSERT' OR NEW.minimal_records IS DISTINCT FROM OLD.minimal_records
-  OR NEW.display_alias IS DISTINCT FROM OLD.display_alias;
+DECLARE switched boolean := CASE WHEN TG_OP = 'INSERT' THEN NEW.minimal_records OR NEW.display_alias IS NOT NULL
+  ELSE NEW.minimal_records IS DISTINCT FROM OLD.minimal_records OR NEW.display_alias IS DISTINCT FROM OLD.display_alias END;
 BEGIN
   IF switched AND app_uid() IS NOT NULL AND app_role() IS DISTINCT FROM 'firm_admin' THEN
     RAISE EXCEPTION 'only the firm admin sets minimal records' USING ERRCODE = 'insufficient_privilege';
