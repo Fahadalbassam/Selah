@@ -639,6 +639,35 @@ for (const [back, a, b] of [
 }
 await as(U.lead, (tx, p) => linkRecommendation(tx, p, onTime.id, rec.charter.id));
 await as(U.lead, (tx, p) => linkRecommendation(tx, p, approvals.id, rec.doa.id));
+// A company-wide indicator whose latest value moved away from its baseline
+// (decision 4b): last month's 42 is above the baseline of 30, and lower is
+// better, so the lead, the deputy and the client admin each got one
+// indicator.moved_away notice. The manager who typed it is not told.
+const complaints = await as(C.nAdmin, (tx, p) =>
+  createIndicator(tx, p, nukhba.id, {
+    nameAr: "شكاوى العملاء",
+    nameEn: "Customer complaints",
+    definition: "عدد الشكاوى المسجلة في الشهر",
+    unit: "شكوى",
+    direction: "lower_better",
+    frequency: "monthly",
+    baseline: 30,
+    baselinePeriod: monthStart(6),
+    target: null,
+    targetDate: null,
+    source: "سجل خدمة العملاء",
+    departmentId: null,
+  }),
+);
+for (const [back, n] of [
+  [5, 29],
+  [4, 27],
+  [3, 26],
+  [2, 28],
+  [1, 42],
+] as const) {
+  await as(C.nManager, (tx, p) => addValue(tx, p, complaints.id, { period: monthStart(back), value: n, note: null }));
+}
 
 // A progress report the firm froze and shared with the client.
 const report = await as(U.lead, (tx, p) =>
