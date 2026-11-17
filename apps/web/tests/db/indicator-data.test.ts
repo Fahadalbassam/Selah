@@ -401,8 +401,8 @@ describe("connections", () => {
         ]);
       }
       const words = async (lang: "ar" | "en") => (await import(`../../messages/${lang}.json`)).default.indicatorData.feeds.noRight as string;
-      expect(await words("ar")).toBe("لم يعد لمن أعدّ هذا الربط صلاحية تعديل أرقام هذا العميل. اطلب من المستشار الرئيسي للعميل إعداده من جديد.");
-      expect(await words("en")).toBe("The person who set up this connection can no longer change this client's figures. Ask the client's lead consultant to set it up again.");
+      expect(await words("ar")).toBe("لم يعد لمن أعدّ هذا الربط صلاحية تعديل هذه الأرقام. يحتاج المستشار الرئيسي إلى إعداده من جديد.");
+      expect(await words("en")).toBe("The person who set up this connection can no longer change these figures. The lead consultant needs to set it up again.");
     } finally {
       await owner.query(`UPDATE project_members SET observer = false WHERE project_id = $1 AND user_id = $2`, [id(5), U.cons]);
     }
