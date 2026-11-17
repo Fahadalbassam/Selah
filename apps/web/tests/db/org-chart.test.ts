@@ -14,7 +14,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
 import { engagementError } from "@/lib/engagement";
-import { ORG_CHART_REQUEST_STATUSES, ORG_CHART_STATES, ORG_UNIT_KINDS } from "@/lib/org-chart";
+import { ORG_CHART_REQUEST_STATUSES, ORG_CHART_STATES, ORG_UNIT_KINDS, orgChartError } from "@/lib/org-chart";
 import { getEngagement, setEngagement } from "@/services/engagement";
 import * as OC from "@/services/org-chart";
 import { loadPrincipal } from "@/services/principal";
@@ -1118,7 +1118,8 @@ describe("publishing at the same moment as something else", () => {
       svc(who, (tx, p) => OC.publish(tx, p, RACE, { draftId: draft, effectiveOn: firmToday() }), true);
     const results = await Promise.allSettled([publish(U.lead), publish(U.deputy)]);
     expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
-    expect(String((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason)).toMatch(/already published/);
+    const stale = /this draft is no longer the current one; reload the page/;
+    expect(String((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason)).toMatch(stale);
     expect(await versions()).toBe(before + 1);
     // Publishing again means publishing the new draft, by its own id.
     const next = await draftOf();
@@ -1126,7 +1127,23 @@ describe("publishing at the same moment as something else", () => {
     await svc(U.lead, (tx, p) => OC.publish(tx, p, RACE, { draftId: next, effectiveOn: firmToday() }), true);
     expect(await versions()).toBe(before + 2);
     // Straight in the database too.
-    await expect(attempt(U.lead, `SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [RCHART, draft])).rejects.toThrow(/already published/);
+    await expect(attempt(U.lead, `SELECT app_publish_org_chart($1, $2, app_firm_today(), NULL)`, [RCHART, draft])).rejects.toThrow(stale);
+  });
+
+  it("another client's draft, an unknown id or a malformed one is refused plainly, never as published already", async () => {
+    const publishWith = (draftId: string) => svc(U.lead, (tx, p) => OC.publish(tx, p, RACE, { draftId, effectiveOn: firmToday() }));
+    const stale = /this draft is no longer the current one; reload the page/;
+    for (const other of [await draftIdOf(ACME), id(98)]) {
+      const refusal = await publishWith(other).then(
+        () => "published",
+        (e: Error) => e.message,
+      );
+      expect(refusal).toMatch(stale);
+      expect(refusal).not.toMatch(/already published/);
+      expect(orgChartError(refusal)).toBe("draftChanged");
+    }
+    // A malformed id is a bad request (400), never a database error (500).
+    await expect(publishWith("not-a-uuid")).rejects.toThrow(/^draft_id$/);
   });
 });
 

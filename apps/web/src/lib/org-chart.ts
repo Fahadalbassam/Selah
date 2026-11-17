@@ -38,6 +38,16 @@ export const ORG_CHART_LIMITS = {
   request: { what: { min: 3, max: 1000 }, where: 300, why: 1000 },
 } as const;
 
+/**
+ * The message key (under orgChart.errors) for a refusal the database words in English, so a
+ * screen can show it in the reader's language; null for anything else.
+ */
+export function orgChartError(message: string | undefined): string | null {
+  if (!message) return null;
+  const rules: [RegExp, string][] = [[/this draft is no longer the current one/, "draftChanged"]];
+  return rules.find(([re]) => re.test(message))?.[1] ?? null;
+}
+
 /** Specialties as the database keeps them: trimmed, without blanks or repeats, in the order given. */
 export function cleanSpecialties(list: readonly string[]): string[] {
   const out: string[] = [];

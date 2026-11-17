@@ -5326,5 +5326,10 @@
       "label": "Limited audience",
       "hint": "Only some of the people with access see this {kind, select, meeting {meeting} other {file}}."
     }
+  },
+  "orgChart": {
+    "errors": {
+      "draftChanged": "This draft is no longer the current one. Reload the page."
+    }
   }
 }

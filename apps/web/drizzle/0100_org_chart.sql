@@ -434,9 +434,10 @@ END $$;
 -- client admin's names switch carries over (off for a first version);
 -- whoever held a position the new structure no longer has stops holding it
 -- today; and a fresh draft, a copy, is ready for the next change. The caller
--- names the draft they checked (p_draft): once it is published, publishing it
--- again is refused, so two publishers at the same moment make one version,
--- not a second, unchanged one. Returns the published version.
+-- names the draft they checked (p_draft): once it is published, or for any id
+-- that is not this chart's draft (another client's, unknown), publishing is
+-- refused, so two publishers at the same moment make one version, not a
+-- second, unchanged one. Returns the published version.
 CREATE FUNCTION app_publish_org_chart(cid uuid, p_draft uuid, p_effective date, p_resolution uuid) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
@@ -456,7 +457,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('org_chart'), hashtext(cid::text));
   SELECT * INTO d FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'draft' FOR UPDATE;
   IF d.id IS DISTINCT FROM p_draft THEN
-    RAISE EXCEPTION 'that draft was already published; check the new draft, then publish it' USING ERRCODE = 'check_violation';
+    RAISE EXCEPTION 'this draft is no longer the current one; reload the page' USING ERRCODE = 'check_violation';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM org_units u WHERE u.version_id = d.id) THEN
     RAISE EXCEPTION 'the draft has no units yet' USING ERRCODE = 'check_violation';

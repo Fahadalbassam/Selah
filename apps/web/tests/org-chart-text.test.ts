@@ -2,6 +2,7 @@
 // right, the English beside it, and nothing about a person in either.
 import { describe, expect, it } from "vitest";
 import { renderMail } from "@/lib/mail-templates";
+import { orgChartError } from "@/lib/org-chart";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 
@@ -21,6 +22,14 @@ describe("org chart mails and notices", () => {
   it("the suggestion notice reads right for any client's name, without a verb that has to agree with it", () => {
     expect(kinds(ar).org_chart_change_requested).toBe("اقتراح تعديل على الهيكل التنظيمي لـ{title}");
     expect(kinds(en).org_chart_change_requested).toContain("{title}");
+  });
+
+  it("a publish of a draft that is no longer current is refused with a plain sentence in both languages", () => {
+    const errors = (m: unknown) => (m as { orgChart: { errors: Record<string, string> } }).orgChart.errors;
+    expect(orgChartError("this draft is no longer the current one; reload the page")).toBe("draftChanged");
+    expect(orgChartError("something else")).toBeNull();
+    expect(errors(ar).draftChanged).toBe("لم تعد هذه المسودة هي الحالية. أعد تحميل الصفحة.");
+    expect(errors(en).draftChanged).toBe("This draft is no longer the current one. Reload the page.");
   });
 
   it("neither mail nor notice carries a name: a line and a link", () => {

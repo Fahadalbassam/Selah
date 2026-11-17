@@ -184,6 +184,7 @@ function checkCode(code: string) {
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function checkDay(day: string) {
   if (!DAY.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) throw new BadRequestError("date");
 }
@@ -840,8 +841,10 @@ export async function deletePosition(tx: Tx, principal: Principal, positionId: s
  * becomes current with its structure frozen, and a copy becomes the next
  * draft. Holdings of positions the new structure drops end today.
  * `draftId` is the draft the publisher checked (getDraft's `draft.id`): once
- * it is published, publishing it again is refused ("already published"), so
- * two publishers at the same moment make one version.
+ * it is published, or for any id that is not this client's draft, publishing
+ * is refused ("this draft is no longer the current one", orgChart.errors
+ * draftChanged), so two publishers at the same moment make one version. A
+ * malformed id is a bad request.
  */
 export async function publish(
   tx: Tx,
@@ -852,7 +855,7 @@ export async function publish(
   const client = await clientOf(tx, clientOrgId);
   assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
   checkDay(input.effectiveOn);
-  if (!input.draftId) throw new BadRequestError("draft");
+  if (!UUID.test(input.draftId ?? "")) throw new BadRequestError("draft_id");
   const chart = await chartOf(tx, client.id);
   if (!chart) throw new NotFoundError("draft");
   const { rows } = await tx.execute<{ id: string }>(
