@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ClipboardList, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, ClipboardPen, FilePenLine, Pencil, SearchCheck, UserCheck, UserPlus } from "lucide-react";
 import { MorphTitle } from "@/components/morph";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { firmRun } from "@/lib/engagement";
 import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     getTranslations("closure"),
     getFormatter(),
   ]);
+  const [tEng, tc] = await Promise.all([getTranslations("engagement"), getTranslations("common")]);
   const ar = (await getLocale()) === "ar";
   const { project } = data;
   // A new recommendation's department and accountable person (F31).
@@ -224,6 +226,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
           {t("internalBanner")}
+        </p>
+      ) : null}
+      {firmRun(project.kind, project.engagementMode) ? (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <ClipboardPen className="size-4" />
+          {tEng("recordsForClient")}
         </p>
       ) : null}
       {project.state === "draft" ? (
@@ -666,7 +674,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className="ms-auto">
                     {tVis(d.visibility)}
                   </Badge>
-                  {d.aiIndexable ? (
+                  {d.aiIndexable && data.assistantReads ? (
                     <Badge variant="outline" className="gap-1">
                       <Bot className="size-3" />
                       {t("aiIndexed")}
@@ -690,15 +698,20 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <ol className="space-y-3 border-s ps-4">
               {data.activity.map((e) => (
                 <li key={e.id} className="text-sm">
-                  <span className="font-medium">{e.actorName ?? "—"}</span>{" "}
-                  {/* Only an action's states are action statuses; files and assessments have their own events. */}
-                  {e.entityType === "action" && e.fromState && e.toState
-                    ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
-                    : t.has(`events.${e.entityType}_${e.event}`)
-                      ? t(`events.${e.entityType}_${e.event}` as never)
-                      : t.has(`events.${e.event}`)
-                        ? t(`events.${e.event}` as never)
-                        : t("events.other")}
+                  {/* "Event from person" in Arabic, so the line is right for anyone; "Person did" in English. */}
+                  {tc.rich("byLine", {
+                    name: e.actorName ?? "—",
+                    // Only an action's states are action statuses; files and assessments have their own events.
+                    event:
+                      e.entityType === "action" && e.fromState && e.toState
+                        ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
+                        : t.has(`events.${e.entityType}_${e.event}`)
+                          ? t(`events.${e.entityType}_${e.event}` as never)
+                          : t.has(`events.${e.event}`)
+                            ? t(`events.${e.event}` as never)
+                            : t("events.other"),
+                    who: (c) => <span className="font-medium">{c}</span>,
+                  })}
                   <div className="text-xs text-muted-foreground">{format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "short" })}</div>
                 </li>
               ))}

@@ -1,5 +1,5 @@
 import { FilePlus2 } from "lucide-react";
-import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
+import { SlidingCount } from "@/components/sliding-count";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -95,7 +95,7 @@ export async function ProgressTab({
                 "—"
               ) : (
                 <span dir="ltr" className="inline-flex">
-                  <SlidingNumber number={Math.round(progress.implementedPct)} fromNumber={0} />%
+                  <SlidingCount number={Math.round(progress.implementedPct)} fromNumber={0} />%
                 </span>
               )}
             </CardTitle>

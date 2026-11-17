@@ -42,12 +42,17 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
           {rows.map((r) => (
             <TableRow key={r.id}>
               <TableCell className="max-w-72">
+                {/* Each title takes its own direction, so an English title on an Arabic page is cut at its end, not its start. */}
                 <Link href={`/actions/${r.id}`} className="block truncate font-medium hover:underline">
-                  <MorphTitle name={`action-${r.id}`} className="truncate">
+                  <MorphTitle name={`action-${r.id}`} className="truncate" dir="auto">
                     {r.title}
                   </MorphTitle>
                 </Link>
-                <div className="truncate text-xs text-muted-foreground">{r.recommendationTitle}</div>
+                <div className="text-xs text-muted-foreground">
+                  <div className="w-fit max-w-full truncate" dir="auto">
+                    {r.recommendationTitle}
+                  </div>
+                </div>
               </TableCell>
               {showProject ? (
                 <TableCell className="hidden md:table-cell">

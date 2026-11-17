@@ -8,7 +8,7 @@ Where this page is unsure, it says so. Everything listed as built is merged on `
 
 ## 1. What Selah is
 
-Selah (صِلَة, "connection") is a platform for consulting firms. After a firm delivers its work (plans, policies, organisational structures, recommendations), putting that work into practice is hard to follow. Selah connects each consulting output to an owner, actions, evidence, the consultant's review and follow-up, so both sides can see what is really done.
+Selah (صلة, "connection") is a platform for consulting firms. After a firm delivers its work (plans, policies, organisational structures, recommendations), putting that work into practice is hard to follow. Selah connects each consulting output to an owner, actions, evidence, the consultant's review and follow-up, so both sides can see what is really done.
 
 - **Generic product.** Selah is built for any consulting firm. It started as a six-student Computer Science graduation project developed with a Saudi consulting firm as the partner, but the partner is never named in the product, the UI or the docs.
 - **It connects, it does not consult.** Selah never writes official recommendations, approves evidence, makes governance judgements or rules on legal compliance. People do; Selah records and shows it.

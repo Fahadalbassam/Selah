@@ -1,4 +1,4 @@
-# Selah · صِلَة
+# Selah · صلة
 
 Selah is a platform for consulting firms. A firm runs its own internal projects in it with its staff, and follows its clients through implementation: from recommendation to owner, action, evidence, review and sign-off.
 

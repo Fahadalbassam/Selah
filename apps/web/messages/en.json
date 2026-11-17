@@ -67,7 +67,8 @@
   },
   "kind": {
     "internal": "Internal",
-    "client": "Client"
+    "client": "Client",
+    "pitch": "Pitch"
   },
   "dashboard": {
     "title": "Overview",
@@ -101,9 +102,9 @@
     "subtitle": "Projects you are allowed to see",
     "internalNote": "Internal projects belong to the firm and never appear to any client.",
     "empty": "No projects.",
-    "actions": "actions",
-    "verified": "verified",
-    "awaitingReview": "awaiting review",
+    "actions": "{n, plural, one {# action} other {# actions}}",
+    "verified": "{n} verified",
+    "awaitingReview": "{n} awaiting review",
     "client": "Client"
   },
   "project": {
@@ -214,6 +215,7 @@
     "email": "Email",
     "role": "Role",
     "projects": "Projects",
+    "projectsHint": "Projects: those each person works on that you can open too.",
     "empty": "You can't view the team list."
   },
   "actionsPage": {
@@ -267,7 +269,7 @@
     },
     "decisions": {
       "title": "Waiting on your decision",
-      "description": "Requests that a client's lead or the firm admin settles.",
+      "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
       "joinTitle": "{who} asks to join",
       "proposed": "{who} proposes {date}",
       "askedBy": "{who} asked on {date}",
@@ -485,6 +487,8 @@
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
       "secondReviewer": "You gave the first sign-off. Another consultant gives the second.",
+      "received": "Say how and when it came from the client.",
+      "receivedFuture": "The day it was received can't be after today.",
       "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
       "replacementDraft": "The replacement is still a draft the client can't see. Release it first."
     },
@@ -503,10 +507,23 @@
     "verifiedNote": "Verified by the firm.",
     "firmReviewer": "The consultant",
     "someone": "Someone",
+    "received": "Received from the client {via, select, meeting {in a meeting} email {by email} phone {by phone} document {in a document} other {}} on {date}",
+    "recordFor": {
+      "via": "How it came from the client",
+      "on": "Received on",
+      "choose": "Choose",
+      "vias": {
+        "meeting": "In a meeting",
+        "email": "By email",
+        "phone": "By phone",
+        "document": "In a document"
+      }
+    },
     "items": {
       "title": "Evidence list",
       "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button. A file sent with \"Submit for review\" answers the only open item, or the one you choose when several are open. The consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
+      "hintFirmRun": "What the client needs to provide for this action. The client has no account in Selah, so record each file when it reaches you, then accept, reject or waive the item.",
       "none": "No items yet.",
       "due": "Due {date}",
       "status": {
@@ -523,11 +540,14 @@
       "accept": "Accept",
       "reject": "Not accepted",
       "rejectHint": "Say what's missing. The client sees this and can send another file.",
+      "rejectHintFirmRun": "Say what's missing, so the firm can ask the client for it.",
       "waive": "Not needed",
       "waiveHint": "Say why this item is no longer needed. The client sees this.",
+      "waiveHintFirmRun": "Say why this item is no longer needed.",
       "reopen": "Ask again",
       "add": "Add an item",
       "addHint": "Name a document or record the client should send. They're told about it.",
+      "addHintFirmRun": "Name a document or record the client needs to provide. Selah does not tell the client, so ask them yourself.",
       "itemTitle": "What to send",
       "itemDescription": "Details (optional)",
       "itemDue": "Due date (optional)"
@@ -638,6 +658,7 @@
     "thread": {
       "title": "Discussion",
       "hintFirm": "Talk with the client about this action. Everyone who can see the action reads this thread; use firm notes for anything the client shouldn't see.",
+      "hintFirmRun": "The firm's team discusses this action here. The client has no account in Selah, so nothing written here reaches them.",
       "hintClient": "Ask the consulting team about this action, or answer them. Everyone who can see the action reads this thread.",
       "none": "No comments yet.",
       "label": "Comment",
@@ -753,7 +774,8 @@
       "tooHigh": "Enter {n} or less."
     },
     "searchPeople": "Type a name or email",
-    "noMatch": "Nobody matches"
+    "noMatch": "Nobody matches",
+    "byLine": "<who>{name}</who> {event}"
   },
   "pager": {
     "label": "Pages",
@@ -1639,7 +1661,7 @@
     "totals": "The team, last 90 days",
     "reviewsDone": "Reviews done",
     "medianReview": "Median days to review",
-    "days": "{n} days",
+    "days": "{n, plural, one {# day} other {# days}}",
     "aging": {
       "d1_30": "1–30 days",
       "d31_60": "31–60 days",
@@ -2473,6 +2495,7 @@
     "nothingDeleted": "Nothing is deleted. Accounts that don't fit the new mode must be switched off first.",
     "on": "On",
     "off": "Off",
+    "recordsForClient": "The firm records this work on the client's behalf.",
     "modes": {
       "full": {
         "label": "Full",

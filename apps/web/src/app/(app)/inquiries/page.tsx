@@ -89,7 +89,14 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
                     <p className="text-xs text-muted-foreground">
                       {r.source !== "website" ? `${t(`sources.${r.source}`)} · ` : null}
                       {label(data.options.sectors, r.sector)}
-                      {r.employeeBand ? ` · ${ti(`employeeBand.${r.employeeBand}`)}` : null} · <span dir="ltr">{r.publicRef}</span>
+                      {/* A range of numbers reads left to right in Arabic too (10–49, not 49–10). */}
+                      {r.employeeBand ? (
+                        <>
+                          {" · "}
+                          <bdi dir="ltr">{ti(`employeeBand.${r.employeeBand}`)}</bdi>
+                        </>
+                      ) : null}{" "}
+                      · <span dir="ltr">{r.publicRef}</span>
                     </p>
                   </TableCell>
                   <TableCell className="max-w-64 text-sm whitespace-normal">

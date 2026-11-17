@@ -17,8 +17,7 @@ import { SectionHeader } from "@/components/section-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { DepartmentsSwitch } from "@/components/departments-switch";
 import { engagementError } from "@/lib/engagement";
 
 import { localLabel } from "@/lib/names";
@@ -71,22 +70,8 @@ export function DepartmentsManager({ data, people }: { data: DepartmentsData; pe
 
   return (
     <div className="space-y-6">
-      <Card className="gap-4 py-5 shadow-xs">
-        <CardContent className="flex items-start justify-between gap-6 px-5">
-          <div className="space-y-1">
-            <Label htmlFor="departments-on" className="text-sm font-medium">
-              {t("switch")}
-            </Label>
-            <p className="max-w-2xl text-sm text-muted-foreground">{t("switchHint")}</p>
-          </div>
-          <Switch
-            id="departments-on"
-            checked={data.departmentsEnabled}
-            disabled={!manage || busy}
-            onCheckedChange={(v) => void toggle(v)}
-          />
-        </CardContent>
-      </Card>
+      <DepartmentsSwitch on={data.departmentsEnabled} manage={manage} busy={busy} onChange={(v) => void toggle(v)} />
+
 
       <SectionHeader title={t("list")} description={data.departmentsEnabled ? t("listHintOn") : t("listHintOff")}>
         {manage ? (

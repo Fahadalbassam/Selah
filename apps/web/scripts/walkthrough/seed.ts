@@ -8,8 +8,10 @@
 // person who would take it, through the same services, row-level security and
 // database rules as the screens. So the history, notifications, mail and
 // audit trail are real, and no record is in a state the app could not reach.
-// The only direct writes are the accounts themselves and a few dates moved
-// into the past (a step taken today can't be weeks late otherwise).
+// The only direct writes are the accounts themselves (their names in the
+// other language, and their sign-in acceptances) and the two clients' e-mail
+// domains. Late work is late because it was released with a date that has
+// passed, as a late action is: its date history shows no move.
 //
 // Every account shares WALKTHROUGH_PASSWORD (default in docs/walkthrough.md).
 // Local sample data only: refuses to run in production.
@@ -41,7 +43,6 @@ import { setAssistantFlag } from "@/services/documents";
 import { uploadProjectDocument } from "@/services/files";
 import {
   addActionNote,
-  addEvidenceRequest,
   decideDeadlineChange,
   decideEvidenceRequest,
   requestDeadlineChange,
@@ -146,9 +147,6 @@ async function person(email: string, name: string, nameAlt: string) {
   await sql(`UPDATE "user" SET name_alt = $2 WHERE id = $1`, [created.id, nameAlt]);
   return created.id;
 }
-
-/** Moves an action's due date into the past: the step happened weeks ago. */
-const backdateDue = (actionId: string, due: string) => sql(`UPDATE actions SET due_date = $2 WHERE id = $1`, [actionId, due]);
 
 const step = (msg: string) => console.log(`  - ${msg}`);
 
@@ -403,12 +401,12 @@ const A = {
   present: await release(rec.charter.id, "عرض المسودة على المجلس واعتمادها", C.nManager, 20, { departmentId: dept.secretariat.id }),
   // Assigned, not started.
   publish: await release(rec.charter.id, "نشر الميثاق المعتمد على موقع الشركة", C.nOwner, 35),
-  // Blocked, and overdue.
-  members: await release(rec.audit.id, "ترشيح الأعضاء المستقلين للجنة", C.nSponsor, 10),
-  // Revision requested: the bylaws were sent back with a reason.
-  bylaws: await release(rec.audit.id, "إعداد لائحة عمل اللجنة", C.nOwner, 12, { departmentId: dept.legal.id, evidence: [{ title: "اللائحة متضمنة الصلاحيات ودورية الاجتماعات" }] }),
-  // In progress, overdue, with a request to move the date waiting for the firm.
-  limits: await release(rec.doa.id, "مراجعة حدود الصلاحيات المالية", C.nOwner2, 10, { departmentId: dept.finance.id }),
+  // Blocked, and overdue: its date passed six days ago.
+  members: await release(rec.audit.id, "ترشيح الأعضاء المستقلين للجنة", C.nSponsor, -6),
+  // Revision requested, two days late: the bylaws were sent back with a reason.
+  bylaws: await release(rec.audit.id, "إعداد لائحة عمل اللجنة", C.nOwner, -2, { departmentId: dept.legal.id, evidence: [{ title: "اللائحة متضمنة الصلاحيات ودورية الاجتماعات" }] }),
+  // In progress, four days late, with a request to move the date waiting for the firm.
+  limits: await release(rec.doa.id, "مراجعة حدود الصلاحيات المالية", C.nOwner2, -4, { departmentId: dept.finance.id }),
   // In progress with an evidence list and progress notes; its date was already moved once.
   matrix: await release(rec.doa.id, "تحديث مصفوفة الصلاحيات ورفعها للمجلس", C.nOwner2, 40, {
     departmentId: dept.finance.id,
@@ -427,9 +425,11 @@ await as(U.lead, (tx, p) =>
 await as(U.admin, (tx, p) => setClientReviewRule(tx, p, nukhba.id, "high_priority"));
 
 const start = (actionId: string, userId: string) => as(userId, (tx, p) => transitionAction(tx, p, actionId, { to: "in_progress" }));
-const send = async (actionId: string, userId: string, f: F.SeedFile, opts: { note?: string; submitForReview?: boolean } = {}) => {
+const send = async (actionId: string, userId: string, f: F.SeedFile, opts: { note?: string; submitForReview?: boolean; evidenceRequestId?: string } = {}) => {
   const file = await upload(userId, { type: "action", id: actionId }, f);
-  return as(userId, (tx, p) => submitEvidence(tx, p, actionId, { file, note: opts.note, submitForReview: opts.submitForReview ?? true }));
+  return as(userId, (tx, p) =>
+    submitEvidence(tx, p, actionId, { file, note: opts.note, submitForReview: opts.submitForReview ?? true, evidenceRequestId: opts.evidenceRequestId }),
+  );
 };
 
 /** The reviewer accepts each item on the action's evidence list that a file answers. */
@@ -458,7 +458,6 @@ await as(C.nManager, (tx, p) => postComment(tx, p, A.present.id, { body: "سأر
 // The independent members: blocked, now past its date.
 await start(A.members.id, C.nSponsor);
 await as(C.nSponsor, (tx, p) => transitionAction(tx, p, A.members.id, { to: "blocked", reason: "بانتظار موافقة الجمعية العامة على مكافآت الأعضاء المستقلين" }));
-await backdateDue(A.members.id, day(-6));
 
 // The committee bylaws: sent, then sent back with a reason.
 await start(A.bylaws.id, C.nOwner);
@@ -467,12 +466,10 @@ await as(U.consultant, (tx, p) =>
   transitionAction(tx, p, A.bylaws.id, { to: "revision_requested", reason: "اللائحة لا تذكر صلاحيات اللجنة ولا دورية اجتماعاتها ولا علاقتها بالمراجع الخارجي." }),
 );
 await as(C.nOwner, (tx, p) => postComment(tx, p, A.bylaws.id, { body: "واضح، سنضيف فصلاً للصلاحيات ونحدد أربعة اجتماعات في السنة." }));
-await backdateDue(A.bylaws.id, day(-2));
 
 // The financial limits: started late; the owner asks for two more weeks.
 await start(A.limits.id, C.nOwner2);
 await as(C.nOwner2, (tx, p) => addProgressUpdate(tx, p, A.limits.id, "جمعنا حدود خمس شركات مماثلة، وننتظر رد الرئيس التنفيذي على المقترح."));
-await backdateDue(A.limits.id, day(-4));
 await as(C.nOwner2, (tx, p) => requestDeadlineChange(tx, p, A.limits.id, { proposedDueDate: day(12), reason: "الرئيس التنفيذي مسافر حتى نهاية الأسبوع القادم." }));
 
 // The matrix: its date was moved once (approved), and one of its two items is answered.
@@ -482,8 +479,11 @@ await as(C.nOwner2, (tx, p) => requestDeadlineChange(tx, p, A.matrix.id, { propo
   const pending = await sql(`SELECT id FROM deadline_change_requests WHERE action_id = $1 ORDER BY created_at DESC LIMIT 1`, [A.matrix.id]);
   await as(U.lead, (tx, p) => decideDeadlineChange(tx, p, pending.rows[0].id, { approve: true }));
 }
-await send(A.matrix.id, C.nOwner2, F.nukhbaEvidence.doaLimits, { submitForReview: false, note: "مذكرة المقارنة" });
-await as(U.lead, (tx, p) => addEvidenceRequest(tx, p, A.matrix.id, { title: "قرار المجلس باعتماد المصفوفة", dueDate: day(48) }));
+{
+  // The comparison memo answers its own item, the way the item's "Send a file" button sends it; the matrix itself is still to come.
+  const memo = await sql(`SELECT id FROM evidence_requests WHERE action_id = $1 AND title = $2`, [A.matrix.id, "مذكرة المقارنة مع الحدود الحالية"]);
+  await send(A.matrix.id, C.nOwner2, F.nukhbaEvidence.doaLimits, { submitForReview: false, note: "مذكرة المقارنة", evidenceRequestId: memo.rows[0].id });
+}
 await as(U.lead, (tx, p) => addActionNote(tx, p, A.matrix.id, { body: "ملاحظة داخلية: المدير المالي يميل لإبقاء حده كما هو؛ نناقشه في اجتماع اللجنة التوجيهية." }));
 
 // The disclosures: two members could not be reached; the client accepts the risk and the firm closes it.

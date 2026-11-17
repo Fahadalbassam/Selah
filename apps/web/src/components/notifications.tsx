@@ -1,7 +1,7 @@
 "use client";
 
 import { ScrollFade } from "@animate-ui/react/primitives/effects/scroll-fade";
-import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
+import { SlidingCount } from "@/components/sliding-count";
 import { Bell } from "@/components/animate-ui/icons/bell";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -154,8 +154,8 @@ export function NotificationBell({ unread }: { unread: number }) {
           <Bell className="size-4" />
           {count > 0 ? (
             <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background tabular-nums">
-              {/* The count rolls digit by digit when new notifications arrive (Animate UI Sliding Number). */}
-              {count > 99 ? "99+" : <SlidingNumber number={count} initiallyStable />}
+              {/* The count rolls digit by digit when new notifications arrive, always left to right. */}
+              {count > 99 ? "99+" : <SlidingCount number={count} initiallyStable />}
             </span>
           ) : null}
         </Button>

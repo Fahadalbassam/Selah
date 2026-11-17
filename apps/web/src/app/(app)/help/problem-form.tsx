@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_LIMITS } from "@/lib/help";
+import { typedDir } from "@/lib/utils";
 
 /** The "Technical problem" door (F13): a short report that goes to the firm's admins. */
 export function ProblemForm() {
@@ -46,7 +47,7 @@ export function ProblemForm() {
         required
         rows={4}
         maxLength={SUPPORT_LIMITS.body}
-        dir="auto"
+        dir={typedDir(body)}
         placeholder={t("placeholder")}
         aria-invalid={error ? true : undefined}
         aria-describedby="help-problem-hint"

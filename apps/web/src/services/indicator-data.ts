@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { clientIndicatorSettings, clientKpis, indicatorFeeds, indicatorImports, organizations, user } from "@/db/schema";
+import { clientIndicatorSettings, clientKpis, indicatorFeeds, indicatorImports, organizations, projects, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { env } from "@/env";
 import { firmToday } from "@/lib/dates";
@@ -116,6 +116,12 @@ export async function dataSetupStep(tx: Tx, principal: Principal, clientOrgId: s
     .where(eq(clientIndicatorSettings.orgId, clientOrgId));
   if (setting?.decidedAt) return null;
   if (!(await flag(tx, "app_kpi_data_admin", clientOrgId))) return null;
+  // Nothing to ask a client that has no indicators and no project still to run
+  // (all closing or closed): no figures will reach Selah (page audit 3.8).
+  const { rows } = await tx.execute<{ asks: boolean }>(sql`
+    select exists (select 1 from ${clientKpis} k where k.org_id = ${clientOrgId}::uuid)
+        or exists (select 1 from ${projects} p where p.org_id = ${clientOrgId}::uuid and p.state in ('planned', 'active')) as asks`);
+  if (rows[0]?.asks !== true) return null;
   return { clientId: clientOrgId, proposal: setting?.proposedMode ? { mode: setting.proposedMode, by: setting.proposedBy } : null };
 }
 
