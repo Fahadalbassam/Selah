@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
-import { AudienceField, type AudienceValue } from "@/components/audience-field";
+import { AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
@@ -342,6 +342,7 @@ function AnswerDialog({ item, title, files, projectId }: { item: Item; title: st
   const [existing, setExisting] = useState("");
   // Who sees the new file (feature A): for the people who get the picker; null while it cannot be saved.
   const [audience, setAudience] = useState<{ value: AudienceValue | null; dirty: boolean }>({ value: null, dirty: false });
+  const refusal = useAudienceRefusal();
   const choices = files.filter((f) => !item.files.some((x) => x.documentId === f.id));
 
   function finish() {
@@ -363,6 +364,8 @@ function AnswerDialog({ item, title, files, projectId }: { item: Item; title: st
       const res = await fetch(`/api/info-requests/${item.id}/files`, { method: "POST", body: form });
       if (res.ok) return finish();
       const m = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? "";
+      const why = refusal(m);
+      if (why) return setError(why);
       setError(
         res.status === 503
           ? tf("errors.scanner")

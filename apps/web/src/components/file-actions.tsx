@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
-import { AudienceEditor, AudienceField, type AudienceValue } from "@/components/audience-field";
+import { AudienceEditor, AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -38,6 +38,7 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
   const t = useTranslations("fileActions");
   const tc = useTranslations("common");
   const ta = useTranslations("audience");
+  const refusal = useAudienceRefusal();
   const router = useRouter();
   const [confirm, confirmDialog] = useConfirm();
   const [versionOpen, setVersionOpen] = useState(false);
@@ -68,7 +69,7 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
     setError(null);
     const r = await callApi(`/api/documents/${id}/share`, "POST", audience.dirty && audience.value ? { audience: audience.value } : {});
     setBusy(false);
-    if (!r.ok) return setError(tc(`errors.${r.error}`));
+    if (!r.ok) return setError(refusal(r.message) ?? tc(`errors.${r.error}`));
     toast.success(t("shared"));
     setShareOpen(false);
     done();

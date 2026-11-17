@@ -18,7 +18,7 @@ import { Folder } from "@/components/animate-ui/icons/folder";
 import { FolderOpen } from "@/components/animate-ui/icons/folder-open";
 import { Upload } from "@/components/animate-ui/icons/upload";
 import { X } from "@/components/animate-ui/icons/x";
-import { AudienceEditor, AudienceField, LimitedMarker, type AudienceValue } from "@/components/audience-field";
+import { AudienceEditor, AudienceField, LimitedMarker, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { FileActions } from "@/components/file-actions";
@@ -142,6 +142,7 @@ type UploadTargets = Awaited<ReturnType<typeof uploadTargets>>;
 /** "Add a file": pick a project, the file, who can see it and, at a client with departments, the team. */
 function UploadDialog({ onDone }: { onDone: () => void }) {
   const t = useTranslations("files");
+  const refusal = useAudienceRefusal();
   const rtl = useLocale() === "ar";
   const [targets, setTargets] = useState<UploadTargets | null>(null);
   const [open, setOpen] = useState(false);
@@ -199,7 +200,8 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       const m = body.message ?? "";
       setError(
-        res.status === 503
+        refusal(m) ??
+        (res.status === 503
           ? t("errors.scanner")
           : m.includes("infected")
             ? t("errors.infected")
@@ -207,7 +209,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
               ? t("errors.tooLarge")
               : m.includes("rejected")
                 ? t("errors.type")
-                : t("errors.generic"),
+                : t("errors.generic")),
       );
     } finally {
       setBusy(false);
@@ -276,6 +278,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
             </div>
           ) : null}
           {open && audienceUrl ? (
+            // One picker per project; within it, a new label or department asks the server again and drops picks that no longer fit.
             <AudienceField key={project.id} kind="document" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}

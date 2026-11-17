@@ -5301,7 +5301,15 @@
       "requiredAttendee": "Required attendees always see the meeting."
     },
     "errors": {
-      "onlyEmpty": "Add at least one person, or choose “Everyone with access, except…”."
+      "onlyEmpty": "Add at least one person, or choose “Everyone with access, except…”.",
+      "locked": "Someone you picked always sees this and can't be left out.",
+      "cannotSee": "Pick only people who can already see it.",
+      "ownPeople": "On your company's own items, pick among your company's people; the firm's team always sees them.",
+      "invitedLeftOut": "Someone invited is left out of this meeting: take them off the invitations or the list.",
+      "requiredAttendee": "Someone you're leaving out is a required attendee: make them optional or take them off the meeting first.",
+      "followUp": "Someone you're leaving out has an open follow-up on this meeting: give it to someone else first.",
+      "closed": "The project is closed, so who sees its items doesn't change.",
+      "archived": "This file is archived, so who sees it doesn't change."
     },
     "marker": {
       "label": "Limited audience",
@@ -5310,6 +5318,7 @@
     "menu": "Who sees it",
     "dialogTitle": "Who sees this {kind, select, meeting {meeting} other {file}}",
     "dialogHint": "You can only take people away here; it never gives anyone access they don't already have. The people you leave out aren't told.",
-    "loadFailed": "Couldn't load who can see this. Try again in a moment."
+    "loadFailed": "Couldn't load who can see this. Try again in a moment.",
+    "dropped": "No longer on the list: {names}. Who can see this changed when the form changed."
   }
 }

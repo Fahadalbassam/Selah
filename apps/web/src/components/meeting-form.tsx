@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { LeftOutWarning } from "@/components/meeting-left-out";
-import { AudienceField, type AudienceValue } from "@/components/audience-field";
+import { AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import {
   callProvider,
   departmentsToOffer,
@@ -88,6 +88,7 @@ export function MeetingForm(props: {
   const t = useTranslations("meeting.form");
   const tm = useTranslations("meeting");
   const tc = useTranslations("common");
+  const refusal = useAudienceRefusal();
   const router = useRouter();
   const editing = Boolean(props.meetingId);
   const start = props.initial ? new Date(props.initial.startsAt) : null;
@@ -155,7 +156,8 @@ export function MeetingForm(props: {
         });
     if (r.ok && editing && send) await callApi(`/api/meetings/${props.meetingId}/invites`, "POST");
     setBusy(false);
-    if (!r.ok) return setError(meetingError(r.message) ?? r.error);
+    // A refusal about who sees the meeting is said in its own words, never as a generic error.
+    if (!r.ok) return setError(refusal(r.message) ? `plain:${refusal(r.message)}` : (meetingError(r.message) ?? r.error));
     setOpen(false);
     toast.success(editing ? tc("saved") : t("booked"));
     // Refresh first, so going back to the project shows the new meeting (review L02).
@@ -395,9 +397,11 @@ export function MeetingForm(props: {
 
           {error ? (
             <p role="alert" className="text-sm text-destructive">
-              {["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove", "wholeProject"].includes(error)
-                ? t(`errors.${error}`)
-                : tc(`errors.${error}`)}
+              {error.startsWith("plain:")
+                ? error.slice("plain:".length)
+                : ["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove", "wholeProject"].includes(error)
+                  ? t(`errors.${error}`)
+                  : tc(`errors.${error}`)}
             </p>
           ) : null}
           <DialogFooter>
