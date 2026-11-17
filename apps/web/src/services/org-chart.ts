@@ -1,0 +1,1050 @@
+import "server-only";
+import { randomUUID } from "node:crypto";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import type { Tx } from "@/db/client";
+import { departments, orgChartChangeRequests, orgCharts, orgChartVersions, organizations, orgUnits, positionHolders, positions, user } from "@/db/schema";
+import { assertAllowed, authorize, type Permission, type Principal, type Resource } from "@/authz";
+import { firmToday } from "@/lib/dates";
+import {
+  cleanSpecialties,
+  nextCode,
+  ORG_CHART_LIMITS,
+  ORG_CODE,
+  ORG_UNIT_KINDS,
+  type OrgChartRequestStatus,
+  type OrgChartState,
+  type OrgUnitKind,
+} from "@/lib/org-chart";
+import { BadRequestError, NotFoundError } from "@/server/errors";
+import { audit } from "./audit";
+
+// The client's organisation structure (org chart, migration 0100). Part 1 of
+// the feature: the reads, the edits, publishing, holders and suggestions the
+// screens of the next pull requests call. The database holds every rule (who
+// reads which version, who edits the draft, who publishes, who changes
+// holders, whose names a reader sees, no cycles); these calls check the same
+// permissions first for a clear answer and read everything under the
+// person's own row-level security. Names are decided on the server: a holder
+// the reader may not name arrives without a name (app_org_chart_holders), so
+// a page never has a name to hide.
+//
+// Selah records the structure the firm decides. Nothing here suggests,
+// scores or judges a structure, and nothing here grants or limits access to
+// any work: a unit linked to a department is a label.
+
+// ------------------------------------------------------------------ shapes
+
+export interface OrgUnit {
+  id: string;
+  parentId: string | null;
+  kind: OrgUnitKind;
+  code: string;
+  nameAr: string | null;
+  nameEn: string | null;
+  level: number;
+  sortOrder: number;
+  /** Drawn with a dotted line beside its parent (internal audit beside the chief executive). */
+  advisory: boolean;
+  /** The client's department it is linked to: a label only. */
+  departmentId: string | null;
+  departmentNameAr: string | null;
+  departmentNameEn: string | null;
+}
+
+export interface OrgHolder {
+  /** Null, with the name, the person and the dates, when the reader may not name this holder. */
+  id: string | null;
+  userId: string | null;
+  name: string | null;
+  from: string | null;
+  to: string | null;
+  named: boolean;
+}
+
+export interface OrgPosition {
+  id: string;
+  /** The same position across versions: holdings follow it. */
+  lineageId: string;
+  unitId: string;
+  code: string;
+  titleAr: string | null;
+  titleEn: string | null;
+  reportsToId: string | null;
+  isHead: boolean;
+  specialties: string[];
+  plannedCount: number;
+  sortOrder: number;
+  holders: OrgHolder[];
+  /** Nobody holds it on the day read. Null where the client keeps no names (minimal records): titles only. */
+  vacant: boolean | null;
+}
+
+/** Whose names the reader sees: every one, her branch and the chain above it, or none. A hint for the screen; the database decides. */
+export type NamesShown = "all" | "branch" | "none";
+
+export interface OrgVersionSummary {
+  id: string;
+  state: OrgChartState;
+  number: number | null;
+  effectiveOn: string | null;
+  publishedAt: Date | null;
+  publishedByName: string | null;
+  supersededAt: Date | null;
+  resolutionDocumentId: string | null;
+  showNames: boolean;
+}
+
+/** A position as the structure draws it, before holders are added. */
+export type OrgPositionShape = Omit<OrgPosition, "holders" | "vacant">;
+
+/** published_snapshot: the structure as published (app_org_chart_snapshot_of), no names. */
+interface SnapshotV1 {
+  format: 1;
+  units: OrgUnit[];
+  positions: OrgPositionShape[];
+}
+
+// ------------------------------------------------------------------ checks
+
+const resource = (p: Principal, orgId: string, draft = false): Resource => ({
+  type: "org_chart",
+  orgId,
+  firmOrgId: p.orgKind === "firm" ? p.orgId : undefined,
+  projectId: null,
+  draft,
+});
+
+const can = (p: Principal, permission: Permission, orgId: string, draft = false) => authorize(p, permission, resource(p, orgId, draft)).allowed;
+
+/** The client, read under the caller's rights: another client is simply not there. */
+async function clientOf(tx: Tx, clientOrgId: string) {
+  const [org] = await tx
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      nameAr: organizations.nameAr,
+      kind: organizations.kind,
+      minimalRecords: organizations.minimalRecords,
+      departmentsEnabled: organizations.departmentsEnabled,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, clientOrgId))
+    .limit(1);
+  if (!org || org.kind !== "client") throw new NotFoundError("client");
+  return org;
+}
+
+type Client = Awaited<ReturnType<typeof clientOf>>;
+
+async function chartOf(tx: Tx, clientOrgId: string) {
+  const [chart] = await tx.select({ id: orgCharts.id }).from(orgCharts).where(eq(orgCharts.orgId, clientOrgId)).limit(1);
+  return chart ?? null;
+}
+
+async function versionIn(tx: Tx, chartId: string, state: OrgChartState) {
+  const [v] = await tx.select().from(orgChartVersions).where(and(eq(orgChartVersions.chartId, chartId), eq(orgChartVersions.state, state))).limit(1);
+  return v ?? null;
+}
+
+function namesShown(p: Principal, client: Client, showNames: boolean): NamesShown {
+  if (client.minimalRecords) return "none";
+  if (p.orgKind === "firm" || p.role === "client_admin") return "all";
+  if (p.role === "client_manager" && showNames && client.departmentsEnabled && p.departmentIds.size > 0) return "branch";
+  return "none";
+}
+
+/** What the reader may do on the client's structure, for the screens. */
+function abilities(p: Principal, client: Client) {
+  return {
+    canEditDraft: can(p, "org_chart.edit", client.id, true),
+    canPublish: can(p, "org_chart.publish", client.id, true),
+    canChangeHolders: !client.minimalRecords && can(p, "org_chart.holders", client.id),
+    canSetShowNames: can(p, "org_chart.show_names", client.id),
+    canSuggest: can(p, "org_chart_request.create", client.id),
+  };
+}
+
+const trim = (s: string | null | undefined) => (s == null ? null : s.trim() || null);
+
+function checkName(ar: string | null, en: string | null) {
+  if (!ar && !en) throw new BadRequestError("name");
+  if ((ar?.length ?? 0) > ORG_CHART_LIMITS.name || (en?.length ?? 0) > ORG_CHART_LIMITS.name) throw new BadRequestError("name_length");
+}
+
+function checkCode(code: string) {
+  if (!ORG_CODE.test(code)) throw new BadRequestError("code");
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+function checkDay(day: string) {
+  if (!DAY.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) throw new BadRequestError("date");
+}
+
+/** The calendar day before a day (YYYY-MM-DD). */
+export function dayBefore(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ------------------------------------------------------------------ reading
+
+type HolderRow = { position_id: string; holder_id: string | null; user_id: string | null; name: string | null; from_date: string | null; to_date: string | null; named: boolean };
+
+/** Who holds each position of a version on a day, with names only where the reader may see them (the database decides). */
+async function holdersOf(tx: Tx, versionId: string, asOf: string) {
+  const { rows } = await tx.execute<HolderRow>(sql`
+    select position_id, holder_id, user_id, name, from_date::text as from_date, to_date::text as to_date, named
+    from app_org_chart_holders(${versionId}::uuid, ${asOf}::date)`);
+  const out = new Map<string, OrgHolder[]>();
+  for (const r of rows) {
+    out.set(r.position_id, [
+      ...(out.get(r.position_id) ?? []),
+      { id: r.holder_id, userId: r.user_id, name: r.name, from: r.from_date, to: r.to_date, named: r.named },
+    ]);
+  }
+  return out;
+}
+
+/** A version's structure: the draft from its rows, a published version from its frozen snapshot. */
+async function structureOf(tx: Tx, version: typeof orgChartVersions.$inferSelect): Promise<{ units: OrgUnit[]; positions: OrgPositionShape[] }> {
+  if (version.state !== "draft" && version.publishedSnapshot) {
+    const snap = version.publishedSnapshot as SnapshotV1;
+    return { units: snap.units, positions: snap.positions };
+  }
+  const units = await tx
+    .select({
+      id: orgUnits.id,
+      parentId: orgUnits.parentId,
+      kind: orgUnits.kind,
+      code: orgUnits.code,
+      nameAr: orgUnits.nameAr,
+      nameEn: orgUnits.nameEn,
+      level: orgUnits.level,
+      sortOrder: orgUnits.sortOrder,
+      advisory: orgUnits.advisory,
+      departmentId: orgUnits.departmentId,
+      departmentNameAr: departments.nameAr,
+      departmentNameEn: departments.nameEn,
+    })
+    .from(orgUnits)
+    .leftJoin(departments, eq(departments.id, orgUnits.departmentId))
+    .where(eq(orgUnits.versionId, version.id))
+    .orderBy(asc(orgUnits.level), asc(orgUnits.sortOrder), asc(orgUnits.code));
+  const rows = await tx
+    .select({
+      id: positions.id,
+      lineageId: positions.lineageId,
+      unitId: positions.unitId,
+      code: positions.code,
+      titleAr: positions.titleAr,
+      titleEn: positions.titleEn,
+      reportsToId: positions.reportsToId,
+      isHead: positions.isHead,
+      specialties: positions.specialties,
+      plannedCount: positions.plannedCount,
+      sortOrder: positions.sortOrder,
+    })
+    .from(positions)
+    .where(eq(positions.versionId, version.id))
+    .orderBy(asc(positions.sortOrder), asc(positions.code));
+  return { units, positions: rows };
+}
+
+async function withHolders(tx: Tx, client: Client, version: typeof orgChartVersions.$inferSelect, asOf: string) {
+  const { units, positions: rows } = await structureOf(tx, version);
+  const holders = client.minimalRecords ? new Map<string, OrgHolder[]>() : await holdersOf(tx, version.id, asOf);
+  const list: OrgPosition[] = rows.map((r) => {
+    const h = holders.get(r.id) ?? [];
+    return { ...r, holders: h, vacant: client.minimalRecords ? null : h.length === 0 };
+  });
+  return { units, positions: list };
+}
+
+const publisher = alias(user, "publisher");
+
+function summary(v: typeof orgChartVersions.$inferSelect, publishedByName: string | null): OrgVersionSummary {
+  return {
+    id: v.id,
+    state: v.state,
+    number: v.number,
+    effectiveOn: v.effectiveOn,
+    publishedAt: v.publishedAt,
+    publishedByName,
+    supersededAt: v.supersededAt,
+    resolutionDocumentId: v.resolutionDocumentId,
+    showNames: v.showNames,
+  };
+}
+
+async function publisherName(tx: Tx, userId: string | null) {
+  if (!userId) return null;
+  const [u] = await tx.select({ name: publisher.name }).from(publisher).where(eq(publisher.id, userId)).limit(1);
+  return u?.name ?? null;
+}
+
+/**
+ * The client's current structure for the reader: every unit and position
+ * title, and who holds each position today, named only where the reader may
+ * see names (the firm and the client's admins: everyone; a manager: her
+ * branch and the chain above it, while the version shows names). An action
+ * owner, another client's people and any firm person outside the client get
+ * a 404. Null `version` when nothing is published yet.
+ */
+export async function getPublishedChart(tx: Tx, principal: Principal, clientOrgId: string, today = firmToday()) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.read", resource(principal, client.id));
+  const chart = await chartOf(tx, client.id);
+  const version = chart ? await versionIn(tx, chart.id, "published") : null;
+  const base = {
+    client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
+    chartId: chart?.id ?? null,
+    today,
+    ...abilities(principal, client),
+  };
+  if (!version) return { ...base, version: null, names: "none" as NamesShown, units: [] as OrgUnit[], positions: [] as OrgPosition[] };
+  const { units, positions: list } = await withHolders(tx, client, version, today);
+  return {
+    ...base,
+    version: summary(version, await publisherName(tx, version.publishedBy)),
+    names: namesShown(principal, client, version.showNames),
+    units,
+    positions: list,
+  };
+}
+
+export type PublishedChart = Awaited<ReturnType<typeof getPublishedChart>>;
+
+/**
+ * The firm's draft, with every name: for the firm's readers only (a client
+ * person gets a 404). Null `draft` while the client has no structure yet;
+ * `canStart` says whether the reader may start one.
+ */
+export async function getDraft(tx: Tx, principal: Principal, clientOrgId: string, today = firmToday()) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.read", resource(principal, client.id, true));
+  const chart = await chartOf(tx, client.id);
+  const draft = chart ? await versionIn(tx, chart.id, "draft") : null;
+  const base = {
+    client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
+    chartId: chart?.id ?? null,
+    today,
+    canStart: !chart && can(principal, "org_chart.edit", client.id, true),
+    ...abilities(principal, client),
+  };
+  if (!draft) return { ...base, draft: null, units: [] as OrgUnit[], positions: [] as OrgPosition[] };
+  const { units, positions: list } = await withHolders(tx, client, draft, today);
+  return { ...base, draft: { id: draft.id, basedOnId: draft.basedOnId, createdAt: draft.createdAt }, units, positions: list };
+}
+
+export type DraftChart = Awaited<ReturnType<typeof getDraft>>;
+
+/** Every version of the client's structure the reader may read, newest first: the draft (the firm only), the current one, the history. */
+export async function listVersions(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.read", resource(principal, client.id));
+  const rows = await tx
+    .select({ v: orgChartVersions, publishedByName: publisher.name })
+    .from(orgChartVersions)
+    .leftJoin(publisher, eq(publisher.id, orgChartVersions.publishedBy))
+    .where(eq(orgChartVersions.orgId, client.id))
+    .orderBy(sql`${orgChartVersions.number} desc nulls first`);
+  return rows.map((r) => summary(r.v, r.publishedByName));
+}
+
+/**
+ * One version as it was published (its frozen snapshot; the draft from its
+ * rows, for the firm), with who held each position on a day: today for the
+ * current version and the draft, the day it was replaced for history, or
+ * `asOf`. Names follow the same rule as the current structure.
+ */
+export async function getVersion(tx: Tx, principal: Principal, versionId: string, asOf?: string) {
+  const [version] = await tx.select().from(orgChartVersions).where(eq(orgChartVersions.id, versionId)).limit(1);
+  if (!version) throw new NotFoundError("version");
+  assertAllowed(principal, "org_chart.read", resource(principal, version.orgId, version.state === "draft"));
+  const client = await clientOf(tx, version.orgId);
+  if (asOf) checkDay(asOf);
+  const day = asOf ?? (version.state === "superseded" && version.supersededAt ? firmToday(version.supersededAt) : firmToday());
+  const { units, positions: list } = await withHolders(tx, client, version, day);
+  return {
+    client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
+    version: summary(version, await publisherName(tx, version.publishedBy)),
+    asOf: day,
+    names: namesShown(principal, client, version.showNames),
+    units,
+    positions: list,
+  };
+}
+
+/**
+ * Positions of the current structure nobody holds today (for the invite form
+ * and the leaving flow). None at a client that keeps minimal records: its
+ * structure has titles only.
+ */
+export async function listVacancies(tx: Tx, principal: Principal, clientOrgId: string, today = firmToday()) {
+  const chart = await getPublishedChart(tx, principal, clientOrgId, today);
+  if (!chart.version || chart.client.minimalRecords) return [];
+  const units = new Map(chart.units.map((u) => [u.id, u]));
+  return chart.positions
+    .filter((p) => p.vacant)
+    .map((p) => ({
+      positionId: p.id,
+      code: p.code,
+      titleAr: p.titleAr,
+      titleEn: p.titleEn,
+      plannedCount: p.plannedCount,
+      unitId: p.unitId,
+      unitNameAr: units.get(p.unitId)?.nameAr ?? null,
+      unitNameEn: units.get(p.unitId)?.nameEn ?? null,
+    }));
+}
+
+/**
+ * "Your manager", for a client person's profile: the position theirs reports
+ * to on the current structure and who holds it today (or that it is vacant).
+ * No other names; the name only while the version shows names (always for
+ * the client's admin). Empty for firm staff and for someone who holds no
+ * position.
+ */
+export async function myManager(tx: Tx, principal: Principal) {
+  if (principal.orgKind !== "client") return [];
+  const { rows } = await tx.execute<{
+    my_position_id: string;
+    position_id: string;
+    code: string;
+    title_ar: string | null;
+    title_en: string | null;
+    holder_name: string | null;
+    vacant: boolean;
+  }>(sql`select my_position_id, position_id, code, title_ar, title_en, holder_name, vacant from app_my_manager()`);
+  return rows.map((r) => ({
+    myPositionId: r.my_position_id,
+    positionId: r.position_id,
+    code: r.code,
+    titleAr: r.title_ar,
+    titleEn: r.title_en,
+    name: r.holder_name,
+    vacant: r.vacant,
+  }));
+}
+
+// ------------------------------------------------------------------ the draft
+
+/** Start the client's structure (the chart and its first draft): the firm's editors. Returns the existing one if there is one. */
+export async function startChart(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.edit", resource(principal, client.id, true));
+  const existing = await chartOf(tx, client.id);
+  if (existing) return { id: existing.id, created: false };
+  const { rows } = await tx.execute<{ id: string }>(sql`select app_start_org_chart(${client.id}::uuid) as id`);
+  const id = rows[0]!.id;
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.create",
+    resourceType: "org_chart",
+    resourceId: id,
+    outcome: "allow",
+    meta: { client: client.id },
+  });
+  return { id, created: true };
+}
+
+/** The client's draft, for an edit: the firm's editors only, everyone else a 404. */
+async function draftOf(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.edit", resource(principal, client.id, true));
+  const chart = await chartOf(tx, client.id);
+  const draft = chart ? await versionIn(tx, chart.id, "draft") : null;
+  if (!chart || !draft) throw new NotFoundError("draft");
+  return { client, chartId: chart.id, draft };
+}
+
+/** A unit for an edit: read under the caller's rights, the edit permission checked, and only in the draft. */
+async function draftUnit(tx: Tx, principal: Principal, unitId: string) {
+  const [row] = await tx
+    .select({ unit: orgUnits, state: orgChartVersions.state })
+    .from(orgUnits)
+    .innerJoin(orgChartVersions, eq(orgChartVersions.id, orgUnits.versionId))
+    .where(eq(orgUnits.id, unitId))
+    .limit(1);
+  if (!row) throw new NotFoundError("unit");
+  assertAllowed(principal, "org_chart.edit", resource(principal, row.unit.orgId, true));
+  if (row.state !== "draft") throw new BadRequestError("published");
+  return row.unit;
+}
+
+async function draftPosition(tx: Tx, principal: Principal, positionId: string) {
+  const [row] = await tx
+    .select({ position: positions, state: orgChartVersions.state })
+    .from(positions)
+    .innerJoin(orgChartVersions, eq(orgChartVersions.id, positions.versionId))
+    .where(eq(positions.id, positionId))
+    .limit(1);
+  if (!row) throw new NotFoundError("position");
+  assertAllowed(principal, "org_chart.edit", resource(principal, row.position.orgId, true));
+  if (row.state !== "draft") throw new BadRequestError("published");
+  return row.position;
+}
+
+async function unitCodes(tx: Tx, versionId: string) {
+  return new Set((await tx.select({ code: orgUnits.code }).from(orgUnits).where(eq(orgUnits.versionId, versionId))).map((r) => r.code));
+}
+
+async function positionCodes(tx: Tx, versionId: string) {
+  return new Set((await tx.select({ code: positions.code }).from(positions).where(eq(positions.versionId, versionId))).map((r) => r.code));
+}
+
+async function checkDepartment(tx: Tx, clientOrgId: string, departmentId: string | null | undefined) {
+  if (!departmentId) return;
+  const [d] = await tx
+    .select({ id: departments.id })
+    .from(departments)
+    .where(and(eq(departments.id, departmentId), eq(departments.orgId, clientOrgId), eq(departments.active, true)))
+    .limit(1);
+  if (!d) throw new BadRequestError("department");
+}
+
+/** Renumber siblings so `id` sits at `index` (the end when undefined). */
+async function placeUnit(tx: Tx, versionId: string, parentId: string | null, id: string, index?: number) {
+  const siblings = await tx
+    .select({ id: orgUnits.id })
+    .from(orgUnits)
+    .where(and(eq(orgUnits.versionId, versionId), parentId ? eq(orgUnits.parentId, parentId) : sql`${orgUnits.parentId} is null`, ne(orgUnits.id, id)))
+    .orderBy(asc(orgUnits.sortOrder), asc(orgUnits.code));
+  const order = siblings.map((s) => s.id);
+  order.splice(index === undefined ? order.length : Math.max(0, Math.min(index, order.length)), 0, id);
+  for (const [i, sid] of order.entries()) await tx.update(orgUnits).set({ sortOrder: i }).where(eq(orgUnits.id, sid));
+}
+
+async function placePosition(tx: Tx, unitId: string, id: string, index?: number) {
+  const siblings = await tx
+    .select({ id: positions.id })
+    .from(positions)
+    .where(and(eq(positions.unitId, unitId), ne(positions.id, id)))
+    .orderBy(asc(positions.sortOrder), asc(positions.code));
+  const order = siblings.map((s) => s.id);
+  order.splice(index === undefined ? order.length : Math.max(0, Math.min(index, order.length)), 0, id);
+  for (const [i, sid] of order.entries()) await tx.update(positions).set({ sortOrder: i }).where(eq(positions.id, sid));
+}
+
+async function logEdit(tx: Tx, principal: Principal, action: string, resourceId: string, meta: Record<string, string | number | boolean | null>) {
+  await audit(tx, { actorId: principal.userId, orgId: principal.orgId, action, resourceType: "org_chart", resourceId, outcome: "allow", meta });
+}
+
+export interface UnitInput {
+  kind: OrgUnitKind;
+  nameAr?: string | null;
+  nameEn?: string | null;
+  /** Given, it must be free in the draft; left out, the next free code under the parent ("2.4" gives "2.4.1"). */
+  code?: string | null;
+  /** Left out: one below the parent (1 at the top). */
+  level?: number | null;
+  advisory?: boolean;
+  departmentId?: string | null;
+}
+
+/** Add a unit to the draft, under a parent of the draft or at the top. */
+export async function addUnit(tx: Tx, principal: Principal, clientOrgId: string, input: UnitInput & { parentId?: string | null; index?: number }) {
+  const { client, draft } = await draftOf(tx, principal, clientOrgId);
+  if (!(ORG_UNIT_KINDS as readonly string[]).includes(input.kind)) throw new BadRequestError("kind");
+  const nameAr = trim(input.nameAr);
+  const nameEn = trim(input.nameEn);
+  checkName(nameAr, nameEn);
+  const parent = input.parentId ? await draftUnit(tx, principal, input.parentId) : null;
+  if (parent && parent.versionId !== draft.id) throw new NotFoundError("unit");
+  const taken = await unitCodes(tx, draft.id);
+  const code = trim(input.code) ?? nextCode(parent?.code ?? null, taken);
+  if (!code) throw new BadRequestError("code");
+  checkCode(code);
+  if (taken.has(code)) throw new BadRequestError("code_taken");
+  const level = input.level ?? Math.min((parent?.level ?? 0) + 1, ORG_CHART_LIMITS.level.max);
+  if (!Number.isInteger(level) || level < ORG_CHART_LIMITS.level.min || level > ORG_CHART_LIMITS.level.max) throw new BadRequestError("level");
+  await checkDepartment(tx, client.id, input.departmentId);
+  const [row] = await tx
+    .insert(orgUnits)
+    .values({
+      versionId: draft.id,
+      orgId: client.id,
+      parentId: parent?.id ?? null,
+      kind: input.kind,
+      code,
+      nameAr,
+      nameEn,
+      level,
+      advisory: input.advisory ?? false,
+      departmentId: input.departmentId ?? null,
+      sortOrder: 0,
+    })
+    .returning({ id: orgUnits.id });
+  await placeUnit(tx, draft.id, parent?.id ?? null, row!.id, input.index);
+  await logEdit(tx, principal, "org_chart.unit_add", row!.id, { client: client.id, code });
+  return { id: row!.id, code };
+}
+
+/** Rename a unit of the draft, or change its kind, code, level, advisory flag or department label. */
+export async function updateUnit(tx: Tx, principal: Principal, unitId: string, input: Partial<UnitInput>) {
+  const unit = await draftUnit(tx, principal, unitId);
+  const set: Partial<typeof orgUnits.$inferInsert> = {};
+  if (input.kind !== undefined) {
+    if (!(ORG_UNIT_KINDS as readonly string[]).includes(input.kind)) throw new BadRequestError("kind");
+    set.kind = input.kind;
+  }
+  if (input.nameAr !== undefined || input.nameEn !== undefined) {
+    const nameAr = input.nameAr !== undefined ? trim(input.nameAr) : unit.nameAr;
+    const nameEn = input.nameEn !== undefined ? trim(input.nameEn) : unit.nameEn;
+    checkName(nameAr, nameEn);
+    set.nameAr = nameAr;
+    set.nameEn = nameEn;
+  }
+  if (input.code !== undefined) {
+    const code = trim(input.code);
+    if (!code) throw new BadRequestError("code");
+    checkCode(code);
+    if (code !== unit.code && (await unitCodes(tx, unit.versionId)).has(code)) throw new BadRequestError("code_taken");
+    set.code = code;
+  }
+  if (input.level !== undefined && input.level !== null) {
+    if (!Number.isInteger(input.level) || input.level < ORG_CHART_LIMITS.level.min || input.level > ORG_CHART_LIMITS.level.max) throw new BadRequestError("level");
+    set.level = input.level;
+  }
+  if (input.advisory !== undefined) set.advisory = input.advisory;
+  if (input.departmentId !== undefined) {
+    await checkDepartment(tx, unit.orgId, input.departmentId);
+    set.departmentId = input.departmentId;
+  }
+  if (!Object.keys(set).length) return { ok: true };
+  await tx.update(orgUnits).set(set).where(eq(orgUnits.id, unitId));
+  await logEdit(tx, principal, "org_chart.unit_update", unitId, { client: unit.orgId, fields: Object.keys(set).join(",") });
+  return { ok: true };
+}
+
+/**
+ * Move a unit of the draft: under another unit of the draft (or to the top)
+ * and to a place among its new siblings. Indenting, outdenting and moving up
+ * or down are all this. Never under itself or one of its own units.
+ */
+export async function moveUnit(tx: Tx, principal: Principal, unitId: string, to: { parentId: string | null; index?: number }) {
+  const unit = await draftUnit(tx, principal, unitId);
+  if (to.parentId) {
+    const parent = await draftUnit(tx, principal, to.parentId);
+    if (parent.versionId !== unit.versionId) throw new NotFoundError("unit");
+    // Walk up from the new parent: reaching the unit itself would make a loop.
+    const parents = new Map(
+      (await tx.select({ id: orgUnits.id, parentId: orgUnits.parentId }).from(orgUnits).where(eq(orgUnits.versionId, unit.versionId))).map((u) => [u.id, u.parentId]),
+    );
+    for (let at: string | null | undefined = to.parentId, n = 0; at && n <= parents.size; at = parents.get(at), n++) {
+      if (at === unitId) throw new BadRequestError("cycle");
+    }
+  }
+  if ((to.parentId ?? null) !== unit.parentId) await tx.update(orgUnits).set({ parentId: to.parentId }).where(eq(orgUnits.id, unitId));
+  await placeUnit(tx, unit.versionId, to.parentId, unitId, to.index);
+  await logEdit(tx, principal, "org_chart.unit_move", unitId, { client: unit.orgId, parent: to.parentId });
+  return { ok: true };
+}
+
+/** Remove an empty unit from the draft (move or remove its units and positions first). */
+export async function deleteUnit(tx: Tx, principal: Principal, unitId: string) {
+  const unit = await draftUnit(tx, principal, unitId);
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select (select count(*)::int from org_units c where c.parent_id = ${unitId}::uuid)
+         + (select count(*)::int from positions p where p.unit_id = ${unitId}::uuid) as n`);
+  if (Number(rows[0]?.n ?? 0) > 0) throw new BadRequestError("not_empty");
+  await tx.delete(orgUnits).where(eq(orgUnits.id, unitId));
+  await logEdit(tx, principal, "org_chart.unit_delete", unitId, { client: unit.orgId, code: unit.code });
+  return { ok: true };
+}
+
+export interface PositionInput {
+  titleAr?: string | null;
+  titleEn?: string | null;
+  /** Given, it must be free in the draft; left out, the next free code under the unit ("2.4" gives "2.4.1"). */
+  code?: string | null;
+  reportsToId?: string | null;
+  isHead?: boolean;
+  specialties?: string[];
+  plannedCount?: number;
+}
+
+function checkSpecialties(list: string[]) {
+  if (list.length > ORG_CHART_LIMITS.specialties.count || list.some((s) => s.length > ORG_CHART_LIMITS.specialties.length)) throw new BadRequestError("specialties");
+}
+
+function checkPlanned(n: number) {
+  if (!Number.isInteger(n) || n < ORG_CHART_LIMITS.planned.min || n > ORG_CHART_LIMITS.planned.max) throw new BadRequestError("planned");
+}
+
+/** Whether pointing `positionId` at `reportsToId` would close a loop (walking up the lines from the new manager). */
+async function wouldLoop(tx: Tx, versionId: string, positionId: string, reportsToId: string) {
+  const lines = new Map(
+    (await tx.select({ id: positions.id, reportsToId: positions.reportsToId }).from(positions).where(eq(positions.versionId, versionId))).map((p) => [p.id, p.reportsToId]),
+  );
+  for (let at: string | null | undefined = reportsToId, n = 0; at && n <= lines.size; at = lines.get(at), n++) {
+    if (at === positionId) return true;
+  }
+  return false;
+}
+
+async function clearHead(tx: Tx, unitId: string, except: string) {
+  await tx
+    .update(positions)
+    .set({ isHead: false })
+    .where(and(eq(positions.unitId, unitId), eq(positions.isHead, true), ne(positions.id, except)));
+}
+
+/** Add a position to a unit of the draft. */
+export async function addPosition(tx: Tx, principal: Principal, unitId: string, input: PositionInput & { index?: number }) {
+  const unit = await draftUnit(tx, principal, unitId);
+  const titleAr = trim(input.titleAr);
+  const titleEn = trim(input.titleEn);
+  checkName(titleAr, titleEn);
+  const taken = await positionCodes(tx, unit.versionId);
+  const code = trim(input.code) ?? nextCode(unit.code, taken);
+  if (!code) throw new BadRequestError("code");
+  checkCode(code);
+  if (taken.has(code)) throw new BadRequestError("code_taken");
+  const specialties = cleanSpecialties(input.specialties ?? []);
+  checkSpecialties(specialties);
+  const plannedCount = input.plannedCount ?? 1;
+  checkPlanned(plannedCount);
+  if (input.reportsToId) {
+    const boss = await draftPosition(tx, principal, input.reportsToId);
+    if (boss.versionId !== unit.versionId) throw new NotFoundError("position");
+  }
+  const id = randomUUID();
+  await tx.insert(positions).values({
+    id,
+    lineageId: id,
+    versionId: unit.versionId,
+    orgId: unit.orgId,
+    unitId,
+    code,
+    titleAr,
+    titleEn,
+    reportsToId: input.reportsToId ?? null,
+    isHead: false,
+    specialties,
+    plannedCount,
+    sortOrder: 0,
+  });
+  if (input.isHead) {
+    await clearHead(tx, unitId, id);
+    await tx.update(positions).set({ isHead: true }).where(eq(positions.id, id));
+  }
+  await placePosition(tx, unitId, id, input.index);
+  await logEdit(tx, principal, "org_chart.position_add", id, { client: unit.orgId, code });
+  return { id, code };
+}
+
+/** Change a position of the draft: its titles, code, whom it reports to, whether it heads its unit, its specialties, how many people it is planned for. */
+export async function updatePosition(tx: Tx, principal: Principal, positionId: string, input: PositionInput) {
+  const position = await draftPosition(tx, principal, positionId);
+  const set: Partial<typeof positions.$inferInsert> = {};
+  if (input.titleAr !== undefined || input.titleEn !== undefined) {
+    const titleAr = input.titleAr !== undefined ? trim(input.titleAr) : position.titleAr;
+    const titleEn = input.titleEn !== undefined ? trim(input.titleEn) : position.titleEn;
+    checkName(titleAr, titleEn);
+    set.titleAr = titleAr;
+    set.titleEn = titleEn;
+  }
+  if (input.code !== undefined) {
+    const code = trim(input.code);
+    if (!code) throw new BadRequestError("code");
+    checkCode(code);
+    if (code !== position.code && (await positionCodes(tx, position.versionId)).has(code)) throw new BadRequestError("code_taken");
+    set.code = code;
+  }
+  if (input.reportsToId !== undefined) {
+    if (input.reportsToId) {
+      if (input.reportsToId === positionId) throw new BadRequestError("cycle");
+      const boss = await draftPosition(tx, principal, input.reportsToId);
+      if (boss.versionId !== position.versionId) throw new NotFoundError("position");
+      if (await wouldLoop(tx, position.versionId, positionId, input.reportsToId)) throw new BadRequestError("cycle");
+    }
+    set.reportsToId = input.reportsToId;
+  }
+  if (input.specialties !== undefined) {
+    const specialties = cleanSpecialties(input.specialties);
+    checkSpecialties(specialties);
+    set.specialties = specialties;
+  }
+  if (input.plannedCount !== undefined) {
+    checkPlanned(input.plannedCount);
+    set.plannedCount = input.plannedCount;
+  }
+  if (input.isHead !== undefined) {
+    if (input.isHead) await clearHead(tx, position.unitId, positionId);
+    set.isHead = input.isHead;
+  }
+  if (!Object.keys(set).length) return { ok: true };
+  await tx.update(positions).set(set).where(eq(positions.id, positionId));
+  await logEdit(tx, principal, "org_chart.position_update", positionId, { client: position.orgId, fields: Object.keys(set).join(",") });
+  return { ok: true };
+}
+
+/** Set whom a position of the draft reports to (null: no one). Never itself, even through others. */
+export const setReportsTo = (tx: Tx, principal: Principal, positionId: string, reportsToId: string | null) =>
+  updatePosition(tx, principal, positionId, { reportsToId });
+
+/** Make a position of the draft its unit's head (the unit's previous head stops being it), or not. */
+export const setHead = (tx: Tx, principal: Principal, positionId: string, isHead: boolean) => updatePosition(tx, principal, positionId, { isHead });
+
+/** A position's specialties, trimmed, without blanks or repeats. */
+export const setSpecialties = (tx: Tx, principal: Principal, positionId: string, specialties: string[]) =>
+  updatePosition(tx, principal, positionId, { specialties });
+
+/** Move a position of the draft to another unit of the draft (it stops heading its old one) and to a place among its new siblings. */
+export async function movePosition(tx: Tx, principal: Principal, positionId: string, to: { unitId: string; index?: number }) {
+  const position = await draftPosition(tx, principal, positionId);
+  if (to.unitId !== position.unitId) {
+    const unit = await draftUnit(tx, principal, to.unitId);
+    if (unit.versionId !== position.versionId) throw new NotFoundError("unit");
+    await tx.update(positions).set({ unitId: to.unitId, isHead: false }).where(eq(positions.id, positionId));
+  }
+  await placePosition(tx, to.unitId, positionId, to.index);
+  await logEdit(tx, principal, "org_chart.position_move", positionId, { client: position.orgId, unit: to.unitId });
+  return { ok: true };
+}
+
+/** Remove a position from the draft. Whoever reported to it reports to no one until the firm says (the database does it). */
+export async function deletePosition(tx: Tx, principal: Principal, positionId: string) {
+  const position = await draftPosition(tx, principal, positionId);
+  await tx.delete(positions).where(eq(positions.id, positionId));
+  await logEdit(tx, principal, "org_chart.position_delete", positionId, { client: position.orgId, code: position.code });
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------ publishing
+
+/**
+ * Publish the draft (the firm admin, the lead or the deputy) with the day it
+ * takes effect and, optionally, the board resolution (a file of the client
+ * that the client can see). The current version becomes history, the draft
+ * becomes current with its structure frozen, and a copy becomes the next
+ * draft. Holdings of positions the new structure drops end today.
+ */
+export async function publish(tx: Tx, principal: Principal, clientOrgId: string, input: { effectiveOn: string; resolutionDocumentId?: string | null }) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
+  checkDay(input.effectiveOn);
+  const chart = await chartOf(tx, client.id);
+  if (!chart) throw new NotFoundError("draft");
+  const { rows } = await tx.execute<{ id: string }>(
+    sql`select app_publish_org_chart(${chart.id}::uuid, ${input.effectiveOn}::date, ${input.resolutionDocumentId ?? null}::uuid) as id`,
+  );
+  const id = rows[0]!.id;
+  const [v] = await tx.select({ number: orgChartVersions.number }).from(orgChartVersions).where(eq(orgChartVersions.id, id)).limit(1);
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.publish",
+    resourceType: "org_chart",
+    resourceId: id,
+    outcome: "allow",
+    meta: { client: client.id, number: v?.number ?? null, effectiveOn: input.effectiveOn, resolution: input.resolutionDocumentId ?? null },
+  });
+  return { versionId: id, number: v?.number ?? null };
+}
+
+/** The client admin's switch: whether the client's managers see names on a published (or past) version at all. */
+export async function setShowNames(tx: Tx, principal: Principal, versionId: string, on: boolean) {
+  const [version] = await tx.select().from(orgChartVersions).where(eq(orgChartVersions.id, versionId)).limit(1);
+  if (!version) throw new NotFoundError("version");
+  assertAllowed(principal, "org_chart.show_names", resource(principal, version.orgId, version.state === "draft"));
+  await tx.execute(sql`select app_set_org_chart_show_names(${versionId}::uuid, ${on})`);
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.show_names",
+    resourceType: "org_chart",
+    resourceId: versionId,
+    outcome: "allow",
+    meta: { client: version.orgId, on },
+  });
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------ people in positions
+
+export interface HolderChange {
+  /** Who now holds the position, from which day: one of the client's people with an account, or a typed name. */
+  start?: { userId?: string | null; name?: string | null; from: string };
+  /**
+   * The holding that ends, and its last day. Left out with `start` on a
+   * position planned for one person, whoever still holds it stops the day
+   * before `start.from` (refused when they started on or after that day).
+   */
+  end?: { holderId: string; on: string };
+}
+
+/**
+ * Change who holds a position: someone joined, left, or replaces the person
+ * there. The client's admin does it on the published structure, and so do
+ * the firm's editors (also in the draft). Every change is audited, and a
+ * change on the published structure tells the client's lead and deputy (the
+ * database does it). Nobody's history is deleted: a holding ends.
+ */
+export async function changeHolder(tx: Tx, principal: Principal, positionId: string, change: HolderChange) {
+  const [row] = await tx
+    .select({ position: positions, state: orgChartVersions.state, chartId: orgChartVersions.chartId })
+    .from(positions)
+    .innerJoin(orgChartVersions, eq(orgChartVersions.id, positions.versionId))
+    .where(eq(positions.id, positionId))
+    .limit(1);
+  if (!row) throw new NotFoundError("position");
+  const { position, state, chartId } = row;
+  assertAllowed(principal, "org_chart.holders", resource(principal, position.orgId, state === "draft"));
+  if (state === "superseded") throw new BadRequestError("history");
+  const client = await clientOf(tx, position.orgId);
+  if (client.minimalRecords) throw new BadRequestError("minimal_records");
+  if (!change.start && !change.end) throw new BadRequestError("nothing");
+
+  const ended: string[] = [];
+  const endOne = async (holderId: string, on: string) => {
+    checkDay(on);
+    const updated = await tx
+      .update(positionHolders)
+      .set({ toDate: on })
+      .where(and(eq(positionHolders.id, holderId), eq(positionHolders.positionLineageId, position.lineageId), sql`${positionHolders.toDate} is null`))
+      .returning({ id: positionHolders.id });
+    if (!updated.length) throw new NotFoundError("holder");
+    ended.push(holderId);
+    await audit(tx, {
+      actorId: principal.userId,
+      orgId: principal.orgId,
+      action: "org_chart.holder_end",
+      resourceType: "org_chart",
+      resourceId: positionId,
+      outcome: "allow",
+      meta: { client: position.orgId, holder: holderId, on },
+    });
+  };
+
+  if (change.end) await endOne(change.end.holderId, change.end.on);
+
+  let started: string | null = null;
+  if (change.start) {
+    const { from } = change.start;
+    checkDay(from);
+    const userId = change.start.userId ?? null;
+    const name = trim(change.start.name);
+    if ((userId === null) === (name === null)) throw new BadRequestError("holder");
+    if (name && (name.length < ORG_CHART_LIMITS.holderName.min || name.length > ORG_CHART_LIMITS.holderName.max)) throw new BadRequestError("holder_name");
+    if (!change.end && position.plannedCount === 1) {
+      // Whoever still holds the one-person position hands it over the day before.
+      const current = await tx
+        .select({ id: positionHolders.id, fromDate: positionHolders.fromDate })
+        .from(positionHolders)
+        .where(and(eq(positionHolders.positionLineageId, position.lineageId), sql`${positionHolders.toDate} is null`));
+      for (const h of current) {
+        if (h.fromDate >= from) throw new BadRequestError("overlap");
+        await endOne(h.id, dayBefore(from));
+      }
+    }
+    const [inserted] = await tx
+      .insert(positionHolders)
+      .values({
+        positionLineageId: position.lineageId,
+        chartId,
+        orgId: position.orgId,
+        userId,
+        name,
+        fromDate: from,
+        createdBy: principal.userId,
+      })
+      .returning({ id: positionHolders.id });
+    started = inserted!.id;
+    await audit(tx, {
+      actorId: principal.userId,
+      orgId: principal.orgId,
+      action: "org_chart.holder_start",
+      resourceType: "org_chart",
+      resourceId: positionId,
+      outcome: "allow",
+      meta: { client: position.orgId, holder: started, from, typed: name !== null },
+    });
+  }
+  return { started, ended };
+}
+
+// ------------------------------------------------------------------ suggestions
+
+/** "Suggest a change": the client's admin, on a client that has a structure. It reaches the lead and deputy (the database tells them). */
+export async function suggestChange(tx: Tx, principal: Principal, clientOrgId: string, input: { what: string; where?: string | null; why?: string | null }) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart_request.create", resource(principal, client.id));
+  const chart = await chartOf(tx, client.id);
+  if (!chart) throw new NotFoundError("org_chart");
+  const what = input.what.trim();
+  const where = trim(input.where);
+  const why = trim(input.why);
+  const L = ORG_CHART_LIMITS.request;
+  if (what.length < L.what.min || what.length > L.what.max) throw new BadRequestError("what");
+  if ((where?.length ?? 0) > L.where || (why?.length ?? 0) > L.why) throw new BadRequestError("text_length");
+  const [row] = await tx
+    .insert(orgChartChangeRequests)
+    .values({ chartId: chart.id, orgId: client.id, what, whereText: where, why, createdBy: principal.userId })
+    .returning({ id: orgChartChangeRequests.id });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart_request.create",
+    resourceType: "org_chart_request",
+    resourceId: row!.id,
+    outcome: "allow",
+    meta: { client: client.id },
+  });
+  return { id: row!.id };
+}
+
+const author = alias(user, "author");
+const closer = alias(user, "closer");
+
+/** The client's suggestions, open first: for the firm's readers and the client's admins. */
+export async function listChangeRequests(tx: Tx, principal: Principal, clientOrgId: string, opts: { status?: OrgChartRequestStatus } = {}) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart_request.read", resource(principal, client.id));
+  const rows = await tx
+    .select({
+      id: orgChartChangeRequests.id,
+      what: orgChartChangeRequests.what,
+      where: orgChartChangeRequests.whereText,
+      why: orgChartChangeRequests.why,
+      status: orgChartChangeRequests.status,
+      createdAt: orgChartChangeRequests.createdAt,
+      byName: author.name,
+      closedAt: orgChartChangeRequests.closedAt,
+      closedByName: closer.name,
+    })
+    .from(orgChartChangeRequests)
+    .leftJoin(author, eq(author.id, orgChartChangeRequests.createdBy))
+    .leftJoin(closer, eq(closer.id, orgChartChangeRequests.closedBy))
+    .where(and(eq(orgChartChangeRequests.orgId, client.id), opts.status ? eq(orgChartChangeRequests.status, opts.status) : undefined))
+    .orderBy(sql`${orgChartChangeRequests.status} = 'open' desc`, desc(orgChartChangeRequests.createdAt));
+  return { items: rows, canClose: can(principal, "org_chart_request.close", client.id) };
+}
+
+/** The firm marks a suggestion done (made in the draft) or declined, once. */
+export async function closeChangeRequest(tx: Tx, principal: Principal, requestId: string, status: Exclude<OrgChartRequestStatus, "open">) {
+  const [row] = await tx
+    .select({ orgId: orgChartChangeRequests.orgId, status: orgChartChangeRequests.status })
+    .from(orgChartChangeRequests)
+    .where(eq(orgChartChangeRequests.id, requestId))
+    .limit(1);
+  if (!row) throw new NotFoundError("request");
+  assertAllowed(principal, "org_chart_request.close", resource(principal, row.orgId));
+  if (row.status !== "open") throw new BadRequestError("answered");
+  if (status !== "done" && status !== "declined") throw new BadRequestError("status");
+  await tx.update(orgChartChangeRequests).set({ status }).where(eq(orgChartChangeRequests.id, requestId));
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart_request.close",
+    resourceType: "org_chart_request",
+    resourceId: requestId,
+    outcome: "allow",
+    meta: { client: row.orgId, status },
+  });
+  return { ok: true };
+}
