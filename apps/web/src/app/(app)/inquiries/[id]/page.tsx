@@ -45,10 +45,11 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     };
   });
   if (!data) notFound();
-  const [t, ti, tq, format] = await Promise.all([
+  const [t, ti, tq, tc, format] = await Promise.all([
     getTranslations("inbox"),
     getTranslations("inquiry"),
     getTranslations("qualification"),
+    getTranslations("common"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -385,24 +386,27 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               <ol className="space-y-3 text-sm">
                 {data.events.map((e) => (
                   <li key={e.id} className="space-y-0.5">
-                    <p>
-                      <span className="font-medium">{e.actorName ?? t("public")}</span>{" "}
-                      <span className="text-muted-foreground">
-                        {e.event === "status_changed"
-                          ? t("events.status_changed", { from: status(e.fromStatus), to: status(e.toStatus) })
-                          : e.event === "owner_changed" && nameOf(e.meta.owner_user_id as string | null)
-                            ? t("events.owner_assigned", { name: nameOf(e.meta.owner_user_id as string)! })
-                            : e.event === "conflict_checked"
-                              ? t("events.conflict_checked", {
-                                  status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
-                                })
-                              : e.event === "nda_signed"
-                                ? t("events.nda_signed", { date: day(String(e.meta.signed_on)) })
-                                : ["submitted", "entered", "acknowledged", "decline_mailed", "marketing_withdrawn", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
-                                  ? t(`events.${e.event}`)
-                                  : e.event}
-                      </span>{" "}
-                      <span className="ms-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">{when(e.createdAt)}</span>
+                    {/* "Event from person" in Arabic, so the line is right for anyone; "Person did" in English. */}
+                    <p className="text-muted-foreground">
+                      {tc.rich("byLine", {
+                        name: e.actorName ?? t("public"),
+                        event:
+                          e.event === "status_changed"
+                            ? t("events.status_changed", { from: status(e.fromStatus), to: status(e.toStatus) })
+                            : e.event === "owner_changed" && nameOf(e.meta.owner_user_id as string | null)
+                              ? t("events.owner_assigned", { name: nameOf(e.meta.owner_user_id as string)! })
+                              : e.event === "conflict_checked"
+                                ? t("events.conflict_checked", {
+                                    status: t(`conflicts.${String(e.meta.conflict_status ?? "not_checked")}`),
+                                  })
+                                : e.event === "nda_signed"
+                                  ? t("events.nda_signed", { date: day(String(e.meta.signed_on)) })
+                                  : ["submitted", "entered", "acknowledged", "decline_mailed", "marketing_withdrawn", "owner_changed", "converted", "note", "anonymised"].includes(e.event)
+                                    ? t(`events.${e.event}`)
+                                    : e.event,
+                        who: (c) => <span className="font-medium text-foreground">{c}</span>,
+                      })}{" "}
+                      <span className="ms-1 text-xs whitespace-nowrap tabular-nums">{when(e.createdAt)}</span>
                     </p>
                     {e.note ? (
                       <p className="whitespace-pre-wrap" dir="auto">

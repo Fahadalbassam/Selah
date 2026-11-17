@@ -758,7 +758,8 @@
       "tooHigh": "Enter {n} or less."
     },
     "searchPeople": "Type a name or email",
-    "noMatch": "Nobody matches"
+    "noMatch": "Nobody matches",
+    "byLine": "<who>{name}</who> {event}"
   },
   "pager": {
     "label": "Pages",

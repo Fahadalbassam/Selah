@@ -141,7 +141,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     getTranslations("closure"),
     getFormatter(),
   ]);
-  const tEng = await getTranslations("engagement");
+  const [tEng, tc] = await Promise.all([getTranslations("engagement"), getTranslations("common")]);
   const ar = (await getLocale()) === "ar";
   const { project } = data;
   // A new recommendation's department and accountable person (F31).
@@ -698,15 +698,20 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <ol className="space-y-3 border-s ps-4">
               {data.activity.map((e) => (
                 <li key={e.id} className="text-sm">
-                  <span className="font-medium">{e.actorName ?? "—"}</span>{" "}
-                  {/* Only an action's states are action statuses; files and assessments have their own events. */}
-                  {e.entityType === "action" && e.fromState && e.toState
-                    ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
-                    : t.has(`events.${e.entityType}_${e.event}`)
-                      ? t(`events.${e.entityType}_${e.event}` as never)
-                      : t.has(`events.${e.event}`)
-                        ? t(`events.${e.event}` as never)
-                        : t("events.other")}
+                  {/* "Event from person" in Arabic, so the line is right for anyone; "Person did" in English. */}
+                  {tc.rich("byLine", {
+                    name: e.actorName ?? "—",
+                    // Only an action's states are action statuses; files and assessments have their own events.
+                    event:
+                      e.entityType === "action" && e.fromState && e.toState
+                        ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
+                        : t.has(`events.${e.entityType}_${e.event}`)
+                          ? t(`events.${e.entityType}_${e.event}` as never)
+                          : t.has(`events.${e.event}`)
+                            ? t(`events.${e.event}` as never)
+                            : t("events.other"),
+                    who: (c) => <span className="font-medium">{c}</span>,
+                  })}
                   <div className="text-xs text-muted-foreground">{format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "short" })}</div>
                 </li>
               ))}

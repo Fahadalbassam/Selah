@@ -36,6 +36,24 @@ describe("counts on the Projects cards (page audit 3.8)", () => {
   });
 });
 
+describe("history lines name a person without a gendered verb (page audit 3.8)", () => {
+  const line = (locale: "ar" | "en", event: string, name: string) =>
+    createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "common" }).rich("byLine", { event, name, who: (c) => `[${c}]` });
+
+  it("reads 'evidence submitted by Salma' in Arabic, 'Salma submitted evidence' in English", () => {
+    expect(line("ar", ar.action.entry.evidence, "سلمى الشهري")).toBe("دليل مُقدَّم من [سلمى الشهري]");
+    expect(line("en", en.action.entry.evidence, "Salma Al-Shehri")).toBe("[Salma Al-Shehri] submitted evidence");
+  });
+
+  it("puts every Arabic history event in a form that fits a man or a woman", () => {
+    // The old lines began with a masculine past verb ("قدّم دليلاً", "أضاف إجراءً"...): none does now. Nouns
+    // spelled like a verb ("نشر تحديث", "طلب تعديل") are verbal nouns: no object in the accusative follows.
+    const masculine = /^(قدّم|قبِل|أضاف|عدّل|أرسل|أزال|راجع|أعاد|شارك|بدأ|استلم|علّق|لم يقبل|أعفى|سجّل|وافق|ردّ|أكّد|أجاب|أجرى|غيّر|حوّل|أسند|أدخل|اعتمد |نقله|طلبه)|^\S+ \S+(ًا|اً|ءً)(\s|$)/;
+    const events = [...Object.values(ar.action.entry), ...Object.values(ar.project.events), ...Object.values(ar.inbox.events), ar.project.changed];
+    for (const e of events) expect(e, e).not.toMatch(masculine);
+  });
+});
+
 describe("an action on a client the firm runs (N24)", () => {
   const firmRunTexts = (m: typeof en | typeof ar) => [
     m.action.items.hintFirmRun,

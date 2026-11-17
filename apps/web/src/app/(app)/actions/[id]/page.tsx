@@ -73,8 +73,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       depts: data.context.projectKind === "client" ? await departmentChoices(tx, principal, data.action.orgId) : null,
     };
   });
-  const [t, tTable, tEng, tMode, tVis, format] = await Promise.all([
+  const [t, tc, tTable, tEng, tMode, tVis, format] = await Promise.all([
     getTranslations("action"),
+    getTranslations("common"),
     getTranslations("table"),
     getTranslations("engagement.departments"),
     getTranslations("engagement"),
@@ -251,17 +252,20 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                     <li key={i} className="flex gap-3">
                       <Icon className={cn("mt-0.5 size-4 shrink-0", tone)} />
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-sm">
-                          <span className="font-medium">{e.who ?? (e.kind === "review" ? t("firmReviewer") : t("someone"))}</span>{" "}
-                          <span className="text-muted-foreground">
-                            {e.kind === "moved"
-                              ? t("entry.moved", {
-                                  from: e.from ? localLabel(e.from, ar) : "—",
-                                  to: e.to ? localLabel(e.to, ar) : "—",
-                                })
-                              : t(`entry.${e.kind === "review" ? e.outcome : e.kind}`)}
-                          </span>
-                          <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(e.at)}</span>
+                        {/* "Event from person" in Arabic, so the line is right for anyone, man or woman; "Person did" in English. */}
+                        <p className="text-sm text-muted-foreground">
+                          {tc.rich("byLine", {
+                            name: e.who ?? (e.kind === "review" ? t("firmReviewer") : t("someone")),
+                            event:
+                              e.kind === "moved"
+                                ? t("entry.moved", {
+                                    from: e.from ? localLabel(e.from, ar) : "—",
+                                    to: e.to ? localLabel(e.to, ar) : "—",
+                                  })
+                                : t(`entry.${e.kind === "review" ? e.outcome : e.kind}`),
+                            who: (c) => <span className="font-medium text-foreground">{c}</span>,
+                          })}
+                          <span className="ms-2 text-xs tabular-nums">{when(e.at)}</span>
                         </p>
                         {e.kind === "update" && received(e) ? <p className="text-xs text-muted-foreground">{received(e)}</p> : null}
                         {e.kind === "update" ? (
