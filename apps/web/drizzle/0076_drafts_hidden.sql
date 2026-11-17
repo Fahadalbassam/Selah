@@ -89,7 +89,8 @@ CREATE POLICY draft ON content_translations AS RESTRICTIVE FOR ALL TO selah_app
 --> statement-breakpoint
 -- Notifications are written past row-level security (by the server for other
 -- people, and by jobs); the trigger below drops one about a draft for a client
--- person before it is stored or mailed. This policy hides any written before.
+-- person before it is stored or mailed. This policy hides any written before
+-- from its reader while the action is a draft; nothing is deleted.
 CREATE POLICY draft ON notifications AS RESTRICTIVE FOR SELECT TO selah_app
   USING (entity_type <> 'action' OR app_action_visible_to_client(entity_id));
 --> statement-breakpoint
@@ -107,13 +108,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
---> statement-breakpoint
--- Notices about drafts already sent to client people go: they were told too
--- early. They are told again, as always, when the draft is released.
-DELETE FROM notifications n USING actions a
-WHERE n.entity_type = 'action' AND n.entity_id = a.id AND a.status = 'draft'
-  AND NOT EXISTS (SELECT 1 FROM org_memberships m JOIN organizations o ON o.id = m.org_id
-                  WHERE m.user_id = n.user_id AND o.kind = 'firm');
 --> statement-breakpoint
 -- 5. The functions that read actions past row-level security, where a client
 --    can reach them.

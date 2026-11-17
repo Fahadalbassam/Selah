@@ -406,9 +406,12 @@ describe("every screen, list and count leaves drafts out for a client", () => {
     expect(JSON.stringify(readXlsx(bytes)[0]!.rows)).toContain("Draft canary");
   });
 
-  it("notifications about a draft are not shown to the person they were written for", async () => {
+  it("notifications about a draft are not shown to the person they were written for, though they are kept", async () => {
     const mine = await svc(U.owner, (tx, p) => listNotifications(tx, p));
     expect(JSON.stringify(mine)).not.toContain(A.draft);
+    expect(await rowsAs(U.owner, `SELECT 1 FROM notifications WHERE entity_id = $1`, [A.draft])).toEqual([]);
+    // Hidden by the rule, not deleted.
+    expect((await owner.query(`SELECT 1 FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.owner, A.draft])).rowCount).toBe(1);
   });
 });
 
