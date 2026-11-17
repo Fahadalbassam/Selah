@@ -2,6 +2,8 @@
 // Known names become placeholders such as [ORG_1] before the text leaves,
 // and the placeholders become the names again in what comes back. The
 // mapping lives only in this request; people always see the real text.
+// For a translation the database finds the names written in the text by the
+// same rules (app_mask_terms_in, migration 0089): change both together.
 
 /** Lengths of a name in the other language (name_alt), as the database checks them. */
 export const NAME_ALT_LENGTH = { person: [2, 120], contact: [2, 200] } as const;
