@@ -7,7 +7,7 @@ There are two layers. Both must allow a request.
 | Layer | Where | What it decides |
 |---|---|---|
 | `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission |
-| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) | Backstop: tenant, project and label isolation, plus "only firm can review" |
+| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) and later migrations | Backstop: tenant, project and label isolation, drafts kept from clients (D6), plus "only firm can review" |
 
 ## The five questions
 
@@ -51,13 +51,29 @@ Decision D8 (2026-11): a person never sees, by title, work they may not open, on
 
 | Where | Rule | Held by |
 |---|---|---|
-| A recommendation's page | Lists only the actions the reader may open (an action owner: their own), then one line with how many more there are. A draft is not counted for a client. | `getRecommendation()` in `services/responses.ts`; `app_actions_left_out()` |
+| A recommendation's page | Lists only the actions the reader may open (an action owner: their own), then one line with how many more there are. A draft is neither listed nor counted for a client (see "Draft actions" below). | `getRecommendation()` in `services/responses.ts`; `app_actions_left_out()` |
 | The plan, under a finding | A finding answered only by a recommendation in a department the reader is not in says "answered in another department", not "no recommendation yet". | `getProject()`; `app_findings_answered_elsewhere()` |
 | A department's meeting | Read by the department's people, the client's admins, the firm on the project, the organiser and anyone invited; so are its attendees, decisions, summary, follow-ups, notes, calendar file and its line on the schedule. A follow-up still reaches the person it is assigned to. A meeting with no department is open to everyone on the project, as before. | `app_can_see_meeting()`, policies `department` and `department_book` on `meetings`, `meeting_department` on `follow_ups` and `meeting_notes` (migration `0070_department_meetings`) |
 | A meeting's stored agenda | Sent only to a reader who may open every action it can name: the firm on the project, the client's admin, and a client manager for whom no action of the project (of the department, for a department's meeting) fails the department check. Never to an action owner. Everyone else gets one line saying so. The app role cannot read the column; the text comes only from `app_meeting_agenda_for()`. | migration `0072_agenda_readers`; `getMeeting()` |
 | The project's activity record | For the firm and the client's admin. Client managers and action owners get neither the tab nor the rows. | `activity.read`; policy `scoped_read` on `activity_events` (migration `0071_activity_readers`) |
 | A shared status pack | Items of other departments are left out of each list, with how many; an indicator names only the linked recommendations the reader can open. The numbers stay whole: a person at the firm chose to share the report. The app role cannot read the column `reports.pack`; an issued pack comes only from `app_report_pack_for()`, which answers nothing to an action owner. | migration `0074_status_pack_readers`; `reportPack()` in `services/status-pack.ts` |
 | The Departments page | Names, members and heads are for everyone at the client; a card links to the department's page only for the firm, the client's admin and the department's own people. | `getEngagement()` (`canOpen`) |
+
+## Draft actions
+
+Decision D6 (product owner, 17 Nov 2026): **a client does not see a draft action until the firm releases it.** This reversed the earlier behaviour, where a client admin or manager could list and open a draft. A draft is an action with status `draft`; the firm releases it (Draft → Assigned, `action.release`). Firm roles see drafts exactly as before.
+
+No client role (client admin, client manager, action owner, even the person the draft names as owner) reads the draft or anything under it: progress, evidence and its evidence list, reviews and sign-offs, risk acceptances, date requests, firm notes, the discussion, due-date history, reminders and follow-ups, mail mutes, closure items, the activity events and notifications about it, translations of its text and its assistant passages. A client can write none of these either. Opened by its address or through the API it answers 404, like a missing record. Lists, counts, "N more" lines, exports, reports, status packs and assistant answers for a client leave drafts out.
+
+| Where | Held by |
+|---|---|
+| The database | One RESTRICTIVE policy `draft` on `actions` and on every table under an action, and on `activity_events`, `notifications` and `content_translations` for rows about an action, through `app_action_visible_to_client()` (migration `0076_drafts_hidden`). The definer functions that read actions past row-level security check the same: `app_can_see_action()` (reminder ladder, people on the action, due-date moves, refilings, the discussion), `app_user_sees_action()` (who may be mentioned or told), `app_owns_action_under()`, `app_second_review_state()`, `app_name_sustainer()`, the departing-person report. The assistant's passages are read through `with_source`, which looks the action up under the caller's rules. |
+| `authorize()` | `resource.draft` (set by `loadAction()`, `listActions()` and every place that builds an action resource) denies every client role with `action:draft`, for the action and for every record built from it. |
+| The assistant | `scopeFilter()` in `services/assistant.ts` leaves a draft's passage out inside the vector search's `WHERE` for a client scope, besides row-level security. |
+| Telling people | A notification about a draft for anyone outside the firm is dropped before it is stored or mailed (`drop_hidden_action_notification()`); the owner is told at release ("was released to you"), as before. |
+| People leaving | The departing-person report lists a draft the person is named on, and it blocks the switch-off, only when the firm asks. A client admin is never shown its title, is not stopped by it, and their hand-over leaves it with the firm. Releasing a draft checks its owner again (an active member of the project team), so the firm names someone else if the person has left. |
+
+Tests: `tests/db/drafts-hidden.test.ts`, the "plan's records as passages" block of `tests/db/ai-sources.test.ts`, and the D6 block of `tests/authorize.test.ts`.
 
 ## How a request flows
 
@@ -77,7 +93,7 @@ A denial returns **404**, the same as a missing record, so ids cannot be probed,
 
 | Move | Permission | Who |
 |---|---|---|
-| Draft → Assigned | `action.release` | Firm admin, consultant |
+| Draft → Assigned | `action.release` | Firm admin, consultant (until then the client does not see the action: "Draft actions" above) |
 | Assigned → In Progress, In Progress ↔ Blocked, In Progress → Awaiting Review, Revision Requested → In Progress | `action.work` | Action owner (own actions), client manager |
 | Awaiting Review → Verified Complete or Revision Requested | `action.review` | Firm admin, consultant |
 | Any open status → Closed (with an outcome) | `action.close` | Firm admin, consultant |

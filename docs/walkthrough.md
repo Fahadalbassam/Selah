@@ -105,7 +105,7 @@ Two more clients have no accounts at all, because the firm runs their records: A
 
 ## 4. The cases
 
-**Case 1 — Al-Nukhba, board governance (حوكمة مجلس الإدارة).** The main case, Arabic. A signed engagement, findings from the assessment, four recommendations and nine actions, one in every state:
+**Case 1 — Al-Nukhba, board governance (حوكمة مجلس الإدارة).** The main case, Arabic. A signed engagement, findings from the assessment, four recommendations and nine actions, one in every state (the firm sees all nine; Al-Nukhba's people see the eight released ones, never the draft):
 
 | Action | State | Why it is interesting |
 |---|---|---|
@@ -117,7 +117,7 @@ Two more clients have no accounts at all, because the firm runs their records: A
 | مراجعة حدود الصلاحيات المالية | In progress (قيد التنفيذ), overdue | A request to move the date waits for the firm |
 | تحديث مصفوفة الصلاحيات ورفعها للمجلس | In progress | Its date already moved once (approved); an evidence list with one item answered; a firm-only note |
 | جمع إقرارات الأعضاء لعام 2026 | Closed (مغلق), risk accepted | The client admin signed a risk acceptance, then the lead closed it |
-| اعتماد قرار تشكيل اللجنة ونشره | Draft (مسودة) | Still being prepared by the firm |
+| اعتماد قرار تشكيل اللجنة ونشره | Draft (مسودة) | Still being prepared by the firm. It names the client admin as owner, but no one at Al-Nukhba sees it, or is told of it, until the firm releases it (decision D6) |
 
 Also on this case: the client's answers to two recommendations (agree; partly agree with a reason), a steering meeting held last week with its summary, a decision and three follow-ups (one done, one overdue), the next steering meeting booked with invites sent (see Mailpit), a Finance workshop, a request list for documents (one answered with a confidential file), the baseline assessment, two business indicators with six months of values linked to recommendations, a shared monthly report, a contact without an account (the external auditor), a problem the owner reported from the help page, five shared files and one firm-only file the assistant can read.
 
@@ -204,7 +204,8 @@ Copy an address in one window and paste it in the other. "Not found" is the expe
 | observer@mizan.test | The meeting *اجتماع اللجنة التوجيهية الرابع*, and the project's Assessments tab | She reads both. No edit, send invitations, cancel, add attendee, record decision or add follow-up on the meeting; no "Start an assessment" on the tab |
 | observer@mizan.test | Al-Nukhba's client page → Business indicators, then one indicator, then **Data sharing** | She reads all three. No add, edit, pause, enter value, correct, mark checked, link or unlink, and no data-mode choice. consultant@mizan.test (staffed), lead@ and deputy@ still have them |
 | owner@nukhba.test | The recommendation *تشكيل لجنة المراجعة* | Lists only his own action (*إعداد لائحة عمل اللجنة*), then "إجراء واحد آخر لا يظهر لك". No other title, and nothing about the firm's draft |
-| sponsor@nukhba.test | The same recommendation | Two actions, then the same line: he knows the plan is larger than what he sees |
+| sponsor@nukhba.test | The same recommendation | His own action (*ترشيح الأعضاء المستقلين للجنة*), then the same line for Legal's: he knows the plan is larger than what he sees. The firm's draft is neither listed nor counted |
+| admin@nukhba.test, manager@nukhba.test, sponsor@nukhba.test, owner@nukhba.test | The draft action *اعتماد قرار تشكيل اللجنة ونشره* (copy its address from the lead's window) | Not found, also for admin@nukhba.test, whom it names as owner. It is on no list, count or export of theirs: admin@nukhba.test's Actions page lists 8 and the Projects card counts 8 (the firm's card counts 8 too: released work only). lead@mizan.test opens it; releasing it (إصدار للمسؤول) would show it to them and tell the client admin |
 | manager@nukhba.test, owner@nukhba.test, finance@nukhba.test | The board project | No Activity tab (سجل النشاط). admin@nukhba.test and the firm keep it |
 | manager@nukhba.test | The meeting *جلسة عمل الإدارة المالية: مصفوفة الصلاحيات* (copy its address from the admin's window) | Not found, and not on her Meetings tab: it is Finance's, and she is not invited. finance@nukhba.test (in Finance, invited) opens it |
 | manager@nukhba.test, owner@nukhba.test | The meeting *اجتماع اللجنة التوجيهية الرابع* | In place of the agenda, one line: "يُعرض جدول الأعمال لمن يطّلع على كل أعمال المشروع. اسأل منظّم الاجتماع عمّا يخصّك." admin@nukhba.test and the firm read the agenda |
