@@ -702,3 +702,83 @@ describe("the Files card names a file's action only to someone who may open that
     }
   });
 });
+
+// ---------------------------------------------- item 2, the rest of a meeting
+describe("a department's meeting: its notes, summary sources and transcript, and an invited guest", () => {
+  const PAGES = id(81); // a shared file of the project, cited by the summaries
+  const count = async (who: string, table: string, mid: string) => (await rowsAs(who, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [mid])).length;
+
+  beforeAll(async () => {
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$3,$4,'client_document','submitted','Board pack','shared','k-pages','application/pdf',1,'s','clean')`,
+      [PAGES, P, ACME, U.cadmin],
+    );
+    // The review the manager is invited to is held, with the same records as the workshop.
+    await owner.query(`UPDATE meetings SET status = 'held' WHERE id = $1`, [M.finInvited]);
+    await owner.query(
+      `INSERT INTO meeting_decisions (project_id, org_id, meeting_id, text, visibility, created_by) VALUES ($1,$2,$3,'Decision canary','shared',$4)`,
+      [P, ACME, M.finInvited, U.lead],
+    );
+    await owner.query(
+      `INSERT INTO meeting_summaries (meeting_id, project_id, org_id, lang, main_points_md, confirmed_by, visibility) VALUES ($1,$2,$3,'en','Summary canary',$4,'shared')`,
+      [M.finInvited, P, ACME, U.lead],
+    );
+    await owner.query(
+      `INSERT INTO follow_ups (project_id, org_id, meeting_id, title, visibility, assignee_user_id, due_at, created_by) VALUES ($1,$2,$3,'Review follow-up canary','shared',$4, now() + interval '2 days', $4)`,
+      [P, ACME, M.finInvited, U.lead],
+    );
+    for (const mid of [M.fin, M.all, M.finInvited]) {
+      await owner.query(
+        `INSERT INTO meeting_notes (project_id, org_id, author_id, meeting_id, held_on, title, body, visibility) VALUES ($1,$2,$3,$4,app_firm_today(),'Note canary','Said at the meeting','shared')`,
+        [P, ACME, U.lead, mid],
+      );
+      await owner.query(`INSERT INTO meeting_summary_sources (meeting_id, project_id, org_id, line, kind, document_id, page) VALUES ($1,$2,$3,1,'document',$4,1)`, [
+        mid,
+        P,
+        ACME,
+        PAGES,
+      ]);
+      await owner.query(`UPDATE meetings SET transcript_consent = true, consent_noted_by = $2 WHERE id = $1`, [mid, U.lead]);
+      await owner.query(`INSERT INTO meeting_transcripts (meeting_id, project_id, org_id, lang, format, body, imported_by) VALUES ($1,$2,$3,'en','text','Transcript canary',$4)`, [
+        mid,
+        P,
+        ACME,
+        U.lead,
+      ]);
+    }
+  });
+
+  it("notes and summary sources of a department's meeting are hidden from people outside the department", async () => {
+    for (const who of [U.mgr, U.owner]) {
+      for (const table of ["meeting_notes", "meeting_summary_sources", "meeting_transcripts"]) expect(await count(who, table, M.fin)).toBe(0);
+    }
+    // The whole-project meeting's notes and sources stay open to them.
+    expect(await count(U.mgr, "meeting_notes", M.all)).toBe(1);
+    expect(await count(U.mgr, "meeting_summary_sources", M.all)).toBe(1);
+    // The department's own people and the client's admin read them; the firm on the project too.
+    for (const who of [U.fin, U.sponsor, U.cadmin, U.lead, U.cons, U.obs]) {
+      expect(await count(who, "meeting_notes", M.fin)).toBe(1);
+      expect(await count(who, "meeting_summary_sources", M.fin)).toBe(1);
+    }
+  });
+
+  it("a transcript stays with the firm that runs the meeting, whichever department it is", async () => {
+    for (const who of [U.fin, U.sponsor, U.cadmin, U.mgr, U.owner, U.oadmin]) {
+      for (const mid of [M.fin, M.all]) expect(await count(who, "meeting_transcripts", mid)).toBe(0);
+    }
+    for (const who of [U.lead, U.cons]) for (const mid of [M.fin, M.all]) expect(await count(who, "meeting_transcripts", mid)).toBe(1);
+  });
+
+  it("an invited guest outside the department reads the meeting and what came out of it, straight from the tables", async () => {
+    expect(await rowsAs(U.mgr, `SELECT title FROM meetings WHERE id = $1`, [M.finInvited])).toEqual([{ title: "Finance review" }]);
+    for (const table of ["meeting_attendees", "meeting_decisions", "meeting_summaries", "follow_ups", "meeting_notes", "meeting_summary_sources"]) {
+      expect(await count(U.mgr, table, M.finInvited)).toBeGreaterThan(0);
+      // Someone else outside the department, not invited, reads none of it.
+      expect(await count(U.owner, table, M.finInvited)).toBe(0);
+    }
+    // The transcript is still the firm's, and the stored agenda is still withheld from her (item 4).
+    expect(await count(U.mgr, "meeting_transcripts", M.finInvited)).toBe(0);
+    expect(await rowsAs(U.mgr, `SELECT * FROM app_meeting_agenda_for($1)`, [M.finInvited])).toEqual([{ agenda: null, withheld: true }]);
+  });
+});
