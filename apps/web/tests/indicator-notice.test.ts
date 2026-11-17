@@ -1,5 +1,5 @@
 // The line an indicator.moved_away notice shows (decision 4b, migration
-// 0120): the figures and the direction the client chose, followed by
+// 0090): the figures and the direction the client chose, followed by
 // "reported by the client, not verified impact", in Arabic and English, and
 // never a word that judges ("worse", "off track", "at risk", a colour).
 import { createTranslator } from "next-intl";

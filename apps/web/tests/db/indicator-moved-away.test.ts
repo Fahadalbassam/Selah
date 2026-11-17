@@ -1,4 +1,4 @@
-// An indicator that moved away (decision 4b, migration 0120) against a real
+// An indicator that moved away (decision 4b, migration 0090) against a real
 // Postgres: when a value is saved, by any path, and the indicator's latest
 // value is on the other side of the baseline from the client's chosen
 // direction, or short of the target once the target date has passed, the

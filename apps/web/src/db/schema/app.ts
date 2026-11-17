@@ -1461,7 +1461,7 @@ export const clientKpiLinks = pgTable(
 // One row per indicator and period whose latest value was on the other side
 // of the baseline from the client's chosen direction, or short of the target
 // after its date: the people told were told once for that period
-// (indicator.moved_away, migration 0120). Written only by the database; the
+// (indicator.moved_away, migration 0090). Written only by the database; the
 // app has no grant on it.
 export const kpiMovedAwayLog = pgTable(
   "kpi_moved_away_log",

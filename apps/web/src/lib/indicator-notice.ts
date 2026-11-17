@@ -1,5 +1,5 @@
 // The notice that an indicator's latest value moved away (indicator.moved_away,
-// migration 0120): the figures behind it, and the values its sentence in
+// migration 0090): the figures behind it, and the values its sentence in
 // messages "notifications.kinds.indicator_moved_away" is filled with. Pure,
 // so the notification list and the tests share it. The sentence states the
 // value, its period, the baseline (and the target once its date has passed)

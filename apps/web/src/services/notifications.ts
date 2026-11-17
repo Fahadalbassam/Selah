@@ -117,7 +117,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     }
   }
 
-  // A period whose indicator moved away (migration 0120): the period's
+  // A period whose indicator moved away (migration 0090): the period's
   // current figure, so a correction since is what the line states (one that
   // brought it back hides the notice altogether, in the database). Read under
   // the caller's rights, so an indicator they can no longer open stays
@@ -274,7 +274,7 @@ export async function getMailPreferences(tx: Tx, principal: Principal) {
     .innerJoin(actions, eq(actions.id, mailMutes.actionId))
     .where(eq(mailMutes.userId, principal.userId))
     .orderBy(desc(mailMutes.createdAt));
-  // And the indicators they muted (migration 0120), named under their rights the same way.
+  // And the indicators they muted (migration 0090), named under their rights the same way.
   const mutedIndicators = await tx
     .select({ kpiId: mailKpiMutes.kpiId, nameAr: clientKpis.nameAr, nameEn: clientKpis.nameEn, at: mailKpiMutes.createdAt })
     .from(mailKpiMutes)
@@ -340,7 +340,7 @@ export async function isActionMuted(tx: Tx, principal: Principal, actionId: stri
 
 /**
  * Stop or restart mail about one business indicator (indicator.moved_away,
- * migration 0120), beside the action mutes. Only an indicator the caller can
+ * migration 0090), beside the action mutes. Only an indicator the caller can
  * read can be muted; the database refuses the same.
  */
 export async function setIndicatorMuted(tx: Tx, principal: Principal, kpiId: string, muted: boolean) {
