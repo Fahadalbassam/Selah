@@ -704,6 +704,19 @@ describe("business indicators belong to the client, so what counts is the consul
   });
 });
 
+describe("an action owner reads only her own actions (decision 1b)", () => {
+  const owner = principal("action_owner", [ACME_PROJ_1]);
+  it("her own, never a colleague's, whatever their department; and no record under a colleague's", () => {
+    const mine = acmeRecord("action", { assignees: [owner.userId] });
+    const theirs = acmeRecord("action", { assignees: ["someone-else"] });
+    expect(authorize(owner, "action.read", mine).allowed).toBe(true);
+    expect(authorize(owner, "action.read", theirs).allowed).toBe(false);
+    for (const p of ["evidence.read", "progress_update.read", "deadline_request.read", "action_comment.read", "follow_up.read"] as Permission[]) {
+      expect(authorize(owner, p, theirs).allowed, p).toBe(false);
+    }
+  });
+});
+
 describe("the project's activity record is for the firm and the client admin (D8)", () => {
   const feed = acmeRecord("activity");
 

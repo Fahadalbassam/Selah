@@ -374,9 +374,15 @@ describe("restricted", () => {
 
 describe("departments", () => {
   it("hide a department's work from the rest of the client, not from its admin or the firm", async () => {
-    const hrAction = await action(ACME, { dept: DEPT.hr, owner: U.cmgr });
-    const finAction = await action(ACME, { dept: DEPT.fin, owner: U.cmgr });
-    await record(U.cmgr, ACME, hrAction, null, null);
+    // HR's and Finance's actions, each owned by someone in that department. The
+    // witness of the department rule is the HR head, a manager; an action
+    // owner reads only her own actions whatever the department (decision 1b,
+    // tests/db/owner-actions.test.ts).
+    const hrAction = await action(ACME, { dept: DEPT.hr, owner: U.hr });
+    const finAction = await action(ACME, { dept: DEPT.fin, owner: U.fin });
+    await record(U.hr, ACME, hrAction, null, null);
+    expect(await sees(U.cmgr, "actions", hrAction)).toBe(true);
+    expect(await sees(U.cmgr, "actions", finAction)).toBe(false);
     expect(await sees(U.hr, "actions", hrAction)).toBe(true);
     expect(await sees(U.fin, "actions", hrAction)).toBe(false);
     expect(await sees(U.fin, "actions", finAction)).toBe(true);
@@ -384,17 +390,22 @@ describe("departments", () => {
       expect(await sees(who, "actions", hrAction)).toBe(true);
       expect(await sees(who, "actions", finAction)).toBe(true);
     }
-    const updates = (uid: string) => attempt(uid, `SELECT 1 FROM progress_updates WHERE action_id = $1`, [hrAction]);
+    const updates = (uid: string, aid = hrAction) => attempt(uid, `SELECT 1 FROM progress_updates WHERE action_id = $1`, [aid]);
     expect((await updates(U.fin)).rowCount).toBe(0);
     expect((await updates(U.hr)).rowCount).toBe(1);
+    expect((await updates(U.cmgr)).rowCount).toBe(1);
+    await record(U.fin, ACME, finAction, null, null);
+    expect((await updates(U.cmgr, finAction)).rowCount).toBe(0);
     // An action's owner sees it whatever its department.
     const owned = await action(ACME, { dept: DEPT.hr, owner: U.fin });
     expect(await sees(U.fin, "actions", owned)).toBe(true);
 
-    // Switched off, everyone on the project sees everything again.
+    // Switched off, everyone on the project sees everything again, except
+    // that an action owner still reads only her own actions (1b).
     await run(U.cadmin, `UPDATE organizations SET departments_enabled = false WHERE id = $1`, [ACME]);
-    expect(await sees(U.fin, "actions", hrAction)).toBe(true);
-    expect((await updates(U.fin)).rowCount).toBe(1);
+    expect(await sees(U.cmgr, "actions", finAction)).toBe(true);
+    expect((await updates(U.cmgr, finAction)).rowCount).toBe(1);
+    expect(await sees(U.fin, "actions", hrAction)).toBe(false);
     await run(U.cadmin, `UPDATE organizations SET departments_enabled = true WHERE id = $1`, [ACME]);
     const audited = await owner.query(
       `SELECT count(*)::int AS n FROM audit_log WHERE action = 'organization.departments' AND org_id = $1`,

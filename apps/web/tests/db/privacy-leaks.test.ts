@@ -239,11 +239,11 @@ afterAll(async () => {
 describe("the recommendation page lists only actions the reader may open", () => {
   const page = (who: string) => svc(who, (tx, p) => getRecommendation(tx, p, REC.all));
 
-  it("an action owner sees their own action, and how many more there are, never the titles", async () => {
+  it("an action owner sees their own action, never the titles of the others, nor how many there are", async () => {
     const r = await page(U.owner);
     expect(titles(r.actions)).toEqual(["Owner canary"]);
-    // The sponsor's and Finance's; the firm's draft is not announced, not even as a number.
-    expect(r.actionsLeftOut).toBe(2);
+    // Nothing about the others, not even a number (decision 1b; this was 2 before it, tests/db/owner-actions.test.ts).
+    expect(r.actionsLeftOut).toBe(0);
     expect(JSON.stringify(r)).not.toMatch(/Sponsor canary|Draft canary|Finance canary/);
   });
 

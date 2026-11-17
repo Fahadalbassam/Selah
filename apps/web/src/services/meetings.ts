@@ -707,8 +707,8 @@ export async function schedule(tx: Tx, principal: Principal, filter: ScheduleFil
       ${filter.clientId ? sql`and s.org_id = ${filter.clientId}` : sql``}
       ${filter.userId ? sql`and ${filter.userId}::uuid = any (s.people)` : sql``}
       ${
-        // An action owner opens only their own actions and follow-ups (policy.ts: "assigned"); row-level
-        // security alone would also list their colleagues' action titles here. Meetings stay as they are.
+        // An action owner opens only their own actions and follow-ups (policy.ts: "assigned"). Row-level
+        // security says the same since migration 0085; this stays as a second lock. Meetings stay as they are.
         principal.role === "action_owner" ? sql`and (s.item_type = 'meeting' or ${principal.userId}::uuid = any (s.people))` : sql``
       }
     order by s.starts_at, s.title

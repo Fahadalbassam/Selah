@@ -125,8 +125,8 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
     .where(eq(actions.recommendationId, id))
     .orderBy(asc(actions.createdAt));
   // Only the actions this person may open (an action owner: their own), as on
-  // the project page. Row-level security alone lets an owner read their
-  // colleagues' actions, so each row is checked the way the action page checks it.
+  // the project page. Row-level security holds the owner rule too (migration
+  // 0085); each row is still checked the way the action page checks it.
   const recActions = underIt
     .filter(
       (a) =>
@@ -141,9 +141,14 @@ export async function getRecommendation(tx: Tx, principal: Principal, id: string
     )
     .map((a) => ({ id: a.id, title: a.title, status: a.status, dueDate: a.dueDate, ownerName: a.ownerName }));
   // How many more there are, as a number only: a sponsor answering the
-  // recommendation should know the plan is larger than what he sees.
+  // recommendation should know the plan is larger than what he sees. An
+  // action owner is told nothing about the others, not even how many
+  // (decision 1b); the database answers 0 to an owner too.
   const shown = `{${recActions.map((a) => a.id).join(",")}}`;
-  const { rows: left } = await tx.execute<{ n: number }>(sql`select app_actions_left_out(${id}::uuid, ${shown}::uuid[]) as n`);
+  const { rows: left } =
+    principal.role === "action_owner"
+      ? { rows: [{ n: 0 }] }
+      : await tx.execute<{ n: number }>(sql`select app_actions_left_out(${id}::uuid, ${shown}::uuid[]) as n`);
   const stance = rec.visibility === "shared" ? (await recommendationStances(tx, rec.projectId)).get(id) ?? null : null;
   const review = authorize(principal, "recommendation_response.review", resource).allowed;
   return {

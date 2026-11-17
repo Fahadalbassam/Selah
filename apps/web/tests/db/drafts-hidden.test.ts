@@ -395,7 +395,8 @@ describe("every screen, list and count leaves drafts out for a client", () => {
     }
     const mine = await svc(U.owner, (tx, p) => getRecommendation(tx, p, REC));
     expect(titles(mine.actions)).toEqual(["Open canary"]);
-    expect(mine.actionsLeftOut).toBe(2); // the manager's and the leaver's; no draft
+    // An owner is told nothing about the others, not even how many (decision 1b; tests/db/owner-actions.test.ts).
+    expect(mine.actionsLeftOut).toBe(0);
     const firm = await svc(U.lead, (tx, p) => getRecommendation(tx, p, REC));
     expect(firm.actions).toHaveLength(7);
   });

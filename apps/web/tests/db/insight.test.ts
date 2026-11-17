@@ -311,8 +311,10 @@ describe("the trace", () => {
     );
     await owner.query(`UPDATE organizations SET departments_enabled = true WHERE id = $1`, [ACME]);
     await owner.query(`INSERT INTO departments (id, org_id, name_ar) VALUES ($1,$2,'المالية')`, [DEPT, ACME]);
-    const plain = await action(ACME, { owner: U.cmgr, rec: openRec });
+    // The client reader is an action owner, who reads only her own actions (decision 1b): the open one is hers.
+    const plain = await action(ACME, { owner: U.cowner, rec: openRec });
     const scoped = await action(ACME, { owner: U.cmgr, rec: hiddenRec, dept: DEPT });
+    const colleagues = await action(ACME, { owner: U.cmgr, rec: openRec });
 
     const trace = async (uid: string) => (await attempt(uid, `SELECT * FROM app_trace($1)`, [P.acme])).rows;
     const client = await trace(U.cowner);
@@ -320,6 +322,7 @@ describe("the trace", () => {
     expect(ids).not.toContain(hidden);
     expect(client.map((r) => r.parent_id)).not.toContain(hidden);
     expect(ids).not.toContain(scoped);
+    expect(ids).not.toContain(colleagues);
     expect(client.find((r) => r.node_id === hiddenRec)).toMatchObject({ parent_type: null, parent_id: null });
     expect(client.find((r) => r.node_id === plain)).toMatchObject({ parent_type: "recommendation", parent_id: openRec });
 
