@@ -11,7 +11,7 @@ import { DepartmentsSwitch } from "@/components/departments-switch";
 import { SlidingCount } from "@/components/sliding-count";
 
 const html = (locale: "ar" | "en", node: ReactNode) =>
-  renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh" }, node));
+  renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh", children: node }));
 
 describe("the departments switch (B4)", () => {
   it("is a switch for an admin, drawn on while departments are on", () => {
