@@ -449,6 +449,26 @@ describe("the stored agenda is sent only to people who can open all of the proje
     expect((await agenda(U.pmgr, M.plain)).text).toContain("Plain canary");
   });
 
+  it("is still read by that manager when the firm drafts work in a department she is not in: an agenda never names a draft (D6)", async () => {
+    const draft = id(58);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Legal draft canary',$5,'draft',app_firm_today() - 3,$6,$7)`,
+      [draft, P, ACME, REC.all, U.owner, DEPT.legal, U.lead],
+    );
+    try {
+      const a = await agenda(U.sponsor, M.all);
+      expect(a.withheld).toBe(false);
+      expect(a.text).toContain("Finance canary");
+      expect(a.all).not.toContain("Legal draft canary");
+      // Released, it is Legal's work she may not open, and the agenda is withheld as before.
+      await owner.query(`UPDATE actions SET status = 'assigned' WHERE id = $1`, [draft]);
+      expect((await agenda(U.sponsor, M.all)).withheld).toBe(true);
+    } finally {
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [draft]);
+    }
+  });
+
   it("a department's agenda is read by a manager of that department, not by an invited outsider", async () => {
     expect((await agenda(U.sponsor, M.finInvited)).text).toContain("Finance canary");
     const outsider = await agenda(U.mgr, M.finInvited);

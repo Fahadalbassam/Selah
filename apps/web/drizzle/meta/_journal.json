@@ -449,6 +449,13 @@
       "when": 1794924148413,
       "tag": "0076_drafts_hidden",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794926299276,
+      "tag": "0077_agenda_drafts",
+      "breakpoints": true
     }
   ]
 }
