@@ -2,8 +2,8 @@
 // audit N4, decision D4; migration observer_indicators). Indicators belong to
 // the client, not to a project, so the observer rule never reached them. A
 // consultant changes them only when staffed, not as an observer, on one of
-// the client's projects, or as its lead or deputy; every other consultant
-// who works with the client reads. Through the services and straight in the
+// the client's projects that is not closed, or as its lead or deputy; every
+// other consultant who works with the client reads (migrations 0073, 0075). Through the services and straight in the
 // database.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
@@ -325,6 +325,90 @@ describe("who changes a client's indicators", () => {
     // Another firm's reach is unchanged: nobody from outside the client's team.
     expect((await attempt(U.deputy, `SELECT app_firm_changes_kpis($1) AS ok`, [MANAGED])).rows[0].ok).toBe(false);
     for (const who of [U.cadmin, U.cmgr]) expect((await attempt(who, `SELECT app_firm_changes_kpis($1) AS ok`, [ACME])).rows[0].ok).toBe(false);
+  });
+});
+
+describe("who changes a client's indicators, across several of its projects", () => {
+  const P2 = id(7); // another active Acme project
+  const P_CLOSED = id(8); // a closed Acme project
+  const res = { type: "indicator" as const, orgId: ACME, firmOrgId: FIRM, projectId: null };
+  /** The app's answer and the database's, then a value actually entered in the database. */
+  const changes = async (who: string) => {
+    const inApp = authorize(await svc(who, async (_tx, p) => p), "indicator.report", res).allowed;
+    const db = (await attempt(who, `SELECT app_firm_changes_kpis($1) AS ok`, [ACME])).rows[0].ok as boolean;
+    const wrote = await attempt(
+      who,
+      `INSERT INTO client_kpi_values (kpi_id, org_id, period, value, entered_by) VALUES ($1,$2,date_trunc('month', app_firm_today())::date,7,$3)`,
+      [K.acme, ACME, who],
+    ).then(
+      () => true,
+      (e: Error) => (/row-level security/.test(e.message) ? false : Promise.reject(e)),
+    );
+    return { app: inApp, db, wrote };
+  };
+  const YES = { app: true, db: true, wrote: true };
+  const NO = { app: false, db: false, wrote: false };
+
+  beforeAll(async () => {
+    await owner.query(
+      `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES
+        ($1,'client',$3,$4,'Acme strategy','active',$5), ($2,'client',$3,$4,'Acme old review','closed',$5)`,
+      [P2, P_CLOSED, ACME, FIRM, U.admin],
+    );
+  });
+  afterAll(async () => {
+    await owner.query(`DELETE FROM project_members WHERE project_id = ANY($1)`, [[P2, P_CLOSED]]);
+    await owner.query(`DELETE FROM projects WHERE id = ANY($1)`, [[P2, P_CLOSED]]);
+  });
+
+  it("a consultant who observes one project and is staffed on another of the client's writes", async () => {
+    expect(await changes(U.obs)).toEqual(NO);
+    await owner.query(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P2, U.obs]);
+    try {
+      expect(await changes(U.obs)).toEqual(YES);
+      // The service too: the value goes in.
+      await svc(U.obs, (tx, p) => I.addValue(tx, p, K.acme, { period: month(), value: 8, note: null }));
+    } finally {
+      await owner.query(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P2, U.obs]);
+    }
+  });
+
+  it("the client's lead or deputy writes; they never observe one of its projects", async () => {
+    for (const who of [U.lead, U.deputy]) {
+      expect(await changes(who)).toEqual(YES);
+      // The database keeps a lead or deputy from observing the client's projects (migration 0051)...
+      await expect(owner.query(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,true)`, [P, who])).rejects.toThrow(
+        /works on its projects, not as an observer/,
+      );
+    }
+    // ...and naming an observer the deputy ends their observing there: they write as the deputy.
+    await owner.query(`UPDATE client_assignments SET is_deputy = false WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.deputy]);
+    await owner.query(`UPDATE client_assignments SET is_deputy = true WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.obs]);
+    try {
+      expect((await owner.query(`SELECT observer FROM project_members WHERE project_id = $1 AND user_id = $2`, [P, U.obs])).rows).toEqual([{ observer: false }]);
+      expect(await changes(U.obs)).toEqual(YES);
+      await svc(U.obs, (tx, p) => I.addValue(tx, p, K.acme, { period: month(), value: 9, note: null }));
+    } finally {
+      await owner.query(`UPDATE client_assignments SET is_deputy = false WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.obs]);
+      await owner.query(`UPDATE client_assignments SET is_deputy = true WHERE client_org_id = $1 AND user_id = $2`, [ACME, U.deputy]);
+      await owner.query(`UPDATE project_members SET observer = true WHERE project_id = $1 AND user_id = $2`, [P, U.obs]);
+    }
+    expect(await changes(U.obs)).toEqual(NO);
+  });
+
+  it("a consultant staffed only on a closed project does not write: a closed project is read-only", async () => {
+    await owner.query(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P_CLOSED, U.team]);
+    try {
+      expect(await changes(U.team)).toEqual(NO);
+      await expect(svc(U.team, (tx, p) => I.addValue(tx, p, K.acme, { period: month(), value: 10, note: null }))).rejects.toThrow(REFUSED);
+      // They still read.
+      expect((await svc(U.team, (tx, p) => I.listIndicators(tx, p, ACME))).indicators.map((k) => k.nameEn)).toEqual(["Customer complaints"]);
+      // Staffed on an open project of the client as well: they write again.
+      await owner.query(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P2, U.team]);
+      expect(await changes(U.team)).toEqual(YES);
+    } finally {
+      await owner.query(`DELETE FROM project_members WHERE project_id = ANY($1) AND user_id = $2`, [[P_CLOSED, P2], U.team]);
+    }
   });
 });
 

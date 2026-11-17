@@ -27,7 +27,7 @@ export interface Principal {
   observedProjectIds?: ReadonlySet<string>;
   /**
    * Consultants only: the clients they do the work for, as lead or deputy, or staffed (not as an
-   * observer) on at least one of the client's projects. Records that belong to the client rather
+   * observer) on at least one of the client's projects that is not closed. Records that belong to the client rather
    * than to a project (its business indicators) are changed only by these; every other consultant
    * on the client's team reads (decision D4).
    */

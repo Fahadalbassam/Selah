@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { clientAssignments, departmentMembers, orgMemberships, organizations, projectMembers, projects } from "@/db/schema";
 import type { Principal } from "@/authz";
@@ -39,14 +39,15 @@ export async function loadPrincipal(tx: Tx, userId: string): Promise<Principal |
       : [];
 
   // The clients a consultant does the work for: staffed, not as an observer, on at least one of
-  // the client's projects (the lead and deputy are added below). The database: app_firm_changes_kpis().
+  // the client's projects that is not closed (a closed project is read-only); the lead and deputy
+  // are added below. The database: app_firm_changes_kpis().
   const staffedClients =
     membership.role === "consultant"
       ? await tx
           .selectDistinct({ clientOrgId: projects.orgId })
           .from(projectMembers)
           .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-          .where(and(eq(projectMembers.userId, userId), eq(projectMembers.observer, false), eq(projects.kind, "client")))
+          .where(and(eq(projectMembers.userId, userId), eq(projectMembers.observer, false), eq(projects.kind, "client"), ne(projects.state, "closed")))
       : [];
 
   // A client user's team: the departments they belong to.
