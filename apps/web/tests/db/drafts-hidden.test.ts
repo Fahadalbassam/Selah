@@ -639,6 +639,25 @@ describe("notices written while an action was a draft", () => {
   });
 });
 
+describe("moving a department's work when all it holds is a draft", () => {
+  it("records the move for the firm only: the client admin's activity record does not show it", async () => {
+    const [from, moved] = [id(10), id(47)];
+    await owner.query(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$2,'الموارد البشرية','HR')`, [from, ACME]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Moved draft canary',$5,'draft',$6,$7)`,
+      [moved, P, ACME, REC, U.owner, from, U.lead],
+    );
+    await as(U.admin, (c) => c.query(`SELECT * FROM app_move_department_work($1, $2, false, false)`, [from, DEPT]), true);
+    const event = `SELECT event FROM activity_events WHERE event = 'department_moved' AND meta -> 'actions' ? $1`;
+    expect(await rowsAs(U.cadmin, event, [moved])).toEqual([]);
+    expect(await rowsAs(U.lead, event, [moved])).toEqual([{ event: "department_moved" }]);
+    // The firm's draft page still says it was refiled; a client learns nothing of it.
+    expect(await rowsAs(U.lead, `SELECT to_department FROM app_action_refilings($1)`, [moved])).toEqual([{ to_department: DEPT }]);
+    for (const uid of Object.values(CLIENT_ROLES)) expect(await rowsAs(uid, `SELECT 1 FROM app_action_refilings($1)`, [moved]), uid).toEqual([]);
+  });
+});
+
 describe("closing a project, and replacing an action, with a draft on it", () => {
   // A second project of the same client, so closing it leaves the first alone.
   const P2 = id(8);

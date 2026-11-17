@@ -226,3 +226,65 @@ BEGIN
   SELECT count(*) INTO n FROM mailed;
   RETURN n;
 END $$;
+--> statement-breakpoint
+-- 6. Moving a department's work (latest definition: 0032_department_move).
+--    The project's event "moved a department's work" reached the client
+--    admin even when all that moved there was a draft (or work under a
+--    firm-only recommendation), which the client cannot read. Such an event
+--    is now firm-only; the firm's draft page still reads it as a refiling
+--    (app_action_refilings). Everything else is unchanged.
+CREATE OR REPLACE FUNCTION app_move_department_work(src uuid, dst uuid, switch_off boolean, dry_run boolean)
+RETURNS TABLE (recommendations integer, actions integer, files integer)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  org uuid := (SELECT d.org_id FROM departments d WHERE d.id = src);
+  recs uuid[];
+  acts uuid[];
+  docs uuid[];
+BEGIN
+  IF org IS NULL OR app_role() IS DISTINCT FROM 'firm_admin' OR NOT app_can_see_org(org) THEN
+    RAISE EXCEPTION 'only the firm admin moves a department''s work' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF NOT dry_run AND (dst IS NULL OR dst = src OR NOT EXISTS (SELECT 1 FROM departments d WHERE d.id = dst AND d.org_id = org AND d.active)) THEN
+    RAISE EXCEPTION 'move the work to another active department of the same client' USING ERRCODE = 'check_violation';
+  END IF;
+
+  SELECT coalesce(array_agg(r.id), '{}') INTO recs
+  FROM recommendations r JOIN projects p ON p.id = r.project_id
+  WHERE r.department_id = src AND p.state::text <> 'closed'
+    -- Read through jsonb so the rule holds whether or not withdrawal (N1) has its column yet.
+    AND (to_jsonb(r) ->> 'withdrawn_at') IS NULL
+    AND (EXISTS (SELECT 1 FROM actions a WHERE a.recommendation_id = r.id AND a.status NOT IN ('verified_complete', 'closed'))
+      OR NOT EXISTS (SELECT 1 FROM actions a WHERE a.recommendation_id = r.id));
+  SELECT coalesce(array_agg(a.id), '{}') INTO acts
+  FROM actions a JOIN projects p ON p.id = a.project_id
+  WHERE a.department_id = src AND p.state::text <> 'closed'
+    AND (a.recommendation_id = ANY (recs) OR a.status NOT IN ('verified_complete', 'closed'));
+  SELECT coalesce(array_agg(DISTINCT d.id), '{}') INTO docs
+  FROM documents d JOIN evidence_submissions e ON e.document_id = d.id
+  WHERE e.action_id = ANY (acts) AND d.department_id = src;
+
+  IF NOT dry_run THEN
+    UPDATE recommendations r SET department_id = dst WHERE r.id = ANY (recs);
+    UPDATE actions a SET department_id = dst WHERE a.id = ANY (acts) AND a.department_id = src;
+    UPDATE documents d SET department_id = dst WHERE d.id = ANY (docs);
+    INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, meta, visibility)
+    SELECT x.project_id, org, app_uid(), 'project', x.project_id, 'department_moved',
+      jsonb_build_object('from', src, 'to', dst, 'actions',
+        coalesce((SELECT jsonb_agg(a.id) FROM actions a WHERE a.project_id = x.project_id AND a.id = ANY (acts)), '[]'::jsonb)),
+      -- Shared only when something the client can read moved in this project.
+      CASE WHEN EXISTS (SELECT 1 FROM recommendations r WHERE r.id = ANY (recs) AND r.project_id = x.project_id AND r.visibility <> 'firm_private')
+             OR EXISTS (SELECT 1 FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
+                        WHERE a.id = ANY (acts) AND a.project_id = x.project_id AND a.status <> 'draft' AND r.visibility <> 'firm_private')
+           THEN 'shared' ELSE 'firm_private' END::visibility
+    FROM (SELECT r.project_id FROM recommendations r WHERE r.id = ANY (recs)
+          UNION SELECT a.project_id FROM actions a WHERE a.id = ANY (acts)) x;
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+    VALUES (app_uid(), org, 'department.move_work', 'department', src, 'allow', jsonb_build_object(
+      'to', dst, 'recommendations', cardinality(recs), 'actions', cardinality(acts), 'files', cardinality(docs), 'switchedOff', switch_off));
+    IF switch_off THEN
+      UPDATE departments SET active = false WHERE id = src;
+    END IF;
+  END IF;
+  RETURN QUERY SELECT cardinality(recs), cardinality(acts), cardinality(docs);
+END $$;
