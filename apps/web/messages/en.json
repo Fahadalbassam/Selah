@@ -214,6 +214,7 @@
     "email": "Email",
     "role": "Role",
     "projects": "Projects",
+    "projectsHint": "Projects: those each person works on that you can open too.",
     "empty": "You can't view the team list."
   },
   "actionsPage": {

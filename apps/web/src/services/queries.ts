@@ -476,10 +476,35 @@ export async function listTeam(tx: Tx, principal: Principal) {
     .innerJoin(user, eq(user.id, orgMemberships.userId))
     .where(eq(orgMemberships.orgId, principal.orgId))
     .orderBy(asc(user.name));
-  const memberships = await tx
-    .select({ userId: projectMembers.userId })
-    .from(projectMembers)
-    .where(inArray(projectMembers.userId, rows.map((r) => r.id).concat(principal.userId)));
+  // "Projects" beside each person: the projects they are on (staffed, observing,
+  // a client person on it, or the client's lead or deputy consultant) that
+  // this reader may open too. The same rule for every reader, so a lead sees
+  // his own projects (page audit N13), and never a project the reader cannot see.
+  const people = rows.map((r) => r.id);
+  const seen = visible(
+    principal,
+    "project.read",
+    await tx.select({ id: projects.id, kind: projects.kind, orgId: projects.orgId, firmOrgId: projects.firmOrgId }).from(projects),
+    (p) => ({ type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }),
+  );
+  const seenIds = new Set(seen.map((p) => p.id));
+  const memberships = people.length
+    ? await tx
+        .select({ userId: projectMembers.userId, projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .where(inArray(projectMembers.userId, people))
+    : [];
+  const leading = people.length
+    ? await tx
+        .select({ userId: clientAssignments.userId, clientOrgId: clientAssignments.clientOrgId })
+        .from(clientAssignments)
+        .where(and(inArray(clientAssignments.userId, people), or(eq(clientAssignments.isLead, true), eq(clientAssignments.isDeputy, true))))
+    : [];
+  const projectCount = (userId: string) =>
+    new Set([
+      ...memberships.filter((m) => m.userId === userId && seenIds.has(m.projectId)).map((m) => m.projectId),
+      ...seen.filter((p) => p.kind === "client" && leading.some((l) => l.userId === userId && l.clientOrgId === p.orgId)).map((p) => p.id),
+    ]).size;
   // Admins also see who has two-factor sign-in on, and may reset it for the
   // people the database lets them (app_reset_two_factor): never themselves,
   // and a client admin not a fellow admin.
@@ -493,7 +518,7 @@ export async function listTeam(tx: Tx, principal: Principal) {
     : null;
   return rows.map((r) => ({
     ...r,
-    projectCount: memberships.filter((m) => m.userId === r.id).length,
+    projectCount: projectCount(r.id),
     twoFactor: twoFactor ? (twoFactor.get(r.id) ?? false) : null,
     canResetTwoFactor:
       admin && r.id !== principal.userId && r.active && (principal.role === "firm_admin" || r.role !== "client_admin") && twoFactor?.get(r.id) === true,
