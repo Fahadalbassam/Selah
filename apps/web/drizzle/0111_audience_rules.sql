@@ -150,11 +150,22 @@ $$;
 --    (project, label, department, shares; an action owner's files: her own,
 --    her department's and those shared with her, as authorize() says). The
 --    picker offers only these people, and the server refuses anyone else.
+--    A person opens the project as app_can_see_project() says for the caller:
+--    app_user_sees_project() (baseline), and the client's deputy too (0051).
+CREATE FUNCTION app_user_opens_project(target uuid, pid uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT app_user_sees_project(target, pid) OR EXISTS (
+    SELECT 1 FROM projects p
+    JOIN client_assignments ca ON ca.client_org_id = p.org_id AND ca.user_id = target AND (ca.is_lead OR ca.is_deputy)
+    JOIN org_memberships m ON m.user_id = target AND m.org_id = p.firm_org_id AND m.active AND m.role = 'consultant'
+    WHERE p.id = pid AND p.kind = 'client')
+$$;
+--> statement-breakpoint
 CREATE FUNCTION app_user_sees_file(target uuid, pid uuid, row_org uuid, vis visibility, dept uuid, uploader uuid,
   doc_purpose document_purpose, doc_state document_state, shared boolean) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT coalesce((
-    SELECT app_user_sees_project(target, pid)
+    SELECT app_user_opens_project(target, pid)
       AND (m.org_id = p.firm_org_id OR p.state::text <> 'draft')
       AND CASE vis
             WHEN 'shared' THEN true
@@ -192,7 +203,7 @@ $$;
 CREATE FUNCTION app_user_sees_meeting_as(target uuid, pid uuid, vis visibility, dept uuid, organizer uuid, attends boolean) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT coalesce((
-    SELECT app_user_sees_project(target, pid)
+    SELECT app_user_opens_project(target, pid)
       AND (m.org_id = p.firm_org_id OR p.state::text <> 'draft')
       AND (vis = 'shared' OR (vis = 'firm_private' AND m.org_id = p.firm_org_id))
       AND (dept IS NULL OR NOT o.departments_enabled OR m.org_id = p.firm_org_id
@@ -390,7 +401,7 @@ $$;
 REVOKE ALL ON FUNCTION app_document_versions(uuid), app_audience_project(text, uuid), app_audience_side(text, uuid), app_try_uuid(text),
   app_audience_lock_of(uuid, text, uuid, visibility, text, uuid, uuid[], uuid, uuid[]), app_audience_lock(text, uuid, uuid, uuid, visibility),
   app_audience_locked(text, uuid, uuid, uuid), app_audience_ok(text, uuid, uuid), app_audience_entity_ok(text, uuid, uuid),
-  app_user_sees_file(uuid, uuid, uuid, visibility, uuid, uuid, document_purpose, document_state, boolean),
+  app_user_opens_project(uuid, uuid), app_user_sees_file(uuid, uuid, uuid, visibility, uuid, uuid, document_purpose, document_state, boolean),
   app_user_sees_document(uuid, uuid, visibility), app_user_sees_meeting_as(uuid, uuid, visibility, uuid, uuid, boolean),
   app_user_sees_meeting(uuid, uuid), app_user_sees_item(text, uuid, uuid, visibility), app_can_manage_audience(text, uuid),
   app_audience_people(text, uuid, visibility), app_audience_people_new(text, uuid, visibility, uuid, uuid[], uuid[]),
