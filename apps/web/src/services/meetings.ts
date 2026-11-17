@@ -47,7 +47,7 @@ export async function loadMeeting(tx: Tx, principal: Principal, id: string) {
   if (!m) throw new NotFoundError("meeting");
   const { resource: project } = await loadProject(tx, principal, m.projectId);
   // Whose meeting it is (feature A): the client's own when a client person booked it.
-  const { rows } = await tx.execute<{ side: string | null }>(sql`select app_audience_side('meeting', ${id}::uuid) as side`);
+  const { rows } = await tx.execute<{ side: string | null }>(sql`select app_audience_side_for_me('meeting', ${id}::uuid) as side`);
   const resource: Resource = {
     ...project,
     type: "meeting",

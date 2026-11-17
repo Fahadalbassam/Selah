@@ -322,6 +322,32 @@ describe("the database rule only takes people away", () => {
     expect(lost).toBeGreaterThan(0);
   });
 
+  it("the functions the app may call answer only about an item the caller can already see (review S6)", async () => {
+    const unknown = id(999);
+    const one = async (who: string, text: string, params: unknown[]) => (await rowsAs(who, text, params))[0];
+    // Another client's admin, who reads nothing of the file, gets the same answers as for an id that does not exist.
+    for (const item of [DOC.client, unknown]) {
+      expect(await one(U.other, `SELECT app_audience_ok('document', $1) AS ok`, [item]), item).toEqual({ ok: true });
+      expect(await one(U.other, `SELECT app_audience_entity_ok('document', $1) AS ok`, [item]), item).toEqual({ ok: true });
+      expect(await one(U.other, `SELECT app_audience_side_for_me('document', $1) AS side`, [item]), item).toEqual({ side: null });
+      expect(await one(U.other, `SELECT app_document_narrowed($1) AS yes`, [item]), item).toEqual({ yes: false });
+      expect(await rowsAs(U.other, `SELECT * FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [item]), item).toEqual([]);
+    }
+    // Nobody asks about someone else, or reads whose item it is past the rules.
+    await expect(rowsAs(U.other, `SELECT app_audience_ok('document', $1, $2)`, [DOC.client, U.nmgr])).rejects.toThrow(/permission denied/);
+    await expect(rowsAs(U.other, `SELECT app_audience_entity_ok('document', $1, $2)`, [DOC.client, U.nmgr])).rejects.toThrow(/permission denied/);
+    await expect(rowsAs(U.other, `SELECT app_audience_side('document', $1)`, [DOC.client])).rejects.toThrow(/permission denied/);
+    // The person left out learns nothing either: not that she is left out, nor whose file it is.
+    expect(await rowsAs(U.nmgr, `SELECT * FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [DOC.client])).toEqual([]);
+    expect(await one(U.nmgr, `SELECT app_audience_side_for_me('document', $1) AS side`, [DOC.client])).toEqual({ side: null });
+    // Someone who sees it gets the real answers.
+    expect(await one(U.nmgr2, `SELECT app_audience_side_for_me('document', $1) AS side`, [DOC.client])).toEqual({ side: "client" });
+    expect(await rowsAs(U.nmgr2, `SELECT mode FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [DOC.client])).toEqual([{ mode: "except" }]);
+    // And the rules still hold: she reads no row of it, he does.
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
+  });
+
   it("nobody can write the audience tables except through app_set_audience()", async () => {
     await expect(rowsAs(U.cons, `DELETE FROM item_audiences`)).rejects.toThrow(/permission denied/);
     await expect(
