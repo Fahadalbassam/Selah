@@ -10,6 +10,6 @@
     "reset:local": "node scripts/local.mjs reset"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   }
 }
