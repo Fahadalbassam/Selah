@@ -532,14 +532,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
         {meetings ? (
           <TabsContent value="meetings" className="space-y-4">
-            {invitees ? (
+            {/* A whole-project meeting is booked by people who see all of the project's work; a manager
+                with department limits books one for her department (decision 1a). */}
+            {invitees && (invitees.wholeProject || invitees.departments.length) ? (
               <div className="flex justify-end">
                 <MeetingForm
                   projectId={project.id}
                   firm={firmStaff}
                   invitees={invitees}
                   me={me}
-                  departments={firmStaff ? recScope.departments.map((d) => ({ id: d.id, label: localLabel(d, ar) })) : undefined}
+                  departments={invitees.departments.map((d) => ({ id: d.id, label: localLabel(d, ar) }))}
+                  wholeProject={invitees.wholeProject}
                   trigger={
                     <Button size="sm">
                       <CalendarPlus />

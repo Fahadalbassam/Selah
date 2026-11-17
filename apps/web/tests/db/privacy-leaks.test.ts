@@ -332,12 +332,14 @@ describe("a department's meeting follows the department rule", () => {
   const OUTSIDE = [U.mgr, U.owner]; // not in Finance, not invited to the workshop
 
   it("is read by the department's people, the client admin, the firm and the people invited", async () => {
-    for (const who of [U.sponsor, U.fin, U.cadmin, U.lead, U.cons, U.obs, U.admin]) {
+    for (const who of [U.sponsor, U.cadmin, U.lead, U.cons, U.obs, U.admin]) {
       expect(await seen(who)).toEqual(["Finance review", "Finance workshop", "Steering committee"]);
     }
-    // The manager is invited to the review, not to the workshop.
-    expect(await seen(U.mgr)).toEqual(["Finance review", "Steering committee"]);
-    expect(await seen(U.owner)).toEqual(["Steering committee"]);
+    // The Finance owner opens Finance's meetings; the steering meeting (the whole project) only once invited (decision 1a).
+    expect(await seen(U.fin)).toEqual(["Finance review", "Finance workshop"]);
+    // The manager is invited to the review, not to the workshop; the whole project's meeting is not hers to open (1a).
+    expect(await seen(U.mgr)).toEqual(["Finance review"]);
+    expect(await seen(U.owner)).toEqual([]);
     expect(await seen(U.oadmin)).toEqual([]);
   });
 
@@ -345,8 +347,10 @@ describe("a department's meeting follows the department rule", () => {
     for (const who of OUTSIDE) {
       for (const table of ["meeting_attendees", "meeting_decisions", "meeting_summaries", "follow_ups"]) {
         expect(await rowsAs(who, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [M.fin])).toEqual([]);
-        // The whole-project meeting stays open to everyone on the project.
-        expect((await rowsAs(who, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [M.all])).length).toBeGreaterThan(0);
+        // The whole-project meeting opens only for people who see all of the project's work (decision 1a,
+        // tests/db/whole-project-meetings.test.ts): not for a manager limited to the Board, nor an owner not invited.
+        expect(await rowsAs(who, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [M.all])).toEqual([]);
+        expect((await rowsAs(U.sponsor, `SELECT 1 FROM ${table} WHERE meeting_id = $1`, [M.all])).length).toBeGreaterThan(0);
       }
       expect((await rowsAs(who, `SELECT item_id FROM v_schedule WHERE item_type = 'meeting'`)).map((r) => r.item_id)).not.toContain(M.fin);
       expect(await rowsAs(who, `SELECT app_can_see_meeting($1) AS ok`, [M.fin])).toEqual([{ ok: false }]);
@@ -364,10 +368,12 @@ describe("a department's meeting follows the department rule", () => {
       const items = await svc(who, (tx, p) => schedule(tx, p, { from: hour(-1), to: hour(24 * 30) }));
       expect(items.map((i) => i.title)).not.toContain("Finance workshop");
       expect(items.map((i) => i.title)).not.toContain("Finance follow-up canary");
-      // The whole-project meeting and what came out of it stay on the schedule (an action owner: only what is assigned to them).
-      expect(items.map((i) => i.title)).toContain("Steering committee");
-      if (who === U.mgr) expect(items.map((i) => i.title)).toContain("Steering follow-up canary");
+      // Nor the whole-project meeting and what came out of it (decision 1a).
+      expect(items.map((i) => i.title)).not.toContain("Steering committee");
+      expect(items.map((i) => i.title)).not.toContain("Steering follow-up canary");
     }
+    const sponsors = await svc(U.sponsor, (tx, p) => schedule(tx, p, { from: hour(-1), to: hour(24 * 30) }));
+    expect(sponsors.map((i) => i.title)).toEqual(expect.arrayContaining(["Steering committee", "Steering follow-up canary"]));
     expect((await svc(U.fin, (tx, p) => getMeeting(tx, p, M.fin))).meeting.title).toBe("Finance workshop");
     expect((await svc(U.mgr, (tx, p) => getMeeting(tx, p, M.finInvited))).meeting.title).toBe("Finance review");
   });
@@ -433,12 +439,11 @@ describe("the stored agenda is sent only to people who can open all of the proje
     }
   });
 
-  it("is withheld from a department-limited manager and from action owners, with nothing of it in the answer", async () => {
+  it("never reaches a department-limited manager or an action owner not invited: the whole project's meeting is Not found to them", async () => {
+    // Decision 1a: such a meeting opens only for people who may see all of the project's work, and invited
+    // owners, who see only their own actions on it (tests/db/whole-project-meetings.test.ts).
     for (const who of [U.mgr, U.owner, U.fin]) {
-      const a = await agenda(who, M.all);
-      expect(a.text).toBeNull();
-      expect(a.withheld).toBe(true);
-      expect(a.all).not.toMatch(/Finance canary|Sponsor canary/);
+      await expect(agenda(who, M.all)).rejects.toThrow(/not found/i);
     }
   });
 
@@ -461,9 +466,9 @@ describe("the stored agenda is sent only to people who can open all of the proje
       expect(a.withheld).toBe(false);
       expect(a.text).toContain("Finance canary");
       expect(a.all).not.toContain("Legal draft canary");
-      // Released, it is Legal's work she may not open, and the agenda is withheld as before.
+      // Released, it is Legal's work she may not open: the whole project's meeting is no longer hers to open (1a).
       await owner.query(`UPDATE actions SET status = 'assigned' WHERE id = $1`, [draft]);
-      expect((await agenda(U.sponsor, M.all)).withheld).toBe(true);
+      await expect(agenda(U.sponsor, M.all)).rejects.toThrow(/not found/i);
     } finally {
       await owner.query(`DELETE FROM actions WHERE id = $1`, [draft]);
     }
@@ -482,10 +487,12 @@ describe("the stored agenda is sent only to people who can open all of the proje
       await expect(rowsAs(who, `SELECT * FROM meetings WHERE id = $1`, [M.all])).rejects.toThrow(/permission denied/);
     }
     const viaFunction = async (who: string, mid: string) => (await rowsAs(who, `SELECT * FROM app_meeting_agenda_for($1)`, [mid]))[0];
-    expect(await viaFunction(U.mgr, M.all)).toEqual({ agenda: null, withheld: true });
-    expect(await viaFunction(U.owner, M.all)).toEqual({ agenda: null, withheld: true });
+    // An invited outsider of a department's meeting is told there is one (the stop-gap, kept as a second line).
+    expect(await viaFunction(U.mgr, M.finInvited)).toEqual({ agenda: null, withheld: true, own: false });
     expect((await viaFunction(U.cadmin, M.all)).agenda).toContain("Finance canary");
-    // A meeting the caller cannot open at all: no row, as if it did not exist.
+    // A meeting the caller cannot open at all: no row, as if it did not exist (the whole project's, since 1a).
+    expect(await viaFunction(U.mgr, M.all)).toBeUndefined();
+    expect(await viaFunction(U.owner, M.all)).toBeUndefined();
     expect(await viaFunction(U.owner, M.fin)).toBeUndefined();
     expect(await viaFunction(U.oadmin, M.all)).toBeUndefined();
   });
@@ -776,9 +783,11 @@ describe("a department's meeting: its notes, summary sources and transcript, and
     for (const who of [U.mgr, U.owner]) {
       for (const table of ["meeting_notes", "meeting_summary_sources", "meeting_transcripts"]) expect(await count(who, table, M.fin)).toBe(0);
     }
-    // The whole-project meeting's notes and sources stay open to them.
-    expect(await count(U.mgr, "meeting_notes", M.all)).toBe(1);
-    expect(await count(U.mgr, "meeting_summary_sources", M.all)).toBe(1);
+    // The whole-project meeting's notes and sources are for people who see all of the project's work (1a).
+    expect(await count(U.mgr, "meeting_notes", M.all)).toBe(0);
+    expect(await count(U.mgr, "meeting_summary_sources", M.all)).toBe(0);
+    expect(await count(U.sponsor, "meeting_notes", M.all)).toBe(1);
+    expect(await count(U.sponsor, "meeting_summary_sources", M.all)).toBe(1);
     // The department's own people and the client's admin read them; the firm on the project too.
     for (const who of [U.fin, U.sponsor, U.cadmin, U.lead, U.cons, U.obs]) {
       expect(await count(who, "meeting_notes", M.fin)).toBe(1);
@@ -802,6 +811,6 @@ describe("a department's meeting: its notes, summary sources and transcript, and
     }
     // The transcript is still the firm's, and the stored agenda is still withheld from her (item 4).
     expect(await count(U.mgr, "meeting_transcripts", M.finInvited)).toBe(0);
-    expect(await rowsAs(U.mgr, `SELECT * FROM app_meeting_agenda_for($1)`, [M.finInvited])).toEqual([{ agenda: null, withheld: true }]);
+    expect(await rowsAs(U.mgr, `SELECT * FROM app_meeting_agenda_for($1)`, [M.finInvited])).toEqual([{ agenda: null, withheld: true, own: false }]);
   });
 });

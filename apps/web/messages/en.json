@@ -1129,6 +1129,8 @@
     "markHeld": "Mark as held",
     "agenda": "Agenda",
     "agendaWithheld": "The agenda is shown to people who can open all of the project's work. Ask the organiser what concerns you.",
+    "agendaOwn": "Only your own actions on this meeting's agenda.",
+    "agendaOwnNone": "None of your actions is on this meeting's agenda.",
     "summary": "Summary",
     "noSummary": "No summary yet.",
     "decisions": "Decisions",
@@ -1247,11 +1249,17 @@
         "cannotOpen": "One of the people chosen can't open this project, or can't see a firm-only meeting.",
         "firmPrivate": "This meeting is firm only, so its records stay firm only.",
         "cannotMove": "A held or cancelled meeting can't be moved.",
-        "otherMeeting": "That decision is from another meeting."
+        "otherMeeting": "That decision is from another meeting.",
+        "wholeProject": "A whole-project meeting is booked by people who see all of the project's work. Choose one of your departments."
       },
       "department": "Department",
       "wholeProject": "The whole project",
-      "departmentHint": "A department's meeting gets an agenda of that department's work only."
+      "departmentHint": "A department's meeting gets an agenda of that department's work only. A whole-project meeting opens only for people who see all of the project's work.",
+      "departmentOnlyHint": "A whole-project meeting opens only for people who see all of the project's work, so you book one for one of your departments.",
+      "leftOut": "{names} can't open this meeting: their access is limited to certain departments, and a whole-project meeting opens only for people who see all of the project's work. You can still save it.",
+      "makeDepartmentMeeting": "Make it a {department} meeting",
+      "leftOutNoOffer": "To include them, book a meeting for their department instead.",
+      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department. You can still add them; they won't be able to open it."
     },
     "record": {
       "mainPoints": "Main points",

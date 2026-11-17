@@ -11,6 +11,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
+import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -92,12 +94,17 @@ export function RespondButtons({ meetingId, current }: { meetingId: string; curr
 }
 
 /** Add someone who can open the project, or one of the client's contacts (firm only). */
-export function AddAttendee(props: { meetingId: string; options: { value: string; label: string }[] }) {
+export function AddAttendee(props: {
+  meetingId: string;
+  /** `leftOut`: this person could not open the meeting (a whole-project meeting, a manager with department limits). */
+  options: { value: string; label: string; leftOut?: boolean }[];
+}) {
   const t = useTranslations("meeting.form");
   const { busy, run } = useCall();
   const [pick, setPick] = useState("");
   const [open, setOpen] = useState(false);
   if (!props.options.length) return null;
+  const chosen = props.options.find((o) => o.value === pick);
   if (!open)
     return (
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
@@ -122,7 +129,17 @@ export function AddAttendee(props: { meetingId: string; options: { value: string
         setOpen(false);
       }}
     >
-      <PersonPicker onValueChange={setPick} options={props.options} placeholder={t("addAttendee")} />
+      <PersonPicker onValueChange={setPick} options={props.options.map(({ value, label }) => ({ value, label }))} placeholder={t("addAttendee")} />
+      {chosen?.leftOut ? (
+        // Said before saving (decision 1a); adding them anyway is allowed, and the server decides.
+        <Alert data-testid="meeting-left-out">
+          <CircleAlert />
+          <AlertDescription>
+            <p>{t("leftOut", { names: chosen.label, n: 1 })}</p>
+            <p>{t("leftOutKeepsDepartment")}</p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className="flex gap-2">
         <Submit busy={busy}>{t("add")}</Submit>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
