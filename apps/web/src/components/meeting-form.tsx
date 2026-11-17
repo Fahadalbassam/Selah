@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { LeftOutWarning } from "@/components/meeting-left-out";
+import { AudienceField, type AudienceValue } from "@/components/audience-field";
 import {
   callProvider,
   departmentsToOffer,
@@ -77,6 +78,12 @@ export function MeetingForm(props: {
    * with department limits books one for her department.
    */
   wholeProject?: boolean;
+  /**
+   * The person may choose who sees the meeting (feature A): firm staff, and
+   * the client's admin on a meeting their side books. When booking, or, with
+   * a meeting, when editing it. The server decides again.
+   */
+  audience?: boolean;
 }) {
   const t = useTranslations("meeting.form");
   const tm = useTranslations("meeting");
@@ -100,6 +107,8 @@ export function MeetingForm(props: {
   const [send, setSend] = useState(true);
   const wholeAllowed = props.wholeProject ?? true;
   const [dept, setDept] = useState(wholeAllowed ? "" : (props.departments?.[0]?.id ?? ""));
+  // Who sees it (feature A): null while it cannot be saved (an "only" list with nobody).
+  const [audience, setAudience] = useState<{ value: AudienceValue | null; dirty: boolean }>({ value: null, dirty: false });
 
   const linkBad = location === "online" ? !callProvider(link) : link.trim() !== "" && !callProvider(link);
   const toggle = (set: Set<string>, id: string, on: boolean) => {
@@ -115,6 +124,8 @@ export function MeetingForm(props: {
     const startsAt = localInstant(date, time);
     if (!startsAt) return setError("when");
     if (linkBad) return setError("badLink");
+    if (audience.dirty && !audience.value) return;
+    const audienceBody = props.audience && audience.dirty && audience.value ? { audience: audience.value } : {};
     const endsAt = new Date(startsAt.getTime() + Number(duration) * 60_000);
     const text = (k: string) => String(form.get(k) ?? "").trim();
     const values = {
@@ -129,9 +140,10 @@ export function MeetingForm(props: {
     setBusy(true);
     setError(null);
     const r = editing
-      ? await callApi(`/api/meetings/${props.meetingId}`, "PATCH", values)
+      ? await callApi(`/api/meetings/${props.meetingId}`, "PATCH", { ...values, ...audienceBody })
       : await callApi(`/api/projects/${props.projectId}/meetings`, "POST", {
           ...values,
+          ...audienceBody,
           kind: text("kind"),
           departmentId: dept || undefined,
           visibility: props.firm && !shared ? "firm_private" : "shared",
@@ -160,9 +172,19 @@ export function MeetingForm(props: {
   // Saving anyway is allowed; the server decides who opens it.
   const leftOut = editing ? [] : leftOutOfMeeting([...firmPeople, ...clientPeople], people, dept || null);
   const offers = departmentsToOffer(leftOut, props.departments ?? []).slice(0, 3);
+  // The people who would see it, from the server, for what the form says now (everyone invited is a
+  // required attendee); for a meeting already booked, its own list.
+  const invited = [...people].sort();
+  const audienceUrl = !props.audience
+    ? null
+    : editing
+      ? `/api/meetings/${props.meetingId}/audience`
+      : `/api/projects/${props.projectId}/audience?kind=meeting&visibility=${props.firm && !shared ? "firm_private" : "shared"}${
+          dept ? `&departmentId=${dept}` : ""
+        }${invited.length ? `&attendees=${invited.join(",")}&required=${invited.join(",")}` : ""}`;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setAudience({ value: null, dirty: false }))}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <form onSubmit={submit} className="grid gap-4">
@@ -362,6 +384,10 @@ export function MeetingForm(props: {
 
           <LeftOutWarning people={leftOut} offers={offers} onOffer={setDept} />
 
+          {open && audienceUrl ? (
+            <AudienceField kind="meeting" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
+          ) : null}
+
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={send} onCheckedChange={(on) => setSend(on === true)} />
             {editing ? t("resend") : t("send")}
@@ -378,7 +404,7 @@ export function MeetingForm(props: {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {busy ? tc("saving") : editing ? t("save") : t("book")}
             </Button>
