@@ -2,7 +2,7 @@
 // component to HTML with the real messages: the departments switch for
 // readers (B4) and the notification count's direction (N12).
 import { NextIntlClientProvider } from "next-intl";
-import { createElement, type ReactNode } from "react";
+import { createElement, type ComponentProps, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ar from "../messages/ar.json";
@@ -11,8 +11,11 @@ import { DepartmentsSwitch } from "@/components/departments-switch";
 import { SlidingCount } from "@/components/sliding-count";
 import { typedDir } from "@/lib/utils";
 
-const html = (locale: "ar" | "en", node: ReactNode) =>
-  renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh", children: node }));
+const html = (locale: "ar" | "en", node: ReactNode) => {
+  // The provider's props type asks for children; they go in as createElement's third argument.
+  const props = { locale, messages: locale === "ar" ? ar : en, timeZone: "Asia/Riyadh" } as unknown as ComponentProps<typeof NextIntlClientProvider>;
+  return renderToStaticMarkup(createElement(NextIntlClientProvider, props, node));
+};
 
 describe("the departments switch (B4)", () => {
   it("is a switch for an admin, drawn on while departments are on", () => {
