@@ -486,3 +486,32 @@ These can be undone, so they do not stop the work:
 ### Left for gate B (not part of the simplification)
 
 A named way for an unhappy client to reach the firm admin (today the only route is a form named "Technical problem"); the reminder before an engagement ends; the handover when the lead changes; who reviews on a firm-run client with one consultant; notices that clear themselves when they stop being true (more than a wording fix).
+
+---
+
+## 7. After the October review (added 17 Nov 2026)
+
+The full October review arrived after gate A. A helper checked this audit against it (`work/october-review-check.md`). No gate A answer is made wrong by it. These changes are taken into the batches:
+
+| # | Change | Batch |
+|---|---|---|
+| 1 | Before the shared request and evidence row is built, write a placement table: every state of every kind of thing (evidence items, document requests, date requests, meetings, reports, inquiries, projects, closing) under one of the six visible words, with one "yes" verb per level (Accept for items, requests and date changes; Verify only for the action), and the outcome on a closed action ("Closed: risk accepted"). | written in batch 3, used from batch 4 |
+| 2 | New inquiries appear on the firm admin's home, and the Inquiries row carries an unread count. | 2 |
+| 3 | Clients list: the lead's name plus "and N others" instead of two-letter chips; pitches in their own small table. Projects: the next due date on each card; one "New project" button whose first field is the client. | 2 |
+| 4 | One status line under the project title: percent verified, late, waiting for review (counts, never a health word, per D5). | 3 |
+| 5 | The recommendation dialog shows five fields (title, priority, accountable, due date, rationale) and "more" for the rest (10 today). | 3 |
+| 6 | Language and theme leave the user menu: they stay in the top bar only (and on signed-out pages, where the switch is now in place). | 2 |
+| 7 | Dense rows also cover the Documents list (version shown only when there is more than one; "available to the assistant" in the row menu; who added it and when) and the client admin's People page (open invitations, mail domains and access review fold behind one "Access" section). | 1, 2 |
+| 8 | Client admin's "Our group" becomes a section of the home for the people who may see it, not a sidebar row. | 2 |
+| 9 | Home rows carry their next step ("Answer", "Send a file"), and each home section shows five rows with "show all". | 2 |
+| 10 | The walkthrough guide and `ui-guidelines.md` section 10, which name Today, Trace, Needs attention and Oversight, are updated in the same pull requests that remove them. | 2, 3 |
+| 11 | Changing an action's owner (D1) writes an audit entry; on a minimal-records client the owner is a typed name, and the control handles that. | 4 |
+| 12 | Actions filters add owner and department; an action that is both late and blocked is one row. Batch 4 decides whether accepting the last open evidence item and verifying the action can be one step for the reviewer. | 2, 4 |
+| 13 | The Files card keeps "Add a file" only where the person may add to a project; for client roles it becomes a finder and the upload moves to the project's Requests and files tab. | 4 |
+| 14 | Seven pages the October review would fold are kept for now with a one-line reason each: `/inquiries` (the admin's inbox), `/templates` (author tool), `/audit` (a record of its own), `/engagements/:id` (the signed scope), `/assistant` (consent only), `/projects/:id/import` (a three-step wizard). `/group` folds into the home (row 8). | none |
+
+Kept as this audit has them, although the October text differs: the Handover card stays on Progress (it is set on an open project); firm notes stay apart from the conversation (October named the leak risk itself); the group page's 11 % is a correct sum; the project's five tabs (four of five match October's).
+
+One permission question from the October review goes to Fahad with the agenda choice: should "Link / Unlink" an indicator to a recommendation be the firm's alone? Today the client admin can, and `docs/authorization.md` says so; the October review calls the link the consultant's statement.
+
+From the research folder: support for D1 (comparable portals let clients delegate requests to colleagues, with an owner-change history) and for three parked gaps (a complaint route to the firm admin, the lead handover, a reviewer who is not the author). For the agenda (D8) the research adds a third option, set out with the agenda choice.
