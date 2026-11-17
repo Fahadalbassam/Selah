@@ -386,6 +386,36 @@ describe("the database: an action owner reads only her own actions and what is u
     await expect(rowsAs(U.admin, `SELECT app_set_client_ai($1, true, '{action_owner}', 10)`, [NUKHBA])).rejects.toThrow(/action owners/);
   });
 
+  // The lead's ruling on the review (17 Nov): every definer function an owner can call refuses or
+  // answers nothing for an action (or meeting) she may not read. Before 0087 these answered.
+  it("the definer functions she can call refuse, or answer nothing, about a colleague's action", async () => {
+    // Telling the firm's team a colleague's action waits for review (it does): refused, nothing written.
+    await expect(rowsAs(U.owner, `SELECT app_notify_project_team($1, 'action.awaiting_review', '{}') AS n`, [A.wide])).rejects.toThrow(/not visible/);
+    // The yes/no helpers say nothing true about it.
+    for (const fn of ["app_action_dept_ok", "app_action_label_ok", "app_action_visible_to_client", "app_can_extend"]) {
+      expect((await rowsAs(U.owner, `SELECT ${fn}($1) AS ok`, [A.mate]))[0].ok, fn).toBe(false);
+      expect((await rowsAs(U.owner, `SELECT ${fn}($1) AS ok`, [A.mine]))[0].ok, `${fn} on her own`).toBe(true);
+      expect((await rowsAs(U.nmgr, `SELECT ${fn}($1) AS ok`, [A.mate]))[0].ok, `${fn} for the manager`).toBe(true);
+    }
+    // The masking list (for the assistant, which owners never have): refused.
+    await expect(rowsAs(U.owner, `SELECT * FROM app_mask_terms($1)`, [PN])).rejects.toThrow(/action owners/);
+    expect((await rowsAs(U.nmgr, `SELECT * FROM app_mask_terms($1)`, [PN])).length).toBeGreaterThan(0);
+    // The invite list, with colleagues' departments: only for people who may book.
+    expect(await rowsAs(U.owner, `SELECT * FROM app_meeting_invitees($1)`, [PN])).toEqual([]);
+    expect((await rowsAs(U.nmgr, `SELECT * FROM app_meeting_invitees($1)`, [PN])).length).toBeGreaterThan(0);
+  });
+
+  it("whether a colleague's file was accepted as evidence is not hers to learn", async () => {
+    const { rows: es } = await owner.query(`SELECT id FROM evidence_submissions WHERE document_id = $1`, [DOC.mate]);
+    // Reviews are append-only; this one stays (nothing later in the file reads the colleague's reviews).
+    await owner.query(
+      `INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, evidence_submission_ids) VALUES ($1,$2,$3,$4,'accept',$5)`,
+      [PN, NUKHBA, A.mate, U.lead, [es[0].id]],
+    );
+    expect((await rowsAs(U.lead, `SELECT app_evidence_accepted($1) AS ok`, [DOC.mate]))[0].ok).toBe(true);
+    expect((await rowsAs(U.owner, `SELECT app_evidence_accepted($1) AS ok`, [DOC.mate]))[0].ok).toBe(false);
+  });
+
   it("findings answered elsewhere are not counted for her (she reads no finding)", async () => {
     expect(await rowsAs(U.owner, `SELECT * FROM app_findings_answered_elsewhere($1)`, [PN])).toEqual([]);
     expect(await rowsAs(U.fin, `SELECT * FROM app_findings_answered_elsewhere($1)`, [PN])).toEqual([]);

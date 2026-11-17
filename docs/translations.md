@@ -36,6 +36,7 @@ The first screens with it are the action page (description, progress updates) an
 - **Edits retire translations.** Changing a translated field deletes its translations, and deleting the record deletes all of them (`drop_translations` triggers). Minimal-records purges blank fields the same way, so no old wording outlives the original.
 - **Reviews:** only firm staff, and only the text can change; who reviewed it and when are recorded by the database. Nobody deletes a translation from the app.
 - **Cost cap:** at most 200 new translations per person an hour (each is a model call).
+- **Action owners and a hosted model:** before text reaches a hosted model its names are masked from `app_mask_terms()`, which is refused for action owners (migration `0087_owner_definers`: the list names everyone at the client and the firm, and owners never have the assistant). So with masking on, an owner's translation is refused ("Translation isn't available right now") rather than sent unmasked; with the local model it works as before. A kept translation of her own text still reaches her.
 
 ## Prompt safety
 
