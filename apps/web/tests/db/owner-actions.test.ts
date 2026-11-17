@@ -69,6 +69,7 @@ const A = {
 };
 const DOC = { mate: id(51), handed: id(52) };
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
+const VECTOR = `[${Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)).join(",")}]`;
 
 async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
   const c = await app.connect();
@@ -199,7 +200,16 @@ beforeAll(async () => {
        VALUES ($1,$2,$3,$3,$4,'evidence',$5,$6,'application/pdf',1,'s','shared','submitted',$7,'clean')`,
       [doc, pid, org, who, `${tag} evidence file`, `k-${doc}`, aid === A.mate ? DEPT.legal : null],
     );
-    await q(`INSERT INTO progress_updates (project_id, org_id, action_id, author_id, body) VALUES ($1,$2,$3,$4,'Progress canary')`, [...at, who]);
+    const { rows: pu } = await q(
+      `INSERT INTO progress_updates (project_id, org_id, action_id, author_id, body) VALUES ($1,$2,$3,$4,'Progress canary') RETURNING id`,
+      [...at, who],
+    );
+    // The assistant's passages of the colleague's action and of its progress (the index holds both kinds).
+    await q(
+      `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, lang, content, embedding) VALUES
+        ($1,$2,'action',$3,'shared',0,'en','Action passage canary',$5), ($1,$2,'progress_update',$4,'shared',0,'en','Progress passage canary',$5)`,
+      [...at, pu[0].id, VECTOR],
+    );
     await q(`INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`, [...at, doc, who]);
     await q(`INSERT INTO evidence_requests (project_id, org_id, action_id, title, created_by) VALUES ($1,$2,$3,'Evidence item canary',$4)`, [...at, U.lead]);
     await q(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, reason) VALUES ($1,$2,$3,$4,'revise','Review canary')`, [...at, U.lead]);
@@ -319,19 +329,33 @@ describe("the database: an action owner reads only her own actions and what is u
     await expect(svc(U.owner, (tx, p) => postComment(tx, p, A.mate, { body: "hi", mentions: [] }))).rejects.toThrow(NOT_FOUND);
   });
 
-  it("every table under an action carries the owner rule, and so do actions, the activity record, notices and translations", async () => {
+  // Every table the app can read that refers to an action: by a foreign key to actions (whatever the
+  // column is called), by a foreign key to a table that carries the owner rule, or by a polymorphic
+  // pair (entity_type/source_type/target_type with its id). Each carries the rule, or is named here
+  // with the reason it needs none.
+  const EXEMPT: Record<string, string> = {
+    ai_chunks: "owners never have the assistant: policy assistant_on, and client_ai_settings.roles may not hold action_owner",
+    ai_drafts: "the firm's drafts only: no client role reads a row",
+  };
+  it("every table that refers to an action carries the owner rule, or is named with its reason", async () => {
     const { rows } = await owner.query<{ table_name: string }>(
-      `SELECT c.relname AS table_name FROM pg_class c
+      `WITH ruled AS (SELECT tablename::regclass AS rel FROM pg_policies WHERE policyname = 'owner' AND permissive = 'RESTRICTIVE')
+       SELECT DISTINCT c.relname AS table_name FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
-       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'action_id' AND NOT a.attisdropped
-       WHERE c.relkind = 'r' AND has_table_privilege('selah_app', c.oid, 'SELECT')`,
+       WHERE c.relkind IN ('r', 'p') AND has_table_privilege('selah_app', c.oid, 'SELECT') AND (
+         c.oid = 'actions'::regclass
+         OR EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'f'
+                    AND (k.confrelid = 'actions'::regclass OR k.confrelid IN (SELECT rel FROM ruled)))
+         OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped
+                    AND a.attname IN ('entity_type', 'source_type', 'target_type')))`,
     );
-    const tables = [...rows.map((r) => r.table_name), "actions", "activity_events", "notifications", "content_translations"];
     const { rows: policies } = await owner.query<{ tablename: string }>(
       `SELECT tablename FROM pg_policies WHERE policyname = 'owner' AND permissive = 'RESTRICTIVE'`,
     );
     const covered = new Set(policies.map((p) => p.tablename));
-    expect(tables.filter((t) => !covered.has(t))).toEqual([]);
+    const found = rows.map((r) => r.table_name);
+    expect(found).toEqual(expect.arrayContaining(["actions", "progress_updates", "follow_ups", "activity_events", "notifications", "content_translations"]));
+    expect(found.filter((t) => !covered.has(t) && !(t in EXEMPT))).toEqual([]);
   });
 
   it("project progress counts only her own work", async () => {
@@ -354,7 +378,11 @@ describe("the database: an action owner reads only her own actions and what is u
   });
 
   it("the client's assistant index is out of her reach: no passage, and owners can never be given the assistant", async () => {
-    expect(await rowsAs(U.owner, `SELECT 1 FROM ai_chunks`)).toEqual([]);
+    // The colleague's action and progress passages exist: the firm reads both.
+    expect((await rowsAs(U.lead, `SELECT content FROM ai_chunks ORDER BY content`)).map((r) => r.content)).toEqual(
+      expect.arrayContaining(["Action passage canary", "Progress passage canary"]),
+    );
+    for (const who of [U.owner, U.rowner]) expect(await rowsAs(who, `SELECT content FROM ai_chunks`)).toEqual([]);
     await expect(rowsAs(U.admin, `SELECT app_set_client_ai($1, true, '{action_owner}', 10)`, [NUKHBA])).rejects.toThrow(/action owners/);
   });
 
@@ -463,6 +491,29 @@ describe("a former owner, after a hand-over", () => {
     const mine = (await svc(U.owner, (tx, p) => listFiles(tx, p))).find((f) => f.id === DOC.handed);
     expect(mine?.title).toBe("Handover evidence file");
     expect(mine?.source).toEqual({ kind: "evidence", id: null, title: null });
+  });
+
+  it("through the leaver flow itself (app_hand_over): the new owner is told, the former owner reads nothing about it", async () => {
+    const [leaver, act] = [id(23), id(49)];
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'leaver','leaver@example.test')`, [leaver]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'action_owner')`, [leaver, NUKHBA]);
+    await owner.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [PN, leaver]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Leaver canary',$5,'in_progress',app_firm_today() + 20,$6)`,
+      [act, PN, NUKHBA, REC.all, leaver, U.lead],
+    );
+    await owner.query(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'action.commented','action',$2)`, [leaver, act]);
+    expect(titles(await rowsAs(leaver, `SELECT title FROM actions`))).toEqual(["Leaver canary"]);
+    // The client's admin hands the leaver's work to the teammate (the departing-person screen).
+    expect((await as(U.ncadmin, (c) => c.query(`SELECT app_hand_over($1, $2, '{action}') AS n`, [leaver, U.mate]), true)).rows[0].n).toBeGreaterThan(0);
+    // The new owner holds it and was told, in the same statement as the hand-over.
+    expect(await rowsAs(U.mate, `SELECT kind FROM notifications WHERE entity_id = $1`, [act])).toEqual([{ kind: "action.assigned" }]);
+    expect(titles(await rowsAs(U.mate, `SELECT title FROM actions WHERE id = $1`, [act]))).toEqual(["Leaver canary"]);
+    // The former owner reads neither the action nor her old notice about it.
+    expect(await rowsAs(leaver, `SELECT title FROM actions`)).toEqual([]);
+    expect(await rowsAs(leaver, `SELECT 1 FROM notifications WHERE entity_id = $1`, [act])).toEqual([]);
+    await expect(svc(leaver, (tx, p) => getActionDetail(tx, p, act))).rejects.toThrow(NOT_FOUND);
   });
 
   it("the summary mail does not count an old notice about it", async () => {

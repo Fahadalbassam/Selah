@@ -107,7 +107,7 @@ Where an owner used to read a teammate's action, and what each does now (the rev
 | The recommendation page's "N more" line | Gone for owners; kept for managers with department limits |
 | A meeting's agenda | Her own actions only, built when she opens it (see "A meeting's agenda" above) |
 
-Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments) and the 1b block of `tests/authorize.test.ts`.
+Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments; a former owner after `app_hand_over()`; a catalog check that finds every table referring to an action, by a foreign key to `actions` or to a table under the rule, or by an `entity_type`/`source_type`/`target_type` pair, and fails unless it carries the rule or is named with its reason: `ai_chunks`, which owners never read since they never have the assistant, and `ai_drafts`, the firm's own) and the 1b block of `tests/authorize.test.ts`.
 
 ## How a request flows
 

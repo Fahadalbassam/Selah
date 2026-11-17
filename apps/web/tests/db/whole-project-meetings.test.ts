@@ -54,6 +54,9 @@ const U = {
   // project, so the rule that looked at released work let her see everything; the stable rule
   // (a member of every active department) does not, and releasing work changes neither answer.
   npartial: id(22),
+  // Rawdah's manager. Rawdah keeps a department from before it switched departments off, and she
+  // is not in it: only "departments off" lets her see everything.
+  rmgr: id(23),
 };
 const REC = { all: id(31), fin: id(32), rawdah: id(33) };
 const A = { wide: id(41), fin: id(42), board: id(43), rmine: id(44), rmate: id(45) };
@@ -132,7 +135,8 @@ beforeAll(async () => {
       ($1,'client',$2,$5,'Nukhba governance','active',$6), ($3,'client',$4,$5,'Rawdah governance','active',$6)`,
     [PN, NUKHBA, PR, RAWDAH, FIRM, U.admin],
   );
-  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager')`, [U.npartial, NUKHBA]);
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager'), ($3,$4,'client_manager')`, [U.npartial, NUKHBA, U.rmgr, RAWDAH]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [PR, U.rmgr]);
   await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$3,true), ($2,$3,true), ($1,$4,false)`, [NUKHBA, RAWDAH, U.lead, U.cons]);
   await q(
     `INSERT INTO project_members (project_id, user_id) VALUES ($1,$3), ($1,$4), ($1,$5), ($1,$6), ($1,$7), ($2,$8), ($2,$9), ($1,$10)`,
@@ -142,6 +146,7 @@ beforeAll(async () => {
     `INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$4,'أمانة المجلس','Board secretariat'), ($2,$4,'المالية','Finance'), ($3,$4,'الشؤون القانونية','Legal')`,
     [DEPT.board, DEPT.fin, DEPT.legal, NUKHBA],
   );
+  await q(`INSERT INTO departments (org_id, name_ar, name_en) VALUES ($1,'التخطيط','Planning')`, [RAWDAH]);
   await q(
     `INSERT INTO department_members (department_id, user_id) VALUES ($1,$4), ($1,$5), ($2,$5), ($3,$5), ($3,$6), ($2,$7), ($1,$8), ($2,$8)`,
     [DEPT.board, DEPT.fin, DEPT.legal, U.nmgr, U.nsponsor, U.owner, U.fin, U.npartial],
@@ -277,9 +282,11 @@ describe("a meeting of the whole project opens only for people who see all of th
       expect(m.meeting.agendaMd, who).toContain("Wide canary");
       expect(m.agendaScope).toBe("all");
     }
-    // At a client with departments switched off, every manager may see everything.
-    const { rows } = await owner.query(`SELECT app_user_sees_whole_project($1, $2) AS ok`, [U.radmin, PR]);
-    expect(rows).toEqual([{ ok: true }]);
+    // At a client with departments switched off, every manager may see everything: Rawdah's manager,
+    // in none of its (switched-off) departments, opens a whole-project meeting she is not invited to.
+    expect((await owner.query(`SELECT app_user_sees_whole_project($1, $2) AS ok`, [U.rmgr, PR])).rows).toEqual([{ ok: true }]);
+    const plain = await svc(U.rmgr, (tx, p) => getMeeting(tx, p, M.rawdahUninvited));
+    expect([plain.meeting.title, plain.agendaScope]).toEqual(["Rawdah board prep", "all"]);
   });
 
   it("an action owner invited to it opens it and sees only her own actions on its agenda", async () => {
