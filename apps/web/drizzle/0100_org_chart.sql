@@ -545,7 +545,7 @@ BEGIN
     IF loose THEN
       RETURN OLD;
     END IF;
-    IF (SELECT v.state FROM org_chart_versions v WHERE v.id = OLD.version_id) IS DISTINCT FROM 'draft' THEN
+    IF (SELECT v.state FROM org_chart_versions v WHERE v.id = OLD.version_id FOR SHARE) IS DISTINCT FROM 'draft' THEN
       RAISE EXCEPTION 'a published structure never changes; change the draft and publish it' USING ERRCODE = 'check_violation';
     END IF;
     IF EXISTS (SELECT 1 FROM org_units c WHERE c.parent_id = OLD.id) OR EXISTS (SELECT 1 FROM positions p WHERE p.unit_id = OLD.id) THEN
@@ -553,7 +553,8 @@ BEGIN
     END IF;
     RETURN OLD;
   END IF;
-  SELECT v.state, v.org_id INTO st, vorg FROM org_chart_versions v WHERE v.id = NEW.version_id;
+  -- FOR SHARE: an edit waits for a publish of this version under way, then sees it published and is refused.
+  SELECT v.state, v.org_id INTO st, vorg FROM org_chart_versions v WHERE v.id = NEW.version_id FOR SHARE;
   IF st IS NULL THEN
     RAISE EXCEPTION 'no such version of the structure' USING ERRCODE = 'check_violation';
   END IF;
@@ -613,13 +614,14 @@ BEGIN
     IF loose THEN
       RETURN OLD;
     END IF;
-    IF (SELECT v.state FROM org_chart_versions v WHERE v.id = OLD.version_id) IS DISTINCT FROM 'draft' THEN
+    IF (SELECT v.state FROM org_chart_versions v WHERE v.id = OLD.version_id FOR SHARE) IS DISTINCT FROM 'draft' THEN
       RAISE EXCEPTION 'a published structure never changes; change the draft and publish it' USING ERRCODE = 'check_violation';
     END IF;
     UPDATE positions SET reports_to_id = NULL WHERE reports_to_id = OLD.id;
     RETURN OLD;
   END IF;
-  SELECT v.state, v.org_id, v.chart_id INTO st, vorg, vchart FROM org_chart_versions v WHERE v.id = NEW.version_id;
+  -- FOR SHARE: an edit waits for a publish of this version under way, then sees it published and is refused.
+  SELECT v.state, v.org_id, v.chart_id INTO st, vorg, vchart FROM org_chart_versions v WHERE v.id = NEW.version_id FOR SHARE;
   IF st IS NULL THEN
     RAISE EXCEPTION 'no such version of the structure' USING ERRCODE = 'check_violation';
   END IF;

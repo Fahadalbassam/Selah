@@ -802,6 +802,69 @@ describe("names follow the current version's switch, as of today", () => {
   });
 });
 
+describe("publishing at the same moment as something else", () => {
+  const RACE = id(60);
+  const P_RACE = id(61);
+  let RCHART = "";
+  // Three connections at once: the publisher and two writers.
+  const many = new Pool({ connectionString: appUrl, max: 3 });
+  const begin = async (userId: string) => {
+    const c = await many.connect();
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('selah.user_id', $1, true)", [userId]);
+    return c;
+  };
+  /** The query's outcome, or "waiting" if it has not settled after half a second. */
+  const soon = (q: Promise<unknown>) => Promise.race([q, new Promise((r) => setTimeout(() => r("waiting"), 500))]);
+  const draftOf = async () => (await owner.query(`SELECT id FROM org_chart_versions WHERE chart_id = $1 AND state = 'draft'`, [RCHART])).rows[0].id as string;
+
+  beforeAll(async () => {
+    await owner.query(`INSERT INTO organizations (id, kind, name, engagement_mode) VALUES ($1,'client','Race','full')`, [RACE]);
+    await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Race governance','active',$4)`, [
+      P_RACE,
+      RACE,
+      FIRM,
+      U.admin,
+    ]);
+    await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,true,false), ($1,$3,false,true)`, [RACE, U.lead, U.deputy]);
+    RCHART = (await svc(U.lead, (tx, p) => OC.startChart(tx, p, RACE), true)).id;
+    const u = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, RACE, { kind: "board", nameEn: "Board" }), true);
+    await svc(U.lead, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Chair", isHead: true }), true);
+  });
+  afterAll(async () => {
+    await many.end();
+  });
+
+  it("a draft edit made while the draft is being published waits, then is refused, and lands in no version", async () => {
+    const draft = await draftOf();
+    const chair = (await owner.query(`SELECT id, unit_id FROM positions WHERE version_id = $1`, [draft])).rows[0];
+    const publisher = await begin(U.lead);
+    const renamer = await begin(U.deputy);
+    const adder = await begin(U.deputy);
+    try {
+      await publisher.query(`SELECT app_publish_org_chart($1, app_firm_today(), NULL)`, [RCHART]);
+      const outcome = (q: Promise<unknown>) => q.then(() => "done", (e: Error) => e.message);
+      const rename = outcome(renamer.query(`UPDATE positions SET title_en = 'Raced chair' WHERE id = $1`, [chair.id]));
+      const add = outcome(
+        adder.query(`INSERT INTO positions (version_id, org_id, unit_id, code, title_en) VALUES ($1,$2,$3,'1.9','Raced secretary')`, [draft, RACE, chair.unit_id]),
+      );
+      expect([await soon(rename), await soon(add)]).toEqual(["waiting", "waiting"]);
+      await publisher.query("COMMIT");
+      expect(await rename).toMatch(/published structure never changes/);
+      expect(await add).toMatch(/published structure never changes/);
+    } finally {
+      // The publisher first: a writer still waiting on it could not roll back before.
+      await publisher.query("ROLLBACK").catch(() => undefined);
+      for (const c of [renamer, adder]) await c.query("ROLLBACK").catch(() => undefined);
+      for (const c of [publisher, renamer, adder]) c.release();
+    }
+    // Neither edit is in the version just published (rows or snapshot) or in the new draft.
+    expect((await owner.query(`SELECT count(*)::int AS n FROM positions WHERE org_id = $1 AND title_en LIKE 'Raced%'`, [RACE])).rows[0].n).toBe(0);
+    const snap = (await owner.query(`SELECT published_snapshot AS s FROM org_chart_versions WHERE id = $1`, [draft])).rows[0].s;
+    expect(snap.positions.map((p: { titleEn: string }) => p.titleEn)).toEqual(["Chair"]);
+  });
+});
+
 describe("audit", () => {
   it("every kind of write is in the audit log", async () => {
     const actions = (await owner.query(`SELECT DISTINCT action FROM audit_log WHERE action LIKE 'org_chart%' ORDER BY 1`)).rows.map((r) => r.action);
