@@ -1110,6 +1110,32 @@ describe("publishing at the same moment as something else", () => {
     expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE position_lineage_id = $1 AND to_date IS NULL`, [secretary.id])).rows[0].n).toBe(0);
   });
 
+  it("two opposite reporting lines set at the same moment: the second waits, then is refused, and no loop is left", async () => {
+    const draft = await draftOf();
+    const unit = (await owner.query(`SELECT id FROM org_units WHERE version_id = $1`, [draft])).rows[0].id;
+    const x = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, unit, { titleEn: "Treasurer" }), true);
+    const y = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, unit, { titleEn: "Auditor" }), true);
+    const first = await begin(U.lead);
+    const second = await begin(U.deputy);
+    try {
+      await first.query(`UPDATE positions SET reports_to_id = $1 WHERE id = $2`, [y.id, x.id]);
+      const opposite = second.query(`UPDATE positions SET reports_to_id = $1 WHERE id = $2`, [x.id, y.id]).then(
+        () => "done",
+        (e: Error) => e.message,
+      );
+      expect(await soon(opposite)).toBe("waiting");
+      await first.query("COMMIT");
+      expect(await opposite).toMatch(/cannot report to itself/);
+    } finally {
+      await first.query("ROLLBACK").catch(() => undefined);
+      await second.query("ROLLBACK").catch(() => undefined);
+      for (const c of [first, second]) c.release();
+    }
+    const lines = (await owner.query(`SELECT id, reports_to_id FROM positions WHERE id = ANY($1)`, [[x.id, y.id]])).rows;
+    expect(Object.fromEntries(lines.map((r) => [r.id, r.reports_to_id]))).toEqual({ [x.id]: y.id, [y.id]: null });
+    for (const pid of [x.id, y.id]) await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, pid), true);
+  });
+
   it("two publishes of the same draft at once make one version; the second is refused", async () => {
     const draft = await draftOf();
     const versions = async () => (await owner.query(`SELECT count(*)::int AS n FROM org_chart_versions WHERE chart_id = $1 AND state <> 'draft'`, [RCHART])).rows[0].n;
