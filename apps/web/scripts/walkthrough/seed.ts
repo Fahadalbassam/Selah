@@ -8,9 +8,10 @@
 // person who would take it, through the same services, row-level security and
 // database rules as the screens. So the history, notifications, mail and
 // audit trail are real, and no record is in a state the app could not reach.
-// The only direct writes are the accounts themselves, with their sign-in
-// acceptances. Late work is late because it was released with a date that
-// has passed, as a late action is: its date history shows no move.
+// The only direct writes are the accounts themselves (their names in the
+// other language, and their sign-in acceptances) and the two clients' e-mail
+// domains. Late work is late because it was released with a date that has
+// passed, as a late action is: its date history shows no move.
 //
 // Every account shares WALKTHROUGH_PASSWORD (default in docs/walkthrough.md).
 // Local sample data only: refuses to run in production.
