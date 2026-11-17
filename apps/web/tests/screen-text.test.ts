@@ -54,6 +54,24 @@ describe("history lines name a person without a gendered verb (page audit 3.8)",
   });
 });
 
+describe("the product's Arabic name (page audit 3.8)", () => {
+  it('is spelled "صلة" everywhere but in the accepted, versioned legal texts', () => {
+    // Changing those would ask everyone to accept them again (src/lib/legal.ts LEGAL_VERSIONS); they keep "صِلَة" until their next version.
+    const versioned = ["legal.terms", "legal.privacy", "legal.ai_notice"];
+    const other: string[] = [];
+    const walk = (o: object, path: string) => {
+      for (const [k, v] of Object.entries(o)) {
+        const p = path ? `${path}.${k}` : k;
+        if (typeof v === "string") {
+          if (v.includes("صِلَة") && !versioned.some((x) => p.startsWith(`${x}.`))) other.push(p);
+        } else walk(v as object, p);
+      }
+    };
+    walk(ar, "");
+    expect(other).toEqual([]);
+  });
+});
+
 describe("an action on a client the firm runs (N24)", () => {
   const firmRunTexts = (m: typeof en | typeof ar) => [
     m.action.items.hintFirmRun,

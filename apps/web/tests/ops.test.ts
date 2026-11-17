@@ -70,7 +70,7 @@ describe("alert text", () => {
       "https://selah.example",
     );
     expect(m.subject).toMatch(/2 checks failing/);
-    expect(m.subject).toMatch(/صِلَة/);
+    expect(m.subject).toMatch(/صلة/);
     expect(m.text).toContain("- scanner: no answer");
     expect(m.text).toContain("- mail\n");
     expect(m.text).toContain("https://selah.example");
