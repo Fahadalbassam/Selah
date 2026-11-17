@@ -48,6 +48,12 @@ try {
   console.error("npm-audit: npm audit did not return a report");
   process.exit(1);
 }
+// A registry that cannot be reached answers with an error and no list; that is not a clean result.
+if (report.error || !report.vulnerabilities || !report.metadata?.vulnerabilities) {
+  console.error(JSON.stringify(report.error ?? report).slice(0, 500));
+  console.error("npm-audit: npm audit could not check the packages");
+  process.exit(1);
+}
 
 const found = new Map();
 for (const [name, v] of Object.entries(report.vulnerabilities ?? {})) {
