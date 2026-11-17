@@ -429,6 +429,29 @@ describe("mail", () => {
     expect(await mailedTo()).toContain("cadmin@example.test");
   });
 
+  it("a notice whose figure a correction brought back is hidden from the people told and never mailed; it is kept", async () => {
+    const wrong = await typed(U.cmgr, K.complaints, "2026-02-01", 42);
+    await typed(U.cmgr, K.complaints, "2026-02-01", 28, wrong.id);
+    // Kept: the rows are still there.
+    expect((await told()).map((r) => r.user_id).sort()).toEqual(TOLD);
+    for (const who of TOLD) {
+      const list = await svc(who, (tx, p) => N.listNotifications(tx, p));
+      expect(list.items.filter((i) => i.kind === "indicator.moved_away"), who).toEqual([]);
+      expect(list.unread, who).toBe(0);
+      expect((await sqlAs(who, `SELECT id FROM notifications WHERE kind = 'indicator.moved_away'`)).rowCount, who).toBe(0);
+    }
+    expect(await digest()).toBe(0);
+    expect(await mailedTo()).toEqual([]);
+  });
+
+  it("after a correction that stays on the other side, the line states the period's current figure", async () => {
+    const wrong = await typed(U.cmgr, K.complaints, "2026-02-01", 42);
+    await typed(U.cmgr, K.complaints, "2026-02-01", 45, wrong.id);
+    const item = (await svc(U.lead, (tx, p) => N.listNotifications(tx, p))).items.find((i) => i.kind === "indicator.moved_away")!;
+    expect(item.facts).toMatchObject({ value: 45, period: "2026-02-01" });
+    expect(await digest()).toBe(TOLD.length);
+  });
+
   it("a person no longer among those told gets no mail about it", async () => {
     await typed(U.cmgr, K.complaints, "2026-02-01", 42);
     // The deputy steps down before the summary runs.

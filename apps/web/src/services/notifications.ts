@@ -117,9 +117,11 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     }
   }
 
-  // A value whose indicator moved away (migration 0120): the value as it was
-  // saved, read under the caller's rights, so an indicator they can no longer
-  // open stays untitled and unstated.
+  // A period whose indicator moved away (migration 0120): the period's
+  // current figure, so a correction since is what the line states (one that
+  // brought it back hides the notice altogether, in the database). Read under
+  // the caller's rights, so an indicator they can no longer open stays
+  // untitled and unstated.
   const facts = new Map<string, MovedAwayFacts>();
   const valueIds = ids(rows, "kpi_value");
   if (valueIds.length) {
@@ -128,7 +130,10 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
         id: clientKpiValues.id,
         kpiId: clientKpiValues.kpiId,
         period: clientKpiValues.period,
-        value: clientKpiValues.value,
+        value: sql<string>`(select c.value::text from client_kpi_values c
+          where c.kpi_id = ${clientKpiValues.kpiId} and c.period = ${clientKpiValues.period}
+            and not exists (select 1 from client_kpi_values s where s.supersedes_id = c.id)
+          order by c.entered_at desc, c.id desc limit 1)`,
         nameEn: clientKpis.nameEn,
         nameAr: clientKpis.nameAr,
         unit: clientKpis.unit,

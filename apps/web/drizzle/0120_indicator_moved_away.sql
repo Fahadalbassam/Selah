@@ -171,6 +171,24 @@ BEGIN
   RETURN n;
 END $$;
 --> statement-breakpoint
+-- A notice whose figure a correction has since brought back (the period's
+-- current value, judged as of the notice's day, no longer moved away): it no
+-- longer states a true figure, so its readers do not see it and it is never
+-- mailed. It is kept, not deleted. Only a correction does this (the current
+-- value must be another one). For the app, only about an indicator the
+-- caller reads; the summary job (no user) asks about any.
+CREATE FUNCTION app_kpi_notice_fixed(vid uuid, at timestamptz) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT coalesce((
+    SELECT cur.id IS DISTINCT FROM v.id AND NOT app_kpi_moved(v.kpi_id, cur.value, app_firm_date(at))
+    FROM client_kpi_values v CROSS JOIN LATERAL app_kpi_current_value(v.kpi_id, v.period) cur
+    WHERE v.id = vid AND (app_uid() IS NULL OR app_kpi_id_readable(v.kpi_id))
+  ), false)
+$$;
+--> statement-breakpoint
+CREATE POLICY fixed ON notifications AS RESTRICTIVE FOR SELECT TO selah_app
+  USING (entity_type <> 'kpi_value' OR NOT app_kpi_notice_fixed(entity_id, created_at));
+--> statement-breakpoint
 -- The log is the database's own bookkeeping, like follow_up_log: no grant to the app.
 ALTER TABLE kpi_moved_away_log ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
@@ -215,6 +233,8 @@ BEGIN
       AND NOT (x.entity_type = 'kpi_value' AND NOT EXISTS (
         SELECT 1 FROM client_kpi_values v CROSS JOIN LATERAL app_kpi_moved_away_audience(v.kpi_id) a
         WHERE v.id = x.entity_id AND a.user_id = x.user_id))
+      -- Nor one whose figure a correction has since brought back.
+      AND NOT (x.entity_type = 'kpi_value' AND app_kpi_notice_fixed(x.entity_id, x.created_at))
       -- Never a notice its reader may not see (D6): about a draft, or written before its release.
       AND NOT (x.entity_type = 'action' AND app_action_notice_hidden(x.user_id, x.entity_id, x.created_at))
       -- Nor one about an action an owner does not own (1b).
@@ -241,6 +261,7 @@ BEGIN
 END $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app_queue_digests(date), app_kpi_moved_away_audience(uuid), app_kpi_tells_me(uuid), app_kpi_wrong_side(kpi_direction, numeric, numeric),
-  app_kpi_moved(uuid, numeric, date), app_kpi_current_value(uuid, date), app_kpi_judge(uuid, date, date), app_judge_kpi_periods(date) FROM PUBLIC;
+  app_kpi_moved(uuid, numeric, date), app_kpi_current_value(uuid, date), app_kpi_judge(uuid, date, date), app_judge_kpi_periods(date),
+  app_kpi_notice_fixed(uuid, timestamptz) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app_kpi_tells_me(uuid) TO selah_app;
+GRANT EXECUTE ON FUNCTION app_kpi_tells_me(uuid), app_kpi_notice_fixed(uuid, timestamptz) TO selah_app;
