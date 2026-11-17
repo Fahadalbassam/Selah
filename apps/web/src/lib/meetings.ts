@@ -38,6 +38,35 @@ export const DURATIONS = [30, 45, 60, 90, 120] as const;
 export const SPOKEN_LANGS = ["ar", "en", "mixed"] as const;
 export type SpokenLang = (typeof SPOKEN_LANGS)[number];
 
+/** A person the organiser may invite, as app_meeting_invitees() describes them. */
+export interface InviteePerson {
+  userId: string;
+  name: string;
+  /** Could open a meeting of the whole project (the firm, the client's admin, an action owner, a manager no department limit stops). */
+  wholeProject: boolean;
+  departmentIds: string[];
+}
+
+/**
+ * Who among the people chosen could not open the meeting (decision 1a). A
+ * meeting of the whole project opens only for people who may see all of the
+ * project's work, so a manager limited to her departments would be invited
+ * to a meeting she cannot open. Nobody for a department's meeting: whoever
+ * is invited to one opens it. The server decides; this only warns before
+ * saving.
+ */
+export function leftOutOfMeeting<P extends InviteePerson>(people: readonly P[], chosen: Iterable<string>, departmentId: string | null): P[] {
+  if (departmentId) return [];
+  const picked = new Set(chosen);
+  return people.filter((p) => picked.has(p.userId) && !p.wholeProject);
+}
+
+/** The departments to offer instead: those of the people left out that the organiser may book a meeting for. */
+export function departmentsToOffer<D extends { id: string }>(leftOut: readonly InviteePerson[], bookable: readonly D[]): D[] {
+  const theirs = new Set(leftOut.flatMap((p) => p.departmentIds));
+  return bookable.filter((d) => theirs.has(d.id));
+}
+
 /** A data rule's words (see callApi) as one of the meeting screens' messages. */
 export function meetingError(message: string | undefined): string | null {
   if (!message) return null;
@@ -46,5 +75,6 @@ export function meetingError(message: string | undefined): string | null {
   if (/firm-private/.test(message)) return "firmPrivate";
   if (/cannot be moved/.test(message)) return "cannotMove";
   if (/another meeting/.test(message)) return "otherMeeting";
+  if (/one of your departments/.test(message)) return "wholeProject";
   return null;
 }

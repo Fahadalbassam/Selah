@@ -123,7 +123,10 @@ describe("an action under a firm-only recommendation", () => {
   });
 
   it.each(CHILDREN)("hides its %s from the client", async (table) => {
-    for (const u of [U.cadmin, U.cmgr, U.owner]) expect(await ids(u, `SELECT action_id FROM ${table}`)).toEqual([A.shared]);
+    // An action owner reads only the follow-ups assigned to her (0086); these are not.
+    for (const u of table === "follow_ups" ? [U.cadmin, U.cmgr] : [U.cadmin, U.cmgr, U.owner]) {
+      expect(await ids(u, `SELECT action_id FROM ${table}`)).toEqual([A.shared]);
+    }
     expect(await ids(U.cons, `SELECT action_id FROM ${table}`)).toEqual([A.shared, A.private]);
   });
 

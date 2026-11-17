@@ -12,10 +12,11 @@ import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { messagesFor } from "@/i18n/messages";
 import { agendaLines } from "@/lib/agenda";
 import { isUuid } from "@/lib/ids";
+import { leftOutOfMeeting } from "@/lib/meetings";
 import { withPrincipal } from "@/server/page";
 import { getMeeting, meetingInvitees } from "@/services/meetings";
 import {
@@ -50,7 +51,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     getTranslations("visibility"),
     getFormatter(),
   ]);
-  const { meeting, agendaWithheld, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
+  const { meeting, agendaScope, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
   const when = `${format.dateTime(meeting.startsAt, { dateStyle: "full", timeStyle: "short" })} – ${format.dateTime(meeting.endsAt, { timeStyle: "short" })}`;
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
@@ -71,11 +72,19 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
   const decisionNo = new Map(decisions.map((d, i) => [d.id, i + 1]));
   const pickable = decisions.filter((d) => !replaced.has(d.id)).map((d) => ({ id: d.id, text: d.text }));
   const attending = new Set(attendees.flatMap((a) => [a.userId, a.contactId]).filter(Boolean));
+  // A whole-project meeting opens only for people who may see all of the
+  // project's work (decision 1a): adding someone who could not is said before
+  // saving. A meeting keeps its department, so the offer is a department's meeting.
   const addOptions = invitees
     ? [
         ...invitees.people
           .filter((p) => !attending.has(p.userId) && (shared || p.firm))
-          .map((p) => ({ value: `u:${p.userId}`, label: p.name })),
+          .map((p) => ({
+            value: `u:${p.userId}`,
+            label: p.name,
+            leftOut: leftOutOfMeeting([p], [p.userId], meeting.departmentId).length > 0,
+            departmentIds: p.departmentIds,
+          })),
         ...(shared ? invitees.contacts : [])
           .filter((c) => !attending.has(c.contactId))
           .map((c) => ({ value: `c:${c.contactId}`, label: `${c.name}${c.title ? ` · ${c.title}` : ""} (${t("contact")})` })),
@@ -184,10 +193,26 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
-          {agenda ? (
+          {agendaScope !== "all" && !agenda ? (
+            // Built for this reader from the work they can open (an action owner: their own), and
+            // none of it is on this meeting's agenda (decision 1a).
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{t("agenda")}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 text-sm text-muted-foreground">
+                {agendaScope === "own" ? t("agendaOwnNone") : t("agendaReadableNone")}
+              </CardContent>
+            </Card>
+          ) : agenda ? (
+            <Card className="gap-3 py-5 shadow-xs">
+              <CardHeader className="px-5">
+                <CardTitle className="text-base">{t("agenda")}</CardTitle>
+                {agendaScope === "own" ? (
+                  <CardDescription>{t("agendaOwn")}</CardDescription>
+                ) : agendaScope === "readable" ? (
+                  <CardDescription>{t("agendaReadable")}</CardDescription>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-1 px-5 text-sm" dir="auto">
                 {/* The database writes it as "## heading" and "- item" lines. */}
@@ -205,15 +230,6 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                   ),
                 )}
               </CardContent>
-            </Card>
-          ) : agendaWithheld ? (
-            // The agenda names the project's late and waiting actions by title, so it goes only to
-            // people who can open all of them; the text was not sent to this reader (decision D8).
-            <Card className="gap-3 py-5 shadow-xs">
-              <CardHeader className="px-5">
-                <CardTitle className="text-base">{t("agenda")}</CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 text-sm text-muted-foreground">{t("agendaWithheld")}</CardContent>
             </Card>
           ) : null}
 

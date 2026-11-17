@@ -105,10 +105,10 @@ export interface ActionFilter {
 }
 
 /**
- * The SQL side of what a person may read. RLS lets an action owner read every
- * action in their projects, but authorize() lets them read only their own
- * ("assigned"), so that is narrowed here too. Counts and pages then agree with
- * the rows each person could open; visible() still checks every row.
+ * The SQL side of what a person may read. An action owner reads only their
+ * own actions ("assigned" in authorize(); row-level security since migration
+ * 0081), and the narrowing stays here as a second lock. Counts and pages then
+ * agree with the rows each person could open; visible() still checks every row.
  */
 function actionConditions(principal: Principal, filter: ActionFilter) {
   const conditions = [];

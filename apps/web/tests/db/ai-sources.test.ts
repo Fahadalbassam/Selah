@@ -522,7 +522,8 @@ describe("meeting summary sources", () => {
     const seen = async (uid: string) =>
       (await sqlAs(uid, `SELECT document_id FROM meeting_summary_sources`)).rows.map((r) => r.document_id);
     expect(await seen(U.cons)).toHaveLength(2);
-    expect(await seen(U.cmgr)).toEqual([D.shared]);
+    // The client's admin: a meeting of the whole project opens only for who may see everything (0084).
+    expect(await seen(U.cadmin)).toEqual([D.shared]);
   });
 
   it("are added by quoting the transcript or naming a file page, and shown with the meeting", async () => {
@@ -539,7 +540,7 @@ describe("meeting summary sources", () => {
       M.addSummarySource(tx, p, MEETING, { line: 2, kind: "document", documentId: D.firmPrivate, page: 1 }),
     );
     await expect(
-      svc(U.cmgr, (tx, p) => M.addSummarySource(tx, p, MEETING, { line: 1, kind: "document", documentId: D.shared, page: 1 })),
+      svc(U.cadmin, (tx, p) => M.addSummarySource(tx, p, MEETING, { line: 1, kind: "document", documentId: D.shared, page: 1 })),
     ).rejects.toThrow(/not found/);
 
     const firm = (await svc(U.cons, (tx, p) => M.getMeeting(tx, p, MEETING))).sources;
@@ -551,9 +552,9 @@ describe("meeting summary sources", () => {
     expect(firm[0]!.excerpt).toBe("The board meets quarterly.");
     expect(firm[2]).toMatchObject({ documentId: D.shared, documentVersion: 1, outdated: false });
     // The client sees the shared file's page only: no transcript, no firm-private file.
-    const client = (await svc(U.cmgr, (tx, p) => M.getMeeting(tx, p, MEETING))).sources;
+    const client = (await svc(U.cadmin, (tx, p) => M.getMeeting(tx, p, MEETING))).sources;
     expect(client.map((x) => [x.line, x.documentId, x.excerpt])).toEqual([[2, D.shared, null]]);
-    await expect(svc(U.cmgr, (tx, p) => M.removeSummarySource(tx, p, client[0]!.id))).rejects.toThrow(/not found/);
+    await expect(svc(U.cadmin, (tx, p) => M.removeSummarySource(tx, p, client[0]!.id))).rejects.toThrow(/not found/);
     await svc(U.cons, (tx, p) => M.removeSummarySource(tx, p, firm[0]!.id));
     expect((await owner.query(`SELECT count(*) FROM meeting_summary_sources`)).rows[0].count).toBe("2");
   });

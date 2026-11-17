@@ -6,7 +6,7 @@ import type { Principal } from "@/authz";
 import { detectLang, isTranslatable } from "@/lib/translations";
 import { BadRequestError, NotFoundError, UnavailableError } from "@/server/errors";
 import { translateText } from "./ai-client";
-import { projectsMasker } from "./masking";
+import { textMasker } from "./masking";
 
 // On-demand translations (baseline: Translations). The database
 // lets a person read or make a translation only while they can read the
@@ -68,8 +68,8 @@ export async function translate(tx: Tx, principal: Principal, r: TranslationRequ
 
   let made: { text: string; model: string };
   try {
-    // A hosted model gets placeholders for known names (docs/assistant.md).
-    const masker = await projectsMasker(tx, src.projectIds);
+    // A hosted model gets placeholders for the known names written in the text (docs/translations.md).
+    const masker = await textMasker(tx, src.projectIds, src.body);
     made = await translateText(masker.mask(src.body), sourceLang, r.to);
     made = { ...made, text: masker.unmask(made.text) };
   } catch {

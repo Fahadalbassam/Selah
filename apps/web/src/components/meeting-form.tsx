@@ -23,14 +23,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
-import { callProvider, DURATIONS, localInstant, localParts, meetingError } from "@/lib/meetings";
+import { LeftOutWarning } from "@/components/meeting-left-out";
+import {
+  callProvider,
+  departmentsToOffer,
+  DURATIONS,
+  leftOutOfMeeting,
+  localInstant,
+  localParts,
+  meetingError,
+  type InviteePerson,
+} from "@/lib/meetings";
 
 const KINDS = ["kickoff", "status", "steering", "workshop", "handover", "other"] as const;
 type Location = "online" | "in_person" | "phone";
 type Lang = "ar" | "en" | "mixed";
 
 export interface Invitees {
-  people: { userId: string; name: string; firm: boolean }[];
+  people: (InviteePerson & { firm: boolean })[];
   contacts: { contactId: string; name: string; title: string | null; hasEmail: boolean }[];
 }
 
@@ -59,8 +69,14 @@ export function MeetingForm(props: {
   invitees?: Invitees;
   /** The booker, who attends as organiser. */
   me?: string;
-  /** The client's departments: a department's meeting gets an agenda of its work (F31). */
+  /** The client's departments the booker may book for: a department's meeting gets an agenda of its work (F31). */
   departments?: { id: string; label: string }[];
+  /**
+   * The booker may book a meeting of the whole project (decision 1a): it
+   * opens only for people who may see all of the project's work. A manager
+   * with department limits books one for her department.
+   */
+  wholeProject?: boolean;
 }) {
   const t = useTranslations("meeting.form");
   const tm = useTranslations("meeting");
@@ -82,6 +98,8 @@ export function MeetingForm(props: {
   const [people, setPeople] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Set<string>>(new Set());
   const [send, setSend] = useState(true);
+  const wholeAllowed = props.wholeProject ?? true;
+  const [dept, setDept] = useState(wholeAllowed ? "" : (props.departments?.[0]?.id ?? ""));
 
   const linkBad = location === "online" ? !callProvider(link) : link.trim() !== "" && !callProvider(link);
   const toggle = (set: Set<string>, id: string, on: boolean) => {
@@ -115,7 +133,7 @@ export function MeetingForm(props: {
       : await callApi(`/api/projects/${props.projectId}/meetings`, "POST", {
           ...values,
           kind: text("kind"),
-          departmentId: text("departmentId") || undefined,
+          departmentId: dept || undefined,
           visibility: props.firm && !shared ? "firm_private" : "shared",
           attendees: [
             ...[...people].map((userId) => ({ userId })),
@@ -137,6 +155,11 @@ export function MeetingForm(props: {
   const firmPeople = others.filter((p) => p.firm);
   const clientPeople = shared ? others.filter((p) => !p.firm) : [];
   const contactList = props.firm && shared ? (props.invitees?.contacts ?? []) : [];
+  // People chosen who could not open a meeting of the whole project: said
+  // before saving, by name, with the departments' meetings to make it instead.
+  // Saving anyway is allowed; the server decides who opens it.
+  const leftOut = editing ? [] : leftOutOfMeeting([...firmPeople, ...clientPeople], people, dept || null);
+  const offers = departmentsToOffer(leftOut, props.departments ?? []).slice(0, 3);
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
@@ -178,15 +201,15 @@ export function MeetingForm(props: {
           {!editing && props.departments?.length ? (
             <div className="grid gap-2">
               <Label htmlFor="m-dept">{t("department")}</Label>
-              <NativeSelect id="m-dept" name="departmentId" defaultValue="">
-                <NativeSelectOption value="">{t("wholeProject")}</NativeSelectOption>
+              <NativeSelect id="m-dept" name="departmentId" value={dept} onChange={(e) => setDept(e.target.value)}>
+                {wholeAllowed ? <NativeSelectOption value="">{t("wholeProject")}</NativeSelectOption> : null}
                 {props.departments.map((d) => (
                   <NativeSelectOption key={d.id} value={d.id}>
                     {d.label}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
-              <p className="text-xs text-muted-foreground">{t("departmentHint")}</p>
+              <p className="text-xs text-muted-foreground">{wholeAllowed ? t("departmentHint") : t("departmentOnlyHint")}</p>
             </div>
           ) : null}
 
@@ -337,6 +360,8 @@ export function MeetingForm(props: {
             </fieldset>
           ) : null}
 
+          <LeftOutWarning people={leftOut} offers={offers} onOffer={setDept} />
+
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={send} onCheckedChange={(on) => setSend(on === true)} />
             {editing ? t("resend") : t("send")}
@@ -344,7 +369,7 @@ export function MeetingForm(props: {
 
           {error ? (
             <p role="alert" className="text-sm text-destructive">
-              {["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove"].includes(error)
+              {["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove", "wholeProject"].includes(error)
                 ? t(`errors.${error}`)
                 : tc(`errors.${error}`)}
             </p>

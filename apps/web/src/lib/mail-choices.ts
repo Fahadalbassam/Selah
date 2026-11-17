@@ -60,6 +60,8 @@ export const LADDER_AUDIENCES = [
   "owner",
   "client_managers",
   "department_head",
+  // in the department head's place when no head can open the action (migration 0088)
+  "client_admins_for_head",
   "client_lead",
   "project_lead",
   "sponsor",

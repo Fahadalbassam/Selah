@@ -11,13 +11,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { createMasker } from "@/lib/masking";
 import { loadPrincipal } from "@/services/principal";
 
-const fake = vi.hoisted(() => ({ calls: 0, fail: false }));
+const fake = vi.hoisted(() => ({ calls: 0, fail: false, echo: false, sent: "" }));
 vi.mock("@/services/ai-client", () => ({
   translateText: async (text: string, source: string, target: string) => {
     if (fake.fail) throw new Error("down");
     fake.calls++;
+    fake.sent = text;
+    // A hosted model keeps the placeholders it is given.
+    if (fake.echo) return { text: `ترجمة: ${text}`, model: "fake-hosted" };
     return { text: `[${source}->${target}] ${text.length}`, model: "fake-model" };
   },
 }));
@@ -125,6 +129,8 @@ beforeEach(async () => {
   await owner.query(`UPDATE recommendations SET rationale = $1, title = 'Charter' WHERE id = $2`, [RATIONALE, REC]);
   fake.calls = 0;
   fake.fail = false;
+  fake.echo = false;
+  fake.sent = "";
 });
 
 afterAll(async () => {
@@ -250,5 +256,89 @@ describe("the translation service", () => {
     await expect(svc(U.cmgr, (tx, p) => T.reviewTranslation(tx, p, made.id!, {}))).rejects.toThrow(/not found/);
     await svc(U.cons, (tx, p) => T.reviewTranslation(tx, p, made.id!, {}));
     expect((await svc(U.cmgr, (tx, p) => T.translate(tx, p, r))).reviewed).toBe(true);
+  });
+});
+
+// With a hosted model the names in the text become placeholders first. The
+// list of a project's names is not for action owners (app_mask_terms); a
+// translation asks only for the names written in its own text
+// (app_mask_terms_in), so owners keep it (docs/translations.md).
+describe("masking a translation for a hosted model", () => {
+  const OWNER = id(16);
+  const MATE = id(17);
+  const OWN_ACTION = id(9);
+  const TITLE = "Noura Al-Qahtani sends the charter to the Acme board";
+  let before: string | undefined;
+
+  beforeAll(async () => {
+    await owner.query(`INSERT INTO "user" (id, name, name_alt, email) VALUES ($1,'Noura Al-Qahtani','نورة القحطاني','noura@example.test'), ($2,'Faisal Al-Shammari','فيصل الشمري','faisal@example.test')`, [OWNER, MATE]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$3,'action_owner'), ($2,$3,'action_owner')`, [OWNER, MATE, ACME]);
+    await owner.query(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3)`, [PROJ, OWNER, MATE]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,'in_progress','2099-01-01',$7)`,
+      [OWN_ACTION, PROJ, ACME, REC, TITLE, OWNER, U.cons],
+    );
+    before = process.env.AI_MASKING;
+    process.env.AI_MASKING = "on";
+  });
+  afterAll(() => {
+    if (before === undefined) delete process.env.AI_MASKING;
+    else process.env.AI_MASKING = before;
+  });
+
+  it("works for an action owner: the model gets placeholders, she gets the names back", async () => {
+    fake.echo = true;
+    const r = { entityType: "action", entityId: OWN_ACTION, field: "title", to: "ar" as const };
+    const made = await svc(OWNER, (tx, p) => T.translate(tx, p, r));
+    expect(fake.calls).toBe(1);
+    expect(fake.sent).toMatch(/\[PERSON_1\].*\[ORG_1\]/);
+    expect(fake.sent).not.toMatch(/Noura|Qahtani|Acme/);
+    expect(made.text).toBe(`ترجمة: ${TITLE}`);
+  });
+
+  it("gives back only names written in the text, and the full list stays refused to owners", async () => {
+    const found = await sqlAs(OWNER, `SELECT kind, term, grp FROM app_mask_terms_in($1, $2)`, [PROJ, TITLE]);
+    const terms = found.rows.map((x: { term: string }) => x.term);
+    expect(terms).toEqual(expect.arrayContaining(["Noura Al-Qahtani", "Acme"]));
+    for (const t of terms) expect(TITLE.toLowerCase()).toContain(t.toLowerCase());
+    // No record id: a number shared by the names of one person.
+    expect(found.rows.every((x: { grp: unknown }) => typeof x.grp === "number")).toBe(true);
+    // The list does hold names absent from the text; she never receives them.
+    const all = (await sqlAs(U.cmgr, `SELECT term FROM app_mask_terms($1)`, [PROJ])).rows.map((x: { term: string }) => x.term);
+    expect(all).toEqual(expect.arrayContaining(["Faisal Al-Shammari", "فيصل الشمري", "cmgr"]));
+    expect(terms).not.toContain("Faisal Al-Shammari");
+    await expect(sqlAs(OWNER, `SELECT * FROM app_mask_terms($1)`, [PROJ])).rejects.toThrow(/action owners/);
+    // Another client's project gives nothing back, whatever the text.
+    expect((await sqlAs(OWNER, `SELECT * FROM app_mask_terms_in($1, 'Beta strategy, betaMgr')`, [BETA_PROJ])).rowCount).toBe(0);
+  });
+
+  it("finds a name in the spellings the masker treats as one", async () => {
+    const text = "سلّمت نورة القحطاني المسودة، وراجعها NOURA el qahtani وفريق ACME.";
+    const terms = (await sqlAs(OWNER, `SELECT term FROM app_mask_terms_in($1, $2)`, [PROJ, text])).rows.map((x: { term: string }) => x.term);
+    expect(terms).toEqual(expect.arrayContaining(["نورة القحطاني", "Noura Al-Qahtani", "Acme"]));
+    expect(terms).not.toContain("Faisal Al-Shammari");
+    // A name inside a longer word is not one (Latin names need whole words).
+    expect((await sqlAs(OWNER, `SELECT term FROM app_mask_terms_in($1, 'Acmeworks and Nouras')`, [PROJ])).rowCount).toBe(0);
+  });
+
+  it("masks a text as the whole list would", async () => {
+    const texts = [
+      TITLE,
+      "سلّمت نورة القحطاني المسودة، وراجعها NOURA el qahtani وفريق ACME.",
+      "وللقحطاني رأي، ونُورَة توافق.",
+      "Noura Al‑Qahtani and NouraAlQahtani; Al Qahtani's note to noura.alqahtani@example.test",
+      "فيصل الشمري و Faisal Al-Shammari، cmgr and cons: الشمري.",
+      "Acmeworks and Nouras",
+    ];
+    const all = (await sqlAs(U.cmgr, `SELECT kind, term, entity FROM app_mask_terms($1)`, [PROJ])).rows;
+    for (const [i, text] of texts.entries()) {
+      const some = (await sqlAs(U.cmgr, `SELECT kind, term, grp FROM app_mask_terms_in($1, $2)`, [PROJ, text])).rows;
+      const subset = createMasker(some.map((r: { kind: string; term: string; grp: number }) => ({ ...r, entity: String(r.grp) })), { places: true });
+      const whole = createMasker(all, { places: true }).mask(text);
+      expect(subset.mask(text)).toBe(whole);
+      // Every text but the last has names to mask.
+      expect(whole === text).toBe(i === texts.length - 1);
+    }
   });
 });
