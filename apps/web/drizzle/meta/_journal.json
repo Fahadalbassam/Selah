@@ -400,6 +400,13 @@
       "when": 1794873162386,
       "tag": "0069_department_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1794873169886,
+      "tag": "0070_activity_readers",
+      "breakpoints": true
     }
   ]
 }

@@ -234,7 +234,11 @@ export const POLICY = {
   "report.read": { ...ALL_BUT_OWNER },
   "report.write": { ...STAFF },
   "report.share": { ...STAFF },
-  "activity.read": { ...READ_WORK },
+  // The project's activity record: who did what, across the whole project.
+  // For the firm and the client's admin (decision D8); a manager limited to
+  // her departments and an action owner would read other people's work in
+  // it. The row policy on activity_events says the same (migration 0070).
+  "activity.read": { ...STAFF, client_admin: "any" },
   // Implementation metrics of a project (computed, never typed in), and the
   // admin's view of the team's load. No per-person scores or rankings.
   "metrics.read": { ...ALL_BUT_OWNER },

@@ -248,7 +248,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
       {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
 
-      <Tabs defaultValue={tab && TABS.includes(tab) ? tab : "recs"} className="gap-4">
+      {/* A link to a tab this person does not get (the activity record is the firm's and the client admin's) opens the plan. */}
+      <Tabs defaultValue={tab && TABS.includes(tab) && (tab !== "activity" || data.activity) ? tab : "recs"} className="gap-4">
         {/* Up to ten tabs: scroll inside the bar at tablet width rather than widen the page. */}
         <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="recs">{t("recommendations")}</TabsTrigger>
@@ -264,7 +265,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {assessments ? <TabsTrigger value="assessments">{t("assessments")}</TabsTrigger> : null}
           {requests ? <TabsTrigger value="requests">{t("requests")}</TabsTrigger> : null}
           <TabsTrigger value="docs">{t("documents")}</TabsTrigger>
-          <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
+          {data.activity ? <TabsTrigger value="activity">{t("activity")}</TabsTrigger> : null}
           {team || people || roles ? <TabsTrigger value="team">{ts("projectTeam")}</TabsTrigger> : null}
           {closure ? <TabsTrigger value="closing">{tClose("tab")}</TabsTrigger> : null}
         </TabsList>
@@ -677,6 +678,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           )}
         </TabsContent>
 
+        {data.activity ? (
         <TabsContent value="activity">
           {data.activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noActivity")}</p>
@@ -699,6 +701,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </ol>
           )}
         </TabsContent>
+        ) : null}
         {team || people || roles ? (
           <TabsContent value="team" className={team && people ? "grid gap-6 lg:grid-cols-2" : "flex flex-col gap-6"}>
             {team ? (

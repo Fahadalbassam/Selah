@@ -365,21 +365,26 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     departmentId: d.departmentId,
   });
 
-  const activity = await tx
-    .select({
-      id: activityEvents.id,
-      entityType: activityEvents.entityType,
-      event: activityEvents.event,
-      fromState: activityEvents.fromState,
-      toState: activityEvents.toState,
-      createdAt: activityEvents.createdAt,
-      actorName: user.name,
-    })
-    .from(activityEvents)
-    .leftJoin(user, eq(user.id, activityEvents.actorId))
-    .where(eq(activityEvents.projectId, id))
-    .orderBy(desc(activityEvents.createdAt))
-    .limit(20);
+  // The activity record is for the firm and the client's admin (decision D8):
+  // it names who did what across the whole project. Nobody else gets it, or
+  // the tab; the database's row policy says the same (migration 0070).
+  const activity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed
+    ? await tx
+        .select({
+          id: activityEvents.id,
+          entityType: activityEvents.entityType,
+          event: activityEvents.event,
+          fromState: activityEvents.fromState,
+          toState: activityEvents.toState,
+          createdAt: activityEvents.createdAt,
+          actorName: user.name,
+        })
+        .from(activityEvents)
+        .leftJoin(user, eq(user.id, activityEvents.actorId))
+        .where(eq(activityEvents.projectId, id))
+        .orderBy(desc(activityEvents.createdAt))
+        .limit(20)
+    : null;
 
   // Where each released recommendation stands with the client (F10).
   const stances = p.kind === "client" ? await recommendationStances(tx, id) : new Map();
@@ -422,7 +427,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
         },
       }),
     })),
-    activity: authorize(principal, "activity.read", projectResource).allowed ? activity : [],
+    activity,
   };
 }
 
@@ -603,17 +608,12 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     : [];
 
   // A restructure that moved this action to another department (F31).
-  const moveRows = await tx
-    .select({ at: activityEvents.createdAt, who: user.name, meta: activityEvents.meta })
-    .from(activityEvents)
-    .leftJoin(user, eq(user.id, activityEvents.actorId))
-    .where(
-      and(
-        eq(activityEvents.projectId, action.projectId),
-        eq(activityEvents.event, "department_moved"),
-        sql`${activityEvents.meta} -> 'actions' ? ${id}`,
-      ),
-    );
+  // The activity feed itself is the firm's and the client admin's; this one
+  // fact about the action reaches everyone who may open it (migration 0070).
+  const { rows: refiled } = await tx.execute<{ at: string; who: string | null; from_department: string; to_department: string }>(sql`
+    select r.at, u.name as who, r.from_department, r.to_department
+    from app_action_refilings(${id}::uuid) r left join ${user} u on u.id = r.actor_id`);
+  const moveRows = refiled.map((m) => ({ at: new Date(m.at), who: m.who, meta: { from: m.from_department, to: m.to_department } as Moved }));
   const deptIds = [...new Set(moveRows.flatMap((m) => [(m.meta as Moved).from, (m.meta as Moved).to]))];
   const deptNames = new Map(
     deptIds.length
