@@ -67,7 +67,8 @@
   },
   "kind": {
     "internal": "Internal",
-    "client": "Client"
+    "client": "Client",
+    "pitch": "Pitch"
   },
   "dashboard": {
     "title": "Overview",
@@ -101,9 +102,9 @@
     "subtitle": "Projects you are allowed to see",
     "internalNote": "Internal projects belong to the firm and never appear to any client.",
     "empty": "No projects.",
-    "actions": "actions",
-    "verified": "verified",
-    "awaitingReview": "awaiting review",
+    "actions": "{n, plural, one {# action} other {# actions}}",
+    "verified": "{n} verified",
+    "awaitingReview": "{n} awaiting review",
     "client": "Client"
   },
   "project": {

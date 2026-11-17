@@ -82,6 +82,8 @@ export async function listProjects(tx: Tx, principal: Principal) {
     counts.filter((c) => c.projectId === projectId && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
   return allowed.map((p) => ({
     ...p,
+    // A client project no signed engagement covers yet: a pitch, the firm's only.
+    pitch: p.kind === "client" && p.state === "draft",
     actionCount: count(p.id),
     verifiedCount: count(p.id, "verified_complete"),
     awaitingReviewCount: count(p.id, "awaiting_review"),

@@ -67,7 +67,8 @@
   },
   "kind": {
     "internal": "داخلي",
-    "client": "عميل"
+    "client": "عميل",
+    "pitch": "عرض"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -101,9 +102,9 @@
     "subtitle": "المشاريع التي يحق لك الاطلاع عليها",
     "internalNote": "المشاريع الداخلية تخص الشركة ولا تظهر لأي عميل.",
     "empty": "لا توجد مشاريع.",
-    "actions": "إجراءات",
-    "verified": "مُتحقق",
-    "awaitingReview": "بانتظار المراجعة",
+    "actions": "{n, plural, zero {لا إجراءات} one {إجراء واحد} two {إجراءان} few {# إجراءات} many {# إجراءً} other {# إجراء}}",
+    "verified": "مُتحقق: {n}",
+    "awaitingReview": "بانتظار المراجعة: {n}",
     "client": "العميل"
   },
   "project": {

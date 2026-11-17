@@ -22,6 +22,20 @@ describe("Today: who decides a date change (N27)", () => {
   });
 });
 
+describe("counts on the Projects cards (page audit 3.8)", () => {
+  const count = (locale: "ar" | "en", n: number) =>
+    createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "projects" })("actions", { n });
+
+  it("uses plural forms: 1 action, not 1 actions", () => {
+    expect(count("en", 1)).toBe("1 action");
+    expect(count("en", 9)).toBe("9 actions");
+    expect(count("ar", 1)).toBe("إجراء واحد");
+    expect(count("ar", 2)).toBe("إجراءان");
+    expect(count("ar", 4)).toBe("4 إجراءات");
+    expect(count("ar", 11)).toBe("11 إجراءً");
+  });
+});
+
 describe("an action on a client the firm runs (N24)", () => {
   const firmRunTexts = (m: typeof en | typeof ar) => [
     m.action.items.hintFirmRun,

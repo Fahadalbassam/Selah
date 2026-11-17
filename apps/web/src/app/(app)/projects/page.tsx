@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { Building2, FilePenLine } from "lucide-react";
 import { Tilt, TiltContent } from "@animate-ui/react/primitives/effects/tilt";
 import { MorphTitle } from "@/components/morph";
 import { Lock } from "@/components/animate-ui/icons/lock";
@@ -65,8 +65,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                       <CardHeader className="px-5">
                         <div className="flex items-center justify-between gap-2">
                           <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
-                            {p.kind === "internal" ? <Lock className="size-3" /> : <Building2 className="size-3" />}
-                            {tKind(p.kind)}
+                            {p.kind === "internal" ? <Lock className="size-3" /> : p.pitch ? <FilePenLine className="size-3" /> : <Building2 className="size-3" />}
+                            {p.pitch ? tKind("pitch") : tKind(p.kind)}
                           </Badge>
                         </div>
                         <CardTitle className="text-base leading-snug">
@@ -81,15 +81,9 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                       <CardContent className="space-y-2 px-5">
                         <Progress value={pct} aria-label={`${pct}%`} />
                         <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
-                          <span>
-                            {p.actionCount} {t("actions")}
-                          </span>
-                          <span>
-                            {p.verifiedCount} {t("verified")}
-                          </span>
-                          <span>
-                            {p.awaitingReviewCount} {t("awaitingReview")}
-                          </span>
+                          <span>{t("actions", { n: p.actionCount })}</span>
+                          <span>{t("verified", { n: p.verifiedCount })}</span>
+                          <span>{t("awaitingReview", { n: p.awaitingReviewCount })}</span>
                         </div>
                       </CardContent>
                     </Card>
