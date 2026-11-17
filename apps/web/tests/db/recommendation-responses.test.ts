@@ -76,7 +76,7 @@ const notes = async (uid: string, kind: string) =>
   Number((await owner.query(`SELECT count(*) AS n FROM notifications WHERE user_id = $1 AND kind = $2`, [uid, kind])).rows[0].n);
 const stanceOf = async (uid: string, pid: string, rid: string) =>
   (await svc(uid, (tx, p) => getProject(tx, p, pid))).recommendations.find((r) => r.id === rid)?.stance;
-const agree = { stance: "agree" as const, plannedAction: "The board adopts a charter", targetDate: "2026-12-31", actionOwner: "Board secretary" };
+const agree = { stance: "agree" as const, plannedAction: "The board adopts a charter", targetDate: "2099-12-31", actionOwner: "Board secretary" };
 
 async function seed() {
   const q = (text: string, params: unknown[] = []) => owner.query(text, params);
