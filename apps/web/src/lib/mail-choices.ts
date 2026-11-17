@@ -47,7 +47,7 @@ export const WORK_MAIL_KINDS = [
   "inquiry.new",
   "pulse.requested",
   "support.requested",
-  // The client's organisation structure (migration 0100): to the client's lead and deputy.
+  // The client's organisation structure (migration 0091): to the client's lead and deputy.
   "org_chart.holder_changed",
   "org_chart.change_requested",
 ] as const;

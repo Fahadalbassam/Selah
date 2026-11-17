@@ -1,6 +1,6 @@
 {
-  "id": "11155f00-c9e4-493f-80fb-2e4330301b6d",
-  "prevId": "5a6ffe8f-4656-455f-80f7-54a1fbbb2ba5",
+  "id": "67ee2f53-8e63-4b4e-bb5f-cf3dc0315c01",
+  "prevId": "84abfbab-6e11-4783-af33-55b92abe3062",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10743,6 +10743,98 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.kpi_moved_away_log": {
+      "name": "kpi_moved_away_log",
+      "schema": "",
+      "columns": {
+        "kpi_id": {
+          "name": "kpi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value_id": {
+          "name": "value_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "kpi_moved_away_log_kpi_id_client_kpis_id_fk": {
+          "name": "kpi_moved_away_log_kpi_id_client_kpis_id_fk",
+          "tableFrom": "kpi_moved_away_log",
+          "tableTo": "client_kpis",
+          "columnsFrom": [
+            "kpi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "kpi_moved_away_log_org_id_organizations_id_fk": {
+          "name": "kpi_moved_away_log_org_id_organizations_id_fk",
+          "tableFrom": "kpi_moved_away_log",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "kpi_moved_away_log_value_id_client_kpi_values_id_fk": {
+          "name": "kpi_moved_away_log_value_id_client_kpi_values_id_fk",
+          "tableFrom": "kpi_moved_away_log",
+          "tableTo": "client_kpi_values",
+          "columnsFrom": [
+            "value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kpi_moved_away_log_kpi_id_period_pk": {
+          "name": "kpi_moved_away_log_kpi_id_period_pk",
+          "columns": [
+            "kpi_id",
+            "period"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.legal_holds": {
       "name": "legal_holds",
       "schema": "",
@@ -10857,6 +10949,73 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mail_kpi_mutes": {
+      "name": "mail_kpi_mutes",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kpi_id": {
+          "name": "kpi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mail_kpi_mutes_user_id_user_id_fk": {
+          "name": "mail_kpi_mutes_user_id_user_id_fk",
+          "tableFrom": "mail_kpi_mutes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mail_kpi_mutes_kpi_id_client_kpis_id_fk": {
+          "name": "mail_kpi_mutes_kpi_id_client_kpis_id_fk",
+          "tableFrom": "mail_kpi_mutes",
+          "tableTo": "client_kpis",
+          "columnsFrom": [
+            "kpi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mail_kpi_mutes_user_id_kpi_id_pk": {
+          "name": "mail_kpi_mutes_user_id_kpi_id_pk",
+          "columns": [
+            "user_id",
+            "kpi_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

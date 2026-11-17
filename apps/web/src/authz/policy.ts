@@ -272,7 +272,7 @@ export const POLICY = {
   // connections: the client's admin; the firm only for a client with no
   // accounts of its own (the database: app_kpi_data_admin).
   "indicator.data": { firm_admin: "any", consultant: "working", client_admin: "any" },
-  // The client's organisation structure (org chart, migration 0100): positions,
+  // The client's organisation structure (org chart, migration 0091): positions,
   // not people. It belongs to the client, not to a project, and it never grants
   // or limits access to any work (departments stay the only rule for that).
   // Read by the firm admin, the client's lead and deputy, consultants staffed on

@@ -100,7 +100,7 @@ async function modeFit(tx: Tx, principal: Principal, orgId: string) {
   const [settings] = await tx.select({ max: firmSettings.restrictedMaxAdmins }).from(firmSettings).where(eq(firmSettings.orgId, principal.orgId));
   const [contacts] = await tx.select({ n: count() }).from(clientContacts).where(eq(clientContacts.orgId, orgId));
   const [files] = await tx.select({ n: count() }).from(documents).where(eq(documents.orgId, orgId));
-  // Anyone named in the client's organisation structure, now or in the past (migration 0100).
+  // Anyone named in the client's organisation structure, now or in the past (migration 0091).
   const [holders] = await tx.select({ n: count() }).from(positionHolders).where(eq(positionHolders.orgId, orgId));
   return {
     activeAccounts: accounts!.n,

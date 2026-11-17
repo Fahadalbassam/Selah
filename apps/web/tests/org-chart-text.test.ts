@@ -1,4 +1,4 @@
-// The org chart's mails and notices (migration 0100): Arabic that reads
+// The org chart's mails and notices (migration 0091): Arabic that reads
 // right, the English beside it, and nothing about a person in either.
 import { describe, expect, it } from "vitest";
 import { renderMail } from "@/lib/mail-templates";

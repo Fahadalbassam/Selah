@@ -89,4 +89,17 @@ describe("the walkthrough sample data", () => {
     expect(await q(`SELECT 1 FROM action_due_changes WHERE request_id IS NULL`)).toEqual([]);
     expect((await q(`SELECT count(*)::int AS n FROM action_due_changes`))[0].n).toBe(1);
   });
+
+  it("has one indicator whose latest value moved away from its baseline, told once to the lead, the deputy and the client admin (4b)", async () => {
+    const told = await q(
+      `SELECT u.email, k.name_en, v.value::float AS value FROM notifications n
+       JOIN client_kpi_values v ON v.id = n.entity_id JOIN client_kpis k ON k.id = v.kpi_id JOIN "user" u ON u.id = n.user_id
+       WHERE n.kind = 'indicator.moved_away' ORDER BY u.email`,
+    );
+    expect(told).toEqual([
+      { email: "admin@nukhba.test", name_en: "Customer complaints", value: 42 },
+      { email: "deputy@mizan.test", name_en: "Customer complaints", value: 42 },
+      { email: "lead@mizan.test", name_en: "Customer complaints", value: 42 },
+    ]);
+  });
 });

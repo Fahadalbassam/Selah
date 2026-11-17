@@ -1,4 +1,4 @@
-// The client's organisation structure (org chart, migration 0100), part 1:
+// The client's organisation structure (org chart, migration 0091), part 1:
 // the data, the rules and the services. Who reads which version and whose
 // names, who edits the draft, who publishes, who changes the people in
 // positions; no cycles; publishing freezes the structure; the chart never

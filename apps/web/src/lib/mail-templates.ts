@@ -242,7 +242,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     ar: {
       subject: "ملخص جديد في صلة",
       lines: [
-        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة.",
+        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو المؤشرات.",
         "سجّل الدخول لتراها. يمكنك تغيير عدد هذه الرسائل وتوقيتها من صفحة الإشعارات.",
       ],
       action: "فتح الإشعارات",
@@ -250,7 +250,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Your Selah summary",
       lines: [
-        "You have new reminders or updates about your actions or requested documents.",
+        "You have new reminders or updates about your actions, requested documents or indicators.",
         "Sign in to see them. You can change how often and when this mail comes on the notifications page.",
       ],
       action: "Open notifications",
@@ -345,7 +345,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       action: "Read the report",
     },
   },
-  // The client's organisation structure (migration 0100): to the client's lead
+  // The client's organisation structure (migration 0091): to the client's lead
   // and deputy. Never the name of who joined or left, nor the text of a
   // suggestion: they are read in Selah. At most one holder mail a day.
   "org_chart.holder_changed": {

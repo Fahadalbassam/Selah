@@ -1061,7 +1061,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
       SELECT DISTINCT btrim(regexp_replace(a.owner_name, '\s*\(.*\)\s*$', '')) AS n FROM actions a WHERE a.project_id = pid AND a.owner_name IS NOT NULL
     ) o
     UNION
-    -- People typed into a position of the client's structure (org chart, migration 0100), current or past.
+    -- People typed into a position of the client's structure (org chart, migration 0091), current or past.
     SELECT 'PERSON', h.name, 'holder:' || md5(lower(btrim(h.name))) FROM position_holders h, p WHERE h.org_id = p.org_id AND h.name IS NOT NULL
   )
   SELECT DISTINCT t.kind, btrim(t.term), t.entity FROM terms t WHERE t.term IS NOT NULL AND length(btrim(t.term)) >= 2

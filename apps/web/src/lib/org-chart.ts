@@ -1,4 +1,4 @@
-// The client's organisation structure (org chart, migration 0100). Shared by
+// The client's organisation structure (org chart, migration 0091). Shared by
 // the schema, the services, the screens and the tests; the database holds the
 // same lists and limits (the org_unit_kind enum, the check constraints on
 // org_units, positions, position_holders and org_chart_change_requests), and

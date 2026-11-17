@@ -1,8 +1,24 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { actions, inquiries, mailMutes, mailPreferences, notifications, organizations, projects, recommendations, supportRequests, clientKpis } from "@/db/schema";
+import {
+  actions,
+  clientKpis,
+  clientKpiValues,
+  inquiries,
+  mailKpiMutes,
+  mailMutes,
+  mailPreferences,
+  notifications,
+  organizations,
+  projects,
+  recommendations,
+  supportRequests,
+} from "@/db/schema";
 import type { Principal } from "@/authz";
+import { firmToday } from "@/lib/dates";
+import type { MovedAwayFacts } from "@/lib/indicator-notice";
+import type { IndicatorDirection, IndicatorFrequency } from "@/lib/indicators";
 import { MAIL_DEFAULTS, type MailChoices } from "@/lib/mail-choices";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 
@@ -18,6 +34,8 @@ export interface NotificationItem {
   title: string | null;
   titleAr: string | null;
   href: string | null;
+  /** An indicator that moved away (indicator.moved_away): the figures its line states. */
+  facts: MovedAwayFacts | null;
   readAt: Date | null;
   createdAt: Date;
 }
@@ -99,6 +117,54 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     }
   }
 
+  // A period whose indicator moved away (migration 0090): the period's
+  // current figure, so a correction since is what the line states (one that
+  // brought it back hides the notice altogether, in the database). Read under
+  // the caller's rights, so an indicator they can no longer open stays
+  // untitled and unstated.
+  const facts = new Map<string, MovedAwayFacts>();
+  const valueIds = ids(rows, "kpi_value");
+  if (valueIds.length) {
+    const found = await tx
+      .select({
+        id: clientKpiValues.id,
+        kpiId: clientKpiValues.kpiId,
+        period: clientKpiValues.period,
+        value: sql<string>`(select c.value::text from client_kpi_values c
+          where c.kpi_id = ${clientKpiValues.kpiId} and c.period = ${clientKpiValues.period}
+            and not exists (select 1 from client_kpi_values s where s.supersedes_id = c.id)
+          order by c.entered_at desc, c.id desc limit 1)`,
+        nameEn: clientKpis.nameEn,
+        nameAr: clientKpis.nameAr,
+        unit: clientKpis.unit,
+        direction: clientKpis.direction,
+        frequency: clientKpis.frequency,
+        baseline: clientKpis.baseline,
+        target: clientKpis.target,
+        targetDate: clientKpis.targetDate,
+      })
+      .from(clientKpiValues)
+      .innerJoin(clientKpis, eq(clientKpis.id, clientKpiValues.kpiId))
+      .where(inArray(clientKpiValues.id, valueIds));
+    for (const v of found) {
+      titles.set(v.id, { title: v.nameEn ?? v.nameAr, titleAr: v.nameAr });
+      facts.set(v.id, {
+        kpiId: v.kpiId,
+        value: Number(v.value),
+        period: v.period,
+        frequency: v.frequency as IndicatorFrequency,
+        unit: v.unit,
+        baseline: Number(v.baseline),
+        direction: v.direction as IndicatorDirection,
+        target: v.target === null ? null : Number(v.target),
+        targetDate: v.targetDate,
+        // Set per notice below: the day the period was judged is the day the notice was written.
+        targetPassed: false,
+        reader: principal.orgKind === "firm" ? "firm" : "client",
+      });
+    }
+  }
+
   // A reported problem (F13) is titled with its client: the firm admin reads which one, the reporter their own.
   const supportIds = ids(rows, "support_request");
   if (supportIds.length) {
@@ -112,11 +178,14 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
 
   const items: NotificationItem[] = rows.map((r) => {
     const t = titles.get(r.entityId);
+    const found = r.entityType === "kpi_value" ? facts.get(r.entityId) : undefined;
+    const f = found ? { ...found, targetPassed: found.targetDate !== null && firmToday(r.createdAt) > found.targetDate } : null;
     return {
       ...r,
       title: t?.title ?? null,
       titleAr: t?.titleAr ?? null,
-      href: t ? hrefFor(r.kind, r.entityType, r.entityId) : null,
+      href: !t ? null : f ? `/indicators/${f.kpiId}` : hrefFor(r.kind, r.entityType, r.entityId),
+      facts: f,
     };
   });
   return { items, unread: await unreadCount(tx, principal) };
@@ -205,6 +274,13 @@ export async function getMailPreferences(tx: Tx, principal: Principal) {
     .innerJoin(actions, eq(actions.id, mailMutes.actionId))
     .where(eq(mailMutes.userId, principal.userId))
     .orderBy(desc(mailMutes.createdAt));
+  // And the indicators they muted (migration 0090), named under their rights the same way.
+  const mutedIndicators = await tx
+    .select({ kpiId: mailKpiMutes.kpiId, nameAr: clientKpis.nameAr, nameEn: clientKpis.nameEn, at: mailKpiMutes.createdAt })
+    .from(mailKpiMutes)
+    .innerJoin(clientKpis, eq(clientKpis.id, mailKpiMutes.kpiId))
+    .where(eq(mailKpiMutes.userId, principal.userId))
+    .orderBy(desc(mailKpiMutes.createdAt));
   const { rows } = await tx.execute<{ next: Date | string | null; starts: string | null; ends: string | null; mail_from: string | null; mail_to: string | null }>(sql`
     SELECT app_my_next_mail_at() AS next, r.starts, r.ends, r.mail_from, r.mail_to
     FROM (SELECT 1) x LEFT JOIN app_firm_ramadan() r ON true`);
@@ -212,6 +288,7 @@ export async function getMailPreferences(tx: Tx, principal: Principal) {
   return {
     ...choices,
     muted,
+    mutedIndicators,
     nextMailAt: r?.next ? new Date(r.next) : null,
     firmRamadan: r?.starts
       ? { starts: r.starts, ends: r.ends!, mailFrom: hhmm(r.mail_from)!, mailTo: hhmm(r.mail_to)! }
@@ -259,4 +336,32 @@ export async function isActionMuted(tx: Tx, principal: Principal, actionId: stri
     .from(mailMutes)
     .where(and(eq(mailMutes.userId, principal.userId), eq(mailMutes.actionId, actionId)));
   return !!row;
+}
+
+/**
+ * Stop or restart mail about one business indicator (indicator.moved_away,
+ * migration 0090), beside the action mutes. Only an indicator the caller can
+ * read can be muted; the database refuses the same.
+ */
+export async function setIndicatorMuted(tx: Tx, principal: Principal, kpiId: string, muted: boolean) {
+  if (muted) {
+    const [seen] = await tx.select({ id: clientKpis.id }).from(clientKpis).where(eq(clientKpis.id, kpiId));
+    if (!seen) throw new NotFoundError("indicator");
+    await tx.insert(mailKpiMutes).values({ userId: principal.userId, kpiId }).onConflictDoNothing();
+  } else {
+    await tx.delete(mailKpiMutes).where(and(eq(mailKpiMutes.userId, principal.userId), eq(mailKpiMutes.kpiId, kpiId)));
+  }
+  return { muted };
+}
+
+/**
+ * Whether the caller is among the people told when this indicator moves away
+ * (the client's lead and deputy, the client's admins: app_kpi_tells_me()),
+ * and whether they muted its mail. The indicator page offers the mute to them only.
+ */
+export async function indicatorMail(tx: Tx, principal: Principal, kpiId: string) {
+  const { rows } = await tx.execute<{ told: boolean; muted: boolean }>(sql`
+    select app_kpi_tells_me(${kpiId}::uuid) as told,
+      exists (select 1 from mail_kpi_mutes m where m.user_id = ${principal.userId}::uuid and m.kpi_id = ${kpiId}::uuid) as muted`);
+  return { told: !!rows[0]?.told, muted: !!rows[0]?.muted };
 }

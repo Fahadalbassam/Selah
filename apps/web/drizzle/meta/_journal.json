@@ -544,8 +544,15 @@
     {
       "idx": 90,
       "version": "7",
-      "when": 1794945339086,
-      "tag": "0100_org_chart",
+      "when": 1794948017401,
+      "tag": "0090_indicator_moved_away",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1794958909154,
+      "tag": "0091_org_chart",
       "breakpoints": true
     }
   ]

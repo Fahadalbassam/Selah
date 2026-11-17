@@ -126,7 +126,7 @@ It also returns open and overdue counts. A periodic report (`POST /api/projects/
 
 ## The client's organisation structure (org chart)
 
-Gate A follow-ups, 17 Nov 2026, feature B. Migration `0100_org_chart`, schema `src/db/schema/org-chart.ts`, constants `src/lib/org-chart.ts`, services `src/services/org-chart.ts`, tests `tests/db/org-chart.test.ts`. Like business indicators it belongs to the client, not to a project. It is a structure of **positions, not people**: a position outlives whoever sits in it. Selah records the structure the firm decides; it never designs, scores or judges one. **The chart never grants or limits access**: a unit linked to a department is a label, and departments stay the only rule for who sees work (authorization.md, "The client's organisation structure").
+Gate A follow-ups, 17 Nov 2026, feature B. Migration `0091_org_chart`, schema `src/db/schema/org-chart.ts`, constants `src/lib/org-chart.ts`, services `src/services/org-chart.ts`, tests `tests/db/org-chart.test.ts`. Like business indicators it belongs to the client, not to a project. It is a structure of **positions, not people**: a position outlives whoever sits in it. Selah records the structure the firm decides; it never designs, scores or judges one. **The chart never grants or limits access**: a unit linked to a department is a label, and departments stay the only rule for who sees work (authorization.md, "The client's organisation structure").
 
 ```
 org_charts (one per client)

@@ -1,4 +1,4 @@
-// The client's organisation structure (org chart, migration 0100). Like its
+// The client's organisation structure (org chart, migration 0091). Like its
 // business indicators it belongs to the client, not to a project.
 //
 // It is a structure of positions, not of people: a position outlives whoever

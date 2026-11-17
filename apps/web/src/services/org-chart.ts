@@ -19,7 +19,7 @@ import {
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 
-// The client's organisation structure (org chart, migration 0100). Part 1 of
+// The client's organisation structure (org chart, migration 0091). Part 1 of
 // the feature: the reads, the edits, publishing, holders and suggestions the
 // screens of the next pull requests call. The database holds every rule (who
 // reads which version, who edits the draft, who publishes, who changes

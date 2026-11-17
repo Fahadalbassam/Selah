@@ -208,3 +208,27 @@ Recorded before anything else, as he asked. The current order stays; these are a
 | g | **Review the open Dependabot pull requests** (Fahad counts 18): merge the safe ones when green, close the ones the Next.js update (#158) already covers, and list any that need him | |
 
 Items d, e and f were already parked for Gate B as known gaps; they are now confirmed as work to do, in this slot.
+
+## 18 Nov 2026
+
+**Batch 0 is closed.** Merged after green checks and a review with nothing blocking: #159 (log), #160 (drafts hidden from clients, D6), #161 (the remaining screen bugs), #162 (the picker, part 1: screens only), #163 (the dated picomatch exception Fahad approved), #164 (his plan additions), #165 (agenda option C, action owners see only their own actions, indicator links firm-only). The picomatch advisory still has no fixed version today (latest 4.0.7); checked again, exception unchanged.
+
+**Decisions I made inside Fahad's answers** (also in `work/build-brief.md`, so every builder follows them):
+
+- "May see everything on the project" is one stable rule: firm staff on the project, the client admin, and a manager when departments are off or when they are in every active department.
+- An action owner invited to a meeting sees its summary, decisions, shared notes, attendees and their own follow-ups only.
+- When a department head cannot open an action, an escalation goes to the client admins instead.
+- The translation step's masking (`app_mask_terms_in`) returns only names that appear in the text it is given.
+- Org chart: a manager sees holder names only on the current published version, as of today, in their own branch, while "show names" is on; never holding dates. "Your manager" is shown to anyone whose position is in the chart, and respects "show names".
+- Indicator notice: it judges only periods that have ended; a notice that a correction fixed is hidden; the client sees "Your company's reported figures, not verified impact".
+
+**Features (all before batch 1):**
+
+| Feature | Branch | State |
+|---|---|---|
+| Who sees an item, part 2 (the picker enforced: files, meetings, mail, search, exports, assistant) | `feature/audience-picker` | Built (9 commits; lint, types, 578 unit and 971 database tests pass). Independent review running (`work/audience-picker-review.md`). Two points I asked it to judge: a change that lets the client's deputy appear in the picker even when not staffed on the project (it should match the existing rule, not widen it), and whether mail still queued for someone just left out should be cancelled rather than deleted. |
+| Org chart, part 1 (tables, rules, services; no screens) | `feature/org-chart-data` | Built; review (`work/org-chart-data-review.md`) found one blocking fault (a rewritten check had broken pitches) and nine others. All ten fixed, one commit each (979 database tests pass). Independent re-check running (`work/org-chart-data-recheck.md`). |
+| 4b, indicator moved away | `feature/indicator-moved-away` | Built; review (`work/indicator-moved-away-review.md`) asked for changes (judge only ended periods, hide corrected notices, more tests, wording). Builder fixing. |
+| 4a, deliverable handed over and received | `feature/deliverable-receipt` | Builder running. |
+
+One open point carried to org chart part 3: a holder can be ended but not removed, so once anyone is named, switching a client to minimal records stays refused until a removal path exists.
