@@ -842,19 +842,41 @@ END $$;
 CREATE TRIGGER org_chart_change_request_notify AFTER INSERT ON org_chart_change_requests
   FOR EACH ROW EXECUTE FUNCTION notify_org_chart_change_request();
 --> statement-breakpoint
--- Switching a client to minimal records forgets the people in its structure:
--- it keeps titles only (like forget_client_inquiries for its inquiry).
-CREATE FUNCTION forget_org_chart_holders() RETURNS trigger
+-- Minimal records (latest definition: 0000_baseline, Insight). The switch is
+-- refused, like for contacts and files, while the client's structure holds
+-- the name of anyone, now or in the past: nothing is deleted to make way for
+-- it (the product owner is asked before anything deletes data). Unchanged
+-- otherwise.
+CREATE OR REPLACE FUNCTION check_minimal_records() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE switched boolean := TG_OP = 'INSERT' OR NEW.minimal_records IS DISTINCT FROM OLD.minimal_records
+  OR NEW.display_alias IS DISTINCT FROM OLD.display_alias;
 BEGIN
-  IF NEW.minimal_records AND NOT OLD.minimal_records THEN
-    DELETE FROM position_holders WHERE org_id = NEW.id;
+  IF switched AND app_uid() IS NOT NULL AND app_role() IS DISTINCT FROM 'firm_admin' THEN
+    RAISE EXCEPTION 'only the firm admin sets minimal records' USING ERRCODE = 'insufficient_privilege';
   END IF;
-  RETURN NULL;
+  IF NOT NEW.minimal_records THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.engagement_mode IS DISTINCT FROM 'consultant_managed' THEN
+    RAISE EXCEPTION 'minimal records are for clients the firm manages' USING ERRCODE = 'check_violation';
+  END IF;
+  IF nullif(trim(NEW.display_alias), '') IS NULL THEN
+    RAISE EXCEPTION 'give the client an alias' USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'INSERT' OR NOT OLD.minimal_records THEN
+    IF EXISTS (SELECT 1 FROM client_contacts c WHERE c.org_id = NEW.id) OR EXISTS (SELECT 1 FROM documents d WHERE d.org_id = NEW.id) THEN
+      RAISE EXCEPTION 'remove the client''s contacts and files before switching to minimal records' USING ERRCODE = 'check_violation';
+    END IF;
+    IF EXISTS (SELECT 1 FROM position_holders h WHERE h.org_id = NEW.id) THEN
+      RAISE EXCEPTION 'remove the names of people from the client''s structure before switching to minimal records' USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  NEW.display_alias := trim(NEW.display_alias);
+  NEW.name := NEW.display_alias;
+  NEW.name_ar := NEW.display_alias;
+  RETURN NEW;
 END $$;
---> statement-breakpoint
-CREATE TRIGGER forget_org_chart_holders AFTER UPDATE OF minimal_records ON organizations
-  FOR EACH ROW EXECUTE FUNCTION forget_org_chart_holders();
 --> statement-breakpoint
 -- An archived client's structure freezes with the rest of its client-level
 -- records (lib/offboarding.ts CLIENT_FROZEN_TABLES).

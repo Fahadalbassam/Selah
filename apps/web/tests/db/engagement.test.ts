@@ -627,6 +627,7 @@ describe("the engagement screens", () => {
       nonAdminAccounts: active.filter((r) => r.role !== "client_admin").length,
       restrictedMaxAdmins: 2,
       hasContactsOrFiles: true,
+      hasStructureNames: false,
     });
     expect(acme.fit!.nonAdminAccounts).toBeGreaterThan(0);
     const managed = await svc(U.admin, (tx, p) => getEngagement(tx, p, MANAGED));

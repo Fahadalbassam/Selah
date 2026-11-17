@@ -55,6 +55,7 @@ export function engagementError(message: string | undefined): string | null {
     [/minimal records are for clients the firm manages/, "minimal"],
     [/give the client an alias/, "alias"],
     [/remove the client's contacts and files/, "filed"],
+    [/remove the names of people from the client's structure/, "structureNames"],
     [/department members are active people/, "member"],
     [/not in this department/, "notMember"],
     [/department is not active|not an active department/, "inactive"],

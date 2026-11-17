@@ -2527,6 +2527,7 @@
       "switchOff": "Switch off minimal records",
       "offConfirm": "Switch off minimal records? The client keeps its alias as its name, and what was cleared does not come back.",
       "blocked": "Only before anything is filed: this client already has contacts or files.",
+      "blockedStructure": "The client's structure still holds names of people. Remove them from the structure first.",
       "dialogTitle": "Keep minimal records for this client",
       "dialogHint": "This cannot be undone for what it clears. Use it only when the client asked for it.",
       "effects": {
@@ -2597,6 +2598,7 @@
       "minimal": "Switch off minimal records before leaving consultant-managed mode.",
       "alias": "Give the client an alias.",
       "filed": "Remove the client's contacts and files before switching to minimal records.",
+      "structureNames": "The client's structure still holds names of people. Remove them from the structure first.",
       "member": "Only active people of the client can join a department.",
       "notMember": "That person is not in this department.",
       "inactive": "That department is switched off."

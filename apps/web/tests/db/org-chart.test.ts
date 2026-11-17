@@ -13,7 +13,9 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
+import { engagementError } from "@/lib/engagement";
 import { ORG_CHART_REQUEST_STATUSES, ORG_CHART_STATES, ORG_UNIT_KINDS } from "@/lib/org-chart";
+import { getEngagement, setEngagement } from "@/services/engagement";
 import * as OC from "@/services/org-chart";
 import { loadPrincipal } from "@/services/principal";
 import { truncateAuditLog } from "./audit-reset";
@@ -425,15 +427,33 @@ describe("a minimal-records client", () => {
     expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [MANAGED])).rows[0].n).toBe(0);
   });
 
-  it("forgets the people in its structure when it switches to minimal records", async () => {
+  it("cannot be switched on while the client's structure holds a name, current or past; nothing is deleted", async () => {
     await svc(U.lead, (tx, p) => OC.startChart(tx, p, FAMILY), true);
     const u = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, FAMILY, { kind: "board", nameEn: "Family council" }), true);
     const pos = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, u.id, { titleEn: "Council head", isHead: true }), true);
     await svc(U.lead, (tx, p) => OC.publish(tx, p, FAMILY, { effectiveOn: firmToday() }), true);
-    await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { start: { name: "Family Elder", from: PAST } }), true);
-    expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [FAMILY])).rows[0].n).toBe(1);
-    await owner.query(`UPDATE organizations SET minimal_records = true, display_alias = 'Family office B' WHERE id = $1`, [FAMILY]);
-    expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [FAMILY])).rows[0].n).toBe(0);
+    const { started } = await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { start: { name: "Family Elder", from: PAST } }), true);
+    // A holding that has ended still holds a name.
+    await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { end: { holderId: started!, on: firmToday() } }), true);
+    const holders = async () => (await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [FAMILY])).rows[0].n;
+    const minimal = async () => (await owner.query(`SELECT minimal_records AS on FROM organizations WHERE id = $1`, [FAMILY])).rows[0].on;
+    const switchOn = () => svc(U.admin, (tx, p) => setEngagement(tx, p, FAMILY, { minimalRecords: true, displayAlias: "Family office B" }), true);
+    // The firm admin's mode screen says why before trying...
+    expect((await svc(U.admin, (tx, p) => getEngagement(tx, p, FAMILY))).fit).toMatchObject({ hasContactsOrFiles: false, hasStructureNames: true });
+    expect(engagementError("remove the names of people from the client's structure before switching to minimal records")).toBe("structureNames");
+    // ...and the switch is refused, by the service and straight in the database, with nothing deleted.
+    await expect(switchOn()).rejects.toThrow(/remove the names of people from the client's structure/);
+    await expect(owner.query(`UPDATE organizations SET minimal_records = true, display_alias = 'Family office B' WHERE id = $1`, [FAMILY])).rejects.toThrow(
+      /remove the names of people from the client's structure/,
+    );
+    expect([await holders(), await minimal()]).toEqual([1, false]);
+    // Once no name is left in the structure, it is allowed.
+    await owner.query(`DELETE FROM position_holders WHERE org_id = $1`, [FAMILY]);
+    expect((await svc(U.admin, (tx, p) => getEngagement(tx, p, FAMILY))).fit).toMatchObject({ hasStructureNames: false });
+    await switchOn();
+    expect(await minimal()).toBe(true);
+    // From then on, no names (as for any minimal-records client).
+    await expect(svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.id, { start: { name: "Family Elder", from: PAST } }))).rejects.toThrow(/minimal_records/);
   });
 });
 
