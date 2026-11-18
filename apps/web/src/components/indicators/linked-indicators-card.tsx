@@ -24,7 +24,7 @@ export async function LinkedIndicatorsCard({ recommendationId, data }: { recomme
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
           <CardTitle className="text-base">{t("linkedTitle")}</CardTitle>
-          <CardDescription>{t("linkedHint")}</CardDescription>
+          <CardDescription>{t(data.firm ? "linkedHint" : "linkedHintClient")}</CardDescription>
         </div>
         {data.canLink && data.others.length ? (
           <LinkDialog

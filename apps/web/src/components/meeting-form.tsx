@@ -342,7 +342,8 @@ export function MeetingForm(props: {
               ) : null}
               {[
                 { label: t("firmPeople"), rows: firmPeople },
-                { label: t("clientPeople"), rows: clientPeople },
+                // A client booking reads "your company", never "the client" (page audit 4.7).
+                { label: props.firm ? t("clientPeople") : t("yourPeople"), rows: clientPeople },
               ].map((g) =>
                 g.rows.length ? (
                   <div key={g.label} className="grid gap-2">

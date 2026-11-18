@@ -106,7 +106,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       // The deviation rules, for the firm.
       deviations: await projectDeviations(tx, principal, id).catch(() => null),
       trace: await projectTrace(tx, principal, id).catch(() => null),
-      handover: await getHandover(tx, principal, id),
+      // The firm's handover card (date, sponsor, check-ins); a client's Progress tab does not draw it.
+      handover: principal.orgKind === "firm" ? await getHandover(tx, principal, id) : null,
       // What the firm asked the client for (client projects only).
       requests: client ? await listInfoRequests(tx, principal, id).catch(() => null) : null,
       // Closing (baseline: Closing). The firm sees it on every signed project; the
@@ -149,6 +150,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const recScope = { departments: plan?.departments ?? [], accountables: plan?.accountables ?? [] };
   // A new or corrected recommendation answers a live finding only.
   const liveFindings = data.findings.filter((f) => !f.withdrawnAt).map((x) => ({ id: x.id, title: x.title }));
+  // An activity line in the reader's words: the client reads "with your company", never "with the client" (page audit 4.7).
+  const eventLabel = (key: string) =>
+    !firmStaff && t.has(`eventsClient.${key}`) ? t(`eventsClient.${key}` as never) : t(`events.${key}` as never);
 
   return (
     <>
@@ -283,7 +287,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <TabsContent value="recs" className="space-y-6">
           {data.findings.length || plan?.can.finding ? (
             <section className="space-y-3">
-              <SectionHeader title={tPlan("findings.title")} description={tPlan("findings.hint")}>
+              {/* «الملاحظات» reads as "notes" to a client; the client reads what the consultants found (page audit 4.7). */}
+              <SectionHeader title={tPlan(firmStaff ? "findings.title" : "findings.titleClient")} description={tPlan(firmStaff ? "findings.hint" : "findings.hintClient")}>
                 {plan?.can.finding ? (
                   <FormDialog
                     trigger={
@@ -631,7 +636,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
         {metrics ? (
           <TabsContent value="progress" className="space-y-6">
-            <HandoverCard projectId={project.id} data={handover} />
+            {/* The handover date and the firm's check-ins after it are the firm's to run (page audit U11, batch 1). */}
+            {handover ? <HandoverCard projectId={project.id} data={handover} /> : null}
             <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} />
           </TabsContent>
         ) : null}
@@ -713,9 +719,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                       e.entityType === "action" && e.fromState && e.toState
                         ? t("changed", { from: tStatus(e.fromState as never), to: tStatus(e.toState as never) })
                         : t.has(`events.${e.entityType}_${e.event}`)
-                          ? t(`events.${e.entityType}_${e.event}` as never)
+                          ? eventLabel(`${e.entityType}_${e.event}`)
                           : t.has(`events.${e.event}`)
-                            ? t(`events.${e.event}` as never)
+                            ? eventLabel(e.event)
                             : t("events.other"),
                     who: (c) => <span className="font-medium">{c}</span>,
                   })}
@@ -841,7 +847,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </Card>
             ) : null}
             {people ? <ProjectPeople projectId={project.id} clientId={project.orgId} firm={firmStaff} data={people} /> : null}
-            {roles ? <ClientRolesCard projectId={project.id} data={roles} /> : null}
+            {roles ? <ClientRolesCard projectId={project.id} data={roles} firm={firmStaff} /> : null}
           </TabsContent>
         ) : null}
       </Tabs>
