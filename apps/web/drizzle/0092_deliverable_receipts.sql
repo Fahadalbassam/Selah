@@ -168,6 +168,7 @@ $$;
 -- Working days after one day up to and including another, in the Saudi week:
 -- Sunday to Thursday. Friday and Saturday are off, as the mail rules hold them
 -- (app_mail_send_time: never on Friday, Saturday only when asked).
+-- Public holidays count as working days: Selah has no holiday calendar.
 CREATE FUNCTION app_working_days(from_day date, to_day date) RETURNS integer
 LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path = public, pg_temp AS $$
   SELECT count(*)::integer FROM generate_series(from_day + 1, to_day, interval '1 day') g WHERE extract(dow FROM g) NOT IN (5, 6)
