@@ -35,7 +35,7 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <Link href="/clients/groups" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/clients?view=groups" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("title")}
       </Link>
@@ -68,7 +68,7 @@ export default async function ClientGroupPage({ params }: { params: Promise<{ id
               variant="ghost"
               size="default"
               confirm={t("deleteConfirm")}
-              redirectTo="/clients/groups"
+              redirectTo="/clients?view=groups"
             />
           </>
         ) : null}

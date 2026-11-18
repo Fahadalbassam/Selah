@@ -3,27 +3,24 @@
 import {
   Bot,
   Building2,
-  ChevronRight,
   ClipboardList,
   FolderKanban,
+  House,
   Inbox,
-  LayoutDashboard,
   LifeBuoy,
   ListChecks,
-  Network,
   ScrollText,
-  Sunrise,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 import { AssistantSidebarItem } from "@/components/assistant/assistant-card";
 import { SidebarBrand } from "@/components/brand";
 import { FilesSidebarItem } from "@/components/file-explorer";
 import { NavUser, type NavUserProps } from "@/components/nav-user";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import type { NavKey } from "@/lib/nav";
 import {
   Sidebar,
   SidebarContent,
@@ -34,16 +31,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
 
-// Icons are referenced by name: server components cannot pass functions.
+// Icons are chosen here by the row's key: server components cannot pass functions.
 const ICONS = {
-  overview: LayoutDashboard,
-  today: Sunrise,
+  home: House,
+  myActions: ListChecks,
   projects: FolderKanban,
   clients: Building2,
   inquiries: Inbox,
@@ -51,21 +45,19 @@ const ICONS = {
   templates: ClipboardList,
   assistant: Bot,
   team: Users,
+  people: Users,
   audit: ScrollText,
-  departments: Network,
-} satisfies Record<string, LucideIcon>;
+  group: Building2,
+} satisfies Record<NavKey, LucideIcon>;
 
 export interface NavItem {
+  key: NavKey;
   title: string;
   href: string;
-  icon: keyof typeof ICONS;
-  items?: { title: string; href: string }[];
   /** The assistant: opens its floating card instead of a page. */
   card?: boolean;
-  /** Other pages this entry stands for (shown as tabs on them), so it stays marked there. */
+  /** Other pages this row stands for (its tabs and filters), so it stays marked there. */
   match?: string[];
-  /** Two short plain links side by side in one row (Overview and Today); not for a card or sub-menu. */
-  half?: boolean;
 }
 
 export interface NavGroup {
@@ -87,38 +79,15 @@ interface AppSidebarProps extends ComponentProps<typeof Sidebar> {
   help?: { title: string; href: string };
 }
 
-/** Consecutive half-width entries share a row; the rest keep one row each. */
-function rows(items: NavItem[]): (NavItem | NavItem[])[] {
-  const out: (NavItem | NavItem[])[] = [];
-  for (const item of items) {
-    const last = out.at(-1);
-    if (item.half && Array.isArray(last) && last.length < 2) last.push(item);
-    else out.push(item.half ? [item] : item);
-  }
-  return out;
-}
-
 /**
- * Based on shadcn/ui blocks sidebar-07 (collapses to icons) and sidebar-03
- * (sub-menus). The menu only reflects what the server decided this user may
+ * Based on shadcn/ui block sidebar-07 (collapses to icons). One sidebar per
+ * role, with no sub-entries (page audit 4.1): the rows come from sidebarFor()
+ * in lib/nav.ts. The menu only reflects what the server decided this user may
  * open; it is not the access control.
  */
 export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind, railLabel, help, ...props }: AppSidebarProps) {
   const pathname = usePathname();
-  const search = useSearchParams().toString();
-  const current = search ? `${pathname}?${search}` : pathname;
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
-  const link = (item: NavItem) => {
-    const Icon = ICONS[item.icon];
-    return (
-      <SidebarMenuButton key={item.href} asChild tooltip={item.title} isActive={isActive(item.href) || Boolean(item.match?.some(isActive))}>
-        <Link href={item.href}>
-          <Icon />
-          <span>{item.title}</span>
-        </Link>
-      </SidebarMenuButton>
-    );
-  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -145,44 +114,18 @@ export function AppSidebar({ appName, orgName, roleLabel, groups, user, orgKind,
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>
-              {rows(group.items).map((row) => {
-                // Expanded: one row, two columns. As an icon rail: one under the other.
-                if (Array.isArray(row)) {
-                  return (
-                    <SidebarMenuItem key={row.map((i) => i.href).join(" ")} className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1">
-                      {row.map(link)}
-                    </SidebarMenuItem>
-                  );
-                }
-                const item = row;
-                const Icon = ICONS[item.icon];
+              {group.items.map((item) => {
                 if (item.card) return <AssistantSidebarItem key={item.href} title={item.title} />;
-                if (!item.items?.length) return <SidebarMenuItem key={item.href}>{link(item)}</SidebarMenuItem>;
+                const Icon = ICONS[item.key];
                 return (
-                  <Collapsible key={item.href} asChild defaultOpen={isActive(item.href)} className="group/collapsible">
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton tooltip={item.title} isActive={isActive(item.href)}>
-                          <Icon />
-                          <span>{item.title}</span>
-                          <ChevronRight className="ms-auto transition-transform duration-(--duration-base) ease-(--ease-out-soft) group-data-[state=open]/collapsible:rotate-90 rtl:-scale-x-100 rtl:group-data-[state=open]/collapsible:-rotate-90" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items.map((sub) => (
-                            <SidebarMenuSubItem key={sub.href}>
-                              <SidebarMenuSubButton asChild isActive={current === sub.href}>
-                                <Link href={sub.href}>
-                                  <span>{sub.title}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.title} isActive={isActive(item.href) || Boolean(item.match?.some(isActive))}>
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 );
               })}
             </SidebarMenu>

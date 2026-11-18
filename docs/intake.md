@@ -55,7 +55,7 @@ The admin records what each consultant can lead: service areas and sectors (`PUT
 
 Screens:
 
-- **Team → Expertise** (`/team/expertise`) lists every active consultant by name, with their services, sectors, languages and whether they take new clients. The firm admin sets up and edits each profile. A consultant edits only their own languages and availability, once the admin has set them up. A consultant with no profile is never suggested, and the screen says so.
+- **Team → Expertise** (`/team/expertise`, a tab of Team; a consultant opens it from "My expertise" in the user menu) lists every active consultant by name, with their services, sectors, languages and whether they take new clients. The firm admin sets up and edits each profile. A consultant edits only their own languages and availability, once the admin has set them up. A consultant with no profile is never suggested, and the screen says so.
 - **The inquiry page** shows the suggestions while the inquiry is open.
 - **The client page** shows them too, for the firm admin, matched against the latest inquiry the client came from (`suggestClientLeads` in `services/inquiries.ts`). A client that did not come through an inquiry gets no suggestions. Each one can be added to the client's team from there; naming the lead stays on the team card.
 

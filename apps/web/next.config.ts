@@ -35,6 +35,8 @@ const config: NextConfig = {
       // Today became the home, one per role (decision D2, page audit 4.2), and the client's group roll-up a section of it (section 7, item 8).
       { source: "/today", destination: "/", permanent: true },
       { source: "/group", destination: "/#group", permanent: true },
+      // Client groups became the second view of the Clients page (page audit rows 17 and 21); one group keeps its page.
+      { source: "/clients/groups", destination: "/clients?view=groups", permanent: true },
     ];
   },
   async headers() {

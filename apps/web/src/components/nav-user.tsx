@@ -1,14 +1,11 @@
 "use client";
 
-import { ChevronsUpDown, Languages, LifeBuoy, Settings } from "lucide-react";
+import { Bot, ChevronsUpDown, Database, GraduationCap, LifeBuoy, Mail, Settings, type LucideIcon } from "lucide-react";
 import { LogOut } from "@/components/animate-ui/icons/log-out";
-import { Moon } from "@/components/animate-ui/icons/moon";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
-import { Sun } from "@/components/animate-ui/icons/sun";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useTransition } from "react";
-import { setLocale } from "@/app/actions";
+import type { ComponentType } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -21,24 +18,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import type { MenuKey } from "@/lib/nav";
 import { initials } from "@/lib/utils";
+
+const ICONS: Record<MenuKey, LucideIcon | ComponentType<{ className?: string }>> = {
+  settings: Settings,
+  myExpertise: GraduationCap,
+  dataSharing: Database,
+  assistantConsent: Bot,
+  mailOptions: Mail,
+  security: ShieldCheck,
+  help: LifeBuoy,
+};
 
 export interface NavUserProps {
   name: string;
   email: string;
-  otherLocale: string;
-  labels: { language: string; theme: string; security: string; signOut: string };
-  /** Client side (F13): the help page, also here where people look for their account. */
-  help?: { label: string; href: string };
-  /** Firm admin: the firm's settings, here rather than in the menu so the menu fits without scrolling. */
-  settings?: { label: string; href: string };
+  /** The person's own pages, from userMenuFor() in lib/nav.ts. Language and theme stay in the top bar. */
+  items: { key: MenuKey; label: string; href: string }[];
+  signOut: string;
 }
 
-export function NavUser({ name, email, otherLocale, labels, help, settings }: NavUserProps) {
+/** The menu under the person's name at the foot of the sidebar (page audit 4.1). */
+export function NavUser({ name, email, items, signOut }: NavUserProps) {
   const { isMobile } = useSidebar();
-  const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
-  const [, startTransition] = useTransition();
 
   return (
     <SidebarMenu>
@@ -69,30 +73,17 @@ export function NavUser({ name, email, otherLocale, labels, help, settings }: Na
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => startTransition(async () => { await setLocale(otherLocale); router.refresh(); })}>
-                <Languages />
-                {labels.language}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
-                {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-                {labels.theme}
-              </DropdownMenuItem>
-              {settings ? (
-                <DropdownMenuItem onSelect={() => router.push(settings.href)}>
-                  <Settings />
-                  {settings.label}
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem onSelect={() => router.push("/security")}>
-                <ShieldCheck />
-                {labels.security}
-              </DropdownMenuItem>
-              {help ? (
-                <DropdownMenuItem onSelect={() => router.push(help.href)}>
-                  <LifeBuoy />
-                  {help.label}
-                </DropdownMenuItem>
-              ) : null}
+              {items.map((item) => {
+                const Icon = ICONS[item.key];
+                return (
+                  <DropdownMenuItem key={item.key} asChild>
+                    <Link href={item.href}>
+                      <Icon />
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -103,7 +94,7 @@ export function NavUser({ name, email, otherLocale, labels, help, settings }: Na
               }}
             >
               <LogOut />
-              {labels.signOut}
+              {signOut}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

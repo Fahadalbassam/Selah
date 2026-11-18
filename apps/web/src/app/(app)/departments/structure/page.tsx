@@ -4,10 +4,10 @@ import { PeopleView } from "@/components/org-chart/people-view";
 import { StructureBody, shownDepth, shownParam, structureViews } from "@/components/org-chart/structure-body";
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
-import { departmentTabs } from "@/lib/org-chart";
+import { ClientPeopleTabs } from "@/components/people-tabs";
+import { clientPeopleTabs } from "@/lib/people-tabs";
 import { withPrincipal } from "@/server/page";
 import { droppedHoldings, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
-import { DepartmentTabs } from "../department-tabs";
 
 // The client's own organisation structure (org chart, part 2): the current
 // version and the earlier ones, as the firm published them. The client's
@@ -16,9 +16,10 @@ import { DepartmentTabs } from "../department-tabs";
 // account opens that person's work card, read as the reader (part 3). The
 // client's admin also keeps the people in positions current here ("People
 // in positions"); the structure itself is the firm's. Action owners have no
-// tab (404), and the firm's draft never reaches this page. When the company
-// does not use departments, a manager has only this tab (the Departments
-// page sends her here); the admin keeps both.
+// tab (404), and the firm's draft never reaches this page. It is a tab of the
+// company's People page, beside Departments; when the company does not use
+// departments, a manager has People and this tab only (the Departments page
+// sends her here); the admin keeps all three.
 export default async function StructurePage({ searchParams }: { searchParams: Promise<{ version?: string; depth?: string; view?: string }> }) {
   const { version, depth, view: viewParam } = await searchParams;
   const data = await withPrincipal(async (tx, principal) => {
@@ -26,7 +27,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
     // No tab and no page until a version is published.
     if (!(await hasStructure(tx, principal, principal.orgId))) return null;
     const structure = await getStructure(tx, principal, principal.orgId, version ?? null);
-    const tabs = departmentTabs({ admin: principal.role === "client_admin", departmentsEnabled: structure.client.departmentsEnabled, structure: true });
+    const tabs = clientPeopleTabs({ admin: principal.role === "client_admin", departmentsEnabled: structure.client.departmentsEnabled, structure: true });
     const { views, view } = structureViews(structure, viewParam);
     const people = view === "people";
     return {
@@ -46,7 +47,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
   return (
     <>
-      <DepartmentTabs tabs={data.tabs} current="structure" />
+      <ClientPeopleTabs tabs={data.tabs} current="structure" />
       <PageHeader title={t("titleClient")} description={t("hintClient")}>
         {structure.shown?.units.length && view === "drawing" ? (
           <StructurePdfButton

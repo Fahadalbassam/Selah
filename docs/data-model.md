@@ -91,7 +91,7 @@ Reminders, escalations and workflow events (actions moving, evidence items, date
 - Each item carries what it is about and a link. Both are read under the caller's rights, so something they can no longer open shows without a title or link.
 - `POST /api/notifications/read` marks the given `ids` read, or all of them when there are none.
 - Screens: the bell in the header shows the unread count and the newest ten, and `/notifications` shows the last 100. Opening one marks it read.
-- `GET` and `PUT /api/notifications/mail` read and set the caller's own `mail_preferences` (for now just `followUpDigest`, on by default). No row means the defaults. The switch is under the list on `/notifications`.
+- `GET` and `PUT /api/notifications/mail` read and set the caller's own `mail_preferences` (for now just `followUpDigest`, on by default). No row means the defaults. The choices and the muted actions and indicators are on their own view, `/notifications/mail` ("Mail options" in the user menu, page audit row 34); `/notifications` is the list.
 
 ## Who sees an item
 
