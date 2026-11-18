@@ -60,6 +60,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Twenty drafts per person an hour (OWASP LLM10; src/auth/attempts.ts keeps the counts in memory).
 const draftsPerPerson = createAttemptLimiter({ max: 20, windowSeconds: 60 * 60 });
+// The filled template, like the PDF: ten per person per ten minutes.
+const workbooksPerPerson = createAttemptLimiter({ max: 10, windowSeconds: 10 * 60 });
 
 /** Whether the reader may import into the client's draft: the draft's editors (the database: app_org_chart_editor). */
 export function canImport(principal: Principal, clientOrgId: string): boolean {
@@ -570,15 +572,18 @@ export async function orgChartTemplate(locale: Locale) {
 
 /**
  * A version of the client's structure in the same template, so it can be
- * changed in Excel and brought back in: "draft" (the firm only), a version's
- * id, or nothing for the current version. It reads through getStructure,
- * so it holds exactly what the reader's Structure tab holds (names only
- * where the database sends them, the draft only for the firm, another
- * client's a 404). A person with an account is written as their e-mail, so
- * the file comes back as the same person; a typed name as typed.
+ * changed in Excel and brought back in: "draft", a version's id, or nothing
+ * for the current version. For the draft's editors only (the coordinator's
+ * decision, 18 Nov 2026: it holds e-mails, planned numbers, specialties and,
+ * for the draft, plans, none of which the Structure tab shows; anyone else,
+ * a 404), and limited like the PDF. It reads through getStructure, so the
+ * names are the ones the database sends. A person with an account is
+ * written as their e-mail, so the file comes back as the same person; a
+ * typed name as typed.
  */
 export async function orgChartWorkbook(tx: Tx, principal: Principal, clientOrgId: string, pick: string | undefined, locale: Locale) {
-  if (!UUID.test(clientOrgId)) throw new NotFoundError("org chart");
+  if (!(await importContext(tx, principal, clientOrgId))) throw new NotFoundError("org chart");
+  if (workbooksPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many workbook exports");
   const view = await OC.getStructure(tx, principal, clientOrgId, pick ?? null);
   const shown = view.shown;
   if (!shown) throw new NotFoundError("org chart");

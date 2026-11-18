@@ -525,6 +525,23 @@ describe("saving into the draft", () => {
 });
 
 
+describe("the structure in the template (the filled export)", () => {
+  it("is for the draft's editors only: everyone else, the client's people included, gets a 404", async () => {
+    // Sahm has a published version and a draft by now.
+    for (const who of [U.cadmin, U.mgr, U.owner, U.obs, U.team, U.oadmin]) {
+      await expect(svc(who, (tx, p) => IM.orgChartWorkbook(tx, p, SAHM, undefined, "ar")), who).rejects.toThrow(REFUSED);
+      await expect(svc(who, (tx, p) => IM.orgChartWorkbook(tx, p, SAHM, "draft", "en")), who).rejects.toThrow(REFUSED);
+    }
+  });
+
+  it("is limited like the PDF: ten a person in ten minutes", async () => {
+    await svc(U.deputy, async (tx, p) => {
+      for (let i = 0; i < 10; i++) await IM.orgChartWorkbook(tx, p, SAHM, "draft", "en");
+      await expect(IM.orgChartWorkbook(tx, p, SAHM, "draft", "en")).rejects.toThrow(/too many/);
+    });
+  });
+});
+
 describe("the assistant's draft from pasted text", () => {
   const TEXT = [
     "Sahm Trading structure, prepared by Mizan Advisory.",

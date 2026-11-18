@@ -6,10 +6,10 @@ import { orgChartWorkbook } from "@/services/org-chart-import";
 
 /**
  * A version of the client's structure in the import template (org chart,
- * part 4), so it can be changed in Excel and brought back in: the draft
- * (the firm), a version's id, or the current version. It holds what the
- * reader's Structure tab holds; another client's chart, an action owner and
- * the draft for a client person: 404.
+ * part 4), so it can be changed in Excel and brought back in: the draft, a
+ * version's id, or the current version. For the draft's editors only;
+ * everyone else, and another client, 404. Ten per person in ten minutes,
+ * like the PDF.
  */
 export const GET = route(
   {
