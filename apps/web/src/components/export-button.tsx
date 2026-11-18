@@ -41,7 +41,18 @@ function Preparing() {
  * reader's language. The server decides what the file holds; this only
  * fetches it, saves it, and says so inline when it could not be made.
  */
-export function ExportButton({ endpoint, label, title, variant = "outline" }: { endpoint: string; label: string; title?: string; variant?: "outline" | "ghost" }) {
+export function ExportButton({
+  endpoint,
+  label,
+  title,
+  variant = "outline",
+}: {
+  endpoint: string;
+  label: string;
+  title?: string;
+  /** "default" (solid) only as a dialog's one main action. */
+  variant?: "outline" | "ghost" | "default";
+}) {
   const t = useTranslations("exports");
   const locale = useLocale();
   const [busy, setBusy] = useState(false);

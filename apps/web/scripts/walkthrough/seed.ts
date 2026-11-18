@@ -55,6 +55,7 @@ import { addValue, createIndicator, linkRecommendation } from "@/services/indica
 import { addTemplateItems, answerWithUpload, createInfoRequest } from "@/services/info-requests";
 import { submitInquiry } from "@/services/intake";
 import { addFollowUp, bookMeeting, recordDecision, saveSummary, sendInvites, updateFollowUp, updateMeeting } from "@/services/meetings";
+import { addPosition, addUnit, changeHolder, getDraft, publish, setShowNames, startChart } from "@/services/org-chart";
 import { createAction, createFinding, createRecommendation } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 import { addProgressUpdate } from "@/services/progress";
@@ -687,6 +688,65 @@ await as(C.nAdmin, (tx, p) => consentClientAi(tx, p, { version: CLIENT_AI_VERSIO
 
 // A problem the action owner reported from the help page.
 await as(C.nOwner, (tx, p) => reportProblem(tx, p, { body: "لا أستطيع رفع ملف أكبر من 20 ميجابايت، والمحضر الممسوح ضوئياً حجمه 35 ميجابايت." }));
+
+// Al-Nukhba's organisation structure (org chart): Khalid builds it in the
+// draft and publishes it, effective 45 days ago; Fahd, the client admin,
+// puts the people in and shows names to the managers. The board, the chief
+// executive with internal audit beside him on a dotted line, and the three
+// departments, each linked to the department of the same name (a label, never
+// an access rule). Twelve positions: the five Al-Nukhba accounts hold one
+// each, six people without an account are typed names, and the legal
+// counsel's position is the one vacancy.
+step("Al-Nukhba's organisation structure (published, one vacancy)");
+await as(U.lead, (tx, p) => startChart(tx, p, nukhba.id));
+const ou: Record<string, string> = {};
+for (const [key, parent, input] of [
+  ["board", null, { kind: "board", nameAr: "مجلس الإدارة", nameEn: "Board of directors" }],
+  ["ceo", "board", { kind: "executive", nameAr: "الرئيس التنفيذي", nameEn: "Chief executive" }],
+  ["audit", "ceo", { kind: "unit", nameAr: "المراجعة الداخلية", nameEn: "Internal audit", advisory: true }],
+  ["secretariat", "ceo", { kind: "department", nameAr: "أمانة مجلس الإدارة", nameEn: "Board secretariat", departmentId: dept.secretariat.id }],
+  ["legal", "ceo", { kind: "department", nameAr: "الشؤون القانونية", nameEn: "Legal affairs", departmentId: dept.legal.id }],
+  ["finance", "ceo", { kind: "department", nameAr: "الإدارة المالية", nameEn: "Finance", departmentId: dept.finance.id }],
+  ["accounts", "finance", { kind: "section", nameAr: "قسم الحسابات", nameEn: "Accounts" }],
+] as const) {
+  ou[key] = (await as(U.lead, (tx, p) => addUnit(tx, p, nukhba.id, { ...input, parentId: parent ? ou[parent] : null }))).id;
+}
+const op: Record<string, string> = {};
+for (const [key, unitKey, reportsTo, input] of [
+  ["chair", "board", null, { titleAr: "رئيس مجلس الإدارة", titleEn: "Chair of the board", isHead: true }],
+  ["ceo", "ceo", "chair", { titleAr: "الرئيس التنفيذي", titleEn: "Chief executive officer", isHead: true }],
+  ["governance", "ceo", "ceo", { titleAr: "مدير الحوكمة والاستراتيجية", titleEn: "Governance and strategy manager" }],
+  ["office", "ceo", "ceo", { titleAr: "مدير مكتب الرئيس التنفيذي", titleEn: "Executive office manager" }],
+  // Internal audit answers to the board's audit committee, beside the chief executive.
+  ["auditor", "audit", "chair", { titleAr: "رئيس المراجعة الداخلية", titleEn: "Head of internal audit", isHead: true }],
+  ["secretary", "secretariat", "chair", { titleAr: "أمين سر مجلس الإدارة", titleEn: "Board secretary", isHead: true }],
+  ["coordinator", "secretariat", "secretary", { titleAr: "منسق شؤون المجلس", titleEn: "Board affairs coordinator" }],
+  ["legalHead", "legal", "ceo", { titleAr: "مدير الشؤون القانونية", titleEn: "Head of legal affairs", isHead: true }],
+  ["counsel", "legal", "legalHead", { titleAr: "مستشار قانوني", titleEn: "Legal counsel" }],
+  ["cfo", "finance", "ceo", { titleAr: "المدير المالي", titleEn: "Chief financial officer", isHead: true }],
+  ["accountsHead", "accounts", "cfo", { titleAr: "رئيس قسم الحسابات", titleEn: "Head of accounts", isHead: true }],
+  ["accountant", "accounts", "accountsHead", { titleAr: "محاسب", titleEn: "Accountant", plannedCount: 2 }],
+] as const) {
+  op[key] = (await as(U.lead, (tx, p) => addPosition(tx, p, ou[unitKey]!, { ...input, reportsToId: reportsTo ? op[reportsTo] : null }))).id;
+}
+const draftId = (await as(U.lead, (tx, p) => getDraft(tx, p, nukhba.id))).draft!.id;
+const structure = await as(U.lead, (tx, p) => publish(tx, p, nukhba.id, { draftId, effectiveOn: day(-45) }));
+for (const [key, holder] of [
+  ["chair", { name: "سعود الراشد" }],
+  ["ceo", { userId: C.nSponsor }],
+  ["governance", { userId: C.nAdmin }],
+  ["office", { name: "لمى الشهراني" }],
+  ["auditor", { name: "هالة الفيصل" }],
+  ["secretary", { userId: C.nManager }],
+  ["coordinator", { name: "بدر السالم" }],
+  ["legalHead", { userId: C.nOwner }],
+  ["cfo", { userId: C.nOwner2 }],
+  ["accountsHead", { name: "عادل الحمدان" }],
+  ["accountant", { name: "منيرة الزامل" }],
+] as const) {
+  await as(C.nAdmin, (tx, p) => changeHolder(tx, p, op[key]!, { start: { ...holder, from: day(-400) } }));
+}
+await as(C.nAdmin, (tx, p) => setShowNames(tx, p, structure.versionId, true));
 
 // ---------------------------------------------------------------- case 2: Rawdah, closing
 

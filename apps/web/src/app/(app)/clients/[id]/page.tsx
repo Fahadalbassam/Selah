@@ -44,6 +44,8 @@ import { ClientAiCard } from "./client-ai-card";
 import { getClientAi } from "@/services/client-ai";
 import { getClientReviewRule } from "@/services/second-review";
 import { SecondReviewRuleCard } from "./second-review-card";
+import { canReadStructure } from "@/services/org-chart";
+import { ClientTabs } from "./client-tabs";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -81,6 +83,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
       // When evidence needs a second consultant's sign-off (F22).
       secondReview: team.client.prospect ? null : await getClientReviewRule(tx, principal, id),
+      // The Structure tab, for the people who may read the client's structure (F43).
+      structure: canReadStructure(principal, id),
     };
   });
   if (!data) notFound();
@@ -199,6 +203,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {tOff("banner", { date: format.dateTime(data.offboarding.current.archivedAt, { dateStyle: "medium" }) })}
         </p>
       ) : null}
+      <ClientTabs clientId={client.id} current="overview" structure={data.structure} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">

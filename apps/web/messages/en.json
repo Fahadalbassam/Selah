@@ -3886,7 +3886,8 @@
       "org_chart_holders": "Change who holds positions in the organisation structure",
       "org_chart_request_read": "Read suggested changes to the organisation structure",
       "org_chart_request_create": "Suggested a change to the organisation structure",
-      "org_chart_request_close": "Answered a suggested change to the organisation structure"
+      "org_chart_request_close": "Answered a suggested change to the organisation structure",
+      "org_chart_export": "Organisation structure exported as a PDF"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -5334,6 +5335,74 @@
   "orgChart": {
     "errors": {
       "draftChanged": "This draft is no longer the current one. Reload the page."
+    },
+    "tabs": {
+      "label": "Client pages",
+      "overview": "Overview",
+      "departments": "Departments",
+      "structure": "Structure"
+    },
+    "clientTabs": {
+      "label": "Departments and structure",
+      "departments": "Departments",
+      "structure": "Structure"
+    },
+    "title": "Organisation structure",
+    "titleClient": "Your company's structure",
+    "hint": "This client's published structure: its units, its positions and who holds each one today. Choose how many levels to show, or download it as a PDF.",
+    "hintClient": "Your company's structure as your consultants published it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF to print.",
+    "noneFirm": "No structure has been published for this client yet. The firm admin, the client's lead or deputy, or a consultant staffed on one of its projects can start one.",
+    "noneClient": "Your consultants have not published your company's structure yet.",
+    "draftOnly": "Nothing is published yet, so the client sees no structure until the lead, the deputy or the firm admin publishes this draft.",
+    "draftBanner": "The firm's draft: the client does not see it until it is published.",
+    "emptyDraft": "This draft has no units yet.",
+    "version": {
+      "number": "Version {n}",
+      "current": "Version {n}, current",
+      "draft": "Draft",
+      "effective": "In effect from {date}",
+      "published": "Published on {date} by {name}",
+      "replaced": "Replaced on {date}",
+      "asOf": "Who held each position on {date}",
+      "others": "Other versions:"
+    },
+    "depth": {
+      "label": "Levels",
+      "upTo": "Down to level {n}",
+      "all": "All"
+    },
+    "names": {
+      "branch": "You see the names of the people in your own department and in the positions above it.",
+      "hidden": "Your company does not show the names of the people in positions to its managers.",
+      "noDepartment": "Managers see names only in their own department's part of the structure and above it, and you have no department in it.",
+      "history": "Earlier versions show the positions only, without names.",
+      "minimal": "Positions only: this client keeps minimal records, so no names are kept."
+    },
+    "tree": {
+      "label": "Organisation structure",
+      "vacant": "Vacant",
+      "reportsTo": "Reports to: {title}",
+      "moreLevels": "Lower levels not shown",
+      "ownPage": "Details on its own page",
+      "advisory": "advisory unit"
+    },
+    "pdf": {
+      "button": "Download PDF",
+      "dialogTitle": "Download the structure as a PDF",
+      "dialogHint": "An overview page, then one page for each department.",
+      "paper": "Paper",
+      "a3": "A3 landscape",
+      "a4": "A4 landscape",
+      "levels": "Levels",
+      "names": "Names",
+      "withNames": "With names",
+      "withoutNames": "Without names",
+      "download": "Download",
+      "title": "Organisation structure",
+      "meta": "Version {n} · in effect from {date}",
+      "metaDraft": "Unpublished draft",
+      "footer": "{client} · Version {n} · in effect from {effective} · printed on {printed}",
+      "footerDraft": "{client} · Unpublished draft · printed on {printed}"
     }
   }
 }

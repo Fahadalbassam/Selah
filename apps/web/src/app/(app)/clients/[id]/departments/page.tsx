@@ -9,6 +9,8 @@ import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
+import { canReadStructure } from "@/services/org-chart";
+import { ClientTabs } from "../client-tabs";
 
 // A client's departments, from the firm side. The firm admin manages them.
 export default async function ClientDepartmentsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +20,7 @@ export default async function ClientDepartmentsPage({ params }: { params: Promis
     if (principal.orgKind !== "firm") return null;
     const engagement = await getEngagement(tx, principal, id);
     const people = engagement.canManageDepartments ? (await listPeople(tx, principal, id)).people.filter((p) => p.active) : [];
-    return { engagement, people };
+    return { engagement, people, structure: canReadStructure(principal, id) };
   });
   if (!data) notFound();
   const t = await getTranslations("engagement.departments");
@@ -31,6 +33,7 @@ export default async function ClientDepartmentsPage({ params }: { params: Promis
         {localName(org, ar)}
       </Link>
       <PageHeader title={t("title")} description={t("hint")} />
+      <ClientTabs clientId={id} current="departments" structure={data.structure} />
       <DepartmentsManager data={org} people={data.people.map((p) => ({ userId: p.userId, name: p.name }))} />
     </>
   );

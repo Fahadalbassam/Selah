@@ -394,6 +394,56 @@ export async function getVersion(tx: Tx, principal: Principal, versionId: string
   };
 }
 
+/** Whether the reader may open the client's structure at all: the Structure tabs and the PDF. */
+export const canReadStructure = (principal: Principal, clientOrgId: string) => can(principal, "org_chart.read", clientOrgId);
+
+/** One version as the Structure tab and the PDF draw it. */
+export interface StructureShown {
+  version: OrgVersionSummary;
+  /** The day whose holders are shown. */
+  asOf: string;
+  names: NamesShown;
+  units: OrgUnit[];
+  positions: OrgPosition[];
+}
+
+/**
+ * What the Structure tab and its PDF show: the version the reader picked
+ * ("draft", a version's id, or nothing for the current one), read through
+ * getPublishedChart, getDraft and getVersion, so the names, holders and dates
+ * are exactly the ones those allow; nothing is decided again here. With
+ * nothing picked: the current version or, for the firm while nothing is
+ * published yet, its draft. The draft never reaches a client person (404),
+ * nor does another client's version. `versions` is listVersions: the draft
+ * only for the firm.
+ */
+export async function getStructure(tx: Tx, principal: Principal, clientOrgId: string, pick?: string | null, today = firmToday()) {
+  const current = await getPublishedChart(tx, principal, clientOrgId, today);
+  const versions = await listVersions(tx, principal, clientOrgId);
+  const draftSummary = principal.orgKind === "firm" ? (versions.find((v) => v.state === "draft") ?? null) : null;
+  const draft = async (): Promise<StructureShown> => {
+    if (!draftSummary) throw new NotFoundError("draft");
+    const d = await getDraft(tx, principal, clientOrgId, today);
+    if (!d.draft || d.draft.id !== draftSummary.id) throw new NotFoundError("draft");
+    return { version: draftSummary, asOf: today, names: current.client.minimalRecords ? "none" : "all", units: d.units, positions: d.positions };
+  };
+  let shown: StructureShown | null = null;
+  if (pick === "draft") shown = await draft();
+  else if (pick) {
+    if (!UUID.test(pick) || !versions.some((v) => v.id === pick)) throw new NotFoundError("version");
+    if (pick === draftSummary?.id) shown = await draft();
+    else {
+      const v = await getVersion(tx, principal, pick);
+      shown = { version: v.version, asOf: v.asOf, names: v.names, units: v.units, positions: v.positions };
+    }
+  } else if (current.version) {
+    shown = { version: current.version, asOf: today, names: current.names, units: current.units, positions: current.positions };
+  } else if (draftSummary) shown = await draft();
+  return { client: current.client, today, current: current.version, versions, shown };
+}
+
+export type Structure = Awaited<ReturnType<typeof getStructure>>;
+
 /**
  * Positions of the current structure nobody holds today (for the invite form
  * and the leaving flow). None at a client that keeps minimal records: its

@@ -12,7 +12,10 @@ import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
 import { indicatorTable } from "@/lib/indicator-html";
+import { renderOrgChartPdfHtml, treeLabels, type PaperSize } from "@/lib/org-chart-html";
+import { buildTree, chartLevels, overview, pageUnits, parseDepth } from "@/lib/org-chart-tree";
 import { indicatorSnapshot } from "./indicators";
+import { getStructure } from "./org-chart";
 import { renderReportHtml } from "@/lib/report-html";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { NotFoundError, RateLimitError } from "@/server/errors";
@@ -450,6 +453,71 @@ export async function clientReportPdf(tx: Tx, principal: Principal, clientOrgId:
     meta: { format: "pdf", projects: data.projects.length },
   });
   return { bytes, fileName: fileName("selah-client-report", "pdf"), contentType: "application/pdf" };
+}
+
+export interface OrgChartPdfOptions {
+  /** "draft" (the firm only), a version's id, or nothing for the current version. */
+  version?: string;
+  size: PaperSize;
+  /** A level of the structure, or nothing for every level. */
+  depth?: string;
+  /** With the names the reader may see, or without any name. */
+  names: boolean;
+}
+
+/**
+ * The client's organisation structure as a PDF (org chart, part 2): the same
+ * drawing as the Structure tab, A3 or A4 landscape, an overview page then one
+ * page per top-level department, and a footer with the version, the day it
+ * took effect, the day printed and the client's name. It reads through
+ * getStructure, so it holds exactly what the reader's tab holds: names only
+ * where the database sends them, the draft only for the firm, another
+ * client's chart a 404. Without names, no holder's name at all.
+ */
+export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: string, options: OrgChartPdfOptions, locale: Locale): Promise<ExportFile> {
+  const view = await getStructure(tx, principal, clientOrgId, options.version);
+  const shown = view.shown;
+  if (!shown) throw new NotFoundError("org chart");
+  const t = await getTranslations({ locale, namespace: "orgChart" });
+  const tr = (key: string, values?: Record<string, string | number>) => t(key as "title", values as never);
+  const ar = locale === "ar";
+  const day = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
+  const depth = parseDepth(options.depth, chartLevels(shown.units));
+  const names = options.names && shown.names !== "none";
+  const roots = buildTree(shown.units, shown.positions, { locale, depth, names });
+  const departments = pageUnits(roots);
+  const draft = shown.version.state === "draft";
+  const clientName = localName(view.client, ar);
+  const n = shown.version.number ?? 0;
+  const effective = shown.version.effectiveOn ? day(shown.version.effectiveOn) : "";
+  const html = renderOrgChartPdfHtml({
+    locale,
+    size: options.size,
+    clientName,
+    title: tr("pdf.title"),
+    meta: draft ? tr("pdf.metaDraft") : tr("pdf.meta", { n, date: effective }),
+    draftNotice: draft ? tr("draftBanner") : null,
+    pages: [
+      { heading: null, roots: departments.length ? overview(roots, new Set(departments.map((d) => d.id))) : roots },
+      // Alone on its page, a department spreads its sections across it.
+      ...departments.map((d) => ({ heading: d.name, roots: [{ ...d, across: d.children.length > 0 }] })),
+    ],
+    labels: treeLabels(tr),
+  });
+  if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
+  const printed = day(view.today);
+  const footer = draft ? tr("pdf.footerDraft", { client: clientName, printed }) : tr("pdf.footer", { client: clientName, n, effective, printed });
+  const bytes = await renderPdf(html, { locale, footer });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.export",
+    resourceType: "org_chart",
+    resourceId: shown.version.id,
+    outcome: "allow",
+    meta: { client: view.client.id, format: "pdf", number: shown.version.number, size: options.size, depth, names },
+  });
+  return { bytes, fileName: fileName("selah-structure", "pdf"), contentType: "application/pdf" };
 }
 
 /** An attachment response: no caching, and the browser must not guess the type. */
