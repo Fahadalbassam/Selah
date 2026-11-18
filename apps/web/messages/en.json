@@ -5358,9 +5358,12 @@
       "number": "Version {n}",
       "current": "Version {n}, current",
       "draft": "Draft",
+      "unpublished": "Unpublished draft",
       "effective": "In effect from {date}",
+      "upcoming": "Takes effect on {date}",
       "published": "Published on {date} by {name}",
-      "replaced": "Replaced on {date}",
+      "replaced": "Replaced on {date} by version {by}",
+      "replacedSoon": "Version {by} takes effect on {date}",
       "asOf": "Who held each position on {date}",
       "others": "Other versions:"
     },
@@ -5397,10 +5400,7 @@
       "withoutNames": "Without names",
       "download": "Download",
       "title": "Organisation structure",
-      "meta": "Version {n} · in effect from {date}",
-      "metaDraft": "Unpublished draft",
-      "footer": "{client} · Version {n} · in effect from {effective} · printed on {printed}",
-      "footerDraft": "{client} · Unpublished draft · printed on {printed}"
+      "printed": "Printed on {date}"
     }
   }
 }

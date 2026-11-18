@@ -3,7 +3,7 @@
 // HTML drawing for the screen and the PDF, and its words in both languages.
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
-import { fitZoom, orgTreeHtml, renderOrgChartPdfHtml, treeLabels, type TreeLabels } from "@/lib/org-chart-html";
+import { fitZoom, orgTreeHtml, renderOrgChartPdfHtml, treeLabels, versionWords, type TreeLabels } from "@/lib/org-chart-html";
 import {
   buildTree,
   chartLevels,
@@ -16,6 +16,7 @@ import {
   type ChartUnitIn,
   type TreeUnit,
 } from "@/lib/org-chart-tree";
+import { versionStatus } from "@/lib/org-chart";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 
@@ -261,6 +262,37 @@ describe("the drawing", () => {
   });
 });
 
+describe("what a version is on a day", () => {
+  const v = (n: number | null, state: "draft" | "published" | "superseded", effectiveOn: string | null) => ({ id: `v${n ?? "d"}`, number: n, state, effectiveOn });
+  const today = "2026-11-18";
+
+  it("the draft is the draft; the published version whose day has come is current", () => {
+    const all = [v(null, "draft", null), v(2, "published", "2026-10-01"), v(1, "superseded", "2025-01-01")];
+    expect(versionStatus(all[0]!, all, today)).toEqual({ kind: "draft" });
+    expect(versionStatus(all[1]!, all, today)).toEqual({ kind: "current" });
+  });
+
+  it("a replaced version says when and by which version", () => {
+    const all = [v(3, "published", "2026-10-01"), v(2, "superseded", "2026-03-01"), v(1, "superseded", "2025-01-01")];
+    expect(versionStatus(all[2]!, all, today)).toEqual({ kind: "past", replacedOn: "2026-03-01", by: 2 });
+    expect(versionStatus(all[1]!, all, today)).toEqual({ kind: "past", replacedOn: "2026-10-01", by: 3 });
+  });
+
+  it("a version that takes effect later is not current: the one it replaces stays current until then", () => {
+    const all = [v(2, "published", "2027-01-01"), v(1, "superseded", "2025-01-01")];
+    expect(versionStatus(all[0]!, all, today)).toEqual({ kind: "upcoming", on: "2027-01-01" });
+    expect(versionStatus(all[1]!, all, today)).toEqual({ kind: "current", until: "2027-01-01", by: 2 });
+    // The day it takes effect, it is current, and the old one is replaced.
+    expect(versionStatus(all[0]!, all, "2027-01-01")).toEqual({ kind: "current" });
+    expect(versionStatus(all[1]!, all, "2027-01-01")).toEqual({ kind: "past", replacedOn: "2027-01-01", by: 2 });
+  });
+
+  it("a first version that takes effect later: nothing is current yet", () => {
+    const all = [v(1, "published", "2027-01-01")];
+    expect(versionStatus(all[0]!, all, today)).toEqual({ kind: "upcoming", on: "2027-01-01" });
+  });
+});
+
 describe("the words, Arabic first", () => {
   const keys = (o: unknown, prefix = ""): string[] =>
     Object.entries(o as Record<string, unknown>).flatMap(([k, v]) => (typeof v === "object" && v ? keys(v, `${prefix}${k}.`) : [`${prefix}${k}`]));
@@ -300,12 +332,19 @@ describe("the words, Arabic first", () => {
     expect(all).not.toMatch(/span of control|نطاق الإشراف|healthy|unhealthy|too many|good structure|سليم|ضعيف/i);
   });
 
-  it("the footer carries the client, the version, the day it took effect and the day printed", () => {
-    const t = createTranslator({ locale: "ar", messages: ar, namespace: "orgChart" });
-    expect(t("pdf.footer", { client: "النخبة", n: 2, effective: "١ أكتوبر", printed: "١٨ نوفمبر" })).toBe("النخبة · الإصدار 2 · نافذ من ١ أكتوبر · تاريخ الطباعة ١٨ نوفمبر");
-    const te = createTranslator({ locale: "en", messages: en, namespace: "orgChart" });
-    expect(te("pdf.footer", { client: "Al-Nukhba", n: 2, effective: "1 Oct 2026", printed: "18 Nov 2026" })).toBe(
-      "Al-Nukhba · Version 2 · in effect from 1 Oct 2026 · printed on 18 Nov 2026",
+  it("says which version it is, in both languages: current, upcoming, or replaced on a day by which version and whose holders", () => {
+    const words = (locale: "ar" | "en") => {
+      const t = createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "orgChart" });
+      const tr = (k: string, v?: Record<string, string | number>) => t(k as "title", v as never);
+      return (status: Parameters<typeof versionWords>[1], asOf: string | null = null) => versionWords({ number: 1, effectiveOn: "2025-01-01" }, status, asOf, tr, (d) => d).join(" · ");
+    };
+    expect(words("ar")({ kind: "current" })).toBe("الإصدار 1، الحالي · نافذ من 2025-01-01");
+    expect(words("en")({ kind: "current", until: "2027-01-01", by: 2 })).toBe("Version 1, current · In effect from 2025-01-01 · Version 2 takes effect on 2027-01-01");
+    expect(words("ar")({ kind: "past", replacedOn: "2026-03-01", by: 2 }, "2026-02-20")).toBe(
+      "الإصدار 1 · نافذ من 2025-01-01 · حلّ محله الإصدار 2 في 2026-03-01 · شاغلو المناصب كما كانوا في 2026-02-20",
     );
+    expect(words("en")({ kind: "past", replacedOn: "2026-03-01", by: 2 })).toBe("Version 1 · In effect from 2025-01-01 · Replaced on 2026-03-01 by version 2");
+    expect(words("en")({ kind: "upcoming", on: "2027-01-01" })).toBe("Version 1 · Takes effect on 2027-01-01");
+    expect(words("ar")({ kind: "draft" })).toBe("مسودة غير منشورة");
   });
 });

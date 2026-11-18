@@ -5,6 +5,7 @@
 // come from `dir` alone. No canvas, no diagram library, no measuring in the
 // browser. On screen the colours are the app's tokens; in the PDF, where no
 // token is defined, the same rules fall back to print greys.
+import type { VersionStatus } from "./org-chart";
 import { escapeHtml, reportFontFaces } from "./report-html";
 import { treeWidth, type TreePosition, type TreeUnit } from "./org-chart-tree";
 
@@ -33,6 +34,33 @@ export function treeLabels(t: (key: string, values?: Record<string, string>) => 
     advisory: t("tree.advisory"),
     label: t("tree.label"),
   };
+}
+
+/**
+ * The words that say which version is shown, in order: its number (and
+ * "current" only for the one in effect today), when it took or takes
+ * effect, when it was replaced and by which version (or which version
+ * replaces it on a coming day), and whose holders are shown for a replaced
+ * one. The same on the screen, in the PDF's heading and in its footer.
+ */
+export function versionWords(
+  v: { number: number | null; effectiveOn: string | null },
+  status: VersionStatus,
+  asOf: string | null,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  day: (iso: string) => string,
+): string[] {
+  const n = v.number ?? 0;
+  const from = v.effectiveOn ? t("version.effective", { date: day(v.effectiveOn) }) : null;
+  const parts: (string | null)[] =
+    status.kind === "draft"
+      ? [t("version.unpublished")]
+      : status.kind === "upcoming"
+        ? [t("version.number", { n }), t("version.upcoming", { date: day(status.on) })]
+        : status.kind === "current"
+          ? [t("version.current", { n }), from, status.until && status.by ? t("version.replacedSoon", { by: status.by, date: day(status.until) }) : null]
+          : [t("version.number", { n }), from, t("version.replaced", { by: status.by, date: day(status.replacedOn) }), asOf ? t("version.asOf", { date: day(asOf) }) : null];
+  return parts.filter((p): p is string => p !== null);
 }
 
 /** The tree's styles, for the screen (a <style> beside the drawing) and the PDF. */
@@ -166,7 +194,7 @@ p{margin:0;}
 .top{display:flex;justify-content:space-between;align-items:flex-end;gap:8mm;border-bottom:1px solid #d2d2d2;padding-bottom:3mm;margin-bottom:6mm;}
 .client{font-size:9pt;color:#595959;}
 h1{margin:1mm 0 0;font-size:15pt;font-weight:600;line-height:1.3;}
-.meta{font-size:9pt;color:#595959;white-space:nowrap;}
+.meta{max-width:60%;font-size:9pt;color:#595959;text-align:end;}
 .draft{margin:0 0 5mm;border:1px dashed #9b9b9b;border-radius:2mm;padding:2mm 3mm;font-size:9pt;}
 .fit{display:flex;justify-content:center;}
 .fit .oc{min-inline-size:0;}

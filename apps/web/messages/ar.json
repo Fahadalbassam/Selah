@@ -5358,9 +5358,12 @@
       "number": "الإصدار {n}",
       "current": "الإصدار {n}، الحالي",
       "draft": "المسودة",
+      "unpublished": "مسودة غير منشورة",
       "effective": "نافذ من {date}",
+      "upcoming": "يبدأ سريانه في {date}",
       "published": "نُشر في {date}، بواسطة {name}",
-      "replaced": "استُبدل في {date}",
+      "replaced": "حلّ محله الإصدار {by} في {date}",
+      "replacedSoon": "يحلّ محله الإصدار {by} في {date}",
       "asOf": "شاغلو المناصب كما كانوا في {date}",
       "others": "إصدارات أخرى:"
     },
@@ -5397,10 +5400,7 @@
       "withoutNames": "بدون أسماء",
       "download": "تنزيل",
       "title": "الهيكل التنظيمي",
-      "meta": "الإصدار {n} · نافذ من {date}",
-      "metaDraft": "مسودة غير منشورة",
-      "footer": "{client} · الإصدار {n} · نافذ من {effective} · تاريخ الطباعة {printed}",
-      "footerDraft": "{client} · مسودة غير منشورة · تاريخ الطباعة {printed}"
+      "printed": "تاريخ الطباعة {date}"
     }
   }
 }

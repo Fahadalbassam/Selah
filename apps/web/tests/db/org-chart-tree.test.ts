@@ -376,7 +376,7 @@ describe("the PDF holds what the tab holds", () => {
     // An overview page, then Finance and Human resources.
     expect(html.match(/<section class="page">/g)).toHaveLength(3);
     const day = (iso: string) => new Intl.DateTimeFormat("ar", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
-    expect(footer).toBe(`أكمي · الإصدار 2 · نافذ من ${day(firmToday())} · تاريخ الطباعة ${day(firmToday())}`);
+    expect(footer).toBe(`أكمي · الإصدار 2، الحالي · نافذ من ${day(firmToday())} · تاريخ الطباعة ${day(firmToday())}`);
     const audit = await owner.query(`SELECT actor_id, meta FROM audit_log WHERE action = 'org_chart.export' ORDER BY created_at DESC LIMIT 1`);
     expect(audit.rows[0]).toMatchObject({ actor_id: U.lead, meta: { client: ACME, number: 2, size: "a3", names: true } });
   });
@@ -422,6 +422,38 @@ describe("the PDF holds what the tab holds", () => {
       await expect(svc(who, (tx, p) => orgChartPdf(tx, p, client, { size: "a3", names: true, version }, "en")), who).rejects.toThrow(REFUSED);
     }
     expect(printed).toEqual([]);
+  });
+
+  it("an earlier version says it was replaced, when and by which version, and whose holders it shows, on screen and in print", async () => {
+    const day = (iso: string) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+    const today = firmToday();
+    const view = await svc(U.cadmin, (tx, p) => OC.getStructure(tx, p, ACME, V1));
+    expect(view.shown!.status).toEqual({ kind: "past", replacedOn: today, by: 2 });
+    expect(view.versions.map((v) => [v.number, v.status.kind])).toEqual([
+      [2, "current"],
+      [1, "past"],
+    ]);
+    const { html, footer } = await pdf(U.cadmin, ACME, { version: V1 });
+    const said = `Version 1 · In effect from ${day(today)} · Replaced on ${day(today)} by version 2 · Who held each position on ${day(today)}`;
+    expect(html).toContain(`<p class="meta">${said}</p>`);
+    expect(footer).toBe(`Acme · ${said} · Printed on ${day(today)}`);
+    // The current version says it is current, and nothing about being replaced.
+    const now = await pdf(U.cadmin, ACME);
+    expect(now.footer).toBe(`Acme · Version 2, current · In effect from ${day(today)} · Printed on ${day(today)}`);
+  });
+
+  it("a version that takes effect later is not 'current': it says when it takes effect, and the one it replaces stays current until then", async () => {
+    const draftId = await draftIdOf(OTHER);
+    await svc(U.admin, (tx, p) => OC.publish(tx, p, OTHER, { draftId, effectiveOn: "2099-01-01" }), true);
+    const view = await svc(U.admin, (tx, p) => OC.getStructure(tx, p, OTHER));
+    expect([view.shown!.version.number, view.shown!.status]).toEqual([2, { kind: "upcoming", on: "2099-01-01" }]);
+    expect(view.versions.filter((v) => v.state !== "draft").map((v) => [v.number, v.status])).toEqual([
+      [2, { kind: "upcoming", on: "2099-01-01" }],
+      [1, { kind: "current", until: "2099-01-01", by: 2 }],
+    ]);
+    const { html } = await pdf(U.admin, OTHER);
+    expect(html).toContain('<p class="meta">Version 2 · Takes effect on Jan 1, 2099</p>');
+    expect(html).not.toContain("current");
   });
 
   it("a minimal-records client prints titles only", async () => {

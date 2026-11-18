@@ -15,6 +15,8 @@ import {
   type OrgChartRequestStatus,
   type OrgChartState,
   type OrgUnitKind,
+  versionStatus,
+  type VersionStatus,
 } from "@/lib/org-chart";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -419,6 +421,8 @@ export async function hasStructure(tx: Tx, principal: Principal, clientOrgId: st
 /** One version as the Structure tab and the PDF draw it. */
 export interface StructureShown {
   version: OrgVersionSummary;
+  /** Current, upcoming, replaced (when and by which) or the draft, on the day read. */
+  status: VersionStatus;
   /** The day whose holders are shown. */
   asOf: string;
   names: NamesShown;
@@ -438,13 +442,15 @@ export interface StructureShown {
  */
 export async function getStructure(tx: Tx, principal: Principal, clientOrgId: string, pick?: string | null, today = firmToday()) {
   const current = await getPublishedChart(tx, principal, clientOrgId, today);
-  const versions = await listVersions(tx, principal, clientOrgId);
+  const listed = await listVersions(tx, principal, clientOrgId);
+  const versions = listed.map((v) => ({ ...v, status: versionStatus(v, listed, today) }));
+  const statusOf = (id: string) => versions.find((v) => v.id === id)!.status;
   const draftSummary = principal.orgKind === "firm" ? (versions.find((v) => v.state === "draft") ?? null) : null;
   const draft = async (): Promise<StructureShown> => {
     if (!draftSummary) throw new NotFoundError("draft");
     const d = await getDraft(tx, principal, clientOrgId, today);
     if (!d.draft || d.draft.id !== draftSummary.id) throw new NotFoundError("draft");
-    return { version: draftSummary, asOf: today, names: current.client.minimalRecords ? "none" : "all", units: d.units, positions: d.positions };
+    return { version: draftSummary, status: { kind: "draft" }, asOf: today, names: current.client.minimalRecords ? "none" : "all", units: d.units, positions: d.positions };
   };
   let shown: StructureShown | null = null;
   if (pick === "draft") shown = await draft();
@@ -452,11 +458,13 @@ export async function getStructure(tx: Tx, principal: Principal, clientOrgId: st
     if (!UUID.test(pick) || !versions.some((v) => v.id === pick)) throw new NotFoundError("version");
     if (pick === draftSummary?.id) shown = await draft();
     else {
-      const v = await getVersion(tx, principal, pick);
-      shown = { version: v.version, asOf: v.asOf, names: v.names, units: v.units, positions: v.positions };
+      const status = statusOf(pick);
+      // A replaced version still in effect (its successor takes effect later) shows today's holders.
+      const v = await getVersion(tx, principal, pick, status.kind === "current" ? today : undefined);
+      shown = { version: v.version, status, asOf: v.asOf, names: v.names, units: v.units, positions: v.positions };
     }
   } else if (current.version) {
-    shown = { version: current.version, asOf: today, names: current.names, units: current.units, positions: current.positions };
+    shown = { version: current.version, status: statusOf(current.version.id), asOf: today, names: current.names, units: current.units, positions: current.positions };
   } else if (draftSummary) shown = await draft();
   return { client: current.client, today, current: current.version, versions, shown };
 }

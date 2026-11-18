@@ -2,10 +2,10 @@ import { Lock } from "lucide-react";
 import Link from "next/link";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { ORG_CHART_CSS, orgTreeHtml, treeLabels } from "@/lib/org-chart-html";
+import { ORG_CHART_CSS, orgTreeHtml, treeLabels, versionWords } from "@/lib/org-chart-html";
 import { buildTree, chartLevels, parseDepth } from "@/lib/org-chart-tree";
 import { cn } from "@/lib/utils";
-import type { OrgVersionSummary, Structure } from "@/services/org-chart";
+import type { Structure } from "@/services/org-chart";
 
 /** The address of a version on the tab (the current one has none), with the depth when one is chosen. */
 function href(base: string, version: string | null, depth?: number | null) {
@@ -47,17 +47,17 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
   const draft = v.state === "draft";
   const { levels, depth } = shownDepth(structure, depthParam);
   const roots = buildTree(shown.units, shown.positions, { locale: lang, depth, names: true });
-  const label = (x: OrgVersionSummary) =>
-    x.state === "draft" ? t("version.draft") : x.state === "published" ? t("version.current", { n: x.number ?? 0 }) : t("version.number", { n: x.number ?? 0 });
-  const meta = draft
-    ? [t("version.draft")]
-    : [
-        label(v),
-        v.effectiveOn ? t("version.effective", { date: day(v.effectiveOn) }) : null,
-        v.publishedAt ? t("version.published", { date: format.dateTime(v.publishedAt, { dateStyle: "medium" }), name: v.publishedByName ?? "—" }) : null,
-        v.state === "superseded" && v.supersededAt ? t("version.replaced", { date: format.dateTime(v.supersededAt, { dateStyle: "medium" }) }) : null,
-        v.state === "superseded" && shown.names !== "none" ? t("version.asOf", { date: day(shown.asOf) }) : null,
-      ];
+  const tr = (k: string, values?: Record<string, string | number>) => t(k as "title", values as never);
+  // A link to another version: "Draft", "Version 2, current", "Version 1 (in effect from …)", "Version 3 (takes effect on …)".
+  const label = (x: Structure["versions"][number]) =>
+    x.status.kind === "draft" ? t("version.draft") : x.status.kind === "current" ? t("version.current", { n: x.number ?? 0 }) : t("version.number", { n: x.number ?? 0 });
+  const note = (x: Structure["versions"][number]) =>
+    x.status.kind === "upcoming" ? t("version.upcoming", { date: day(x.status.on) }) : x.status.kind === "past" && x.effectiveOn ? day(x.effectiveOn) : null;
+  // The same words as the PDF's heading, plus who published it.
+  const meta = [
+    ...versionWords(v, shown.status, shown.names !== "none" ? shown.asOf : null, tr, day),
+    !draft && v.publishedAt ? t("version.published", { date: format.dateTime(v.publishedAt, { dateStyle: "medium" }), name: v.publishedByName ?? "—" }) : null,
+  ];
   const others = structure.versions.filter((x) => x.id !== v.id);
   const param = shownParam(structure);
   // What the reader should know about the names, said once: never a name the page decides to hide.
@@ -90,7 +90,7 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
               {others.map((x) => (
                 <Link key={x.id} href={href(base, x.state === "published" ? null : x.state === "draft" ? "draft" : x.id)} className="text-foreground hover:underline">
                   {label(x)}
-                  {x.state === "superseded" && x.effectiveOn ? <span className="text-muted-foreground"> ({day(x.effectiveOn)})</span> : null}
+                  {note(x) ? <span className="text-muted-foreground"> ({note(x)})</span> : null}
                 </Link>
               ))}
             </p>

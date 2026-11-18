@@ -12,7 +12,7 @@ import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
 import { indicatorTable } from "@/lib/indicator-html";
-import { renderOrgChartPdfHtml, treeLabels, type PaperSize } from "@/lib/org-chart-html";
+import { renderOrgChartPdfHtml, treeLabels, versionWords, type PaperSize } from "@/lib/org-chart-html";
 import { buildTree, chartLevels, overview, pageUnits, parseDepth } from "@/lib/org-chart-tree";
 import { indicatorSnapshot } from "./indicators";
 import { getStructure } from "./org-chart";
@@ -488,14 +488,14 @@ export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: str
   const departments = pageUnits(roots);
   const draft = shown.version.state === "draft";
   const clientName = localName(view.client, ar);
-  const n = shown.version.number ?? 0;
-  const effective = shown.version.effectiveOn ? day(shown.version.effectiveOn) : "";
+  // Which version, whether it is current, upcoming or replaced (when, by which), and whose holders.
+  const words = versionWords(shown.version, shown.status, names ? shown.asOf : null, tr, day);
   const html = renderOrgChartPdfHtml({
     locale,
     size: options.size,
     clientName,
     title: tr("pdf.title"),
-    meta: draft ? tr("pdf.metaDraft") : tr("pdf.meta", { n, date: effective }),
+    meta: words.join(" · "),
     draftNotice: draft ? tr("draftBanner") : null,
     pages: [
       { heading: null, roots: departments.length ? overview(roots, new Set(departments.map((d) => d.id))) : roots },
@@ -505,8 +505,7 @@ export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: str
     labels: treeLabels(tr),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
-  const printed = day(view.today);
-  const footer = draft ? tr("pdf.footerDraft", { client: clientName, printed }) : tr("pdf.footer", { client: clientName, n, effective, printed });
+  const footer = [clientName, ...words, tr("pdf.printed", { date: day(view.today) })].join(" · ");
   const bytes = await renderPdf(html, { locale, footer });
   await audit(tx, {
     actorId: principal.userId,
