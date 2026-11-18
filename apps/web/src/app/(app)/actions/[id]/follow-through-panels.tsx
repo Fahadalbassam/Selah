@@ -5,7 +5,7 @@ import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { BrandLoader } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,7 +101,7 @@ export function EvidenceList(props: {
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">{t("title")}</CardTitle>
+          <CardTitle className="text-base">{voice === "Client" ? t("titleClient") : t("title")}</CardTitle>
           <CardDescription>{t(`hint${voice}`)}</CardDescription>
         </div>
         {props.canManage ? <AddItem actionId={props.actionId} onDone={done} hint={t(`addHint${run}`)} /> : null}
@@ -146,7 +146,12 @@ export function EvidenceList(props: {
                     recordFor={voice === "FirmRun"}
                     title={t("answerTitle", { item: i.title })}
                     onDone={done}
-                    trigger={<Button size="sm">{t("answer")}</Button>}
+                    trigger={
+                      // Outline: the page's one solid button is the next step's (page audit 4.5).
+                      <Button size="sm" variant="outline">
+                        {t("answer")}
+                      </Button>
+                    }
                   />
                 ) : null}
                 {props.canManage && i.status === "submitted" ? (
@@ -364,7 +369,8 @@ export function DeadlineRequests(props: {
   );
 }
 
-function AskForDate({ actionId, dueDate, onDone }: { actionId: string; dueDate: string | null; onDone: () => void }) {
+/** Propose a new due date with a reason; the consultant agrees or declines. `trigger` replaces the card's button (a client's quiet link). */
+export function AskForDate({ actionId, dueDate, onDone, trigger }: { actionId: string; dueDate: string | null; onDone: () => void; trigger?: ReactNode }) {
   const t = useTranslations("action.deadline");
   const ta = useTranslations("action");
   const [open, setOpen] = useState(false);
@@ -382,9 +388,11 @@ function AskForDate({ actionId, dueDate, onDone }: { actionId: string; dueDate: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          {t("ask")}
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" size="sm">
+            {t("ask")}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={submit} className="grid gap-4">

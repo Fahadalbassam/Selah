@@ -78,7 +78,8 @@ export default async function OverviewPage() {
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
 
   const cards = [
-    { label: t("inProgress"), hint: t("inProgressHint"), value: stats.inProgress, icon: LoaderCircle },
+    // A client reads about its own work, never about "the client" (page audit 4.7).
+    { label: t("inProgress"), hint: t(firm ? "inProgressHint" : "inProgressHintClient"), value: stats.inProgress, icon: LoaderCircle },
     { label: t("awaitingReview"), hint: t("awaitingReviewHint"), value: stats.awaitingReview, icon: Hourglass },
     { label: t("blocked"), hint: t("blockedHint"), value: stats.blocked, icon: TriangleAlert, tone: "text-destructive" },
     { label: t("verified"), hint: t("verifiedHint"), value: stats.verified, icon: CircleCheck, tone: "text-success" },
@@ -151,7 +152,7 @@ export default async function OverviewPage() {
         <SectionHeader title={firm ? t("attentionFirm") : t("attentionClient")} />
         <ActionsTable rows={stats.attention.map((r) => ({ ...r, overdue: isOverdue(r) }))} empty={t("empty")} />
       </section>
-      <p className="text-xs leading-relaxed text-muted-foreground">{t("claimNote")}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t(firm ? "claimNote" : "claimNoteClient")}</p>
     </>
   );
 }

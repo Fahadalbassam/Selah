@@ -63,16 +63,19 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                   <TiltContent className="h-full">
                     <Card className="h-full gap-3 py-5 shadow-xs transition-[border-color,box-shadow,translate] duration-(--duration-base) ease-(--ease-out-soft) group-hover:-translate-y-0.5 group-hover:border-foreground/20 group-hover:shadow-md">
                       <CardHeader className="px-5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
-                            {p.kind === "internal" ? <Lock className="size-3" /> : p.pitch ? <FilePenLine className="size-3" /> : <Building2 className="size-3" />}
-                            {p.pitch ? tKind("pitch") : tKind(p.kind)}
-                          </Badge>
-                        </div>
+                        {/* The kind and the client's name are the firm's to sort by; a client reader's projects are all its own. */}
+                        {firm ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
+                              {p.kind === "internal" ? <Lock className="size-3" /> : p.pitch ? <FilePenLine className="size-3" /> : <Building2 className="size-3" />}
+                              {p.pitch ? tKind("pitch") : tKind(p.kind)}
+                            </Badge>
+                          </div>
+                        ) : null}
                         <CardTitle className="text-base leading-snug">
                           <MorphTitle name={`project-${p.id}`}>{p.title}</MorphTitle>
                         </CardTitle>
-                        {p.kind === "client" ? (
+                        {p.kind === "client" && firm ? (
                           <CardDescription>
                             {t("client")}: {(ar ? p.orgNameAr : null) ?? p.orgName}
                           </CardDescription>

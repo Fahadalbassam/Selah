@@ -78,3 +78,23 @@ export function meetingError(message: string | undefined): string | null {
   if (/one of your departments/.test(message)) return "wholeProject";
   return null;
 }
+
+/**
+ * What the meeting page draws (page audit U14, batch 1). Before the meeting
+ * it shows what a person needs to attend: the time, the place or the call
+ * link, the agenda and who is invited. The record (summary, decisions,
+ * follow-ups, the firm's transcript) appears once it is held; a cancelled
+ * meeting has none. A follow-up someone already wrote on a meeting not yet
+ * held stays listed, so no work disappears from the page.
+ */
+export function meetingSections(status: string, followUps: number) {
+  const held = status === "held";
+  return {
+    summary: held,
+    decisions: held,
+    transcript: held,
+    followUps: held || followUps > 0,
+    /** Adding a follow-up, recording a decision, writing the summary. */
+    record: held,
+  };
+}

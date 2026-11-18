@@ -50,9 +50,10 @@ describe("history lines name a person without a gendered verb (page audit 3.8)",
   const line = (locale: "ar" | "en", event: string, name: string) =>
     String(createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "common" }).rich("byLine", { event, name, who: (c) => `[${c}]` }));
 
-  it("reads 'evidence submitted, by Salma' in Arabic, 'Salma submitted evidence' in English", () => {
-    expect(line("ar", ar.action.entry.evidence, "سلمى الشهري")).toBe("دليل مُقدَّم، بواسطة [سلمى الشهري]");
-    expect(line("en", en.action.entry.evidence, "Salma Al-Shehri")).toBe("[Salma Al-Shehri] submitted evidence");
+  // Sending a file has two names only, "send a file" and "send for review" (page audit 4.7, batch 1).
+  it("reads 'a file sent, by Salma' in Arabic, 'Salma sent a file' in English", () => {
+    expect(line("ar", ar.action.entry.evidence, "سلمى الشهري")).toBe("إرسال ملف، بواسطة [سلمى الشهري]");
+    expect(line("en", en.action.entry.evidence, "Salma Al-Shehri")).toBe("[Salma Al-Shehri] sent a file");
   });
 
   it("names the person who did it, never someone the event came from (review finding 1)", () => {
