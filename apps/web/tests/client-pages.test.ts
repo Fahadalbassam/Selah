@@ -334,9 +334,9 @@ describe("client wording (page audit 4.7)", () => {
     }
   });
 
-  it("keeps «متعثر» for a blocked action only: the project label is another word", () => {
-    expect(ar.oversight.signals.off_track).not.toMatch(/متعثر/);
-    expect(ar.oversight.health.hint).not.toMatch(/متعثر/);
+  it("keeps «متعثر» for a blocked action only: no project carries a label at all (D5)", () => {
+    expect(ar).not.toHaveProperty("oversight");
+    expect(ar.projectsTable.hint).not.toMatch(/متعثر/);
     expect(ar.status.blocked).toBe("متعثر");
   });
 

@@ -13,16 +13,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { withPrincipal } from "@/server/page";
 import { listProjects } from "@/services/queries";
+import { projectsTable } from "@/services/action-board";
+import { ProjectsTable, ProjectViewLinks } from "./projects-table";
 import { EmptyState } from "@/components/empty-state";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 
-export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
-  const { kind } = await searchParams;
-  const { projects, firm } = await withPrincipal(async (tx, principal) => ({
-    projects: await listProjects(tx, principal),
-    firm: principal.orgKind === "firm",
-  }));
-  const shown = kind === "internal" || kind === "client" ? projects.filter((p) => p.kind === kind) : projects;
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string; view?: string }> }) {
+  const { kind, view } = await searchParams;
+  const { projects, firm, table } = await withPrincipal(async (tx, principal) => {
+    // The firm's table view (page audit 4.6): Oversight's columns per project, as counts (D5).
+    const table = principal.orgKind === "firm" && view === "table" ? await projectsTable(tx, principal) : null;
+    return { projects: table ? [] : await listProjects(tx, principal), firm: principal.orgKind === "firm", table };
+  });
+  const ofKind = <T extends { kind: string }>(list: T[]) => (kind === "internal" || kind === "client" ? list.filter((p) => p.kind === kind) : list);
+  const shown = ofKind(projects);
   const [t, tKind, tS] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing")]);
   const ar = (await getLocale()) === "ar";
 
@@ -50,7 +54,10 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         ) : null}
       </PageHeader>
       {firm ? <p className="text-xs text-muted-foreground">{t("internalNote")}</p> : null}
-      {shown.length === 0 ? (
+      {firm ? <ProjectViewLinks view={table ? "table" : "cards"} kind={kind === "internal" || kind === "client" ? kind : undefined} /> : null}
+      {table ? (
+        <ProjectsTable rows={ofKind(table)} />
+      ) : shown.length === 0 ? (
         <EmptyState icon={<FileText animateOnView />} description={t("empty")} />
       ) : (
         <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">

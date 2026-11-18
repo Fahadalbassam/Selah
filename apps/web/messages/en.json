@@ -231,23 +231,121 @@
   "actionsPage": {
     "title": "Actions",
     "mine": "Actions assigned to you",
-    "all": "All actions you can see",
-    "empty": "No actions."
+    "empty": "No actions for you yet.",
+    "emptyFiltered": "Nothing for you in this list right now.",
+    "filtersLabel": "Action lists",
+    "filters": {
+      "all": {
+        "name": "All",
+        "hint": "Every action you can see."
+      },
+      "mine": {
+        "name": "Assigned to me",
+        "hint": "The actions you own."
+      },
+      "awaiting-review": {
+        "name": "Awaiting review",
+        "hint": "Evidence waiting for the firm's decision, the longest wait first.",
+        "nameClient": "Waiting for the firm",
+        "hintClient": "Evidence sent and waiting for the firm's review, the longest wait first."
+      },
+      "late": {
+        "name": "Late",
+        "hint": "Open and past its current due date."
+      },
+      "blocked": {
+        "name": "Blocked",
+        "hint": "Work has stopped, waiting on something outside the owner's hands."
+      },
+      "no-activity": {
+        "name": "No activity",
+        "hint": "No change, progress note or evidence for longer than the firm's stale period."
+      },
+      "date-moved": {
+        "name": "Date moved twice or more",
+        "hint": "The due date moved later two or more times since release."
+      },
+      "sent-back": {
+        "name": "Sent back twice or more",
+        "hint": "Two or more revision requests."
+      },
+      "no-owner": {
+        "name": "No active owner",
+        "hint": "The owner is no longer an active member of the client."
+      }
+    },
+    "waiting": {
+      "label": "How long it has waited",
+      "any": "All waiting",
+      "long": "More than {days} days"
+    },
+    "facets": {
+      "label": "Narrow the list",
+      "client": "Client",
+      "allClients": "All clients",
+      "project": "Project",
+      "allProjects": "All projects",
+      "owner": "Owner",
+      "allOwners": "Everyone",
+      "department": "Department",
+      "allDepartments": "All departments",
+      "clear": "Clear"
+    },
+    "columns": {
+      "waiting": "Waiting",
+      "stage": "Review",
+      "why": "Why"
+    },
+    "reasons": {
+      "late": "{n, plural, one {# day late} other {# days late}}",
+      "blocked": "Blocked",
+      "stale": "No change for {n, plural, one {# day} other {# days}}",
+      "slipped": "Date moved {n, plural, one {once} other {# times}}",
+      "churn": "Sent back {n, plural, one {once} other {# times}}",
+      "orphaned": "The owner has left"
+    },
+    "review": {
+      "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
+      "oneReview": "One review",
+      "firstOfTwo": "First of two",
+      "secondOfTwo": "Second of two",
+      "signedBy": "Signed off by {name}",
+      "youSigned": "You signed off",
+      "notYours": "Yours or submitted by you"
+    },
+    "remind": {
+      "menu": "Remind the owner",
+      "sent": "Reminder sent to {name}",
+      "today": "Reminded today",
+      "last": "Last reminded {date}",
+      "errors": {
+        "already": "The owner was already reminded today.",
+        "noOwner": "This action has no active owner to remind.",
+        "settled": "Only open actions can be chased.",
+        "cannot": "The reminder couldn't be sent."
+      }
+    }
   },
-  "reviewPage": {
-    "title": "Review queue",
-    "subtitle": "Evidence waiting for the firm's decision, the longest wait first",
-    "empty": "Nothing is waiting for review.",
-    "count": "{n, plural, one {1 waiting} other {# waiting}}, {mine, plural, =0 {none yours to check} one {1 yours to check} other {# yours to check}}",
-    "waiting": "Waiting",
-    "stage": "Review",
+  "projectsTable": {
+    "viewLabel": "View",
+    "cards": "Cards",
+    "table": "Table",
+    "hint": "Counts from the work itself, never a judgement of the project or of anyone. Each number opens its list on Actions.",
+    "project": "Project",
+    "open": "Open",
+    "late": "Late",
+    "blocked": "Blocked",
+    "oldestReview": "Oldest review waiting",
+    "lead": "Lead",
+    "clientActive": "Client last active",
     "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
-    "oneReview": "One review",
-    "firstOfTwo": "First of two",
-    "secondOfTwo": "Second of two",
-    "signedBy": "Signed off by {name}",
-    "youSigned": "You signed off",
-    "notYours": "Yours or submitted by you"
+    "internal": "Internal project",
+    "recordedByFirm": "Recorded by the firm",
+    "never": "Not yet",
+    "closed": "Closed",
+    "lateOf": "Late actions in {project}",
+    "blockedOf": "Blocked actions in {project}",
+    "reviewsOf": "Reviews waiting in {project}"
   },
   "todayPage": {
     "title": "Today",
@@ -4587,83 +4685,6 @@
     "noActions": "No actions yet.",
     "noActionsClient": "No actions for you yet.",
     "actionsLeftOut": "{n, plural, one {# more action is not shown to you} other {# more actions are not shown to you}}"
-  },
-  "oversight": {
-    "title": "Oversight",
-    "subtitle": "Every open project you can see, with the work that needs chasing. For the firm only.",
-    "signals": {
-      "off_track": "Off track",
-      "watch": "Watch",
-      "on_track": "On track",
-      "no_data": "No work yet"
-    },
-    "summary": {
-      "projects": "of {n, plural, one {# open project} other {# open projects}}",
-      "overdue": "Overdue actions",
-      "overdueHint": "Open past their current due date",
-      "reviews": "Reviews waiting",
-      "reviewsHint": "Longer than {days} days"
-    },
-    "reasons": {
-      "overdue": "{n} of {open} overdue",
-      "lateLong": "{n, plural, one {# action} other {# actions}} over {days} days late",
-      "blocked": "{n} blocked",
-      "extendedTwice": "{n} moved twice or more",
-      "reviewWaiting": "{n, plural, one {# review} other {# reviews}} waiting",
-      "orphaned": "{n} without an active owner",
-      "stale": "{n} with no change",
-      "disputed": "{n, plural, one {# recommendation} other {# recommendations}} disputed"
-    },
-    "health": {
-      "title": "Engagement health",
-      "hint": "Off track when a quarter or more of the open actions are overdue, or one is over {days} days past its original date. Watch when anything else needs attention. Counted from the work, never a judgement of a person.",
-      "none": "No open projects to show.",
-      "project": "Project",
-      "signal": "Signal",
-      "open": "Open",
-      "overdue": "Overdue",
-      "blocked": "Blocked",
-      "oldestReview": "Oldest review",
-      "lead": "Lead",
-      "clientActive": "Client last active",
-      "days": "{n, plural, one {# day} other {# days}}",
-      "internal": "Internal project",
-      "recordedByFirm": "Recorded by the firm",
-      "never": "Not yet",
-      "today": "Today",
-      "week": "Week of {date}: {signal}",
-      "weeks": "Signal over the last {n} weeks"
-    },
-    "rules": {
-      "blocked": {
-        "name": "Blocked",
-        "hint": "The owner marked the action blocked.",
-        "detail": "Waiting on something outside the owner"
-      },
-      "review_waiting": {
-        "name": "Review waiting",
-        "hint": "Evidence has waited for a consultant's review longer than {days} days.",
-        "detail": "Waiting {n, plural, one {# day} other {# days}} for review"
-      }
-    },
-    "exceptions": {
-      "title": "Exceptions",
-      "hint": "What breaks a fixed rule across your open projects, most pressing first.",
-      "none": "Nothing breaks a rule across your open projects right now.",
-      "all": "All"
-    },
-    "remind": {
-      "button": "Remind owner",
-      "sent": "Reminder sent to {name}",
-      "today": "Reminded today",
-      "last": "Last reminded {date}",
-      "errors": {
-        "already": "The owner was already reminded today.",
-        "noOwner": "This action has no active owner to remind.",
-        "settled": "Only open actions can be chased.",
-        "cannot": "The reminder couldn't be sent."
-      }
-    }
   },
   "statusPack": {
     "title": "Status pack, {month}",
