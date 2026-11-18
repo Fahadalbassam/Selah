@@ -740,7 +740,7 @@ describe("a person's work card", () => {
     expect([...c.late, ...c.open].map((a) => a.id)).not.toContain(ACT.done);
     expect([...c.late, ...c.open].map((a) => a.id)).not.toContain(ACT.other);
     // The work only: no score, count or ranking anywhere on the card.
-    expect(Object.keys(c).sort()).toEqual(["late", "more", "open", "person", "uploads"]);
+    expect(Object.keys(c).sort()).toEqual(["late", "more", "moreLate", "moreOpen", "open", "person", "uploads"]);
     expect(JSON.stringify(c)).not.toMatch(/score|rank|percent|rate/i);
   });
 

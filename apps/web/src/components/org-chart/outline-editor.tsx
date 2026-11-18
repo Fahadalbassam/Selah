@@ -139,11 +139,12 @@ export function OutlineEditor(props: {
   };
 
   const keys = (e: KeyboardEvent, move: (m: UnitMove) => void) => {
-    if (!e.altKey || busy) return;
+    if (!e.altKey) return;
     const m = arrowMove(e.key, rtl);
     if (!m) return;
+    // Always ours on a row, even while a move is saving: Alt with a side arrow would otherwise take the browser back.
     e.preventDefault();
-    move(m);
+    if (!busy) move(m);
   };
 
   async function removeUnit(node: Node) {

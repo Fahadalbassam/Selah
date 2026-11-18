@@ -110,6 +110,7 @@ function PersonWorkCard({ clientId, userId, version, onClose }: { clientId: stri
               ) : (
                 <p className="text-muted-foreground">{t("noLate")}</p>
               )}
+              {data.moreLate ? <p className="text-xs text-muted-foreground">{t("more")}</p> : null}
             </section>
             <section aria-labelledby="wc-open" className="grid gap-2">
               <h3 id="wc-open" className="font-medium">
@@ -131,7 +132,7 @@ function PersonWorkCard({ clientId, userId, version, onClose }: { clientId: stri
               ) : (
                 <p className="text-muted-foreground">{t("noOpen")}</p>
               )}
-              {data.more ? <p className="text-xs text-muted-foreground">{t("more")}</p> : null}
+              {data.moreOpen ? <p className="text-xs text-muted-foreground">{t("more")}</p> : null}
             </section>
             <section aria-labelledby="wc-uploads" className="grid gap-2">
               <h3 id="wc-uploads" className="font-medium">

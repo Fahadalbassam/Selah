@@ -1485,8 +1485,10 @@ export async function personWork(tx: Tx, principal: Principal, clientOrgId: stri
     },
     late: late.slice(0, WORK_CARD_ROWS).map(strip),
     open: open.slice(0, WORK_CARD_ROWS).map(strip),
-    /** Some were left off a list (the ones due soonest are shown). Never how many. */
+    /** Some were left off a list (the ones due soonest are shown), each list on its own. Never how many. */
     more: late.length > WORK_CARD_ROWS || open.length > WORK_CARD_ROWS,
+    moreLate: late.length > WORK_CARD_ROWS,
+    moreOpen: open.length > WORK_CARD_ROWS,
     uploads: files.map(
       (f): WorkFile => ({
         id: f.id,
