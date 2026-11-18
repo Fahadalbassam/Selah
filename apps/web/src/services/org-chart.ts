@@ -1,10 +1,21 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
-import { departments, orgChartChangeRequests, orgCharts, orgChartVersions, organizations, orgUnits, positionHolders, positions, user } from "@/db/schema";
-import { assertAllowed, authorize, type Permission, type Principal, type Resource } from "@/authz";
+import {
+  departments,
+  orgChartChangeRequests,
+  orgCharts,
+  orgChartVersions,
+  organizations,
+  orgMemberships,
+  orgUnits,
+  positionHolders,
+  positions,
+  user,
+} from "@/db/schema";
+import { assertAllowed, authorize, CLIENT_ROLES, OPEN_STATUSES, type Permission, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import {
   cleanSpecialties,
@@ -20,6 +31,8 @@ import {
 } from "@/lib/org-chart";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { listFiles } from "./files";
+import { isOverdue, listActions } from "./queries";
 
 // The client's organisation structure (org chart, migration 0091). Part 1 of
 // the feature: the reads, the edits, publishing, holders and suggestions the
@@ -198,6 +211,13 @@ export function dayBefore(day: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** The calendar day after a day (YYYY-MM-DD). */
+export function dayAfter(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // ------------------------------------------------------------------ reading
 
 type HolderRow = { position_id: string; holder_id: string | null; user_id: string | null; name: string | null; from_date: string | null; to_date: string | null; named: boolean };
@@ -355,6 +375,22 @@ export async function getDraft(tx: Tx, principal: Principal, clientOrgId: string
 
 export type DraftChart = Awaited<ReturnType<typeof getDraft>>;
 
+/**
+ * What the outline editor offers besides the draft itself: the client's
+ * active departments, which a unit may carry as a label (never an access
+ * rule). For the firm's editors only.
+ */
+export async function editorChoices(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.edit", resource(principal, client.id, true));
+  const list = await tx
+    .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+    .from(departments)
+    .where(and(eq(departments.orgId, client.id), eq(departments.active, true)))
+    .orderBy(asc(departments.nameAr));
+  return { departments: list };
+}
+
 /** Every version of the client's structure the reader may read, newest first: the draft (the firm only), the current one, the history. */
 export async function listVersions(tx: Tx, principal: Principal, clientOrgId: string) {
   const client = await clientOf(tx, clientOrgId);
@@ -403,11 +439,18 @@ export const canReadStructure = (principal: Principal, clientOrgId: string) => c
  * Whether the Structure tab shows for the reader: they may read the client's
  * structure and there is something in it for them, a published version or,
  * for the firm, a draft with at least one unit. Until then there is no tab
- * and no empty page. A client person never learns of a draft: the database
- * shows them published versions only.
+ * and no empty page, except for the firm's editors (org chart, part 3): for
+ * them the tab is where a structure is started, so it is always there. A
+ * client person never learns of a draft: the database shows them published
+ * versions only.
  */
 export async function hasStructure(tx: Tx, principal: Principal, clientOrgId: string): Promise<boolean> {
   if (!UUID.test(clientOrgId) || !canReadStructure(principal, clientOrgId)) return false;
+  if (principal.orgKind === "firm" && can(principal, "org_chart.edit", clientOrgId, true)) {
+    // A client the firm cannot open is not there, whatever the policy says (row-level security decides).
+    const [org] = await tx.select({ kind: organizations.kind }).from(organizations).where(eq(organizations.id, clientOrgId)).limit(1);
+    if (org?.kind === "client") return true;
+  }
   const firm = principal.orgKind === "firm";
   const { rows } = await tx.execute<{ ok: boolean }>(sql`
     select exists (
@@ -467,7 +510,14 @@ export async function getStructure(tx: Tx, principal: Principal, clientOrgId: st
     shown = { version: current.version, status: statusOf(current.version.id), asOf: today, names: current.names, units: current.units, positions: current.positions };
   } else if (draftSummary) shown = await draft();
   const { departmentsEnabled } = await clientOf(tx, clientOrgId);
-  return { client: { ...current.client, departmentsEnabled }, today, current: current.version, versions, shown };
+  const can = {
+    canEditDraft: current.canEditDraft,
+    canPublish: current.canPublish,
+    canChangeHolders: current.canChangeHolders,
+    canSetShowNames: current.canSetShowNames,
+    canSuggest: current.canSuggest,
+  };
+  return { client: { ...current.client, departmentsEnabled }, today, current: current.version, versions, shown, draftId: draftSummary?.id ?? null, can };
 }
 
 export type Structure = Awaited<ReturnType<typeof getStructure>>;
@@ -485,6 +535,7 @@ export async function listVacancies(tx: Tx, principal: Principal, clientOrgId: s
     .filter((p) => p.vacant)
     .map((p) => ({
       positionId: p.id,
+      lineageId: p.lineageId,
       code: p.code,
       titleAr: p.titleAr,
       titleEn: p.titleEn,
@@ -716,9 +767,31 @@ export async function updateUnit(tx: Tx, principal: Principal, unitId: string, i
 }
 
 /**
+ * A unit moved under another parent keeps its place in the levels: it sits
+ * one level below its new parent (level 1 at the top), and its own units
+ * move by as many levels, within 1 to 12. The firm can still set a level by
+ * hand afterwards (updateUnit).
+ */
+async function relevel(tx: Tx, unit: typeof orgUnits.$inferSelect, parentId: string | null) {
+  const [parent] = parentId ? await tx.select({ level: orgUnits.level }).from(orgUnits).where(eq(orgUnits.id, parentId)).limit(1) : [];
+  const shift = (parent?.level ?? 0) + 1 - unit.level;
+  if (shift === 0) return;
+  const { min, max } = ORG_CHART_LIMITS.level;
+  await tx.execute(sql`
+    with recursive sub (id) as (
+      select ${unit.id}::uuid
+      union
+      select u.id from org_units u join sub on u.parent_id = sub.id
+    )
+    update org_units set level = least(${max}::int, greatest(${min}::int, level + ${shift}::int))
+    where id in (select id from sub)`);
+}
+
+/**
  * Move a unit of the draft: under another unit of the draft (or to the top)
  * and to a place among its new siblings. Indenting, outdenting and moving up
- * or down are all this. Never under itself or one of its own units.
+ * or down are all this. Never under itself or one of its own units. Under a
+ * new parent, its levels follow (relevel).
  */
 export async function moveUnit(tx: Tx, principal: Principal, unitId: string, to: { parentId: string | null; index?: number }) {
   const unit = await draftUnit(tx, principal, unitId);
@@ -733,7 +806,10 @@ export async function moveUnit(tx: Tx, principal: Principal, unitId: string, to:
       if (at === unitId) throw new BadRequestError("cycle");
     }
   }
-  if ((to.parentId ?? null) !== unit.parentId) await tx.update(orgUnits).set({ parentId: to.parentId }).where(eq(orgUnits.id, unitId));
+  if ((to.parentId ?? null) !== unit.parentId) {
+    await tx.update(orgUnits).set({ parentId: to.parentId }).where(eq(orgUnits.id, unitId));
+    await relevel(tx, unit, to.parentId);
+  }
   await placeUnit(tx, unit.versionId, to.parentId, unitId, to.index);
   await logEdit(tx, principal, "org_chart.unit_move", unitId, { client: unit.orgId, parent: to.parentId });
   return { ok: true };
@@ -953,6 +1029,20 @@ export async function publish(
   return { versionId: id, number: v?.number ?? null };
 }
 
+/**
+ * Start the draft again from the current published version (the firm's
+ * editors): the draft's units and positions are replaced by a copy of what
+ * is published. `draftId` is the draft the editor looked at, as for
+ * publishing; any other id is refused (orgChart.errors draftChanged).
+ */
+export async function resetDraft(tx: Tx, principal: Principal, clientOrgId: string, input: { draftId: string }) {
+  const { chartId, draft } = await draftOf(tx, principal, clientOrgId);
+  if (!UUID.test(input.draftId ?? "")) throw new BadRequestError("draft_id");
+  await tx.execute(sql`select app_reset_org_chart_draft(${chartId}::uuid, ${input.draftId}::uuid)`);
+  await logEdit(tx, principal, "org_chart.draft_reset", draft.id, { client: clientOrgId });
+  return { ok: true };
+}
+
 /** The client admin's switch: whether the client's managers see names on a published (or past) version at all. */
 export async function setShowNames(tx: Tx, principal: Principal, versionId: string, on: boolean) {
   const [version] = await tx.select().from(orgChartVersions).where(eq(orgChartVersions.id, versionId)).limit(1);
@@ -1073,6 +1163,249 @@ export async function changeHolder(tx: Tx, principal: Principal, positionId: str
   }
   return { started, ended };
 }
+
+/** A position for the people in it: the version it is in, read under the caller's rights, and the holders permission checked. */
+async function holderPosition(tx: Tx, principal: Principal, positionId: string) {
+  const [row] = await tx
+    .select({ position: positions, state: orgChartVersions.state })
+    .from(positions)
+    .innerJoin(orgChartVersions, eq(orgChartVersions.id, positions.versionId))
+    .where(eq(positions.id, positionId))
+    .limit(1);
+  if (!row) throw new NotFoundError("position");
+  assertAllowed(principal, "org_chart.holders", resource(principal, row.position.orgId, row.state === "draft"));
+  if (row.state === "superseded") throw new BadRequestError("history");
+  const client = await clientOf(tx, row.position.orgId);
+  if (client.minimalRecords) throw new BadRequestError("minimal_records");
+  return { ...row, client };
+}
+
+export interface Holding {
+  id: string;
+  userId: string | null;
+  /** The person's name, or the name typed in. */
+  name: string | null;
+  /** Typed in: no Selah account. */
+  typed: boolean;
+  from: string;
+  to: string | null;
+  /** Holds it on the day read. */
+  current: boolean;
+  /** Starts on a coming day. */
+  upcoming: boolean;
+}
+
+/**
+ * Everyone who holds or held a position, newest first, with the dates: for
+ * the people who change holders (the client's admin on the published
+ * structure, the firm's editors there and in the draft). Read under their
+ * own row-level security.
+ */
+export async function listHoldings(tx: Tx, principal: Principal, positionId: string, today = firmToday()) {
+  const { position, state } = await holderPosition(tx, principal, positionId);
+  const rows = await tx
+    .select({
+      id: positionHolders.id,
+      userId: positionHolders.userId,
+      typedName: positionHolders.name,
+      userName: user.name,
+      from: positionHolders.fromDate,
+      to: positionHolders.toDate,
+    })
+    .from(positionHolders)
+    .leftJoin(user, eq(user.id, positionHolders.userId))
+    .where(eq(positionHolders.positionLineageId, position.lineageId))
+    .orderBy(desc(positionHolders.fromDate), desc(positionHolders.createdAt));
+  const holdings: Holding[] = rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    name: r.typedName ?? r.userName,
+    typed: r.typedName !== null,
+    from: r.from,
+    to: r.to,
+    current: r.from <= today && (r.to === null || r.to >= today),
+    upcoming: r.from > today,
+  }));
+  return {
+    position: { id: position.id, code: position.code, titleAr: position.titleAr, titleEn: position.titleEn, plannedCount: position.plannedCount, draft: state === "draft" },
+    today,
+    holdings,
+  };
+}
+
+/**
+ * Remove a holding entered by mistake (a typo, the wrong person), for the
+ * people who may change holders. Unlike ending one, it is deleted: the name
+ * is gone from the structure, its history and the masking list, and once no
+ * holding names anyone, the client may switch to minimal records again. The
+ * audit log records that a holding was removed from this position, by whom
+ * and when, never the name (the database does it: app_remove_position_holder).
+ * A change on the published structure tells the lead and deputy.
+ */
+export async function removeHolder(tx: Tx, principal: Principal, positionId: string, holderId: string) {
+  await holderPosition(tx, principal, positionId);
+  if (!UUID.test(holderId)) throw new NotFoundError("holder");
+  await tx.execute(sql`select app_remove_position_holder(${positionId}::uuid, ${holderId}::uuid)`);
+  return { ok: true };
+}
+
+/** The client's people with an account, who can be placed in a position: for the people who change holders. */
+export async function holderCandidates(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.holders", resource(principal, client.id));
+  if (client.minimalRecords) return [];
+  return tx
+    .select({ userId: user.id, name: user.name, email: user.email })
+    .from(orgMemberships)
+    .innerJoin(user, eq(user.id, orgMemberships.userId))
+    .where(and(eq(orgMemberships.orgId, client.id), eq(orgMemberships.active, true), inArray(orgMemberships.role, [...CLIENT_ROLES])))
+    .orderBy(asc(user.name));
+}
+
+/**
+ * The positions someone of a client holds today on its current structure,
+ * for the leaving flow ("leave vacant" or "pick a replacement"): the
+ * position on the current version, and its holding. Empty when the reader
+ * may not change holders there, or the client has no published structure.
+ */
+export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId: string, userId: string, today = firmToday()) {
+  if (!can(principal, "org_chart.holders", clientOrgId)) return [];
+  // The firm's own people hold no positions: only a client has a structure.
+  const client = await clientOf(tx, clientOrgId).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e)));
+  if (!client || client.minimalRecords) return [];
+  const chart = await chartOf(tx, client.id);
+  const version = chart ? await versionIn(tx, chart.id, "published") : null;
+  if (!version) return [];
+  const { units, positions: list } = await structureOf(tx, version);
+  const held = await tx
+    .select({ id: positionHolders.id, lineage: positionHolders.positionLineageId })
+    .from(positionHolders)
+    .where(
+      and(
+        eq(positionHolders.orgId, client.id),
+        eq(positionHolders.userId, userId),
+        sql`${positionHolders.fromDate} <= ${today}::date`,
+        sql`${positionHolders.toDate} is null`,
+      ),
+    );
+  const unitOf = new Map(units.map((u) => [u.id, u]));
+  return held.flatMap((h) => {
+    const p = list.find((x) => x.lineageId === h.lineage);
+    if (!p) return [];
+    const u = unitOf.get(p.unitId);
+    return [
+      {
+        positionId: p.id,
+        holderId: h.id,
+        code: p.code,
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        unitNameAr: u?.nameAr ?? null,
+        unitNameEn: u?.nameEn ?? null,
+        plannedCount: p.plannedCount,
+      },
+    ];
+  });
+}
+
+/**
+ * The lineage of a vacant position of the client's current structure, for an
+ * invitation that fills it (the invite form's "Position"). Refused (a bad
+ * request) for a position that is not vacant today or not on the current
+ * structure, and for someone who may not change holders there.
+ */
+export async function vacancyLineage(tx: Tx, principal: Principal, clientOrgId: string, positionId: string) {
+  if (!can(principal, "org_chart.holders", clientOrgId)) throw new BadRequestError("position");
+  const vacancy = (await listVacancies(tx, principal, clientOrgId)).find((v) => v.positionId === positionId);
+  if (!vacancy) throw new BadRequestError("position");
+  return vacancy.lineageId;
+}
+
+// ------------------------------------------------------------------ a person's work card
+
+/** How many of each a card lists: it is a glance, not a report. */
+export const WORK_CARD_ROWS = 5;
+
+export interface WorkAction {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string | null;
+  projectTitle: string;
+}
+
+export interface WorkFile {
+  id: string;
+  title: string;
+  createdAt: string;
+  /** Where the file belongs: its action, meeting, assessment or project. */
+  href: string;
+  where: string;
+}
+
+/**
+ * A person's work card (Fahad, 18 Nov): clicking a person on the drawn
+ * structure shows their open tasks, what is late, and their recent uploads,
+ * each linking to the item. It opens only where the reader already sees this
+ * person's name on the version they are looking at (getStructure, read as
+ * them: the manager's branch rule, show names, minimal records all apply; a
+ * typed name has no account and no card), and everything on it is read as
+ * the reader, through the same services and row-level security as the
+ * Actions page and the Files card. Nothing is read on anyone else's behalf.
+ * It lists the work: no score, count, ranking or colour about the person.
+ */
+export async function personWork(tx: Tx, principal: Principal, clientOrgId: string, userId: string, pick?: string | null, today = firmToday()) {
+  if (!UUID.test(userId)) throw new NotFoundError("person");
+  const structure = await getStructure(tx, principal, clientOrgId, pick ?? null, today);
+  const shown = structure.shown;
+  const held = (shown?.positions ?? []).filter((p) => p.holders.some((h) => h.named && h.userId === userId && h.name));
+  if (!shown || !held.length) throw new NotFoundError("person");
+  const name = held[0]!.holders.find((h) => h.userId === userId)!.name!;
+  const unitOf = new Map(shown.units.map((u) => [u.id, u]));
+
+  const actionsOpen = await listActions(tx, principal, { clientOrgId, ownerUserId: userId, status: [...OPEN_STATUSES], liveProjects: true });
+  const work = actionsOpen.map((a) => ({ id: a.id, title: a.title, status: a.status, dueDate: a.dueDate, projectTitle: a.projectTitle, late: isOverdue(a, today) }));
+  const late = work.filter((w) => w.late);
+  const open = work.filter((w) => !w.late);
+  const files = (await listFiles(tx, principal, { uploadedBy: userId, orgId: clientOrgId, limit: WORK_CARD_ROWS * 4 })).slice(0, WORK_CARD_ROWS);
+  const strip = ({ late: _late, ...a }: (typeof work)[number]): WorkAction => a;
+
+  return {
+    person: {
+      userId,
+      name,
+      positions: held.map((p) => ({
+        code: p.code,
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        unitNameAr: unitOf.get(p.unitId)?.nameAr ?? null,
+        unitNameEn: unitOf.get(p.unitId)?.nameEn ?? null,
+      })),
+    },
+    late: late.slice(0, WORK_CARD_ROWS).map(strip),
+    open: open.slice(0, WORK_CARD_ROWS).map(strip),
+    /** Some were left off a list (the ones due soonest are shown). Never how many. */
+    more: late.length > WORK_CARD_ROWS || open.length > WORK_CARD_ROWS,
+    uploads: files.map(
+      (f): WorkFile => ({
+        id: f.id,
+        title: f.title,
+        createdAt: f.createdAt,
+        href:
+          f.source.kind === "evidence" && f.source.id
+            ? `/actions/${f.source.id}`
+            : f.source.kind === "meeting"
+              ? `/meetings/${f.source.id}`
+              : f.source.kind === "assessment"
+                ? `/assessments/${f.source.id}`
+                : `/projects/${f.project.id}`,
+        where: "title" in f.source && f.source.title ? f.source.title : f.project.title,
+      }),
+    ),
+  };
+}
+
+export type PersonWork = Awaited<ReturnType<typeof personWork>>;
 
 // ------------------------------------------------------------------ suggestions
 

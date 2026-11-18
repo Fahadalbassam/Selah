@@ -4,9 +4,11 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { accessReviews, clientContacts, invitations, orgMemberships, organizations, user } from "@/db/schema";
 import { assertAllowed, authorize, ForbiddenError, type Principal, type Resource } from "@/authz";
+import { firmToday } from "@/lib/dates";
 import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { changeHolder, dayAfter, positionsHeldBy, vacancyLineage } from "./org-chart";
 
 // Accounts (baseline: Accounts): who belongs to an
 // organisation, how they are invited, switched off, re-addressed and
@@ -130,8 +132,15 @@ export async function setEmailDomains(tx: Tx, principal: Principal, orgId: strin
   return updated[0];
 }
 
-export async function invite(tx: Tx, principal: Principal, input: { orgId: string; email: string; name: string; role: Role }) {
+/**
+ * Invite someone to an organisation in one role. At a client, optionally
+ * into a vacant position of its current structure (org chart, part 3):
+ * accepting the invitation starts the holding (the database does it, and
+ * checks the position again then).
+ */
+export async function invite(tx: Tx, principal: Principal, input: { orgId: string; email: string; name: string; role: Role; positionId?: string | null }) {
   assertAllowed(principal, "org_user.manage", peopleOf(principal, input.orgId));
+  const positionLineageId = input.positionId ? await vacancyLineage(tx, principal, input.orgId, input.positionId) : null;
   const { token, hash } = newToken();
   const [row] = await tx
     .insert(invitations)
@@ -143,6 +152,7 @@ export async function invite(tx: Tx, principal: Principal, input: { orgId: strin
       tokenHash: hash,
       invitedBy: principal.userId,
       expiresAt: new Date(), // the database sets the real expiry
+      positionLineageId,
     })
     .returning({ id: invitations.id, email: invitations.email, expiresAt: invitations.expiresAt });
   await tx.execute(sql`select app_send_invitation(${row!.id}, ${token})`);
@@ -153,7 +163,7 @@ export async function invite(tx: Tx, principal: Principal, input: { orgId: strin
     resourceType: "invitation",
     resourceId: row!.id,
     outcome: "allow",
-    meta: { role: input.role },
+    meta: { role: input.role, position: input.positionId ?? null },
   });
   return row!;
 }
@@ -174,22 +184,54 @@ export async function revokeInvitation(tx: Tx, principal: Principal, id: string)
   return { ok: true };
 }
 
-/** Switch an account off (its sessions end at once) or back on. Nothing is deleted. */
-export async function setActive(tx: Tx, principal: Principal, userId: string, input: { active: boolean; reason?: string }) {
+/** Who takes over a position someone leaves: one of the client's people with an account, or a typed name. */
+export interface Replacement {
+  positionId: string;
+  userId?: string | null;
+  name?: string | null;
+}
+
+/**
+ * Switch an account off (its sessions end at once) or back on. Nothing is
+ * deleted. Switching a client person off ends every position they hold on
+ * the leaving day (the database does it); for each one in `replacements`,
+ * the person named takes it over from the next day. Left out, a position
+ * stays vacant.
+ */
+export async function setActive(
+  tx: Tx,
+  principal: Principal,
+  userId: string,
+  input: { active: boolean; reason?: string; replacements?: Replacement[] },
+) {
   const m = await membershipOf(tx, userId);
   assertAllowed(principal, "org_user.manage", peopleOf(principal, m.orgId));
   if (userId === principal.userId) throw new BadRequestError("you cannot switch off your own account");
   if (!input.active && !input.reason) throw new BadRequestError("say why the account is switched off");
+  const replacements = !input.active ? (input.replacements ?? []) : [];
   // The database refuses the same (check_departure); saying so first keeps the message plain.
+  let positions: Awaited<ReturnType<typeof positionsHeldBy>> = [];
   if (!input.active && m.active) {
-    const { blocking } = await personHoldings(tx, principal, userId);
-    if (blocking > 0) throw new ConflictError("hand over what this person still holds before switching the account off");
+    const held = await personHoldings(tx, principal, userId);
+    if (held.blocking > 0) throw new ConflictError("hand over what this person still holds before switching the account off");
+    positions = held.positions;
+  }
+  for (const r of replacements) {
+    if (!positions.some((p) => p.positionId === r.positionId)) throw new BadRequestError("position");
+    if (r.userId === userId) throw new BadRequestError("replacement");
   }
   const changed = await tx
     .update(orgMemberships)
     .set(input.active ? { active: true } : { active: false, deactivationReason: input.reason })
     .where(and(eq(orgMemberships.userId, userId), eq(orgMemberships.active, !input.active)))
     .returning({ userId: orgMemberships.userId });
+  // Their holdings ended today with the switch; whoever replaces them starts tomorrow.
+  if (changed.length) {
+    const from = dayAfter(firmToday());
+    for (const r of replacements) {
+      await changeHolder(tx, principal, r.positionId, { start: { userId: r.userId ?? null, name: r.name ?? null, from } });
+    }
+  }
   return { changed: changed.length > 0 };
 }
 
@@ -233,7 +275,9 @@ export async function personHoldings(tx: Tx, principal: Principal, userId: strin
     detail: r.detail,
     blocking: r.blocking,
   }));
-  return { items, blocking: items.filter((i) => i.blocking).length };
+  // Positions in the client's structure: they never block; each ends on the leaving day unless someone takes it over.
+  const positions = m.active ? await positionsHeldBy(tx, principal, m.orgId, userId) : [];
+  return { items, blocking: items.filter((i) => i.blocking).length, positions };
 }
 
 /**
