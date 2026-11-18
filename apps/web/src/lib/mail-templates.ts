@@ -10,6 +10,7 @@ export const MAIL_KINDS = [
   "access_review.due",
   "meeting.invite",
   "meeting.cancel",
+  "meeting.removed",
   "password_reset",
   "password_reset.notice",
   "two_factor.reset",
@@ -96,6 +97,15 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Meeting cancelled",
       lines: ["The meeting was cancelled. Open the attachment to remove it from your calendar."],
+    },
+  },
+  // To someone taken off a meeting that goes ahead (feature A, re-check S9): its
+  // cancellation for her alone, so her calendar drops it. No title or time.
+  "meeting.removed": {
+    ar: { subject: "أُزيل اسمك من اجتماع", lines: ["أُزيل اسمك من قائمة المدعوين إلى اجتماع. افتح المرفق لإزالته من تقويمك."] },
+    en: {
+      subject: "Taken off a meeting",
+      lines: ["You were taken off a meeting's list of attendees. Open the attachment to remove it from your calendar."],
     },
   },
   password_reset: {

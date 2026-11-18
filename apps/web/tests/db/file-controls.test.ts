@@ -77,7 +77,7 @@ const svc = <R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>) =>
 const sqlAs = (userId: string, sql: string, params: unknown[] = []) => as(userId, (c) => c.query(sql, params));
 const controls = (userId: string, docId: string) =>
   svc(userId, async (tx, p) => {
-    const loaded = await loadDocument(tx, docId);
+    const loaded = await loadDocument(tx, docId, p);
     return loaded ? fileControls(p, loaded) : null;
   });
 const upload = { bytes: new TextEncoder().encode("v2"), fileName: "plan v2.pdf", contentType: "application/pdf", sha256: "sha-v2", scanned: true, scanMs: 3 };
@@ -135,32 +135,32 @@ afterAll(async () => {
 describe("what each side is offered", () => {
   it("the firm shares its firm-only file with the client, switches the assistant and adds versions", async () => {
     // Only the uploader may also withdraw a wrong file (N8).
-    expect(await controls(U.cons, D.firmOnly)).toEqual({ shareWithClient: true, shareWithFirm: false, assistant: true, newVersion: true, withdraw: true });
-    expect(await controls(U.admin, D.firmOnly)).toEqual({ shareWithClient: true, shareWithFirm: false, assistant: true, newVersion: true, withdraw: false });
+    expect(await controls(U.cons, D.firmOnly)).toEqual({ shareWithClient: true, shareWithFirm: false, assistant: true, newVersion: true, withdraw: true, audience: true });
+    expect(await controls(U.admin, D.firmOnly)).toEqual({ shareWithClient: true, shareWithFirm: false, assistant: true, newVersion: true, withdraw: false, audience: true });
   });
 
   it("the client's admin shares its private file with the firm; nobody else does", async () => {
-    expect(await controls(U.cadmin, D.clientPrivate)).toEqual({ shareWithClient: false, shareWithFirm: true, assistant: true, newVersion: true, withdraw: true });
+    expect(await controls(U.cadmin, D.clientPrivate)).toEqual({ shareWithClient: false, shareWithFirm: true, assistant: true, newVersion: true, withdraw: true, audience: true });
     expect((await controls(U.cmgr, D.clientPrivate))?.shareWithFirm ?? false).toBe(false);
   });
 
   it("nobody is offered anything on the other side's file", async () => {
-    expect(await controls(U.cadmin, D.shared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false });
-    expect(await controls(U.cons, D.clientShared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false });
-    expect(await controls(U.owner, D.clientShared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false });
+    expect(await controls(U.cadmin, D.shared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false, audience: false });
+    expect(await controls(U.cons, D.clientShared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false, audience: false });
+    expect(await controls(U.owner, D.clientShared)).toEqual({ shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false, audience: false });
   });
 
   it("evidence, archived and superseded files and closed projects limit the offer", async () => {
-    const none = { shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false };
+    const none = { shareWithClient: false, shareWithFirm: false, assistant: false, newVersion: false, withdraw: false, audience: false };
     expect(await controls(U.cmgr, D.evidence)).toEqual(none);
     expect(await controls(U.cons, D.firmEvidence)).toEqual(none);
     expect(await controls(U.cons, D.archived)).toEqual(none);
-    expect(await controls(U.cons, D.internal)).toEqual({ ...none, assistant: true, newVersion: true, withdraw: true });
+    expect(await controls(U.cons, D.internal)).toEqual({ ...none, assistant: true, newVersion: true, withdraw: true, audience: true });
     // A closed project is read-only (baseline: Closing): not even the assistant flag changes.
     expect(await controls(U.cons, D.closed)).toEqual(none);
     const superseded = await svc(U.cons, async (tx, p) => {
       await uploadNewVersion(tx, p, D.shared, upload);
-      return fileControls(p, (await loadDocument(tx, D.shared))!);
+      return fileControls(p, (await loadDocument(tx, D.shared, p))!);
     });
     expect(superseded).toEqual(none);
   });
@@ -200,9 +200,9 @@ describe("the assistant flag", () => {
   it("the owning side turns it off and on again", async () => {
     const flags = await svc(U.cmgr, async (tx, p) => {
       await setAssistantFlag(tx, p, D.clientShared, false);
-      const off = (await loadDocument(tx, D.clientShared))!.doc.aiIndexable;
+      const off = (await loadDocument(tx, D.clientShared, p))!.doc.aiIndexable;
       await setAssistantFlag(tx, p, D.clientShared, true);
-      return [off, (await loadDocument(tx, D.clientShared))!.doc.aiIndexable];
+      return [off, (await loadDocument(tx, D.clientShared, p))!.doc.aiIndexable];
     });
     expect(flags).toEqual([false, true]);
   });
@@ -217,8 +217,8 @@ describe("new versions", () => {
   it("keeps the label and department, takes the next number and retires the old version from the assistant", async () => {
     const out = await svc(U.cons, async (tx, p) => {
       const made = await uploadNewVersion(tx, p, D.shared, upload);
-      const next = (await loadDocument(tx, made.id))!.doc;
-      const old = (await loadDocument(tx, D.shared))!.doc;
+      const next = (await loadDocument(tx, made.id, p))!.doc;
+      const old = (await loadDocument(tx, D.shared, p))!.doc;
       return { version: made.version, visibility: next.visibility, supersedes: next.supersedesId, title: next.title, oldFlag: old.aiIndexable };
     });
     expect(out).toEqual({ version: 2, visibility: "shared", supersedes: D.shared, title: "plan v2.pdf", oldFlag: false });

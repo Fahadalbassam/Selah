@@ -27,8 +27,10 @@ export async function ownerChecks(pool: Queryable): Promise<Check[]> {
   }>(`
     SELECT
       (SELECT count(*)::int FROM outbound_emails
-        WHERE sent_at IS NULL AND failed_at IS NULL AND attempts > 0 AND created_at < now() - make_interval(mins => ${MAIL_STUCK_MINUTES})) AS stuck,
-      (SELECT count(*)::int FROM outbound_emails WHERE failed_at > now() - interval '1 day') AS gave_up,
+        WHERE sent_at IS NULL AND failed_at IS NULL AND withdrawn_at IS NULL AND attempts > 0
+          AND created_at < now() - make_interval(mins => ${MAIL_STUCK_MINUTES})) AS stuck,
+      -- A meeting invite withdrawn because its addressee was left out is neither stuck nor a failure.
+      (SELECT count(*)::int FROM outbound_emails WHERE failed_at > now() - interval '1 day' AND withdrawn_at IS NULL) AS gave_up,
       (SELECT checked_at FROM audit_chain_checks ORDER BY checked_at DESC LIMIT 1) AS checked_at,
       (SELECT ok FROM audit_chain_checks ORDER BY checked_at DESC LIMIT 1) AS check_ok,
       (SELECT count(*)::int FROM audit_log

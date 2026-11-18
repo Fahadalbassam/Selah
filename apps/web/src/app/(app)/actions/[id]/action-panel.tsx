@@ -79,6 +79,9 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("rejected")) return { ok: false, error: "type" };
   if (m.includes("submit evidence")) return { ok: false, error: "needEvidence" };
   if (m.includes("shared with the firm")) return { ok: false, error: "notShared" };
+  if (m.includes("limited audience")) return { ok: false, error: "narrowed" };
+  // The database's own refusal of the same bytes: neutral, since whoever uploads may be left out of the file.
+  if (m.includes("can't be used as evidence")) return { ok: false, error: "notEvidence" };
   if (m.includes("in the past")) return { ok: false, error: "pastDate" };
   if (m.includes("already the due date")) return { ok: false, error: "sameDate" };
   if (m.includes("not signed a risk acceptance")) return { ok: false, error: "notSigned" };

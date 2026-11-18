@@ -22,6 +22,7 @@ import {
 import { authorize, canTransition, OPEN_STATUSES, type ActionStatus, type Principal, type Resource } from "@/authz";
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
+import { audiencesForMe } from "./audience";
 
 // A firm person's day across every client (Wave 3, research section 7):
 // what waits for their review, what falls due where they lead, their own
@@ -371,6 +372,13 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
         )
         .orderBy(asc(meetings.startsAt), asc(meetings.id))
     : [];
+  // A meeting this person is left out of is not even read (row-level security); asked again here (feature A).
+  const narrowed = await audiencesForMe(
+    tx,
+    principal,
+    "meeting",
+    meetingRows.map((m) => m.id),
+  );
   const meetingList: MeetingItem[] = meetingRows
     .filter(
       (m) =>
@@ -381,6 +389,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
           orgId: m.orgId,
           visibility: m.visibility,
           createdBy: m.organizerId,
+          audience: narrowed.get(m.id),
         }).allowed,
     )
     .map((m) => ({

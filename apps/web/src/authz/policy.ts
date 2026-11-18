@@ -238,6 +238,12 @@ export const POLICY = {
   }, // visibility label, AI flag, shares
   // Share a client-private file with the firm (one-way). The client admin only.
   "document.share": { client_admin: "owner_org" },
+  // Who sees a file (decision of 17 Nov 2026, feature A): it only takes
+  // people away. The owning side sets it: firm staff on the firm's files, the
+  // client's admin on the client's own. Client managers and action owners
+  // get no picker. Never on evidence (the service refuses; the database too:
+  // app_can_manage_audience).
+  "document.audience": { firm_admin: "owner_org", consultant: "owner_org", client_admin: "owner_org" },
 
   // Meetings, follow-ups, reports, history
   "meeting_note.read": { ...ALL_BUT_OWNER, action_owner: "shared" },
@@ -248,6 +254,10 @@ export const POLICY = {
   "meeting.read": { ...ALL_BUT_OWNER, action_owner: "any" },
   "meeting.book": { ...STAFF, client_admin: "any", client_manager: "any" },
   "meeting.run": { ...STAFF, client_admin: "own", client_manager: "own" },
+  // Who sees a meeting (feature A): firm staff on a meeting the firm booked,
+  // the client's admin on one a client person booked (the resource's
+  // ownerOrgId is the organiser's organisation).
+  "meeting.audience": { firm_admin: "owner_org", consultant: "owner_org", client_admin: "owner_org" },
   // Meetings, action due dates and follow-ups in one calendar.
   "schedule.read": { ...ALL_BUT_OWNER, action_owner: "any" },
   "follow_up.read": { ...ALL_BUT_OWNER, action_owner: "assigned" },

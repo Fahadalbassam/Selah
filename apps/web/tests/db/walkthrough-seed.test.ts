@@ -106,6 +106,23 @@ describe("the walkthrough sample data", () => {
     expect((await q(`SELECT count(*)::int AS n FROM action_due_changes`))[0].n).toBe(1);
   });
 
+  it("limits one Al-Nukhba deliverable with \"everyone except\", leaving out manager@nukhba.test (feature A)", async () => {
+    const [file] = await q(
+      `SELECT d.id, a.mode, array_agg(u.email) AS out FROM documents d
+       JOIN item_audiences a ON a.item_type = 'document' AND a.item_id = d.id
+       JOIN item_audience_people x ON x.item_type = a.item_type AND x.item_id = a.item_id
+       JOIN "user" u ON u.id = x.user_id
+       WHERE d.title = $1 GROUP BY d.id, a.mode`,
+      ["مقترح إعادة تنظيم أمانة مجلس الإدارة.docx"],
+    );
+    expect([file?.mode, file?.out]).toEqual(["except", ["manager@nukhba.test"]]);
+    const ok = async (email: string) =>
+      (await q(`SELECT app_audience_ok('document', $1, (SELECT id FROM "user" WHERE email = $2)) AS ok`, [file!.id, email]))[0].ok as boolean;
+    expect(await ok("manager@nukhba.test")).toBe(false);
+    expect(await ok("admin@nukhba.test")).toBe(true);
+    expect(await ok("lead@mizan.test")).toBe(true);
+  });
+
   it("has Al-Nukhba's published structure: internal audit beside the chief executive, three linked departments, twelve positions, one vacancy, names shown (F43)", async () => {
     const [nukhba] = await q(`SELECT id FROM organizations WHERE name = 'Al-Nukhba Holding'`);
     const versions = await q(`SELECT id, state, number, show_names FROM org_chart_versions WHERE org_id = $1 ORDER BY number NULLS LAST`, [nukhba.id]);

@@ -1,0 +1,1296 @@
+// Who sees an item (decision of 17 Nov 2026, feature A, part 2) against a real
+// Postgres: "everyone with access, except…" and "only these people…" on
+// documents (never evidence) and meetings (migrations 0094, 0095).
+//   - The database twin of the never-widen property: for every seeded user,
+//     the rows they read with the audiences set are a subset of the rows they
+//     read without them, on every table the policy is on.
+//   - Someone left out sees nothing: not the item by its address, through the
+//     API or as a download; not in the Files card, the project's lists, the
+//     schedule, Today, notifications, the mail queue, the exports, the
+//     activity record, the assistant's search or its citations.
+//   - The server refuses a locked person, an "only" list with nobody, a person
+//     who could not see the item, a client admin leaving out the firm's
+//     people, managers and owners, evidence, and a share, an invitation or a
+//     follow-up to someone left out.
+//   - "Except" lets in someone who gains access later; "only" does not; a new
+//     deputy is never shut out.
+//   - A change is audited and tells nobody, and opening it up again neither.
+// Every test about a left-out person failed before the two migrations and the
+// service changes; the people who still see the items guard what must not change.
+//
+// Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool, type PoolClient } from "pg";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { authorize, type Principal, type RetrievalScope } from "@/authz";
+import type { Tx } from "@/db/client";
+import * as schema from "@/db/schema";
+import { runMail, type OutgoingMail } from "@/jobs/mail";
+import { ownerChecks } from "@/jobs/ops-check";
+import { readXlsx } from "@/lib/office/xlsx-read";
+import { truncateAuditLog } from "./audit-reset";
+
+vi.mock("@/services/storage", () => ({
+  DOWNLOAD_TTL_SECONDS: 60,
+  putObject: async () => undefined,
+  copyObject: async () => undefined,
+  getObject: async () => new Uint8Array(),
+  signedDownloadUrl: async (key: string) => `https://storage.test/${key}`,
+}));
+vi.mock("@/services/ai-client", () => ({
+  translateText: async (text: string) => ({ text, model: "fake" }),
+  summarizePages: async () => {
+    throw new Error("not in tests");
+  },
+}));
+vi.mock("next-intl/server", async () => {
+  const { createTranslator } = await import("next-intl");
+  const messages = { ar: (await import("../../messages/ar.json")).default, en: (await import("../../messages/en.json")).default };
+  return {
+    getTranslations: async ({ locale, namespace }: { locale: "ar" | "en"; namespace?: string }) =>
+      createTranslator({ locale, messages: messages[locale], namespace: namespace as never }),
+  };
+});
+
+const { retrieve } = await import("@/services/assistant");
+const A = await import("@/services/assessments");
+const IR = await import("@/services/info-requests");
+const D = await import("@/services/documents");
+const F = await import("@/services/files");
+const M = await import("@/services/meetings");
+const { getProject } = await import("@/services/queries");
+const { today } = await import("@/services/today");
+const { listNotifications } = await import("@/services/notifications");
+const { actionsWorkbook, planWorkbook } = await import("@/services/exports");
+const { loadPrincipal } = await import("@/services/principal");
+
+const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
+const appUrl = process.env.TEST_DATABASE_APP_URL;
+if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
+
+const owner = new Pool({ connectionString: ownerUrl, max: 2 });
+const app = new Pool({ connectionString: appUrl, max: 3 });
+
+const id = (n: number) => `00000000-0000-4000-a0d1-${String(n).padStart(12, "0")}`;
+const FIRM = id(1);
+const NUKHBA = id(2);
+const OTHER = id(3);
+const PN = id(4);
+const DEPT = id(5);
+const U = {
+  admin: id(11), // firm admin
+  lead: id(12), // the client's lead consultant
+  deputy: id(13), // the client's deputy
+  cons: id(14), // staffed on the project; uploads the firm's files
+  cons2: id(15), // staffed on the project; left out of a deliverable
+  ncadmin: id(16), // the client's admin
+  nmgr: id(17), // manager@nukhba.test-style: left out
+  nmgr2: id(18), // a manager who still sees everything
+  owner: id(19), // an action owner, in the department
+  later: id(20), // a manager who joins the project after the audiences are set
+  newDeputy: id(21), // on the client's team, named deputy later
+  other: id(22), // another client's admin
+};
+const DOC = { deliv: id(31), client: id(32), only: id(33), open: id(34), firmOnly: id(35), evid: id(36) };
+const TITLE = {
+  deliv: "Restructuring proposal canary",
+  client: "Salary review canary",
+  only: "Board session canary",
+  open: "Open plan",
+  firmOnly: "Draft deliverable",
+};
+const QUERY = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
+const MEET = "https://meet.google.com/abc-defg-hij";
+const NOT_FOUND = /forbidden|not found/i;
+const email = (u: string) => `${Object.entries(U).find(([, v]) => v === u)![0]}@nukhba.test`;
+
+async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
+  const c = await app.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('selah.user_id', $1, true)", [userId]);
+    const out = await fn(c);
+    await c.query(commit ? "COMMIT" : "ROLLBACK");
+    return out;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+const rowsAs = async (userId: string, text: string, params: unknown[] = []) => (await as(userId, (c) => c.query(text, params))).rows;
+async function svc<R>(userId: string, fn: (tx: Tx, p: Principal) => Promise<R>, commit = false): Promise<R> {
+  return as(
+    userId,
+    async (c) => {
+      const tx = drizzle(c, { schema }) as unknown as Tx;
+      const p = await loadPrincipal(tx, userId);
+      return fn(tx, p!).catch((e: Error & { cause?: Error }) => {
+        throw new Error(e.cause ? `${e.message} | ${e.cause.message}` : e.message);
+      });
+    },
+    commit,
+  );
+}
+const hour = (h: number) => new Date(Date.now() + h * 3_600_000);
+const q = (text: string, params: unknown[] = []) => owner.query(text, params);
+
+let MID = "";
+const REQ = id(81);
+
+/** An audience as the two tables hold it, written by the schema owner (the rules that read it are what is tested). */
+async function narrow(kind: "document" | "meeting", itemId: string, mode: "except" | "only", setBy: string, people: string[]) {
+  await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,$2,$3,$4,$5)`, [NUKHBA, kind, itemId, mode, setBy]);
+  for (const p of people) await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ($1,$2,$3)`, [kind, itemId, p]);
+}
+
+async function doc(docId: string, f: { by: string; ownerOrg: string; title: string; visibility?: string; purpose?: string; ai?: boolean }) {
+  await q(
+    `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
+       storage_key, content_type, size_bytes, sha256, scan_status, ai_indexable)
+     VALUES ($1,$2,$3,$4,$5,$6,'submitted',$7,$8,$9,'application/pdf',10,$11,'clean',$10)`,
+    [docId, PN, NUKHBA, f.ownerOrg, f.by, f.purpose ?? "deliverable", f.title, f.visibility ?? "shared", `k-${docId}`, f.ai ?? false, `sha-${docId}`],
+  );
+}
+
+beforeAll(async () => {
+  await q(`TRUNCATE "user", organizations CASCADE`);
+  await q(`DELETE FROM outbound_emails`);
+  await truncateAuditLog(owner);
+  await q(
+    `INSERT INTO organizations (id, kind, name, departments_enabled) VALUES ($1,'firm','Mizan Advisory',false), ($2,'client','Al-Nukhba',true), ($3,'client','Other Co',false)`,
+    [FIRM, NUKHBA, OTHER],
+  );
+  await q(`INSERT INTO firm_settings (org_id) VALUES ($1)`, [FIRM]);
+  for (const uid of Object.values(U)) await q(`INSERT INTO "user" (id, name, email) VALUES ($1,$2,$3)`, [uid, email(uid).split("@")[0], email(uid)]);
+  await q(
+    `INSERT INTO org_memberships (user_id, org_id, role) VALUES
+      ($1,$13,'firm_admin'), ($2,$13,'consultant'), ($3,$13,'consultant'), ($4,$13,'consultant'), ($5,$13,'consultant'),
+      ($6,$14,'client_admin'), ($7,$14,'client_manager'), ($8,$14,'client_manager'), ($9,$14,'action_owner'), ($10,$14,'client_manager'),
+      ($11,$13,'consultant'), ($12,$15,'client_admin')`,
+    [U.admin, U.lead, U.deputy, U.cons, U.cons2, U.ncadmin, U.nmgr, U.nmgr2, U.owner, U.later, U.newDeputy, U.other, FIRM, NUKHBA, OTHER],
+  );
+  await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Nukhba governance','active',$4)`, [
+    PN,
+    NUKHBA,
+    FIRM,
+    U.admin,
+  ]);
+  await q(
+    `INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,true,false), ($1,$3,false,true), ($1,$4,false,false), ($1,$5,false,false), ($1,$6,false,false)`,
+    [NUKHBA, U.lead, U.deputy, U.cons, U.cons2, U.newDeputy],
+  );
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2), ($1,$3), ($1,$4), ($1,$5), ($1,$6)`, [PN, U.cons, U.cons2, U.nmgr, U.nmgr2, U.owner]);
+  await q(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$2,'المالية','Finance')`, [DEPT, NUKHBA]);
+  await q(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2), ($1,$3), ($1,$4)`, [DEPT, U.nmgr, U.nmgr2, U.owner]);
+  // The client's managers have the assistant (wave 3), so their search is under test too.
+  await q(`INSERT INTO client_ai_settings (client_org_id, enabled, roles) VALUES ($1, true, '{client_admin,client_manager}')`, [NUKHBA]);
+  await q(`INSERT INTO client_ai_consents (client_org_id, version, locale, given_by) VALUES ($1, app_client_ai_version(), 'en', $2)`, [NUKHBA, U.ncadmin]);
+
+  await doc(DOC.deliv, { by: U.cons, ownerOrg: FIRM, title: TITLE.deliv, ai: true });
+  await doc(DOC.client, { by: U.nmgr2, ownerOrg: NUKHBA, title: TITLE.client, purpose: "client_document", ai: true });
+  await doc(DOC.only, { by: U.cons, ownerOrg: FIRM, title: TITLE.only });
+  await doc(DOC.open, { by: U.cons, ownerOrg: FIRM, title: TITLE.open, ai: true });
+  await doc(DOC.firmOnly, { by: U.cons, ownerOrg: FIRM, title: TITLE.firmOnly, visibility: "firm_private" });
+  await doc(DOC.evid, { by: U.nmgr2, ownerOrg: NUKHBA, title: "Evidence", purpose: "evidence" });
+  for (const d of [DOC.deliv, DOC.client, DOC.open]) {
+    await q(
+      `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)
+       VALUES ($1,$2,'document',$3,'shared',0,$4,$5)`,
+      [PN, NUKHBA, d, `passage of ${d}`, `[${QUERY.join(",")}]`],
+    );
+  }
+  await q(`INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3), ($4,$5,$3)`, [DOC.open, U.owner, U.cons, DOC.deliv, U.nmgr2]);
+  // A notice the left-out manager got about the deliverable before it was narrowed.
+  await q(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'document.shared','document',$2)`, [U.nmgr, DOC.deliv]);
+
+  // Who sees what. Written straight into the two tables, so that each rule below is tested on its
+  // own and removing one fails only its own tests (review N3); setting it the way the screens do
+  // (app_set_audience) has its own tests further down.
+  await narrow("document", DOC.deliv, "except", U.cons, [U.nmgr, U.cons2]);
+  await narrow("document", DOC.client, "except", U.ncadmin, [U.nmgr]);
+  await narrow("document", DOC.only, "only", U.cons, [U.cons, U.nmgr2]);
+  // The firm shares its draft with the client (recorded on the activity record), leaving a colleague out.
+  await svc(U.cons, (tx, p) => D.shareDocument(tx, p, DOC.firmOnly), true);
+  await narrow("document", DOC.firmOnly, "except", U.cons, [U.cons2]);
+
+  // A meeting booked by the lead with one manager invited; then another manager and a consultant, who
+  // could open it but are not invited (anyone invited always sees it: re-check S9), are left out.
+  MID = (
+    await svc(
+      U.lead,
+      (tx, p) =>
+        M.bookMeeting(tx, p, PN, {
+          kind: "status",
+          title: "Closed board session",
+          startsAt: hour(24),
+          endsAt: hour(25),
+          location: "online",
+          joinUrl: MEET,
+          spokenLang: "en",
+          attendees: [{ userId: U.nmgr2 }],
+          sendInvites: true,
+        }),
+      true,
+    )
+  ).id;
+  await narrow("meeting", MID, "except", U.lead, [U.nmgr, U.cons2]);
+  await q(`UPDATE meetings SET status = 'held', transcript_consent = true, consent_noted_by = $2 WHERE id = $1`, [MID, U.lead]);
+  await q(`INSERT INTO meeting_decisions (project_id, org_id, meeting_id, text, visibility, created_by) VALUES ($1,$2,$3,'Decision canary','shared',$4)`, [PN, NUKHBA, MID, U.lead]);
+  await q(`INSERT INTO meeting_summaries (meeting_id, project_id, org_id, lang, main_points_md, confirmed_by, visibility) VALUES ($1,$2,$3,'en','Summary canary',$4,'shared')`, [
+    MID,
+    PN,
+    NUKHBA,
+    U.lead,
+  ]);
+  await q(`INSERT INTO meeting_summary_sources (meeting_id, project_id, org_id, line, kind, document_id, page) VALUES ($1,$2,$3,1,'document',$4,1)`, [MID, PN, NUKHBA, DOC.open]);
+  await q(`INSERT INTO meeting_transcripts (meeting_id, project_id, org_id, lang, format, body, imported_by) VALUES ($1,$2,$3,'en','text','Transcript canary',$4)`, [MID, PN, NUKHBA, U.lead]);
+  await q(
+    `INSERT INTO meeting_notes (project_id, org_id, author_id, meeting_id, held_on, title, body, visibility) VALUES ($1,$2,$3,$4,app_firm_today(),'Note canary','Said','shared')`,
+    [PN, NUKHBA, U.lead, MID],
+  );
+  await q(
+    `INSERT INTO follow_ups (project_id, org_id, meeting_id, title, visibility, assignee_user_id, due_at, created_by) VALUES ($1,$2,$3,'Follow-up canary','shared',$4, now() + interval '2 days', $5)`,
+    [PN, NUKHBA, MID, U.nmgr2, U.lead],
+  );
+
+  // A row in every other table under these items, so "rows only shrink" has something to shrink (review N2).
+  // A translation of the meeting's decision, read under its source's rules.
+  await q(
+    `INSERT INTO content_translations (project_id, org_id, entity_type, entity_id, field, source_lang, target_lang, source_sha256, text, model, created_by)
+     SELECT d.project_id, d.org_id, 'meeting_decision', d.id, 'text', 'en', 'ar', encode(sha256(convert_to(d.text, 'UTF8')), 'hex'), 'قرار', 'fake', $2
+     FROM meeting_decisions d WHERE d.meeting_id = $1`,
+    [MID, U.lead],
+  );
+  // A summary of the deliverable.
+  await q(
+    `INSERT INTO document_summaries (document_id, project_id, org_id, sha256, lang, summary, citations, model, created_by)
+     VALUES ($1,$2,$3,$4,'en','The proposal in one line.','[{"line":1,"pages":[1]}]','fake',$5)`,
+    [DOC.deliv, PN, NUKHBA, `sha-${DOC.deliv}`, U.cons],
+  );
+  // A passage of the meeting's note.
+  await q(
+    `INSERT INTO ai_chunks (project_id, org_id, source_type, source_id, visibility, chunk_index, content, embedding)
+     SELECT n.project_id, n.org_id, 'meeting_note', n.id, 'shared', 0, 'note passage', $2 FROM meeting_notes n WHERE n.meeting_id = $1`,
+    [MID, `[${QUERY.join(",")}]`],
+  );
+  // An information request answered with the salary file.
+  await q(
+    `INSERT INTO info_requests (id, project_id, org_id, area, title, created_by) VALUES ($1,$2,$3,'people','Pay scales',$4)`,
+    [REQ, PN, NUKHBA, U.lead],
+  );
+  await q(`INSERT INTO info_request_files (request_id, document_id, attached_by) VALUES ($1,$2,$3)`, [REQ, DOC.client, U.nmgr2]);
+  // An assessment that cites the deliverable as evidence for one answer.
+  await q(`UPDATE organizations SET legal_form = 'llc' WHERE id = $1`, [NUKHBA]);
+  const starter = await svc(U.admin, (tx, p) => A.installStarterTemplate(tx, p, { publish: true }), true);
+  const assessment = await svc(U.admin, (tx, p) => A.createAssessment(tx, p, PN, { templateId: starter.id, title: "Baseline" }), true);
+  const [answer] = (await q(`SELECT id FROM assessment_answers WHERE assessment_id = $1 ORDER BY id LIMIT 1`, [assessment.id])).rows;
+  await q(`INSERT INTO assessment_evidence (answer_id, document_id, project_id, org_id, added_by) VALUES ($1,$2,$3,$4,$5)`, [
+    answer.id,
+    DOC.deliv,
+    PN,
+    NUKHBA,
+    U.cons,
+  ]);
+});
+
+afterAll(async () => {
+  await Promise.all([owner.end(), app.end()]);
+});
+
+// ------------------------------------------------------------------ the database rule
+const TABLES: Record<string, string> = {
+  documents: "id::text",
+  document_shares: "document_id || ':' || user_id",
+  document_summaries: "id::text",
+  info_request_files: "request_id || ':' || document_id",
+  assessment_evidence: "answer_id || ':' || document_id",
+  meetings: "id::text",
+  meeting_attendees: "id::text",
+  meeting_decisions: "id::text",
+  meeting_summaries: "meeting_id::text",
+  meeting_summary_sources: "id::text",
+  meeting_transcripts: "meeting_id::text",
+  meeting_notes: "id::text",
+  follow_ups: "id::text",
+  ai_chunks: "id::text",
+  content_translations: "id::text",
+  activity_events: "id::text",
+  notifications: "id::text",
+  ai_conversations: "id::text",
+};
+
+async function snapshot() {
+  const out = new Map<string, Set<string>>();
+  for (const [name, uid] of Object.entries(U)) {
+    for (const [table, key] of Object.entries(TABLES)) {
+      const rows = await rowsAs(uid, `SELECT ${key} AS k FROM ${table}`);
+      out.set(`${name}:${table}`, new Set(rows.map((r) => String(r.k))));
+    }
+  }
+  return out;
+}
+
+describe("the database rule only takes people away", () => {
+  it("is a RESTRICTIVE policy on every table that gets the picker and every table under those items", async () => {
+    const { rows } = await q(`SELECT tablename, permissive FROM pg_policies WHERE policyname = 'audience'`);
+    const have = new Map(rows.map((r) => [r.tablename as string, r.permissive as string]));
+    for (const table of Object.keys(TABLES)) expect(have.get(table), table).toBe("RESTRICTIVE");
+  });
+
+  it("for every seeded user, the rows read with the audiences are a subset of the rows read without them", async () => {
+    const saved = (await q(`SELECT * FROM item_audiences`)).rows;
+    const people = (await q(`SELECT * FROM item_audience_people`)).rows;
+    expect(saved.length).toBeGreaterThan(0);
+    const narrowed = await snapshot();
+    await q(`DELETE FROM item_audiences`);
+    let wide: Map<string, Set<string>>;
+    try {
+      wide = await snapshot();
+    } finally {
+      for (const a of saved) {
+        await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by, set_at) VALUES ($1,$2,$3,$4,$5,$6)`, [
+          a.org_id,
+          a.item_type,
+          a.item_id,
+          a.mode,
+          a.set_by,
+          a.set_at,
+        ]);
+      }
+      for (const x of people) await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ($1,$2,$3)`, [x.item_type, x.item_id, x.user_id]);
+    }
+    let lost = 0;
+    for (const [key, rows] of narrowed) {
+      const all = wide.get(key)!;
+      expect([...rows].filter((r) => !all.has(r)), key).toEqual([]);
+      lost += all.size - rows.size;
+    }
+    // And it did take something away: the left-out manager and consultant lost rows, in every table
+    // the seed puts a row in (all of them but the chats, which have their own test).
+    expect(wide.get("nmgr:documents")!.size).toBeGreaterThan(narrowed.get("nmgr:documents")!.size);
+    expect(wide.get("nmgr:meetings")!.size).toBeGreaterThan(narrowed.get("nmgr:meetings")!.size);
+    expect(wide.get("cons2:documents")!.size).toBeGreaterThan(narrowed.get("cons2:documents")!.size);
+    for (const table of Object.keys(TABLES).filter((t) => !["notifications", "ai_conversations", "activity_events"].includes(t))) {
+      const shrank = ["nmgr", "cons2"].some((who) => wide.get(`${who}:${table}`)!.size > narrowed.get(`${who}:${table}`)!.size);
+      expect(shrank, table).toBe(true);
+    }
+    expect(lost).toBeGreaterThan(0);
+  });
+
+  // The checks the app's policies call ask "not left out, or an item the caller can't see anyway", and
+  // they decide "can see" with copies of the file and meeting rules (app_caller_sees_document(),
+  // app_caller_sees_meeting()). A way in that the copies miss would let someone left out back in with
+  // nothing failing (re-check S10). So: for every seeded person, the files and meetings the copies say
+  // she sees are exactly those row-level security shows her with no audience set.
+  it("the copies of the file and meeting rules match the rules, for every seeded person (re-check S10)", async () => {
+    const saved = (await q(`SELECT * FROM item_audiences`)).rows;
+    const people = (await q(`SELECT * FROM item_audience_people`)).rows;
+    const copies = async (uid: string, table: "documents" | "meetings") => {
+      const c = await owner.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('selah.user_id', $1, true)", [uid]);
+        const fn = table === "documents" ? "app_caller_sees_document" : "app_caller_sees_meeting";
+        return (await c.query(`SELECT id::text AS k FROM ${table} WHERE ${fn}(id) ORDER BY 1`)).rows.map((r) => r.k as string);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    };
+    await q(`DELETE FROM item_audiences`);
+    const seen: string[] = [];
+    try {
+      for (const [name, uid] of Object.entries(U)) {
+        for (const table of ["documents", "meetings"] as const) {
+          const rules = (await rowsAs(uid, `SELECT id::text AS k FROM ${table} ORDER BY 1`)).map((r) => r.k as string);
+          expect(await copies(uid, table), `${name} ${table}`).toEqual(rules);
+          if (rules.length) seen.push(`${name}:${table}`);
+        }
+      }
+    } finally {
+      for (const a of saved) {
+        await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by, set_at) VALUES ($1,$2,$3,$4,$5,$6)`, [
+          a.org_id,
+          a.item_type,
+          a.item_id,
+          a.mode,
+          a.set_by,
+          a.set_at,
+        ]);
+      }
+      for (const x of people) await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ($1,$2,$3)`, [x.item_type, x.item_id, x.user_id]);
+    }
+    // Not an empty comparison: most people see files and meetings, and someone sees none.
+    expect(seen.length).toBeGreaterThan(10);
+    expect(seen).not.toContain("other:documents");
+  });
+
+  it("the functions the app may call answer only about an item the caller can already see (review S6)", async () => {
+    const unknown = id(999);
+    const one = async (who: string, text: string, params: unknown[]) => (await rowsAs(who, text, params))[0];
+    // Another client's admin, who reads nothing of the file, gets the same answers as for an id that does not exist.
+    for (const item of [DOC.client, unknown]) {
+      expect(await one(U.other, `SELECT app_audience_ok('document', $1) AS ok`, [item]), item).toEqual({ ok: true });
+      expect(await one(U.other, `SELECT app_audience_entity_ok('document', $1) AS ok`, [item]), item).toEqual({ ok: true });
+      expect(await one(U.other, `SELECT app_audience_side_for_me('document', $1) AS side`, [item]), item).toEqual({ side: null });
+      expect(await one(U.other, `SELECT app_document_narrowed($1) AS yes`, [item]), item).toEqual({ yes: false });
+      expect(await rowsAs(U.other, `SELECT * FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [item]), item).toEqual([]);
+    }
+    // Nobody asks about someone else, or reads whose item it is past the rules.
+    await expect(rowsAs(U.other, `SELECT app_audience_ok('document', $1, $2)`, [DOC.client, U.nmgr])).rejects.toThrow(/permission denied/);
+    await expect(rowsAs(U.other, `SELECT app_audience_entity_ok('document', $1, $2)`, [DOC.client, U.nmgr])).rejects.toThrow(/permission denied/);
+    await expect(rowsAs(U.other, `SELECT app_audience_side('document', $1)`, [DOC.client])).rejects.toThrow(/permission denied/);
+    // The person left out learns nothing either: not that she is left out, nor whose file it is.
+    expect(await rowsAs(U.nmgr, `SELECT * FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [DOC.client])).toEqual([]);
+    expect(await one(U.nmgr, `SELECT app_audience_side_for_me('document', $1) AS side`, [DOC.client])).toEqual({ side: null });
+    // Someone who sees it gets the real answers.
+    expect(await one(U.nmgr2, `SELECT app_audience_side_for_me('document', $1) AS side`, [DOC.client])).toEqual({ side: "client" });
+    expect(await rowsAs(U.nmgr2, `SELECT mode FROM app_audience_mine('document', ARRAY[$1]::uuid[])`, [DOC.client])).toEqual([{ mode: "except" }]);
+    // And the rules still hold: she reads no row of it, he does.
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
+  });
+
+  it("nobody can write the audience tables except through app_set_audience()", async () => {
+    await expect(rowsAs(U.cons, `DELETE FROM item_audiences`)).rejects.toThrow(/permission denied/);
+    await expect(
+      rowsAs(U.cons, `INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ('document', $1, $2)`, [DOC.open, U.nmgr]),
+    ).rejects.toThrow(/permission denied/);
+    // The audience rows are read only by the people who may change it.
+    expect(await rowsAs(U.nmgr2, `SELECT * FROM item_audience_people`)).toEqual([]);
+    expect((await rowsAs(U.cons, `SELECT user_id FROM item_audience_people WHERE item_id = $1 ORDER BY user_id`, [DOC.deliv])).map((r) => r.user_id)).toEqual(
+      [U.cons2, U.nmgr].sort(),
+    );
+  });
+});
+
+// ------------------------------------------------------------------ left out
+describe("a person left out sees nothing of the item", () => {
+  it("the file is Not found by its address, through the API and as a download", async () => {
+    for (const [who, docId] of [
+      [U.nmgr, DOC.deliv],
+      [U.nmgr, DOC.client],
+      [U.cons2, DOC.deliv],
+      [U.cons2, DOC.firmOnly],
+      [U.nmgr, DOC.only],
+      [U.cons2, DOC.only],
+    ] as const) {
+      await expect(svc(who, (tx, p) => D.createDownloadLink(tx, p, docId, null)), `${who} ${docId}`).rejects.toThrow(NOT_FOUND);
+      expect(await svc(who, (tx, p) => D.loadDocument(tx, docId, p))).toBeNull();
+      expect(await rowsAs(who, `SELECT title FROM documents WHERE id = $1`, [docId])).toEqual([]);
+    }
+    // The people who still see it: the uploader, the lead, the client's admin, a manager not left out.
+    for (const who of [U.cons, U.lead, U.ncadmin, U.nmgr2, U.admin, U.deputy]) {
+      expect((await svc(who, (tx, p) => D.createDownloadLink(tx, p, DOC.deliv, null))).url, who).toContain("storage.test");
+    }
+  });
+
+  it("the meeting is Not found, with its calendar file, agenda and everything under it", async () => {
+    for (const who of [U.nmgr, U.cons2]) {
+      await expect(svc(who, (tx, p) => M.getMeeting(tx, p, MID))).rejects.toThrow(NOT_FOUND);
+      await expect(svc(who, (tx, p) => M.meetingIcs(tx, p, MID))).rejects.toThrow(NOT_FOUND);
+      expect(await rowsAs(who, `SELECT * FROM app_meeting_agenda_for($1)`, [MID])).toEqual([]);
+      expect(await rowsAs(who, `SELECT app_can_see_meeting($1) AS ok, app_meeting_open_to_me($1) AS open`, [MID])).toEqual([{ ok: false, open: false }]);
+      for (const t of ["meetings", "meeting_attendees", "meeting_decisions", "meeting_summaries", "meeting_summary_sources", "meeting_notes", "meeting_transcripts", "follow_ups"]) {
+        const col = t === "meetings" ? "id" : "meeting_id";
+        expect(await rowsAs(who, `SELECT 1 FROM ${t} WHERE ${col} = $1`, [MID]), `${who} ${t}`).toEqual([]);
+      }
+    }
+    // A manager who is not left out opens it, sees the marker, and has no picker.
+    const seen = await svc(U.nmgr2, (tx, p) => M.getMeeting(tx, p, MID));
+    expect([seen.meeting.title, seen.limited, seen.canAudience]).toEqual(["Closed board session", true, false]);
+    expect((await svc(U.lead, (tx, p) => M.getMeeting(tx, p, MID))).canAudience).toBe(true);
+  });
+
+  it("is left out of the Files card, the project's documents and meetings, the schedule and Today, with no count", async () => {
+    const files = await svc(U.nmgr, (tx, p) => F.listFiles(tx, p));
+    expect(files.map((f) => f.title)).not.toEqual(expect.arrayContaining([TITLE.deliv]));
+    expect(JSON.stringify(files)).not.toMatch(/canary/);
+    const project = await svc(U.nmgr, (tx, p) => getProject(tx, p, PN));
+    expect(JSON.stringify(project.documents)).not.toMatch(/canary/);
+    expect((await svc(U.nmgr, (tx, p) => M.listMeetings(tx, p, PN))).map((m) => m.title)).not.toContain("Closed board session");
+    const items = await svc(U.nmgr, (tx, p) => M.schedule(tx, p, { from: hour(-24), to: hour(24 * 7) }));
+    expect(JSON.stringify(items)).not.toMatch(/Closed board session|Follow-up canary/);
+    // Today (the firm's home) lists the meetings one attends: not the one a consultant is left out of.
+    expect(JSON.stringify(await svc(U.cons2, (tx, p) => today(tx, p)))).not.toMatch(/Closed board session/);
+    expect(JSON.stringify(await svc(U.lead, (tx, p) => today(tx, p)))).toContain("Closed board session");
+    // A count the left-out manager could read says nothing either.
+    // (The open plan and the draft shared with the client: the three narrowed files are not counted.)
+    expect(await rowsAs(U.nmgr, `SELECT count(*)::int AS n FROM documents WHERE project_id = $1 AND purpose <> 'evidence'`, [PN])).toEqual([{ n: 2 }]);
+    // Those who still see the items get them, marked "Limited audience".
+    const theirs = await svc(U.nmgr2, (tx, p) => F.listFiles(tx, p));
+    expect(Object.fromEntries(theirs.map((f) => [f.title, f.limited]))).toMatchObject({ [TITLE.deliv]: true, [TITLE.client]: true, [TITLE.only]: true, [TITLE.open]: false });
+    expect((await svc(U.nmgr2, (tx, p) => M.listMeetings(tx, p, PN))).map((m) => [m.title, m.limited])).toEqual([["Closed board session", true]]);
+    expect(JSON.stringify(await svc(U.nmgr2, (tx, p) => M.schedule(tx, p, { from: hour(-24), to: hour(24 * 7) })))).toContain("Closed board session");
+  });
+
+  it("gets no notice about it: an old one is hidden, a new one is never stored", async () => {
+    expect((await svc(U.nmgr, (tx, p) => listNotifications(tx, p))).items.map((n) => n.entityId)).not.toContain(DOC.deliv);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM notifications WHERE entity_id = $1`, [DOC.deliv])).toEqual([]);
+    const count = async () => (await q(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1`, [U.nmgr])).rows[0].n as number;
+    const before = await count();
+    await q(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'document.shared','document',$2), ($1,'meeting.changed','meeting',$3)`, [
+      U.nmgr,
+      DOC.deliv,
+      MID,
+    ]);
+    expect(await count()).toBe(before);
+    // Someone who still sees it is told as before.
+    await q(`INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES ($1,'meeting.changed','meeting',$2)`, [U.nmgr2, MID]);
+    expect((await q(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.nmgr2, MID])).rows).toEqual([{ n: 1 }]);
+  });
+
+  it("the mail queue holds no invite for someone left out, and one queued before she was taken off the meeting is withdrawn", async () => {
+    // Setting it again as the screens do queues nothing for the two left out; only the invited manager's invite is there to send.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
+    const queued = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND withdrawn_at IS NULL`, [MID])).rows.map((r) => r.to_email);
+    expect(queued).toContain(email(U.nmgr2));
+    expect(queued).not.toContain(email(U.nmgr));
+    expect(queued).not.toContain(email(U.cons2));
+    // A second meeting, invited before the audience is set: while she is invited she can't be left out (re-check S9).
+    const second = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "status",
+            title: "Second session",
+            startsAt: hour(48),
+            endsAt: hour(49),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }],
+            sendInvites: true,
+          }),
+        true,
+      )
+    ).id;
+    expect((await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [second])).rows.map((r) => r.to_email)).toContain(email(U.nmgr));
+    await expect(svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(/invited to this meeting/);
+    // Taken off it, her invite is withdrawn, not deleted (the product owner's decision on the review, B2); then she can be left out.
+    const [her] = (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [second, U.nmgr])).rows;
+    await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, second, her.id), true);
+    const after = (await q(`SELECT to_email, withdrawn_at IS NOT NULL AS withdrawn FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [second])).rows;
+    expect(after).toEqual([
+      { to_email: email(U.nmgr2), withdrawn: false },
+      { to_email: email(U.nmgr), withdrawn: true },
+    ]);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }), true);
+    await svc(U.lead, (tx, p) => M.sendInvites(tx, p, second), true);
+    // Sending again queues nothing new for her.
+    expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [second, email(U.nmgr)])).rows).toEqual([{ n: 1 }]);
+  });
+
+  // The product owner's decision on the review (B2): nothing is deleted. A queued invite to someone taken
+  // off the meeting (who may then be left out: re-check S9) is marked withdrawn and kept; the sender
+  // skips it, and checks again just before sending.
+  describe("the mail queue keeps a withdrawn invite and never sends it", () => {
+    const bookWith = (title: string, attendees: { userId: string; optional?: boolean }[], hours: number) =>
+      svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title, startsAt: hour(hours), endsAt: hour(hours + 1), location: "online", joinUrl: MEET, attendees, sendInvites: true }),
+        true,
+      ).then((m) => m.id);
+    const sent: OutgoingMail[] = [];
+    const deliver = async (mail: OutgoingMail) => void sent.push(mail);
+    const onlyThis = (mid: string) => q(`UPDATE outbound_emails SET sent_at = now() WHERE sent_at IS NULL AND meeting_id IS DISTINCT FROM $1`, [mid]);
+    const takeOff = async (mid: string, uid: string) => {
+      const [row] = (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [mid, uid])).rows;
+      await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, mid, row.id), true);
+    };
+
+    it("an invite not sent yet is withdrawn, kept and not sent when she is taken off; no cancellation is queued", async () => {
+      const mid = await bookWith("Withdrawn invite", [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }], 96);
+      await takeOff(mid, U.nmgr);
+      const rows = (await q(`SELECT to_email, kind, sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows;
+      // No invitation reached her calendar, so there is nothing to cancel.
+      expect(rows.map((r) => [r.to_email, r.kind, r.sent_at === null, r.withdrawn_at !== null])).toEqual([
+        [email(U.nmgr2), "meeting.invite", true, false],
+        [email(U.nmgr), "meeting.invite", true, true],
+      ]);
+      await onlyThis(mid);
+      sent.length = 0;
+      const result = await runMail(owner, deliver, "http://selah.test");
+      expect(sent.map((m) => m.to)).toEqual([email(U.nmgr2)]);
+      expect(result).toMatchObject({ sent: 1, failed: 0 });
+      // Kept, still unsent and withdrawn; and it is not mail that "keeps failing".
+      expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2 AND sent_at IS NULL AND withdrawn_at IS NOT NULL`, [mid, email(U.nmgr)])).rows).toEqual([
+        { n: 1 },
+      ]);
+      await q(`UPDATE outbound_emails SET created_at = now() - interval '2 hours', attempts = 3, last_error = 'x' WHERE meeting_id = $1 AND to_email = $2`, [mid, email(U.nmgr)]);
+      expect((await ownerChecks(owner)).find((c) => c.name === "mail")).toMatchObject({ ok: true });
+    });
+
+    it("an invite the sender already picked up is not delivered to someone taken off the meeting a moment before it goes", async () => {
+      const mid = await bookWith("Picked-up invite", [{ userId: U.nmgr2 }], 120);
+      // The organiser adds her later and sends the invites again: hers is queued after the others.
+      await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+      await svc(U.lead, (tx, p) => M.sendInvites(tx, p, mid), true);
+      await onlyThis(mid);
+      sent.length = 0;
+      let leftOut = false;
+      await runMail(owner, async (mail) => {
+        // While the sender works through the batch it has claimed, the lead takes her off the meeting.
+        if (!leftOut) {
+          leftOut = true;
+          await takeOff(mid, U.nmgr);
+        }
+        sent.push(mail);
+      }, "http://selah.test");
+      expect(sent.map((m) => m.to)).not.toContain(email(U.nmgr));
+      expect(sent.map((m) => m.to)).toContain(email(U.nmgr2));
+      expect((await q(`SELECT sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [mid, email(U.nmgr)])).rows).toEqual([
+        { sent_at: null, withdrawn_at: expect.any(Date) },
+      ]);
+    });
+  });
+
+  it("is not in the Excel exports", async () => {
+    for (const make of [(tx: Tx, p: Principal) => planWorkbook(tx, p, PN, "en"), (tx: Tx, p: Principal) => actionsWorkbook(tx, p, "en")]) {
+      const file = await svc(U.nmgr, make);
+      expect(JSON.stringify(readXlsx(file.bytes).map((s) => s.rows))).not.toMatch(/canary|Closed board session/);
+    }
+  });
+
+  it("is not on the activity record: the share of a file she is left out of does not reach her", async () => {
+    const event = `SELECT 1 FROM activity_events WHERE entity_type = 'document' AND entity_id = $1 AND event = 'document_shared'`;
+    expect(await rowsAs(U.cons2, event, [DOC.firmOnly])).toEqual([]);
+    expect(await rowsAs(U.cons, event, [DOC.firmOnly])).toHaveLength(1);
+    const shares = async (who: string) => ((await svc(who, (tx, p) => getProject(tx, p, PN))).activity ?? []).filter((e) => e.event === "document_shared");
+    expect(await shares(U.cons2)).toEqual([]);
+    expect(await shares(U.cons)).toHaveLength(1);
+  });
+
+  it("cannot get an export pack, which only admins make, and they always see the client's items", async () => {
+    const p = await svc(U.nmgr, async (_tx, p) => p);
+    expect(authorize(p, "organization.export", { type: "organization", orgId: NUKHBA, projectId: null }).allowed).toBe(false);
+    // The client's admin always sees what the client can see, so the pack (read under her rules) holds every file.
+    expect(await rowsAs(U.ncadmin, `SELECT count(*)::int AS n FROM documents WHERE id = ANY($1)`, [[DOC.deliv, DOC.client, DOC.only]])).toEqual([{ n: 3 }]);
+  });
+
+  it("her old assistant chats about it, or citing it, are hidden like a chat whose project she no longer sees, and kept", async () => {
+    const chat = async (title: string, caseRef: { type: string; id: string } | null, cites: string[]) => {
+      const [c] = (
+        await q(`INSERT INTO ai_conversations (user_id, project_id, title, case_type, case_id) VALUES ($1,$2,$3,$4::chat_case_type,$5) RETURNING id`, [
+          U.nmgr,
+          PN,
+          title,
+          caseRef?.type ?? null,
+          caseRef?.id ?? null,
+        ])
+      ).rows;
+      await q(`INSERT INTO ai_messages (conversation_id, user_id, role, content, lang) VALUES ($1,$2,'user',$3,'en')`, [c.id, U.nmgr, `About ${title}`]);
+      await q(`INSERT INTO ai_messages (conversation_id, user_id, role, content, lang, citations) VALUES ($1,$2,'assistant','An answer','en',$3)`, [
+        c.id,
+        U.nmgr,
+        JSON.stringify(cites.map((d) => ({ chunkId: null, sourceType: "document", sourceId: d, version: 1 }))),
+      ]);
+      return c.id as string;
+    };
+    const aboutIt = await chat("Summarise the salary review", { type: "document", id: DOC.client }, [DOC.client]);
+    const citesIt = await chat("What changes in the secretariat?", null, [DOC.open, DOC.deliv]);
+    const other = await chat("What is in the open plan?", null, [DOC.open]);
+    const ids = (await rowsAs(U.nmgr, `SELECT id FROM ai_conversations WHERE user_id = $1`, [U.nmgr])).map((r) => r.id);
+    expect(ids).toEqual([other]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM ai_messages WHERE conversation_id = ANY($1)`, [[aboutIt, citesIt]])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT count(*)::int AS n FROM ai_messages WHERE conversation_id = $1`, [other])).toEqual([{ n: 2 }]);
+    // Kept, not deleted: opened up again, they come back.
+    expect((await q(`SELECT count(*)::int AS n FROM ai_conversations WHERE id = ANY($1)`, [[aboutIt, citesIt]])).rows).toEqual([{ n: 2 }]);
+  });
+
+  it("the assistant's search never retrieves a passage of it, with the real scope or a forged one, and citations find nothing", async () => {
+    const found = (uid: string, scope: RetrievalScope) => svc(uid, async (tx) => (await retrieve(tx, scope, QUERY, { query: "passage" })).map((r) => r.sourceId));
+    const firm = (uid: string): RetrievalScope => ({ projectId: PN, orgId: NUKHBA, labels: ["shared", "firm_private", "client_private", "user_private"], userId: uid });
+    const client = (uid: string): RetrievalScope => ({ projectId: PN, orgId: NUKHBA, labels: ["shared", "client_private"], userId: uid, client: true });
+    expect((await found(U.cons2, firm(U.cons2))).sort()).toEqual([DOC.client, DOC.open].sort());
+    expect((await found(U.nmgr, client(U.nmgr))).sort()).toEqual([DOC.open]);
+    expect((await found(U.nmgr2, client(U.nmgr2))).sort()).toEqual([DOC.deliv, DOC.client, DOC.open].sort());
+    // A scope naming someone else does not get past row-level security either.
+    expect(await found(U.nmgr, client(U.nmgr2))).not.toContain(DOC.deliv);
+    // Citations are looked up under her rules: no title comes back.
+    expect(await rowsAs(U.nmgr, `SELECT id, title FROM documents WHERE id = ANY($1)`, [[DOC.deliv, DOC.client]])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM ai_chunks WHERE source_id = ANY($1)`, [[DOC.deliv, DOC.client]])).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------ refusals
+describe("the server refuses", () => {
+  const set = (who: string, docId: string, mode: "everyone" | "except" | "only", people: string[]) =>
+    svc(who, (tx, p) => D.setDocumentAudience(tx, p, docId, { mode, people }));
+
+  it("leaving out someone who always sees it: the setter, the uploader, the client's admin, the firm admin, the lead and deputy", async () => {
+    for (const locked of [U.cons, U.ncadmin, U.admin, U.lead, U.deputy]) {
+      await expect(set(U.cons, DOC.open, "except", [locked]), locked).rejects.toThrow(/always sees it/);
+    }
+    // A meeting's organiser (who is also the lead), and anyone invited to it, who is told what to change first.
+    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.lead] }))).rejects.toThrow(/always sees it/);
+    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr2] }))).rejects.toThrow(
+      /invited to this meeting: take them off the meeting first/,
+    );
+  });
+
+  it("an archived file, in the service and in the database", async () => {
+    const OLD = id(72);
+    await doc(OLD, { by: U.cons, ownerOrg: FIRM, title: "Archived canary" });
+    await q(`UPDATE documents SET state = 'archived' WHERE id = $1`, [OLD]);
+    await expect(set(U.cons, OLD, "except", [U.nmgr])).rejects.toThrow(/archived/);
+    await expect(rowsAs(U.cons, `SELECT app_set_audience('document', $1, 'except', ARRAY[$2]::uuid[])`, [OLD, U.nmgr])).rejects.toThrow(/file is archived/);
+  });
+
+  it('an "only" list with nobody', async () => {
+    await expect(set(U.cons, DOC.open, "only", [])).rejects.toThrow(/at least one person/);
+    await expect(rowsAs(U.cons, `SELECT app_set_audience('document', $1, 'only', '{}')`, [DOC.open])).rejects.toThrow(/at least one person/);
+  });
+
+  it("a person who could not see the item: another client's admin, an action owner a file is not shared with", async () => {
+    await expect(set(U.cons, DOC.open, "except", [U.other])).rejects.toThrow(/already see it/);
+    await expect(set(U.cons, DOC.deliv, "only", [U.owner])).rejects.toThrow(/already see it/);
+  });
+
+  it("a client's admin leaving out the firm's people", async () => {
+    await expect(set(U.ncadmin, DOC.client, "except", [U.cons])).rejects.toThrow(/your company/);
+    // On her own item with "only", the firm's people still see it; naming one on the list changes nothing and is accepted (re-check S8).
+    await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "only", people: [U.ncadmin, U.nmgr2, U.cons] }), true);
+    try {
+      expect(await rowsAs(U.cons, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
+      expect(await rowsAs(U.lead, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
+      expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toEqual([]);
+      // Nothing is stored for the firm's person: the list holds the saver (nmgr2 uploaded the file, so she is locked, not stored).
+      expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [DOC.client])).rows.map((r) => r.user_id)).toEqual([U.ncadmin]);
+    } finally {
+      await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "except", people: [U.nmgr] }), true);
+    }
+  });
+
+  it("client managers and action owners, the other side, observers and evidence: no picker, Not found", async () => {
+    for (const [who, docId] of [
+      [U.nmgr2, DOC.client], // a manager, on the client's own file she uploaded
+      [U.owner, DOC.open], // an owner the file is shared with
+      [U.ncadmin, DOC.deliv], // the client's admin, on the firm's file
+      [U.cons, DOC.client], // the firm, on the client's file
+      [U.nmgr2, DOC.evid],
+      [U.ncadmin, DOC.evid], // evidence never has one
+    ] as const) {
+      await expect(svc(who, (tx, p) => D.getDocumentAudience(tx, p, docId)), `${who} ${docId}`).rejects.toThrow(NOT_FOUND);
+      await expect(set(who, docId, "except", [U.nmgr]), `${who} ${docId}`).rejects.toThrow(NOT_FOUND);
+      await expect(rowsAs(who, `SELECT app_set_audience('document', $1, 'except', ARRAY[$2]::uuid[])`, [docId, U.nmgr])).rejects.toThrow(/not allowed/);
+    }
+    await expect(svc(U.nmgr2, (tx, p) => M.getMeetingAudience(tx, p, MID))).rejects.toThrow(NOT_FOUND);
+  });
+
+  it("leaving out someone invited, or someone with an open follow-up on the meeting, saying what to change first", async () => {
+    const mid = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "workshop",
+            title: "Follow-up session",
+            startsAt: hour(300),
+            endsAt: hour(301),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr, optional: true }],
+          }),
+        true,
+      )
+    ).id;
+    // The follow-up goes to a manager who is not invited.
+    await svc(U.lead, (tx, p) => M.addFollowUp(tx, p, mid, { title: "Send the pay tables", assigneeUserId: U.nmgr2 }), true);
+    const leave = (mode: "except" | "only", people: string[]) => svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode, people }));
+    await expect(leave("except", [U.nmgr])).rejects.toThrow(/invited to this meeting: take them off the meeting first/);
+    await expect(leave("except", [U.nmgr2])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
+    await expect(leave("only", [U.lead, U.nmgr])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
+    // Once the follow-up is done, she can be left out.
+    await q(`UPDATE follow_ups SET status = 'done' WHERE meeting_id = $1`, [mid]);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr2] }), true);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+  });
+
+  it("on the client's own meeting, a firm consultant's follow-up does not stop its admin, and the consultant may be on her \"only\" list (re-check S8)", async () => {
+    const mid = (
+      await svc(
+        U.ncadmin,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title: "Company session", startsAt: hour(500), endsAt: hour(501), location: "online", joinUrl: MEET, attendees: [{ userId: U.nmgr2 }] }),
+        true,
+      )
+    ).id;
+    await svc(U.lead, (tx, p) => M.addFollowUp(tx, p, mid, { title: "Send the draft", assigneeUserId: U.cons }), true);
+    // The firm always sees a client's own meeting: the consultant is never left out, so nothing is refused.
+    await svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.ncadmin, U.nmgr2] }), true);
+    await svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.ncadmin, U.nmgr2, U.cons] }), true);
+    expect(await rowsAs(U.cons, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    // Leaving the firm's people out of the client's own item is still refused.
+    await expect(svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.cons] }))).rejects.toThrow(/your company/);
+  });
+
+  it("a follow-up written from one of the meeting's decisions is refused for someone left out, too", async () => {
+    const [decision] = (await q(`SELECT id FROM meeting_decisions WHERE meeting_id = $1`, [MID])).rows;
+    await expect(
+      rowsAs(U.lead, `INSERT INTO follow_ups (project_id, org_id, meeting_decision_id, title, visibility, assignee_user_id, created_by) VALUES ($1,$2,$3,'x','shared',$4,$5)`, [
+        PN,
+        NUKHBA,
+        decision.id,
+        U.nmgr,
+        U.lead,
+      ]),
+    ).rejects.toThrow(/left out of this meeting/);
+  });
+
+  it("booking a meeting that invites someone it leaves out in the same step; an \"only\" list that misses an invitee lets her in", async () => {
+    const booking = (title: string, audience: { mode: "except" | "only"; people: string[] }) =>
+      svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "status",
+            title,
+            startsAt: hour(200),
+            endsAt: hour(201),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }],
+            sendInvites: true,
+            audience,
+          }),
+        true,
+      );
+    await expect(booking("Refused booking", { mode: "except", people: [U.nmgr] })).rejects.toThrow(/invited and left out/);
+    // Nothing was booked or queued.
+    expect((await q(`SELECT count(*)::int AS n FROM meetings WHERE title = 'Refused booking'`)).rows).toEqual([{ n: 0 }]);
+    // Everyone invited always sees it (re-check S9): the optional invitee is let in and sent her invite; nobody else is.
+    const { id: mid } = await booking("Accepted booking", { mode: "only", people: [U.lead, U.nmgr2] });
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    expect((await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows.map((r) => r.to_email)).toEqual([
+      email(U.nmgr2),
+      email(U.nmgr),
+    ]);
+  });
+
+  it("a share, an invitation or a follow-up to someone left out, and none of them lifts the exclusion", async () => {
+    await expect(rowsAs(U.cons, `INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [DOC.deliv, U.nmgr, U.cons])).rejects.toThrow(
+      /left out of this file/,
+    );
+    await expect(
+      rowsAs(U.cons, `INSERT INTO document_shares (document_id, user_id, granted_by) VALUES ($1,$2,$3)`, [DOC.only, U.nmgr, U.cons]),
+    ).rejects.toThrow(/left out of this file/);
+    // A meeting for some people only: inviting anyone else is refused.
+    const third = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, {
+            kind: "steering",
+            title: "Third session",
+            startsAt: hour(72),
+            endsAt: hour(73),
+            location: "online",
+            joinUrl: MEET,
+            attendees: [{ userId: U.nmgr2 }],
+            audience: { mode: "only", people: [U.lead, U.nmgr2] },
+          }),
+        true,
+      )
+    ).id;
+    await expect(svc(U.lead, (tx, p) => M.addAttendee(tx, p, third, { userId: U.cons2 }))).rejects.toThrow(/left out of this meeting/);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM meetings WHERE id = $1`, [third])).toEqual([]);
+    await expect(
+      rowsAs(U.lead, `INSERT INTO follow_ups (project_id, org_id, meeting_id, title, visibility, assignee_user_id, created_by) VALUES ($1,$2,$3,'x','shared',$4,$5)`, [
+        PN,
+        NUKHBA,
+        MID,
+        U.nmgr,
+        U.lead,
+      ]),
+    ).rejects.toThrow(/left out of this meeting/);
+    // Writing her onto the attendee list directly would let her in (everyone invited sees it): refused too.
+    await expect(
+      rowsAs(U.lead, `INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1, $2, 'optional')`, [MID, U.nmgr]),
+    ).rejects.toThrow(/left out of this meeting/);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [MID])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.deliv])).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------ re-saving
+describe("an \"only\" list keeps the person who saved it", () => {
+  it("X sets only [A]; Y saves it again unchanged; X still sees the item, as a chip Y could remove on purpose", async () => {
+    const S1 = id(71);
+    await doc(S1, { by: U.cons, ownerOrg: FIRM, title: "Only-list canary" });
+    // X: a consultant on the project, not the uploader, the lead or the deputy.
+    await svc(U.cons2, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "only", people: [U.cons2, U.nmgr2] }), true);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM documents WHERE id = $1`, [S1])).toHaveLength(1);
+    // Y opens the picker: X is on the list as an ordinary chip, not hidden and not locked.
+    const seen = await svc(U.admin, (tx, p) => D.getDocumentAudience(tx, p, S1));
+    expect(seen.selected).toContain(U.cons2);
+    expect(seen.people.find((x) => x.id === U.cons2)?.locked).toBeUndefined();
+    // Y saves what the picker shows, unchanged.
+    await svc(U.admin, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "only", people: seen.selected }), true);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM documents WHERE id = $1`, [S1])).toHaveLength(1);
+    // X, editing it again, sees herself locked (she is the one saving).
+    expect((await svc(U.cons2, (tx, p) => D.getDocumentAudience(tx, p, S1))).people.find((x) => x.id === U.cons2)?.locked).toBe("self");
+    // The saver is never written onto a list of people left out.
+    await svc(U.cons2, (tx, p) => D.setDocumentAudience(tx, p, S1, { mode: "except", people: [U.nmgr] }), true);
+    expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [S1])).rows.map((r) => r.user_id)).toEqual([U.nmgr]);
+  });
+});
+
+// ------------------------------------------------------------------ copies
+describe("a narrowed file is never copied out of its audience", () => {
+  const REC = id(61);
+  const ACT = id(62);
+  it("a file with a limited audience can't be used as evidence: the service and the database refuse it, and the one left out still sees nothing", async () => {
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Pay policy','shared',$4) ON CONFLICT DO NOTHING`, [
+      REC,
+      PN,
+      NUKHBA,
+      U.lead,
+    ]);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Adopt the pay scales',$5,'in_progress',app_firm_today() + 10,$6) ON CONFLICT DO NOTHING`,
+      [ACT, PN, NUKHBA, REC, U.nmgr2, U.lead],
+    );
+    // nmgr2 still sees the salary file (it is narrowed to leave out nmgr) and owns an open action. The
+    // service says why, before anything is written: the database's own refusal is neutral (it names no
+    // narrowed copy), so these words can only come from the service (re-check N15).
+    const refused = await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.client, submitForReview: false }), true).catch(
+      (e: Error) => e,
+    );
+    expect(String(refused)).toMatch(/^Error: a file with a limited audience can't be used as evidence$/);
+    // The database refuses the copy too, whoever writes it.
+    await expect(
+      rowsAs(
+        U.nmgr2,
+        `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+         SELECT project_id, org_id, $2, $3, 'evidence', 'submitted', title, 'shared', 'k-copy', content_type, size_bytes, sha256, scan_status FROM documents WHERE id = $1`,
+        [DOC.client, NUKHBA, U.nmgr2],
+      ),
+    ).rejects.toThrow(/can't be used as evidence/);
+    expect(await rowsAs(U.nmgr, `SELECT id FROM documents WHERE title = $1`, [TITLE.client])).toEqual([]);
+    // A file nobody narrowed is still used as before.
+    const PLAIN = id(74);
+    await doc(PLAIN, { by: U.cons, ownerOrg: FIRM, title: "Plain plan" });
+    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: PLAIN, submitForReview: false }), true);
+    expect(await rowsAs(U.nmgr, `SELECT purpose FROM documents WHERE title = 'Plain plan' ORDER BY purpose`)).toEqual([
+      { purpose: "deliverable" },
+      { purpose: "evidence" },
+    ]);
+  });
+
+  it("the database's refusal of the same bytes says nothing about a narrowed copy (someone left out may hold the file)", async () => {
+    // nmgr is left out of the salary file and holds its bytes: her fresh upload of them is refused neutrally.
+    const err = await rowsAs(
+      U.nmgr2,
+      `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$2,$3,'evidence','submitted','my upload','shared','k-fresh','application/pdf',10,$4,'clean')`,
+      [PN, NUKHBA, U.nmgr2, `sha-${DOC.client}`],
+    ).catch((e: Error) => e);
+    expect(String(err)).toMatch(/this file can't be used as evidence/);
+    expect(String(err)).not.toMatch(/limited|audience|narrow/);
+  });
+
+  it("a file already used as evidence can't be narrowed: the copy would stay in front of the people left out (review S7)", async () => {
+    const BONUS = id(73);
+    await doc(BONUS, { by: U.nmgr2, ownerOrg: NUKHBA, title: "Bonus table canary", purpose: "client_document" });
+    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: BONUS, submitForReview: false }), true);
+    for (const audience of [
+      { mode: "except" as const, people: [U.nmgr] },
+      { mode: "only" as const, people: [U.ncadmin, U.nmgr2] },
+    ]) {
+      await expect(svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, BONUS, audience)), audience.mode).rejects.toThrow(
+        /already used as evidence on an action, so its audience can't be limited/,
+      );
+    }
+    // Nothing changed: the file and its copy are seen as before, and nobody was misled into thinking it hidden.
+    expect(await rowsAs(U.ncadmin, `SELECT 1 FROM item_audiences WHERE item_id = $1`, [BONUS])).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------ later
+describe("people who gain access later", () => {
+  it('"except" lets in someone who joins later; "only" does not', async () => {
+    expect(await rowsAs(U.later, `SELECT id FROM documents WHERE id = ANY($1)`, [[DOC.deliv, DOC.only]])).toEqual([]);
+    await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [PN, U.later]);
+    expect((await rowsAs(U.later, `SELECT id FROM documents WHERE id = ANY($1)`, [[DOC.deliv, DOC.only]])).map((r) => r.id)).toEqual([DOC.deliv]);
+    await expect(svc(U.later, (tx, p) => D.createDownloadLink(tx, p, DOC.only, null))).rejects.toThrow(NOT_FOUND);
+  });
+
+  it("a new deputy is never shut out of an \"only\" list saved before she was named", async () => {
+    expect(await rowsAs(U.newDeputy, `SELECT 1 FROM documents WHERE id = $1`, [DOC.only])).toEqual([]);
+    await q(`UPDATE client_assignments SET is_deputy = false WHERE client_org_id = $1 AND user_id = $2`, [NUKHBA, U.deputy]);
+    await q(`UPDATE client_assignments SET is_deputy = true WHERE client_org_id = $1 AND user_id = $2`, [NUKHBA, U.newDeputy]);
+    try {
+      expect(await rowsAs(U.newDeputy, `SELECT title FROM documents WHERE id = $1`, [DOC.only])).toEqual([{ title: TITLE.only }]);
+      // The list itself is unchanged (the person picked, and the consultant who saved it): she is let in live, not written onto it.
+      expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [DOC.only])).rows.map((r) => r.user_id).sort()).toEqual(
+        [U.cons, U.nmgr2].sort(),
+      );
+      // The picker lists her as locked, as the deputy.
+      const audience = await svc(U.cons, (tx, p) => D.getDocumentAudience(tx, p, DOC.only));
+      expect(audience.people.find((x) => x.id === U.newDeputy)?.locked).toBe("deputy");
+      expect(audience.mode).toBe("only");
+    } finally {
+      await q(`UPDATE client_assignments SET is_deputy = false WHERE client_org_id = $1 AND user_id = $2`, [NUKHBA, U.newDeputy]);
+      await q(`UPDATE client_assignments SET is_deputy = true WHERE client_org_id = $1 AND user_id = $2`, [NUKHBA, U.deputy]);
+    }
+  });
+
+  it("a new version of a file keeps its audience", async () => {
+    const upload = { bytes: new TextEncoder().encode("v2"), fileName: "proposal v2.pdf", contentType: "application/pdf", sha256: "sha-v2", scanned: true, scanMs: 1 };
+    const made = await svc(U.cons, (tx, p) => D.uploadNewVersion(tx, p, DOC.deliv, upload), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+  });
+});
+
+// ------------------------------------------------------------------ the picker's list
+describe("the people the picker offers", () => {
+  it("are those who can already see the item, firm first, with the locked ones and why", async () => {
+    const a = await svc(U.cons, (tx, p) => D.getDocumentAudience(tx, p, DOC.open));
+    expect(a.owner).toBe("firm");
+    const ids = a.people.map((x) => x.id);
+    expect(ids).not.toContain(U.other);
+    expect(ids).toContain(U.owner); // shared with her one by one
+    expect(Object.fromEntries(a.people.filter((x) => x.locked).map((x) => [x.id, x.locked]))).toMatchObject({
+      [U.cons]: "self",
+      [U.admin]: "firmAdmin",
+      [U.lead]: "lead",
+      [U.deputy]: "deputy",
+      [U.ncadmin]: "clientAdmin",
+    });
+    // On the client's own file, only the client's people.
+    const c = await svc(U.ncadmin, (tx, p) => D.getDocumentAudience(tx, p, DOC.client));
+    expect([c.owner, c.people.every((x) => x.side === "client"), c.mode, c.selected]).toEqual(["client", true, "except", [U.nmgr]]);
+    // For a file not uploaded yet: worked out from what the form says.
+    const fresh = await svc(U.ncadmin, (tx, p) =>
+      import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "document", { visibility: "shared", departmentId: DEPT })),
+    );
+    expect(fresh.people.map((x) => x.id).sort()).toEqual([U.ncadmin, U.nmgr, U.nmgr2, U.owner].sort());
+    await expect(
+      svc(U.nmgr2, (tx, p) => import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "document", { visibility: "shared" }))),
+    ).rejects.toThrow(NOT_FOUND);
+  });
+});
+
+// ------------------------------------------------------------------ audit and notices
+describe("changing who sees an item", () => {
+  it("is audited, tells nobody left out, and opening it up again tells nobody either", async () => {
+    const notices = async () => (await q(`SELECT count(*)::int AS n FROM notifications WHERE user_id = ANY($1)`, [[U.nmgr, U.cons2]])).rows[0].n as number;
+    const mails = async () => (await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE to_email = ANY($1)`, [[email(U.nmgr), email(U.cons2)]])).rows[0].n as number;
+    const [n0, m0] = [await notices(), await mails()];
+    await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, DOC.open, { mode: "except", people: [U.nmgr] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.open])).toEqual([]);
+    await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, DOC.open, { mode: "everyone", people: [] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.open])).toHaveLength(1);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "everyone", people: [] }), true);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
+    expect([await notices(), await mails()]).toEqual([n0, m0]);
+    const { rows } = await q(
+      `SELECT action, resource_id, meta->>'from' AS "from", meta->>'to' AS "to" FROM audit_log WHERE action IN ('document.audience', 'meeting.audience') AND resource_id = ANY($1) ORDER BY created_at`,
+      [[DOC.open, MID]],
+    );
+    expect(rows.filter((r) => r.resource_id === DOC.open).map((r) => [r.from, r.to])).toEqual([
+      ["everyone", "except"],
+      ["except", "everyone"],
+    ]);
+    expect(rows.filter((r) => r.action === "meeting.audience").length).toBeGreaterThanOrEqual(2);
+    // Who was left out is not in the log's details: only how many.
+    expect(JSON.stringify((await q(`SELECT meta FROM audit_log WHERE action = 'document.audience'`)).rows)).not.toContain(U.nmgr);
+  });
+
+  it("counts in the log the people stored, not the ones who always see it anyway (review N6)", async () => {
+    const COUNTED = id(75);
+    await doc(COUNTED, { by: U.cons, ownerOrg: FIRM, title: "Count canary" });
+    // The form sends three; the lead and the firm admin always see it and are not stored, the one saving is.
+    await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, COUNTED, { mode: "only", people: [U.nmgr2, U.lead, U.admin] }), true);
+    const stored = (await q(`SELECT user_id FROM item_audience_people WHERE item_type = 'document' AND item_id = $1 ORDER BY user_id`, [COUNTED])).rows;
+    expect(stored.map((r) => r.user_id)).toEqual([U.cons, U.nmgr2].sort());
+    const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'document.audience' AND resource_id = $1`, [COUNTED])).rows;
+    expect(entry.meta.people).toBe(2);
+  });
+
+  it("set while answering an information request with a new file", async () => {
+    const upload = { bytes: new TextEncoder().encode("grades"), fileName: "grades.pdf", contentType: "application/pdf", sha256: "sha-grades", scanned: true, scanMs: 1 };
+    const made = await svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, REQ, upload, { mode: "except", people: [U.nmgr] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM info_request_files WHERE document_id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    // The firm still sees the client's file: the client chooses among its own people only.
+    expect(await rowsAs(U.lead, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    expect((await q(`SELECT meta->>'on' AS on FROM audit_log WHERE action = 'document.audience' AND resource_id = $1`, [made.id])).rows).toEqual([{ on: "info_request" }]);
+  });
+
+  it("changed while editing a meeting (PATCH /api/meetings/:id)", async () => {
+    const mid = (
+      await svc(
+        U.lead,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title: "Edited session", startsAt: hour(400), endsAt: hour(401), location: "online", joinUrl: MEET, attendees: [{ userId: U.nmgr2 }] }),
+        true,
+      )
+    ).id;
+    await svc(U.lead, (tx, p) => M.updateMeeting(tx, p, mid, { title: "Edited session, renamed", audience: { mode: "except", people: [U.nmgr] } }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT title FROM meetings WHERE id = $1`, [mid])).toEqual([{ title: "Edited session, renamed" }]);
+    expect((await q(`SELECT meta->>'on' AS on FROM audit_log WHERE action = 'meeting.audience' AND resource_id = $1`, [mid])).rows).toEqual([{ on: "edit" }]);
+    // A client manager who organises a meeting runs it but gets no picker: her edit's audience is refused.
+    await expect(svc(U.nmgr2, (tx, p) => M.updateMeeting(tx, p, mid, { audience: { mode: "everyone", people: [] } }))).rejects.toThrow(NOT_FOUND);
+  });
+
+  it("set while uploading; a refused audience stores no file", async () => {
+    const upload = (name: string) => ({ bytes: new TextEncoder().encode(name), fileName: name, contentType: "application/pdf", sha256: `sha-${name}`, scanned: true, scanMs: 1 });
+    const made = await svc(
+      U.cons,
+      (tx, p) => F.uploadProjectDocument(tx, p, PN, { file: upload("pay scales.pdf"), visibility: "shared", audience: { mode: "except", people: [U.nmgr] } }),
+      true,
+    );
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    await expect(
+      svc(U.cons, (tx, p) => F.uploadProjectDocument(tx, p, PN, { file: upload("refused.pdf"), visibility: "shared", audience: { mode: "except", people: [U.lead] } }), true),
+    ).rejects.toThrow(/always sees it/);
+    expect((await q(`SELECT count(*)::int AS n FROM documents WHERE title = 'refused.pdf'`)).rows).toEqual([{ n: 0 }]);
+  });
+});
+
+// ------------------------------------------------------------------ invited people (re-check S9)
+// The product owner's decision on the re-check: anyone on a meeting's attendee list, required or
+// optional, always sees it; taking her off the meeting is how she stops seeing it, and her calendar
+// is sent a cancellation.
+describe("everyone invited to a meeting sees it", () => {
+  const book = (title: string, hours: number, attendees: { userId: string; optional?: boolean }[], sendInvites = false) =>
+    svc(
+      U.lead,
+      (tx, p) => M.bookMeeting(tx, p, PN, { kind: "status", title, startsAt: hour(hours), endsAt: hour(hours + 1), location: "online", joinUrl: MEET, attendees, sendInvites }),
+      true,
+    ).then((m) => m.id);
+  const attendeeId = async (mid: string, uid: string) =>
+    (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [mid, uid])).rows[0].id as string;
+  const takeOff = async (mid: string, uid: string) => {
+    const aid = await attendeeId(mid, uid);
+    await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, mid, aid), true);
+  };
+  const cancels = async (mid: string) =>
+    (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND kind = 'meeting.removed' ORDER BY created_at`, [mid])).rows.map((r) => r.to_email);
+  const sent: OutgoingMail[] = [];
+  // Sends what is queued for this meeting only (the others' mail is marked sent first).
+  const send = async (mid: string) => {
+    await q(`UPDATE outbound_emails SET sent_at = now() WHERE sent_at IS NULL AND meeting_id IS DISTINCT FROM $1`, [mid]);
+    sent.length = 0;
+    return runMail(owner, async (mail) => void sent.push(mail), "http://selah.test");
+  };
+
+  it("an optional attendee can't be left out and is a locked chip; an \"only\" list that misses her still lets her in", async () => {
+    const mid = await book("Invited session", 600, [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }]);
+    await expect(svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(
+      /invited to this meeting: take them off the meeting first/,
+    );
+    await expect(rowsAs(U.lead, `SELECT app_set_audience('meeting', $1, 'except', ARRAY[$2]::uuid[])`, [mid, U.nmgr])).rejects.toThrow(/invited to this meeting/);
+    const seen = await svc(U.lead, (tx, p) => M.getMeetingAudience(tx, p, mid));
+    const lockOf = (uid: string) => seen.people.find((x) => x.id === uid)?.locked;
+    expect([lockOf(U.nmgr), lockOf(U.nmgr2), lockOf(U.cons2)]).toEqual(["invited", "invited", undefined]);
+    // "Only" a consultant: the two invited still see it, as locked people do; someone not invited does not.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.cons] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    // The booking form's picker locks everyone invited, required or not.
+    const fresh = await svc(U.lead, (tx, p) =>
+      import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "meeting", { visibility: "shared", attendees: [U.nmgr] })),
+    );
+    expect(fresh.people.find((x) => x.id === U.nmgr)?.locked).toBe("invited");
+  });
+
+  it("taking someone off the meeting sends her calendar a cancellation naming only her, and not twice", async () => {
+    const mid = await book("Removal session", 620, [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }], true);
+    await send(mid);
+    expect(sent.map((m) => m.to).sort()).toEqual([email(U.nmgr), email(U.nmgr2)].sort());
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr)]);
+    // Off the meeting, she may be left out of it; her cancellation still goes.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
+    expect(await send(mid)).toMatchObject({ sent: 1, failed: 0, withdrawn: 0 });
+    expect(sent.map((m) => m.to)).toEqual([email(U.nmgr)]);
+    const [{ ics_uid }] = (await q(`SELECT ics_uid FROM meetings WHERE id = $1`, [mid])).rows;
+    expect(sent[0]!.subject).toContain("Taken off a meeting");
+    const ics = sent[0]!.icalEvent!;
+    expect(ics.method).toBe("CANCEL");
+    expect(ics.content).toContain(`UID:${ics_uid}`);
+    expect(ics.content).toContain(`ATTENDEE:mailto:${email(U.nmgr)}`);
+    // Nothing she was not sent already (the meeting may have moved since), nobody else, and not "the meeting is cancelled": it goes ahead.
+    expect(ics.content).not.toMatch(/SUMMARY|DTSTART|LOCATION|URL|STATUS|nmgr2@/);
+    // Back on and off again with no new invitation sent: her calendar has nothing to cancel.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "everyone", people: [] }), true);
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr)]);
+    // Invited again and sent the invitation: taken off, she gets a second cancellation.
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    await svc(U.lead, (tx, p) => M.sendInvites(tx, p, mid), true);
+    await send(mid);
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr), email(U.nmgr)]);
+    // A cancellation still queued when she is invited again is not sent: it would wipe the new invitation.
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    expect(await send(mid)).toMatchObject({ sent: 0, withdrawn: 1 });
+    // Deleting the meeting itself queues nothing.
+    await q(`DELETE FROM meetings WHERE id = $1`, [mid]);
+    expect(await cancels(mid)).toEqual([]);
+  });
+  // An invitation not sent yet is withdrawn instead: "the mail queue keeps a withdrawn invite" above.
+});
+
+// ------------------------------------------------------------------ asked for a file (re-check N4)
+// The product owner's decision on the re-check: the person an information request asks is never left
+// out of a file sent for it, so she never sees "Received" with nothing to open.
+describe("the person asked for a file always sees it", () => {
+  const ASKED = id(82);
+  const upload = (name: string) => ({ bytes: new TextEncoder().encode(name), fileName: name, contentType: "application/pdf", sha256: `sha-${name}`, scanned: true, scanMs: 1 });
+
+  beforeAll(async () => {
+    await q(`INSERT INTO info_requests (id, project_id, org_id, area, title, owner_user_id, created_by) VALUES ($1,$2,$3,'people','Grade structure',$4,$5)`, [
+      ASKED,
+      PN,
+      NUKHBA,
+      U.nmgr,
+      U.lead,
+    ]);
+  });
+
+  it("can't be left out of it, is a locked chip, and an \"only\" list that misses her still lets her in", async () => {
+    await expect(
+      svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, ASKED, upload("grades-refused.pdf"), { mode: "except", people: [U.nmgr] }), true),
+    ).rejects.toThrow(/asked for this file: name someone else to send it first/);
+    expect((await q(`SELECT count(*)::int AS n FROM documents WHERE title = 'grades-refused.pdf'`)).rows).toEqual([{ n: 0 }]);
+    // The form's picker shows her locked before the file exists.
+    const fresh = await svc(U.ncadmin, (tx, p) =>
+      import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "document", { visibility: "shared", requestId: ASKED })),
+    );
+    expect(fresh.people.find((x) => x.id === U.nmgr)?.locked).toBe("asked");
+    const made = await svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, ASKED, upload("grades.pdf"), { mode: "only", people: [U.ncadmin] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    const seen = await svc(U.ncadmin, (tx, p) => D.getDocumentAudience(tx, p, made.id));
+    expect(seen.people.find((x) => x.id === U.nmgr)?.locked).toBe("asked");
+    await expect(svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, made.id, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(/asked for this file/);
+  });
+
+  it("a file she is left out of can't be sent for her item, and the item can't be given to someone left out of a file sent for it", async () => {
+    // The salary file leaves her out (the fixture): not usable for her item.
+    await expect(svc(U.ncadmin, (tx, p) => IR.answerWithExisting(tx, p, ASKED, DOC.client), true)).rejects.toThrow(
+      /asked for this item is left out of that file: pick another file, or change who sees it/,
+    );
+    // The fixture's request was answered with that file: it can't be given to her, but can to someone who sees the file.
+    await expect(svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: U.nmgr }), true)).rejects.toThrow(
+      /left out of a file sent for this item: change who sees the file first/,
+    );
+    await svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: U.nmgr2 }), true);
+    await svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: null }), true);
+  });
+});

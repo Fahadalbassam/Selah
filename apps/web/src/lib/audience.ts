@@ -29,7 +29,8 @@ export const AUDIENCE_LOCK_REASONS = [
   "lead",
   "deputy",
   "organiser",
-  "requiredAttendee",
+  "invited",
+  "asked",
 ] as const;
 export type AudienceLockReason = (typeof AUDIENCE_LOCK_REASONS)[number];
 
@@ -105,6 +106,48 @@ export function audienceToSave(mode: AudienceMode, selected: readonly string[], 
 export function audienceMode(position: AudienceSwitch, selected: readonly string[], locked: readonly string[]): AudienceMode {
   if (position === "only") return "only";
   return audienceSelection("except", selected, locked).length > 0 ? "except" : "everyone";
+}
+
+/**
+ * The picks once the form changed who can see the item (its label, its
+ * department, who is invited): a pick no longer offered is dropped, and so is
+ * someone on a list of people left out who now always sees it (a required
+ * attendee, say). Locked people stay on an "only" list, since they see it
+ * anyway. `dropped` says who, for one plain line on the form.
+ */
+export function reconcileAudience(
+  mode: AudienceMode,
+  selected: readonly string[],
+  people: readonly AudiencePerson[],
+): { selected: string[]; dropped: string[] } {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const keep = (id: string) => byId.has(id) && !(mode === "except" && byId.get(id)!.locked);
+  const picks = unique(selected);
+  return { selected: picks.filter(keep), dropped: picks.filter((id) => !keep(id)) };
+}
+
+/** Why the server refused an audience, as a message key under `audience.errors`. */
+export const AUDIENCE_REFUSALS = [
+  ["already used as evidence", "usedAsEvidence"],
+  ["invited to this meeting", "invited"],
+  ["asked for this file", "asked"],
+  ["asked for this item is left out", "askedLeftOut"],
+  ["left out of a file sent for this item", "leftOutOfAnswer"],
+  ["open follow-up", "followUp"],
+  ["invited and left out", "invitedLeftOut"],
+  ["always sees it", "locked"],
+  ["already see it", "cannotSee"],
+  ["your company's own items", "ownPeople"],
+  ["at least one person", "onlyEmpty"],
+  ["project is closed", "closed"],
+  ["file is archived", "archived"],
+] as const;
+export type AudienceRefusal = (typeof AUDIENCE_REFUSALS)[number][1];
+
+/** The refusal a server sentence names (the database's own words, in English), or null for anything else. */
+export function audienceRefusal(message: string | null | undefined): AudienceRefusal | null {
+  if (!message) return null;
+  return AUDIENCE_REFUSALS.find(([words]) => message.includes(words))?.[1] ?? null;
 }
 
 /**

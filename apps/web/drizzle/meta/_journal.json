@@ -568,6 +568,20 @@
       "when": 1794978016445,
       "tag": "0093_meeting_attendee_names",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1794982243148,
+      "tag": "0094_audience",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794982250990,
+      "tag": "0095_audience_rules",
+      "breakpoints": true
     }
   ]
 }

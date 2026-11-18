@@ -333,6 +333,15 @@ for (const [key, f] of Object.entries(F.nukhbaLibrary) as [keyof typeof F.nukhba
   const file = await upload(U.lead, { type: "project", id: board.id }, F.nukhbaPrivateNotes);
   await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "firm_private" }));
 }
+// A deliverable about the Board secretariat, which Reem (manager@nukhba.test) heads: shared with the
+// client, but kept from her until the board announces it ("everyone with access, except…", feature A).
+// Everyone else who sees the project's files sees it, marked "Limited audience"; she sees nothing of it.
+{
+  const file = await upload(U.lead, { type: "project", id: board.id }, F.nukhbaRestructuring);
+  await as(U.lead, (tx, p) =>
+    uploadProjectDocument(tx, p, board.id, { file, visibility: "shared", audience: { mode: "except", people: [C.nManager] } }),
+  );
+}
 
 // What the engagement delivers, handed over (F21, minimal): Reem, the board secretary, receives the
 // firm's deliverables. The assessment report was handed over and she confirmed receipt; the updated

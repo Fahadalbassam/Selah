@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
+import { AudienceDropped } from "@/components/audience-field";
 import { AudienceMarker } from "@/components/audience-marker";
 import { AudiencePicker, type AudiencePickerProps } from "@/components/audience-picker";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,8 +16,10 @@ import {
   AUDIENCE_LOCK_REASONS,
   audienceGroups,
   audienceMode,
+  audienceRefusal,
   audienceSelection,
   audienceToSave,
+  reconcileAudience,
   switchAudience,
   type AudiencePerson,
 } from "@/lib/audience";
@@ -140,6 +143,22 @@ describe("the picker, opened", () => {
     expect(picker("en", { mode: "only", people: nobodyLocked, selected: ["omar"] })).not.toContain(en.audience.errors.onlyEmpty);
   });
 
+  it("speaks to the reader about her own company's admin on the company's own item, and names the firm admin as the app does", () => {
+    const own = people.filter((p) => p.side === "client");
+    // On the client's own item the reader is at the client: "your company's admin", never "the client's".
+    expect(picker("ar", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).toContain("مدير حساب شركتك");
+    expect(picker("en", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).toContain("Your company&#x27;s admin");
+    expect(picker("ar", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).not.toContain("مدير حساب العميل");
+    // The firm admin is "مدير المكتب", as everywhere else in the app.
+    const firmAdmin: AudiencePerson = { id: "fa", name: { ar: "فهد", en: "Fahd" }, side: "firm", locked: "firmAdmin" };
+    expect(picker("ar", { defaultOpen: true, mode: "only", people: [...people, firmAdmin], selected: ["fa"] })).toContain("مدير المكتب");
+  });
+
+  it("names the audit entries in the past tense, like their neighbours", () => {
+    expect([en.audit.actions.document_audience, en.audit.actions.meeting_audience]).toEqual(["Changed who sees a file", "Changed who sees a meeting"]);
+    expect([ar.audit.actions.document_audience, ar.audit.actions.meeting_audience]).toEqual(["غيّر من يرى ملفًا", "غيّر من يرى اجتماعًا"]);
+  });
+
   it("tells the client admin, on the company's own item, that the firm's team still sees it", () => {
     expect(picker("en", { defaultOpen: true, owner: "client" })).toContain("team on this work still sees it. To keep a file from the firm, make it private to your company.");
     expect(picker("ar", { defaultOpen: true, owner: "client", kind: "meeting" })).toContain("يبقى فريق المكتب على هذا العمل ممن يرونه.");
@@ -216,6 +235,64 @@ describe("moving the switch (switchAudience)", () => {
   it("gives each position back what it had", () => {
     expect(switchAudience("except", { except: ["omar"], only: ["me", "khaled"] }, locked)).toEqual({ mode: "except", selected: ["omar"] });
     expect(switchAudience("only", { except: ["omar"], only: ["me", "khaled"] }, locked)).toEqual({ mode: "only", selected: ["me", "khaled"] });
+  });
+});
+
+describe("when the form changes who can see the item (reconcileAudience)", () => {
+  it("drops a pick who can no longer see it, and says who", () => {
+    // Khaled was left out with "Shared" chosen; the label became firm-only, so the client people are gone.
+    const firmOnly = people.filter((p) => p.side === "firm");
+    expect(reconcileAudience("except", ["omar", "khaled"], firmOnly)).toEqual({ selected: ["omar"], dropped: ["khaled"] });
+    expect(reconcileAudience("only", ["me", "khaled"], firmOnly)).toEqual({ selected: ["me"], dropped: ["khaled"] });
+  });
+
+  it("drops from a list of people left out someone who now always sees it (invited to the meeting)", () => {
+    const invited = people.map((p) => (p.id === "huda" ? { ...p, locked: "invited" as const } : p));
+    expect(reconcileAudience("except", ["huda", "khaled"], invited)).toEqual({ selected: ["khaled"], dropped: ["huda"] });
+    // On an "only" list a locked person stays (they see it anyway).
+    expect(reconcileAudience("only", ["huda", "khaled"], invited)).toEqual({ selected: ["huda", "khaled"], dropped: [] });
+  });
+
+  it("changes nothing when everyone picked can still be picked", () => {
+    expect(reconcileAudience("except", ["omar"], people)).toEqual({ selected: ["omar"], dropped: [] });
+    expect(reconcileAudience("everyone", [], people)).toEqual({ selected: [], dropped: [] });
+  });
+
+  it("names who was taken off in one plain line, in both languages", () => {
+    const line = (locale: "ar" | "en") =>
+      html(locale, createElement(AudienceDropped, { names: locale === "ar" ? ["خالد", "هدى"] : ["Khaled", "Huda"] }));
+    expect(line("en")).toContain("Khaled");
+    expect(line("en")).toContain("Huda");
+    expect(line("en")).toMatch(/no longer on the list/i);
+    expect(line("ar")).toContain("خالد");
+    expect(line("ar")).toContain("لم يعد في القائمة");
+  });
+});
+
+describe("the server's refusals, said plainly (audienceRefusal)", () => {
+  const t = (locale: "ar" | "en") => createTranslator({ locale, messages: locale === "ar" ? ar : en, namespace: "audience.errors" });
+  it("maps each sentence of the database to its own message, in both languages", () => {
+    const cases: [string, string][] = [
+      ["that person always sees it and cannot be left out", "locked"],
+      ["pick only people who can already see it", "cannotSee"],
+      ["on your company's own items, choose among your company's people", "ownPeople"],
+      ["someone is invited and left out of this meeting: take them off the invitations or the list", "invitedLeftOut"],
+      ["that person is invited to this meeting: take them off the meeting first", "invited"],
+      ["that person was asked for this file: name someone else to send it first", "asked"],
+      ["the person asked for this item is left out of that file: pick another file, or change who sees it", "askedLeftOut"],
+      ["that person is left out of a file sent for this item: change who sees the file first", "leftOutOfAnswer"],
+      ["that person has an open follow-up on this meeting: give it to someone else first", "followUp"],
+      ['an "only" list needs at least one person', "onlyEmpty"],
+      ["this project is closed", "closed"],
+      ["this file is archived", "archived"],
+      ["this file was already used as evidence on an action, so its audience can't be limited", "usedAsEvidence"],
+    ];
+    for (const [message, key] of cases) {
+      expect(audienceRefusal(message), message).toBe(key);
+      for (const locale of ["ar", "en"] as const) expect(t(locale)(key as never), `${locale} ${key}`).not.toMatch(/^audience\./);
+    }
+    expect(audienceRefusal("the scanner is down")).toBeNull();
+    expect(audienceRefusal(undefined)).toBeNull();
   });
 });
 

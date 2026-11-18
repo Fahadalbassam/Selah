@@ -84,7 +84,7 @@ describe("the sender", () => {
     await owner.query(`INSERT INTO outbound_emails (to_email, kind, link) VALUES ('a@example.test','invitation','/invite/tok')`);
     const sent: OutgoingMail[] = [];
     const out = await runMail(owner, async (m) => void sent.push(m), SITE);
-    expect(out).toEqual({ sent: 1, failed: 0 });
+    expect(out).toEqual({ sent: 1, failed: 0, withdrawn: 0 });
     expect(sent[0]!.to).toBe("a@example.test");
     expect(sent[0]!.text).toContain(`${SITE}/invite/tok`);
     expect(sent[0]!.html).toContain(`href="${SITE}/invite/tok"`);
@@ -92,7 +92,7 @@ describe("the sender", () => {
     expect(row.sent_at).not.toBeNull();
     expect(row.link).toBeNull();
     // Nothing is due any more.
-    expect(await runMail(owner, async (m) => void sent.push(m), SITE)).toEqual({ sent: 0, failed: 0 });
+    expect(await runMail(owner, async (m) => void sent.push(m), SITE)).toEqual({ sent: 0, failed: 0, withdrawn: 0 });
     expect(sent).toHaveLength(1);
   });
 
@@ -126,14 +126,14 @@ describe("the sender", () => {
     const fail = async () => {
       throw new Error("relay refused");
     };
-    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 1 });
+    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 1, withdrawn: 0 });
     let [row] = await queue();
     expect(row.attempts).toBe(1);
     expect(row.last_error).toBe("relay refused");
     expect(row.failed_at).toBeNull();
     expect(new Date(row.next_attempt_at).getTime()).toBeGreaterThan(Date.now());
     // Not due yet.
-    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 0 });
+    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 0, withdrawn: 0 });
 
     for (let i = 2; i <= 8; i++) {
       await owner.query(`UPDATE outbound_emails SET next_attempt_at = now() - interval '1 second'`);
@@ -143,7 +143,7 @@ describe("the sender", () => {
     expect(row.attempts).toBe(8);
     expect(row.failed_at).not.toBeNull();
     await owner.query(`UPDATE outbound_emails SET next_attempt_at = NULL`);
-    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 0 });
+    expect(await runMail(owner, fail, SITE)).toEqual({ sent: 0, failed: 0, withdrawn: 0 });
   });
 
   it("attaches the meeting's invite as it stands when sending, and the cancellation", async () => {
