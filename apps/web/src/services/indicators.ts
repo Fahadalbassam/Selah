@@ -213,6 +213,8 @@ export async function listIndicators(
     dataMode: mode[0]?.mode ?? "typed",
     canImport: canReport && (mode[0]?.mode ?? "typed") !== "typed",
     departments: departmentOptions,
+    // Who reads the figures: the client reads "your company's reported figures", the firm "reported by the client".
+    firm: principal.orgKind === "firm",
   };
 }
 
@@ -603,7 +605,7 @@ export async function recommendationIndicators(tx: Tx, principal: Principal, rec
         )
         .orderBy(asc(clientKpis.createdAt))
     : [];
-  return { clientOrgId: orgId, linked, canLink, others };
+  return { clientOrgId: orgId, linked, canLink, others, firm: principal.orgKind === "firm" };
 }
 
 /**

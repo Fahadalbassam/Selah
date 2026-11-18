@@ -66,7 +66,7 @@ export async function LinkedIndicatorsCard({ recommendationId, data }: { recomme
             ))}
           </ul>
         )}
-        <p className="text-xs leading-relaxed text-muted-foreground">{t("claimNote")}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t(data.firm ? "claimNote" : "claimNoteClient")}</p>
       </CardContent>
     </Card>
   );

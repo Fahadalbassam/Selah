@@ -412,7 +412,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             {data.recommendations.length === 0 ? (
               <EmptyState
                 icon={<ClipboardList />}
-                description={t("noRecs")}
+                description={t(firmStaff ? "noRecs" : "noRecsClient")}
                 action={
                   plan?.can.recommendation ? (
                     <RecommendationDialog
