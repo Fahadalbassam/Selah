@@ -528,6 +528,10 @@ describe("when someone leaves", () => {
     await expect(
       svc(U.cadmin, (tx, p) => setActive(tx, p, U.leaver2, { active: false, reason: "Moved on", replacements: [{ positionId: POS.clerk!, userId: U.leaver2 }] })),
     ).rejects.toThrow(/replacement/);
+    // Someone of another client is no replacement (the database refuses; nothing is switched off). S6.
+    await expect(
+      svc(U.cadmin, (tx, p) => setActive(tx, p, U.leaver2, { active: false, reason: "Moved on", replacements: [{ positionId: POS.clerk!, userId: U.oadmin }] })),
+    ).rejects.toThrow(/own active people/);
     await svc(U.cadmin, (tx, p) => setActive(tx, p, U.leaver2, { active: false, reason: "Moved on", replacements: [{ positionId: POS.clerk!, userId: U.next }] }), true);
     const rows = (
       await owner.query(`SELECT user_id, from_date::text AS f, to_date::text AS t FROM position_holders WHERE position_lineage_id = $1 ORDER BY from_date`, [POS.clerk])
@@ -662,6 +666,22 @@ describe("the invite form's position", () => {
     expect((await svc(U.cadmin, (tx, p) => OC.listVacancies(tx, p, ACME))).map((v) => v.titleEn)).toEqual(["Recruiter"]);
   });
 
+  it("a position the current version dropped before the invitation is accepted: the person joins, nobody is placed, the inviter is told (S6, M1)", async () => {
+    const MOVING = id(63);
+    const madmin = id(65);
+    const pos = await smallClient(MOVING, id(64), madmin, "Moving Co", ["Chair", "Spare"]);
+    const inv = await svc(madmin, (tx, p) => invite(tx, p, { orgId: MOVING, email: "spare@example.test", name: "Spare", role: "client_manager", positionId: pos.Spare! }), true);
+    // The firm drops the position and publishes before the link is used.
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, MOVING));
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, d.positions.find((x) => x.titleEn === "Spare")!.id), true);
+    await publishAs(U.lead, MOVING);
+    await truncateHolderNotices();
+    await accept(inv.id, "spare@example.test", id(72));
+    expect((await owner.query(`SELECT count(*)::int AS n FROM org_memberships WHERE user_id = $1 AND active`, [id(72)])).rows[0].n).toBe(1);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE user_id = $1`, [id(72)])).rows[0].n).toBe(0);
+    expect((await owner.query(`SELECT user_id FROM notifications WHERE kind = 'org_chart.invite_not_placed'`)).rows).toEqual([{ user_id: madmin }]);
+  });
+
   it("a position filled before the invitation is accepted: the person joins, and nobody is pushed out", async () => {
     // The firm admin invites too (they may place people in the client's positions).
     const inv = await svc(
@@ -733,6 +753,22 @@ describe("a person's work card", () => {
     expect((await card(U.lead, U.owner, "draft")).person.userId).toBe(U.owner);
   });
 
+  it("a file the firm keeps to itself is on the firm's card and never on the client's (S6)", async () => {
+    const firmOnly = id(56);
+    await owner.query(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$4,$5,'client_document','submitted','Firm working copy','firm_private',NULL,$6,'application/pdf',1,'s','clean')`,
+      [firmOnly, P, ACME, FIRM, U.owner, `k-${firmOnly}`],
+    );
+    try {
+      expect((await card(U.lead)).uploads.map((f) => f.id)).toContain(firmOnly);
+      expect((await card(U.cadmin)).uploads.map((f) => f.id)).not.toContain(firmOnly);
+      expect((await card(U.mgr)).uploads.map((f) => f.id)).not.toContain(firmOnly);
+    } finally {
+      await owner.query(`DELETE FROM documents WHERE id = $1`, [firmOnly]);
+    }
+  });
+
   it("a manager gets no card for a name she cannot see: outside her branch, or with names off", async () => {
     // The HR director is outside the Finance manager's branch: the client's admin has the card, she does not.
     expect((await card(U.cadmin, U.mgr2)).person.positions.map((p) => p.titleEn)).toEqual(["HR director"]);
@@ -754,6 +790,33 @@ describe("a person's work card", () => {
     // A typed name has no account: no id to ask for. Someone without a position: nothing to open.
     await expect(card(U.cadmin, U.cadmin)).rejects.toThrow(REFUSED);
     await expect(card(U.cadmin, id(99))).rejects.toThrow(REFUSED);
+  });
+
+  it("an open action of a closed project is not on the card: it was settled at closing (S6, M2)", async () => {
+    const closed = id(60);
+    const act = id(61);
+    await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Acme closed work','closed',$4)`, [
+      closed,
+      ACME,
+      FIRM,
+      U.admin,
+    ]);
+    await owner.query(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [closed, U.owner]);
+    await owner.query(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, department_id, created_by)
+       VALUES ($1,$2,$3,$4,'Left open at closing',$5,'in_progress',app_firm_today() - 5,NULL,$6)`,
+      [act, closed, ACME, REC.all, U.owner, U.lead],
+    );
+    try {
+      // The client admin can open it, so only the closing keeps it off the card.
+      expect((await attempt(U.cadmin, `SELECT id FROM actions WHERE id = $1`, [act])).rowCount).toBe(1);
+      const c = await card(U.cadmin);
+      expect([...c.late, ...c.open].map((a) => a.id)).not.toContain(act);
+    } finally {
+      await owner.query(`DELETE FROM actions WHERE id = $1`, [act]);
+      await owner.query(`DELETE FROM project_members WHERE project_id = $1`, [closed]);
+      await owner.query(`DELETE FROM projects WHERE id = $1`, [closed]);
+    }
   });
 
   it("another client's people and a consultant outside the client: 404", async () => {
@@ -808,7 +871,9 @@ describe("an archived client's structure is read only (S3)", () => {
   const ARCH = id(16);
   const ARCH_EMPTY = id(18);
   beforeAll(async () => {
-    await smallClient(ARCH, id(17), id(39), "Archived Co", ["Chair"]);
+    const archPos = await smallClient(ARCH, id(17), id(39), "Archived Co", ["Chair"]);
+    // Its admin chairs it, then the client is archived (for the leaving test below, S6 M3).
+    await svc(id(39), (tx, p) => OC.changeHolder(tx, p, archPos.Chair!, { start: { userId: id(39), from: PAST } }), true);
     await owner.query(`INSERT INTO organizations (id, kind, name, engagement_mode, departments_enabled) VALUES ($1,'client','Archived Empty','full',false)`, [ARCH_EMPTY]);
     await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Archived empty project','closed',$4)`, [
       id(19),
@@ -830,6 +895,13 @@ describe("an archived client's structure is read only (S3)", () => {
     }
     // The structure itself still reads (history is kept).
     expect((await svc(U.lead, (tx, p) => OC.getStructure(tx, p, ARCH))).shown?.positions.map((p) => p.titleEn)).toEqual(["Chair"]);
+  });
+
+  it("someone leaving an archived client leaves its frozen structure as it is (S6, M3)", async () => {
+    await owner.query(`UPDATE org_memberships SET active = false, deactivation_reason = 'archived client' WHERE user_id = $1`, [id(39)]);
+    const rows = (await owner.query(`SELECT to_date FROM position_holders WHERE user_id = $1`, [id(39)])).rows;
+    expect(rows).toEqual([{ to_date: null }]);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'org_chart.holder_end' AND meta->>'client' = $1`, [ARCH])).rows[0].n).toBe(0);
   });
 });
 
