@@ -379,6 +379,54 @@ describe("the database rule only takes people away", () => {
     expect(lost).toBeGreaterThan(0);
   });
 
+  // The checks the app's policies call ask "not left out, or an item the caller can't see anyway", and
+  // they decide "can see" with copies of the file and meeting rules (app_caller_sees_document(),
+  // app_caller_sees_meeting()). A way in that the copies miss would let someone left out back in with
+  // nothing failing (re-check S10). So: for every seeded person, the files and meetings the copies say
+  // she sees are exactly those row-level security shows her with no audience set.
+  it("the copies of the file and meeting rules match the rules, for every seeded person (re-check S10)", async () => {
+    const saved = (await q(`SELECT * FROM item_audiences`)).rows;
+    const people = (await q(`SELECT * FROM item_audience_people`)).rows;
+    const copies = async (uid: string, table: "documents" | "meetings") => {
+      const c = await owner.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('selah.user_id', $1, true)", [uid]);
+        const fn = table === "documents" ? "app_caller_sees_document" : "app_caller_sees_meeting";
+        return (await c.query(`SELECT id::text AS k FROM ${table} WHERE ${fn}(id) ORDER BY 1`)).rows.map((r) => r.k as string);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    };
+    await q(`DELETE FROM item_audiences`);
+    const seen: string[] = [];
+    try {
+      for (const [name, uid] of Object.entries(U)) {
+        for (const table of ["documents", "meetings"] as const) {
+          const rules = (await rowsAs(uid, `SELECT id::text AS k FROM ${table} ORDER BY 1`)).map((r) => r.k as string);
+          expect(await copies(uid, table), `${name} ${table}`).toEqual(rules);
+          if (rules.length) seen.push(`${name}:${table}`);
+        }
+      }
+    } finally {
+      for (const a of saved) {
+        await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by, set_at) VALUES ($1,$2,$3,$4,$5,$6)`, [
+          a.org_id,
+          a.item_type,
+          a.item_id,
+          a.mode,
+          a.set_by,
+          a.set_at,
+        ]);
+      }
+      for (const x of people) await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ($1,$2,$3)`, [x.item_type, x.item_id, x.user_id]);
+    }
+    // Not an empty comparison: most people see files and meetings, and someone sees none.
+    expect(seen.length).toBeGreaterThan(10);
+    expect(seen).not.toContain("other:documents");
+  });
+
   it("the functions the app may call answer only about an item the caller can already see (review S6)", async () => {
     const unknown = id(999);
     const one = async (who: string, text: string, params: unknown[]) => (await rowsAs(who, text, params))[0];
