@@ -185,6 +185,23 @@ describe("the tabs, per reader and kind of project", () => {
     for (const who of [U.admin, U.lead, U.cadmin, U.own]) expect((await page(who, P.closing)).tabs, NAME[who] ?? who).toContain("closing");
   });
 
+  it("a declined request to close on an active project gives nobody a Closing tab; its history is in the activity record", async () => {
+    await owner.query(
+      `INSERT INTO project_closure_requests (project_id, org_id, requested_by, note, status, decided_by, decided_at, reply)
+       VALUES ($1,$2,$3,'We are done','declined',$4, now(),'Two actions are still open')`,
+      [P.main, ACME, U.cadmin, U.admin],
+    );
+    try {
+      for (const who of [U.admin, U.lead, U.cadmin, U.mgr, U.own]) expect((await page(who)).tabs, NAME[who] ?? who).not.toContain("closing");
+      for (const who of [U.admin, U.cadmin]) {
+        const events = (await page(who)).data.activity!.filter((e) => e.entityType === "closure_request").map((e) => e.event);
+        expect(events.sort(), NAME[who] ?? who).toEqual(["declined", "requested"]);
+      }
+    } finally {
+      await owner.query(`DELETE FROM project_closure_requests WHERE project_id = $1`, [P.main]);
+    }
+  });
+
   it("an active project offers the closing steps from the page's menu instead of a tab", async () => {
     expect((await page(U.admin)).closure?.can.start).toBe(true);
     expect((await page(U.cadmin)).closure?.can.request).toBe(true);

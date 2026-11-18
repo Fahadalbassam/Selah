@@ -317,7 +317,10 @@
       "recommendation_response_confirmed": "confirmed a recorded response",
       "recommendation_response_answered": "answered a response to a recommendation",
       "other": "made a change",
-      "second_review_requested": "signed off and asked for a second sign-off"
+      "second_review_requested": "signed off and asked for a second sign-off",
+      "closure_request_requested": "asked the firm to close the project",
+      "closure_request_declined": "declined the request to close",
+      "closure_request_accepted": "started closing, as asked"
     },
     "eventsClient": {
       "assessment_shared": "shared an assessment with your company",

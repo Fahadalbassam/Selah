@@ -90,7 +90,7 @@ export async function loadProjectPage(tx: Tx, principal: Principal, id: string) 
     meetings: page.meetings !== null,
     progress: page.metrics !== null || data.activity !== null,
     people: !!(page.team || page.people || page.roles || page.consultants),
-    closing: closingTabShown(closure && { state: closure.state, request: closure.request, history: closure.history.length }),
+    closing: closingTabShown(closure && { state: closure.state, request: closure.request }),
   });
   return { ...page, tabs };
 }

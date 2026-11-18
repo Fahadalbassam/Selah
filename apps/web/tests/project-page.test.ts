@@ -31,13 +31,15 @@ describe("the tab set", () => {
     expect(projectTabs({ meetings: false, progress: false, people: false, closing: false })).toEqual(["plan", "files"]);
   });
 
-  it("shows Closing while closing or closed, while a request is on record, or when there is a closing history; never on a pitch", () => {
+  it("shows Closing while closing or closed, or while a request to close waits; never on a pitch (the lead's decision, 19 Nov)", () => {
     expect(closingTabShown(null)).toBe(false);
-    expect(closingTabShown({ state: "active", request: null, history: 0 })).toBe(false);
-    expect(closingTabShown({ state: "closing", request: null, history: 0 })).toBe(true);
-    expect(closingTabShown({ state: "closed", request: null, history: 0 })).toBe(true);
-    expect(closingTabShown({ state: "active", request: { status: "pending" }, history: 0 })).toBe(true);
-    expect(closingTabShown({ state: "active", request: null, history: 1 })).toBe(true);
+    expect(closingTabShown({ state: "active", request: null })).toBe(false);
+    expect(closingTabShown({ state: "closing", request: null })).toBe(true);
+    expect(closingTabShown({ state: "closed", request: null })).toBe(true);
+    expect(closingTabShown({ state: "active", request: { status: "pending" } })).toBe(true);
+    // An answered request leaves its history in the project's activity, not a tab for good.
+    expect(closingTabShown({ state: "active", request: { status: "declined" } })).toBe(false);
+    expect(closingTabShown({ state: "active", request: { status: "accepted" } })).toBe(false);
   });
 });
 

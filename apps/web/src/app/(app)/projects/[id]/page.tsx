@@ -705,6 +705,12 @@ export default async function ProjectPage({
                                   : t("events.other"),
                           who: (c) => <span className="font-medium">{c}</span>,
                         })}
+                        {/* An answered request to close carries its note or the firm's reply. */}
+                        {e.detail ? (
+                          <p className="whitespace-pre-wrap text-muted-foreground" dir="auto">
+                            {e.detail}
+                          </p>
+                        ) : null}
                         <div className="text-xs text-muted-foreground">{format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "short" })}</div>
                       </li>
                     ))}

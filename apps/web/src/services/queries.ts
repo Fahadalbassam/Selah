@@ -15,6 +15,7 @@ import {
   orgMemberships,
   organizations,
   progressUpdates,
+  projectClosureRequests,
   projectMembers,
   projects,
   recommendations,
@@ -397,22 +398,57 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
   // The activity record is for the firm and the client's admin (decision D8):
   // it names who did what across the whole project. Nobody else gets it, or
   // the tab; the database's row policy says the same (migration 0071).
-  const activity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed
+  const readsActivity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed;
+  const events = readsActivity
+    ? (
+        await tx
+          .select({
+            id: activityEvents.id,
+            entityType: activityEvents.entityType,
+            event: activityEvents.event,
+            fromState: activityEvents.fromState,
+            toState: activityEvents.toState,
+            createdAt: activityEvents.createdAt,
+            actorName: user.name,
+          })
+          .from(activityEvents)
+          .leftJoin(user, eq(user.id, activityEvents.actorId))
+          .where(eq(activityEvents.projectId, id))
+          .orderBy(desc(activityEvents.createdAt))
+          .limit(20)
+      ).map((e) => ({ ...e, detail: null as string | null }))
+    : null;
+  // An answered request to close stays in the record (the lead's decision, 19 Nov 2026: Closing is a
+  // tab only while one waits): who asked and their note, then the firm's answer and its reply.
+  const answered = readsActivity
     ? await tx
         .select({
-          id: activityEvents.id,
-          entityType: activityEvents.entityType,
-          event: activityEvents.event,
-          fromState: activityEvents.fromState,
-          toState: activityEvents.toState,
-          createdAt: activityEvents.createdAt,
-          actorName: user.name,
+          id: projectClosureRequests.id,
+          status: projectClosureRequests.status,
+          note: projectClosureRequests.note,
+          reply: projectClosureRequests.reply,
+          createdAt: projectClosureRequests.createdAt,
+          decidedAt: projectClosureRequests.decidedAt,
+          requestedBy: projectClosureRequests.requestedBy,
+          decidedBy: projectClosureRequests.decidedBy,
         })
-        .from(activityEvents)
-        .leftJoin(user, eq(user.id, activityEvents.actorId))
-        .where(eq(activityEvents.projectId, id))
-        .orderBy(desc(activityEvents.createdAt))
-        .limit(20)
+        .from(projectClosureRequests)
+        .where(and(eq(projectClosureRequests.projectId, id), ne(projectClosureRequests.status, "pending")))
+    : [];
+  const who = new Map(
+    (await (answered.length
+      ? tx
+          .select({ id: user.id, name: user.name })
+          .from(user)
+          .where(inArray(user.id, answered.flatMap((r) => [r.requestedBy, r.decidedBy].filter((x): x is string => !!x))))
+      : Promise.resolve([] as { id: string; name: string }[]))).map((u) => [u.id, u.name]),
+  );
+  const closureEvents = answered.flatMap((r) => [
+    { id: `${r.id}:asked`, entityType: "closure_request", event: "requested", fromState: null, toState: null, createdAt: r.createdAt, actorName: r.requestedBy ? (who.get(r.requestedBy) ?? null) : null, detail: r.note },
+    { id: `${r.id}:answer`, entityType: "closure_request", event: r.status, fromState: null, toState: null, createdAt: r.decidedAt ?? r.createdAt, actorName: r.decidedBy ? (who.get(r.decidedBy) ?? null) : null, detail: r.reply },
+  ]);
+  const activity = events
+    ? [...events, ...closureEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 20)
     : null;
 
   // Where each released recommendation stands with the client (F10).

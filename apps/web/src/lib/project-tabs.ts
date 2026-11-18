@@ -42,15 +42,16 @@ export function projectTabs(f: TabFacts): ProjectTab[] {
 }
 
 /**
- * Closing is its own tab while the project is closing or closed, while a
- * request to close is on record (waiting, or answered: the client reads the
- * firm's answer there), or when an earlier closing was cancelled or reopened
- * (its history). Otherwise "Start closing" (the firm) or "Ask the firm to
- * close" (the client) is an item of the page's menu. A pitch has none.
+ * Closing is its own tab while the project is closing or closed, or while a
+ * request to close waits for the firm's answer (the lead's decision, 19 Nov
+ * 2026). An answered or declined request leaves its history in the project's
+ * activity record, not a tab for good. Otherwise "Start closing" (the firm)
+ * or "Ask the firm to close" (the client) is an item of the page's menu. A
+ * pitch has none.
  */
-export function closingTabShown(c: { state: string; request: unknown; history: number } | null): boolean {
+export function closingTabShown(c: { state: string; request: { status: string } | null } | null): boolean {
   if (!c) return false;
-  return c.state === "closing" || c.state === "closed" || c.request !== null || c.history > 0;
+  return c.state === "closing" || c.state === "closed" || c.request?.status === "pending";
 }
 
 /**
