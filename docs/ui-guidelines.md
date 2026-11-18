@@ -288,7 +288,7 @@ Sizes: `sm` in page headers, cards and tables; `default` in dialogs and forms; `
 
 ### Empty, loading and error states
 
-- Empty: `EmptyState` with an Animate UI icon (`animateOnView`) and one sentence that says what will appear and, if possible, the action that creates it.
+- Empty: `EmptyState` with an Animate UI icon (`animateOnView`) and one sentence that says what will appear and, if possible, the action that creates it. Where the reader may not open everything there (a limited manager, an action owner, a client reader), the sentence says "none for you yet" («لا اجتماعات لك بعد»), not "none yet", and never hints at what is hidden.
 - Loading: every route segment that fetches data has a `loading.tsx` built from `page-skeletons` that mirrors the real layout.
 - Errors: inline `text-destructive` next to the control that failed, or a toast for background actions. Messages come from `messages/*.json`, never raw API errors.
 

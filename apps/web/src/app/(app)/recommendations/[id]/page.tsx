@@ -187,7 +187,10 @@ export default async function RecommendationPage({ params }: { params: Promise<{
               <CardDescription>{t("actionsHint")}</CardDescription>
             </CardHeader>
             <CardContent className="px-5">
-              {data.actions.length === 0 && data.actionsLeftOut === 0 ? <p className="text-sm text-muted-foreground">{t("noActions")}</p> : null}
+              {/* The firm sees every action; a client reader may have none she can open (a draft, a colleague's): "none for you". */}
+              {data.actions.length === 0 && data.actionsLeftOut === 0 ? (
+                <p className="text-sm text-muted-foreground">{t(data.firmStaff ? "noActions" : "noActionsClient")}</p>
+              ) : null}
               <ul className="divide-y">
                 {data.actions.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">

@@ -1,6 +1,8 @@
 // Screen texts from the re-check of the screens batch 0 changed (page audit
 // section 8, fault 3), checked against the real message catalogues, Arabic
 // first.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 import ar from "../messages/ar.json";
@@ -112,6 +114,35 @@ describe("the invite warnings on the meeting form and the add-attendee form", ()
     const e = tr("en", "meeting.form")("leftOut", { names: "Reem", n: 1 });
     expect(e).toMatch(/still get the calendar invitation/);
     expect(e).toMatch(/not the agenda/);
+  });
+});
+
+describe("a tab with nothing this reader may open (fault 4)", () => {
+  // A manager limited to her department, or an action owner, read «لا توجد اجتماعات بعد» while the project
+  // had meetings she was not shown, and «لم تطلب الشركة أي شيء بعد» while it had requests. The line must be
+  // true for her without saying that anything is hidden: "none for you yet", no count, no "other".
+  const forYou = [
+    ["project.noMeetings", "لا اجتماعات لك بعد.", "No meetings for you yet."],
+    ["project.noDocs", "لا مستندات لك بعد.", "No documents for you yet."],
+    ["project.noRecsClient", "لا توصيات لك بعد.", "No recommendations for you yet."],
+    ["infoRequests.emptyClient", "لا طلبات لك بعد.", "No requests for you yet."],
+    ["recommendationPage.noActionsClient", "لا إجراءات لك بعد.", "No actions for you yet."],
+  ] as const;
+
+  it("says there is none for you yet, in both languages, and nothing about what is hidden", () => {
+    for (const [key, a, e] of forYou) {
+      expect(get(ar, key), key).toBe(a);
+      expect(get(en, key), key).toBe(e);
+    }
+  });
+
+  it("the client's side of the plan and of a recommendation gets that line; the firm, which sees all of them, keeps its own", () => {
+    const project = readFileSync(join(__dirname, "../src/app/(app)/projects/[id]/page.tsx"), "utf8");
+    expect(project).toContain(`description={t(firmStaff ? "noRecs" : "noRecsClient")}`);
+    const rec = readFileSync(join(__dirname, "../src/app/(app)/recommendations/[id]/page.tsx"), "utf8");
+    expect(rec).toContain(`t(data.firmStaff ? "noActions" : "noActionsClient")`);
+    expect(en.project.noRecs).toBe("No recommendations yet.");
+    expect(en.recommendationPage.noActions).toBe("No actions yet.");
   });
 });
 
