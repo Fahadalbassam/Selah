@@ -12,8 +12,8 @@ import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
 import { indicatorTable } from "@/lib/indicator-html";
-import { renderOrgChartPdfHtml, treeLabels, versionWords, type PaperSize } from "@/lib/org-chart-html";
-import { buildTree, chartLevels, overview, pageUnits, parseDepth } from "@/lib/org-chart-tree";
+import { pdfPages, renderOrgChartPdfHtml, treeLabels, versionWords, type PaperSize } from "@/lib/org-chart-html";
+import { buildTree, chartLevels, parseDepth } from "@/lib/org-chart-tree";
 import { indicatorSnapshot } from "./indicators";
 import { getStructure } from "./org-chart";
 import { renderReportHtml } from "@/lib/report-html";
@@ -485,7 +485,6 @@ export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: str
   const depth = parseDepth(options.depth, chartLevels(shown.units));
   const names = options.names && shown.names !== "none";
   const roots = buildTree(shown.units, shown.positions, { locale, depth, names });
-  const departments = pageUnits(roots);
   const draft = shown.version.state === "draft";
   const clientName = localName(view.client, ar);
   // Which version, whether it is current, upcoming or replaced (when, by which), and whose holders.
@@ -497,11 +496,8 @@ export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: str
     title: tr("pdf.title"),
     meta: words.join(" · "),
     draftNotice: draft ? tr("draftBanner") : null,
-    pages: [
-      { heading: null, roots: departments.length ? overview(roots, new Set(departments.map((d) => d.id))) : roots },
-      // Alone on its page, a department spreads its sections across it.
-      ...departments.map((d) => ({ heading: d.name, roots: [{ ...d, across: d.children.length > 0 }] })),
-    ],
+    // The overview, then one page per top-level department (rows wrapped, long lists in columns).
+    pages: pdfPages(roots, options.size),
     labels: treeLabels(tr),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");

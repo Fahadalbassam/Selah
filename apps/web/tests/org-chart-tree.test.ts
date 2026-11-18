@@ -3,7 +3,18 @@
 // HTML drawing for the screen and the PDF, and its words in both languages.
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
-import { fitZoom, orgTreeHtml, renderOrgChartPdfHtml, treeLabels, versionWords, type TreeLabels } from "@/lib/org-chart-html";
+import {
+  fitZoom,
+  ORG_CHART_CSS,
+  orgTreeHtml,
+  PDF_ROOT_PT,
+  pdfPages,
+  renderOrgChartPdfHtml,
+  treeLabels,
+  versionWords,
+  wrapAt,
+  type TreeLabels,
+} from "@/lib/org-chart-html";
 import {
   buildTree,
   chartLevels,
@@ -197,8 +208,10 @@ describe("arranging the tree", () => {
       { locale: "en", depth: null, names: true },
     );
     expect(treeWidth(wide)).toBe(12);
-    expect(fitZoom(wide, "a4")).toBeLessThan(fitZoom(wide, "a3"));
-    expect(fitZoom(wide, "a3")).toBeLessThan(1);
+    // In print the twelve wrap into rows (8 on A3, 4 on A4) instead of shrinking.
+    expect([treeWidth(wide, 8), treeWidth(wide, 4)]).toEqual([8, 4]);
+    expect(fitZoom(wide, "a4")).toBe(1);
+    expect(fitZoom(wide, "a3")).toBeGreaterThanOrEqual(0.9);
   });
 });
 
@@ -259,6 +272,74 @@ describe("the drawing", () => {
     expect(doc("a3")).not.toMatch(/<script/i);
     expect(doc("a3")).not.toMatch(/(src|href)=["']?https?:/i);
     expect(doc("a3", "ar")).toContain('<html lang="ar" dir="rtl">');
+  });
+});
+
+describe("printing a large structure readably", () => {
+  const company = (departments: number, positionsInFirst = 1) =>
+    buildTree(
+      [unit("ceo", null, "executive", 1), ...Array.from({ length: departments }, (_, i) => unit(`d${i}`, "ceo", "department", 2, { sortOrder: i, nameEn: `Department ${i + 1}` }))],
+      [
+        pos("chief", "ceo", { isHead: true }),
+        ...Array.from({ length: departments }, (_, i) => pos(`h${i}`, `d${i}`, { isHead: true })),
+        ...Array.from({ length: positionsInFirst - 1 }, (_, j) => pos(`x${j}`, "d0", { sortOrder: j + 1, titleEn: `Employee ${j + 1}` })),
+      ],
+      { locale: "en", depth: null, names: true },
+    );
+  /** The size of the drawing's body text on paper, in points. */
+  const textPt = (zoom: number) => 0.8125 * PDF_ROOT_PT * zoom;
+  const rows = (html: string) => (html.match(/<ul class="oc-row( oc-wrap)?">/g) ?? []).length;
+
+  it("wraps a long row of departments into rows, never shrinking the text below about 8 pt", () => {
+    for (const [n, size, perRow] of [
+      [12, "a3", 8],
+      [16, "a4", 4],
+      [25, "a3", 8],
+      [40, "a4", 4],
+    ] as const) {
+      const pages = pdfPages(company(n), size);
+      const over = pages[0]!.roots;
+      const html = orgTreeHtml(over, labels("en"), "en", { wrap: wrapAt(size) });
+      expect(wrapAt(size), `${n} on ${size}`).toBe(perRow);
+      // The chief executive's departments, in rows of at most perRow: every row but the last says it continues.
+      expect(rows(html), `${n} on ${size}`).toBe(Math.ceil(n / perRow));
+      expect((html.match(/<ul class="oc-row oc-wrap">/g) ?? []).length).toBe(Math.ceil(n / perRow) - 1);
+      expect(textPt(fitZoom(over, size)), `${n} on ${size}`).toBeGreaterThanOrEqual(8);
+    }
+    // A row that fits is not wrapped.
+    expect(rows(orgTreeHtml(pdfPages(company(4), "a3")[0]!.roots, labels("en"), "en", { wrap: wrapAt("a3") }))).toBe(1);
+  });
+
+  it("an overview page, then one page per department, each with its own heading", () => {
+    const pages = pdfPages(company(3), "a4");
+    expect(pages.map((p) => p.heading)).toEqual([null, "Department 1", "Department 2", "Department 3"]);
+  });
+
+  it("a department with many positions lays them out in columns, its heading repeating on every page it runs to, a position never split", () => {
+    const [, first] = pdfPages(company(2, 60), "a4");
+    const html = orgTreeHtml(first!.roots, labels("en"), "en", { wrap: wrapAt("a4") });
+    // A card is a table: its heading row repeats on each printed page; four positions to a row on A4.
+    expect(html).toContain('<thead><tr><th colspan="4">');
+    expect(html.match(/<tr class="oc-row-pos">/g)).toHaveLength(15);
+    expect(ORG_CHART_CSS).toMatch(/\.oc-card tr\{[^}]*break-inside:avoid/);
+    // A small card stays whole on one page.
+    expect(orgTreeHtml(company(2), labels("en"), "en")).toContain('class="oc-unit oc-keep"');
+  });
+
+  it("every printed page repeats the client, the page's heading and the version at its top", () => {
+    const pages = pdfPages(company(2, 60), "a4");
+    const doc = renderOrgChartPdfHtml({
+      locale: "en",
+      size: "a4",
+      clientName: "Acme",
+      title: "Organisation structure",
+      meta: "Version 2, current",
+      draftNotice: null,
+      pages,
+      labels: labels("en"),
+    });
+    expect(doc.match(/<table class="frame"><thead><tr><td><header class="top">/g)).toHaveLength(3);
+    expect(doc).toMatch(/\.frame thead\{display:table-header-group;/);
   });
 });
 

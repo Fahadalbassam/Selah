@@ -69,6 +69,8 @@ export interface TreeUnit {
   children: TreeUnit[];
   /** Why part of it is not drawn here: deeper levels left out, or its own page in the PDF. */
   more: "levels" | "page" | null;
+  /** Positions side by side, in this many columns (a large department alone on its PDF page); one when left out. */
+  columns?: number;
 }
 
 /** Kinds whose units spread across the page; every other kind stacks its units downward. */
@@ -223,15 +225,21 @@ export function overview(roots: readonly TreeUnit[], own: ReadonlySet<string>): 
   return roots.map(cut);
 }
 
+/** Whether a unit's row of units can wrap onto more rows: more of them than fit, each one box wide. */
+export function wraps(u: TreeUnit, wrap: number | undefined): boolean {
+  return !!wrap && u.across && u.children.length > wrap && u.children.every((c) => treeWidth([c]) === 1);
+}
+
 /**
  * How many boxes wide a drawing is, for fitting it on a printed page: units
- * across the page add up; a unit with advisory units beside it is at least
- * two boxes and a little wider; a stacked department is one box.
+ * across the page add up (or, wrapped, as many as one row holds); a unit with
+ * advisory units beside it is at least two boxes and a little wider; a
+ * stacked department is one box, or its columns of positions.
  */
-export function treeWidth(roots: readonly TreeUnit[]): number {
+export function treeWidth(roots: readonly TreeUnit[], wrap?: number): number {
   const width = (u: TreeUnit): number => {
-    const below = u.across && u.children.length ? u.children.reduce((n, c) => n + width(c), 0) : 1;
-    return Math.max(below, u.beside.length ? 2.3 : 1);
+    const below = !(u.across && u.children.length) ? 1 : wraps(u, wrap) ? wrap! : u.children.reduce((n, c) => n + width(c), 0);
+    return Math.max(below, u.beside.length ? 2.3 : 1, u.columns ?? 1);
   };
   return Math.max(1, roots.reduce((n, r) => n + width(r), 0));
 }

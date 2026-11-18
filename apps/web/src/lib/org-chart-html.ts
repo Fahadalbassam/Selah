@@ -7,7 +7,7 @@
 // token is defined, the same rules fall back to print greys.
 import type { VersionStatus } from "./org-chart";
 import { escapeHtml, reportFontFaces } from "./report-html";
-import { treeWidth, type TreePosition, type TreeUnit } from "./org-chart-tree";
+import { overview, pageUnits, treeWidth, wraps, type TreePosition, type TreeUnit } from "./org-chart-tree";
 
 export interface TreeLabels {
   /** "Vacant / شاغر": a position nobody holds today. */
@@ -78,6 +78,7 @@ export const ORG_CHART_CSS = `
 .oc-row>li:first-child::before{border-block-start:0;}
 .oc-row>li:last-child::after{border-block-start:0;}
 .oc-row>li.oc-adv::after{border-inline-start:2px dotted var(--oc-line);}
+.oc-wrap::after{content:"";position:absolute;inset-block:var(--oc-drop) 0;inset-inline-start:50%;border-inline-start:1px solid var(--oc-line);}
 .oc-root{padding-block-start:0;gap:var(--oc-gap);}
 .oc-root::before,.oc-root>li::before,.oc-root>li::after{display:none;}
 .oc-root>li{padding:0;}
@@ -92,13 +93,20 @@ export const ORG_CHART_CSS = `
 .oc-stack>li::before{content:"";position:absolute;inset-inline-start:calc(0.375rem - var(--oc-rail));inset-block-start:-0.5rem;block-size:1.5rem;inline-size:calc(var(--oc-rail) - 0.375rem);border-inline-start:1px solid var(--oc-line);border-block-end:1px solid var(--oc-line);}
 .oc-stack>li:not(:last-child)::after{content:"";position:absolute;inset-inline-start:calc(0.375rem - var(--oc-rail));inset-block-start:1rem;inset-block-end:-0.5rem;border-inline-start:1px solid var(--oc-line);}
 .oc-stack>li.oc-adv::before{border-block-end:2px dotted var(--oc-line);}
-.oc-unit{inline-size:var(--oc-box);overflow:hidden;border:1px solid var(--oc-border);border-radius:0.5rem;background:var(--oc-card);text-align:start;overflow-wrap:anywhere;break-inside:avoid;}
+.oc-unit{inline-size:var(--oc-box);overflow:hidden;border:1px solid var(--oc-border);border-radius:0.5rem;background:var(--oc-card);text-align:start;overflow-wrap:anywhere;}
+.oc-keep{break-inside:avoid;}
 .oc-stack .oc-unit,.oc-beside .oc-unit{inline-size:auto;}
 .oc-adv>.oc-unit{border-style:dashed;border-color:var(--oc-line);}
+.oc-card{inline-size:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}
+.oc-card thead{display:table-header-group;break-after:avoid;}
+.oc-card th{padding:0;font-weight:inherit;text-align:start;}
+.oc-card tr{break-inside:avoid;}
+.oc-card td{vertical-align:top;}
 .oc-head{display:flex;align-items:baseline;justify-content:space-between;gap:0.5rem;padding:0.375rem 0.625rem;background:var(--oc-fill);}
 .oc-name{font-weight:600;}
 .oc-code{flex-shrink:0;font-size:0.75rem;color:var(--oc-muted);font-variant-numeric:tabular-nums;}
-.oc-positions>li{padding:0.375rem 0.625rem;border-block-start:1px solid var(--oc-border);}
+.oc-pos{padding:0.375rem 0.625rem;border-block-start:1px solid var(--oc-border);}
+.oc-pos+.oc-pos{border-inline-start:1px solid var(--oc-border);}
 .oc-lead .oc-title{font-weight:600;}
 .oc-who{color:var(--oc-muted);}
 .oc-vacant{display:inline-block;margin-block-start:0.125rem;padding:0 0.375rem;border:1px dashed var(--oc-line);border-radius:999px;font-size:0.75rem;color:var(--oc-muted);}
@@ -109,51 +117,132 @@ export const ORG_CHART_CSS = `
 
 const e = escapeHtml;
 
-function positionHtml(p: TreePosition, labels: TreeLabels, sep: string): string {
+interface Draw {
+  labels: TreeLabels;
+  sep: string;
+  /** In print: at most this many units to a row, the rest on further rows. */
+  wrap?: number;
+}
+
+/** A card holding this many rows or fewer stays whole on one printed page; a longer one runs on, its heading repeated. */
+const KEEP_ROWS = 8;
+
+function positionHtml(p: TreePosition, d: Draw): string {
   const who = p.names.length
-    ? `<p class="oc-who">${p.names.map(e).join(sep)}</p>`
+    ? `<p class="oc-who">${p.names.map(e).join(d.sep)}</p>`
     : p.vacant === true
-      ? `<p class="oc-vacant">${e(labels.vacant)}</p>`
+      ? `<p class="oc-vacant">${e(d.labels.vacant)}</p>`
       : "";
-  const line = p.reportsTo ? `<p class="oc-reports">${e(labels.reportsTo(p.reportsTo))}</p>` : "";
-  return `<li class="oc-pos${p.head ? " oc-lead" : ""}"><p class="oc-title">${e(p.title)}</p>${who}${line}</li>`;
+  const line = p.reportsTo ? `<p class="oc-reports">${e(d.labels.reportsTo(p.reportsTo))}</p>` : "";
+  return `<td class="oc-pos${p.head ? " oc-lead" : ""}"><p class="oc-title">${e(p.title)}</p>${who}${line}</td>`;
 }
 
-function unitHtml(u: TreeUnit, labels: TreeLabels, sep: string): string {
-  const head = `<div class="oc-head"><p class="oc-name">${e(u.name)}${u.advisory ? `<span class="oc-sr"> (${e(labels.advisory)})</span>` : ""}</p><p class="oc-code" dir="ltr">${e(u.code)}</p></div>`;
-  const list = u.positions.length ? `<ul class="oc-positions">${u.positions.map((p) => positionHtml(p, labels, sep)).join("")}</ul>` : "";
-  const more = u.more ? `<p class="oc-more">${e(u.more === "page" ? labels.ownPage : labels.moreLevels)}</p>` : "";
-  const beside = u.beside.length
-    ? `<div class="oc-beside"><ul class="oc-beside-list">${u.beside.map((b) => nodeHtml(b, labels, sep)).join("")}</ul></div>`
-    : "";
-  const below = u.children.length
-    ? `<ul class="${u.across ? "oc-row" : "oc-stack"}">${u.children.map((c) => nodeHtml(c, labels, sep)).join("")}</ul>`
-    : "";
-  return `<div class="oc-unit">${head}${list}${more}</div>${beside}${below}`;
+/**
+ * A unit's card: a table, so that in print its heading repeats at the top of
+ * each page it runs to and a position is never split. Positions one to a row,
+ * or side by side in `columns` for a large department alone on its page.
+ */
+function cardHtml(u: TreeUnit, d: Draw): string {
+  const cols = Math.max(1, u.columns ?? 1);
+  const head = `<div class="oc-head"><p class="oc-name">${e(u.name)}${u.advisory ? `<span class="oc-sr"> (${e(d.labels.advisory)})</span>` : ""}</p><p class="oc-code" dir="ltr">${e(u.code)}</p></div>`;
+  const rows: string[] = [];
+  for (let i = 0; i < u.positions.length; i += cols) {
+    const cells = u.positions.slice(i, i + cols).map((p) => positionHtml(p, d));
+    while (cells.length < cols) cells.push(`<td class="oc-pos"></td>`);
+    rows.push(`<tr class="oc-row-pos">${cells.join("")}</tr>`);
+  }
+  if (u.more) rows.push(`<tr><td class="oc-more" colspan="${cols}">${e(u.more === "page" ? d.labels.ownPage : d.labels.moreLevels)}</td></tr>`);
+  const keep = rows.length <= KEEP_ROWS ? " oc-keep" : "";
+  const width = cols > 1 ? ` style="inline-size:calc(var(--oc-box) * ${cols})"` : "";
+  return `<div class="oc-unit${keep}"${width}><table class="oc-card" role="presentation"><thead><tr><th colspan="${cols}">${head}</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 
-function nodeHtml(u: TreeUnit, labels: TreeLabels, sep: string): string {
-  return `<li${u.advisory ? ` class="oc-adv"` : ""}>${unitHtml(u, labels, sep)}</li>`;
+function unitHtml(u: TreeUnit, d: Draw): string {
+  const beside = u.beside.length ? `<div class="oc-beside"><ul class="oc-beside-list">${u.beside.map((b) => nodeHtml(b, d)).join("")}</ul></div>` : "";
+  let below = "";
+  if (u.children.length && !u.across) below = `<ul class="oc-stack">${u.children.map((c) => nodeHtml(c, d)).join("")}</ul>`;
+  else if (u.children.length && wraps(u, d.wrap)) {
+    // Rows of at most `wrap` (an even number), the line from above running down between the two middle units.
+    const rows: string[] = [];
+    for (let i = 0; i < u.children.length; i += d.wrap!) {
+      const last = i + d.wrap! >= u.children.length;
+      rows.push(`<ul class="oc-row${last ? "" : " oc-wrap"}">${u.children.slice(i, i + d.wrap!).map((c) => nodeHtml(c, d)).join("")}</ul>`);
+    }
+    below = rows.join("");
+  } else if (u.children.length) below = `<ul class="oc-row">${u.children.map((c) => nodeHtml(c, d)).join("")}</ul>`;
+  return `${cardHtml(u, d)}${beside}${below}`;
 }
 
-/** The drawing: nested lists of units, positions inside them, connector lines in CSS. */
-export function orgTreeHtml(roots: readonly TreeUnit[], labels: TreeLabels, locale: "ar" | "en"): string {
-  const sep = locale === "ar" ? "، " : ", ";
+function nodeHtml(u: TreeUnit, d: Draw): string {
+  return `<li${u.advisory ? ` class="oc-adv"` : ""}>${unitHtml(u, d)}</li>`;
+}
+
+/**
+ * The drawing: nested lists of units, positions inside their unit's card,
+ * connector lines in CSS. `wrap` (print only) breaks a row of more units
+ * than a page holds into several rows.
+ */
+export function orgTreeHtml(roots: readonly TreeUnit[], labels: TreeLabels, locale: "ar" | "en", opts: { wrap?: number } = {}): string {
+  const d: Draw = { labels, sep: locale === "ar" ? "، " : ", ", wrap: opts.wrap };
   return `<div class="oc" dir="${locale === "ar" ? "rtl" : "ltr"}" lang="${locale}" role="group" aria-label="${e(labels.label)}"><ul class="oc-row oc-root">${roots
-    .map((r) => nodeHtml(r, labels, sep))
+    .map((r) => nodeHtml(r, d))
     .join("")}</ul></div>`;
 }
 
 export type PaperSize = "a3" | "a4";
 
+/** The PDF's root type size: the drawing's body text is 0.8125 of it. */
+export const PDF_ROOT_PT = 11;
+/** The smallest the drawing is scaled in print: body text stays at about 8pt (0.8125 × 11pt × 0.9). */
+const MIN_ZOOM = 0.9;
 /** Printable width of a landscape page, in millimetres (page width less the margins below). */
 const PRINT_WIDTH: Record<PaperSize, number> = { a3: 420 - 24, a4: 297 - 24 };
-/** One box and the gap beside it, in millimetres, at the PDF's 10pt root size (13.5rem). */
-const BOX_MM = 13.5 * 10 * 0.3528;
+/** One box and the gap beside it (13.5rem), in millimetres. */
+const BOX_MM = 13.5 * PDF_ROOT_PT * 0.3528;
 
-/** How much a drawing is scaled down to fit the page's width (never up). */
+/**
+ * How many units one printed row holds at the smallest scale: an even number,
+ * so the line down to the next row runs between two of them (8 on A3, 4 on A4).
+ */
+export function wrapAt(size: PaperSize): number {
+  const n = Math.floor(PRINT_WIDTH[size] / (BOX_MM * MIN_ZOOM));
+  return Math.max(2, n - (n % 2));
+}
+
+/**
+ * How much a drawing is scaled down to fit the page's width, rows wrapped
+ * (never up). With rows wrapped it stays at or above the smallest scale; only
+ * a drawing whose upper levels alone are wider than the page goes below it,
+ * rather than being cut off.
+ */
 export function fitZoom(roots: readonly TreeUnit[], size: PaperSize): number {
-  return Math.min(1, Math.floor((PRINT_WIDTH[size] / (treeWidth(roots) * BOX_MM)) * 100) / 100);
+  return Math.min(1, Math.floor((PRINT_WIDTH[size] / (treeWidth(roots, wrapAt(size)) * BOX_MM)) * 100) / 100);
+}
+
+/** Positions per column of a large department alone on its page: up to this many, then another column. */
+const ROWS_PER_COLUMN = 8;
+
+/**
+ * The PDF's pages: the overview (each top-level department cut to its head
+ * position), then one page per top-level department, which spreads its
+ * sections across and lays a long list of positions out in columns.
+ */
+export function pdfPages(roots: readonly TreeUnit[], size: PaperSize): { heading: string | null; roots: TreeUnit[] }[] {
+  const departments = pageUnits(roots);
+  const across = wrapAt(size);
+  return [
+    { heading: null, roots: departments.length ? overview(roots, new Set(departments.map((d) => d.id))) : [...roots] },
+    ...departments.map((d) => ({
+      heading: d.name,
+      roots: [
+        {
+          ...d,
+          across: d.children.length > 0,
+          columns: d.positions.length > ROWS_PER_COLUMN ? Math.min(across, Math.ceil(d.positions.length / ROWS_PER_COLUMN)) : 1,
+        },
+      ],
+    })),
+  ];
 }
 
 export interface OrgChartPdfInput {
@@ -171,13 +260,19 @@ export interface OrgChartPdfInput {
   labels: TreeLabels;
 }
 
-/** The structure as a printable document for the PDF service: A3 or A4 landscape, an overview page then one per department. */
+/**
+ * The structure as a printable document for the PDF service: A3 or A4
+ * landscape, an overview page then one per department. Each page is a table
+ * whose heading (the client, the page's heading, the version, and the draft's
+ * banner) repeats at the top of every printed page it runs to.
+ */
 export function renderOrgChartPdfHtml(input: OrgChartPdfInput): string {
   const { locale } = input;
   const page = (p: OrgChartPdfInput["pages"][number]) => `<section class="page">
-  <header class="top"><div><p class="client">${e(input.clientName)}</p><h1>${e(p.heading ?? input.title)}</h1></div><p class="meta">${e(input.meta)}</p></header>
-  ${input.draftNotice ? `<p class="draft">${e(input.draftNotice)}</p>` : ""}
-  <div class="fit" style="zoom:${fitZoom(p.roots, input.size)}">${orgTreeHtml(p.roots, input.labels, locale)}</div>
+<table class="frame"><thead><tr><td><header class="top"><div><p class="client">${e(input.clientName)}</p><h1>${e(p.heading ?? input.title)}</h1></div><p class="meta">${e(input.meta)}</p></header>${
+    input.draftNotice ? `<p class="draft">${e(input.draftNotice)}</p>` : ""
+  }</td></tr></thead>
+<tbody><tr><td><div class="fit" style="zoom:${fitZoom(p.roots, input.size)}">${orgTreeHtml(p.roots, input.labels, locale, { wrap: wrapAt(input.size) })}</div></td></tr></tbody></table>
 </section>`;
   return `<!doctype html>
 <html lang="${locale}" dir="${locale === "ar" ? "rtl" : "ltr"}">
@@ -186,11 +281,14 @@ export function renderOrgChartPdfHtml(input: OrgChartPdfInput): string {
 <title>${e(`${input.title} · ${input.clientName}`)}</title>
 <style>${reportFontFaces()}
 @page{size:${input.size === "a3" ? "A3" : "A4"} landscape;margin:12mm 12mm 16mm;}
-html{font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+html{font-size:${PDF_ROOT_PT}pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 body{margin:0;font-family:"Plex",sans-serif;color:#262626;background:#fff;}
 p{margin:0;}
 .page{break-after:page;}
 .page:last-child{break-after:auto;}
+.frame{inline-size:100%;border-collapse:collapse;}
+.frame thead{display:table-header-group;}
+.frame>thead>tr>td,.frame>tbody>tr>td{padding:0;vertical-align:top;}
 .top{display:flex;justify-content:space-between;align-items:flex-end;gap:8mm;border-bottom:1px solid #d2d2d2;padding-bottom:3mm;margin-bottom:6mm;}
 .client{font-size:9pt;color:#595959;}
 h1{margin:1mm 0 0;font-size:15pt;font-weight:600;line-height:1.3;}
