@@ -153,6 +153,8 @@ function ItemRow({
   const format = useFormatter();
   const router = useRouter();
   const [confirm, confirmDialog] = useConfirm();
+  // Giving the item to someone left out of a file sent for it is refused, said plainly (feature A).
+  const refusal = useAudienceRefusal();
   const title = requestTitle(i, ar);
   const base = `/api/info-requests/${i.id}`;
   const note = (status: "requested" | "not_applicable", label: string, hint: string) => (
@@ -317,6 +319,7 @@ function ItemRow({
             endpoint={base}
             method="PATCH"
             sendEmptyAsNull
+            explain={refusal}
             fields={itemFields(t, ownerOptions, { ...i, title })}
             submitLabel={tc("save")}
           />
@@ -391,7 +394,7 @@ function AnswerDialog({ item, title, files, projectId }: { item: Item; title: st
     const r = await callApi(`/api/info-requests/${item.id}/files/existing`, "POST", { documentId: existing });
     setBusy(false);
     if (r.ok) return finish();
-    setError(r.message?.includes("assistant") ? t("assistantFile") : tc(`errors.${r.error}`));
+    setError(refusal(r.message) ?? (r.message?.includes("assistant") ? t("assistantFile") : tc(`errors.${r.error}`)));
   }
 
   return (
@@ -423,7 +426,7 @@ function AnswerDialog({ item, title, files, projectId }: { item: Item; title: st
           {open ? (
             <AudienceField
               kind="document"
-              url={`/api/projects/${projectId}/audience?kind=document&visibility=shared`}
+              url={`/api/projects/${projectId}/audience?kind=document&visibility=shared&request=${item.id}`}
               onChange={(value, dirty) => setAudience({ value, dirty })}
               disabled={busy}
             />

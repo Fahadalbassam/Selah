@@ -78,12 +78,15 @@ export function FormDialog(props: {
   extra?: Record<string, unknown>;
   /** Send an emptied field as null (to clear it) instead of leaving it out. */
   sendEmptyAsNull?: boolean;
+  /** A plain sentence for a refusal the server names (its own words, in English), or null for the usual message. */
+  explain?: (message: string | undefined) => string | null;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -99,9 +102,10 @@ export function FormDialog(props: {
     }
     setBusy(true);
     setError(null);
+    setSaid(null);
     const r = await callApi(endpoint, props.method ?? "POST", body);
     setBusy(false);
-    if (!r.ok) return setError(r.error);
+    if (!r.ok) return (setSaid(props.explain?.(r.message) ?? null), setError(r.error));
     setOpen(false);
     toast.success(t("saved"));
     const newId = (r.data as { id?: string } | null)?.id;
@@ -181,7 +185,7 @@ export function FormDialog(props: {
           <AutoHeight deps={[error]} className="-mt-4">
             {error ? (
               <p role="alert" className="pt-4 text-sm text-destructive">
-                {t(`errors.${error}`)}
+                {said ?? t(`errors.${error}`)}
               </p>
             ) : null}
           </AutoHeight>

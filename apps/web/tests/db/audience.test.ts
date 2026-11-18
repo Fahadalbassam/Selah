@@ -1231,3 +1231,52 @@ describe("everyone invited to a meeting sees it", () => {
   });
   // An invitation not sent yet is withdrawn instead: "the mail queue keeps a withdrawn invite" above.
 });
+
+// ------------------------------------------------------------------ asked for a file (re-check N4)
+// The product owner's decision on the re-check: the person an information request asks is never left
+// out of a file sent for it, so she never sees "Received" with nothing to open.
+describe("the person asked for a file always sees it", () => {
+  const ASKED = id(82);
+  const upload = (name: string) => ({ bytes: new TextEncoder().encode(name), fileName: name, contentType: "application/pdf", sha256: `sha-${name}`, scanned: true, scanMs: 1 });
+
+  beforeAll(async () => {
+    await q(`INSERT INTO info_requests (id, project_id, org_id, area, title, owner_user_id, created_by) VALUES ($1,$2,$3,'people','Grade structure',$4,$5)`, [
+      ASKED,
+      PN,
+      NUKHBA,
+      U.nmgr,
+      U.lead,
+    ]);
+  });
+
+  it("can't be left out of it, is a locked chip, and an \"only\" list that misses her still lets her in", async () => {
+    await expect(
+      svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, ASKED, upload("grades-refused.pdf"), { mode: "except", people: [U.nmgr] }), true),
+    ).rejects.toThrow(/asked for this file: name someone else to send it first/);
+    expect((await q(`SELECT count(*)::int AS n FROM documents WHERE title = 'grades-refused.pdf'`)).rows).toEqual([{ n: 0 }]);
+    // The form's picker shows her locked before the file exists.
+    const fresh = await svc(U.ncadmin, (tx, p) =>
+      import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "document", { visibility: "shared", requestId: ASKED })),
+    );
+    expect(fresh.people.find((x) => x.id === U.nmgr)?.locked).toBe("asked");
+    const made = await svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, ASKED, upload("grades.pdf"), { mode: "only", people: [U.ncadmin] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toHaveLength(1);
+    expect(await rowsAs(U.nmgr2, `SELECT 1 FROM documents WHERE id = $1`, [made.id])).toEqual([]);
+    const seen = await svc(U.ncadmin, (tx, p) => D.getDocumentAudience(tx, p, made.id));
+    expect(seen.people.find((x) => x.id === U.nmgr)?.locked).toBe("asked");
+    await expect(svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, made.id, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(/asked for this file/);
+  });
+
+  it("a file she is left out of can't be sent for her item, and the item can't be given to someone left out of a file sent for it", async () => {
+    // The salary file leaves her out (the fixture): not usable for her item.
+    await expect(svc(U.ncadmin, (tx, p) => IR.answerWithExisting(tx, p, ASKED, DOC.client), true)).rejects.toThrow(
+      /asked for this item is left out of that file: pick another file, or change who sees it/,
+    );
+    // The fixture's request was answered with that file: it can't be given to her, but can to someone who sees the file.
+    await expect(svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: U.nmgr }), true)).rejects.toThrow(
+      /left out of a file sent for this item: change who sees the file first/,
+    );
+    await svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: U.nmgr2 }), true);
+    await svc(U.lead, (tx, p) => IR.updateInfoRequest(tx, p, REQ, { ownerUserId: null }), true);
+  });
+});

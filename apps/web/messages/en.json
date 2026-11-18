@@ -5300,7 +5300,8 @@
       "deputy": "The lead's deputy always sees it, so the work never stalls.",
       "organiser": "The meeting's organiser always sees it.",
       "invited": "Invited to this meeting",
-      "clientAdminYours": "Your company's admin always sees everything for your company."
+      "clientAdminYours": "Your company's admin always sees everything for your company.",
+      "asked": "Asked for this file"
     },
     "errors": {
       "onlyEmpty": "Add at least one person, or choose “Everyone with access, except…”.",
@@ -5312,7 +5313,10 @@
       "followUp": "Someone you're leaving out has an open follow-up on this meeting: give it to someone else first.",
       "closed": "The project is closed, so who sees its items doesn't change.",
       "archived": "This file is archived, so who sees it doesn't change.",
-      "usedAsEvidence": "This file was already used as evidence on an action, so its audience can't be limited."
+      "usedAsEvidence": "This file was already used as evidence on an action, so its audience can't be limited.",
+      "asked": "Someone you're leaving out was asked for this file: name someone else to send it first.",
+      "askedLeftOut": "The person asked for this item is left out of that file: pick another file, or change who sees it.",
+      "leftOutOfAnswer": "That person is left out of a file sent for this item: change who sees the file first."
     },
     "marker": {
       "label": "Limited audience",

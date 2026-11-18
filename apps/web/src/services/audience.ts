@@ -148,13 +148,13 @@ export async function audiencePeopleForNew(
   principal: Principal,
   kind: AudienceItemKind,
   projectResource: Resource,
-  input: { visibility: "shared" | "firm_private" | "client_private"; departmentId?: string | null; attendees?: string[] },
+  input: { visibility: "shared" | "firm_private" | "client_private"; departmentId?: string | null; attendees?: string[]; requestId?: string | null },
 ): Promise<{ owner: AudienceSide; people: AudiencePerson[] }> {
   const owner: AudienceSide = principal.orgKind === "client" ? "client" : "firm";
   assertAllowed(principal, permissionOf(kind), { ...projectResource, type: kind, ownerOrgId: principal.orgId, visibility: input.visibility });
   const { rows } = await tx.execute<PeopleRow>(
     sql`select user_id, name, firm, locked from app_audience_people_new(${kind}, ${projectResource.projectId}::uuid, ${input.visibility}::visibility,
-      ${input.departmentId ?? null}::uuid, ${uuidArray(input.attendees ?? [])})`,
+      ${input.departmentId ?? null}::uuid, ${uuidArray(input.attendees ?? [])}, ${input.requestId ?? null}::uuid)`,
   );
   return { owner, people: rows.map(toPerson) };
 }

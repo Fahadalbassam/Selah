@@ -30,6 +30,7 @@ export const AUDIENCE_LOCK_REASONS = [
   "deputy",
   "organiser",
   "invited",
+  "asked",
 ] as const;
 export type AudienceLockReason = (typeof AUDIENCE_LOCK_REASONS)[number];
 
@@ -129,6 +130,9 @@ export function reconcileAudience(
 export const AUDIENCE_REFUSALS = [
   ["already used as evidence", "usedAsEvidence"],
   ["invited to this meeting", "invited"],
+  ["asked for this file", "asked"],
+  ["asked for this item is left out", "askedLeftOut"],
+  ["left out of a file sent for this item", "leftOutOfAnswer"],
   ["open follow-up", "followUp"],
   ["invited and left out", "invitedLeftOut"],
   ["always sees it", "locked"],

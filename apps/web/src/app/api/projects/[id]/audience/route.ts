@@ -22,6 +22,8 @@ export const GET = route(
       visibility: z.enum(["shared", "firm_private", "client_private"]),
       departmentId: z.uuid().optional(),
       attendees: ids,
+      // A file sent for an information request: the person it asks always sees it.
+      request: z.uuid().optional(),
     }),
   },
   ({ tx, principal, params, query }) =>
@@ -29,5 +31,6 @@ export const GET = route(
       visibility: query.visibility,
       departmentId: query.departmentId ?? null,
       attendees: query.attendees,
+      requestId: query.request ?? null,
     }),
 );
