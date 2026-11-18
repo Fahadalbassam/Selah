@@ -343,18 +343,25 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       action: "Send the document",
     },
   },
-  // F13: to the firm's admins, when someone at a client reports a technical
-  // problem from the help page. The text is read in Selah, not in the mail.
+  // F13: to the firm's admins, when someone at a client writes to the firm's
+  // management from the help page (a problem with Selah, or a concern about
+  // the work). The text is read in Selah, not in the mail.
   "support.requested": {
     ar: {
-      subject: "بلاغ عن مشكلة تقنية من أحد العملاء",
-      lines: ["أبلغ شخص لدى أحد العملاء عن مشكلة تقنية في صلة.", "اقرأ البلاغ في صلة، وعلّمه بأنه عولج بعد الرد على صاحبه."],
-      action: "قراءة البلاغ",
+      subject: "رسالة من أحد العملاء إلى إدارة المكتب",
+      lines: [
+        "كتب شخص لدى أحد العملاء إلى إدارة المكتب من صفحة المساعدة في صلة: مشكلة في صلة، أو أمر يقلقه في سير العمل.",
+        "اقرأ الرسالة في صلة، وعلّمها بأنها عولجت بعد الرد على صاحبها.",
+      ],
+      action: "قراءة الرسالة",
     },
     en: {
-      subject: "A client reported a technical problem",
-      lines: ["Someone at a client reported a technical problem in Selah.", "Read the report in Selah, and mark it handled once you have answered them."],
-      action: "Read the report",
+      subject: "A client wrote to the firm's management",
+      lines: [
+        "Someone at a client wrote to the firm's management from Selah's Help page: a problem with Selah, or a concern about the work.",
+        "Read the message in Selah, and mark it handled once you have answered them.",
+      ],
+      action: "Read the message",
     },
   },
   // F21: to the client's acceptor (else its admin, else its sponsor) when the

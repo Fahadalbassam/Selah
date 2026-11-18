@@ -12,7 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_LIMITS } from "@/lib/help";
 import { typedDir } from "@/lib/utils";
 
-/** The "Technical problem" door (F13): a short report that goes to the firm's admins. */
+/**
+ * Writing to the firm's management (F13; page audit U17): a short message,
+ * about a problem with Selah or a concern about the work, that goes to the
+ * firm's admins and not to the person's consultants.
+ */
 export function ProblemForm() {
   const t = useTranslations("help.problem");
   const router = useRouter();

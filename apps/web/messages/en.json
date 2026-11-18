@@ -1970,8 +1970,8 @@
       "pulse_requested": "{title} is closed: tell the firm how it went",
       "pulse_low_score": "A client gave a low score in the closing pulse for {title}",
       "case_study_revoked": "The client withdrew its case-study consent for {title}",
-      "support_requested": "Someone at {title} reported a technical problem",
-      "support_handled": "The firm handled the problem you reported",
+      "support_requested": "Someone at {title} wrote to the firm's management",
+      "support_handled": "The firm handled the message you sent to its management",
       "client_ai_offered": "The firm offered your company the assistant. Read the notice to switch it on",
       "client_ai_consented": "{title} agreed to the client assistant",
       "client_ai_withdrawn": "{title} switched off the client assistant",
@@ -3924,8 +3924,8 @@
       "info_request_link_revoke": "Upload link revoked",
       "info_request_link_opened": "Upload link opened",
       "info_request_link_upload": "File sent through an upload link",
-      "support_request_create": "Technical problem reported",
-      "support_request_handle": "Reported problem marked handled",
+      "support_request_create": "Message to the firm's management sent",
+      "support_request_handle": "Client's message marked handled",
       "client_ai_settings": "Changed the client assistant",
       "client_ai_consent": "Agreed to the client assistant",
       "client_ai_withdraw": "Switched off the client assistant",
@@ -4660,117 +4660,39 @@
   },
   "help": {
     "title": "Help",
-    "description": "Ask about your work, or tell the firm about a technical problem.",
-    "steps": {
-      "title": "First steps",
-      "description": "Three things to do first in your role ({role}).",
-      "client_admin": {
-        "0": {
-          "title": "Invite your people",
-          "body": "On Team, invite the managers and action owners who will do the work. Each gets a link by mail that works for 7 days.",
-          "link": "Open Team"
-        },
-        "1": {
-          "title": "Add them to their projects",
-          "body": "On a project's Team tab, add the people who work on it. Managers and action owners see only the projects they are on.",
-          "link": "Open Projects"
-        },
-        "2": {
-          "title": "Follow the work",
-          "body": "Overview shows the same numbers the firm sees, and what needs your follow-up: overdue, blocked and returned actions.",
-          "link": "Open Overview"
-        }
-      },
-      "client_admin_restricted": {
-        "0": {
-          "title": "Answer the recommendations",
-          "body": "When the firm shares a recommendation, you record whether your company agrees, partly agrees or disagrees, with your reasons.",
-          "link": "Open Projects"
-        },
-        "1": {
-          "title": "Keep your files private until you share them",
-          "body": "Files your company adds stay private from the firm's users until an admin shares them. Evidence you submit is shared, because the firm must see it to verify the work.",
-          "link": ""
-        },
-        "2": {
-          "title": "Follow the work",
-          "body": "Overview shows the same numbers the firm sees, and what needs your follow-up: overdue, blocked and returned actions.",
-          "link": "Open Overview"
-        }
-      },
-      "client_manager": {
-        "0": {
-          "title": "See what needs follow-up",
-          "body": "Overview lists the actions on your projects that are overdue, blocked or returned with a revision request.",
-          "link": "Open Overview"
-        },
-        "1": {
-          "title": "Record progress on an action",
-          "body": "Open an action, press Start work, and add progress notes and evidence as the work moves.",
-          "link": "Open Actions"
-        },
-        "2": {
-          "title": "Send it for review",
-          "body": "When the work is done, press Submit for review with the evidence. Only the consultant's review marks it Verified complete.",
-          "link": "Open Actions"
-        }
-      },
-      "action_owner": {
-        "0": {
-          "title": "Open your actions",
-          "body": "My actions lists the actions assigned to you, soonest due first.",
-          "link": "Open My actions"
-        },
-        "1": {
-          "title": "Start, and attach the evidence",
-          "body": "Press Start work. The action page shows the evidence the consultant expects; attach it there.",
-          "link": "Open My actions"
-        },
-        "2": {
-          "title": "Submit for review",
-          "body": "Press Submit for review. The consultant accepts it or asks for changes, and you are told either way.",
-          "link": "Open My actions"
-        }
-      }
-    },
+    "description": "Your consultants and how to reach them, a message to the firm's management, and answers to common questions.",
     "ask": {
-      "title": "Ask your consultant",
-      "lead": "For questions about a piece of work.",
-      "body": "A question about an action belongs on that action. Open it and press \"Ask your consultant\": it takes you to the action's discussion with your lead consultant mentioned, so they are notified. Everyone who can see the action reads the discussion, and the answer stays with the work.",
-      "button": "Ask your consultant",
-      "readOnly": "Your company's records are read-only while it leaves Selah, so new comments can't be written. You can still report a technical problem, or write to your consultants below.",
-      "openTitle": "Your open actions",
-      "openHint": "Actions you own that are still being worked on. Open one to ask about it.",
-      "none": "You have no open actions of your own."
+      "button": "Ask your consultant"
     },
     "problem": {
-      "title": "Technical problem",
-      "lead": "For something in Selah that doesn't work.",
-      "label": "What went wrong?",
-      "placeholder": "What you were doing, what you expected, and what happened instead.",
-      "hint": "This goes to the firm's administrators, not to your consultants. Up to {n} reports a day.",
-      "send": "Send report",
+      "title": "Write to the firm's management",
+      "lead": "If something in Selah isn't working, or something about the work worries you and you'd rather not raise it with your consultant, write here. The firm's management reads it, not your consultants.",
+      "leadNamed": "If something in Selah isn't working, or something about the work worries you and you'd rather not raise it with your consultant, write here. The management of {firm} reads it, not your consultants.",
+      "label": "Your message",
+      "placeholder": "For a problem in Selah: what you were doing, what you expected, and what happened instead.",
+      "hint": "Only the firm's management receives it, not your consultants. Up to {n} a day.",
+      "send": "Send the message",
       "sending": "Sending…",
-      "sent": "Report sent to the firm's administrators",
-      "cannot": "Reports can't be sent from your account.",
-      "yours": "Your reports",
+      "sent": "Your message went to the firm's management",
+      "cannot": "Messages can't be sent from your account.",
+      "yours": "Your messages",
       "waiting": "Sent",
       "handled": "Handled",
       "errors": {
-        "limit": "You've sent {n} reports in the last 24 hours. Try again later.",
-        "generic": "The report wasn't sent. Reload the page and try again."
+        "limit": "You've sent {n} messages in the last 24 hours. Try again later.",
+        "generic": "The message wasn't sent. Reload the page and try again."
       }
     },
     "consultants": {
       "title": "Your consultants",
-      "description": "The firm's people who work with your company, with their work address for anything that doesn't fit an action.",
+      "description": "For a question about one action, ask it in that action's discussion: your consultant is told, and the answer stays with the work. For anything else, write to them at their work address.",
+      "readOnly": "Your company's records are read-only while it leaves Selah, so new comments can't be written. You can still write to your consultants, or to the firm's management, from this page.",
       "lead": "Lead consultant",
       "deputy": "Deputy",
       "leadHint": "Leads the firm's work with your company.",
       "deputyHint": "Stands in for the lead consultant.",
-      "onProject": "Consultants on this project",
+      "onProjects": "Projects: {projects}",
       "noLead": "The firm hasn't named a lead consultant for your company yet.",
-      "noneOnProject": "No consultant is on this project yet. Ask your lead consultant.",
       "noProjects": "You aren't on a project yet. Your consultants will appear here when you are.",
       "mail": "Write to {name}"
     },
@@ -4806,9 +4728,9 @@
       }
     },
     "support": {
-      "title": "Problems reported by clients",
-      "description": "Technical problems client people sent from their help page. Answer them by mail, then mark each one handled; they are told in Selah.",
-      "none": "No problems reported.",
+      "title": "Messages from clients to the firm's management",
+      "description": "What people at your clients sent from their Help page: a problem in Selah, or a concern about the work. Answer them by mail, then mark each one handled; they are told in Selah.",
+      "none": "No messages.",
       "open": "Open",
       "handled": "Handled",
       "handle": "Mark handled"

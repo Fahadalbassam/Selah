@@ -173,7 +173,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 ### 5.6 The other client roles at Al-Nukhba
 - **sponsor@nukhba.test**: unblock *ترشيح الأعضاء المستقلين للجنة* once the general assembly agrees, and answer a recommendation. He chairs steering and sits in all three departments, so he opens both steering meetings with their whole agenda.
 - **manager@nukhba.test**: sees the charter and committee work, not Finance's or Legal's. On *عرض المسودة* she answers Omar in the discussion (no new files while it waits for review). Ask the client assistant the client questions in section 7. She is the project's acceptor, so she was told of both hand-overs. Her home page shows **ملفات تنتظر تأكيدك استلامها** with only the one still waiting, the matrix, and a link to **كل الملفات التي سلّمها المكتب لشركتكم** (/deliverables) with both; download the matrix, then **تأكيد الاستلام** (receipt only, never acceptance) or **ملاحظة** (a comment the lead and deputy receive, on their notifications and Today). **Departments → الهيكل التنظيمي**: every unit and position title, and names only in her own department's branch and the chain above it (the board secretariat, the chair, the chief executive), with the line "ترى أسماء شاغلي المناصب في إدارتك وفي المناصب التي فوقها فقط"; Legal, Finance and internal audit show titles without names. sponsor@nukhba.test, in all three departments, sees the names in all three and above them, but not internal audit's or the chief executive's office.
-- **owner@nukhba.test**: **My actions (إجراءاتي)** shows only his three. On *إعداد لائحة عمل اللجنة*, read the reason, upload a new file and send it for review again. Start *نشر الميثاق المعتمد على موقع الشركة*. There is no assistant for action owners. **Help (المساعدة)**: first steps, "ask your consultant", and the problem form.
+- **owner@nukhba.test**: **My actions (إجراءاتي)** shows only his three. On *إعداد لائحة عمل اللجنة*, read the reason, upload a new file and send it for review again. Start *نشر الميثاق المعتمد على موقع الشركة*. There is no assistant for action owners. **Help (المساعدة)**: three things only: his consultants in one list (lead, deputy, the others with their projects and work addresses), «راسل إدارة المكتب» (a message that only the firm's management reads, for a problem with Selah or a concern about the work), and the common questions.
 - **finance@nukhba.test**: *تحديث مصفوفة الصلاحيات ورفعها للمجلس* shows an evidence list (one item answered, one open) and the date that already moved.
 
 ### 5.7 Rawdah
@@ -305,7 +305,7 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Notifications and mail choices | Everyone | Bell icon; /notifications |
 | Staff assistant | Firm | المساعد الذكي (floating card); اسأل المساعد |
 | Client assistant | Client admin and managers, when offered and consented | المساعد الذكي |
-| Help page, ask your consultant, report a problem | Client | المساعدة |
+| Help page: your consultants, write to the firm's management, common questions | Client | المساعدة |
 | Audit log with chain check, CSV export | Admin; client admin for their company | سجل التدقيق |
 | Firm settings | Admin | الإعدادات |
 

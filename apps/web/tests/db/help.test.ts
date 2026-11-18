@@ -49,6 +49,7 @@ const U = {
   owner: id(22), // Acme action owner on PROJ
   cadmin: id(23), // Acme admin
   betaMgr: id(24),
+  loner: id(25), // Acme manager on no project
 };
 const PROJ = id(31);
 const PROJ2 = id(32);
@@ -105,6 +106,7 @@ beforeAll(async () => {
     [U.owner, ACME, "action_owner"],
     [U.cadmin, ACME, "client_admin"],
     [U.betaMgr, BETA, "client_manager"],
+    [U.loner, ACME, "client_manager"],
   ];
   for (const [u, o, r] of roles) await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,$3)`, [u, o, r]);
   await q(
@@ -158,6 +160,13 @@ describe("your consultants", () => {
     expect(beta.lead?.userId).toBe(U.betaLead);
     expect(JSON.stringify(beta)).not.toContain("Acme");
     expect(JSON.stringify(beta)).not.toContain(U.lead);
+  });
+
+  it("names the firm from its own record only where the person may already read it (batch 1: who reads a message)", async () => {
+    expect((await svc(U.owner, (tx, p) => getHelp(tx, p))).firm).toEqual({ name: "firm", nameAr: null });
+    expect((await svc(U.betaMgr, (tx, p) => getHelp(tx, p))).firm).toEqual({ name: "firm", nameAr: null });
+    // On no project, a client person cannot read the firm's record, so the page says "the firm's management" without a name.
+    expect((await svc(U.loner, (tx, p) => getHelp(tx, p))).firm).toBeNull();
   });
 
   it("firm staff have no help page and no consultants list", async () => {
