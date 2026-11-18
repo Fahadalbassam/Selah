@@ -127,7 +127,8 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
       </PageHeader>
       <p className="-mt-3 flex max-w-3xl items-start gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
         <Gauge className="mt-0.5 size-4 shrink-0" />
-        {t("claimNote")}
+        {/* The client reads about its own company's figures; the firm, figures the client reported. */}
+        {t(firm ? "claimNote" : "claimNoteClient")}
       </p>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">

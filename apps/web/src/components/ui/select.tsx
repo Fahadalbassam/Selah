@@ -6,10 +6,64 @@ import { Select as SelectPrimitive } from "@animate-ui/react/primitives/radix-ui
 
 import { cn } from "@/lib/utils"
 
+/*
+ * Keyboard focus when the list closes. Animate UI keeps the list on screen
+ * while it animates closed (longer after a pick, to draw the check mark) and
+ * makes it inert meanwhile, so the option that had the focus loses it to the
+ * page, and Radix gives it back to the trigger only once the list is gone.
+ * Someone who chose with the keyboard and pressed Tab at once landed at the
+ * top of the page (screen re-check of batch 0, the inquiry form's role). So
+ * the focus goes back to the trigger as soon as the list closes, and when the
+ * list is finally gone it stays wherever the person has moved it since.
+ */
+const TriggerRef = React.createContext<((el: HTMLButtonElement | null) => void) | null>(null)
+
+function setRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
+  if (typeof ref === "function") ref(value)
+  else if (ref) (ref as React.RefObject<T | null>).current = value
+}
+
 function Select({
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  const trigger = React.useRef<HTMLButtonElement | null>(null)
+  const setTrigger = React.useCallback((el: HTMLButtonElement | null) => {
+    trigger.current = el
+  }, [])
+  const [ownOpen, setOwnOpen] = React.useState(defaultOpen ?? false)
+  const open = openProp ?? ownOpen
+  const wasOpen = React.useRef(open)
+  // An effect, not the change handler, so the list has stopped trapping the focus; and a moment
+  // later, once the key that chose has done its work: Enter on the trigger would open the list again.
+  React.useEffect(() => {
+    const closed = wasOpen.current && !open
+    wasOpen.current = open
+    if (!closed) return
+    const id = window.setTimeout(() => {
+      const active = document.activeElement
+      // Only when the focus was in the closing list, or lost: never away from something the person chose.
+      if (!active || active === document.body || active.closest('[data-slot="select-content"], [role="listbox"]')) {
+        trigger.current?.focus({ preventScroll: true })
+      }
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [open])
+  return (
+    <TriggerRef value={setTrigger}>
+      <SelectPrimitive.Root
+        data-slot="select"
+        open={open}
+        onOpenChange={(next) => {
+          setOwnOpen(next)
+          onOpenChange?.(next)
+        }}
+        {...props}
+      />
+    </TriggerRef>
+  )
 }
 
 function SelectGroup({
@@ -28,12 +82,22 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default"
 }) {
+  const setTrigger = React.useContext(TriggerRef)
+  const refs = React.useCallback(
+    (el: HTMLButtonElement | null) => {
+      setTrigger?.(el)
+      setRef(ref, el)
+    },
+    [setTrigger, ref]
+  )
   return (
     <SelectPrimitive.Trigger
+      ref={refs}
       data-slot="select-trigger"
       data-size={size}
       className={cn(
@@ -55,12 +119,20 @@ function SelectContent({
   children,
   position = "popper",
   align = "center",
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         data-slot="select-content"
+        // The list is gone: the focus went back to the trigger when it closed (see Select). Radix would
+        // put it on the trigger again now, taking it from wherever the person has tabbed to since.
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          const active = document.activeElement
+          if (active && active !== document.body) event.preventDefault()
+        }}
         className={cn(
           "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md",
           position === "popper" &&

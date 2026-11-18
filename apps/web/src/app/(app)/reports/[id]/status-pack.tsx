@@ -13,9 +13,10 @@ const MOVED_ORDER = ["in_progress", "blocked", "awaiting_review", "revision_requ
 /**
  * The lists of a monthly status pack (F19): what needs a decision, what is
  * overdue and with whom, what moved twice or more, what risk was accepted
- * and by whom, and what was verified in the period.
+ * and by whom, and what was verified in the period. `firm`: who reads it, for
+ * the line under the client's figures ("your company's" to the client).
  */
-export function StatusPackLists({ pack, links }: { pack: StatusPack; links: boolean }) {
+export function StatusPackLists({ pack, links, firm }: { pack: StatusPack; links: boolean; firm: boolean }) {
   const t = useTranslations("statusPack");
   const tStatus = useTranslations("status");
   const format = useFormatter();
@@ -210,7 +211,7 @@ export function StatusPackLists({ pack, links }: { pack: StatusPack; links: bool
                 </TableBody>
               </Table>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">{tK("claimNote")}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{tK(firm ? "claimNote" : "claimNoteClient")}</p>
           </CardContent>
         </Card>
       ) : null}

@@ -109,14 +109,16 @@ export async function shoot(c, locale, name, extra = {}) {
   mkdirSync(dir, { recursive: true });
   const stem = extra.dark ? `${name}-dark` : name;
   const m = await page.evaluate(measure).catch((e) => ({ error: String(e) }));
-  await page.screenshot({ path: join(dir, `${stem}-1280.png`) }).catch(() => {});
-  if (!extra.noFull) await page.screenshot({ path: join(dir, `${stem}-1280-full.png`), fullPage: true }).catch(() => {});
+  // caret: "initial": hiding the caret writes caret-color inline on inputs, which a hydrating page
+  // reports as a hydration mismatch (see ../capture.mjs).
+  await page.screenshot({ path: join(dir, `${stem}-1280.png`), caret: "initial" }).catch(() => {});
+  if (!extra.noFull) await page.screenshot({ path: join(dir, `${stem}-1280-full.png`), fullPage: true, caret: "initial" }).catch(() => {});
   let tablet = null;
   if (locale === "ar" && !extra.dark && !extra.noTablet) {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.waitForTimeout(400);
     tablet = await page.evaluate(() => ({ overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth, screens: Math.round((document.documentElement.scrollHeight / innerHeight) * 10) / 10 })).catch(() => null);
-    await page.screenshot({ path: join(dir, `${stem}-768.png`) }).catch(() => {});
+    await page.screenshot({ path: join(dir, `${stem}-768.png`), caret: "initial" }).catch(() => {});
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.waitForTimeout(300);
   }

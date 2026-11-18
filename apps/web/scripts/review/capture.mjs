@@ -45,6 +45,12 @@ const SKIP = /^\/api\/|\/download|\/export|\/report$|\/sign-out|\.(pdf|xlsx|csv|
 // How many different records of one kind of page to open (states differ most on these).
 const PER_KIND = { "/actions/:id": 9, "/projects/:id": 4, "/clients/:id": 4, "/recommendations/:id": 3, "/meetings/:id": 3, "/inquiries/:id": 3 };
 
+// Playwright hides the text caret for a screenshot by writing caret-color inline on every input and
+// textarea, and puts it back after. A page still hydrating then finds an inline style React did not
+// render, and logs "A tree hydrated but some attributes … didn't match": those warnings in the
+// review's captures were the capture's own (screen re-check of batch 0, fault 6). Leave the caret alone.
+const SHOT = { caret: "initial" };
+
 const slug = (s) => s.replace(UUID, (m) => m.slice(0, 8)).replace(/[^a-z0-9؀-ۿ]+/gi, "_").replace(/^_|_$/g, "").slice(0, 90) || "home";
 const kindOf = (path) => {
   const u = new URL(path, BASE);
@@ -171,14 +177,14 @@ async function main() {
       n++;
       const base = `${String(n).padStart(3, "0")}-${slug(name)}`;
       const m = await page.evaluate(measure).catch((e) => ({ error: String(e) }));
-      await page.screenshot({ path: join(out, `${base}-1280.png`) }).catch(() => {});
-      await page.screenshot({ path: join(out, `${base}-1280-full.png`), fullPage: true }).catch(() => {});
+      await page.screenshot({ ...SHOT, path: join(out, `${base}-1280.png`) }).catch(() => {});
+      await page.screenshot({ ...SHOT, path: join(out, `${base}-1280-full.png`), fullPage: true }).catch(() => {});
       let tablet = null;
       if (locale === "ar") {
         await page.setViewportSize({ width: 768, height: 1024 });
         await page.waitForTimeout(350);
         tablet = await page.evaluate(() => ({ overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth, screens: Math.round((document.documentElement.scrollHeight / innerHeight) * 10) / 10 })).catch(() => null);
-        await page.screenshot({ path: join(out, `${base}-768.png`) }).catch(() => {});
+        await page.screenshot({ ...SHOT, path: join(out, `${base}-768.png`) }).catch(() => {});
         await page.setViewportSize({ width: 1280, height: 800 });
         await page.waitForTimeout(250);
       }
@@ -237,7 +243,7 @@ async function main() {
           await button.click({ timeout: 3000 });
           await page.waitForTimeout(1500);
           const shot = `${String(++n).padStart(3, "0")}-card_${name}-1280.png`;
-          await page.screenshot({ path: join(out, shot) });
+          await page.screenshot({ ...SHOT, path: join(out, shot) });
           const card = await page.evaluate(() => {
             const el = document.querySelector('[class*="floating-card"], [class*="surface-floating"], [role="dialog"]');
             if (!el) return null;

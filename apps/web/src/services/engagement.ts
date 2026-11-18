@@ -47,6 +47,10 @@ async function clientOrg(tx: Tx, orgId: string) {
   return org;
 }
 
+/** Whether the reader may open a client's Departments page (getEngagement()): a page checks this first and answers Not found, never an error. */
+export const canReadDepartments = (principal: Principal, orgId: string) =>
+  authorize(principal, "department.read", orgRecord(principal, "department", orgId)).allowed;
+
 /** A client's mode, whether departments are on, and its departments with their people. */
 export async function getEngagement(tx: Tx, principal: Principal, orgId: string) {
   assertAllowed(principal, "department.read", orgRecord(principal, "department", orgId));

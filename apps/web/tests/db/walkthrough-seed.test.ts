@@ -123,6 +123,43 @@ describe("the walkthrough sample data", () => {
     expect(await ok("lead@mizan.test")).toBe(true);
   });
 
+  it("has Al-Nukhba's published structure: internal audit beside the chief executive, three linked departments, twelve positions, one vacancy, names shown (F43)", async () => {
+    const [nukhba] = await q(`SELECT id FROM organizations WHERE name = 'Al-Nukhba Holding'`);
+    const versions = await q(`SELECT id, state, number, show_names FROM org_chart_versions WHERE org_id = $1 ORDER BY number NULLS LAST`, [nukhba.id]);
+    expect(versions.map(({ state, number, show_names }) => ({ state, number, show_names }))).toEqual([
+      { state: "published", number: 1, show_names: true },
+      { state: "draft", number: null, show_names: false },
+    ]);
+    const v = versions[0].id;
+    const units = await q(
+      `SELECT u.kind::text AS kind, u.name_en, u.advisory, p.name_en AS parent, d.name_en AS department
+       FROM org_units u LEFT JOIN org_units p ON p.id = u.parent_id LEFT JOIN departments d ON d.id = u.department_id WHERE u.version_id = $1 ORDER BY u.code`,
+      [v],
+    );
+    expect(units).toEqual([
+      { kind: "board", name_en: "Board of directors", advisory: false, parent: null, department: null },
+      { kind: "executive", name_en: "Chief executive", advisory: false, parent: "Board of directors", department: null },
+      { kind: "unit", name_en: "Internal audit", advisory: true, parent: "Chief executive", department: null },
+      { kind: "department", name_en: "Board secretariat", advisory: false, parent: "Chief executive", department: "Board secretariat" },
+      { kind: "department", name_en: "Legal affairs", advisory: false, parent: "Chief executive", department: "Legal affairs" },
+      { kind: "department", name_en: "Finance", advisory: false, parent: "Chief executive", department: "Finance" },
+      { kind: "section", name_en: "Accounts", advisory: false, parent: "Finance", department: null },
+    ]);
+    expect((await q(`SELECT count(*)::int AS n FROM positions WHERE version_id = $1`, [v]))[0].n).toBe(12);
+    const vacant = await q(
+      `SELECT p.title_en FROM positions p WHERE p.version_id = $1 AND NOT EXISTS (
+         SELECT 1 FROM position_holders h WHERE h.position_lineage_id = p.lineage_id AND h.from_date <= app_firm_today() AND (h.to_date IS NULL OR h.to_date >= app_firm_today()))`,
+      [v],
+    );
+    expect(vacant).toEqual([{ title_en: "Legal counsel" }]);
+    const holders = await q(
+      `SELECT count(*) FILTER (WHERE u.email LIKE '%@nukhba.test')::int AS accounts, count(*) FILTER (WHERE h.name IS NOT NULL)::int AS typed
+       FROM position_holders h LEFT JOIN "user" u ON u.id = h.user_id WHERE h.org_id = $1`,
+      [nukhba.id],
+    );
+    expect(holders).toEqual([{ accounts: 5, typed: 6 }]);
+  });
+
   it("has one indicator whose latest value moved away from its baseline, told once to the lead, the deputy and the client admin (4b)", async () => {
     const told = await q(
       `SELECT u.email, k.name_en, v.value::float AS value FROM notifications n

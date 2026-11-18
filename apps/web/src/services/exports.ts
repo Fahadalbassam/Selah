@@ -14,7 +14,10 @@ import { renderClosureHtml } from "@/lib/closure-html";
 import { dayText, filesText, receiptText } from "@/lib/deliverables";
 import { listDeliverables } from "./deliverables";
 import { indicatorTable } from "@/lib/indicator-html";
+import { pdfPages, renderOrgChartPdfHtml, treeLabels, versionWords, type PaperSize } from "@/lib/org-chart-html";
+import { buildTree, chartLevels, parseDepth } from "@/lib/org-chart-tree";
 import { indicatorSnapshot } from "./indicators";
+import { getStructure } from "./org-chart";
 import { renderReportHtml } from "@/lib/report-html";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { NotFoundError, RateLimitError } from "@/server/errors";
@@ -476,6 +479,79 @@ export async function clientReportPdf(tx: Tx, principal: Principal, clientOrgId:
     meta: { format: "pdf", projects: data.projects.length },
   });
   return { bytes, fileName: fileName("selah-client-report", "pdf"), contentType: "application/pdf" };
+}
+
+export interface OrgChartPdfOptions {
+  /** "draft" (the firm only), a version's id, or nothing for the current version. */
+  version?: string;
+  size: PaperSize;
+  /** A level of the structure, or nothing for every level. */
+  depth?: string;
+  /** With the names the reader may see, or without any name. */
+  names: boolean;
+}
+
+/**
+ * The client's organisation structure as a PDF (org chart, part 2): the same
+ * drawing as the Structure tab, A3 or A4 landscape, an overview page then one
+ * page per top-level department, and a footer with the version, the day it
+ * took effect, the day printed and the client's name. It reads through
+ * getStructure, so it holds exactly what the reader's tab holds: names only
+ * where the database sends them, the draft only for the firm, another
+ * client's chart a 404. Without names, no holder's name at all.
+ */
+export async function orgChartPdf(
+  tx: Tx,
+  principal: Principal,
+  clientOrgId: string,
+  options: OrgChartPdfOptions,
+  locale: Locale,
+): Promise<ExportFile & { title: string }> {
+  const view = await getStructure(tx, principal, clientOrgId, options.version);
+  const shown = view.shown;
+  if (!shown) throw new NotFoundError("org chart");
+  const t = await getTranslations({ locale, namespace: "orgChart" });
+  const tr = (key: string, values?: Record<string, string | number>) => t(key as "title", values as never);
+  const ar = locale === "ar";
+  const day = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
+  const depth = parseDepth(options.depth, chartLevels(shown.units));
+  const names = options.names && shown.names !== "none";
+  const roots = buildTree(shown.units, shown.positions, { locale, depth, names });
+  const draft = shown.version.state === "draft";
+  const clientName = localName(view.client, ar);
+  // Which version, whether it is current, upcoming or replaced (when, by which), and whose holders.
+  const words = versionWords(shown.version, shown.status, names ? shown.asOf : null, tr, day);
+  const html = renderOrgChartPdfHtml({
+    locale,
+    size: options.size,
+    clientName,
+    title: tr("pdf.title"),
+    meta: words.join(" · "),
+    draftNotice: draft ? tr("draftBanner") : null,
+    // The overview, then one page per top-level department (rows wrapped, long lists in columns).
+    pages: pdfPages(roots, options.size),
+    labels: treeLabels(tr),
+  });
+  if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");
+  const footer = [clientName, ...words, tr("pdf.printed", { date: day(view.today) })].join(" · ");
+  const bytes = await renderPdf(html, { locale, footer });
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.export",
+    resourceType: "org_chart",
+    resourceId: shown.version.id,
+    outcome: "allow",
+    meta: { client: view.client.id, format: "pdf", number: shown.version.number, size: options.size, depth, names },
+  });
+  // Named after the structure, the client and the version, so two downloads never share a name.
+  const which = draft ? tr("version.draft") : tr("version.number", { n: shown.version.number ?? 0 });
+  return {
+    bytes,
+    fileName: fileName(`selah-structure-${draft ? "draft" : `v${shown.version.number}`}`, "pdf"),
+    contentType: "application/pdf",
+    title: [tr("pdf.title"), clientName, which].join(" - "),
+  };
 }
 
 /** An attachment response: no caching, and the browser must not guess the type. */

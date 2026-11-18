@@ -112,7 +112,8 @@
     "documents": "Documents",
     "activity": "Activity",
     "noRecs": "No recommendations yet.",
-    "noDocs": "No documents.",
+    "noRecsClient": "No recommendations for you yet.",
+    "noDocs": "No documents for you yet.",
     "noActivity": "No activity recorded.",
     "requiredEvidence": "Required evidence",
     "priority": "Priority",
@@ -121,7 +122,7 @@
     "changed": "moved {from} to {to}",
     "internalBanner": "Internal project: no client can see it.",
     "meetings": "Meetings",
-    "noMeetings": "No meetings yet.",
+    "noMeetings": "No meetings for you yet.",
     "assessments": "Assessments",
     "noAssessments": "No assessments yet.",
     "noAssessmentsClient": "No assessment has been shared with you yet.",
@@ -470,6 +471,7 @@
     "confirm": "Confirm",
     "saving": "Saving…",
     "draftNotice": "Not visible to the client until you release it. Comments here become visible to the client after release.",
+    "draftNoticeReader": "Not visible to the client until it is released. Comments here become visible to the client after release.",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "Someone else changed this action. Reload to see the latest.",
@@ -1284,7 +1286,7 @@
       "wholeProject": "The whole project",
       "departmentHint": "A department's meeting gets an agenda of that department's work only. A whole-project meeting opens only for people who see all of the project's work.",
       "departmentOnlyHint": "A whole-project meeting opens only for people who see all of the project's work, so you book one for one of your departments.",
-      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. You can still save it.",
+      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. They still get the calendar invitation when it is sent, with the title, time, link and who is invited, not the agenda. You can still save it.",
       "makeDepartmentMeeting": "Make it a {department} meeting",
       "leftOutNoOffer": "To include them, book a meeting for their department instead.",
       "leftOutNoDepartment": "{n, plural, one {Someone in no department is not included by any department's meeting either: have them added to a department first, or leave them out.} other {People in no department are not included by any department's meeting either: have them added to a department first, or leave them out.}}",
@@ -1614,7 +1616,7 @@
   },
   "metrics": {
     "tab": "Progress",
-    "hint": "Counted from the work itself: actions, reviews and evidence. The client's admins and managers see the same numbers.",
+    "hint": "Counted from the work itself: actions, reviews and evidence. Each person sees the figures for the work they may see.",
     "implemented": "Implemented",
     "implementedOf": "{verified} of {applies} actions that still apply are verified",
     "noneYet": "No released actions yet.",
@@ -2900,7 +2902,7 @@
         "actionDetails": "What is needed. Optional.",
         "owner": "A person on the project team, by name or email. For clients the firm manages, the person's name (or job title).",
         "department": "One of the client's departments, if it uses them. Optional.",
-        "dueDate": "Needed to send the action to its owner. Same formats as above.",
+        "dueDate": "Needed to release the action to its owner. Same formats as above.",
         "evidence": "What the client must send, one item per line or separated by semicolons. Optional."
       }
     }
@@ -2959,13 +2961,13 @@
       "newFindings": "New findings",
       "newRecommendations": "New recommendations",
       "actions": "Actions",
-      "released": "{n} sent to their owners",
+      "released": "{n} released to their owners",
       "drafts": "All as drafts",
       "needFix": "Rows that need a fix",
       "toCheck": "{n} to check",
       "visibility": "Who sees the new findings and recommendations",
-      "release": "Send actions that have an owner and a due date to their owners now",
-      "releaseHint": "They are told straight away. Every other action stays a draft, which the client doesn't see and owners aren't told about until the firm sends it.",
+      "release": "Release actions that have an owner and a due date to their owners now",
+      "releaseHint": "They are told straight away. Every other action stays a draft, which the client doesn't see and owners aren't told about until the firm releases it.",
       "include": "Import row {n}",
       "line": "Row",
       "plan": "Finding and recommendation",
@@ -2985,7 +2987,7 @@
       "createsFinding": "New finding",
       "createsRecommendation": "New recommendation",
       "createsDraft": "Draft action",
-      "createsRelease": "Action sent to its owner",
+      "createsRelease": "Action released to its owner",
       "createsNothing": "Nothing new",
       "backToColumns": "Back to the columns",
       "import": "Import",
@@ -3015,7 +3017,7 @@
       "recommendationDiffers": "{field} differs from an earlier row of the same recommendation; the first is kept.",
       "actionExists": "This action is already in the project.",
       "actionRepeated": "The same action appears twice in the file.",
-      "staysDraft": "Stays a draft: it needs an owner and a future due date to be sent.",
+      "staysDraft": "Stays a draft: it needs an owner and a future due date to be released.",
       "filled": "{field} taken from the row above."
     },
     "errors": {
@@ -3530,7 +3532,7 @@
     "hintClient": "What the firm needs from you for this project.",
     "overdueCount": "{n} overdue",
     "emptyFirm": "Nothing requested yet. Start from the list or add your own item.",
-    "emptyClient": "The firm hasn't asked for anything yet.",
+    "emptyClient": "No requests for you yet.",
     "add": "Add item",
     "fromList": "Add from the starting list",
     "fromListHint": "Pick what this client should send. Items already on the list are ticked. The owner and due date apply to all of them, and you can change each item later.",
@@ -3973,6 +3975,7 @@
       "org_chart_request_read": "Read suggested changes to the organisation structure",
       "org_chart_request_create": "Suggested a change to the organisation structure",
       "org_chart_request_close": "Answered a suggested change to the organisation structure",
+      "org_chart_export": "Organisation structure exported as a PDF",
       "deliverable_hand_over": "Deliverable handed over",
       "deliverable_receipt": "Deliverable receipt confirmed",
       "deliverable_receipt_record": "Deliverable receipt recorded for the client",
@@ -4506,6 +4509,7 @@
     "actions": "Actions",
     "actionsHint": "The work that carries this recommendation out.",
     "noActions": "No actions yet.",
+    "noActionsClient": "No actions for you yet.",
     "actionsLeftOut": "{n, plural, one {# more action is not shown to you} other {# more actions are not shown to you}}"
   },
   "oversight": {
@@ -4951,6 +4955,7 @@
     "empty": "No indicators yet.",
     "inactiveList": "{n, plural, one {# switched-off indicator} other {# switched-off indicators}}",
     "claimNote": "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it.",
+    "claimNoteClient": "Your company's reported figures, not verified impact. A change in an indicator is not proof that a recommendation caused it.",
     "movement": {
       "none": "No value yet",
       "better": "Better than baseline",
@@ -5195,6 +5200,7 @@
       "empty": "Nothing received yet."
     },
     "claimNote": "These are figures the client reports from its own records. They are not verified impact, and a change is not proof that a recommendation caused it.",
+    "claimNoteClient": "Your company's reported figures, not verified impact. A change is not proof that a recommendation caused it.",
     "sources": {
       "title": "Indicators and their codes",
       "hint": "A code makes matching exact when your exports or systems use their own names. Without one, an indicator is matched by its Arabic or English name.",
@@ -5451,6 +5457,73 @@
   "orgChart": {
     "errors": {
       "draftChanged": "This draft is no longer the current one. Reload the page."
+    },
+    "tabs": {
+      "label": "Client pages",
+      "overview": "Overview",
+      "departments": "Departments",
+      "structure": "Structure"
+    },
+    "clientTabs": {
+      "label": "Departments and structure",
+      "departments": "Departments",
+      "structure": "Structure"
+    },
+    "title": "Organisation structure",
+    "titleClient": "Your company's structure",
+    "hint": "This client's structure as the firm drew it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF.",
+    "hintClient": "Your company's structure as your consultants published it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF to print.",
+    "notPublished": "Nothing has been published to the client yet.",
+    "draftBanner": "The firm's draft: the client does not see it.",
+    "emptyDraft": "This draft has no units yet.",
+    "version": {
+      "number": "Version {n}",
+      "current": "Version {n}, current",
+      "draft": "Draft",
+      "unpublished": "Unpublished draft",
+      "effective": "In effect from {date}",
+      "upcoming": "Takes effect on {date}",
+      "published": "Published on {date} by {name}",
+      "replaced": "Replaced on {date} by version {by}",
+      "replacedSoon": "Version {by} takes effect on {date}",
+      "asOf": "Who held each position on {date}",
+      "others": "Other versions:"
+    },
+    "depth": {
+      "label": "Levels",
+      "upTo": "Down to level {n}",
+      "all": "All"
+    },
+    "names": {
+      "branch": "You see the names of the people in your own department and in the positions above it.",
+      "hidden": "Your company does not show the names of the people in positions to its managers.",
+      "noDepartment": "Managers see names only in their own department's part of the structure and above it, and you have no department in it.",
+      "departmentsOff": "Managers see names only within their own departments, and your company does not use departments in Selah.",
+      "history": "Earlier versions show the positions only, without names.",
+      "minimal": "Positions only: this client keeps minimal records, so no names are kept."
+    },
+    "tree": {
+      "label": "Organisation structure",
+      "vacant": "Vacant",
+      "reportsTo": "Reports to: {title}",
+      "moreLevels": "Lower levels not shown",
+      "ownPage": "Details on its own page",
+      "advisory": "advisory unit"
+    },
+    "pdf": {
+      "button": "Download PDF",
+      "dialogTitle": "Download the structure as a PDF",
+      "dialogHint": "An overview page, then one page for each department.",
+      "paper": "Paper",
+      "a3": "A3 landscape",
+      "a4": "A4 landscape",
+      "levels": "Levels",
+      "names": "Names",
+      "withNames": "With names",
+      "withoutNames": "Without names",
+      "download": "Download",
+      "title": "Organisation structure",
+      "printed": "Printed on {date}"
     }
   }
 }

@@ -1,0 +1,61 @@
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
+import { StructureBody, shownDepth, shownParam } from "@/components/org-chart/structure-body";
+import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
+import { PageHeader } from "@/components/page-header";
+import { isUuid } from "@/lib/ids";
+import { localName } from "@/lib/names";
+import { withPrincipal } from "@/server/page";
+import { canReadDepartments } from "@/services/engagement";
+import { getStructure, hasStructure } from "@/services/org-chart";
+import { ClientTabs } from "../client-tabs";
+
+// A client's organisation structure, firm side, read only (org chart, part 2):
+// the current version, the firm's draft (marked, never shown to the client)
+// and the history. For the firm admin, the client's lead and deputy, and
+// consultants staffed on its projects, observers included, once there is a
+// published version or a draft with units; anyone else, or before then, 404.
+export default async function ClientStructurePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ version?: string; depth?: string }>;
+}) {
+  const { id } = await params;
+  if (!isUuid(id)) notFound();
+  const { version, depth } = await searchParams;
+  const data = await withPrincipal(async (tx, principal) => {
+    // No tab and no page until there is a structure this person may read.
+    if (principal.orgKind !== "firm" || !(await hasStructure(tx, principal, id))) return null;
+    return { structure: await getStructure(tx, principal, id, version ?? null), departments: canReadDepartments(principal, id) };
+  });
+  if (!data?.structure.shown) notFound();
+  const { structure } = data;
+  const t = await getTranslations("orgChart");
+  const ar = (await getLocale()) === "ar";
+  const { levels, depth: shownLevels } = shownDepth(structure, depth);
+  return (
+    <>
+      <Link href={`/clients/${id}`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4 rtl:-scale-x-100" />
+        {localName(structure.client, ar)}
+      </Link>
+      <ClientTabs clientId={id} current="structure" structure departments={data.departments} />
+      <PageHeader title={t("title")} description={t("hint")}>
+        {structure.shown?.units.length ? (
+          <StructurePdfButton
+            endpoint={`/api/clients/${id}/structure/pdf`}
+            version={shownParam(structure)}
+            levels={levels}
+            depth={shownLevels}
+            names={structure.shown.names !== "none"}
+          />
+        ) : null}
+      </PageHeader>
+      <StructureBody structure={structure} base={`/clients/${id}/structure`} depthParam={depth} audience="firm" />
+    </>
+  );
+}

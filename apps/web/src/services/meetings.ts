@@ -278,21 +278,29 @@ export async function meetingInvitees(tx: Tx, principal: Principal, projectId: s
 
 export async function getMeeting(tx: Tx, principal: Principal, id: string) {
   const { meeting, resource } = await loadMeeting(tx, principal, id);
-  // Contact names come through RLS: only the firm sees them.
-  const attendees = await tx
+  // Contact names come through RLS: only the firm sees them. A person's name
+  // comes with the meeting, not the user-row rule: whoever may open the
+  // meeting reads its attendees' names, and nothing else about them
+  // (app_meeting_attendee_names, migration 0093).
+  const rows = await tx
     .select({
       id: meetingAttendees.id,
       userId: meetingAttendees.userId,
       contactId: meetingAttendees.contactId,
-      name: sql<string | null>`coalesce(${user.name}, ${clientContacts.name})`,
+      contactName: clientContacts.name,
       role: meetingAttendees.role,
       response: meetingAttendees.response,
     })
     .from(meetingAttendees)
-    .leftJoin(user, eq(user.id, meetingAttendees.userId))
     .leftJoin(clientContacts, eq(clientContacts.id, meetingAttendees.contactId))
     .where(eq(meetingAttendees.meetingId, id))
     .orderBy(asc(meetingAttendees.createdAt));
+  const { rows: names } = await tx.execute<{ user_id: string; name: string }>(sql`select user_id, name from app_meeting_attendee_names(${id})`);
+  const nameOf = new Map(names.map((n) => [n.user_id, n.name]));
+  const attendees = rows.map(({ contactName, ...a }) => ({
+    ...a,
+    name: (a.userId ? nameOf.get(a.userId) : contactName) ?? null,
+  }));
   const decisions = await tx
     .select()
     .from(meetingDecisions)
