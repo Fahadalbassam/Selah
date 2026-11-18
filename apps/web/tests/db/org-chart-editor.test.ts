@@ -630,6 +630,35 @@ describe("the invite form's position", () => {
     return as(null, (c) => c.query(`SELECT app_accept_invitation(repeat('a', 63) || $1, $2)`, [uid.slice(-1), uid]), true);
   };
 
+  it("accepting while a publish holds the chart waits for it, never deadlocks, then places the person (R1)", async () => {
+    const LOCKCO = id(66);
+    const ladmin = id(68);
+    const pos = await smallClient(LOCKCO, id(67), ladmin, "Lock Co", ["Chair", "Seat"]);
+    const inv = await svc(ladmin, (tx, p) => invite(tx, p, { orgId: LOCKCO, email: "seat@example.test", name: "Seat", role: "client_manager", positionId: pos.Seat! }), true);
+    await owner.query(`UPDATE invitations SET token_hash = repeat('a', 63) || 'f' WHERE id = $1`, [inv.id]);
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1, 'Seat Person', 'seat@example.test')`, [id(73)]);
+    const chart = (await owner.query(`SELECT id FROM org_charts WHERE org_id = $1`, [LOCKCO])).rows[0].id;
+    // A publish's order: the chart's lock first, then the client's row (its new version's foreign key).
+    const publisher = await owner.connect();
+    let accepted: Promise<unknown> | null = null;
+    try {
+      await publisher.query(`BEGIN`);
+      await publisher.query(`SELECT pg_advisory_xact_lock(hashtext('org_chart'), hashtext($1::text))`, [chart]);
+      accepted = as(null, (c) => c.query(`SELECT app_accept_invitation(repeat('a', 63) || 'f', $1)`, [id(73)]), true);
+      accepted.catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 400));
+      await publisher.query(`SELECT 1 FROM organizations WHERE id = $1 FOR KEY SHARE`, [LOCKCO]);
+      await publisher.query(`COMMIT`);
+    } catch (e) {
+      await publisher.query(`ROLLBACK`);
+      throw e;
+    } finally {
+      publisher.release();
+    }
+    await accepted;
+    expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE user_id = $1 AND to_date IS NULL`, [id(73)])).rows[0].n).toBe(1);
+  });
+
   it("offers vacant positions only; accepting the invitation starts the holding from that day, and the lead is told", async () => {
     await expect(svc(U.cadmin, (tx, p) => invite(tx, p, { orgId: ACME, email: "taken@example.test", name: "X", role: "action_owner", positionId: POS.cfo! }))).rejects.toThrow(
       /position/,
@@ -657,7 +686,7 @@ describe("the invite form's position", () => {
     await accept(inv.id, "counsel@example.test", id(70));
     const held = (await owner.query(`SELECT user_id, from_date::text AS f, to_date, created_by FROM position_holders WHERE position_lineage_id = $1`, [POS.counsel])).rows;
     expect(held).toEqual([{ user_id: id(70), f: today(), to_date: null, created_by: U.cadmin }]);
-    expect((await owner.query(`SELECT actor_id, meta->>'invitation' AS inv FROM audit_log WHERE action = 'org_chart.holder_start' AND meta->>'invitation' IS NOT NULL`)).rows).toEqual([
+    expect((await owner.query(`SELECT actor_id, meta->>'invitation' AS inv FROM audit_log WHERE action = 'org_chart.holder_start' AND meta->>'invitation' IS NOT NULL AND meta->>'client' = $1`, [ACME])).rows).toEqual([
       { actor_id: id(70), inv: inv.id },
     ]);
     expect((await owner.query(`SELECT user_id FROM notifications WHERE kind = 'org_chart.holder_changed' ORDER BY user_id`)).rows.map((r) => r.user_id)).toEqual(

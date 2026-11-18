@@ -108,16 +108,20 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM "user" u WHERE u.id = new_user AND lower(u.email) = inv.email) THEN
     RAISE EXCEPTION 'the account does not match the invitation' USING ERRCODE = 'SL400';
   END IF;
+  -- The chart's lock before anything else (R1 of the part 3 re-check): a publish takes it first and
+  -- then the client's row, which the membership below locks, so taking it later could deadlock.
+  IF inv.position_lineage_id IS NOT NULL THEN
+    SELECT v.chart_id INTO lchart FROM positions p JOIN org_chart_versions v ON v.id = p.version_id WHERE p.id = inv.position_lineage_id;
+    IF lchart IS NOT NULL THEN
+      PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(lchart::text));
+    END IF;
+  END IF;
   INSERT INTO org_memberships (user_id, org_id, role) VALUES (new_user, inv.org_id, inv.role);
   UPDATE invitations SET accepted_at = now(), accepted_user_id = new_user WHERE id = inv.id;
   INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
     VALUES (new_user, inv.org_id, 'invitation.accept', 'invitation', inv.id, 'allow', jsonb_build_object('invited_by', inv.invited_by));
   IF inv.position_lineage_id IS NOT NULL THEN
-    -- The chart's lock first, then the check: a publish under way finishes before it.
-    SELECT v.chart_id INTO lchart FROM positions p JOIN org_chart_versions v ON v.id = p.version_id WHERE p.id = inv.position_lineage_id;
-    IF lchart IS NOT NULL THEN
-      PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(lchart::text));
-    END IF;
+    -- Under the chart's lock: a publish under way has finished, so the check sees what it published.
     SELECT p.id, p.planned_count, v.chart_id INTO pos
     FROM positions p JOIN org_chart_versions v ON v.id = p.version_id JOIN organizations o ON o.id = v.org_id
     WHERE p.lineage_id = inv.position_lineage_id AND v.org_id = inv.org_id AND v.state = 'published'
