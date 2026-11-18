@@ -22,7 +22,7 @@ import { loadProject } from "./staffing";
 // access, except…" or "only these people…", on documents (never evidence)
 // and meetings. It can only take people away: the database ANDs it onto
 // every other rule (restrictive policies and app_audience_ok(), migration
-// 0111), authorize() asks it as its sixth question, and the people who always
+// 0095), authorize() asks it as its sixth question, and the people who always
 // see an item are worked out by the database, live, never sent by the page.
 
 /** An item's audience as the picker gets it, for the people who may change it. */

@@ -32,7 +32,7 @@ import type { Decision, Principal, Resource } from "./types";
  *                   no: whoever always sees the item passes, and nobody gets
  *                   in who the five questions kept out. It repeats what
  *                   row-level security decides, and is a guard only: the
- *                   restrictive policies (migrations 0111, 0118) hide the item
+ *                   restrictive policies (migration 0095) hide the item
  *                   from someone left out before any service builds a
  *                   resource, and the database tells the services nothing
  *                   about who is left out (app_audience_mine() answers only

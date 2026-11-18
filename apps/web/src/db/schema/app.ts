@@ -872,7 +872,7 @@ export const documentShares = pgTable(
 // Who sees an item (decision of 17 Nov 2026, feature A): "everyone with
 // access, except…" or "only these people…", on documents (never evidence)
 // and meetings. It only takes people away: the restrictive policies of
-// migration 0111 (app_audience_ok) AND it onto the other rules, and the
+// migration 0095 (app_audience_ok) AND it onto the other rules, and the
 // people who always see the item are worked out live, never stored. No row
 // means everyone with access. Every version of a file carries the same rows.
 export const itemAudiences = pgTable(

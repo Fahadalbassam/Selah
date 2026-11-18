@@ -1,6 +1,6 @@
 // Who sees an item (decision of 17 Nov 2026, feature A, part 2) against a real
 // Postgres: "everyone with access, except…" and "only these people…" on
-// documents (never evidence) and meetings (migrations 0110, 0111).
+// documents (never evidence) and meetings (migrations 0094, 0095).
 //   - The database twin of the never-widen property: for every seeded user,
 //     the rows they read with the audiences set are a subset of the rows they
 //     read without them, on every table the policy is on.
