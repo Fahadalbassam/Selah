@@ -5299,7 +5299,7 @@
       "lead": "The lead consultant always sees it, so the work never stalls.",
       "deputy": "The lead's deputy always sees it, so the work never stalls.",
       "organiser": "The meeting's organiser always sees it.",
-      "requiredAttendee": "Required attendees always see the meeting.",
+      "invited": "Invited to this meeting",
       "clientAdminYours": "Your company's admin always sees everything for your company."
     },
     "errors": {
@@ -5308,7 +5308,7 @@
       "cannotSee": "Pick only people who can already see it.",
       "ownPeople": "On your company's own items, pick among your company's people; the firm's team always sees them.",
       "invitedLeftOut": "Someone invited is left out of this meeting: take them off the invitations or the list.",
-      "requiredAttendee": "Someone you're leaving out is a required attendee: make them optional or take them off the meeting first.",
+      "invited": "Someone you're leaving out is invited to this meeting: take them off the meeting first.",
       "followUp": "Someone you're leaving out has an open follow-up on this meeting: give it to someone else first.",
       "closed": "The project is closed, so who sees its items doesn't change.",
       "archived": "This file is archived, so who sees it doesn't change.",

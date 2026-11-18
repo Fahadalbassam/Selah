@@ -174,8 +174,8 @@ export function MeetingForm(props: {
   // Saving anyway is allowed; the server decides who opens it.
   const leftOut = editing ? [] : leftOutOfMeeting([...firmPeople, ...clientPeople], people, dept || null);
   const offers = departmentsToOffer(leftOut, props.departments ?? []).slice(0, 3);
-  // The people who would see it, from the server, for what the form says now (everyone invited is a
-  // required attendee); for a meeting already booked, its own list.
+  // The people who would see it, from the server, for what the form says now (everyone invited
+  // always sees it); for a meeting already booked, its own list.
   const invited = [...people].sort();
   const audienceUrl = !props.audience
     ? null
@@ -183,7 +183,7 @@ export function MeetingForm(props: {
       ? `/api/meetings/${props.meetingId}/audience`
       : `/api/projects/${props.projectId}/audience?kind=meeting&visibility=${props.firm && !shared ? "firm_private" : "shared"}${
           dept ? `&departmentId=${dept}` : ""
-        }${invited.length ? `&attendees=${invited.join(",")}&required=${invited.join(",")}` : ""}`;
+        }${invited.length ? `&attendees=${invited.join(",")}` : ""}`;
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setAudience({ value: null, dirty: false }))}>

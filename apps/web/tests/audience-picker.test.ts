@@ -246,8 +246,8 @@ describe("when the form changes who can see the item (reconcileAudience)", () =>
     expect(reconcileAudience("only", ["me", "khaled"], firmOnly)).toEqual({ selected: ["me"], dropped: ["khaled"] });
   });
 
-  it("drops from a list of people left out someone who now always sees it (invited as a required attendee)", () => {
-    const invited = people.map((p) => (p.id === "huda" ? { ...p, locked: "requiredAttendee" as const } : p));
+  it("drops from a list of people left out someone who now always sees it (invited to the meeting)", () => {
+    const invited = people.map((p) => (p.id === "huda" ? { ...p, locked: "invited" as const } : p));
     expect(reconcileAudience("except", ["huda", "khaled"], invited)).toEqual({ selected: ["khaled"], dropped: ["huda"] });
     // On an "only" list a locked person stays (they see it anyway).
     expect(reconcileAudience("only", ["huda", "khaled"], invited)).toEqual({ selected: ["huda", "khaled"], dropped: [] });
@@ -277,7 +277,7 @@ describe("the server's refusals, said plainly (audienceRefusal)", () => {
       ["pick only people who can already see it", "cannotSee"],
       ["on your company's own items, choose among your company's people", "ownPeople"],
       ["someone is invited and left out of this meeting: take them off the invitations or the list", "invitedLeftOut"],
-      ["that person is a required attendee: make them optional or take them off the meeting first", "requiredAttendee"],
+      ["that person is invited to this meeting: take them off the meeting first", "invited"],
       ["that person has an open follow-up on this meeting: give it to someone else first", "followUp"],
       ['an "only" list needs at least one person', "onlyEmpty"],
       ["this project is closed", "closed"],

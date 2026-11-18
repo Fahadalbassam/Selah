@@ -136,7 +136,7 @@ export interface Resource {
  * ("except") or the only ones let in ("only"); `locked` those who always see
  * it whatever the list says (the setter, the uploader, the client's admin,
  * the firm admin, the client's lead and deputy, a meeting's organiser and
- * required attendees), worked out live by the database. A service may give
+ * everyone invited to it), worked out live by the database. A service may give
  * only the part about the person asking: authorize() asks about nobody else.
  */
 export interface ResourceAudience {

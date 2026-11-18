@@ -2,7 +2,7 @@
 // reachable from the app role). Each run claims due rows with SKIP LOCKED,
 // so two senders never send the same mail; a claim lasts 10 minutes, so a
 // sender that dies mid-run leaves its rows to be tried again.
-import { buildIcs } from "../lib/ics";
+import { buildAttendeeCancel, buildIcs } from "../lib/ics";
 import { MAX_ATTEMPTS, renderMail, retryDelayMinutes, type MailKind } from "../lib/mail-templates";
 
 interface Queryable {
@@ -56,11 +56,12 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
   const result: MailRunResult = { sent: 0, failed: 0, withdrawn: 0 };
   for (const row of rows) {
     try {
-      // Who sees the meeting may have changed since this mail was queued, or since this run
-      // claimed it (feature A): asked again just before it goes. Never sent to someone left
-      // out; the row is kept, marked withdrawn (nothing is deleted).
+      // Who is on the meeting and who sees it may have changed since this mail was queued, or
+      // since this run claimed it (feature A): asked again just before it goes. Never sent to
+      // someone left out or taken off it (but her own cancellation); the row is kept, marked
+      // withdrawn (nothing is deleted).
       if (row.meeting_id) {
-        const { rows: ok } = await db.query<{ ok: boolean }>(`SELECT app_meeting_mail_ok($1, $2) AS ok`, [row.meeting_id, row.to_email]);
+        const { rows: ok } = await db.query<{ ok: boolean }>(`SELECT app_meeting_mail_ok($1, $2, $3) AS ok`, [row.meeting_id, row.to_email, row.kind]);
         if (!ok[0]?.ok) {
           await db.query(`UPDATE outbound_emails SET withdrawn_at = coalesce(withdrawn_at, now()), next_attempt_at = NULL WHERE id = $1`, [row.id]);
           result.withdrawn++;
@@ -69,7 +70,7 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
       }
       const mail: OutgoingMail = { to: row.to_email, ...renderMail(row.kind, row.link, appUrl, row.reference) };
       if (row.meeting_id) {
-        const ics = await meetingIcs(db, row.meeting_id);
+        const ics = await meetingIcs(db, row.meeting_id, row.kind, row.to_email);
         if (ics) mail.icalEvent = ics;
       }
       await deliver(mail);
@@ -92,8 +93,9 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
 }
 
 // The invite as it stands when the mail goes out, so a meeting moved after
-// the invite was queued goes out with its new time.
-async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMail["icalEvent"] | null> {
+// the invite was queued goes out with its new time. The cancellation for
+// someone taken off the meeting is hers alone, with nothing she was not sent.
+async function meetingIcs(db: Queryable, meetingId: string, kind: MailKind, to: string): Promise<OutgoingMail["icalEvent"] | null> {
   const { rows } = await db.query<{
     ics_uid: string;
     ics_sequence: number;
@@ -121,6 +123,10 @@ async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMai
      WHERE a.meeting_id = $1`,
     [meetingId],
   );
+  const organizer = { name: m.organizer_name, email: m.organizer_email };
+  if (kind === "meeting.removed") {
+    return { method: "CANCEL", content: buildAttendeeCancel({ uid: m.ics_uid, sequence: m.ics_sequence, organizer, email: to, at: new Date() }) };
+  }
   const content = buildIcs({
     uid: m.ics_uid,
     sequence: m.ics_sequence,
@@ -130,7 +136,7 @@ async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMai
     endsAt: m.ends_at,
     joinUrl: m.join_url,
     locationText: m.location_text,
-    organizer: { name: m.organizer_name, email: m.organizer_email },
+    organizer,
     attendees: attendees.rows
       .filter((a) => a.email && a.user_id !== m.organizer_id)
       .map((a) => ({ name: a.name, email: a.email!, optional: a.role === "optional" })),

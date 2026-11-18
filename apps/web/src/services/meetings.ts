@@ -129,18 +129,14 @@ export async function bookMeeting(
   const { project, resource } = await loadProject(tx, principal, projectId);
   const visibility = input.visibility ?? "shared";
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility });
-  // Inviting someone the same booking leaves out is refused, as inviting them afterwards is
-  // (feature A; review S2): named on an "except" list, or an optional invitee missing from an
-  // "only" list (a required one always sees the meeting). Before anything is written.
-  if (audience && audience.mode !== "everyone") {
+  // Everyone invited always sees the meeting (feature A; re-check S9): a booking that names an
+  // invitee on its "except" list is refused before anything is written (review S2). An "only"
+  // list that misses an invitee is fine: they see it anyway. The database refuses the same.
+  if (audience?.mode === "except") {
     const listed = new Set(audience.people);
-    const leftOut = attendees.some(
-      (a) =>
-        a.userId &&
-        a.userId !== principal.userId &&
-        (audience.mode === "except" ? listed.has(a.userId) : !listed.has(a.userId) && a.optional),
-    );
-    if (leftOut) throw new BadRequestError("someone is invited and left out of this meeting: take them off the invitations or the list");
+    if (attendees.some((a) => a.userId && a.userId !== principal.userId && listed.has(a.userId))) {
+      throw new BadRequestError("someone is invited and left out of this meeting: take them off the invitations or the list");
+    }
   }
   if (principal.orgKind === "client" && visibility !== "shared") throw new BadRequestError("client meetings are shared");
   if (input.departmentId) {
@@ -603,6 +599,8 @@ export async function removeAttendee(tx: Tx, principal: Principal, id: string, a
   const [attendee] = await tx.select({ userId: meetingAttendees.userId }).from(meetingAttendees).where(where);
   if (!attendee) throw new NotFoundError("attendee");
   if (attendee.userId === meeting.organizerId) throw new BadRequestError("the organiser stays on the meeting");
+  // The database withdraws her invitation if it is not sent yet, or queues the cancellation for
+  // her alone if it reached her calendar (feature A, re-check S9; trigger attendee_removed).
   await tx.delete(meetingAttendees).where(where);
   return { ok: true };
 }

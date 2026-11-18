@@ -29,7 +29,7 @@ export const AUDIENCE_LOCK_REASONS = [
   "lead",
   "deputy",
   "organiser",
-  "requiredAttendee",
+  "invited",
 ] as const;
 export type AudienceLockReason = (typeof AUDIENCE_LOCK_REASONS)[number];
 
@@ -128,7 +128,7 @@ export function reconcileAudience(
 /** Why the server refused an audience, as a message key under `audience.errors`. */
 export const AUDIENCE_REFUSALS = [
   ["already used as evidence", "usedAsEvidence"],
-  ["required attendee", "requiredAttendee"],
+  ["invited to this meeting", "invited"],
   ["open follow-up", "followUp"],
   ["invited and left out", "invitedLeftOut"],
   ["always sees it", "locked"],

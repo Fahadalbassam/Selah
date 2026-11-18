@@ -22,7 +22,6 @@ export const GET = route(
       visibility: z.enum(["shared", "firm_private", "client_private"]),
       departmentId: z.uuid().optional(),
       attendees: ids,
-      required: ids,
     }),
   },
   ({ tx, principal, params, query }) =>
@@ -30,6 +29,5 @@ export const GET = route(
       visibility: query.visibility,
       departmentId: query.departmentId ?? null,
       attendees: query.attendees,
-      required: query.required,
     }),
 );

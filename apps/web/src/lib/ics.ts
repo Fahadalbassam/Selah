@@ -79,3 +79,28 @@ export function buildIcs(m: IcsMeeting): string {
   ];
   return lines.map(fold).join("\r\n") + "\r\n";
 }
+
+/**
+ * One person taken off a meeting that goes ahead: a CANCEL naming only her
+ * (RFC 5546 3.2.5, so no STATUS), which her calendar matches by UID. It
+ * carries nothing she was not sent already: no time, place, link, title or
+ * other attendees, any of which may have changed since.
+ */
+export function buildAttendeeCancel(m: { uid: string; sequence: number; organizer: { name: string; email: string }; email: string; at: Date }): string {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Selah//Meetings//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:CANCEL",
+    "BEGIN:VEVENT",
+    `UID:${m.uid}`,
+    `SEQUENCE:${m.sequence}`,
+    `DTSTAMP:${stamp(m.at)}`,
+    `ORGANIZER;CN=${param(m.organizer.name)}:mailto:${m.organizer.email}`,
+    `ATTENDEE:mailto:${m.email}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+  return lines.map(fold).join("\r\n") + "\r\n";
+}

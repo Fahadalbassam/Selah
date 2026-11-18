@@ -215,7 +215,8 @@ beforeAll(async () => {
   await svc(U.cons, (tx, p) => D.shareDocument(tx, p, DOC.firmOnly), true);
   await narrow("document", DOC.firmOnly, "except", U.cons, [U.cons2]);
 
-  // A meeting booked by the lead; then the manager and a consultant, both invited as optional, are left out.
+  // A meeting booked by the lead with one manager invited; then another manager and a consultant, who
+  // could open it but are not invited (anyone invited always sees it: re-check S9), are left out.
   MID = (
     await svc(
       U.lead,
@@ -228,7 +229,7 @@ beforeAll(async () => {
           location: "online",
           joinUrl: MEET,
           spokenLang: "en",
-          attendees: [{ userId: U.nmgr, optional: true }, { userId: U.cons2, optional: true }, { userId: U.nmgr2 }],
+          attendees: [{ userId: U.nmgr2 }],
           sendInvites: true,
         }),
       true,
@@ -493,14 +494,14 @@ describe("a person left out sees nothing of the item", () => {
     expect((await q(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.nmgr2, MID])).rows).toEqual([{ n: 1 }]);
   });
 
-  it("the mail queue holds no invite for someone left out, and mail queued before she was left out is withdrawn", async () => {
-    // Their invites were queued at booking; leaving them out (as the screens do) withdraws them, and only the others' stay to send.
+  it("the mail queue holds no invite for someone left out, and one queued before she was taken off the meeting is withdrawn", async () => {
+    // Setting it again as the screens do queues nothing for the two left out; only the invited manager's invite is there to send.
     await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr, U.cons2] }), true);
     const queued = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND withdrawn_at IS NULL`, [MID])).rows.map((r) => r.to_email);
     expect(queued).toContain(email(U.nmgr2));
     expect(queued).not.toContain(email(U.nmgr));
     expect(queued).not.toContain(email(U.cons2));
-    // A second meeting, invited before the audience is set.
+    // A second meeting, invited before the audience is set: while she is invited she can't be left out (re-check S9).
     const second = (
       await svc(
         U.lead,
@@ -519,20 +520,24 @@ describe("a person left out sees nothing of the item", () => {
       )
     ).id;
     expect((await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [second])).rows.map((r) => r.to_email)).toContain(email(U.nmgr));
-    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }), true);
-    // Withdrawn, not deleted (the product owner's decision on the review, B2).
+    await expect(svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(/invited to this meeting/);
+    // Taken off it, her invite is withdrawn, not deleted (the product owner's decision on the review, B2); then she can be left out.
+    const [her] = (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [second, U.nmgr])).rows;
+    await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, second, her.id), true);
     const after = (await q(`SELECT to_email, withdrawn_at IS NOT NULL AS withdrawn FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [second])).rows;
     expect(after).toEqual([
       { to_email: email(U.nmgr2), withdrawn: false },
       { to_email: email(U.nmgr), withdrawn: true },
     ]);
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, second, { mode: "except", people: [U.nmgr] }), true);
     await svc(U.lead, (tx, p) => M.sendInvites(tx, p, second), true);
     // Sending again queues nothing new for her.
     expect((await q(`SELECT count(*)::int AS n FROM outbound_emails WHERE meeting_id = $1 AND to_email = $2`, [second, email(U.nmgr)])).rows).toEqual([{ n: 1 }]);
   });
 
-  // The product owner's decision on the review (B2): nothing is deleted. A queued invite to someone left
-  // out is marked withdrawn and kept; the sender skips it, and checks again just before sending.
+  // The product owner's decision on the review (B2): nothing is deleted. A queued invite to someone taken
+  // off the meeting (who may then be left out: re-check S9) is marked withdrawn and kept; the sender
+  // skips it, and checks again just before sending.
   describe("the mail queue keeps a withdrawn invite and never sends it", () => {
     const bookWith = (title: string, attendees: { userId: string; optional?: boolean }[], hours: number) =>
       svc(
@@ -544,17 +549,20 @@ describe("a person left out sees nothing of the item", () => {
     const sent: OutgoingMail[] = [];
     const deliver = async (mail: OutgoingMail) => void sent.push(mail);
     const onlyThis = (mid: string) => q(`UPDATE outbound_emails SET sent_at = now() WHERE sent_at IS NULL AND meeting_id IS DISTINCT FROM $1`, [mid]);
+    const takeOff = async (mid: string, uid: string) => {
+      const [row] = (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [mid, uid])).rows;
+      await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, mid, row.id), true);
+    };
 
-    it("a queued invite is withdrawn, kept and not sent; the change is audited with the count", async () => {
+    it("an invite not sent yet is withdrawn, kept and not sent when she is taken off; no cancellation is queued", async () => {
       const mid = await bookWith("Withdrawn invite", [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }], 96);
-      await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
-      const rows = (await q(`SELECT to_email, sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows;
-      expect(rows.map((r) => [r.to_email, r.sent_at === null, r.withdrawn_at !== null])).toEqual([
-        [email(U.nmgr2), true, false],
-        [email(U.nmgr), true, true],
+      await takeOff(mid, U.nmgr);
+      const rows = (await q(`SELECT to_email, kind, sent_at, withdrawn_at FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows;
+      // No invitation reached her calendar, so there is nothing to cancel.
+      expect(rows.map((r) => [r.to_email, r.kind, r.sent_at === null, r.withdrawn_at !== null])).toEqual([
+        [email(U.nmgr2), "meeting.invite", true, false],
+        [email(U.nmgr), "meeting.invite", true, true],
       ]);
-      const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'meeting.audience' AND resource_id = $1`, [mid])).rows;
-      expect(entry.meta.withdrawnMails).toBe(1);
       await onlyThis(mid);
       sent.length = 0;
       const result = await runMail(owner, deliver, "http://selah.test");
@@ -568,7 +576,7 @@ describe("a person left out sees nothing of the item", () => {
       expect((await ownerChecks(owner)).find((c) => c.name === "mail")).toMatchObject({ ok: true });
     });
 
-    it("an invite the sender already picked up is not delivered to someone left out a moment before it goes", async () => {
+    it("an invite the sender already picked up is not delivered to someone taken off the meeting a moment before it goes", async () => {
       const mid = await bookWith("Picked-up invite", [{ userId: U.nmgr2 }], 120);
       // The organiser adds her later and sends the invites again: hers is queued after the others.
       await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
@@ -577,10 +585,10 @@ describe("a person left out sees nothing of the item", () => {
       sent.length = 0;
       let leftOut = false;
       await runMail(owner, async (mail) => {
-        // While the sender works through the batch it has claimed, the lead leaves her out.
+        // While the sender works through the batch it has claimed, the lead takes her off the meeting.
         if (!leftOut) {
           leftOut = true;
-          await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
+          await takeOff(mid, U.nmgr);
         }
         sent.push(mail);
       }, "http://selah.test");
@@ -669,9 +677,11 @@ describe("the server refuses", () => {
     for (const locked of [U.cons, U.ncadmin, U.admin, U.lead, U.deputy]) {
       await expect(set(U.cons, DOC.open, "except", [locked]), locked).rejects.toThrow(/always sees it/);
     }
-    // A meeting's organiser (who is also the lead), and a required attendee, who is told what to change first.
+    // A meeting's organiser (who is also the lead), and anyone invited to it, who is told what to change first.
     await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.lead] }))).rejects.toThrow(/always sees it/);
-    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr2] }))).rejects.toThrow(/required attendee/);
+    await expect(svc(U.cons, (tx, p) => M.setMeetingAudience(tx, p, MID, { mode: "except", people: [U.nmgr2] }))).rejects.toThrow(
+      /invited to this meeting: take them off the meeting first/,
+    );
   });
 
   it("an archived file, in the service and in the database", async () => {
@@ -723,7 +733,7 @@ describe("the server refuses", () => {
     await expect(svc(U.nmgr2, (tx, p) => M.getMeetingAudience(tx, p, MID))).rejects.toThrow(NOT_FOUND);
   });
 
-  it("leaving out a required attendee, or someone with an open follow-up on the meeting, saying what to change first", async () => {
+  it("leaving out someone invited, or someone with an open follow-up on the meeting, saying what to change first", async () => {
     const mid = (
       await svc(
         U.lead,
@@ -735,14 +745,15 @@ describe("the server refuses", () => {
             endsAt: hour(301),
             location: "online",
             joinUrl: MEET,
-            attendees: [{ userId: U.nmgr }, { userId: U.nmgr2, optional: true }],
+            attendees: [{ userId: U.nmgr, optional: true }],
           }),
         true,
       )
     ).id;
+    // The follow-up goes to a manager who is not invited.
     await svc(U.lead, (tx, p) => M.addFollowUp(tx, p, mid, { title: "Send the pay tables", assigneeUserId: U.nmgr2 }), true);
     const leave = (mode: "except" | "only", people: string[]) => svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode, people }));
-    await expect(leave("except", [U.nmgr])).rejects.toThrow(/required attendee: make them optional or take them off the meeting first/);
+    await expect(leave("except", [U.nmgr])).rejects.toThrow(/invited to this meeting: take them off the meeting first/);
     await expect(leave("except", [U.nmgr2])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
     await expect(leave("only", [U.lead, U.nmgr])).rejects.toThrow(/open follow-up on this meeting: give it to someone else first/);
     // Once the follow-up is done, she can be left out.
@@ -783,14 +794,14 @@ describe("the server refuses", () => {
     ).rejects.toThrow(/left out of this meeting/);
   });
 
-  it("booking a meeting that invites someone it leaves out in the same step", async () => {
-    const booking = (audience: { mode: "except" | "only"; people: string[] }) =>
+  it("booking a meeting that invites someone it leaves out in the same step; an \"only\" list that misses an invitee lets her in", async () => {
+    const booking = (title: string, audience: { mode: "except" | "only"; people: string[] }) =>
       svc(
         U.lead,
         (tx, p) =>
           M.bookMeeting(tx, p, PN, {
             kind: "status",
-            title: "Refused booking",
+            title,
             startsAt: hour(200),
             endsAt: hour(201),
             location: "online",
@@ -801,10 +812,17 @@ describe("the server refuses", () => {
           }),
         true,
       );
-    await expect(booking({ mode: "except", people: [U.nmgr] })).rejects.toThrow(/invited and left out/);
-    await expect(booking({ mode: "only", people: [U.lead, U.nmgr2] })).rejects.toThrow(/invited and left out/);
+    await expect(booking("Refused booking", { mode: "except", people: [U.nmgr] })).rejects.toThrow(/invited and left out/);
     // Nothing was booked or queued.
     expect((await q(`SELECT count(*)::int AS n FROM meetings WHERE title = 'Refused booking'`)).rows).toEqual([{ n: 0 }]);
+    // Everyone invited always sees it (re-check S9): the optional invitee is let in and sent her invite; nobody else is.
+    const { id: mid } = await booking("Accepted booking", { mode: "only", people: [U.lead, U.nmgr2] });
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    expect((await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email`, [mid])).rows.map((r) => r.to_email)).toEqual([
+      email(U.nmgr2),
+      email(U.nmgr),
+    ]);
   });
 
   it("a share, an invitation or a follow-up to someone left out, and none of them lifts the exclusion", async () => {
@@ -843,10 +861,11 @@ describe("the server refuses", () => {
         U.lead,
       ]),
     ).rejects.toThrow(/left out of this meeting/);
-    // Making an optional attendee who is left out required would let her in: refused too.
-    await expect(rowsAs(U.lead, `UPDATE meeting_attendees SET role = 'required' WHERE meeting_id = $1 AND user_id = $2`, [MID, U.nmgr])).rejects.toThrow(
-      /left out of this meeting/,
-    );
+    // Writing her onto the attendee list directly would let her in (everyone invited sees it): refused too.
+    await expect(
+      rowsAs(U.lead, `INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1, $2, 'optional')`, [MID, U.nmgr]),
+    ).rejects.toThrow(/left out of this meeting/);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [MID])).toEqual([]);
     expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.deliv])).toEqual([]);
   });
 });
@@ -1077,4 +1096,90 @@ describe("changing who sees an item", () => {
     ).rejects.toThrow(/always sees it/);
     expect((await q(`SELECT count(*)::int AS n FROM documents WHERE title = 'refused.pdf'`)).rows).toEqual([{ n: 0 }]);
   });
+});
+
+// ------------------------------------------------------------------ invited people (re-check S9)
+// The product owner's decision on the re-check: anyone on a meeting's attendee list, required or
+// optional, always sees it; taking her off the meeting is how she stops seeing it, and her calendar
+// is sent a cancellation.
+describe("everyone invited to a meeting sees it", () => {
+  const book = (title: string, hours: number, attendees: { userId: string; optional?: boolean }[], sendInvites = false) =>
+    svc(
+      U.lead,
+      (tx, p) => M.bookMeeting(tx, p, PN, { kind: "status", title, startsAt: hour(hours), endsAt: hour(hours + 1), location: "online", joinUrl: MEET, attendees, sendInvites }),
+      true,
+    ).then((m) => m.id);
+  const attendeeId = async (mid: string, uid: string) =>
+    (await q(`SELECT id FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [mid, uid])).rows[0].id as string;
+  const takeOff = async (mid: string, uid: string) => {
+    const aid = await attendeeId(mid, uid);
+    await svc(U.lead, (tx, p) => M.removeAttendee(tx, p, mid, aid), true);
+  };
+  const cancels = async (mid: string) =>
+    (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1 AND kind = 'meeting.removed' ORDER BY created_at`, [mid])).rows.map((r) => r.to_email);
+  const sent: OutgoingMail[] = [];
+  // Sends what is queued for this meeting only (the others' mail is marked sent first).
+  const send = async (mid: string) => {
+    await q(`UPDATE outbound_emails SET sent_at = now() WHERE sent_at IS NULL AND meeting_id IS DISTINCT FROM $1`, [mid]);
+    sent.length = 0;
+    return runMail(owner, async (mail) => void sent.push(mail), "http://selah.test");
+  };
+
+  it("an optional attendee can't be left out and is a locked chip; an \"only\" list that misses her still lets her in", async () => {
+    const mid = await book("Invited session", 600, [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }]);
+    await expect(svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }))).rejects.toThrow(
+      /invited to this meeting: take them off the meeting first/,
+    );
+    await expect(rowsAs(U.lead, `SELECT app_set_audience('meeting', $1, 'except', ARRAY[$2]::uuid[])`, [mid, U.nmgr])).rejects.toThrow(/invited to this meeting/);
+    const seen = await svc(U.lead, (tx, p) => M.getMeetingAudience(tx, p, mid));
+    const lockOf = (uid: string) => seen.people.find((x) => x.id === uid)?.locked;
+    expect([lockOf(U.nmgr), lockOf(U.nmgr2), lockOf(U.cons2)]).toEqual(["invited", "invited", undefined]);
+    // "Only" a consultant: the two invited still see it, as locked people do; someone not invited does not.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.cons] }), true);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.cons2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    // The booking form's picker locks everyone invited, required or not.
+    const fresh = await svc(U.lead, (tx, p) =>
+      import("@/services/audience").then((A) => A.newItemAudiencePeople(tx, p, PN, "meeting", { visibility: "shared", attendees: [U.nmgr] })),
+    );
+    expect(fresh.people.find((x) => x.id === U.nmgr)?.locked).toBe("invited");
+  });
+
+  it("taking someone off the meeting sends her calendar a cancellation naming only her, and not twice", async () => {
+    const mid = await book("Removal session", 620, [{ userId: U.nmgr, optional: true }, { userId: U.nmgr2 }], true);
+    await send(mid);
+    expect(sent.map((m) => m.to).sort()).toEqual([email(U.nmgr), email(U.nmgr2)].sort());
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr)]);
+    // Off the meeting, she may be left out of it; her cancellation still goes.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr] }), true);
+    expect(await send(mid)).toMatchObject({ sent: 1, failed: 0, withdrawn: 0 });
+    expect(sent.map((m) => m.to)).toEqual([email(U.nmgr)]);
+    const [{ ics_uid }] = (await q(`SELECT ics_uid FROM meetings WHERE id = $1`, [mid])).rows;
+    expect(sent[0]!.subject).toContain("Taken off a meeting");
+    const ics = sent[0]!.icalEvent!;
+    expect(ics.method).toBe("CANCEL");
+    expect(ics.content).toContain(`UID:${ics_uid}`);
+    expect(ics.content).toContain(`ATTENDEE:mailto:${email(U.nmgr)}`);
+    // Nothing she was not sent already (the meeting may have moved since), nobody else, and not "the meeting is cancelled": it goes ahead.
+    expect(ics.content).not.toMatch(/SUMMARY|DTSTART|LOCATION|URL|STATUS|nmgr2@/);
+    // Back on and off again with no new invitation sent: her calendar has nothing to cancel.
+    await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "everyone", people: [] }), true);
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr)]);
+    // Invited again and sent the invitation: taken off, she gets a second cancellation.
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    await svc(U.lead, (tx, p) => M.sendInvites(tx, p, mid), true);
+    await send(mid);
+    await takeOff(mid, U.nmgr);
+    expect(await cancels(mid)).toEqual([email(U.nmgr), email(U.nmgr)]);
+    // A cancellation still queued when she is invited again is not sent: it would wipe the new invitation.
+    await svc(U.lead, (tx, p) => M.addAttendee(tx, p, mid, { userId: U.nmgr, optional: true }), true);
+    expect(await send(mid)).toMatchObject({ sent: 0, withdrawn: 1 });
+    // Deleting the meeting itself queues nothing.
+    await q(`DELETE FROM meetings WHERE id = $1`, [mid]);
+    expect(await cancels(mid)).toEqual([]);
+  });
+  // An invitation not sent yet is withdrawn instead: "the mail queue keeps a withdrawn invite" above.
 });
