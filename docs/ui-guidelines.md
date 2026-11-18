@@ -100,7 +100,7 @@ Every app page is, top to bottom:
 | Summary row | `grid grid-cols-2 gap-4 lg:grid-cols-4` of summary cards or `StatTile`s | Overview, team totals, project progress, reports |
 | Detail with side panel | `grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]` (main first in source order; `minmax(0,…)` keeps long titles and tables from pushing the page wider than a tablet) | Action, meeting, inquiry, template list. The client page uses `22rem` because its side panel holds the team. |
 | Headline plus chart | `grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]` | Project progress, reports |
-| Tabs | shadcn `Tabs` under the header, one panel per tab; `LinkTabs` when each tab is its own page | Project page; Actions, the client page (Overview, Departments, Structure), the client's Departments and Structure |
+| Tabs | shadcn `Tabs` under the header, one panel per tab; `LinkTabs` above the header when each tab is its own page | Project page; Actions, the client page (Overview, Departments, Structure), the client's Departments and Structure |
 | Card grid | `grid gap-4 md:grid-cols-2 xl:grid-cols-3` | Projects |
 | Settings | Stack of form cards, one per topic, each with its own Save | Firm settings |
 
