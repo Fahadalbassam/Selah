@@ -30,9 +30,17 @@ interface RoundState {
 export function receiptStatus(rounds: readonly RoundState[], closed = false): ReceiptStatus {
   const latest = rounds[0];
   if (!latest) return "not_handed_over";
-  if (latest.receivedAt) return "received";
-  if (latest.commentedAt) return "commented";
-  return closed ? "no_answer" : "waiting";
+  return latestStatus(latest.receivedAt ? "received" : latest.commentedAt ? "commented" : "waiting", closed);
+}
+
+/**
+ * The status from the latest round's state, which every reader gets from the
+ * database, also when they cannot open that round's files (review S3).
+ */
+export function latestStatus(state: "waiting" | "received" | "commented" | null, closed = false): ReceiptStatus {
+  if (!state) return "not_handed_over";
+  if (state === "waiting") return closed ? "no_answer" : "waiting";
+  return state;
 }
 
 /** What a round says, for the texts below. */

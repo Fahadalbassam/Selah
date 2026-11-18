@@ -97,7 +97,7 @@ export async function DeliverableList({
               </div>
               <DeliverableStatus status={d.status} />
             </div>
-            {latest ? round(latest, true, d.closed) : null}
+            {latest ? round(latest, latest.round === d.latestRound, d.closed) : null}
             {d.can.handOver || d.can.record || d.can.confirm || d.can.comment || extra ? (
               <div className="flex flex-wrap items-center gap-2">
                 {d.can.confirm && latest ? (

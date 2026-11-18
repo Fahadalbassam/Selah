@@ -150,10 +150,18 @@ $$;
 -- The client and the firm of the deliverables the caller reads (the same
 -- rule as their row-level security below): a person asked to answer for a
 -- hand-over does not read its engagement, which only the client's admin does.
-CREATE FUNCTION app_deliverable_parties(dids uuid[]) RETURNS TABLE (deliverable_id uuid, client_org_id uuid, firm_org_id uuid)
+-- With the number and state of the latest round (waiting, received or
+-- commented), so every reader sees the status of the latest round, also one
+-- whose files they cannot open (review S3): its state only, never its files.
+CREATE FUNCTION app_deliverable_parties(dids uuid[])
+RETURNS TABLE (deliverable_id uuid, client_org_id uuid, firm_org_id uuid, latest_round integer, latest_state text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  SELECT d.id, g.client_org_id, g.firm_org_id
+  SELECT d.id, g.client_org_id, g.firm_org_id, h.round,
+    CASE WHEN h.id IS NULL THEN NULL WHEN h.received_at IS NOT NULL THEN 'received' WHEN h.commented_at IS NOT NULL THEN 'commented' ELSE 'waiting' END
   FROM engagement_deliverables d JOIN engagements g ON g.id = d.engagement_id
+  LEFT JOIN LATERAL (
+    SELECT x.id, x.round, x.received_at, x.commented_at FROM deliverable_handovers x WHERE x.deliverable_id = d.id ORDER BY x.round DESC LIMIT 1
+  ) h ON true
   WHERE d.id = ANY (dids) AND (app_can_see_engagement(d.engagement_id) OR app_answers_for_deliverable(d.id))
 $$;
 --> statement-breakpoint

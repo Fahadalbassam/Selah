@@ -299,15 +299,15 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
       [t("csv.engagement"), t("csv.deliverable"), t("csv.round"), t("csv.files"), t("csv.handedOver"), t("csv.handedOverBy"), t("csv.receiptStatus"), t("csv.receipt")],
       ...handed.flatMap((d) =>
         d.rounds.length
-          ? d.rounds.map((r, i) => [
+          ? d.rounds.map((r) => [
               d.engagementTitle,
               d.title,
               r.round,
               filesText(r, tr),
               r.deliveredAt.toISOString().slice(0, 10),
               r.deliveredBy,
-              ts(`deliverables.status.${roundStatus(r, i === 0, d.closed)}` as "deliverables.status.waiting"),
-              roundStatus(r, i === 0, d.closed) === "replaced" ? null : receiptText(r, tr, packDay, d.closed),
+              ts(`deliverables.status.${roundStatus(r, r.round === d.latestRound, d.closed)}` as "deliverables.status.waiting"),
+              roundStatus(r, r.round === d.latestRound, d.closed) === "replaced" ? null : receiptText(r, tr, packDay, d.closed),
             ])
           : [[d.engagementTitle, d.title, null, null, null, null, ts("deliverables.status.not_handed_over"), null]],
       ),

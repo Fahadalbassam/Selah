@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-
 import type { Tx } from "@/db/client";
 import { deliverableHandovers, documents, engagementDeliverables, engagements, organizations, projects, user } from "@/db/schema";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
-import { receiptStatus, type CommentInput, type ReceiptInput, type ReceiptStatus } from "@/lib/deliverables";
+import { latestStatus, type CommentInput, type ReceiptInput, type ReceiptStatus } from "@/lib/deliverables";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { loadDocument } from "./documents";
@@ -36,6 +36,9 @@ interface Deliverable {
   projectState: Resource["projectState"];
   /** The engagement's projects that are not closed, as far as the reader sees them (who hands over: scope `engagement`). */
   openProjectIds: string[];
+  /** The latest round, whoever reads: its number and state (never its files: review S3). */
+  latestRound: number | null;
+  latestState: "waiting" | "received" | "commented" | null;
 }
 
 const resourceOf = (d: Pick<Deliverable, "id" | "clientOrgId" | "firmOrgId" | "engagementMode" | "projectState" | "openProjectIds">): Resource => ({
@@ -77,7 +80,7 @@ async function fetchDeliverables(tx: Tx, where: SQL | undefined): Promise<Delive
     .where(where)
     .orderBy(sql`${engagements.signedOn} asc nulls last`, sql`${engagementDeliverables.dueOn} asc nulls last`, asc(engagementDeliverables.createdAt));
   if (!rows.length) return [];
-  const { rows: parties } = await tx.execute<{ deliverable_id: string; client_org_id: string; firm_org_id: string }>(
+  const { rows: parties } = await tx.execute<{ deliverable_id: string; client_org_id: string; firm_org_id: string; latest_round: number | null; latest_state: Deliverable["latestState"] }>(
     sql`select * from app_deliverable_parties(${sql.param(rows.map((r) => r.id))}::uuid[])`,
   );
   const partyOf = new Map(parties.map((p) => [p.deliverable_id, p]));
@@ -111,6 +114,8 @@ async function fetchDeliverables(tx: Tx, where: SQL | undefined): Promise<Delive
         archived: org.status === "archived",
         projectState: r.projectState ?? undefined,
         openProjectIds: openProjects.filter((p) => p.engagementId === r.engagementId).map((p) => p.id),
+        latestRound: party.latest_round,
+        latestState: party.latest_state,
       },
     ];
   });
@@ -205,7 +210,8 @@ function canOn(principal: Principal, d: Deliverable, rounds: HandoverRound[]) {
   const resource = resourceOf(d);
   const latest = rounds[0];
   const open = !d.archived && d.projectState !== "closed";
-  const waiting = open && !!latest && !latest.receivedAt && !latest.commentedAt;
+  // Only the latest round is answered, and only by someone who reads it (the database checks the same).
+  const waiting = open && !!latest && latest.round === d.latestRound && d.latestState === "waiting";
   const firmRun = d.engagementMode === "consultant_managed";
   return {
     handOver: open && authorize(principal, "deliverable.hand_over", resource).allowed,
@@ -230,6 +236,8 @@ export interface DeliverableView {
   /** Its project is closed: nothing more is written, and a round never answered says so. */
   closed: boolean;
   status: ReceiptStatus;
+  /** The latest round's number, also when this reader cannot open it (its rounds then stop earlier). */
+  latestRound: number | null;
   rounds: HandoverRound[];
   can: ReturnType<typeof canOn>;
 }
@@ -245,7 +253,8 @@ const view = (principal: Principal, d: Deliverable, rounds: HandoverRound[]): De
   projectTitle: d.projectTitle,
   clientOrgId: d.clientOrgId,
   closed: d.projectState === "closed",
-  status: receiptStatus(rounds, d.projectState === "closed"),
+  status: latestStatus(d.latestState, d.projectState === "closed"),
+  latestRound: d.latestRound,
   rounds,
   can: canOn(principal, d, rounds),
 });

@@ -388,12 +388,21 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
     })),
     // The client's business indicators as known on the closing day, beside the work (KPI layer B).
     indicators: project.kind === "client" ? await indicatorPdfTable(tx, t, locale, { clientOrgId: project.orgId, projectId }, closure.current.closedAt ? firmToday(new Date(closure.current.closedAt)) : today) : null,
-    deliverables: deliverables.map((d) => ({
-      title: d.title,
-      status: t(`deliverables.status.${d.status}`),
-      files: filesText(d.rounds[0], td),
-      receipt: receiptText(d.rounds[0], td, dayText(locale), d.closed),
-    })),
+    // The status is the latest round's, for every reader (review S3); a reader who cannot open that round
+    // sees the last round they can open, marked as replaced.
+    deliverables: deliverables.map((d) => {
+      const seen = d.rounds[0];
+      const day = dayText(locale);
+      return {
+        title: d.title,
+        status: t(`deliverables.status.${d.status}`),
+        files: filesText(seen, td),
+        receipt:
+          seen && seen.round !== d.latestRound
+            ? `${td("handedOver", { date: day(seen.deliveredAt), name: seen.deliveredBy ?? "—" })} · ${t("deliverables.status.replaced")}`
+            : receiptText(seen, td, day, d.closed),
+      };
+    }),
     t: (key, values) => t(`closurePdf.${key}` as "closurePdf.title", values as Record<string, string | number>),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");

@@ -412,6 +412,24 @@ describe("a receipt", () => {
     await expect(svc(U.acceptor, (tx, p) => recordReceipt(tx, p, did, { round: 1 }))).rejects.toThrow(/newer version was handed over/);
   });
 
+  it("every reader sees the status of the latest round, also one whose files they cannot open (S3)", async () => {
+    const did = await deliverable(G.acme, P.acme, "Delegation matrix, final");
+    const matrix = await file(ACME, P.acme, "Matrix final.pdf");
+    const annex = await file(ACME, P.acme, "Matrix, finance annex.pdf", { department: FIN });
+    await handOver(U.lead, did, [matrix]);
+    await svc(U.acceptor, (tx, p) => recordReceipt(tx, p, did, { round: 1 }));
+    // Round 2 adds an annex filed under Finance: the client's admin is asked, the acceptor cannot open it.
+    await handOver(U.lead, did, [matrix, annex]);
+    const theirs = await svc(U.acceptor, (tx, p) => getDeliverable(tx, p, did));
+    expect(theirs.status).toBe("waiting");
+    expect(theirs.latestRound).toBe(2);
+    expect(theirs.rounds.map((r) => r.round)).toEqual([1]);
+    expect(theirs.can).toMatchObject({ confirm: false, comment: false });
+    const admins = await svc(U.cadmin, (tx, p) => getDeliverable(tx, p, did));
+    expect([admins.status, admins.latestRound, admins.rounds.map((r) => r.round)]).toEqual(["waiting", 2, [2, 1]]);
+    expect(admins.can.confirm).toBe(true);
+  });
+
   it("offers and takes only files already shared with the client: a firm-only file is named, never offered, and never shared by a hand-over (B1)", async () => {
     const did = await deliverable(G.acme, null, "Engagement summary");
     const doc = await file(ACME, P.acme, "Summary.pdf", { visibility: "firm_private" });
