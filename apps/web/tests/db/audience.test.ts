@@ -1105,6 +1105,17 @@ describe("changing who sees an item", () => {
     expect(JSON.stringify((await q(`SELECT meta FROM audit_log WHERE action = 'document.audience'`)).rows)).not.toContain(U.nmgr);
   });
 
+  it("counts in the log the people stored, not the ones who always see it anyway (review N6)", async () => {
+    const COUNTED = id(75);
+    await doc(COUNTED, { by: U.cons, ownerOrg: FIRM, title: "Count canary" });
+    // The form sends three; the lead and the firm admin always see it and are not stored, the one saving is.
+    await svc(U.cons, (tx, p) => D.setDocumentAudience(tx, p, COUNTED, { mode: "only", people: [U.nmgr2, U.lead, U.admin] }), true);
+    const stored = (await q(`SELECT user_id FROM item_audience_people WHERE item_type = 'document' AND item_id = $1 ORDER BY user_id`, [COUNTED])).rows;
+    expect(stored.map((r) => r.user_id)).toEqual([U.cons, U.nmgr2].sort());
+    const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'document.audience' AND resource_id = $1`, [COUNTED])).rows;
+    expect(entry.meta.people).toBe(2);
+  });
+
   it("set while answering an information request with a new file", async () => {
     const upload = { bytes: new TextEncoder().encode("grades"), fileName: "grades.pdf", contentType: "application/pdf", sha256: "sha-grades", scanned: true, scanMs: 1 };
     const made = await svc(U.ncadmin, (tx, p) => IR.answerWithUpload(tx, p, REQ, upload, { mode: "except", people: [U.nmgr] }), true);

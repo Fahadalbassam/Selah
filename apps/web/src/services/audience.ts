@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "@/db/client";
-import { itemAudiences } from "@/db/schema";
+import { itemAudiencePeople, itemAudiences } from "@/db/schema";
 import { assertAllowed, type Principal, type Resource, type ResourceAudience } from "@/authz";
 import {
   AUDIENCE_LOCK_REASONS,
@@ -203,6 +203,11 @@ export async function writeAudience(
   const { rows } = await tx.execute<{ withdrawn: number }>(
     sql`select app_set_audience(${kind}, ${id}::uuid, ${value?.mode ?? "everyone"}, ${uuidArray(value?.people ?? [])}) as withdrawn`,
   );
+  // The people the list holds, as stored: never those who always see it, and on "only" the one saving (review N6).
+  const [stored] = await tx
+    .select({ n: count() })
+    .from(itemAudiencePeople)
+    .where(and(eq(itemAudiencePeople.itemType, kind), eq(itemAudiencePeople.itemId, id)));
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,
@@ -211,7 +216,7 @@ export async function writeAudience(
     resourceId: id,
     outcome: "allow",
     // Counts only: who was left out stays out of the log's details too.
-    meta: { ...meta, from: before, to: value?.mode ?? "everyone", people: value?.people.length ?? 0, withdrawnMails: Number(rows[0]?.withdrawn ?? 0) },
+    meta: { ...meta, from: before, to: value?.mode ?? "everyone", people: Number(stored?.n ?? 0), withdrawnMails: Number(rows[0]?.withdrawn ?? 0) },
   });
   return { mode: value?.mode ?? ("everyone" as const) };
 }
