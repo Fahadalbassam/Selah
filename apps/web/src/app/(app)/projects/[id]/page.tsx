@@ -169,7 +169,7 @@ export default async function ProjectPage({
             <span>{tp("status.verified", { verified: status.verified, of: status.of, pct: `${Math.round(status.pct ?? 0)}%` })}</span>
           )
         ) : (
-          <span>{tp("status.verifiedNone")}</span>
+          <span>{tp(firmStaff ? "status.verifiedNone" : "status.verifiedNoneClient")}</span>
         )}
         <span aria-hidden>·</span>
         <Link href={status.late.href} className={cn("hover:underline", status.late.n ? "font-medium text-destructive" : "hover:text-foreground")}>

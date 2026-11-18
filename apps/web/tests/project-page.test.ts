@@ -208,6 +208,26 @@ describe("words", () => {
     }
   });
 
+  it("says the number of times in Arabic number forms (review item 5)", () => {
+    for (const k of ["projectPage.rules.why.slipped", "projectPage.rules.why.churn"]) {
+      const a = get(ar, k) as string;
+      expect(a, k).toMatch(/one \{مرة واحدة\}/);
+      expect(a, k).toMatch(/two \{مرتين\}/);
+      expect(a, k).toMatch(/few \{# مرات\}/);
+      expect(a, k).toMatch(/many \{# مرة\}/);
+      expect(get(en, k), k).toMatch(/one \{# time\} other \{# times\}/);
+    }
+  });
+
+  it("a client screen never says 'released', and the Arabic never says 'assigned' for it (review item 5)", () => {
+    expect(get(en, "projectPage.status.verifiedNoneClient")).not.toMatch(/releas/i);
+    expect(get(ar, "projectPage.status.verifiedNoneClient")).not.toMatch(/مُسند|مسند|إسناد/);
+    expect(src("app/(app)/projects/[id]/page.tsx")).toContain(`tp(firmStaff ? "status.verifiedNone" : "status.verifiedNoneClient")`);
+    // The firm keeps its own word, the same in both languages (إسناد = release, as on the action dialog).
+    expect(get(en, "projectPage.status.verifiedNone")).toMatch(/released/);
+    expect(get(ar, "projectPage.status.verifiedNone")).toMatch(/أُسند|مُسندة|إسناد/);
+  });
+
   it("the status line counts, never a health word (D5)", () => {
     const words = JSON.stringify([get(ar, "projectPage.status"), get(en, "projectPage.status")]);
     expect(words).not.toMatch(/on track|off track|watch|خارج المسار|على المسار|متعثر/i);

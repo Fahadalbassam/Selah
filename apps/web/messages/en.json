@@ -5643,7 +5643,8 @@
       "verified": "{verified} of {of} verified by the consultant ({pct})",
       "verifiedNone": "No actions released yet",
       "late": "{n, plural, =0 {Nothing late} one {# action late} other {# actions late}}",
-      "waiting": "{n, plural, =0 {Nothing waiting for review} other {# waiting for review}}"
+      "waiting": "{n, plural, =0 {Nothing waiting for review} other {# waiting for review}}",
+      "verifiedNoneClient": "Your company has no actions on this project yet"
     },
     "menu": {
       "label": "More for this project",
@@ -5676,8 +5677,8 @@
         "late": "{n, plural, one {# day} other {# days}} late",
         "blocked": "Blocked",
         "stale": "No change for {n, plural, one {# day} other {# days}}",
-        "slipped": "Date moved {n} times",
-        "churn": "Sent back {n} times",
+        "slipped": "Date moved {n, plural, one {# time} other {# times}}",
+        "churn": "Sent back {n, plural, one {# time} other {# times}}",
         "orphaned": "The owner has left"
       }
     },
