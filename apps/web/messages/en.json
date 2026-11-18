@@ -2483,7 +2483,8 @@
       "history": "Earlier records",
       "someone": "someone",
       "conditionsField": "Conditions (optional)"
-    }
+    },
+    "deliverablesWaiting": "Handed over and still waiting for an answer: {titles}. Closing does not wait for them; once the project is closed, nothing more is recorded on them and they read \"No answer before the project closed\"."
   },
   "closurePdf": {
     "kind": "Closure report",
@@ -3248,7 +3249,8 @@
       "waiting": "Handed over (waiting)",
       "received": "Received",
       "commented": "Commented",
-      "replaced": "Replaced by a later hand-over"
+      "replaced": "Replaced by a later hand-over",
+      "no_answer": "No answer before the project closed"
     },
     "receiptOnlyFirm": "Received means the files reached the client. It never means the client accepted the work.",
     "receiptOnlyClient": "Confirming receipt only says the files reached your company. It never means you accept the work.",
@@ -3295,7 +3297,9 @@
         "email": "by email",
         "phone": "by phone",
         "document": "in a document"
-      }
+      },
+      "noAnswer": "Handed over on {date} by {name}; no answer before the project closed",
+      "handedOver": "Handed over on {date} by {name}"
     },
     "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it."
   },

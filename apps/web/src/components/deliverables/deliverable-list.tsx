@@ -11,7 +11,7 @@ import type { DeliverableView, HandoverRound } from "@/services/deliverables";
 import { HandOverDialog } from "./hand-over-dialog";
 
 /** Receipt is not verification, so it is never green (docs/ui-guidelines.md). */
-const TONES: Record<ReceiptStatus, Tone> = { not_handed_over: "open", waiting: "waiting", received: "active", commented: "problem" };
+const TONES: Record<ReceiptStatus, Tone> = { not_handed_over: "open", waiting: "waiting", received: "active", commented: "problem", no_answer: "neutral" };
 
 export async function DeliverableStatus({ status }: { status: ReceiptStatus }) {
   const t = await getTranslations("deliverables");
@@ -50,13 +50,15 @@ export async function DeliverableList({
   // One main action per card: the first confirm button is solid, the rest outline.
   const firstConfirm = deliverables.find((d) => d.can.confirm)?.id;
 
-  const round = (r: HandoverRound, latest: boolean) => {
-    const status = roundStatus(r, latest);
+  const round = (r: HandoverRound, latest: boolean, closed: boolean) => {
+    const status = roundStatus(r, latest, closed);
     return (
       <div className="space-y-1.5 rounded-md border p-3 text-sm">
         <p className="text-xs font-medium text-muted-foreground">{t("round", { n: r.round })}</p>
         <p className="text-muted-foreground" dir="auto">
-          {status === "replaced" ? `${tText("waiting", { date: day(r.deliveredAt), name: r.deliveredBy ?? "—" })} · ${t("status.replaced")}` : receiptText(r, tText, day)}
+          {status === "replaced"
+            ? `${tText("handedOver", { date: day(r.deliveredAt), name: r.deliveredBy ?? "—" })} · ${t("status.replaced")}`
+            : receiptText(r, tText, day, closed)}
         </p>
         <ul className="space-y-1">
           {r.files.map((f) => (
@@ -95,7 +97,7 @@ export async function DeliverableList({
               </div>
               <DeliverableStatus status={d.status} />
             </div>
-            {latest ? round(latest, true) : null}
+            {latest ? round(latest, true, d.closed) : null}
             {d.can.handOver || d.can.record || d.can.confirm || d.can.comment || extra ? (
               <div className="flex flex-wrap items-center gap-2">
                 {d.can.confirm && latest ? (
@@ -167,7 +169,7 @@ export async function DeliverableList({
             {earlier.length ? (
               <details className="group">
                 <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">{t("history", { n: earlier.length })}</summary>
-                <div className="mt-2 space-y-2">{earlier.map((r) => <div key={r.id}>{round(r, false)}</div>)}</div>
+                <div className="mt-2 space-y-2">{earlier.map((r) => <div key={r.id}>{round(r, false, d.closed)}</div>)}</div>
               </details>
             ) : null}
           </li>

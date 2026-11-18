@@ -7,8 +7,12 @@ import { RECEIVED_VIA } from "./engagement";
 // tests; the database holds the same limits. "Received" is receipt only: it
 // never says the work was accepted as good.
 
-/** The one word a deliverable shows, from its latest round. No percentage. */
-export const RECEIPT_STATUSES = ["not_handed_over", "waiting", "received", "commented"] as const;
+/**
+ * The one word a deliverable shows, from its latest round. No percentage.
+ * "no_answer": a round still waiting when its project closed; nothing is
+ * written on a closed project, so it stays unanswered and says so.
+ */
+export const RECEIPT_STATUSES = ["not_handed_over", "waiting", "received", "commented", "no_answer"] as const;
 export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];
 
 /** Working days (Sunday to Thursday) a hand-over waits before its one reminder (app_deliverable_reminder_days()). */
@@ -22,13 +26,13 @@ interface RoundState {
   commentedAt: Date | string | null;
 }
 
-/** The status of a deliverable from its rounds, newest first. */
-export function receiptStatus(rounds: readonly RoundState[]): ReceiptStatus {
+/** The status of a deliverable from its rounds, newest first; `closed` when its project is closed. */
+export function receiptStatus(rounds: readonly RoundState[], closed = false): ReceiptStatus {
   const latest = rounds[0];
   if (!latest) return "not_handed_over";
   if (latest.receivedAt) return "received";
   if (latest.commentedAt) return "commented";
-  return "waiting";
+  return closed ? "no_answer" : "waiting";
 }
 
 /** What a round says, for the texts below. */
@@ -51,26 +55,31 @@ export interface RoundFacts {
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-/** A round's status: its answer, or waiting while it is the latest, or replaced by a later round. */
-export function roundStatus(r: RoundFacts, latest: boolean): ReceiptStatus | "replaced" {
+/**
+ * A round's status: its answer; or, while it is the latest, waiting (no
+ * answer when its project closed first); or replaced by a later round.
+ */
+export function roundStatus(r: RoundFacts, latest: boolean, closed = false): ReceiptStatus | "replaced" {
   if (r.receivedAt) return "received";
   if (r.commentedAt) return "commented";
-  return latest ? "waiting" : "replaced";
+  if (!latest) return "replaced";
+  return closed ? "no_answer" : "waiting";
 }
 
 /**
  * One line saying what happened to a round, for the closure report, the
  * export pack and the screens. `t` reads messages "deliverables.text";
- * `day` formats a date. Receipt is never acceptance, and the words say so.
+ * `day` formats a date; `closed` when the round's project is closed. Receipt
+ * is never acceptance, and the words say so.
  */
-export function receiptText(r: RoundFacts | undefined, t: Translate, day: (d: Date | string) => string): string {
+export function receiptText(r: RoundFacts | undefined, t: Translate, day: (d: Date | string) => string, closed = false): string {
   if (!r) return t("notHandedOver");
   if (r.receivedAt && r.receiptSource === "consultant_recorded") {
     return t("recorded", { date: day(r.receivedOn ?? r.receivedAt), person: r.receivedByName ?? "", via: t(`via.${r.receivedVia}`), name: r.receivedBy ?? "—" });
   }
   if (r.receivedAt) return t("received", { date: day(r.receivedAt), name: r.receivedBy ?? "—" });
   if (r.commentedAt) return t("commented", { date: day(r.commentedAt), name: r.commentedBy ?? "—", comment: r.comment ?? "" });
-  return t("waiting", { date: day(r.deliveredAt), name: r.deliveredBy ?? "—" });
+  return t(closed ? "noAnswer" : "waiting", { date: day(r.deliveredAt), name: r.deliveredBy ?? "—" });
 }
 
 /** A date for the texts above: a day ("2026-11-18") as it is, a moment in the firm's time zone. */
@@ -80,13 +89,13 @@ export function dayText(locale: string): (d: Date | string) => string {
   return (d) => (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? plain.format(new Date(`${d}T00:00:00Z`)) : moment.format(new Date(d)));
 }
 
-/** The files of a round:"Board charter.docx (v2)", and how many the reader cannot open, never their names. */
+/** The files of a round: "Board charter.docx (v2)", and how many the reader cannot open, never their names. */
 export function filesText(r: Pick<RoundFacts, "files" | "hiddenFiles"> | undefined, t: Translate): string {
   if (!r) return "—";
   return [...r.files.map((f) => t("file", { title: f.title, version: f.version })), ...(r.hiddenFiles ? [t("hiddenFiles", { n: r.hiddenFiles })] : [])].join(" · ");
 }
 
-export const handOverInput =z.object({ versionIds: z.array(z.uuid()).min(1).max(DELIVERABLE_LIMITS.versions) }).strict();
+export const handOverInput = z.object({ versionIds: z.array(z.uuid()).min(1).max(DELIVERABLE_LIMITS.versions) }).strict();
 
 /**
  * The receipt, for the round the reader saw: the client confirms with the

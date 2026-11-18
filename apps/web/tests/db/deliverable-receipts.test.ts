@@ -39,7 +39,7 @@ const { commentOnDeliverable, getDeliverable, handOverChoices, handOverDeliverab
 const { getEngagement, removeDeliverable } = await import("@/services/engagements");
 const { listNotifications } = await import("@/services/notifications");
 const { today } = await import("@/services/today");
-const { moveClosure, writeLessons } = await import("@/services/closure");
+const { getClosure, moveClosure, writeLessons } = await import("@/services/closure");
 const { closurePdf } = await import("@/services/exports");
 const { loadPrincipal } = await import("@/services/principal");
 const { addValue } = await import("@/services/indicators");
@@ -484,12 +484,30 @@ describe("the closure report", () => {
     await handOver(U.lead, did, [doc]);
     await svc(U.cadmin, (tx, p) => recordReceipt(tx, p, did, { round: 1 }));
     await handOver(U.lead, waiting, [doc]);
-    await svc(U.admin, (tx, p) => moveClosure(tx, p, P.closing, { step: "start" }));
+    const closing = await svc(U.admin, (tx, p) => moveClosure(tx, p, P.closing, { step: "start" }));
+    // Closing warns about the rounds still waiting, and does not block (S1).
+    expect(closing.waitingDeliverables.map((d) => d.title)).toContain("Phase 2 annex");
+    expect(closing.waitingDeliverables.map((d) => d.title)).not.toContain("Phase 2 report");
+    // Only the lessons are left to settle: the waiting round is not a blocker, and the project closes below.
+    expect(closing.blockers.map((b) => b.kind)).toEqual(["lessons"]);
+    expect((await svc(U.cadmin, (tx, p) => getClosure(tx, p, P.closing))).waitingDeliverables).toEqual([]);
     await svc(U.lead, (tx, p) => writeLessons(tx, p, P.closing, { wentWell: "Clear scope", toImprove: "Earlier reviews" }));
     await svc(U.admin, (tx, p) => moveClosure(tx, p, P.closing, { step: "close" }));
-    // A closed project's deliverables stay as they are.
+    // A closed project's deliverables stay as they are: no new write path.
     await expect(svc(U.cadmin, (tx, p) => recordReceipt(tx, p, waiting, { round: 1 }))).rejects.toThrow(/forbidden/);
     await expect(sqlAs(U.cadmin, `SELECT app_confirm_deliverable_receipt($1, 1)`, [waiting])).rejects.toThrow(/closed project/);
+    await expect(handOver(U.lead, waiting, [doc])).rejects.toThrow(/forbidden/);
+    await expect(sqlAs(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [waiting, doc])).rejects.toThrow(/closed project/);
+    // The round never answered reads "No answer before the project closed", for every reader, and is never reminded.
+    for (const who of [U.lead, U.cadmin]) {
+      const seen = await svc(who, (tx, p) => getDeliverable(tx, p, waiting));
+      expect(seen.status, who).toBe("no_answer");
+      expect(seen.can, who).toEqual({ handOver: false, confirm: false, comment: false, record: false });
+    }
+    await q(`UPDATE deliverable_handovers SET reminded_at = now() WHERE reminded_at IS NULL AND deliverable_id <> $1`, [waiting]);
+    const later = await afterWorkingDays((await q(`SELECT app_firm_today()::text AS d`)).rows[0].d, DELIVERABLE_REMINDER_WORKING_DAYS + 1);
+    expect((await q(`SELECT app_remind_deliverables($1::date) AS n`, [later])).rows[0].n).toBe(0);
+    expect(await told("deliverable.reminder", waiting)).toEqual([]);
 
     rendered.length = 0;
     await svc(U.cadmin, (tx, p) => closurePdf(tx, p, P.closing, "en"));
@@ -497,14 +515,14 @@ describe("the closure report", () => {
     expect(html).toContain("What was handed over");
     expect(html).toContain("Phase 2 report");
     expect(html).toMatch(/Receipt confirmed on [^<]+ by cadmin/);
-    expect(html).toContain("Handed over (waiting)");
+    expect(html).toMatch(/Phase 2 annex<\/td>\s*<td>No answer before the project closed<\/td>/);
     expect(html).toContain("Phase 2 report.pdf (v1)");
     expect(html).toContain("It never means the work was accepted.");
     // In Arabic for the firm, with the same words of receipt.
     rendered.length = 0;
     await svc(U.lead, (tx, p) => closurePdf(tx, p, P.closing, "ar"));
     expect(rendered[0]).toContain("ما سُلِّم للعميل");
-    expect(rendered[0]).toContain("سُلِّم (بانتظار التأكيد)");
+    expect(rendered[0]).toContain("لم يصل رد قبل إغلاق المشروع");
     // A manager on the project who answers for none of them gets the report without the section.
     await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P.closing, U.mgr]);
     rendered.length = 0;

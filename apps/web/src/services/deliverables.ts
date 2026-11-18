@@ -217,6 +217,8 @@ export interface DeliverableView {
   projectId: string | null;
   projectTitle: string | null;
   clientOrgId: string;
+  /** Its project is closed: nothing more is written, and a round never answered says so. */
+  closed: boolean;
   status: ReceiptStatus;
   rounds: HandoverRound[];
   can: ReturnType<typeof canOn>;
@@ -232,7 +234,8 @@ const view = (principal: Principal, d: Deliverable, rounds: HandoverRound[]): De
   projectId: d.projectId,
   projectTitle: d.projectTitle,
   clientOrgId: d.clientOrgId,
-  status: receiptStatus(rounds),
+  closed: d.projectState === "closed",
+  status: receiptStatus(rounds, d.projectState === "closed"),
   rounds,
   can: canOn(principal, d, rounds),
 });

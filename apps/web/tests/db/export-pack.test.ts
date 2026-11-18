@@ -155,14 +155,13 @@ beforeAll(async () => {
     ACME,
   ]);
   await q(`UPDATE projects SET engagement_id = $2 WHERE id = $1`, [DONE, ENGAGEMENT]);
-  await q(`INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Charter hand-over'), ($4,$2,$3,'Annex never sent')`, [
-    DELIVERABLE,
-    ENGAGEMENT,
-    DONE,
-    id(62),
-  ]);
+  await q(
+    `INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Charter hand-over'), ($4,$2,$3,'Annex never sent'), ($5,$2,$3,'Bylaws never answered')`,
+    [DELIVERABLE, ENGAGEMENT, DONE, id(62), id(63)],
+  );
   await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [DELIVERABLE, DOC.shared]);
   await run(U.cadmin, `SELECT app_confirm_deliverable_receipt($1, 1)`, [DELIVERABLE]);
+  await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [id(63), DOC.shared]);
   await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [DONE]);
 });
 
@@ -206,6 +205,8 @@ describe("making a pack", () => {
     expect(deliverablesCsv).toContain("deliverables.status.received");
     expect(deliverablesCsv).toMatch(/deliverables\.text\.received [^\r\n]*cadmin/);
     expect(deliverablesCsv).toMatch(/Annex never sent[^\r\n]*deliverables\.status\.not_handed_over/);
+    // A round never answered before the project closed says so (S1).
+    expect(deliverablesCsv).toMatch(/Bylaws never answered[^\r\n]*deliverables\.status\.no_answer/);
     // The client's private file is not the firm admin's to read, so the firm's pack leaves it out;
     // the firm-only, personal and infected files are in no pack.
     expect(row.file_count).toBe(1);

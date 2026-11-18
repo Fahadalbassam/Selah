@@ -306,8 +306,8 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
               filesText(r, tr),
               r.deliveredAt.toISOString().slice(0, 10),
               r.deliveredBy,
-              ts(`deliverables.status.${roundStatus(r, i === 0)}` as "deliverables.status.waiting"),
-              roundStatus(r, i === 0) === "replaced" ? null : receiptText(r, tr, packDay),
+              ts(`deliverables.status.${roundStatus(r, i === 0, d.closed)}` as "deliverables.status.waiting"),
+              roundStatus(r, i === 0, d.closed) === "replaced" ? null : receiptText(r, tr, packDay, d.closed),
             ])
           : [[d.engagementTitle, d.title, null, null, null, null, ts("deliverables.status.not_handed_over"), null]],
       ),

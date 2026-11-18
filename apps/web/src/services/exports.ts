@@ -392,7 +392,7 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
       title: d.title,
       status: t(`deliverables.status.${d.status}`),
       files: filesText(d.rounds[0], td),
-      receipt: receiptText(d.rounds[0], td, dayText(locale)),
+      receipt: receiptText(d.rounds[0], td, dayText(locale), d.closed),
     })),
     t: (key, values) => t(`closurePdf.${key}` as "closurePdf.title", values as Record<string, string | number>),
   });
