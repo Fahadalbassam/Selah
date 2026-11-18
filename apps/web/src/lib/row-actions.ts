@@ -52,3 +52,13 @@ export const valueRowPlan = (can: Record<ValueRowKey, boolean>) => rowPlan<Value
 export const TEAM_ROW = { main: [], menu: ["makeLead", "makeDeputy", "removeDeputy", "remove"] } as const;
 export type TeamRowKey = (typeof TEAM_ROW.menu)[number];
 export const teamRowPlan = (can: Record<TeamRowKey, boolean>) => rowPlan<TeamRowKey>(can, TEAM_ROW);
+
+/**
+ * An action on one of the Actions page's rule lists (late, blocked, no
+ * activity, date moved, sent back, no active owner): no button of its own;
+ * reminding the owner is in the menu (page audit 4.6), allowed by the
+ * server's own flag (policy action.remind, check_action_reminder: once a day).
+ */
+export const RULE_ACTION_ROW = { main: [], menu: ["remind"] } as const;
+export type RuleActionRowKey = (typeof RULE_ACTION_ROW.menu)[number];
+export const ruleActionRowPlan = (can: Record<RuleActionRowKey, boolean>) => rowPlan<RuleActionRowKey>(can, RULE_ACTION_ROW);

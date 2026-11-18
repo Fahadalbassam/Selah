@@ -328,7 +328,7 @@ export const POLICY = {
   // The deviation rules (v_deviations) over a project: overdue, stale,
   // slipped, churn, orphaned and disputed. For the firm.
   "deviation.read": { ...STAFF },
-  // Asking an action's owner for an update from the oversight page (F18),
+  // Asking an action's owner for an update from the Actions page's rule lists (F18),
   // once a day. The database decides (check_action_reminder).
   "action.remind": { ...STAFF },
   // The firm's own settings: intake address, client KPIs, reminders, review

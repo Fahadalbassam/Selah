@@ -3,6 +3,8 @@
 // here, apart from the database reads (services/home.ts), so they are tested
 // on their own.
 
+import { actionsHref, LATE_HREF, REVIEWS_WAITING_LONG_HREF } from "@/lib/action-filters";
+
 /** How many rows a section shows before "Show all" (page audit section 7, item 9). */
 export const HOME_ROWS = 5;
 
@@ -51,14 +53,14 @@ export function showAllHref(section: HomeSection): string {
 
 /**
  * Where each counter on the firm home leads: a filter of the Actions list
- * (page audit 4.6; decision D5, counts and never a health word). The names
- * are written here once so they can follow the Actions page's own.
+ * (page audit 4.6; decision D5, counts and never a health word), in the
+ * Actions page's own addresses (lib/action-filters.ts).
  */
 export const ACTIONS_FILTERS = {
-  late: "/actions?filter=late",
-  awaitingReview: "/actions?filter=awaiting-review",
-  reviewWaiting: "/actions?filter=awaiting-review&waiting=long",
-  blocked: "/actions?filter=blocked",
+  late: LATE_HREF,
+  awaitingReview: actionsHref({ filter: "awaiting-review" }),
+  reviewWaiting: REVIEWS_WAITING_LONG_HREF,
+  blocked: actionsHref({ filter: "blocked" }),
 } as const;
 export type HomeCounter = keyof typeof ACTIONS_FILTERS;
 

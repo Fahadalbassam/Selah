@@ -31,7 +31,7 @@ describe("the old addresses", () => {
 
   it("send a client's message to the firm's management to the admin's home, in the app and in the mail", () => {
     expect(readFileSync("src/services/notifications.ts", "utf8")).toMatch(/support\.requested"\) return "\/#problems"/);
-    expect(readFileSync("drizzle/0200_home_problem_link.sql", "utf8")).toMatch(/'support\.requested', '\/#problems'/);
+    expect(readFileSync("drizzle/0096_home_problem_link.sql", "utf8")).toMatch(/'support\.requested', '\/#problems'/);
     // The Notifications page is the list alone: the messages are no longer drawn there.
     expect(readFileSync("src/app/(app)/notifications/page.tsx", "utf8")).not.toMatch(/listSupportRequests|help\.support/);
   });

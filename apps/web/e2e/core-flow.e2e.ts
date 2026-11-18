@@ -101,10 +101,11 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   await page.context().close();
 });
 
-test("consultant finds it in the review queue, downloads it and asks for a revision (English)", async ({ browser }) => {
+test("consultant finds it in the Actions list awaiting review, downloads it and asks for a revision (English)", async ({ browser }) => {
   const t = L("en");
   const page = await open(browser, "khalid", "en", "dark");
-  await page.goto("/review");
+  // The review queue is a filter of the Actions list (page audit 4.6); /review redirects there.
+  await page.goto("/actions?filter=awaiting-review");
   await page.getByRole("link", { name: actTitle }).click();
   // The button asks for a one-minute signed link to the private bucket and follows it.
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: t("action.download") }).first().click()]);

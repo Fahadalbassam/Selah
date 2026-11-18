@@ -58,7 +58,7 @@ describe("what signed-out pages send to the browser", () => {
   it("never includes a namespace written for the firm's or a client's own screens", () => {
     const firmOnly = Object.keys(ar).filter((ns) => !PUBLIC_SAFE.has(ns));
     // The catalogue's internal wording, by name: the audit found these in the sign-in page's source.
-    for (const ns of ["staffing", "conflicts", "qualification", "audit", "engagement", "oversight", "settings", "clients"]) {
+    for (const ns of ["staffing", "conflicts", "qualification", "audit", "engagement", "insight", "settings", "clients"]) {
       expect(firmOnly, ns).toContain(ns);
     }
     for (const area of AREAS) {

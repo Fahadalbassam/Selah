@@ -2,10 +2,11 @@ import "server-only";
 import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { actions, deadlineChangeRequests, followUps, infoRequests, meetingAttendees, meetings } from "@/db/schema";
-import { authorize, OPEN_STATUSES, type Principal, type Resource } from "@/authz";
+import { authorize, type Principal, type Resource } from "@/authz";
+import { parseActionsQuery } from "@/lib/action-filters";
 import { firmToday } from "@/lib/dates";
-import { REVIEW_WAIT_DAYS } from "@/lib/health";
 import { byWaiting, ownerGroup } from "@/lib/home";
+import { actionBoard } from "./action-board";
 import { audiencesForMe } from "./audience";
 import { clientOverview } from "./client-overview";
 import { myClientAi } from "./client-ai";
@@ -115,60 +116,26 @@ export async function firmHome(tx: Tx, principal: Principal, day = firmToday()) 
     problems: reports.filter((r) => !r.handledAt),
     handledProblems: reports.filter((r) => r.handledAt),
     inquiries,
-    counters: await firmCounters(tx, principal, day),
+    counters: await firmCounters(tx, principal),
   };
 }
 
 export type FirmHome = Awaited<ReturnType<typeof firmHome>>;
 
 /**
- * One line of counts (decision D5: counts, never a health word) over every
- * action the reader may open (row-level security, then authorize(), as
- * listActions() checks a row), each by the rule of the Actions filter it
- * opens (page audit 4.6, `ACTIONS_FILTERS`): an action counts while it is open
- * and its project is not closed; late is a due date before the firm's today;
- * a review has waited long past REVIEW_WAIT_DAYS whole days in Awaiting Review.
+ * One line of counts (decision D5: counts, never a health word), read from
+ * the Actions list itself (actionBoard(), the same loader as attentionCounts():
+ * every action the reader may open, under row-level security, then
+ * authorize()), so each number is the count of the filter it opens: late,
+ * awaiting review, awaiting review longer than 7 days, blocked.
  */
-export async function firmCounters(tx: Tx, principal: Principal, day = firmToday()) {
-  const { rows } = await tx.execute<{
-    id: string;
-    status: string;
-    due_date: string | null;
-    owner_user_id: string | null;
-    created_by: string;
-    project_id: string;
-    org_id: string;
-    firm_org_id: string;
-    project_state: string;
-    awaiting_review_at: string | Date | null;
-  }>(sql`
-    select a.id, a.status::text as status, a.due_date::text as due_date, a.owner_user_id, a.created_by, a.project_id, a.org_id,
-           p.firm_org_id, p.state::text as project_state, a.awaiting_review_at
-    from actions a join projects p on p.id = a.project_id`);
-  const now = Date.now();
-  const live = rows
-    .filter(
-      (r) =>
-        authorize(principal, "action.read", {
-          type: "action",
-          id: r.id,
-          orgId: r.org_id,
-          firmOrgId: r.firm_org_id,
-          projectId: r.project_id,
-          createdBy: r.created_by,
-          assignees: r.owner_user_id ? [r.owner_user_id] : [],
-          draft: r.status === "draft",
-        }).allowed,
-    )
-    .filter((r) => (OPEN_STATUSES as readonly string[]).includes(r.status) && r.project_state !== "closed");
-  const waitedLong = (r: (typeof live)[number]) =>
-    r.awaiting_review_at !== null && Math.floor((now - new Date(r.awaiting_review_at).getTime()) / 86_400_000) > REVIEW_WAIT_DAYS;
-  const review = live.filter((r) => r.status === "awaiting_review");
+export async function firmCounters(tx: Tx, principal: Principal) {
+  const board = await actionBoard(tx, principal, parseActionsQuery({}));
   return {
-    late: live.filter((r) => r.due_date !== null && r.due_date < day).length,
-    awaitingReview: review.length,
-    reviewWaiting: review.filter(waitedLong).length,
-    blocked: live.filter((r) => r.status === "blocked").length,
+    late: board.counts.late ?? 0,
+    awaitingReview: board.counts["awaiting-review"] ?? 0,
+    reviewWaiting: board.waitingLongCount,
+    blocked: board.counts.blocked ?? 0,
   };
 }
 

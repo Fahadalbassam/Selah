@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { attentionCounts } from "@/services/action-board";
 import { clientHome, firmCounters, firmHome, home, ownerHome } from "@/services/home";
 import { loadPrincipal } from "@/services/principal";
 import { listActions } from "@/services/queries";
@@ -284,7 +285,9 @@ describe("the firm home", () => {
     const since = new Map((await owner.query(`SELECT id, awaiting_review_at FROM actions`)).rows.map((r) => [r.id, r.awaiting_review_at as Date | null]));
     const open = ["assigned", "in_progress", "blocked", "awaiting_review", "revision_requested"];
     for (const who of [U.admin, U.lead, U.cons, U.observer, U.stranger]) {
-      const [counters, rows] = await svc(who, async (tx, p) => [await firmCounters(tx, p), await listActions(tx, p)] as const);
+      const [counters, rows, attention] = await svc(who, async (tx, p) => [await firmCounters(tx, p), await listActions(tx, p), await attentionCounts(tx, p)] as const);
+      // The two counts the Actions page gives the home agree with the home's.
+      expect([counters.late, counters.reviewWaiting], who).toEqual([attention.late.n, attention.reviewsWaitingLong.n]);
       // The Actions list's own reader, then each filter's rule.
       const live = rows.filter((r) => open.includes(r.status) && states.get(r.projectId) !== "closed");
       const review = live.filter((r) => r.status === "awaiting_review");

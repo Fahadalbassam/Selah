@@ -18,6 +18,8 @@ import {
   REQUEST_ROW,
   requestRowPlan,
   rowPlan,
+  RULE_ACTION_ROW,
+  ruleActionRowPlan,
   TEAM_ROW,
   teamRowPlan,
   VALUE_ROW,
@@ -119,6 +121,14 @@ describe("a consultant row on the firm's client page", () => {
   });
 });
 
+describe("an action on a rule list of the Actions page", () => {
+  it("shows no button of its own: reminding the owner is in the menu, only when the server allows it", () => {
+    expect(RULE_ACTION_ROW.main).toEqual([]);
+    expect(ruleActionRowPlan({ remind: true })).toEqual({ main: null, menu: ["remind"] });
+    expect(ruleActionRowPlan({ remind: false })).toEqual({ main: null, menu: [] });
+  });
+});
+
 describe("the screens draw their rows from these plans", () => {
   // The server's own flags go in; nothing on the screen decides on its own.
   const read = (p: string) => readFileSync(p, "utf8");
@@ -128,6 +138,7 @@ describe("the screens draw their rows from these plans", () => {
     expect(read("src/components/departments-manager.tsx")).toMatch(/memberRowPlan\(/);
     expect(read("src/components/indicators/value-row-actions.tsx")).toMatch(/valueRowPlan\(/);
     expect(read("src/components/client-team-row.tsx")).toMatch(/teamRowPlan\(/);
+    expect(read("src/components/action-board-table.tsx")).toMatch(/ruleActionRowPlan\(/);
   });
 });
 
