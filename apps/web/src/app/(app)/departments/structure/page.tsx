@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { StructureBody, shownDepth, shownParam } from "@/components/org-chart/structure-body";
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
+import { departmentTabs } from "@/lib/org-chart";
 import { withPrincipal } from "@/server/page";
 import { getStructure, hasStructure } from "@/services/org-chart";
 import { DepartmentTabs } from "../department-tabs";
@@ -11,14 +12,18 @@ import { DepartmentTabs } from "../department-tabs";
 // current version and the earlier ones, as the firm published them. The
 // client's admins read every name; a manager every title, and names only as
 // the database sends them (her branch, while names are shown). Action owners
-// have no tab (404), and the firm's draft never reaches this page.
+// have no tab (404), and the firm's draft never reaches this page. When the
+// company does not use departments, a manager has only this tab (the
+// Departments page sends her here); the admin keeps both.
 export default async function StructurePage({ searchParams }: { searchParams: Promise<{ version?: string; depth?: string }> }) {
   const { version, depth } = await searchParams;
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "client" || !["client_admin", "client_manager"].includes(principal.role)) return null;
     // No tab and no page until a version is published.
     if (!(await hasStructure(tx, principal, principal.orgId))) return null;
-    return { orgId: principal.orgId, structure: await getStructure(tx, principal, principal.orgId, version ?? null) };
+    const structure = await getStructure(tx, principal, principal.orgId, version ?? null);
+    const tabs = departmentTabs({ admin: principal.role === "client_admin", departmentsEnabled: structure.client.departmentsEnabled, structure: true });
+    return { orgId: principal.orgId, structure, tabs };
   });
   if (!data?.structure.shown) notFound();
   const { structure } = data;
@@ -37,7 +42,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
           />
         ) : null}
       </PageHeader>
-      <DepartmentTabs current="structure" />
+      <DepartmentTabs tabs={data.tabs} current="structure" />
       <StructureBody structure={structure} base="/departments/structure" depthParam={depth} audience="client" />
     </>
   );

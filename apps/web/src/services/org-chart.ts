@@ -466,7 +466,8 @@ export async function getStructure(tx: Tx, principal: Principal, clientOrgId: st
   } else if (current.version) {
     shown = { version: current.version, status: statusOf(current.version.id), asOf: today, names: current.names, units: current.units, positions: current.positions };
   } else if (draftSummary) shown = await draft();
-  return { client: current.client, today, current: current.version, versions, shown };
+  const { departmentsEnabled } = await clientOf(tx, clientOrgId);
+  return { client: { ...current.client, departmentsEnabled }, today, current: current.version, versions, shown };
 }
 
 export type Structure = Awaited<ReturnType<typeof getStructure>>;

@@ -38,6 +38,19 @@ export const ORG_CHART_LIMITS = {
   request: { what: { min: 3, max: 1000 }, where: 300, why: 1000 },
 } as const;
 
+/**
+ * The tabs of the client's Departments page for a reader (client admins and
+ * managers): Structure once there is a structure to read. When the company
+ * does not use departments, a manager sees only the Structure, since the
+ * Departments tab holds nothing for her; the client admin keeps both,
+ * because the switch that turns departments on lives on the Departments tab.
+ */
+export function departmentTabs(input: { admin: boolean; departmentsEnabled: boolean; structure: boolean }): ("departments" | "structure")[] {
+  if (!input.structure) return ["departments"];
+  if (!input.departmentsEnabled && !input.admin) return ["structure"];
+  return ["departments", "structure"];
+}
+
 /** What a version is on a day, for the words on the Structure tab and the PDF. */
 export type VersionStatus =
   | { kind: "draft" }

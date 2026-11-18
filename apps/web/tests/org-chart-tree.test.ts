@@ -27,7 +27,7 @@ import {
   type ChartUnitIn,
   type TreeUnit,
 } from "@/lib/org-chart-tree";
-import { versionStatus } from "@/lib/org-chart";
+import { departmentTabs, versionStatus } from "@/lib/org-chart";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
 
@@ -340,6 +340,20 @@ describe("printing a large structure readably", () => {
     });
     expect(doc.match(/<table class="frame"><thead><tr><td><header class="top">/g)).toHaveLength(3);
     expect(doc).toMatch(/\.frame thead\{display:table-header-group;/);
+  });
+});
+
+describe("the client's Departments page tabs", () => {
+  it("Structure only once there is one to read", () => {
+    expect(departmentTabs({ admin: true, departmentsEnabled: true, structure: false })).toEqual(["departments"]);
+    expect(departmentTabs({ admin: false, departmentsEnabled: true, structure: true })).toEqual(["departments", "structure"]);
+  });
+
+  it("departments off: a manager sees only the Structure; the client admin keeps both, the switch that turns departments on is on the Departments tab", () => {
+    expect(departmentTabs({ admin: false, departmentsEnabled: false, structure: true })).toEqual(["structure"]);
+    expect(departmentTabs({ admin: true, departmentsEnabled: false, structure: true })).toEqual(["departments", "structure"]);
+    // Nothing published yet: the Departments page as before, for everyone.
+    expect(departmentTabs({ admin: false, departmentsEnabled: false, structure: false })).toEqual(["departments"]);
   });
 });
 
