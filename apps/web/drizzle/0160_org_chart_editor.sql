@@ -85,9 +85,13 @@ END $$;
 -- 3. Accepting an invitation that names a position starts the holding, from
 --    the day it is accepted, when the position is still on the company's
 --    current structure and still has room (fewer people hold it today than
---    it is planned for). Otherwise the person simply joins, and whoever
---    manages the structure places them. The lead and deputy are told, as for
---    any change on the published structure. Latest definition: 0000_baseline;
+--    it is planned for). The chart's publish lock is taken before that check
+--    (S5 of the part 3 review), so a publish under way finishes first and a
+--    position it drops is never filled. Otherwise the person simply joins,
+--    and the person who invited is told, in plain words, that nobody was
+--    placed (org_chart.invite_not_placed, a notice without a name), so they
+--    can place them. The lead and deputy are told of a holding, as for any
+--    change on the published structure. Latest definition: 0000_baseline;
 --    unchanged before the position.
 CREATE OR REPLACE FUNCTION app_accept_invitation(token_hash text, new_user uuid) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -95,6 +99,7 @@ DECLARE
   inv invitations%ROWTYPE;
   pos record;
   hid uuid;
+  lchart uuid;
 BEGIN
   SELECT * INTO inv FROM invitations i WHERE i.token_hash = app_accept_invitation.token_hash FOR UPDATE;
   IF NOT FOUND OR inv.accepted_at IS NOT NULL OR inv.revoked_at IS NOT NULL OR inv.expires_at <= now() THEN
@@ -108,6 +113,11 @@ BEGIN
   INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
     VALUES (new_user, inv.org_id, 'invitation.accept', 'invitation', inv.id, 'allow', jsonb_build_object('invited_by', inv.invited_by));
   IF inv.position_lineage_id IS NOT NULL THEN
+    -- The chart's lock first, then the check: a publish under way finishes before it.
+    SELECT v.chart_id INTO lchart FROM positions p JOIN org_chart_versions v ON v.id = p.version_id WHERE p.id = inv.position_lineage_id;
+    IF lchart IS NOT NULL THEN
+      PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(lchart::text));
+    END IF;
     SELECT p.id, p.planned_count, v.chart_id INTO pos
     FROM positions p JOIN org_chart_versions v ON v.id = p.version_id JOIN organizations o ON o.id = v.org_id
     WHERE p.lineage_id = inv.position_lineage_id AND v.org_id = inv.org_id AND v.state = 'published'
@@ -116,7 +126,6 @@ BEGIN
       SELECT count(*) FROM position_holders h
       WHERE h.position_lineage_id = inv.position_lineage_id AND h.from_date <= app_firm_today()
         AND (h.to_date IS NULL OR h.to_date >= app_firm_today())) < pos.planned_count THEN
-      PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(pos.chart_id::text));
       INSERT INTO position_holders (chart_id, org_id, position_lineage_id, user_id, from_date, created_by)
         VALUES (pos.chart_id, inv.org_id, inv.position_lineage_id, new_user, app_firm_today(), coalesce(inv.invited_by, new_user))
         RETURNING id INTO hid;
@@ -124,6 +133,11 @@ BEGIN
         VALUES (new_user, inv.org_id, 'org_chart.holder_start', 'org_chart', pos.id, 'allow',
           jsonb_build_object('client', inv.org_id, 'holder', hid, 'from', app_firm_today(), 'typed', false, 'invitation', inv.id));
       PERFORM app_org_chart_tell_lead(inv.org_id, new_user);
+    ELSIF inv.invited_by IS NOT NULL THEN
+      -- Filled meanwhile, or no longer on the structure: the person joined; whoever invited them places them.
+      INSERT INTO notifications (user_id, kind, entity_type, entity_id)
+        SELECT inv.invited_by, 'org_chart.invite_not_placed', 'organization', inv.org_id
+        WHERE EXISTS (SELECT 1 FROM org_memberships m WHERE m.user_id = inv.invited_by AND m.active);
     END IF;
   END IF;
   RETURN inv.org_id;

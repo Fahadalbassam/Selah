@@ -1986,7 +1986,8 @@
       "indicator_moved_away": "{title}: {value} {unit} في {period}، خط الأساس {baseline} {unit}{withTarget, select, yes {، والمستهدف {target} {unit} بحلول {targetDate}} other {}}، {direction, select, lower_better {الأقل أفضل} other {الأعلى أفضل}}. {reader, select, client {أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا.} other {أرقام يبلّغ عنها العميل، وليست أثرًا موثّقًا.}}",
       "deliverable_handed_over": "سلّمكم المكتب «{title}»: أكّدوا استلامه أو اكتبوا ملاحظة",
       "deliverable_reminder": "مضت عشرة أيام عمل على تسليم «{title}» وما زال بانتظار تأكيدكم استلامه",
-      "deliverable_commented": "كتب العميل ملاحظة على «{title}» بدل تأكيد استلامه"
+      "deliverable_commented": "كتب العميل ملاحظة على «{title}» بدل تأكيد استلامه",
+      "org_chart_invite_not_placed": "قُبلت دعوتك إلى {title}، لكن المنصب الذي اخترته لم يعد شاغراً أو لم يعد في الهيكل، فلم يُعيَّن فيه أحد. عيّنه من «شاغلو المناصب»."
     },
     "mail": {
       "section": "البريد",
@@ -2125,7 +2126,7 @@
     },
     "position": "المنصب في الهيكل (اختياري)",
     "positionPlaceholder": "اختر منصباً شاغراً",
-    "positionHint": "عند قبول الدعوة يشغل الشخص هذا المنصب من يومها."
+    "positionHint": "عند قبول الدعوة يشغل الشخص هذا المنصب من يومها إن بقي شاغراً حتى ذلك اليوم؛ وإلا يصلك إشعار لتعيّنه بنفسك."
   },
   "settings": {
     "title": "إعدادات المكتب",

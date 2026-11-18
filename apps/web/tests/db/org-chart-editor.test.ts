@@ -672,10 +672,15 @@ describe("the invite form's position", () => {
     // Two recruiters are planned; both places are taken before the link is used.
     await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, POS.recruiter!, { start: { name: "First Recruiter", from: today() } }), true);
     await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, POS.recruiter!, { start: { name: "Second Recruiter", from: today() } }), true);
+    await truncateHolderNotices();
     await accept(inv.id, "recruit@example.test", id(71));
     expect((await owner.query(`SELECT count(*)::int AS n FROM org_memberships WHERE user_id = $1 AND active`, [id(71)])).rows[0].n).toBe(1);
     expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE user_id = $1`, [id(71)])).rows[0].n).toBe(0);
     expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE position_lineage_id = $1 AND to_date IS NULL`, [POS.recruiter])).rows[0].n).toBe(2);
+    // The person who invited is told, in plain words, that nobody was placed (S5); nobody else is.
+    expect((await owner.query(`SELECT user_id, entity_type, entity_id FROM notifications WHERE kind = 'org_chart.invite_not_placed'`)).rows).toEqual([
+      { user_id: U.admin, entity_type: "organization", entity_id: ACME },
+    ]);
   });
 });
 

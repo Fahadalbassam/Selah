@@ -72,6 +72,19 @@ describe("the draft as a list", () => {
   });
 });
 
+describe("an invitation's position, in plain words (S5)", () => {
+  it("the form says the person is placed only if the position is still vacant, and that the inviter is told otherwise; the notice says so", () => {
+    const people = (m: unknown) => (m as { people: Record<string, string> }).people;
+    const kinds = (m: unknown) => (m as { notifications: { kinds: Record<string, string> } }).notifications.kinds;
+    expect(people(en).positionHint).toMatch(/still vacant/);
+    expect(people(en).positionHint).toMatch(/you are told/);
+    expect(people(ar).positionHint).toMatch(/شاغراً/);
+    expect(kinds(en).org_chart_invite_not_placed).toContain("{title}");
+    expect(kinds(ar).org_chart_invite_not_placed).toContain("{title}");
+    expect(kinds(en).org_chart_invite_not_placed).toMatch(/People in positions/);
+  });
+});
+
 describe("the Structure page's header says only what is true now (S4)", () => {
   it("with nothing drawn yet: how to start, never levels or a PDF", () => {
     expect(structureHint({ hasUnits: false })).toBe("hintEmpty");
