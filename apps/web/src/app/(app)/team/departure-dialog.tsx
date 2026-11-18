@@ -12,9 +12,12 @@ import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PersonPicker } from "@/components/person-picker";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { orgChartError } from "@/lib/org-chart";
 
 type Kind = "action" | "client_lead" | "project_lead" | "review" | "client_role" | "department_head";
 interface Holding {
@@ -25,6 +28,16 @@ interface Holding {
   detail: string | null;
   blocking: boolean;
 }
+/** A position of the company's structure the person holds (services/org-chart.ts positionsHeldBy). */
+interface HeldPosition {
+  positionId: string;
+  titleAr: string | null;
+  titleEn: string | null;
+  unitNameAr: string | null;
+  unitNameEn: string | null;
+}
+/** Leave it vacant, or who takes it over tomorrow: a colleague with an account, or a typed name. */
+type Replacement = { mode: "vacant" | "person" | "typed"; userId: string; name: string };
 // Clients and departments carry their Arabic name in detail.
 const named = (h: Holding, ar: boolean) =>
   ar && h.detail && (h.kind === "client_lead" || h.kind === "department_head") ? h.detail : h.title;
@@ -51,7 +64,11 @@ const href = (h: Holding) =>
  * Switching someone off (F26): first the departing-person report (what they
  * still hold), then a one-step hand-over to a colleague, then the switch-off
  * itself, which stays disabled while blocking work remains. The database
- * refuses the same. Mounted only while open, so each opening reloads.
+ * refuses the same. Each position they hold in the company's structure (org
+ * chart, part 3) ends on the leaving day and stays vacant, or a replacement
+ * picked here takes it over the next day; a colleague picked there is also
+ * offered as the one to hand their actions to. Mounted only while open, so
+ * each opening reloads.
  */
 export function DepartureDialog(props: {
   open: boolean;
@@ -67,22 +84,42 @@ export function DepartureDialog(props: {
   const router = useRouter();
   const ar = useLocale() === "ar";
   const [items, setItems] = useState<Holding[] | null>(null);
+  const [positions, setPositions] = useState<HeldPosition[]>([]);
+  // Per position: left out, it stays vacant; otherwise who takes it over tomorrow.
+  const [replacements, setReplacements] = useState<Record<string, Replacement>>({});
   const [to, setTo] = useState<string>("");
+  // Bumped when "hand over to" is filled in from a replacement, so the picker shows it.
+  const [prefilled, setPrefilled] = useState(0);
   const [roles, setRoles] = useState(true);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<null | "hand" | "off">(null);
   const [error, setError] = useState<string | null>(null);
   const base = `/api/people/${props.userId}`;
+  const tOrg = useTranslations("orgChart.errors");
   const say = (r: { error: string; message?: string }) => {
     const known = r.message && Object.keys(KNOWN).find((m) => r.message!.startsWith(m));
-    setError(known ? t(`errors.${KNOWN[known]}`) : tc(`errors.${r.error}`));
+    const chart = orgChartError(r.message);
+    setError(known ? t(`errors.${KNOWN[known]}`) : chart ? tOrg(chart as "position") : tc(`errors.${r.error}`));
+  };
+  const local = (a: string | null, e: string | null) => (ar ? (a ?? e) : (e ?? a)) ?? "";
+  const setReplacement = (positionId: string, next: Replacement) => {
+    setReplacements((all) => ({ ...all, [positionId]: next }));
+    // Their open actions can go to the same person: offered as the one to hand over to.
+    if (next.mode === "person" && next.userId && !to) {
+      setTo(next.userId);
+      setPrefilled((n) => n + 1);
+    }
   };
 
   useEffect(() => {
     let live = true;
     fetch(`${base}/holdings`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { items: Holding[] }) => live && setItems(d.items))
+      .then((d: { items: Holding[]; positions?: HeldPosition[] }) => {
+        if (!live) return;
+        setItems(d.items);
+        setPositions(d.positions ?? []);
+      })
       .catch(() => live && setError(tc("errors.generic")));
     return () => {
       live = false;
@@ -105,10 +142,16 @@ export function DepartureDialog(props: {
     router.refresh();
   }
 
+  const chosen = Object.entries(replacements).flatMap(([positionId, r]): { positionId: string; userId?: string; name?: string }[] =>
+    r.mode === "person" && r.userId ? [{ positionId, userId: r.userId }] : r.mode === "typed" && r.name.trim().length >= 2 ? [{ positionId, name: r.name.trim() }] : [],
+  );
+  // A replacement picked but not yet named: the switch waits for it (or for "leave vacant").
+  const unfinished = Object.values(replacements).some((r) => r.mode !== "vacant" && !(r.mode === "person" ? r.userId : r.name.trim().length >= 2));
+
   async function switchOff() {
     setBusy("off");
     setError(null);
-    const r = await callApi(base, "PATCH", { active: false, reason: reason.trim() });
+    const r = await callApi(base, "PATCH", { active: false, reason: reason.trim(), ...(chosen.length ? { replacements: chosen } : {}) });
     setBusy(null);
     if (!r.ok) return say(r);
     props.onOpenChange(false);
@@ -184,6 +227,7 @@ export function DepartureDialog(props: {
                   <div className="max-w-sm">
                     <PersonPicker
                       id="d-to"
+                      key={`to-${prefilled}`}
                       defaultValue={to || undefined}
                       onValueChange={setTo}
                       placeholder={t("toPlaceholder")}
@@ -210,6 +254,82 @@ export function DepartureDialog(props: {
           </div>
         ) : null}
 
+        {positions.length ? (
+          <div className="rounded-lg border">
+            <div className="border-b px-4 py-2">
+              <p className="text-sm font-medium">
+                {t("positions")} <span className="text-muted-foreground tabular-nums">({positions.length})</span>
+              </p>
+              <p className="text-xs text-muted-foreground">{t("positionsHint")}</p>
+            </div>
+            <ul className="divide-y">
+              {positions.map((p) => {
+                const r = replacements[p.positionId] ?? { mode: "vacant", userId: "", name: "" };
+                return (
+                  <li key={p.positionId} className="grid gap-2 px-4 py-3 text-sm">
+                    <p>
+                      <span className="font-medium" dir="auto">
+                        {local(p.titleAr, p.titleEn)}
+                      </span>
+                      {p.unitNameAr || p.unitNameEn ? (
+                        <span className="text-muted-foreground" dir="auto">
+                          {" "}
+                          · {local(p.unitNameAr, p.unitNameEn)}
+                        </span>
+                      ) : null}
+                    </p>
+                    <RadioGroup
+                      value={r.mode === "vacant" ? "vacant" : "replace"}
+                      onValueChange={(v) => setReplacement(p.positionId, { ...r, mode: v === "vacant" ? "vacant" : "person" })}
+                      className="flex flex-wrap gap-4"
+                      aria-label={local(p.titleAr, p.titleEn)}
+                    >
+                      <label className="flex items-center gap-2">
+                        <RadioGroupItem value="vacant" />
+                        {t("leaveVacant")}
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <RadioGroupItem value="replace" />
+                        {t("replace")}
+                      </label>
+                    </RadioGroup>
+                    {r.mode !== "vacant" ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="grid gap-1">
+                          <Label htmlFor={`d-rep-${p.positionId}`} className="text-xs">
+                            {t("replacementPerson")}
+                          </Label>
+                          <PersonPicker
+                            id={`d-rep-${p.positionId}`}
+                            options={props.colleagues.map((c) => ({ value: c.userId, label: c.name }))}
+                            defaultValue={r.userId || undefined}
+                            onValueChange={(v) => setReplacement(p.positionId, { mode: v ? "person" : "typed", userId: v, name: v ? "" : r.name })}
+                            placeholder={t("toPlaceholder")}
+                            clearable
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label htmlFor={`d-typed-${p.positionId}`} className="text-xs">
+                            {t("replacementTyped")}
+                          </Label>
+                          <Input
+                            id={`d-typed-${p.positionId}`}
+                            value={r.mode === "typed" ? r.name : ""}
+                            onChange={(e) => setReplacement(p.positionId, { mode: e.target.value ? "typed" : "person", userId: "", name: e.target.value })}
+                            maxLength={200}
+                            dir="auto"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:col-span-2">{t("fromTomorrow")}</p>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="grid gap-2">
           <Label htmlFor="d-reason">{t("reason")}</Label>
           <Textarea id="d-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} rows={2} />
@@ -224,7 +344,7 @@ export function DepartureDialog(props: {
           <Button type="button" variant="outline" onClick={() => props.onOpenChange(false)}>
             {tc("cancel")}
           </Button>
-          <Button type="button" variant="destructive" disabled={items === null || blocking > 0 || !reason.trim() || busy !== null} onClick={switchOff}>
+          <Button type="button" variant="destructive" disabled={items === null || blocking > 0 || !reason.trim() || unfinished || busy !== null} onClick={switchOff}>
             {busy === "off" ? <BrandLoader tone="current" className="size-4" /> : null}
             {t("switchOff")}
           </Button>

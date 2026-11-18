@@ -34,8 +34,8 @@ export interface ChartPositionIn {
   reportsToId: string | null;
   isHead: boolean;
   sortOrder: number;
-  /** As the service returns them: a name only where the reader may see it. */
-  holders: { name: string | null; named: boolean }[];
+  /** As the service returns them: a name (and the person, for someone with an account) only where the reader may see it. */
+  holders: { name: string | null; named: boolean; userId?: string | null }[];
   /** Nobody holds it on the day read; null where the reader gets titles only. */
   vacant: boolean | null;
 }
@@ -47,6 +47,8 @@ export interface TreePosition {
   head: boolean;
   /** The holders' names the reader may see, and asked for. */
   names: string[];
+  /** The same holders with their account, if any: on screen, a person with an account has a work card (part 3). */
+  people: { name: string; userId: string | null }[];
   /** True: nobody holds it ("Vacant"). Null: titles only, nothing said about who holds it. */
   vacant: boolean | null;
   /** The title of the position it reports to, when the drawing does not already show that line. */
@@ -162,6 +164,7 @@ export function buildTree(units: readonly ChartUnitIn[], positions: readonly Cha
       title: localText(p.titleAr, p.titleEn, opts.locale),
       head: p.isHead,
       names: opts.names ? p.holders.flatMap((h) => (h.named && h.name ? [h.name] : [])) : [],
+      people: opts.names ? p.holders.flatMap((h) => (h.named && h.name ? [{ name: h.name, userId: h.userId ?? null }] : [])) : [],
       vacant: p.vacant,
       reportsTo: boss && boss.id !== shownManager(p) ? localText(boss.titleAr, boss.titleEn, opts.locale) : null,
     };

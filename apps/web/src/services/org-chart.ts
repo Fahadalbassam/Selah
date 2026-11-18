@@ -1368,7 +1368,7 @@ export async function personWork(tx: Tx, principal: Principal, clientOrgId: stri
   const late = work.filter((w) => w.late);
   const open = work.filter((w) => !w.late);
   const files = (await listFiles(tx, principal, { uploadedBy: userId, orgId: clientOrgId, limit: WORK_CARD_ROWS * 4 })).slice(0, WORK_CARD_ROWS);
-  const strip = ({ late: _late, ...a }: (typeof work)[number]): WorkAction => a;
+  const strip = (a: (typeof work)[number]): WorkAction => ({ id: a.id, title: a.title, status: a.status, dueDate: a.dueDate, projectTitle: a.projectTitle });
 
   return {
     person: {

@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { localName } from "@/lib/names";
 import type { listPeople } from "@/services/accounts";
+import type { listVacancies } from "@/services/org-chart";
 import { AccessReview, DomainsDialog, PersonMenu } from "./people-panels";
 
 type People = Awaited<ReturnType<typeof listPeople>>;
+type Vacancy = Awaited<ReturnType<typeof listVacancies>>[number];
 
 const ROLES = {
   firm: ["consultant", "firm_admin"],
@@ -31,6 +33,7 @@ export async function PeopleAdmin({
   myRole,
   reviewDays,
   asPage = false,
+  vacancies = [],
 }: {
   data: People;
   me: string;
@@ -38,6 +41,8 @@ export async function PeopleAdmin({
   reviewDays: number | null;
   /** On a page of its own (a client's people), the heading is the page's title. */
   asPage?: boolean;
+  /** At a client with a published structure: its vacant positions, which the invite form offers (org chart, part 3). */
+  vacancies?: Vacancy[];
 }) {
   const [t, tRole, format] = await Promise.all([getTranslations("people"), getTranslations("role"), getFormatter()]);
   const ar = (await getLocale()) === "ar";
@@ -75,6 +80,23 @@ export async function PeopleAdmin({
                 required: true,
                 options: roles.map((r) => ({ value: r, label: tRole(r) })),
               },
+              ...(vacancies.length
+                ? [
+                    {
+                      name: "positionId",
+                      label: t("position"),
+                      type: "person" as const,
+                      clearable: true,
+                      placeholder: t("positionPlaceholder"),
+                      hint: t("positionHint"),
+                      options: vacancies.map((v) => ({
+                        value: v.positionId,
+                        label: (ar ? (v.titleAr ?? v.titleEn) : (v.titleEn ?? v.titleAr)) ?? v.code,
+                        hint: [v.code, ar ? (v.unitNameAr ?? v.unitNameEn) : (v.unitNameEn ?? v.unitNameAr)].filter(Boolean).join(" · "),
+                      })),
+                    },
+                  ]
+                : []),
             ]}
             submitLabel={t("invite")}
           />

@@ -37,6 +37,10 @@ export interface Field {
   placeholder?: string;
   /** The current value, when the dialog edits something. A select with "" starts on its placeholder. */
   defaultValue?: string;
+  /** A short line under the field. */
+  hint?: string;
+  /** An optional "person" field: offer a clear button. */
+  clearable?: boolean;
 }
 
 /** Calls one of our JSON API routes and maps its error to a message key. */
@@ -153,6 +157,7 @@ export function FormDialog(props: {
                   options={f.options ?? []}
                   defaultValue={f.defaultValue}
                   placeholder={f.placeholder}
+                  clearable={f.clearable}
                 />
               ) : f.type === "date" ? (
                 <DatePicker
@@ -174,6 +179,7 @@ export function FormDialog(props: {
                   placeholder={f.placeholder}
                 />
               )}
+              {f.hint ? <p className="text-xs text-muted-foreground">{f.hint}</p> : null}
             </div>
           ))}
           {/* The error slides the footer down instead of making it jump (Animate UI Auto Height).

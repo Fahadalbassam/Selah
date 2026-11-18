@@ -94,9 +94,45 @@ export function versionStatus(
  */
 export function orgChartError(message: string | undefined): string | null {
   if (!message) return null;
-  const rules: [RegExp, string][] = [[/this draft is no longer the current one/, "draftChanged"]];
+  // The services' own refusals (BadRequestError) carry a key.
+  if ((ORG_CHART_ERROR_KEYS as readonly string[]).includes(message)) return message;
+  const rules: [RegExp, string][] = [
+    [/this draft is no longer the current one/, "draftChanged"],
+    [/already holds the position on some of those days/, "alreadyHolds"],
+    [/a holder is one of the client's own active people/, "ownPeople"],
+    [/a holding ends on or after the day it started/, "endBefore"],
+    [/this holding has already ended/, "alreadyEnded"],
+    [/nothing is published yet to start again from/, "nothingPublished"],
+    [/cannot report to itself|cannot sit under itself/, "cycle"],
+    [/move or remove the units and positions inside this unit first/, "not_empty"],
+    [/a published structure never changes/, "published"],
+    [/minimal records/, "minimal_records"],
+  ];
   return rules.find(([re]) => re.test(message))?.[1] ?? null;
 }
+
+/** The keys the org chart services refuse with (BadRequestError), each with a sentence under orgChart.errors. */
+export const ORG_CHART_ERROR_KEYS = [
+  "name",
+  "name_length",
+  "code",
+  "code_taken",
+  "level",
+  "department",
+  "cycle",
+  "not_empty",
+  "specialties",
+  "planned",
+  "holder",
+  "holder_name",
+  "overlap",
+  "date",
+  "published",
+  "history",
+  "minimal_records",
+  "position",
+  "replacement",
+] as const;
 
 /** Specialties as the database keeps them: trimmed, without blanks or repeats, in the order given. */
 export function cleanSpecialties(list: readonly string[]): string[] {
