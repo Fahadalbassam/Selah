@@ -4856,6 +4856,7 @@
     "empty": "No indicators yet.",
     "inactiveList": "{n, plural, one {# switched-off indicator} other {# switched-off indicators}}",
     "claimNote": "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it.",
+    "claimNoteClient": "Your company's reported figures, not verified impact. A change in an indicator is not proof that a recommendation caused it.",
     "movement": {
       "none": "No value yet",
       "better": "Better than baseline",
@@ -5100,6 +5101,7 @@
       "empty": "Nothing received yet."
     },
     "claimNote": "These are figures the client reports from its own records. They are not verified impact, and a change is not proof that a recommendation caused it.",
+    "claimNoteClient": "Your company's reported figures, not verified impact. A change is not proof that a recommendation caused it.",
     "sources": {
       "title": "Indicators and their codes",
       "hint": "A code makes matching exact when your exports or systems use their own names. Without one, an indicator is matched by its Arabic or English name.",

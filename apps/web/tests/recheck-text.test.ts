@@ -146,6 +146,41 @@ describe("a tab with nothing this reader may open (fault 4)", () => {
   });
 });
 
+describe("the line under a client's figures speaks to the client about its own company (fault 5)", () => {
+  // Decided (the lead, 18 Nov 2026): the client reads «أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا» /
+  // "Your company's reported figures, not verified impact"; the firm keeps "reported by the client".
+  it("has the decided words for client readers and keeps the firm's", () => {
+    for (const ns of ["indicators", "indicatorData"] as const) {
+      expect(ar[ns].claimNoteClient, ns).toMatch(/^أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا/);
+      expect(en[ns].claimNoteClient, ns).toMatch(/^Your company's reported figures, not verified impact\./);
+      expect(ar[ns].claimNoteClient, ns).not.toContain("العميل");
+      expect(en[ns].claimNoteClient, ns).not.toContain("client");
+      // Neither claims the change came from a recommendation.
+      expect(en[ns].claimNoteClient, ns).toMatch(/not proof that a recommendation caused it/);
+    }
+    expect(ar.indicators.claimNote).toContain("يبلّغ عنها العميل");
+    expect(en.indicators.claimNote).toContain("reported by the client");
+  });
+
+  it("is chosen by who reads it on every screen that shows it", () => {
+    const screens = [
+      "src/app/(app)/indicators/[id]/page.tsx",
+      "src/app/(app)/indicators/data/page.tsx",
+      "src/app/(app)/indicators/import/import-wizard.tsx",
+      "src/app/(app)/reports/[id]/status-pack.tsx",
+      "src/components/indicators/indicators-card.tsx",
+      "src/components/indicators/linked-indicators-card.tsx",
+    ];
+    for (const f of screens) {
+      const src = readFileSync(join(__dirname, "..", f), "utf8");
+      // No screen draws the firm's line to everyone any more...
+      expect(src, f).not.toMatch(/\b\w+\("claimNote"\)/);
+      // ...each picks the client's line for a client reader.
+      expect(src, f).toMatch(/\? "claimNote" : "claimNoteClient"/);
+    }
+  });
+});
+
 describe("the firm admin's role label", () => {
   it("is «مدير المكتب», as everywhere else", () => {
     expect(ar.role.firm_admin).toBe("مدير المكتب");

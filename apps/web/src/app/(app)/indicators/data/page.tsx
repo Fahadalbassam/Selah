@@ -112,7 +112,7 @@ export default async function IndicatorDataPage({ searchParams }: { searchParams
           )}
         </CardContent>
       </Card>
-      <p className="text-xs leading-relaxed text-muted-foreground">{t("claimNote")}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t(firm ? "claimNote" : "claimNoteClient")}</p>
     </>
   );
 }
