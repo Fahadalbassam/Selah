@@ -185,7 +185,7 @@ describe("technical problems", () => {
     );
     const mail = await owner.query(`SELECT to_email, kind, link, reference FROM outbound_emails ORDER BY to_email`);
     expect(mail.rows).toEqual(
-      ["admin2@example.test", "admin@example.test"].sort().map((to) => ({ to_email: to, kind: "support.requested", link: "/notifications#support", reference: null })),
+      ["admin2@example.test", "admin@example.test"].sort().map((to) => ({ to_email: to, kind: "support.requested", link: "/#problems", reference: null })),
     );
     const audit = await owner.query(`SELECT actor_id, outcome, meta FROM audit_log WHERE action = 'support_request.create' AND resource_id = $1`, [rid]);
     expect(audit.rows).toEqual([{ actor_id: U.owner, outcome: "allow", meta: {} }]);

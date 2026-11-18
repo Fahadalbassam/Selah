@@ -24,10 +24,11 @@ import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 import { audiencesForMe } from "./audience";
 
-// A firm person's day across every client (Wave 3, research section 7):
-// what waits for their review, what falls due where they lead, their own
-// follow-ups and meetings, and the decisions waiting on them. Nothing is
-// stored; it is a query. Every row comes through RLS and is then checked
+// A firm person's day across every client (Wave 3, research section 7), read
+// by the firm home (page audit 4.2; "Today" became the home, decision D2):
+// what waits for their review, what falls due where they lead or are staffed,
+// their own follow-ups and meetings, and the decisions waiting on them.
+// Nothing is stored; it is a query. Every row comes through RLS and is then checked
 // with authorize() (or canTransition() for reviews), so the page never shows
 // something the person could not already open.
 //
@@ -83,7 +84,7 @@ export interface MeetingItem extends Item {
 }
 
 export interface DecisionItem extends Omit<Item, "projectId" | "projectTitle"> {
-  kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment";
+  kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment" | "disputed" | "ready_to_close";
   projectId: string | null;
   projectTitle: string | null;
   /** Who asked (join, deadline and closure requests). */
@@ -123,13 +124,37 @@ function addDays(iso: string, days: number) {
 
 const isoDate = (d: string | Date) => (typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10));
 
-export async function today(tx: Tx, principal: Principal, day = firmToday()): Promise<Today> {
-  if (principal.orgKind !== "firm") throw new NotFoundError("page");
-  const admin = principal.role === "firm_admin";
-  const soon = addDays(day, TODAY_WINDOW_DAYS);
+/** A project as read for the home lists, with what the permission checks need. */
+export interface ReadableProject {
+  id: string;
+  kind: "client" | "internal";
+  title: string;
+  state: "draft" | "planned" | "active" | "closing" | "closed";
+  orgId: string;
+  firmOrgId: string;
+  orgName: string;
+  orgNameAr: string | null;
+  engagementMode: "full" | "restricted" | "consultant_managed" | null;
+}
 
-  // Every project this person can open (RLS, then authorize()), with what the checks need.
-  const projectRows = await tx
+/** The project as a resource for authorize(), as the project page builds it. */
+export function projectResource(p: ReadableProject): Resource {
+  return {
+    type: "project",
+    id: p.id,
+    orgId: p.orgId,
+    firmOrgId: p.firmOrgId,
+    projectId: p.id,
+    projectKind: p.kind,
+    projectState: p.state,
+    engagementMode: p.kind === "client" ? p.engagementMode : null,
+    clientOrgId: p.kind === "client" ? p.orgId : undefined,
+  };
+}
+
+/** Every project this person can open (row-level security, then authorize()), by id. */
+export async function readableProjects(tx: Tx, principal: Principal): Promise<Map<string, ReadableProject>> {
+  const rows: ReadableProject[] = await tx
     .select({
       id: projects.id,
       kind: projects.kind,
@@ -143,18 +168,16 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
     })
     .from(projects)
     .innerJoin(organizations, eq(organizations.id, projects.orgId));
-  const resourceOf = (p: (typeof projectRows)[number]): Resource => ({
-    type: "project",
-    id: p.id,
-    orgId: p.orgId,
-    firmOrgId: p.firmOrgId,
-    projectId: p.id,
-    projectKind: p.kind,
-    projectState: p.state,
-    engagementMode: p.kind === "client" ? p.engagementMode : null,
-    clientOrgId: p.kind === "client" ? p.orgId : undefined,
-  });
-  const byId = new Map(projectRows.filter((p) => authorize(principal, "project.read", resourceOf(p)).allowed).map((p) => [p.id, p]));
+  return new Map(rows.filter((p) => authorize(principal, "project.read", projectResource(p)).allowed).map((p) => [p.id, p]));
+}
+
+export async function today(tx: Tx, principal: Principal, day = firmToday()): Promise<Today> {
+  if (principal.orgKind !== "firm") throw new NotFoundError("page");
+  const admin = principal.role === "firm_admin";
+  const soon = addDays(day, TODAY_WINDOW_DAYS);
+
+  const byId = await readableProjects(tx, principal);
+  const resourceOf = projectResource;
 
   const watched = admin
     ? await tx.select({ clientOrgId: watches.clientOrgId, projectId: watches.projectId }).from(watches).where(eq(watches.userId, principal.userId))
@@ -163,12 +186,12 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
   const watchedProjects = new Set(watched.flatMap((w) => (w.projectId ? [w.projectId] : [])));
 
   /** Projects the person works on. */
-  const staffed = (p: (typeof projectRows)[number]) =>
+  const staffed = (p: ReadableProject) =>
     admin
       ? principal.projectIds.has(p.id) || watchedProjects.has(p.id) || watchedClients.has(p.orgId)
       : principal.projectIds.has(p.id) || (p.kind === "client" && principal.leadClientIds.has(p.orgId));
   /** Projects the person answers for: as the client's lead or deputy, or the internal project's lead. */
-  const leads = (p: (typeof projectRows)[number]) =>
+  const leads = (p: ReadableProject) =>
     admin
       ? staffed(p)
       : principal.leadProjectIds.has(p.id) || (p.kind === "client" && principal.leadClientIds.has(p.orgId));
@@ -233,6 +256,8 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
     ? await tx
         .select({
           ...actionColumns,
+          // The first sign-off of this round was mine: the second is a colleague's (F22; page audit N2).
+          signedByMe: sql<boolean>`exists (select 1 from app_second_review_state(${actions.id}) s where s.signed_by = ${principal.userId}::uuid)`,
           iSubmitted: sql<boolean>`(
             exists (select 1 from evidence_submissions es where es.action_id = ${actions.id} and es.submitted_by = ${principal.userId}::uuid
               and es.created_at > coalesce((select max(r.created_at) from reviews r where r.action_id = ${actions.id}), '-infinity'))
@@ -248,8 +273,10 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
         .orderBy(sql`${actions.awaitingReviewAt} asc nulls last`, asc(actions.id))
     : [];
   const reviews: ReviewItem[] = reviewRows
-    .filter((a) =>
-      canTransition(principal, actionResource(a), "awaiting_review", "verified_complete", a.iSubmitted ? [principal.userId] : []).allowed,
+    .filter(
+      (a) =>
+        !a.signedByMe &&
+        canTransition(principal, actionResource(a), "awaiting_review", "verified_complete", a.iSubmitted ? [principal.userId] : []).allowed,
     )
     .map((a) => ({
       id: a.id,
@@ -261,7 +288,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
     }));
   const inReview = new Set(reviews.map((r) => r.id));
 
-  // 2. Overdue or due within the week, where I lead, and my own actions.
+  // 2. Overdue or due within the week, where I lead or am staffed, and my own actions (page audit 4.2).
   // A closed project's open actions were settled at closing.
   const openIds = [...byId.values()].filter((p) => p.state !== "closed").map((p) => p.id);
   const dueRows = openIds.length
@@ -276,7 +303,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
             isNull(actions.closureOutcome),
             lte(actions.dueDate, soon),
             inArray(actions.projectId, openIds),
-            or(leadIds.length ? inArray(actions.projectId, leadIds) : sql`false`, eq(actions.ownerUserId, principal.userId)),
+            or(mineIds.length ? inArray(actions.projectId, mineIds) : sql`false`, eq(actions.ownerUserId, principal.userId)),
           ),
         )
         .orderBy(asc(actions.dueDate), asc(actions.id))
@@ -584,6 +611,57 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
         at: c.commentedAt!,
       });
     }
+  }
+  // Recommendations the client disagrees with, on the client projects I work
+  // on: the same rule as the "disputed" deviation (app_recommendation_stances,
+  // read under my rights), for the firm to answer (page audit 4.2).
+  const disputeIds = mine.filter((p) => p.kind === "client" && p.state !== "closed").map((p) => p.id);
+  const { rows: disputeRows } = disputeIds.length
+    ? await tx.execute<{ id: string; project_id: string; org_id: string; title: string; visibility: Resource["visibility"]; created_by: string; since: string | null }>(sql`
+        select r.id, r.project_id, r.org_id, r.title, r.visibility, r.created_by, s.responded_at as since
+        from unnest(${sql.param(disputeIds)}::uuid[]) as p(id)
+        cross join lateral app_recommendation_stances(p.id) s
+        join recommendations r on r.id = s.recommendation_id
+        where s.stance = 'disagree'
+        order by s.responded_at asc nulls last, r.id`)
+    : { rows: [] };
+  for (const r of disputeRows) {
+    const resource: Resource = { ...resourceOf(byId.get(r.project_id)!), type: "recommendation", id: r.id, orgId: r.org_id, visibility: r.visibility, createdBy: r.created_by };
+    if (!authorize(principal, "recommendation_response.review", resource).allowed) continue;
+    decisions.push({
+      kind: "disputed",
+      id: r.id,
+      ...at(r.project_id),
+      title: r.title,
+      href: `/recommendations/${r.id}`,
+      who: null,
+      proposed: null,
+      at: r.since ? new Date(r.since) : new Date(0),
+    });
+  }
+
+  // Projects whose closing steps are all done, waiting for the final close by
+  // whoever may close them (the firm admin; an internal project's lead): the
+  // same rules as the Closing tab (app_can_close_project, app_closure_blockers).
+  const closingIds = [...byId.values()].filter((p) => p.state === "closing" && authorize(principal, "project.close", resourceOf(p)).allowed).map((p) => p.id);
+  const { rows: readyRows } = closingIds.length
+    ? await tx.execute<{ project_id: string; since: string | null }>(sql`
+        select p.id as project_id,
+          (select max(c.started_at) from project_closures c where c.project_id = p.id and c.cancelled_at is null and c.reopened_at is null) as since
+        from unnest(${sql.param(closingIds)}::uuid[]) as p(id)
+        where app_can_close_project(p.id) and not exists (select 1 from app_closure_blockers(p.id))`)
+    : { rows: [] };
+  for (const r of readyRows) {
+    decisions.push({
+      kind: "ready_to_close",
+      id: r.project_id,
+      ...at(r.project_id),
+      title: byId.get(r.project_id)!.title,
+      href: `/projects/${r.project_id}?tab=closing`,
+      who: null,
+      proposed: null,
+      at: r.since ? new Date(r.since) : new Date(0),
+    });
   }
   decisions.sort((a, b) => a.at.getTime() - b.at.getTime());
 

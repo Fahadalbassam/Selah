@@ -131,7 +131,7 @@ Grouped by area; the PR numbers are in `docs/progress-checklist.md`.
 
 **Clients and staffing**
 - Clients, client overview page and client-wide report, lead and deputy, consultant join requests, observers, watching a client or project.
-- Three engagement modes, minimal records, optional departments, client groups with a holding view (`/group`).
+- Three engagement modes, minimal records, optional departments, client groups with a holding view (a section of the holding's people's home).
 - Internal projects (the firm's own work, never visible to clients).
 - Team page with workload and team load (reviews waiting, second sign-offs, overdue work per consultant; no scores or rankings).
 - Typeable people pickers.
@@ -143,7 +143,7 @@ Grouped by area; the PR numbers are in `docs/progress-checklist.md`.
 - Deadline change requests, slip history and aging buckets, risk acceptances, closing with outcomes.
 - Reminders and four-level escalation, quiet-client alerts, daily digest mail, mail choices that respect the Saudi week.
 - Plan trace (assessment → finding → recommendation → action → evidence) and "since your last visit".
-- **Today** page for firm staff: reviews waiting, due this week, follow-ups, meetings, decisions waiting.
+- **The home, one per role** (`/`; `/today` redirects there): for firm staff the decisions, reviews, late work, follow-ups, meetings and changes waiting for them, then a line of counts that open the Actions filters; for a client admin or manager what waits for them, then the company's progress and indicators; for an action owner their own actions in three groups.
 
 **Assessments**
 - Template builder with versions and authors, a starter template, assessments per client project, a visible 1-3 weight, gaps confirmed as findings by a consultant, follow-up table, comparison and reassessment, frozen assessment report (`docs/assessments.md`). Scores are firm-only. Never "compliant" or "non-compliant".

@@ -28,6 +28,9 @@ const config: NextConfig = {
     return [
       // The inquiry privacy notice joined the legal set (page audit row 51).
       { source: "/privacy", destination: "/legal/inquiry-privacy", permanent: true },
+      // Today became the home, one per role (decision D2, page audit 4.2), and the client's group roll-up a section of it (section 7, item 8).
+      { source: "/today", destination: "/", permanent: true },
+      { source: "/group", destination: "/#group", permanent: true },
     ];
   },
   async headers() {
