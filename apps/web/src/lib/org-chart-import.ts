@@ -427,6 +427,30 @@ export function draftRows(reply: DraftReply, text: string, taken: Taken): { rows
     if (x.title.trim() && !keptPositions.has(x.ref) && inText(x.title, positionPool)) keptPositions.add(x.ref);
     else dropped.push({ kind: "position", text: x.title });
   }
+  // One position per title in a unit, unless the text lists the title separately more than once
+  // (one per line or item: "- Accountant / - Accountant"). A second mention inside a sentence
+  // ("reports to the Finance Manager") is not a second position.
+  const items = text
+    .split(/\r?\n|[;؛,،:]/)
+    .map((s) => ` ${words(s.replace(/^\s*(?:[-*•·–]|[0-9٠-٩]+[.)\-])\s*/, ""))} `);
+  const listings = (title: string) => {
+    const t = ` ${words(title)} `;
+    return items.filter((s) => s.startsWith(t)).length;
+  };
+  const byTitle = new Map<string, string[]>();
+  for (const p of reply.positions) {
+    if (!keptPositions.has(p.ref)) continue;
+    const key = `${keptUnits.has(p.unit) ? p.unit : ""}\u0000${words(p.title)}`;
+    byTitle.set(key, [...(byTitle.get(key) ?? []), p.ref]);
+  }
+  for (const refs of byTitle.values()) {
+    if (refs.length < 2) continue;
+    const title = reply.positions.find((p) => p.ref === refs[0])!.title;
+    for (const ref of refs.slice(Math.max(1, listings(title)))) {
+      keptPositions.delete(ref);
+      dropped.push({ kind: "position", text: title });
+    }
+  }
 
   const units = reply.units.filter((u) => keptUnits.has(u.ref));
   const byRef = new Map(units.map((u) => [u.ref, u]));

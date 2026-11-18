@@ -566,12 +566,14 @@ describe("the assistant's draft never adds a position, and never handles people"
         { kind: "position", text: "Accountant" },
         { kind: "position", text: "Procurement Officer" },
         { kind: "specialty", text: "payroll" },
+        // Written twice, but the second time inside "reports to the Finance Manager": one position, not two.
+        { kind: "position", text: "Finance Manager" },
       ]),
     );
-    expect(dropped).toHaveLength(4);
+    expect(dropped).toHaveLength(5);
     const titles = rows.map((r) => r.values.titleEn ?? r.values.titleAr).filter(Boolean);
-    // "Finance Manager" is written twice in the text, "Accountant" once; the Arabic one after "و".
-    expect(titles.sort()).toEqual(["Accountant", "Finance Manager", "Finance Manager", "الأخصائي", "مدير الموارد البشرية"].sort());
+    // "Accountant" is written once; the Arabic one after "و".
+    expect(titles.sort()).toEqual(["Accountant", "Finance Manager", "الأخصائي", "مدير الموارد البشرية"].sort());
     const c = checkOrgImport(rows, ctx(), "add");
     expect(c.rows.flatMap((r) => r.errors)).toEqual([]);
     const fm = c.plan.positions.find((p) => p.isHead && p.titleEn === "Finance Manager")!;
@@ -581,6 +583,24 @@ describe("the assistant's draft never adds a position, and never handles people"
       ["Finance department", "department"],
       ["الموارد البشرية", "department"],
     ]);
+  });
+
+  it("keeps one position per title in a unit, unless the text lists the title separately more than once", () => {
+    const positions = (n: number, unit: string) =>
+      Array.from({ length: n }, (_, i) => ({ ref: `${unit}P${i}`, unit, code: "", title: "Accountant", reports_to: "", head: false, specialties: [] }));
+    const units = [
+      { ref: "U1", parent: "", code: "", name: "Finance", kind: "department" },
+      { ref: "U2", parent: "", code: "", name: "Treasury", kind: "section" },
+    ];
+    const count = (text: string, reply: DraftReply) => draftRows(reply, text, { units: new Set(), positions: new Set() }).rows.filter((r) => r.values.titleEn === "Accountant").length;
+    // Listed twice, one per line (bullets or numbers), or separated: two positions.
+    expect(count("Finance:\n- Accountant\n- Accountant", { units: units.slice(0, 1), positions: positions(2, "U1") })).toBe(2);
+    expect(count("Finance:\n1. Accountant\n2. Accountant\n3. Accountant", { units: units.slice(0, 1), positions: positions(3, "U1") })).toBe(3);
+    expect(count("Finance: Accountant; Accountant", { units: units.slice(0, 1), positions: positions(2, "U1") })).toBe(2);
+    // Written twice, once as a position and once in a sentence about it: one.
+    expect(count("Finance: Accountant. The Accountant reports to the director.", { units: units.slice(0, 1), positions: positions(2, "U1") })).toBe(1);
+    // One in each unit is not a repeat.
+    expect(count("Finance: Accountant\nTreasury: Accountant", { units, positions: [...positions(1, "U1"), ...positions(1, "U2")] })).toBe(2);
   });
 
   it("never takes a person's name from the model, even one written in the text", () => {
