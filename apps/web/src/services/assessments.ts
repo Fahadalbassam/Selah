@@ -784,6 +784,7 @@ export async function listAssessments(tx: Tx, principal: Principal, projectId: s
       templateName: assessmentTemplates.name,
       templateNameAr: assessmentTemplates.nameAr,
       version: templateVersions.version,
+      versionId: templateVersions.id,
     })
     .from(assessments)
     .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))

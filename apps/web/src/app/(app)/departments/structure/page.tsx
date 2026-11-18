@@ -3,18 +3,19 @@ import { getTranslations } from "next-intl/server";
 import { StructureBody, shownDepth, shownParam } from "@/components/org-chart/structure-body";
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
-import { departmentTabs } from "@/lib/org-chart";
+import { ClientPeopleTabs } from "@/components/people-tabs";
+import { clientPeopleTabs } from "@/lib/people-tabs";
 import { withPrincipal } from "@/server/page";
 import { getStructure, hasStructure } from "@/services/org-chart";
-import { DepartmentTabs } from "../department-tabs";
 
 // The client's own organisation structure, read only (org chart, part 2): the
 // current version and the earlier ones, as the firm published them. The
 // client's admins read every name; a manager every title, and names only as
 // the database sends them (her branch, while names are shown). Action owners
-// have no tab (404), and the firm's draft never reaches this page. When the
-// company does not use departments, a manager has only this tab (the
-// Departments page sends her here); the admin keeps both.
+// have no tab (404), and the firm's draft never reaches this page. It is a tab
+// of the company's People page, beside Departments; when the company does not
+// use departments, a manager has People and this tab only (the Departments
+// page sends her here); the admin keeps all three.
 export default async function StructurePage({ searchParams }: { searchParams: Promise<{ version?: string; depth?: string }> }) {
   const { version, depth } = await searchParams;
   const data = await withPrincipal(async (tx, principal) => {
@@ -22,7 +23,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
     // No tab and no page until a version is published.
     if (!(await hasStructure(tx, principal, principal.orgId))) return null;
     const structure = await getStructure(tx, principal, principal.orgId, version ?? null);
-    const tabs = departmentTabs({ admin: principal.role === "client_admin", departmentsEnabled: structure.client.departmentsEnabled, structure: true });
+    const tabs = clientPeopleTabs({ admin: principal.role === "client_admin", departmentsEnabled: structure.client.departmentsEnabled, structure: true });
     return { orgId: principal.orgId, structure, tabs };
   });
   if (!data?.structure.shown) notFound();
@@ -31,7 +32,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
   return (
     <>
-      <DepartmentTabs tabs={data.tabs} current="structure" />
+      <ClientPeopleTabs tabs={data.tabs} current="structure" />
       <PageHeader title={t("titleClient")} description={t("hintClient")}>
         {structure.shown?.units.length ? (
           <StructurePdfButton

@@ -2,15 +2,18 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { authorize } from "@/authz";
-import { firmSettings } from "@/db/schema";
+import { firmSettings, organizations } from "@/db/schema";
+import { clientPeopleTabs, type ClientPeopleTab } from "@/lib/people-tabs";
 import { firmToday } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
+import { ClientPeopleTabs, TeamTabs } from "@/components/people-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
 import { teamMetrics } from "@/services/follow-through";
 import { teamLoad, type TeamLoad } from "@/services/team-load";
 import { Badge } from "@/components/ui/badge";
+import { hasStructure } from "@/services/org-chart";
 import { listTeam } from "@/services/queries";
 import { StatTile } from "@/components/stat-tile";
 import { EmptyState } from "@/components/empty-state";
@@ -18,6 +21,8 @@ import { Users } from "@/components/animate-ui/icons/users";
 import { PeopleAdmin } from "./people-admin";
 import { SectionHeader } from "@/components/section-header";
 
+// Firm: the team, with Expertise as a tab. Client: the company's People, with
+// Departments and the Structure as tabs (page audit 4.1); managers read it.
 export default async function TeamPage() {
   const data = await withPrincipal(async (tx, principal) => {
     const since = new Date(`${firmToday()}T00:00:00Z`);
@@ -38,7 +43,18 @@ export default async function TeamPage() {
             .from(firmSettings)
             .where(eq(firmSettings.orgId, principal.orgId))
         : [];
+    // The client's People page: its Departments and Structure tabs, as their own pages decide them.
+    let clientTabs: ClientPeopleTab[] | null = null;
+    if (principal.orgKind === "client") {
+      const [org] = await tx.select({ on: organizations.departmentsEnabled }).from(organizations).where(eq(organizations.id, principal.orgId));
+      clientTabs = clientPeopleTabs({
+        admin: principal.role === "client_admin",
+        departmentsEnabled: org?.on ?? false,
+        structure: await hasStructure(tx, principal, principal.orgId),
+      });
+    }
     return {
+      clientTabs,
       // Admins manage their organisation's accounts here; everyone else sees the list.
       people: admin ? await listPeople(tx, principal, principal.orgId) : null,
       team: admin ? [] : await listTeam(tx, principal),
@@ -51,11 +67,12 @@ export default async function TeamPage() {
     };
   });
   if (!data) notFound();
-  const { team, people, load, queue, me, role, reviewDays } = data;
+  const { team, people, load, queue, me, role, reviewDays, clientTabs } = data;
   const [t, tRole] = await Promise.all([getTranslations("team"), getTranslations("role")]);
   return (
     <>
-      <PageHeader title={t("title")} />
+      {clientTabs ? <ClientPeopleTabs tabs={clientTabs} current="people" /> : <TeamTabs current="people" />}
+      {clientTabs ? <PageHeader title={t("titleClient")} description={t("hintClient")} /> : <PageHeader title={t("title")} />}
       {people ? (
         <PeopleAdmin data={people} me={me} myRole={role} reviewDays={reviewDays} />
       ) : team.length === 0 ? (

@@ -6,6 +6,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
+import { LinkTabs } from "@/components/link-tabs";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,13 @@ import { ProjectsTable, ProjectViewLinks } from "./projects-table";
 import { EmptyState } from "@/components/empty-state";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 
+// The firm's kind filter (page audit 4.1: the sidebar's three Projects sub-entries). It keeps the table view.
+const KINDS = [
+  { kind: null, href: "/projects", table: "/projects?view=table", label: "allProjects" },
+  { kind: "client", href: "/projects?kind=client", table: "/projects?view=table&kind=client", label: "clientProjects" },
+  { kind: "internal", href: "/projects?kind=internal", table: "/projects?view=table&kind=internal", label: "internalProjects" },
+] as const;
+
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string; view?: string }> }) {
   const { kind, view } = await searchParams;
   const { projects, firm, table } = await withPrincipal(async (tx, principal) => {
@@ -27,7 +35,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   });
   const ofKind = <T extends { kind: string }>(list: T[]) => (kind === "internal" || kind === "client" ? list.filter((p) => p.kind === kind) : list);
   const shown = ofKind(projects);
-  const [t, tKind, tS] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing")]);
+  const [t, tKind, tS, tNav] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing"), getTranslations("nav")]);
   const ar = (await getLocale()) === "ar";
 
   return (
@@ -53,6 +61,13 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
           />
         ) : null}
       </PageHeader>
+      {firm ? (
+        <LinkTabs
+          label={tNav("projectKinds")}
+          tabs={KINDS.map((k) => ({ href: table ? k.table : k.href, label: tNav(k.label) }))}
+          current={((k) => (table ? k.table : k.href))(KINDS.find((k) => k.kind === kind) ?? KINDS[0])}
+        />
+      ) : null}
       {firm ? <p className="text-xs text-muted-foreground">{t("internalNote")}</p> : null}
       {firm ? <ProjectViewLinks view={table ? "table" : "cards"} kind={kind === "internal" || kind === "client" ? kind : undefined} /> : null}
       {table ? (

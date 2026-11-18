@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { CSSProperties, ReactNode } from "react";
 import { PageTransition } from "@/components/animate-ui/components/page-transition";
-import { AppSidebar, type NavGroup } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 import { AssistantHost } from "@/components/assistant/assistant-card";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { MorphCapture } from "@/components/morph";
@@ -12,108 +12,25 @@ import { NotificationBell } from "@/components/notifications";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import type { Role } from "@/authz";
+import { clientAssistant, hasHelp, sidebarFor, userMenuFor, type MenuKey } from "@/lib/nav";
 import { withPrincipal } from "@/server/page";
 import { myGroups } from "@/services/client-groups";
 import { myClientAi } from "@/services/client-ai";
+import { consultantNavFacts } from "@/services/nav";
 import { unreadCount } from "@/services/notifications";
 import { myOffboarding } from "@/services/offboarding";
 import { getViewer } from "@/services/queries";
 
-function navFor(role: Role, t: (key: string) => string, inGroup: boolean, clientAssistant: "card" | "page" | null = null): NavGroup[] {
-  const overview = { title: t("overview"), href: "/", icon: "overview" as const };
-  const team = { title: t("team"), href: "/team", icon: "team" as const };
-  if (role === "firm_admin" || role === "consultant") {
-    return [
-      {
-        label: t("workspace"),
-        items: [
-          // Two short entries side by side, so the menu fits a laptop screen without scrolling.
-          { ...overview, half: true },
-          // What needs this person across their clients (Wave 3). Firm staff only.
-          { title: t("today"), href: "/today", icon: "today", half: true },
-          {
-            title: t("projects"),
-            href: "/projects",
-            icon: "projects",
-            items: [
-              { title: t("allProjects"), href: "/projects" },
-              { title: t("clientProjects"), href: "/projects?kind=client" },
-              { title: t("internalProjects"), href: "/projects?kind=internal" },
-            ],
-          },
-          {
-            title: t("clients"),
-            href: "/clients",
-            icon: "clients",
-            items: [
-              { title: t("allClients"), href: "/clients" },
-              { title: t("clientGroups"), href: "/clients/groups" },
-            ],
-          },
-          { title: t("inquiries"), href: "/inquiries", icon: "inquiries" },
-          // The review queue and oversight are tabs of Actions (components/actions-tabs.tsx).
-          { title: t("actions"), href: "/actions", icon: "actions", match: ["/review", "/oversight"] },
-          { title: t("templates"), href: "/templates", icon: "templates" },
-          { title: t("assistant"), href: "/assistant", icon: "assistant", card: true },
-        ],
-      },
-      {
-        label: t("organization"),
-        items: [
-          {
-            ...team,
-            items: [
-              { title: t("people"), href: "/team" },
-              { title: t("expertise"), href: "/team/expertise" },
-            ],
-          },
-          // Settings sit in the profile menu at the foot of the sidebar.
-          ...(role === "firm_admin" ? [{ title: t("audit"), href: "/audit", icon: "audit" as const }] : []),
-        ],
-      },
-    ];
-  }
-  if (role === "action_owner") {
-    return [
-      {
-        label: t("workspace"),
-        items: [overview, { title: t("myActions"), href: "/actions", icon: "actions" }, { title: t("projects"), href: "/projects", icon: "projects" }],
-      },
-    ];
-  }
-  return [
-    {
-      label: t("workspace"),
-      items: [
-        overview,
-        { title: t("projects"), href: "/projects", icon: "projects" },
-        { title: t("actions"), href: "/actions", icon: "actions" },
-        // The client assistant (F39), once the firm offered it: the card for its users, the page for the admin who consents.
-        ...(clientAssistant ? [{ title: t("assistant"), href: "/assistant", icon: "assistant" as const, card: clientAssistant === "card" }] : []),
-      ],
-    },
-    {
-      label: t("organization"),
-      items: [
-        team,
-        { title: t("departments"), href: "/departments", icon: "departments" },
-        // The holding's people the firm admin named see their group (F34).
-        ...(inGroup ? [{ title: t("group"), href: "/group", icon: "clients" as const }] : []),
-        ...(role === "client_admin" ? [{ title: t("audit"), href: "/audit", icon: "audit" as const }] : []),
-      ],
-    },
-  ];
-}
-
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { viewer, unread, leaving, groups, clientAi } = await withPrincipal(async (tx, principal) => ({
+  const { viewer, unread, leaving, groups, clientAi, firmFacts } = await withPrincipal(async (tx, principal) => ({
     viewer: await getViewer(tx, principal),
     unread: await unreadCount(tx, principal),
     // The people of an archived client read until their grace period ends (F27).
     leaving: await myOffboarding(tx, principal),
     groups: await myGroups(tx, principal),
     clientAi: await myClientAi(tx, principal),
+    // A consultant's rows that show only when they apply (page audit 4.1).
+    firmFacts: await consultantNavFacts(tx, principal),
   }));
   const locale = await getLocale();
   const [tNav, tRole, tHeader, tApp, tOff, format] = await Promise.all([
@@ -126,8 +43,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]);
   const rtl = locale === "ar";
   const firmStaff = viewer.role === "firm_admin" || viewer.role === "consultant";
-  const clientAssistant = clientAi?.on ? "card" : clientAi && (clientAi.canConsent || clientAi.canWithdraw) ? "page" : null;
+  // The client assistant (F39, page audit row 15): the card once it is on, or the client admin's consent view.
+  const assistant = clientAssistant(clientAi);
   const orgName = (rtl ? viewer.orgNameAr : null) ?? viewer.orgName;
+  const navLabel = (k: string) => tNav(k as Parameters<typeof tNav>[0]);
+  const groupsShown = sidebarFor(viewer.role, { ...firmFacts, inGroup: groups.length > 0, assistant: assistant.row }).map((section) => ({
+    label: navLabel(section.label),
+    items: section.rows.map((row) => ({ ...row, title: navLabel(row.key) })),
+  }));
+  const menu = userMenuFor(viewer.role, { assistantConsent: assistant.consentView }).map((i) => ({ ...i, label: navLabel(i.key as MenuKey) }));
 
   return (
     <NextIntlClientProvider>
@@ -137,27 +61,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           appName={tApp("name")}
           orgName={orgName}
           roleLabel={tRole(viewer.role)}
-          groups={navFor(viewer.role, (k) => tNav(k), groups.length > 0, clientAssistant)}
+          groups={groupsShown}
           orgKind={viewer.orgKind}
           railLabel={tHeader("toggleSidebar")}
-          // Help for the client's people (F13); firm staff have no help page.
-          help={viewer.orgKind === "client" ? { title: tNav("help"), href: "/help" } : undefined}
-          user={{
-            name: viewer.name,
-            email: viewer.email,
-            otherLocale: rtl ? "en" : "ar",
-            labels: { language: tHeader("language"), theme: tHeader("theme"), security: tHeader("security"), signOut: tHeader("signOut") },
-            help: viewer.orgKind === "client" ? { label: tNav("help"), href: "/help" } : undefined,
-            settings:
-              viewer.role === "firm_admin"
-                ? { label: tNav("settings"), href: "/settings" }
-                : viewer.role === "client_admin"
-                  ? { label: tNav("dataSharing"), href: "/indicators/data" }
-                  : undefined,
-          }}
+          // Help for the client's people (F13), always at the foot above Files; firm staff have no help page.
+          help={hasHelp(viewer.role) ? { title: tNav("help"), href: "/help" } : undefined}
+          // Language and theme are in the top bar only (October review item 6).
+          user={{ name: viewer.name, email: viewer.email, items: menu, signOut: tHeader("signOut") }}
         />
         {/* The assistant's floating card: stays open while the person moves between pages. */}
-        {firmStaff || clientAssistant === "card" ? <AssistantHost side={rtl ? "right" : "left"} client={!firmStaff} /> : null}
+        {firmStaff || assistant.row === "card" ? <AssistantHost side={rtl ? "right" : "left"} client={!firmStaff} /> : null}
         {/* min-w-0: a wide table scrolls inside its card instead of pushing the page sideways. */}
         <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-10 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">

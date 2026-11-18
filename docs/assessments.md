@@ -86,7 +86,7 @@ A client is assessed again by retaking a final assessment (`POST /api/assessment
 
 ## Screens
 
-- **Assessment templates** (sidebar): the template list; install the starter template. A template page shows one version at a time (`?v=`), the open draft by default. Authors add and edit sections and questions, set each question's legal form labels, source, locator and verified flag, and publish.
+- **Assessment templates** (a sidebar row for the firm admin and the named template authors; everyone else on the firm side opens a template from the assessment that uses it, where the header links to the template and version it was made from): the template list; install the starter template. A template page shows one version at a time (`?v=`), the open draft by default. Authors add and edit sections and questions, set each question's legal form labels, source, locator and verified flag, and publish.
 - **Project, Assessments tab**: the project's assessments with totals (firm only); start one from a published template.
 - **Assessment page**: each question with its source labels per legal form and its basis. Answers save as they are given, with a client-visible comment and a firm-only note. After finalising, each gap is shown as a suggested gap and a consultant confirms it as a finding. The page also shares the assessment, retakes it and opens the comparison.
 - **Compare**: per-section points before and after (firm only) and each changed answer, with reworded questions flagged.
