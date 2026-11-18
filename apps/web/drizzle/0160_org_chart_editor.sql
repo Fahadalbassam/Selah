@@ -130,27 +130,49 @@ BEGIN
 END $$;
 --> statement-breakpoint
 -- 4. When someone leaves (their account at the company is switched off, the
---    existing leaving flow), every position they still hold ends on the
---    leaving day: the position stays and shows as vacant from the next day,
---    unless the person switching them off names a replacement (the service
---    starts that holding). History is kept. Each ending is audited. An
---    archived client's structure is frozen and left as it is.
+--    existing leaving flow; the lead's decision B2 in the part 3 review):
+--    - every holding of theirs that has started ends on the leaving day,
+--      also one with a later end date (the end becomes the leaving day): the
+--      position stays and shows as vacant from the next day, unless the
+--      person switching them off names a replacement (the service starts
+--      that holding). History is kept; each ending is audited.
+--    - a holding that has not started yet never took effect: it is
+--      cancelled (the row removed), audited as a count without names.
+--    An archived client's structure is frozen and left as it is.
+--    check_position_holder() lets an end date move earlier only here: while
+--    this trigger runs for that person (selah.leaving), from inside a trigger.
 CREATE FUNCTION end_holdings_on_leaving() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE h record;
+DECLARE
+  h record;
+  n integer;
 BEGIN
   IF EXISTS (SELECT 1 FROM organizations o WHERE o.id = NEW.org_id AND o.status = 'archived') THEN
     RETURN NULL;
   END IF;
+  PERFORM set_config('selah.leaving', NEW.user_id::text, true);
   FOR h IN
-    UPDATE position_holders x SET to_date = greatest(x.from_date, app_firm_today())
-    WHERE x.user_id = NEW.user_id AND x.org_id = NEW.org_id AND x.to_date IS NULL
+    UPDATE position_holders x SET to_date = app_firm_today()
+    WHERE x.user_id = NEW.user_id AND x.org_id = NEW.org_id AND x.from_date <= app_firm_today()
+      AND (x.to_date IS NULL OR x.to_date > app_firm_today())
     RETURNING x.id, x.org_id, x.position_lineage_id, x.to_date
   LOOP
     INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
       VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_end', 'org_chart', h.position_lineage_id, 'allow',
         jsonb_build_object('client', h.org_id, 'holder', h.id, 'on', h.to_date, 'leaving', true));
   END LOOP;
+  PERFORM set_config('selah.leaving', '', true);
+  WITH gone AS (
+    DELETE FROM position_holders x
+    WHERE x.user_id = NEW.user_id AND x.org_id = NEW.org_id AND x.from_date > app_firm_today()
+    RETURNING 1
+  ) SELECT count(*) INTO n FROM gone;
+  IF n > 0 THEN
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+      VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_cancel', 'org_chart', NEW.org_id, 'allow',
+        jsonb_build_object('client', NEW.org_id, 'count', n, 'leaving', true));
+    PERFORM app_org_chart_tell_lead(NEW.org_id, app_uid());
+  END IF;
   RETURN NULL;
 END $$;
 --> statement-breakpoint
@@ -247,7 +269,10 @@ BEGIN
     IF NEW.to_date IS NOT DISTINCT FROM OLD.to_date THEN
       RETURN NEW;
     END IF;
-    IF OLD.to_date IS NOT NULL OR NEW.to_date IS NULL THEN
+    -- Only the leaving (end_holdings_on_leaving(), a trigger) moves an end date earlier, for the person leaving.
+    IF (OLD.to_date IS NOT NULL OR NEW.to_date IS NULL)
+       AND NOT (OLD.to_date IS NOT NULL AND NEW.to_date IS NOT NULL AND NEW.to_date < OLD.to_date
+                AND pg_trigger_depth() > 1 AND current_setting('selah.leaving', true) = OLD.user_id::text) THEN
       RAISE EXCEPTION 'this holding has already ended' USING ERRCODE = 'check_violation';
     END IF;
     IF NEW.to_date < OLD.from_date THEN

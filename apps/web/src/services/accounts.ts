@@ -192,11 +192,12 @@ export interface Replacement {
 }
 
 /**
- * Switch an account off (its sessions end at once) or back on. Nothing is
- * deleted. Switching a client person off ends every position they hold on
- * the leaving day (the database does it); for each one in `replacements`,
- * the person named takes it over from the next day. Left out, a position
- * stays vacant.
+ * Switch an account off (its sessions end at once) or back on. Switching a
+ * client person off ends every holding of theirs that has started on the
+ * leaving day, a later end date included, and cancels one that has not
+ * started (the database does both; B2); for each ended one in
+ * `replacements`, the person named takes it over from the next day. Left
+ * out, a position stays vacant.
  */
 export async function setActive(
   tx: Tx,
@@ -217,7 +218,8 @@ export async function setActive(
     positions = held.positions;
   }
   for (const r of replacements) {
-    if (!positions.some((p) => p.positionId === r.positionId)) throw new BadRequestError("position");
+    // Only a holding that ends on the leaving day is taken over; one not started yet is cancelled (B2).
+    if (!positions.some((p) => p.positionId === r.positionId && !p.cancelled)) throw new BadRequestError("position");
     if (r.userId === userId) throw new BadRequestError("replacement");
   }
   const changed = await tx

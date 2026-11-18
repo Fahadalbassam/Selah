@@ -1271,10 +1271,13 @@ export async function holderCandidates(tx: Tx, principal: Principal, clientOrgId
 }
 
 /**
- * The positions someone of a client holds today on its current structure,
- * for the leaving flow ("leave vacant" or "pick a replacement"): the
- * position on the current version, and its holding. Empty when the reader
- * may not change holders there, or the client has no published structure.
+ * What someone of a client holds or is due to hold on its current structure,
+ * for the leaving report: each holding that has started and is not over
+ * (also one with a later end date: it ends on the leaving day, "leave
+ * vacant" or "pick a replacement"), and each that has not started yet
+ * (`cancelled`, from `startsOn`: it is cancelled when the account is
+ * switched off; B2). Empty when the reader may not change holders there, or
+ * the client has no published structure.
  */
 export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId: string, userId: string, today = firmToday()) {
   if (!can(principal, "org_chart.holders", clientOrgId)) return [];
@@ -1286,21 +1289,22 @@ export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId:
   if (!version) return [];
   const { units, positions: list } = await structureOf(tx, version);
   const held = await tx
-    .select({ id: positionHolders.id, lineage: positionHolders.positionLineageId })
+    .select({ id: positionHolders.id, lineage: positionHolders.positionLineageId, from: positionHolders.fromDate })
     .from(positionHolders)
     .where(
       and(
         eq(positionHolders.orgId, client.id),
         eq(positionHolders.userId, userId),
-        sql`${positionHolders.fromDate} <= ${today}::date`,
-        sql`${positionHolders.toDate} is null`,
+        sql`(${positionHolders.toDate} is null or ${positionHolders.toDate} > ${today}::date)`,
       ),
-    );
+    )
+    .orderBy(asc(positionHolders.fromDate));
   const unitOf = new Map(units.map((u) => [u.id, u]));
   return held.flatMap((h) => {
     const p = list.find((x) => x.lineageId === h.lineage);
     if (!p) return [];
     const u = unitOf.get(p.unitId);
+    const cancelled = h.from > today;
     return [
       {
         positionId: p.id,
@@ -1311,6 +1315,9 @@ export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId:
         unitNameAr: u?.nameAr ?? null,
         unitNameEn: u?.nameEn ?? null,
         plannedCount: p.plannedCount,
+        /** Not started yet: cancelled when the account is switched off, never replaced. */
+        cancelled,
+        startsOn: cancelled ? h.from : null,
       },
     ];
   });

@@ -2115,12 +2115,13 @@
         "stillHoldsError": "Hand over what this person still holds before switching the account off."
       },
       "positions": "Positions in the organisation structure",
-      "positionsHint": "Each holding ends on the day the account is switched off; the position stays. For each one: leave it vacant, or pick a replacement who takes over tomorrow.",
+      "positionsHint": "Each position they hold ends on the day the account is switched off, even one with a later end date; the position stays. For each one: leave it vacant, or pick a replacement who takes over tomorrow. An appointment that has not started is cancelled.",
       "leaveVacant": "Leave vacant",
       "replace": "Pick a replacement",
       "replacementPerson": "A replacement with an account",
       "replacementTyped": "Or type the name of a replacement without an account",
-      "fromTomorrow": "The replacement takes over tomorrow."
+      "fromTomorrow": "The replacement takes over tomorrow.",
+      "cancelledAppointment": "Starts on {date}: this appointment is cancelled when the account is switched off, since it has not started."
     },
     "position": "Position in the structure (optional)",
     "positionPlaceholder": "Choose a vacant position",
@@ -3991,7 +3992,8 @@
       "deliverable_receipt_record": "Deliverable receipt recorded for the client",
       "deliverable_comment": "Comment on a deliverable handed over",
       "org_chart_holder_remove": "Removed a holding entered by mistake from a position of the organisation structure",
-      "org_chart_draft_reset": "Started the organisation structure's draft again from the current version"
+      "org_chart_draft_reset": "Started the organisation structure's draft again from the current version",
+      "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left"
     },
     "csv": {
       "time": "Time (UTC)",

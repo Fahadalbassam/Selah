@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
@@ -35,6 +35,9 @@ interface HeldPosition {
   titleEn: string | null;
   unitNameAr: string | null;
   unitNameEn: string | null;
+  /** An appointment not started yet: cancelled at the switch-off, never replaced (B2). */
+  cancelled: boolean;
+  startsOn: string | null;
 }
 /** Leave it vacant, or who takes it over tomorrow: a colleague with an account, or a typed name. */
 type Replacement = { mode: "vacant" | "person" | "typed"; userId: string; name: string };
@@ -83,6 +86,8 @@ export function DepartureDialog(props: {
   const tRole = useTranslations("clientRoles.roles");
   const router = useRouter();
   const ar = useLocale() === "ar";
+  const format = useFormatter();
+  const day = (iso: string) => (iso ? format.dateTime(new Date(`${iso}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" }) : "");
   const [items, setItems] = useState<Holding[] | null>(null);
   const [positions, setPositions] = useState<HeldPosition[]>([]);
   // Per position: left out, it stays vacant; otherwise who takes it over tomorrow.
@@ -278,6 +283,9 @@ export function DepartureDialog(props: {
                         </span>
                       ) : null}
                     </p>
+                    {p.cancelled ? (
+                      <p className="text-xs text-muted-foreground">{t("cancelledAppointment", { date: day(p.startsOn ?? "") })}</p>
+                    ) : (
                     <RadioGroup
                       value={r.mode === "vacant" ? "vacant" : "replace"}
                       onValueChange={(v) => setReplacement(p.positionId, { ...r, mode: v === "vacant" ? "vacant" : "person" })}
@@ -293,7 +301,8 @@ export function DepartureDialog(props: {
                         {t("replace")}
                       </label>
                     </RadioGroup>
-                    {r.mode !== "vacant" ? (
+                    )}
+                    {!p.cancelled && r.mode !== "vacant" ? (
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="grid gap-1">
                           <Label htmlFor={`d-rep-${p.positionId}`} className="text-xs">

@@ -96,6 +96,39 @@ const publishAs = async (who: string, client: string) => {
 };
 const today = () => firmToday();
 const tomorrow = () => OC.dayAfter(firmToday());
+/** A day some days after another (YYYY-MM-DD). */
+const addDays = (day: string, n: number) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Another client of the firm with a small published structure (a board unit, its positions in order,
+ * the first one heading it), led by the lead, with its admin when it has one. Returns the positions by title.
+ */
+async function smallClient(org: string, project: string, admin: string | null, name: string, titles: string[], mode: "full" | "consultant_managed" = "full") {
+  await owner.query(`INSERT INTO organizations (id, kind, name, engagement_mode, departments_enabled) VALUES ($1,'client',$2,$3,false)`, [org, name, mode]);
+  if (admin) {
+    await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,$2,$3)`, [admin, `${name} admin`, `admin-${org.slice(-4)}@example.test`]);
+    await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_admin')`, [admin, org]);
+  }
+  await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,$4,'active',$5)`, [
+    project,
+    org,
+    FIRM,
+    `${name} project`,
+    U.admin,
+  ]);
+  await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,true,false)`, [org, U.lead]);
+  await svc(U.lead, (tx, p) => OC.startChart(tx, p, org), true);
+  const board = await svc(U.lead, (tx, p) => OC.addUnit(tx, p, org, { kind: "board", nameEn: `${name} board` }), true);
+  const out: Record<string, string> = {};
+  for (const [i, title] of titles.entries()) out[title] = (await svc(U.lead, (tx, p) => OC.addPosition(tx, p, board.id, { titleEn: title, isHead: i === 0 }), true)).id;
+  await publishAs(U.lead, org);
+  return out;
+}
+
 /** Who holds each position of a structure as read, by English title. */
 const holderNamesOf = (chart: { positions: OC.OrgPosition[] }) =>
   Object.fromEntries(chart.positions.map((p) => [p.titleEn, p.holders.map((h) => h.name)]));
@@ -472,6 +505,75 @@ describe("when someone leaves", () => {
       { user_id: U.leaver2, f: PAST, t: today() },
       { user_id: U.next, f: tomorrow(), t: null },
     ]);
+  });
+
+  describe("a holding with a later end date, and one that has not started (B2)", () => {
+    const LEAVE = id(12);
+    const LADMIN = id(37);
+    const LPERSON = id(38);
+    const in60 = () => addDays(firmToday(), 60);
+    const in10 = () => addDays(firmToday(), 10);
+    let pos: Record<string, string> = {};
+    let ends = "";
+    beforeAll(async () => {
+      pos = await smallClient(LEAVE, id(13), LADMIN, "Leave Co", ["Head", "Clerk A", "Planner B", "Officer C"]);
+      await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'Leaving Person','lperson@example.test')`, [LPERSON]);
+      await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager')`, [LPERSON, LEAVE]);
+      const hold = (title: string, from: string) => svc(LADMIN, (tx, p) => OC.changeHolder(tx, p, pos[title]!, { start: { userId: LPERSON, from } }), true);
+      // Notice given: Clerk A until a day two months away. An appointment not started yet: Planner B in ten days.
+      const clerk = await hold("Clerk A", PAST);
+      ends = in60();
+      await svc(LADMIN, (tx, p) => OC.changeHolder(tx, p, pos["Clerk A"]!, { end: { holderId: clerk.started!, on: ends } }), true);
+      await hold("Planner B", in10());
+      await hold("Officer C", PAST);
+    });
+
+    it("the leaving report lists the three: two that end on the leaving day, one that is cancelled", async () => {
+      const held = await svc(LADMIN, (tx, p) => personHoldings(tx, p, LPERSON));
+      const by = Object.fromEntries(held.positions.map((x) => [x.titleEn, { cancelled: x.cancelled, startsOn: x.startsOn }]));
+      expect(by).toEqual({
+        "Clerk A": { cancelled: false, startsOn: null },
+        "Officer C": { cancelled: false, startsOn: null },
+        "Planner B": { cancelled: true, startsOn: in10() },
+      });
+      // A replacement is offered only where a holding ends, never for the cancelled appointment.
+      await expect(
+        svc(LADMIN, (tx, p) => setActive(tx, p, LPERSON, { active: false, reason: "Left", replacements: [{ positionId: pos["Planner B"]!, name: "Someone Else" }] })),
+      ).rejects.toThrow(/position/);
+    });
+
+    it("switching them off ends every started holding on the leaving day, the later end date included, and cancels the one not started, audited as a count", async () => {
+      await svc(LADMIN, (tx, p) => setActive(tx, p, LPERSON, { active: false, reason: "Left early" }), true);
+      const rows = (
+        await owner.query(
+          `SELECT p.title_en AS t, h.from_date::text AS f, h.to_date::text AS e FROM position_holders h JOIN positions p ON p.id = h.position_lineage_id WHERE h.user_id = $1 ORDER BY 1`,
+          [LPERSON],
+        )
+      ).rows;
+      expect(rows).toEqual([
+        { t: "Clerk A", f: PAST, e: today() },
+        { t: "Officer C", f: PAST, e: today() },
+      ]);
+      // In a month, and on the day the appointment would have started, the company's chart names nobody who left.
+      for (const day of [in10(), addDays(firmToday(), 30)]) {
+        const chart = await svc(LADMIN, (tx, p) => OC.getPublishedChart(tx, p, LEAVE, day));
+        expect(chart.positions.flatMap((p) => p.holders.map((h) => h.name))).not.toContain("Leaving Person");
+      }
+      const cancelled = (await owner.query(`SELECT actor_id, meta FROM audit_log WHERE action = 'org_chart.holder_cancel'`)).rows;
+      expect(cancelled).toEqual([{ actor_id: LADMIN, meta: { client: LEAVE, count: 1, leaving: true } }]);
+      expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE audit_log::text ILIKE '%Leaving Person%'`)).rows[0].n).toBe(0);
+    });
+
+    it("nobody shortens an end date by hand: only the leaving does", async () => {
+      const h = (await owner.query(`SELECT id FROM position_holders WHERE user_id = $1 LIMIT 1`, [LPERSON])).rows[0].id;
+      await expect(attempt(LADMIN, `UPDATE position_holders SET to_date = from_date WHERE id = $1`, [h])).rejects.toThrow(/already ended/);
+      await expect(
+        as(LADMIN, async (c) => {
+          await c.query(`SELECT set_config('selah.leaving', $1, true)`, [LPERSON]);
+          return c.query(`UPDATE position_holders SET to_date = from_date WHERE id = $1`, [h]);
+        }),
+      ).rejects.toThrow(/already ended/);
+    });
   });
 
   it("a typed name can take over too; someone who may not manage the people cannot switch them off", async () => {
