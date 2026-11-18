@@ -3205,7 +3205,7 @@
       "noHeadings": "This document has no headings. Use Heading 1, 2 and 3 for the units.",
       "nothing": "There is nothing in it to bring in.",
       "noText": "Paste some text first.",
-      "textLong": "The text is longer than {max} characters. Paste a shorter part.",
+      "textLong": "The text is longer than the assistant takes: shorten it by at least {n, plural, one {# character} other {# characters}}. Names, places and e-mail addresses in it count for more once they are hidden.",
       "model": "The assistant could not draft rows from this text. Try again, or use the Excel template.",
       "rate": "You have asked the assistant for many drafts in the last hour. Try again later.",
       "expired": "This check has expired. Bring the rows in again.",

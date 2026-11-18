@@ -105,6 +105,8 @@ export function OrgChartImportWizard({
   const [way, setWay] = useState<Way>("excel");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Too long": by how many characters the text must be shorter (the server counts it after hiding names).
+  const [shorterBy, setShorterBy] = useState(0);
   const [imported, setImported] = useState<Imported | null>(null);
   const [rows, setRows] = useState<OrgRow[]>([]);
   const [mode, setMode] = useState<OrgImportMode | null>(draft ? null : "add");
@@ -143,7 +145,10 @@ export function OrgChartImportWizard({
   async function draftText(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!text.trim()) return setError("noText");
-    if (text.length > ORG_IMPORT_LIMITS.text) return setError("textLong");
+    if (text.length > ORG_IMPORT_LIMITS.text) {
+      setShorterBy(text.length - ORG_IMPORT_LIMITS.text);
+      return setError("textLong");
+    }
     setBusy(true);
     setError(null);
     try {
@@ -153,7 +158,10 @@ export function OrgChartImportWizard({
         body: JSON.stringify({ text }),
       });
       const body = (await res.json().catch(() => ({}))) as Imported & { message?: string };
-      if (!res.ok) return setError(errorKey(res.status, body.message, "text"));
+      if (!res.ok) {
+        setShorterBy(Number(/text too long: (\d+)/.exec(body.message ?? "")?.[1] ?? 0));
+        return setError(errorKey(res.status, body.message, "text"));
+      }
       received(body);
     } catch {
       setError("generic");
@@ -217,7 +225,7 @@ export function OrgChartImportWizard({
       kind: typeof v.kind === "string" ? tk(v.kind) : "",
     });
   };
-  const errorText = error ? t(`errors.${error}`, { max: ORG_IMPORT_LIMITS.text }) : null;
+  const errorText = error ? t(`errors.${error}`, { max: ORG_IMPORT_LIMITS.text, n: shorterBy }) : null;
   const alert = errorText ? (
     <p role="alert" className="text-xs text-destructive">
       {errorText}

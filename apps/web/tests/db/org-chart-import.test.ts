@@ -626,6 +626,24 @@ describe("the assistant's draft from pasted text", () => {
     }
   });
 
+  it("checks the length after masking, and says how much shorter the text must be", async () => {
+    process.env.AI_MASKING = "on";
+    try {
+      sent.length = 0;
+      // Under 20,000 characters as pasted, over once each city becomes a placeholder ("جدة" is "[PLACE_1]").
+      const branches = "مدير فرع جدة\n".repeat(1500);
+      expect(branches.trim().length).toBeLessThan(20_000);
+      const refused = await svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, branches)).catch((e: Error) => e.message);
+      expect(refused).toMatch(/^text too long: \d+$/);
+      expect(Number(/(\d+)$/.exec(refused as string)![1])).toBeGreaterThan(0);
+      // Over the limit as pasted: by exactly how much.
+      await expect(svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, "x".repeat(20_005)))).rejects.toThrow(/^text too long: 5$/);
+      expect(sent).toEqual([]);
+    } finally {
+      delete process.env.AI_MASKING;
+    }
+  });
+
   it("is off where the assistant is off: a client with no project the reader can ask about", async () => {
     const view = await svc(U.admin, (tx, p) => IM.importContext(tx, p, NOPROJ));
     expect(view).not.toBeNull();

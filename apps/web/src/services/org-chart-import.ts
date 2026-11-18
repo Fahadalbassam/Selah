@@ -312,13 +312,17 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
   if (!projectIds.length) throw new NotFoundError("assistant");
   const body = text.replace(/\r\n?/g, "\n").trim();
   if (!body) throw new BadRequestError("no text");
-  if (body.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError("text too long");
+  // "text too long: N": by how many characters it must be shorter.
+  if (body.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError(`text too long: ${body.length - ORG_IMPORT_LIMITS.text}`);
+  const masker = await textMasker(tx, projectIds, body);
+  const masked = masker.mask(body);
+  // The AI service takes as much after masking, and a placeholder can be longer than the name it hides ("جدة" is "[PLACE_1]").
+  if (masked.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError(`text too long: ${masked.length - ORG_IMPORT_LIMITS.text}`);
   if (draftsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many drafts");
 
-  const masker = await textMasker(tx, projectIds, body);
   let reply: Awaited<ReturnType<typeof draftOrgChart>>;
   try {
-    reply = await draftOrgChart(masker.mask(body));
+    reply = await draftOrgChart(masked);
   } catch {
     throw new UnavailableError("the assistant could not draft rows");
   }
