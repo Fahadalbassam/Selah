@@ -1,6 +1,6 @@
 {
-  "id": "ce802631-4a6d-4b15-9e09-404f8c3b046b",
-  "prevId": "53e31dbe-52e9-42e7-9e7d-cf3ff6c7b01f",
+  "id": "75db0e54-0d76-4e6f-ac26-e94c69597a34",
+  "prevId": "d1fd49b8-7911-4ee3-b24a-00b1c2558d29",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10843,6 +10843,185 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.item_audience_people": {
+      "name": "item_audience_people",
+      "schema": "",
+      "columns": {
+        "item_type": {
+          "name": "item_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "item_audience_people_user_idx": {
+          "name": "item_audience_people_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "item_audience_people_user_id_user_id_fk": {
+          "name": "item_audience_people_user_id_user_id_fk",
+          "tableFrom": "item_audience_people",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "item_audience_people_audience_fk": {
+          "name": "item_audience_people_audience_fk",
+          "tableFrom": "item_audience_people",
+          "tableTo": "item_audiences",
+          "columnsFrom": [
+            "item_type",
+            "item_id"
+          ],
+          "columnsTo": [
+            "item_type",
+            "item_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "item_audience_people_item_type_item_id_user_id_pk": {
+          "name": "item_audience_people_item_type_item_id_user_id_pk",
+          "columns": [
+            "item_type",
+            "item_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.item_audiences": {
+      "name": "item_audiences",
+      "schema": "",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_type": {
+          "name": "item_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_by": {
+          "name": "set_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_at": {
+          "name": "set_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "item_audiences_org_id_organizations_id_fk": {
+          "name": "item_audiences_org_id_organizations_id_fk",
+          "tableFrom": "item_audiences",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "item_audiences_set_by_user_id_fk": {
+          "name": "item_audiences_set_by_user_id_fk",
+          "tableFrom": "item_audiences",
+          "tableTo": "user",
+          "columnsFrom": [
+            "set_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "item_audiences_item_type_item_id_pk": {
+          "name": "item_audiences_item_type_item_id_pk",
+          "columns": [
+            "item_type",
+            "item_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "item_audience_type": {
+          "name": "item_audience_type",
+          "value": "\"item_audiences\".\"item_type\" IN ('document', 'meeting')"
+        },
+        "item_audience_mode": {
+          "name": "item_audience_mode",
+          "value": "\"item_audiences\".\"mode\" IN ('except', 'only')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.join_requests": {
       "name": "join_requests",
       "schema": "",
@@ -13039,6 +13218,12 @@
         },
         "failed_at": {
           "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

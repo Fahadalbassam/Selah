@@ -494,7 +494,9 @@
       "received": "Say how and when it came from the client.",
       "receivedFuture": "The day it was received can't be after today.",
       "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
-      "replacementDraft": "The replacement is still a draft the client can't see. Release it first."
+      "replacementDraft": "The replacement is still a draft the client can't see. Release it first.",
+      "narrowed": "A file with a limited audience can't be used as evidence. Upload the evidence instead.",
+      "notEvidence": "This file can't be used as evidence."
     },
     "entry": {
       "update": "posted an update",
@@ -2738,7 +2740,8 @@
       "not_searchable": "No readable text found",
       "needs_ocr": "A scan: waiting for text recognition"
     },
-    "ocrPages": "Scanned pages it can't read yet: {pages}"
+    "ocrPages": "Scanned pages it can't read yet: {pages}",
+    "narrowedNotEvidence": "A file with a limited audience can't be used as evidence."
   },
   "plan": {
     "findings": {
@@ -3961,6 +3964,8 @@
       "indicator_feed_revoke": "Disconnected an indicator source",
       "indicator_feed_push": "A system sent indicator figures",
       "indicator_source": "Changed an indicator's code or connection",
+      "document_audience": "Changed who sees a file",
+      "meeting_audience": "Changed who sees a meeting",
       "org_chart_create": "Started a client's organisation structure",
       "org_chart_unit_add": "Added a unit to the structure's draft",
       "org_chart_unit_update": "Changed a unit in the structure's draft",
@@ -5432,15 +5437,34 @@
       "lead": "The lead consultant always sees it, so the work never stalls.",
       "deputy": "The lead's deputy always sees it, so the work never stalls.",
       "organiser": "The meeting's organiser always sees it.",
-      "requiredAttendee": "Required attendees always see the meeting."
+      "invited": "Invited to this meeting",
+      "clientAdminYours": "Your company's admin always sees everything for your company.",
+      "asked": "Asked for this file"
     },
     "errors": {
-      "onlyEmpty": "Add at least one person, or choose “Everyone with access, except…”."
+      "onlyEmpty": "Add at least one person, or choose “Everyone with access, except…”.",
+      "locked": "Someone you picked always sees this and can't be left out.",
+      "cannotSee": "Pick only people who can already see it.",
+      "ownPeople": "On your company's own items, pick among your company's people; the firm's team always sees them.",
+      "invitedLeftOut": "Someone invited is left out of this meeting: take them off the invitations or the list.",
+      "invited": "Someone you're leaving out is invited to this meeting: take them off the meeting first.",
+      "followUp": "Someone you're leaving out has an open follow-up on this meeting: give it to someone else first.",
+      "closed": "The project is closed, so who sees its items doesn't change.",
+      "archived": "This file is archived, so who sees it doesn't change.",
+      "usedAsEvidence": "This file was already used as evidence on an action, so its audience can't be limited.",
+      "asked": "Someone you're leaving out was asked for this file: name someone else to send it first.",
+      "askedLeftOut": "The person asked for this item is left out of that file: pick another file, or change who sees it.",
+      "leftOutOfAnswer": "That person is left out of a file sent for this item: change who sees the file first."
     },
     "marker": {
       "label": "Limited audience",
       "hint": "Only some of the people with access see this {kind, select, meeting {meeting} other {file}}."
-    }
+    },
+    "menu": "Who sees it",
+    "dialogTitle": "Who sees this {kind, select, meeting {meeting} other {file}}",
+    "dialogHint": "You can only take people away here; it never gives anyone access they don't already have. The people you leave out aren't told.",
+    "loadFailed": "Couldn't load who can see this. Try again in a moment.",
+    "dropped": "No longer on the list: {names}. Who can see this changed when the form changed."
   },
   "orgChart": {
     "errors": {

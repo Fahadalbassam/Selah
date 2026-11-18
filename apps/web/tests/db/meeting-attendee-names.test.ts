@@ -217,6 +217,30 @@ describe("an attendee's name on a meeting", () => {
     }
   });
 
+  // Who sees an item (feature A, migration 0095): app_can_see_meeting() also asks the meeting's
+  // audience, so someone left out of a meeting with the picker gets no names either.
+  it("is nothing for someone left out of the meeting with the picker, who would otherwise open it", async () => {
+    const q = (text: string, params: unknown[] = []) => owner.query(text, params);
+    const cons = id(19); // a consultant staffed on Rawdah's project, not its lead
+    await q(`INSERT INTO "user" (id, name, email) VALUES ($1,'Omar Consultant','cons@example.test')`, [cons]);
+    await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'consultant')`, [cons, FIRM]);
+    await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [RAWDAH, cons]);
+    await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [PR, cons]);
+    // Before: he opens the meeting and reads the names, like everyone on the project.
+    expect(Object.keys(namesOn(await svc(cons, (tx, p) => getMeeting(tx, p, MEETING)))).sort()).toEqual([U.lead, U.radmin, U.rowner].sort());
+    // The lead leaves him out, as the picker stores it.
+    await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,'meeting',$2,'except',$3)`, [RAWDAH, MEETING, U.lead]);
+    await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ('meeting',$1,$2)`, [MEETING, cons]);
+    try {
+      await expect(svc(cons, (tx, p) => getMeeting(tx, p, MEETING))).rejects.toThrow(NOT_FOUND);
+      expect(await rowsAs(cons, `SELECT * FROM app_meeting_attendee_names($1)`, [MEETING])).toEqual([]);
+      // Everyone else still reads them.
+      expect(Object.keys(namesOn(await svc(U.rowner, (tx, p) => getMeeting(tx, p, MEETING))))).toHaveLength(3);
+    } finally {
+      await q(`DELETE FROM item_audiences WHERE item_type = 'meeting' AND item_id = $1`, [MEETING]);
+    }
+  });
+
   it("is nothing for a meeting that does not exist, and the function is not callable by the public", async () => {
     expect(await rowsAs(U.lead, `SELECT * FROM app_meeting_attendee_names($1)`, [id(99)])).toEqual([]);
     const [acl] = (

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SPOKEN_LANGS } from "@/lib/meetings";
 import { route } from "@/server/http";
+import { audienceInput } from "@/services/audience";
 import { bookMeeting, listMeetings } from "@/services/meetings";
 
 const body = z
@@ -20,6 +21,8 @@ const body = z
       .max(100)
       .optional(),
     sendInvites: z.boolean().optional(),
+    // Who sees it (feature A). None: everyone with access.
+    audience: audienceInput.optional(),
   })
   .refine((b) => b.endsAt > b.startsAt, { path: ["endsAt"], message: "ends after it starts" });
 

@@ -19,12 +19,13 @@ import {
   projects,
   user,
 } from "@/db/schema";
-import { assertAllowed, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { buildIcs } from "@/lib/ics";
 import type { SpokenLang } from "@/lib/meetings";
 import { parseTranscript, TRANSCRIPT_MAX_CHARS, type TranscriptFormat } from "@/lib/transcripts";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { audienceOf, audiencesForMe, readAudience, writeAudience, type AudienceInput } from "./audience";
 import { loadProject } from "./staffing";
 
 // Meetings (baseline: Meetings). Selah records the meeting and
@@ -41,11 +42,21 @@ type Kind = (typeof meetings.$inferSelect)["kind"];
 const { agendaMd: _agendaColumn, ...meetingColumns } = getTableColumns(meetings);
 void _agendaColumn;
 
-async function loadMeeting(tx: Tx, principal: Principal, id: string) {
+export async function loadMeeting(tx: Tx, principal: Principal, id: string) {
   const [m] = await tx.select(meetingColumns).from(meetings).where(eq(meetings.id, id)).limit(1);
   if (!m) throw new NotFoundError("meeting");
   const { resource: project } = await loadProject(tx, principal, m.projectId);
-  const resource: Resource = { ...project, type: "meeting", id: m.id, visibility: m.visibility, createdBy: m.organizerId };
+  // Whose meeting it is (feature A): the client's own when a client person booked it.
+  const { rows } = await tx.execute<{ side: string | null }>(sql`select app_audience_side_for_me('meeting', ${id}::uuid) as side`);
+  const resource: Resource = {
+    ...project,
+    type: "meeting",
+    id: m.id,
+    visibility: m.visibility,
+    createdBy: m.organizerId,
+    ownerOrgId: rows[0]?.side === "client" ? project.orgId : project.firmOrgId,
+    audience: await audienceOf(tx, principal, "meeting", m.id),
+  };
   assertAllowed(principal, "meeting.read", resource);
   return { meeting: m, resource };
 }
@@ -67,7 +78,9 @@ export interface MeetingInput {
 export async function listMeetings(tx: Tx, principal: Principal, projectId: string) {
   const { resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "meeting.read", { ...resource, type: "meeting" });
-  return tx
+  // Row-level security already leaves out a meeting this person is left out
+  // of; the ones still listed say when they were narrowed ("Limited audience").
+  const rows = await tx
     .select({
       id: meetings.id,
       kind: meetings.kind,
@@ -82,6 +95,13 @@ export async function listMeetings(tx: Tx, principal: Principal, projectId: stri
     .from(meetings)
     .where(eq(meetings.projectId, projectId))
     .orderBy(asc(meetings.startsAt));
+  const narrowed = await audiencesForMe(
+    tx,
+    principal,
+    "meeting",
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => ({ ...r, limited: narrowed.has(r.id) }));
 }
 
 export interface Invitee {
@@ -99,11 +119,25 @@ export async function bookMeeting(
   tx: Tx,
   principal: Principal,
   projectId: string,
-  { attendees = [], sendInvites: send = false, ...input }: MeetingInput & { attendees?: Invitee[]; sendInvites?: boolean },
+  {
+    attendees = [],
+    sendInvites: send = false,
+    audience,
+    ...input
+  }: MeetingInput & { attendees?: Invitee[]; sendInvites?: boolean; audience?: AudienceInput | null },
 ) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   const visibility = input.visibility ?? "shared";
   assertAllowed(principal, "meeting.book", { ...resource, type: "meeting", visibility });
+  // Everyone invited always sees the meeting (feature A; re-check S9): a booking that names an
+  // invitee on its "except" list is refused before anything is written (review S2). An "only"
+  // list that misses an invitee is fine: they see it anyway. The database refuses the same.
+  if (audience?.mode === "except") {
+    const listed = new Set(audience.people);
+    if (attendees.some((a) => a.userId && a.userId !== principal.userId && listed.has(a.userId))) {
+      throw new BadRequestError("someone is invited and left out of this meeting: take them off the invitations or the list");
+    }
+  }
   if (principal.orgKind === "client" && visibility !== "shared") throw new BadRequestError("client meetings are shared");
   if (input.departmentId) {
     const [d] = await tx
@@ -155,6 +189,12 @@ export async function bookMeeting(
     resourceId: id,
     outcome: "allow",
   });
+  // Who sees it, chosen while booking (feature A): set before any invite is
+  // queued, so nobody left out is ever sent one.
+  if (audience && audience.mode !== "everyone") {
+    const { resource: booked } = await loadMeeting(tx, principal, id);
+    await writeAudience(tx, principal, "meeting", id, booked, audience, { on: "book" });
+  }
   if (!send) return { id, queued: 0 };
   const { rows } = await tx.execute<{ n: number }>(sql`select app_send_meeting_invites(${id}) as n`);
   return { id, queued: rows[0]!.n };
@@ -226,11 +266,18 @@ export async function meetingInvitees(tx: Tx, principal: Principal, projectId: s
           .where(eq(clientContacts.orgId, project.orgId))
           .orderBy(asc(clientContacts.name))
       : [];
-  return { people, contacts, departments: bookable, wholeProject: await readsWholeProject(tx, projectId) };
+  return {
+    people,
+    contacts,
+    departments: bookable,
+    wholeProject: await readsWholeProject(tx, projectId),
+    // The booker may choose who sees the meeting (feature A): firm staff, and the client's admin.
+    audience: authorize(principal, "meeting.audience", { ...resource, type: "meeting", visibility: "shared", ownerOrgId: principal.orgId }).allowed,
+  };
 }
 
 export async function getMeeting(tx: Tx, principal: Principal, id: string) {
-  const { meeting } = await loadMeeting(tx, principal, id);
+  const { meeting, resource } = await loadMeeting(tx, principal, id);
   // Contact names come through RLS: only the firm sees them. A person's name
   // comes with the meeting, not the user-row rule: whoever may open the
   // meeting reads its attendees' names, and nothing else about them
@@ -342,6 +389,10 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     // An invited observer cannot answer either (the attendee table is read-only to them).
     canRespond: !observing,
     me: principal.userId,
+    // Who sees it (feature A): narrowed ("Limited audience", for the people who still see it),
+    // and whether this person may change it (firm staff on the firm's meeting, the client's admin on the client's).
+    limited: Boolean(resource.audience),
+    canAudience: authorize(principal, "meeting.audience", resource).allowed,
   };
 }
 
@@ -508,12 +559,19 @@ export async function updateMeeting(
   tx: Tx,
   principal: Principal,
   id: string,
-  change: Partial<MeetingInput> & { status?: "held" | "cancelled"; transcriptConsent?: boolean },
+  {
+    audience,
+    ...change
+  }: Partial<MeetingInput> & { status?: "held" | "cancelled"; transcriptConsent?: boolean; audience?: AudienceInput | null },
 ) {
   const { meeting, resource } = await loadMeeting(tx, principal, id);
   assertAllowed(principal, "meeting.run", resource);
-  const updated = await tx.update(meetings).set(change).where(eq(meetings.id, id)).returning({ sequence: meetings.icsSequence });
+  const updated = Object.keys(change).length
+    ? await tx.update(meetings).set(change).where(eq(meetings.id, id)).returning({ sequence: meetings.icsSequence })
+    : [{ sequence: meeting.icsSequence }];
   if (!updated.length) throw new NotFoundError("meeting");
+  // Who sees it, changed in the edit form (feature A), by the people who may.
+  if (audience) await writeAudience(tx, principal, "meeting", id, resource, audience, { on: "edit" });
   await audit(tx, {
     actorId: principal.userId,
     orgId: meeting.orgId,
@@ -549,8 +607,26 @@ export async function removeAttendee(tx: Tx, principal: Principal, id: string, a
   const [attendee] = await tx.select({ userId: meetingAttendees.userId }).from(meetingAttendees).where(where);
   if (!attendee) throw new NotFoundError("attendee");
   if (attendee.userId === meeting.organizerId) throw new BadRequestError("the organiser stays on the meeting");
+  // The database withdraws her invitation if it is not sent yet, or queues the cancellation for
+  // her alone if it reached her calendar (feature A, re-check S9; trigger attendee_removed).
   await tx.delete(meetingAttendees).where(where);
   return { ok: true };
+}
+
+/**
+ * Who sees a meeting (feature A), for the people who may change it: firm
+ * staff on a meeting the firm booked, the client's admin on one a client
+ * person booked. Not found for anyone else.
+ */
+export async function getMeetingAudience(tx: Tx, principal: Principal, id: string) {
+  const { resource } = await loadMeeting(tx, principal, id);
+  return readAudience(tx, principal, "meeting", id, resource);
+}
+
+/** Set, change or clear who sees a meeting. Audited; nobody is told, and no invite reaches anyone left out. */
+export async function setMeetingAudience(tx: Tx, principal: Principal, id: string, input: AudienceInput) {
+  const { resource } = await loadMeeting(tx, principal, id);
+  return writeAudience(tx, principal, "meeting", id, resource, input);
 }
 
 /** An attendee's own answer to the invitation. */

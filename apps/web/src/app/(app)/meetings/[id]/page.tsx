@@ -7,6 +7,8 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { ApiButton } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
 import { AskAbout } from "@/components/ask-about";
+import { AudienceEditor } from "@/components/audience-field";
+import { AudienceMarker } from "@/components/audience-marker";
 import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +53,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     getTranslations("visibility"),
     getFormatter(),
   ]);
-  const { meeting, agendaScope, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me } = data;
+  const { meeting, agendaScope, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me, limited, canAudience } =
+    data;
   const when = `${format.dateTime(meeting.startsAt, { dateStyle: "full", timeStyle: "short" })} – ${format.dateTime(meeting.endsAt, { timeStyle: "short" })}`;
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
@@ -109,6 +112,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             </ToneBadge>
             <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
             <Badge variant="outline">{tVis(meeting.visibility)}</Badge>
+            {limited ? <AudienceMarker kind="meeting" /> : null}
           </>
         }
       >
@@ -154,6 +158,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                         locationText: meeting.locationText,
                         spokenLang: meeting.spokenLang as "ar" | "en" | "mixed",
                       }}
+                      audience={canAudience}
                       trigger={
                         <Button size="sm" variant="outline">
                           <Pencil />
@@ -190,6 +195,12 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : null}
               {mine && scheduled && canRespond ? <RespondButtons meetingId={meeting.id} current={mine.response} /> : null}
+              {/* Who sees it (feature A): the quiet line, for the people who may change it. */}
+              {canAudience ? (
+                <div className="border-t pt-3">
+                  <AudienceEditor kind="meeting" id={meeting.id} />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

@@ -6,8 +6,8 @@ There are two layers. Both must allow a request.
 
 | Layer | Where | What it decides |
 |---|---|---|
-| `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission |
-| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) and later migrations | Backstop: tenant, project and label isolation, drafts kept from clients (D6), an action owner's own actions only (1b), whole-project meetings for people who see all of the project's work (1a), plus "only firm can review" |
+| `authorize()` | `apps/web/src/authz/authorize.ts` | Everything: the five questions below, per permission, and the sixth (who sees an item) |
+| Row-level security | `apps/web/drizzle/0000_baseline.sql` (Security section) and later migrations | Backstop: tenant, project and label isolation, drafts kept from clients (D6), an action owner's own actions only (1b), whole-project meetings for people who see all of the project's work (1a), people left out of a file or meeting (feature A), plus "only firm can review" |
 
 ## The five questions
 
@@ -18,6 +18,8 @@ There are two layers. Both must allow a request.
 3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
 4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer), `staffed` (a consultant who is the client's lead or deputy or is staffed on any of its projects, observing or not: who reads its organisation structure), or `engagement` (a consultant who is the client's lead or deputy or is staffed, not as an observer, on one of an engagement's open projects: who hands its deliverables over).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
+
+After the five, and after the rules of state (closed project, archived client, observer), a **sixth question** only ever says no: was the item (a document that is not evidence, or a meeting) narrowed with the picker, and is this person left out of it? (`resource.audience`, loaded from the database; "Who sees an item" below.) A denial answers 404, like the others.
 
 ## Internal and client projects
 
@@ -143,6 +145,37 @@ Where an owner used to read a teammate's action, and what each does now (the rev
 
 Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments; a former owner after `app_hand_over()`; a catalog check that finds every table referring to an action, by a foreign key to `actions` or to a table under the rule, or by an `entity_type`/`source_type`/`target_type` pair, and fails unless it carries the rule or is named with its reason: `ai_chunks`, which owners never read since they never have the assistant, and `ai_drafts`, the firm's own) and the 1b block of `tests/authorize.test.ts`.
 
+## Who sees an item (the picker)
+
+Decision of 17 Nov 2026, feature A ("everyone except…" / "only…"). Restructuring proposals, salary and disciplinary files and closed board sessions are kept need-to-know until they are announced; departments and labels cannot keep one file from one manager in the same department. The picker does that, and **it can only take people away: it never gives anyone access that the role, project, department, label, draft and owner rules do not already give.** Sharing a file with one more person stays the separate one-by-one share.
+
+**The effective rule.** (today's rules OR a one-by-one share) AND NOT left out AND (no "only" list, OR on it). Two modes: **"Everyone with access, except…"** (the default position of the switch; the people named are left out, and anyone who gains access later sees the item) and **"Only these people…"** (nobody else, ever, until it is changed; saving it with nobody is refused). No audience at all is "everyone with access", the normal case. **Left out beats a share**: a share, an invitation to a meeting, making an attendee required and assigning a meeting's follow-up to someone left out are each refused, never a silent lift of the exclusion.
+
+**Locked people.** Some people always see the item, so the work cannot stall. The server works them out live from the item and the client, never from the page and never frozen at save time: the person who set the audience, whoever uploaded any version of the file, the client's admin (on anything the client can see), the firm admin (on the firm's items), the client's lead and deputy, and a meeting's organiser and everyone invited to it, required or optional ("Invited to this meeting"; the product owner's decision on the re-check, S9): to leave someone invited out, take them off the meeting first, which withdraws an invitation not sent yet or sends their calendar a cancellation naming only them; and on a file sent for an information request, the person it asks ("Asked for this file"; re-check N4), so she never sees "Received" with nothing to open: a file she is left out of is not sent for her item, and the item is not given to someone left out of a file sent for it. A lead or deputy named after an "only" list was saved is let in at once; leaving out a locked person is refused. Whoever saves an "only" list is also written onto it as an ordinary pick (the product owner's decision on the review, 18 Nov 2026): locked to themselves while they edit, a normal chip to the next editor, who removes them only on purpose. Nobody is ever written onto a list of people left out.
+
+**Whose item it is, and who uses the picker.**
+
+| Item | Whose | Who sets it | Who can be left out |
+|---|---|---|---|
+| A deliverable, a firm upload (shared with the client or not), a meeting firm staff booked | the firm's | firm staff who manage it (the file's owning side, a meeting's runners); not observers | firm colleagues and client people, except the locked ones |
+| A client upload, a meeting a client person booked | the client's | the client's admin | the client's own people only: a client cannot hide its items from the firm this way (`client_private` does that), so on an "only" list the firm's people still see it |
+
+Client managers and action owners get no picker; the server answers them 404 (`document.audience`, `meeting.audience` in `policy.ts`; `app_can_manage_audience()` in the database).
+
+**Where.** Documents of every kind except evidence (a deliverable, a client document, an information request's file, every version of each), and meetings (with their attendees, decisions, summary and its sources, notes, follow-ups, transcript, calendar file and invitation mail). Not on actions, recommendations, evidence, indicators or the org chart: those are the shared plan.
+
+**People left out see nothing**: no row, no count, no "1 hidden item", no notice about the item or about the change, no invitation, no passage in the assistant. Everyone who still sees a narrowed item gets the "Limited audience" marker on it. Opening it up again ("everyone") tells nobody either.
+
+| Where | Held by |
+|---|---|
+| The database | `app_audience_ok(item_type, item_id)` (about the person signed in, and only for an item they can already see: anything else gets the answer an unknown id gets; the three-argument form, about anyone, is for definer functions only, migration `0095`) in a RESTRICTIVE policy `audience` on `documents`, `document_shares`, `document_summaries`, `info_request_files`, `assessment_evidence`, `meetings`, `meeting_attendees`, `meeting_decisions`, `meeting_summaries`, `meeting_summary_sources`, `meeting_transcripts`, `meeting_notes`, `follow_ups`, `ai_chunks`, `content_translations`, `activity_events` (its own label copy notwithstanding; also an event naming a file in its details) and `notifications` (migration `0095_audience_rules`), and `ai_conversations` (a chat about, or citing, an item its owner is left out of; its messages follow it; migration `0095`). Restrictive, because a permissive policy would widen. The tables `item_audiences` and `item_audience_people` (0094) are read only by who may change the item and written only by `app_set_audience()`. |
+| Definer functions that read these items past row-level security | `app_can_see_meeting()` and `app_meeting_open_to_me()` (so everything that asks them: the agenda through `app_meeting_agenda_for()`, running a meeting, attendees, decisions, summaries), the live agenda builder `app_meeting_agenda()` ("changed since the last meeting" counts from a meeting the reader opens), and `app_send_meeting_invites()`; `app_set_audience()` marks meeting mail still queued for someone now left out as withdrawn (kept, never sent; the product owner decided nothing is deleted), and the mail job checks each meeting mail again just before it goes (`app_meeting_mail_ok()`, migrations 0094, 0095); taking someone off a meeting withdraws her invitation not sent yet, or queues her own cancellation (`meeting_attendee_removed()`, migration 0095); the trigger `drop_left_out_notification()` never stores a notice for someone left out. The rest were checked and read no file or meeting a left-out person could get (docs/rules.md, "Who sees an item"). |
+| `authorize()` | A guard only: the sixth question, from `resource.audience` (`app_audience_mine()`: the caller's own part only), on every document and meeting resource the services build: `loadDocument()`, `listFiles()`, `getProject()`, `loadMeeting()`, `listMeetings()`, Today, the export pack. It repeats what row-level security decides and does not enforce it: every service reads as the app role, so someone left out never gets the row, and `app_audience_mine()` tells nobody they are left out, so with the database's data the question never denies (re-check N13). It would deny a resource that names the caller as left out. |
+| The assistant | `scopeFilter()` in `services/assistant.ts` puts `app_audience_ok` inside the search's `WHERE` (a file's passage, a meeting note's passage), so a left-out person's question never retrieves a passage and no citation points to it; the restrictive policy on `ai_chunks` says the same. |
+| The API | `GET/PUT /api/documents/:id/audience`, `GET/PUT /api/meetings/:id/audience`, `GET /api/projects/:id/audience` (for a file or meeting not saved yet). Uploading, sharing a file with the client, booking and editing a meeting take an optional `audience`. Every change is audited (`document.audience`, `meeting.audience`, with counts only). |
+
+Tests: `tests/audience-authorize.test.ts` (the never-widen property over `authorize()`), `tests/db/audience.test.ts` (its database twin for every seeded user and every table the policy is on, a left-out person on every path, the refusals, people who join later, audit and no notices).
+
 ## Deliverables handed over
 
 F21 in its minimal form (gate A follow-ups, 17 Nov 2026, 4a; migration `0092_deliverable_receipts`). An engagement's deliverable is handed over with the exact file versions, in rounds, and the client confirms receipt or comments. **Received is receipt only**: it never says the client accepted the work.
@@ -156,7 +189,7 @@ F21 in its minimal form (gate A follow-ups, 17 Nov 2026, 4a; migration `0092_del
 | A client manager who is an acceptor or the sponsor on a project the deliverable relates to | Only those deliverables, and only rounds whose every file they open (not the engagement itself) | Confirms receipt or comments |
 | Any other manager, every action owner, another client | Nothing: Not found | Nothing |
 
-- **Who is asked.** The acceptors on the related projects (the deliverable's own, or every project its engagement covers), else the client's admins, else its sponsor; in each, only people who open every file (department, project membership and one-by-one shares as the files' own rules). A file a reader cannot open keeps the whole round from them, so nobody is shown a deliverable round they cannot open (`app_deliverable_receiver_ok()`, `app_user_opens_document()`).
+- **Who is asked.** The acceptors on the related projects (the deliverable's own, or every project its engagement covers), else the client's admins, else its sponsor; in each, only people who open every file (department, project membership and one-by-one shares as the files' own rules, and not left out of it with the picker: feature A, "Who sees an item"; a left-out acceptor is skipped and the next in line is asked). A file a reader cannot open keeps the whole round from them, so nobody is shown a deliverable round they cannot open (`app_deliverable_receiver_ok()`, `app_user_opens_document()`).
 - **Before a hand-over** the dialog names who will be asked and any acceptor skipped because they cannot open every file picked (`app_hand_over_preview()`, for the people who may hand it over), so the firm sees it. A hand-over never shares a file: a firm-only file is shared only from its own Share action.
 - **The firm never confirms for a client that signs in.** It records a receipt only for a consultant-managed client, like `consultant_recorded` evidence.
 - A comment goes to the client's lead and deputy (the firm's admins when it has neither): in their notifications and in Today's decisions list, until a new version is handed over. The new home (D2) does not exist yet.
@@ -215,7 +248,7 @@ The Files sheet in the sidebar (`GET /api/files`, `services/files.ts`) lists doc
 | Client manager | The company's files outside departments, and their own department's. |
 | Action owner | Their own uploads, their department teammates' files (decided 2026-10-22: the team sees each other's work, the manager and client admin see everything below), and files shared with them one by one. A teammate's evidence file never names the teammate's action (decision 1b). |
 
-A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments).
+A file shared with someone one by one reaches them even when it is filed under another department (baseline: Document shares across departments). A file narrowed with the picker reaches nobody it leaves out, shared or not, and shows "Limited audience" to the rest ("Who sees an item" above).
 
 ## Observers
 

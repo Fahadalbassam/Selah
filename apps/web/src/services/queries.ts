@@ -22,6 +22,7 @@ import {
 } from "@/db/schema";
 import { authorize, canTransition, OPEN_STATUSES, TRANSITIONS, type ActionStatus, type Permission, type Principal, type Resource } from "@/authz";
 import { loadAction, roundSubmitters } from "./actions";
+import { audiencesForMe } from "./audience";
 import { fileControls } from "./documents";
 import { recordControls } from "./plan-changes";
 import { recommendationStances } from "./responses";
@@ -366,16 +367,26 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     )
     .orderBy(desc(documents.createdAt));
 
+  // Who sees each file, when narrowed (feature A): a file this person is left
+  // out of is not even read; authorize() asks again, and the rest say "Limited audience".
+  const narrowed = await audiencesForMe(
+    tx,
+    principal,
+    "document",
+    docs.map((d) => d.id),
+  );
   const docResource = (d: (typeof docs)[number]): Resource => ({
     type: "document",
     id: d.id,
     orgId: d.orgId,
     firmOrgId: p.firmOrgId,
     projectId: d.projectId,
+    projectKind: p.kind,
     visibility: d.visibility,
     createdBy: d.uploadedBy,
     ownerOrgId: d.ownerOrgId,
     departmentId: d.departmentId,
+    audience: narrowed.get(d.id),
   });
 
   // The activity record is for the firm and the client's admin (decision D8):
@@ -431,6 +442,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     })),
     documents: visible(principal, "document.read", docs, docResource).map((d) => ({
       ...d,
+      limited: narrowed.has(d.id),
       can: fileControls(principal, {
         doc: d,
         resource: docResource(d),

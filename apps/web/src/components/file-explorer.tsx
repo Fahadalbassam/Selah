@@ -18,6 +18,7 @@ import { Folder } from "@/components/animate-ui/icons/folder";
 import { FolderOpen } from "@/components/animate-ui/icons/folder-open";
 import { Upload } from "@/components/animate-ui/icons/upload";
 import { X } from "@/components/animate-ui/icons/x";
+import { AudienceEditor, AudienceField, LimitedMarker, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { FileActions } from "@/components/file-actions";
@@ -141,10 +142,15 @@ type UploadTargets = Awaited<ReturnType<typeof uploadTargets>>;
 /** "Add a file": pick a project, the file, who can see it and, at a client with departments, the team. */
 function UploadDialog({ onDone }: { onDone: () => void }) {
   const t = useTranslations("files");
+  const refusal = useAudienceRefusal();
   const rtl = useLocale() === "ar";
   const [targets, setTargets] = useState<UploadTargets | null>(null);
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
+  const [visibility, setVisibility] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  // Who sees it (feature A): null while it cannot be saved (an "only" list with nobody).
+  const [audience, setAudience] = useState<{ value: AudienceValue | null; dirty: boolean }>({ value: null, dirty: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -165,14 +171,22 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
 
   if (!targets?.projects.length) return null;
   const project = targets.projects.find((p) => p.id === projectId) ?? targets.projects[0]!;
+  const label = project.visibilities.includes(visibility as (typeof project.visibilities)[number]) ? visibility : project.visibilities[0]!;
+  const dept = project.departments.some((d) => d.id === departmentId) ? departmentId : "";
+  // The people this file would be seen by, from the server, for what the form says now.
+  const audienceUrl = project.audience
+    ? `/api/projects/${project.id}/audience?kind=document&visibility=${label}${dept ? `&departmentId=${dept}` : ""}`
+    : null;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) return;
+    if (audience.dirty && !audience.value) return;
     form.delete("project");
     if (!form.get("departmentId")) form.delete("departmentId");
+    if (audienceUrl && audience.dirty && audience.value && audience.value.mode !== "everyone") form.set("audience", JSON.stringify(audience.value));
     setBusy(true);
     setError(null);
     try {
@@ -186,7 +200,8 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       const m = body.message ?? "";
       setError(
-        res.status === 503
+        refusal(m) ??
+        (res.status === 503
           ? t("errors.scanner")
           : m.includes("infected")
             ? t("errors.infected")
@@ -194,7 +209,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
               ? t("errors.tooLarge")
               : m.includes("rejected")
                 ? t("errors.type")
-                : t("errors.generic"),
+                : t("errors.generic")),
       );
     } finally {
       setBusy(false);
@@ -202,7 +217,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setAudience({ value: null, dirty: false }))}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="h-7">
           <Upload className="size-3.5" />
@@ -217,7 +232,13 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="upload-project">{t("project")}</Label>
-            <NativeSelect id="upload-project" name="project" className="w-full" value={project.id} onChange={(e) => setProjectId(e.target.value)}>
+            <NativeSelect
+              id="upload-project"
+              name="project"
+              className="w-full"
+              value={project.id}
+              onChange={(e) => (setProjectId(e.target.value), setAudience({ value: null, dirty: false }))}
+            >
               {targets.projects.map((p) => (
                 <NativeSelectOption key={p.id} value={p.id}>
                   {p.kind === "internal" ? `${t("internal")} · ${p.title}` : `${(rtl ? p.org.nameAr : null) ?? p.org.name} · ${p.title}`}
@@ -231,7 +252,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
           </div>
           <fieldset className="grid gap-2">
             <legend className="mb-2 text-sm font-medium">{t("sharing")}</legend>
-            <RadioGroup key={project.id} name="visibility" defaultValue={project.visibilities[0]} className="gap-2">
+            <RadioGroup key={project.id} name="visibility" value={label} onValueChange={setVisibility} className="gap-2">
               {project.visibilities.map((v) => (
                 <div key={v} className="flex items-center gap-2">
                   <RadioGroupItem id={`vis-${v}`} value={v} />
@@ -245,7 +266,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
           {project.departments.length ? (
             <div className="grid gap-2">
               <Label htmlFor="upload-dept">{t("department")}</Label>
-              <NativeSelect id="upload-dept" name="departmentId" className="w-full" defaultValue="">
+              <NativeSelect id="upload-dept" name="departmentId" className="w-full" value={dept} onChange={(e) => setDepartmentId(e.target.value)}>
                 <NativeSelectOption value="">{t("wholeCompany")}</NativeSelectOption>
                 {project.departments.map((d) => (
                   <NativeSelectOption key={d.id} value={d.id}>
@@ -256,12 +277,16 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
               <p className="text-xs text-muted-foreground">{t("departmentHint")}</p>
             </div>
           ) : null}
+          {open && audienceUrl ? (
+            // One picker per project; within it, a new label or department asks the server again and drops picks that no longer fit.
+            <AudienceField key={project.id} kind="document" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
+          ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {t("upload")}
             </Button>
@@ -424,14 +449,22 @@ function TreeNode({ node, pick }: { node: Node; pick: boolean }) {
   const labels = useLabels();
   if (node.type === "file") {
     const f = node.file;
-    const usable = !pick || (f.available && f.visibility === "shared");
+    // A narrowed file is never copied into evidence (feature A): it would reach the people it was kept from.
+    const usable = !pick || (f.available && f.visibility === "shared" && !f.limited);
     return (
       <FileTreeFile
         path={node.path}
         name={<bdi>{f.title}</bdi>}
         icon={fileIcon(f.contentType)}
         disabled={!usable}
-        meta={f.version > 1 ? <Badge variant="outline" className="h-5 px-1.5 text-xs tabular-nums">v{f.version}</Badge> : null}
+        meta={
+          f.version > 1 || f.limited ? (
+            <span className="flex items-center gap-1">
+              <LimitedMarker kind="document" limited={f.limited} className="h-5 px-1.5" />
+              {f.version > 1 ? <Badge variant="outline" className="h-5 px-1.5 text-xs tabular-nums">v{f.version}</Badge> : null}
+            </span>
+          ) : null
+        }
       />
     );
   }
@@ -506,7 +539,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
           : `/projects/${file.project.id}`;
   const sourceName = "title" in file.source && file.source.title ? file.source.title : file.project.title;
   const department = (rtl ? file.departmentName : (file.departmentNameEn ?? file.departmentName)) ?? null;
-  const usable = file.available && file.visibility === "shared";
+  const usable = file.available && file.visibility === "shared" && !file.limited;
 
   return (
     <div className="grid animate-page-in gap-3 rounded-xl border bg-card p-4 shadow-xs">
@@ -562,8 +595,11 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
               {file.sharedWith.join(rtl ? "، " : ", ")}
             </span>
           ) : null}
+          {!file.can.audience ? <LimitedMarker kind="document" limited={file.limited} className="ms-1" /> : null}
         </dd>
       </dl>
+      {/* Who sees it (feature A): the quiet line and the picker, for the people who may change it. */}
+      {!pick && file.can.audience ? <AudienceEditor key={file.id} kind="document" id={file.id} onSaved={onChanged} /> : null}
       {!file.available ? <p className="text-xs text-muted-foreground">{t("notCleared")}</p> : null}
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={download} disabled={busy || !file.available}>
@@ -578,6 +614,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
         ) : null}
       </div>
       {pick && file.available && file.visibility !== "shared" ? <p className="text-xs text-muted-foreground">{t("notShared")}</p> : null}
+      {pick && file.available && file.visibility === "shared" && file.limited ? <p className="text-xs text-muted-foreground">{t("narrowedNotEvidence")}</p> : null}
     </div>
   );
 }

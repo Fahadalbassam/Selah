@@ -103,7 +103,7 @@ const UNIT: Record<string, string> = {};
 let V1 = "";
 /** Acme's work owned or uploaded by the action owner whose card is read. */
 const ACT = { fin: id(41), late: id(42), hr: id(43), draft: id(44), done: id(45), other: id(46) };
-const DOC = { fin: id(51), hr: id(52), mine: id(53), cadmin: id(54) };
+const DOC = { fin: id(51), hr: id(52), mine: id(53), cadmin: id(54), narrow: id(55) };
 const REC = { all: id(47), hr: id(48), draft: id(49) };
 
 beforeAll(async () => {
@@ -166,12 +166,15 @@ beforeAll(async () => {
       ($6,$7,$8,$9,'Someone else''s task',$16,'in_progress',app_firm_today() + 3,$13,$12)`,
     [ACT.fin, ACT.late, ACT.hr, ACT.draft, ACT.done, ACT.other, P, ACME, REC.all, REC.hr, U.owner, U.lead, DEPT.fin, DEPT.hr, REC.draft, U.next],
   );
-  // The action owner's uploads: Finance's, HR's, one private to them; and one the client admin uploaded.
+  // The action owner's uploads: Finance's, HR's, one private to them, one Finance file the client's admin
+  // narrowed to "everyone except" the Finance manager (who sees every other Finance file); and one the
+  // client admin uploaded.
   for (const [doc, dept, title, by, label] of [
     [DOC.fin, DEPT.fin, "Finance procedures", U.owner, "shared"],
     [DOC.hr, DEPT.hr, "Salary scale draft", U.owner, "shared"],
     [DOC.mine, null, "My private notes", U.owner, "user_private"],
     [DOC.cadmin, null, "Company policy", U.cadmin, "shared"],
+    [DOC.narrow, DEPT.fin, "Finance restructuring note", U.owner, "shared"],
   ] as const) {
     await q(
       `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id, storage_key, content_type, size_bytes, sha256, scan_status)
@@ -179,6 +182,9 @@ beforeAll(async () => {
       [doc, P, ACME, by, title, label, dept, `k-${doc}`],
     );
   }
+  // Who sees an item (feature A): the narrowed file keeps the Finance manager out.
+  await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,'document',$2,'except',$3)`, [ACME, DOC.narrow, U.cadmin]);
+  await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ('document',$1,$2)`, [DOC.narrow, U.mgr]);
 
   // Acme's structure: the lead builds it and publishes it; the client's admin puts the people in.
   await svc(U.lead, (tx, p) => OC.startChart(tx, p, ACME), true);
@@ -524,7 +530,9 @@ describe("a person's work card", () => {
   it("a manager of the person's department sees only what she could already open: no other department's action, no draft, no file kept from her", async () => {
     const c = await card(U.mgr);
     expect(c.person).toMatchObject({ userId: U.owner, name: "owner person", positions: [expect.objectContaining({ titleEn: "Analyst", unitNameEn: "Finance" })] });
+    // Not the HR file, not the private notes, and not the Finance file she was left out of (feature A).
     expect(ids(c)).toEqual({ late: [ACT.late], open: [ACT.fin], uploads: [DOC.fin] });
+    expect(c.uploads.map((f) => f.id)).not.toContain(DOC.narrow);
     const can = await readable(U.mgr);
     for (const a of [...c.late, ...c.open]) expect(can.actions.has(a.id)).toBe(true);
     for (const f of c.uploads) expect(can.files.has(f.id)).toBe(true);
@@ -534,8 +542,8 @@ describe("a person's work card", () => {
 
   it("the client's admin sees every department's work, never a firm draft or a file private to the person", async () => {
     const c = await card(U.cadmin);
-    // Late first; then by due date; uploads newest first.
-    expect(ids(c)).toEqual({ late: [ACT.late], open: [ACT.hr, ACT.fin], uploads: [DOC.hr, DOC.fin] });
+    // Late first; then by due date; uploads newest first (the narrowed file too: only the Finance manager was left out).
+    expect(ids(c)).toEqual({ late: [ACT.late], open: [ACT.hr, ACT.fin], uploads: [DOC.narrow, DOC.hr, DOC.fin] });
     expect(c.uploads.map((f) => f.id)).not.toContain(DOC.mine);
     expect(c.open.map((a) => a.id)).not.toContain(ACT.draft);
     // Done work and other people's work are not this card's.

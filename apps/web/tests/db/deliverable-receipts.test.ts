@@ -402,6 +402,30 @@ describe("who hands over, with which files, and who will be asked (S2)", () => {
   });
 });
 
+// Who sees an item (feature A): a file narrowed with the picker counts as a file she cannot open.
+describe("a file narrowed so that the acceptor is left out", () => {
+  it("skips her: the next in line is asked, nobody reminds her, and she sees nothing of the round", async () => {
+    const did = await deliverable(G.acme, P.acme, "Restructuring proposal");
+    const doc = await file(ACME, P.acme, "Restructuring proposal.pdf");
+    // The lead leaves the acceptor out of the file, as the picker stores it.
+    await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,'document',$2,'except',$3)`, [ACME, doc, U.lead]);
+    await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ('document',$1,$2)`, [doc, U.acceptor]);
+    expect(await svc(U.lead, (tx, p) => handOverPreview(tx, p, did, [doc]))).toEqual({ asked: [{ name: "cadmin", as: "admin" }], skipped: [{ name: "acceptor" }] });
+    await handOver(U.lead, did, [doc]);
+    expect(await told("deliverable.handed_over", did)).toEqual([U.cadmin]);
+    expect(await mailedTo("deliverable.handed_over")).toEqual(["cadmin@example.test"]);
+    expect((await q(`SELECT user_id FROM app_deliverable_receivers($1, ARRAY[$2]::uuid[])`, [did, doc])).rows.map((r) => r.user_id)).toEqual([U.cadmin]);
+    // Nothing of the round reaches her: not the deliverable, the round, her home's list, or an answer.
+    await expect(svc(U.acceptor, (tx, p) => getDeliverable(tx, p, did))).rejects.toThrow(/not found/);
+    expect((await sqlAs(U.acceptor, `SELECT count(*)::int AS n FROM deliverable_handovers WHERE deliverable_id = $1`, [did])).rows[0].n).toBe(0);
+    expect((await svc(U.acceptor, (tx, p) => deliverablesToAnswer(tx, p))).map((d) => d.id)).not.toContain(did);
+    expect((await svc(U.acceptor, (tx, p) => listDeliverables(tx, p, { clientOrgId: ACME }))).map((d) => d.id)).not.toContain(did);
+    await expect(sqlAs(U.acceptor, `SELECT app_confirm_deliverable_receipt($1, 1)`, [did])).rejects.toThrow(/acceptor, admin or sponsor/);
+    // The client's admin, who always sees the file, answers as usual.
+    await svc(U.cadmin, (tx, p) => recordReceipt(tx, p, did, { round: 1 }));
+  });
+});
+
 describe("a receipt", () => {
   it("keeps the exact versions handed over: a later version changes nothing until it is handed over in a new round", async () => {
     const did = await deliverable(G.acme, P.acme, "Board charter, approved");

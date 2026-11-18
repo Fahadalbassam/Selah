@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
+import { AudienceEditor, AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -22,7 +23,7 @@ export interface FileActionsProps {
   visibility: "shared" | "firm_private" | "client_private" | "user_private";
   aiIndexable: boolean;
   /** From fileControls() on the server; the server decides again. */
-  can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean; withdraw: boolean };
+  can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean; withdraw: boolean; audience?: boolean };
   /** After a change; refreshes the page when not given. */
   onChanged?: () => void;
 }
@@ -36,21 +37,41 @@ export interface FileActionsProps {
 export function FileActions({ id, title, visibility, aiIndexable, can, onChanged }: FileActionsProps) {
   const t = useTranslations("fileActions");
   const tc = useTranslations("common");
+  const ta = useTranslations("audience");
+  const refusal = useAudienceRefusal();
   const router = useRouter();
   const [confirm, confirmDialog] = useConfirm();
   const [versionOpen, setVersionOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [audienceOpen, setAudienceOpen] = useState(false);
+  // Who sees the file once shared, chosen in the share dialog; null while it cannot be saved.
+  const [audience, setAudience] = useState<{ value: AudienceValue | null; dirty: boolean }>({ value: null, dirty: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const done = () => (onChanged ? onChanged() : router.refresh());
 
-  if (!can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw) return null;
+  if (!can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw && !can.audience) return null;
 
   async function share(message: string) {
     if (!(await confirm(message))) return;
-    const r = await callApi(`/api/documents/${id}/share`, "POST");
+    const r = await callApi(`/api/documents/${id}/share`, "POST", {});
     if (!r.ok) return void toast.error(tc(`errors.${r.error}`));
     toast.success(t("shared"));
+    done();
+  }
+
+  // The firm shares a deliverable with the client, and may choose who at the client and the firm sees it.
+  async function shareWithClient(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (audience.dirty && !audience.value) return;
+    setBusy(true);
+    setError(null);
+    const r = await callApi(`/api/documents/${id}/share`, "POST", audience.dirty && audience.value ? { audience: audience.value } : {});
+    setBusy(false);
+    if (!r.ok) return setError(refusal(r.message) ?? tc(`errors.${r.error}`));
+    toast.success(t("shared"));
+    setShareOpen(false);
     done();
   }
 
@@ -116,7 +137,12 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {can.shareWithClient ? <DropdownMenuItem onSelect={() => share(t("shareWithClientConfirm"))}>{t("shareWithClient")}</DropdownMenuItem> : null}
+          {can.shareWithClient ? (
+            <DropdownMenuItem onSelect={() => (setAudience({ value: null, dirty: false }), setError(null), setShareOpen(true))}>
+              {t("shareWithClient")}
+            </DropdownMenuItem>
+          ) : null}
+          {can.audience ? <DropdownMenuItem onSelect={() => setAudienceOpen(true)}>{ta("menu")}</DropdownMenuItem> : null}
           {can.shareWithFirm ? <DropdownMenuItem onSelect={() => share(t("shareWithFirmConfirm"))}>{t("shareWithFirm")}</DropdownMenuItem> : null}
           {can.assistant ? (
             <DropdownMenuItem onSelect={() => assistant(!aiIndexable)}>{aiIndexable ? t("assistantTurnOff") : t("assistantTurnOn")}</DropdownMenuItem>
@@ -130,6 +156,47 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
         </DropdownMenuContent>
       </DropdownMenu>
       {confirmDialog}
+      <Dialog open={shareOpen} onOpenChange={(o) => (setShareOpen(o), setError(null))}>
+        <DialogContent>
+          <form onSubmit={shareWithClient} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>{t("shareWithClient")}</DialogTitle>
+              <DialogDescription>{t("shareWithClientConfirm")}</DialogDescription>
+            </DialogHeader>
+            {shareOpen ? (
+              <AudienceField
+                kind="document"
+                url={`/api/documents/${id}/audience?shared=1`}
+                onChange={(value, dirty) => setAudience({ value, dirty })}
+                disabled={busy}
+              />
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShareOpen(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
+                {busy ? <BrandLoader tone="current" className="size-4" /> : null}
+                {t("shareWithClient")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={audienceOpen} onOpenChange={setAudienceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{ta("dialogTitle", { kind: "document" })}</DialogTitle>
+            <DialogDescription>{ta("dialogHint")}</DialogDescription>
+          </DialogHeader>
+          {audienceOpen ? <AudienceEditor kind="document" id={id} onSaved={() => (setAudienceOpen(false), done())} /> : null}
+        </DialogContent>
+      </Dialog>
       <Dialog open={withdrawOpen} onOpenChange={(o) => (setWithdrawOpen(o), setError(null))}>
         <DialogContent>
           <form onSubmit={withdraw} className="grid gap-4">

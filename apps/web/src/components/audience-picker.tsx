@@ -101,6 +101,9 @@ export function AudiencePicker(props: AudiencePickerProps) {
   const remembered = useRef<Partial<Record<AudienceSwitch, readonly string[]>>>({ [position]: selected });
 
   const nameOf = (p: AudiencePerson) => p.name[locale] || p.name[locale === "ar" ? "en" : "ar"];
+  // On the client's own item the reader is at the client: its admin is "your company's admin".
+  const lockText = (reason: NonNullable<AudiencePerson["locked"]>) =>
+    reason === "clientAdmin" && owner === "client" ? t("locked.clientAdminYours") : t(`locked.${reason}`);
   const emit = (mode: AudienceMode, ids: string[]) => {
     remembered.current[mode === "only" ? "only" : "except"] = ids;
     props.onChange({ mode, selected: ids, check: audienceToSave(mode, ids, locked) });
@@ -182,12 +185,12 @@ export function AudiencePicker(props: AudiencePickerProps) {
                           p.locked ? (
                             <Tooltip key={p.id}>
                               <TooltipTrigger asChild>
-                                <ComboboxChip removable={false} aria-label={nameOf(p)} aria-description={t(`locked.${p.locked}`)} data-locked={p.locked}>
+                                <ComboboxChip removable={false} aria-label={nameOf(p)} aria-description={lockText(p.locked)} data-locked={p.locked}>
                                   <Lock className="size-3 shrink-0 text-muted-foreground" aria-hidden />
                                   <span className="truncate">{nameOf(p)}</span>
                                 </ComboboxChip>
                               </TooltipTrigger>
-                              <TooltipContent>{t(`locked.${p.locked}`)}</TooltipContent>
+                              <TooltipContent>{lockText(p.locked)}</TooltipContent>
                             </Tooltip>
                           ) : (
                             <ComboboxChip key={p.id} aria-label={nameOf(p)} aria-description={t("chipDescription")}>
@@ -223,7 +226,7 @@ export function AudiencePicker(props: AudiencePickerProps) {
                             // A locked person cannot be picked; the reason stays readable (no dimming), with a lock.
                             <ComboboxItem key={p.id} value={p} disabled={!!p.locked} className="data-[disabled]:opacity-100" data-locked={p.locked}>
                               {p.locked ? <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
-                              <PersonOptionText label={nameOf(p)} hint={p.locked ? t(`locked.${p.locked}`) : p.hint} />
+                              <PersonOptionText label={nameOf(p)} hint={p.locked ? lockText(p.locked) : p.hint} />
                             </ComboboxItem>
                           )}
                         </ComboboxCollection>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SPOKEN_LANGS } from "@/lib/meetings";
 import { route } from "@/server/http";
+import { audienceInput } from "@/services/audience";
 import { getMeeting, updateMeeting } from "@/services/meetings";
 
 // Moving it or changing the link bumps the calendar sequence; send the
@@ -15,6 +16,8 @@ const body = z.object({
   spokenLang: z.enum(SPOKEN_LANGS).optional(),
   status: z.enum(["held", "cancelled"]).optional(),
   transcriptConsent: z.boolean().optional(),
+  // Who sees it (feature A), changed in the edit form by the people who may.
+  audience: audienceInput.optional(),
 });
 
 export const GET = route({ params: z.object({ id: z.uuid() }) }, ({ tx, principal, params }) =>

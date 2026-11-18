@@ -18,6 +18,7 @@ import { AskAbout } from "@/components/ask-about";
 import { EmptyState } from "@/components/empty-state";
 import { ExportButton } from "@/components/export-button";
 import { FileActions } from "@/components/file-actions";
+import { AudienceMarker } from "@/components/audience-marker";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { StanceBadge } from "@/components/stance-badge";
@@ -551,6 +552,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   me={me}
                   departments={invitees.departments.map((d) => ({ id: d.id, label: localLabel(d, ar) }))}
                   wholeProject={invitees.wholeProject}
+                  audience={invitees.audience}
                   trigger={
                     <Button size="sm">
                       <CalendarPlus />
@@ -573,7 +575,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {format.dateTime(m.startsAt, { dateStyle: "medium", timeStyle: "short" })}
                     </span>
-                    <Badge variant="outline" className="ms-auto">
+                    {m.limited ? <AudienceMarker kind="meeting" className="ms-auto" /> : null}
+                    <Badge variant="outline" className={m.limited ? undefined : "ms-auto"}>
                       {tMeeting(`status.${m.status}`)}
                     </Badge>
                   </li>
@@ -674,7 +677,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <span className="text-xs text-muted-foreground">
                     {t("version")} {d.version}
                   </span>
-                  <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className="ms-auto">
+                  {d.limited ? <AudienceMarker kind="document" className="ms-auto" /> : null}
+                  <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className={d.limited ? undefined : "ms-auto"}>
                     {tVis(d.visibility)}
                   </Badge>
                   {d.aiIndexable && data.assistantReads ? (

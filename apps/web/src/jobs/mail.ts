@@ -2,7 +2,7 @@
 // reachable from the app role). Each run claims due rows with SKIP LOCKED,
 // so two senders never send the same mail; a claim lasts 10 minutes, so a
 // sender that dies mid-run leaves its rows to be tried again.
-import { buildIcs } from "../lib/ics";
+import { buildAttendeeCancel, buildIcs } from "../lib/ics";
 import { MAX_ATTEMPTS, renderMail, retryDelayMinutes, type MailKind } from "../lib/mail-templates";
 
 interface Queryable {
@@ -35,6 +35,8 @@ interface Row {
 export interface MailRunResult {
   sent: number;
   failed: number;
+  /** Meeting mail not sent because its addressee is no longer on the meeting, or is left out of it (kept, marked withdrawn). */
+  withdrawn: number;
 }
 
 export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, batch = 20): Promise<MailRunResult> {
@@ -42,7 +44,7 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
     `UPDATE outbound_emails SET attempts = attempts + 1, next_attempt_at = now() + interval '10 minutes'
      WHERE id IN (
        SELECT id FROM outbound_emails
-       WHERE sent_at IS NULL AND failed_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+       WHERE sent_at IS NULL AND failed_at IS NULL AND withdrawn_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= now())
        ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED
      )
      RETURNING id, to_email, kind, link, reference, meeting_id, attempts, created_at`,
@@ -51,12 +53,24 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
   // RETURNING has no order; send oldest first so related mails arrive in order.
   rows.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
 
-  const result: MailRunResult = { sent: 0, failed: 0 };
+  const result: MailRunResult = { sent: 0, failed: 0, withdrawn: 0 };
   for (const row of rows) {
     try {
+      // Who is on the meeting and who sees it may have changed since this mail was queued, or
+      // since this run claimed it (feature A): asked again just before it goes. Never sent to
+      // someone left out or taken off it (but her own cancellation); the row is kept, marked
+      // withdrawn (nothing is deleted).
+      if (row.meeting_id) {
+        const { rows: ok } = await db.query<{ ok: boolean }>(`SELECT app_meeting_mail_ok($1, $2, $3) AS ok`, [row.meeting_id, row.to_email, row.kind]);
+        if (!ok[0]?.ok) {
+          await db.query(`UPDATE outbound_emails SET withdrawn_at = coalesce(withdrawn_at, now()), next_attempt_at = NULL WHERE id = $1`, [row.id]);
+          result.withdrawn++;
+          continue;
+        }
+      }
       const mail: OutgoingMail = { to: row.to_email, ...renderMail(row.kind, row.link, appUrl, row.reference) };
       if (row.meeting_id) {
-        const ics = await meetingIcs(db, row.meeting_id);
+        const ics = await meetingIcs(db, row.meeting_id, row.kind, row.to_email);
         if (ics) mail.icalEvent = ics;
       }
       await deliver(mail);
@@ -79,8 +93,9 @@ export async function runMail(db: Queryable, deliver: Deliver, appUrl: string, b
 }
 
 // The invite as it stands when the mail goes out, so a meeting moved after
-// the invite was queued goes out with its new time.
-async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMail["icalEvent"] | null> {
+// the invite was queued goes out with its new time. The cancellation for
+// someone taken off the meeting is hers alone, with nothing she was not sent.
+async function meetingIcs(db: Queryable, meetingId: string, kind: MailKind, to: string): Promise<OutgoingMail["icalEvent"] | null> {
   const { rows } = await db.query<{
     ics_uid: string;
     ics_sequence: number;
@@ -108,6 +123,10 @@ async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMai
      WHERE a.meeting_id = $1`,
     [meetingId],
   );
+  const organizer = { name: m.organizer_name, email: m.organizer_email };
+  if (kind === "meeting.removed") {
+    return { method: "CANCEL", content: buildAttendeeCancel({ uid: m.ics_uid, sequence: m.ics_sequence, organizer, email: to, at: new Date() }) };
+  }
   const content = buildIcs({
     uid: m.ics_uid,
     sequence: m.ics_sequence,
@@ -117,7 +136,7 @@ async function meetingIcs(db: Queryable, meetingId: string): Promise<OutgoingMai
     endsAt: m.ends_at,
     joinUrl: m.join_url,
     locationText: m.location_text,
-    organizer: { name: m.organizer_name, email: m.organizer_email },
+    organizer,
     attendees: attendees.rows
       .filter((a) => a.email && a.user_id !== m.organizer_id)
       .map((a) => ({ name: a.name, email: a.email!, optional: a.role === "optional" })),

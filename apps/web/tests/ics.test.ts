@@ -28,7 +28,7 @@ describe("calendar invites", () => {
     expect(lines).toContain("SEQUENCE:2");
     expect(lines).toContain("DTSTART:20261101T070000Z");
     expect(lines).toContain("DTEND:20261101T080000Z");
-    expect(lines).toContain("SUMMARY:Status\\, governance\; review");
+    expect(lines).toContain(String.raw`SUMMARY:Status\, governance\; review`);
     expect(lines).toContain("STATUS:CONFIRMED");
     expect(lines).toContain('ATTENDEE;CN="Reem R";ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:reem@acme.example');
     expect(ics).toContain("ROLE=OPT-PARTICIPANT");
@@ -41,8 +41,17 @@ describe("calendar invites", () => {
     expect(lines).toContain("UID:abc@selah");
   });
 
-  it("escape text and fold long lines without splitting a character", () => {
-    expect(escapeText("a\\b;c,d\ne")).toBe("a\\\\b\;c\\,d\\ne");
+  it("escape text as RFC 5545 3.3.11 says: backslash, semicolon, comma and new line", () => {
+    // String.raw: what the calendar file holds, character for character.
+    expect(escapeText("a\\b;c,d\ne")).toBe(String.raw`a\\b\;c\,d\ne`);
+    expect(escapeText("one\r\ntwo;three")).toBe(String.raw`one\ntwo\;three`);
+    expect(escapeText("plain")).toBe("plain");
+    // In the invite itself: a title with a semicolon keeps it as text, not as a separator.
+    const lines = buildIcs({ ...meeting, title: "Board; budget, part 1" }).replace(/\r\n /g, "").split("\r\n");
+    expect(lines).toContain(String.raw`SUMMARY:Board\; budget\, part 1`);
+  });
+
+  it("fold long lines without splitting a character", () => {
     const long = "SUMMARY:" + "م".repeat(60);
     const folded = fold(long).split("\r\n");
     expect(folded.length).toBeGreaterThan(1);
