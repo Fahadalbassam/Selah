@@ -70,23 +70,161 @@
     "client": "Client",
     "pitch": "Pitch"
   },
-  "dashboard": {
-    "title": "Overview",
-    "inProgress": "In progress",
-    "inProgressHint": "Client-claimed progress, not verified",
-    "blocked": "Blocked",
-    "blockedHint": "Their owners said what is in the way",
-    "awaitingReview": "Awaiting review",
-    "awaitingReviewHint": "Submitted evidence waiting for a consultant",
-    "verified": "Verified complete",
-    "verifiedHint": "Reviewed and accepted by a consultant",
-    "overdue": "Overdue",
-    "attentionFirm": "Needs your attention",
-    "attentionClient": "Needs your follow-up",
-    "empty": "Nothing needs your attention right now.",
-    "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact.",
-    "inProgressHintClient": "Under way, not yet checked by your consultant",
-    "claimNoteClient": "An action counts as done once your consultant has checked it."
+  "home": {
+    "title": "Home",
+    "nothingWaits": "Nothing waits for you right now.",
+    "showAll": "Show all ({n})",
+    "internal": "Internal projects",
+    "steps": {
+      "open": "Open",
+      "review": "Review",
+      "decide": "Decide",
+      "answer": "Answer",
+      "reply": "Reply",
+      "sendFile": "Send a file",
+      "look": "Look at the file",
+      "read": "Read",
+      "close": "Close for good",
+      "enterValue": "Enter the value",
+      "start": "Start work",
+      "sendForReview": "Send for review",
+      "resend": "Send the revised file for review",
+      "resume": "Resume work",
+      "choose": "Choose",
+      "readAndDecide": "Read and decide"
+    },
+    "firm": {
+      "description": "What waits for you across your clients and projects, then the action counts.",
+      "followedNote": "Reviews and late work here come from the clients and projects you follow or work on. Decisions only you can take come from every client.",
+      "reviews": {
+        "title": "Waiting for your review",
+        "description": "Submitted work on your projects that you may review. Work you own, submitted or gave the first sign-off on goes to a colleague.",
+        "since": "Waiting since {date}"
+      },
+      "due": {
+        "title": "Late or due this week",
+        "description": "Overdue or due within {days} days on the clients and projects you lead or are staffed on, and your own actions."
+      },
+      "followUps": {
+        "title": "Your follow-ups",
+        "description": "Open follow-ups assigned to you, overdue first.",
+        "noDate": "No date"
+      },
+      "meetings": {
+        "title": "Your meetings this week",
+        "description": "Today and the next {days} days, meetings you organise or attend.",
+        "today": "Today",
+        "organizer": "You organise",
+        "noAgenda": "No agenda"
+      },
+      "decisions": {
+        "title": "Waiting on your decision",
+        "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
+        "joinTitle": "{who} asks to join",
+        "proposed": "{who} proposes {date}",
+        "askedBy": "{who} asked on {date}",
+        "commentedBy": "{who} on {date}",
+        "disputedSince": "The client disagreed on {date}",
+        "closingSince": "Every closing step is done; closing started {date}",
+        "kinds": {
+          "join_request": "Join request",
+          "deadline_request": "Deadline change",
+          "closure_request": "Closure request",
+          "info_request": "Request item answered",
+          "deliverable_comment": "Comment on a deliverable",
+          "disputed": "Recommendation in dispute",
+          "ready_to_close": "Ready for the final close"
+        }
+      },
+      "problems": {
+        "handled": "Handled messages ({n})"
+      },
+      "inquiries": {
+        "title": "New inquiries",
+        "description": "Inquiries that arrived and are not sorted yet.",
+        "unread": "{n, plural, one {# new} other {# new}}",
+        "received": "Received {date}"
+      },
+      "visits": {
+        "title": "Since your last visit",
+        "description": "Actions that moved since you last opened each of your projects.",
+        "changed": "{count, plural, one {# action changed} other {# actions changed}}",
+        "changedWeek": "{count, plural, one {# action changed this week} other {# actions changed this week}}"
+      },
+      "counters": {
+        "label": "Across every action you can open",
+        "late": "Late",
+        "awaitingReview": "Awaiting review",
+        "reviewWaiting": "Reviews waiting over {days} days",
+        "blocked": "Blocked",
+        "open": "Show {label} in the Actions list"
+      }
+    },
+    "mine": {
+      "documents": {
+        "title": "Documents asked of you",
+        "description": "The firm asked you for these by name, and they are not sent yet."
+      },
+      "replies": {
+        "title": "Meetings waiting for your reply"
+      },
+      "nextMeeting": {
+        "title": "Your next meeting"
+      },
+      "followUps": {
+        "title": "Your follow-ups",
+        "description": "What you took on in meetings, overdue first."
+      },
+      "due": "Due {date}",
+      "late": "Late: it was due {date}",
+      "noDate": "No due date",
+      "dateAsked": "New date asked, waiting for an answer: {date}",
+      "today": "Today"
+    },
+    "client": {
+      "description": "What waits for you first, then how your company's work is going.",
+      "answers": {
+        "title": "Recommendations waiting for your company's answer",
+        "description": "Say whether your company agrees with each one, and what it will do."
+      },
+      "sentBack": {
+        "title": "Files sent back to you",
+        "description": "Your consultant asked for a change: send the revised file."
+      },
+      "late": {
+        "title": "Your actions that are late or stopped"
+      },
+      "dates": {
+        "title": "Answers to the dates you proposed",
+        "description": "What your consultant answered in the last {days} days.",
+        "agreed": "Your consultant agreed to the new date, {date}",
+        "notAgreed": "Your consultant did not agree to {date}"
+      },
+      "indicators": {
+        "title": "Indicators waiting for a value",
+        "due": "This period's value is due",
+        "missing": "This period's value is late"
+      },
+      "choices": {
+        "title": "Waiting for your choice",
+        "assistant": "Your consultants' firm offered your company the assistant",
+        "dataSharing": "How should your business figures reach Selah?"
+      }
+    },
+    "owner": {
+      "description": "Your actions, and what is asked of you.",
+      "empty": "You have no actions yet.",
+      "waiting": {
+        "title": "Waiting for you"
+      },
+      "withConsultant": {
+        "title": "With your consultant",
+        "description": "You sent these for review; your consultant is looking at them."
+      },
+      "finished": {
+        "title": "Finished ({n})"
+      }
+    }
   },
   "table": {
     "action": "Action",
@@ -346,56 +484,6 @@
     "lateOf": "Late actions in {project}",
     "blockedOf": "Blocked actions in {project}",
     "reviewsOf": "Reviews waiting in {project}"
-  },
-  "todayPage": {
-    "title": "Today",
-    "subtitle": "What needs you across your clients and projects",
-    "empty": "Nothing needs you today",
-    "emptyHint": "Reviews, due dates, follow-ups, meetings and requests waiting on you will show here.",
-    "internal": "Internal projects",
-    "reviews": {
-      "title": "Waiting for your review",
-      "description": "Submitted work on your projects. Work you own or submitted goes to a colleague.",
-      "since": "Waiting since {date}"
-    },
-    "due": {
-      "title": "Due this week",
-      "description": "Overdue or due within {days} days on the clients and projects you lead, and your own actions."
-    },
-    "followUps": {
-      "title": "Your follow-ups",
-      "description": "Open follow-ups assigned to you, overdue first.",
-      "noDate": "No date"
-    },
-    "meetings": {
-      "title": "Meetings this week",
-      "description": "Today and the next {days} days, meetings you organise or attend.",
-      "today": "Today",
-      "organizer": "You organise",
-      "agenda": "Agenda ready",
-      "noAgenda": "No agenda"
-    },
-    "decisions": {
-      "title": "Waiting on your decision",
-      "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
-      "joinTitle": "{who} asks to join",
-      "proposed": "{who} proposes {date}",
-      "askedBy": "{who} asked on {date}",
-      "kinds": {
-        "join_request": "Join request",
-        "deadline_request": "Deadline change",
-        "closure_request": "Closure request",
-        "info_request": "Request item answered",
-        "deliverable_comment": "Comment on a deliverable"
-      },
-      "commentedBy": "{who} on {date}"
-    },
-    "visits": {
-      "title": "Since your last visit",
-      "description": "Actions that moved since you last opened each of your projects.",
-      "changed": "{count, plural, one {# action changed} other {# actions changed}}",
-      "changedWeek": "{count, plural, one {# action changed this week} other {# actions changed this week}}"
-    }
   },
   "assistant": {
     "title": "Assistant",
@@ -4903,8 +4991,8 @@
       ],
       "consultant": [
         {
-          "title": "See what needs you today",
-          "hint": "Reviews, overdue work and requests across your clients."
+          "title": "All your actions",
+          "hint": "Every action on your projects, in one list."
         },
         {
           "title": "Open your projects",

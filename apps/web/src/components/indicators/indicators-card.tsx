@@ -85,11 +85,14 @@ export async function IndicatorsCard({
   data,
   scope = "client",
   departmentId = null,
+  quiet = false,
 }: {
   data: IndicatorList;
   /** A department's page shows only its own, and adds new ones to it. */
   scope?: "client" | "department";
   departmentId?: string | null;
+  /** Below other work (the client home): "New indicator" stays an outline button, never the page's solid one (page audit 8). */
+  quiet?: boolean;
 }) {
   const t = await getTranslations("indicators");
   const { counts } = data;
@@ -124,7 +127,7 @@ export async function IndicatorsCard({
             departments={data.departments}
             defaultDepartmentId={departmentId}
             trigger={
-              <Button size="sm" variant={active.length ? "outline" : "default"}>
+              <Button size="sm" variant={active.length || quiet ? "outline" : "default"}>
                 <Plus />
                 {t("new")}
               </Button>
