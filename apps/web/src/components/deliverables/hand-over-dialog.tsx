@@ -15,14 +15,20 @@ import { toast } from "@/components/ui/toast";
 interface Choice {
   key: string;
   projectTitle: string;
-  versions: { id: string; version: number; title: string; createdAt: string; firmOnly: boolean }[];
+  versions: { id: string; version: number; title: string; createdAt: string }[];
   picked: boolean;
 }
 
+interface Choices {
+  files: Choice[];
+  firmOnly: { title: string; projectTitle: string }[];
+}
+
 /**
- * Hand a deliverable over (F21): one line per file of the client, at its
- * latest version unless an earlier one is picked. The server lists the files
- * and decides; a firm-only file is shared with the client when handed over.
+ * Hand a deliverable over (F21): one line per file already shared with the
+ * client, at its latest version unless an earlier one is picked. A hand-over
+ * never shares anything: a file still firm-only is named in one line, which
+ * points to the file's own Share action. The server lists the files and decides.
  */
 export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { deliverableId: string; title: string; trigger: ReactNode; firmRun: boolean }) {
   const t = useTranslations("deliverables");
@@ -31,6 +37,7 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [firmOnly, setFirmOnly] = useState<Choices["firmOnly"]>([]);
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +47,9 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
     setError(null);
     const r = await callApi(`/api/deliverables/${deliverableId}/hand-over`, "GET");
     if (!r.ok) return setError(tc(`errors.${r.error}`));
-    const list = r.data as Choice[];
+    const { files: list, firmOnly: hidden } = r.data as Choices;
     setChoices(list);
+    setFirmOnly(hidden);
     setPicked(Object.fromEntries(list.map((c) => [c.key, c.picked ? c.versions[0]!.id : null])));
   }
 
@@ -117,11 +125,16 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
                         ))}
                       </NativeSelect>
                     ) : null}
-                    {chosen && version.firmOnly ? <p className="text-xs text-muted-foreground">{t("firmOnly")}</p> : null}
                   </li>
                 );
               })}
             </ul>
+          ) : null}
+          {/* A hand-over never shares a file: one plain line names those still firm-only and points to their own Share action. */}
+          {choices && firmOnly.length ? (
+            <p className="text-xs text-muted-foreground" dir="auto">
+              {t("firmOnlyFiles", { titles: firmOnly.map((f) => f.title).join(" · ") })}
+            </p>
           ) : null}
           {error ? (
             <p role="alert" className="text-sm text-destructive">

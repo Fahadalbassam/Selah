@@ -43,6 +43,7 @@ const { moveClosure, writeLessons } = await import("@/services/closure");
 const { closurePdf } = await import("@/services/exports");
 const { loadPrincipal } = await import("@/services/principal");
 const { addValue } = await import("@/services/indicators");
+const { shareDocument } = await import("@/services/documents");
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -345,7 +346,7 @@ describe("a receipt", () => {
 
     // The hand-over dialog offers the new version first, picked because the file was handed over before.
     const choices = await svc(U.lead, (tx, p) => handOverChoices(tx, p, did));
-    const charter = choices.find((c) => c.key === v1)!;
+    const charter = choices.files.find((c) => c.key === v1)!;
     expect(charter.versions.map((v) => v.id)).toEqual([v2, v1]);
     expect(charter.picked).toBe(true);
     // A new round with the new version; the first keeps its receipt and its version.
@@ -359,12 +360,25 @@ describe("a receipt", () => {
     await expect(svc(U.acceptor, (tx, p) => recordReceipt(tx, p, did, { round: 1 }))).rejects.toThrow(/newer version was handed over/);
   });
 
-  it("hands a firm-only file over by sharing it with the client, as the file's own share does", async () => {
+  it("offers and takes only files already shared with the client: a firm-only file is named, never offered, and never shared by a hand-over (B1)", async () => {
     const did = await deliverable(G.acme, null, "Engagement summary");
     const doc = await file(ACME, P.acme, "Summary.pdf", { visibility: "firm_private" });
+    const annex = await file(ACME, P.acme, "Summary annex.pdf");
+    const visibility = async () => (await q(`SELECT visibility FROM documents WHERE id = $1`, [doc])).rows[0].visibility;
+    const choices = await svc(U.lead, (tx, p) => handOverChoices(tx, p, did));
+    const offered = choices.files.flatMap((c) => c.versions.map((v) => v.id));
+    expect(offered).toContain(annex);
+    expect(offered).not.toContain(doc);
+    expect(choices.firmOnly.map((f) => f.title)).toContain("Summary.pdf");
+    // Neither the service nor the database takes it, and it stays firm-only.
+    await expect(handOver(U.lead, did, [doc])).rejects.toThrow(/share it with the client first/);
     await expect(sqlAs(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [did, doc])).rejects.toThrow(/shared with it/);
+    expect(await visibility()).toBe("firm_private");
+    expect((await q(`SELECT count(*)::int AS n FROM deliverable_handovers WHERE deliverable_id = $1`, [did])).rows[0].n).toBe(0);
+    // Shared from its own menu (which asks first), it is offered and handed over.
+    await svc(U.lead, (tx, p) => shareDocument(tx, p, doc));
+    expect((await svc(U.lead, (tx, p) => handOverChoices(tx, p, did))).firmOnly.map((f) => f.title)).not.toContain("Summary.pdf");
     await handOver(U.lead, did, [doc]);
-    expect((await q(`SELECT visibility FROM documents WHERE id = $1`, [doc])).rows[0].visibility).toBe("shared");
     // Not tied to a project: its acceptors are those of every project the engagement covers.
     expect(await told("deliverable.handed_over", did)).toEqual([U.acceptor]);
   });

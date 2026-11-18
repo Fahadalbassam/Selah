@@ -3258,7 +3258,6 @@
     "handOverHint": "Pick the files that make up this deliverable. Each file starts at its latest version; pick an earlier one if needed. The client's acceptor is told, and confirms receipt or comments.",
     "handOverHintFirmRun": "Pick the files that make up this deliverable. Each file starts at its latest version. This client has no accounts: once it has the files, record who received them.",
     "noFiles": "No deliverable file of this client is ready to hand over. Add it on the project's Documents tab first.",
-    "firmOnly": "Firm-only now: handing it over shares it with the client.",
     "versionOption": "Version {n} · {date}",
     "versionField": "Version",
     "pickOne": "Pick at least one file.",
@@ -3297,7 +3296,8 @@
         "phone": "by phone",
         "document": "in a document"
       }
-    }
+    },
+    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it."
   },
   "clientRoles": {
     "title": "Client roles",

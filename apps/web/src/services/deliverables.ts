@@ -6,7 +6,7 @@ import { assertAllowed, authorize, type Principal, type Resource } from "@/authz
 import { receiptStatus, type CommentInput, type ReceiptInput, type ReceiptStatus } from "@/lib/deliverables";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
-import { fileControls, loadDocument, shareDocument } from "./documents";
+import { loadDocument } from "./documents";
 import { downloadable } from "./scan";
 
 // A deliverable handed over, and the client's receipt (F21, minimal;
@@ -278,19 +278,26 @@ export interface HandOverChoice {
   /** The file's first version: one choice per file, whatever its versions. */
   key: string;
   projectTitle: string;
-  /** Newest first. */
-  versions: { id: string; version: number; title: string; createdAt: Date; firmOnly: boolean }[];
+  /** The versions already shared with the client, newest first. */
+  versions: { id: string; version: number; title: string; createdAt: Date }[];
   /** Picked to start with: a file handed over in the last round, at its latest version. */
   picked: boolean;
+}
+
+export interface HandOverChoices {
+  files: HandOverChoice[];
+  /** Files whose latest version is still firm-only: named, never offered (decision on B1). */
+  firmOnly: { title: string; projectTitle: string }[];
 }
 
 /**
  * The files the hand-over dialog offers: this client's deliverable files the
  * person can open, cleared by the scan, live, on a project past draft, and
- * shared with the client, or the firm-only latest version the person may
- * share (handing it over shares it, as "Share with the client" does).
+ * already shared with the client. A hand-over never shares anything: a file
+ * whose latest version is still firm-only is only named, so the dialog can
+ * point to the file's own Share action, which asks and warns first.
  */
-export async function handOverChoices(tx: Tx, principal: Principal, id: string): Promise<HandOverChoice[]> {
+export async function handOverChoices(tx: Tx, principal: Principal, id: string): Promise<HandOverChoices> {
   const { row, resource } = await loadDeliverable(tx, principal, id);
   assertAllowed(principal, "deliverable.hand_over", resource);
   const rows = await tx
@@ -321,41 +328,37 @@ export async function handOverChoices(tx: Tx, principal: Principal, id: string):
   const byId = new Map(rows.map((d) => [d.id, d]));
   const last = (await roundsOf(tx, [id])).get(id)?.[0];
   const lastIds = new Set(last ? last.files.map((f) => f.id) : []);
-  const choices: HandOverChoice[] = [];
+  const files: HandOverChoice[] = [];
+  const firmOnly: HandOverChoices["firmOnly"] = [];
   for (const first of rows.filter((d) => !d.supersedesId || !byId.has(d.supersedesId))) {
     const chain = [first];
     for (let n = next.get(first.id); n; n = next.get(n.id)) chain.push(n);
-    const latestId = chain[chain.length - 1]!.id;
+    const latest = chain[chain.length - 1]!;
+    if (latest.visibility === "firm_private") firmOnly.push({ title: latest.title, projectTitle: latest.projectTitle });
     const versions = [...chain]
       .reverse()
-      .filter((d) => downloadable(d.scanStatus))
-      .filter((d) => d.visibility === "shared" || (d.visibility === "firm_private" && d.id === latestId))
-      .map((d) => ({ id: d.id, version: d.version, title: d.title, createdAt: d.createdAt, firmOnly: d.visibility === "firm_private" }));
+      .filter((d) => d.visibility === "shared" && downloadable(d.scanStatus))
+      .map((d) => ({ id: d.id, version: d.version, title: d.title, createdAt: d.createdAt }));
     if (!versions.length) continue;
-    choices.push({ key: first.id, projectTitle: first.projectTitle, versions, picked: chain.some((d) => lastIds.has(d.id)) });
+    files.push({ key: first.id, projectTitle: first.projectTitle, versions, picked: chain.some((d) => lastIds.has(d.id)) });
   }
-  return choices;
+  return { files, firmOnly };
 }
 
 /**
- * Hand a deliverable over: the exact versions picked, in a new round. A
- * firm-only version is shared with the client first, as the file's own
- * "Share with the client" does (one-way, recorded). The client's receivers are
- * told by the database. Audited.
+ * Hand a deliverable over: the exact versions picked, in a new round. Only
+ * versions already shared with the client: a hand-over never shares anything
+ * (the file's own Share action does, and asks first). The client's receivers
+ * are told by the database. Audited.
  */
 export async function handOverDeliverable(tx: Tx, principal: Principal, id: string, versionIds: string[]) {
   const { row, resource } = await loadDeliverable(tx, principal, id);
   assertAllowed(principal, "deliverable.hand_over", resource);
   if (new Set(versionIds).size !== versionIds.length) throw new BadRequestError("pick each file once");
-  let shared = 0;
   for (const versionId of versionIds) {
     const loaded = await loadDocument(tx, versionId);
     if (!loaded || loaded.doc.orgId !== row.clientOrgId || loaded.doc.purpose !== "deliverable") throw new BadRequestError("hand over this client's deliverable files");
-    if (loaded.doc.visibility === "firm_private") {
-      if (!fileControls(principal, loaded).shareWithClient) throw new BadRequestError("share the latest version of a firm-only file, or pick one shared with the client");
-      await shareDocument(tx, principal, versionId);
-      shared++;
-    }
+    if (loaded.doc.visibility !== "shared") throw new BadRequestError("this file is firm-only: share it with the client first, from the file's own menu");
   }
   const { rows } = await tx.execute<{ id: string }>(sql`select app_hand_over_deliverable(${id}::uuid, ${sql.param(versionIds)}::uuid[]) as id`);
   const handoverId = rows[0]!.id;
@@ -367,7 +370,7 @@ export async function handOverDeliverable(tx: Tx, principal: Principal, id: stri
     resourceType: "deliverable",
     resourceId: id,
     outcome: "allow",
-    meta: { round: made?.round ?? null, files: versionIds.length, shared },
+    meta: { round: made?.round ?? null, files: versionIds.length },
   });
   return { id: handoverId, round: made?.round ?? null };
 }
