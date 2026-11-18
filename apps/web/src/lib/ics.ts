@@ -16,9 +16,9 @@ export interface IcsMeeting {
   updatedAt: Date;
 }
 
-/** Escape a TEXT value (RFC 5545 3.3.11). */
+/** Escape a TEXT value (RFC 5545 3.3.11): backslash first, then semicolon, comma and new line. */
 export function escapeText(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
 
 /** A parameter value such as CN, quoted, without the characters a quoted value cannot hold. */
