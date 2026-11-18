@@ -41,6 +41,9 @@ const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
 if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
 
+// The fixture is built through the services: give its setup room on a loaded machine (part 3 re-check N9).
+vi.setConfig({ hookTimeout: 60_000 });
+
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
 const app = new Pool({ connectionString: appUrl, max: 2 });
 
@@ -651,7 +654,7 @@ describe("people in positions", () => {
     expect(two.ended).toEqual([]);
   });
 
-  it("the client's admin places people only on the published structure, never in the firm's draft", async () => {
+  it("people are placed only on the published structure, never in the firm's draft", async () => {
     const { draft } = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, ACME));
     const draftUnit = (await owner.query(`SELECT id FROM org_units WHERE version_id = $1 AND code = '1.1.3'`, [draft!.id])).rows[0].id;
     await as(U.lead, async (c) => {
@@ -676,11 +679,13 @@ describe("people in positions", () => {
     // Through the service the draft's position is not even there for the client's admin.
     const draftPos = (await owner.query(`SELECT id FROM positions WHERE version_id = $1 LIMIT 1`, [draft!.id])).rows[0].id;
     await expect(svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, draftPos, { start: { name: "Draft Person", from: PAST } }))).rejects.toThrow(REFUSED);
-    // The firm's editors may (the import fills the draft).
-    await svc(U.lead, async (tx, p) => {
-      const pos = await OC.addPosition(tx, p, draftUnit, { titleEn: "Trainer" });
-      return OC.changeHolder(tx, p, pos.id, { start: { name: "Draft Person", from: PAST } });
-    });
+    // Nor do the firm's editors (part 3, the lead's decision B1): people are placed only on the live structure.
+    await expect(
+      svc(U.lead, async (tx, p) => {
+        const pos = await OC.addPosition(tx, p, draftUnit, { titleEn: "Trainer" });
+        return OC.changeHolder(tx, p, pos.id, { start: { name: "Draft Person", from: PAST } });
+      }),
+    ).rejects.toThrow(/draft/);
   });
 });
 
@@ -884,8 +889,8 @@ describe("publishing freezes the snapshot", () => {
     expect(current.positions.map((p) => p.titleEn)).toContain("Finance director");
     // Holdings follow their positions into the new version...
     expect(holderNames(current)["Finance director"]).toEqual(["Cfo Person"]);
-    // ...and a holding on a position it dropped ends today.
-    expect((await owner.query(`SELECT to_date::text AS d FROM position_holders WHERE id = $1`, [officer.started])).rows[0].d).toBe(firmToday());
+    // ...and a holding on a position it dropped ends the day before the new version takes effect (here today, so yesterday; R2 of the part 3 re-check).
+    expect((await owner.query(`SELECT to_date::text AS d FROM position_holders WHERE id = $1`, [officer.started])).rows[0].d).toBe(OC.dayBefore(firmToday()));
     // History reads as published, with who held what then.
     const old = await svc(U.cadmin, (tx, p) => OC.getVersion(tx, p, V1));
     expect(old.version.state).toBe("superseded");

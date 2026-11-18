@@ -22,6 +22,8 @@ export interface TreeLabels {
   advisory: string;
   /** The drawing's name, for screen readers. */
   label: string;
+  /** "See {name}'s work": a person's button on screen, which opens their work card. */
+  person: (name: string) => string;
 }
 
 /** The drawing's words from the messages under "orgChart.tree", in the reader's language. */
@@ -33,6 +35,7 @@ export function treeLabels(t: (key: string, values?: Record<string, string>) => 
     ownPage: t("tree.ownPage"),
     advisory: t("tree.advisory"),
     label: t("tree.label"),
+    person: (name) => t("tree.person", { name }),
   };
 }
 
@@ -113,6 +116,9 @@ export const ORG_CHART_CSS = `
 .oc-reports{font-size:0.75rem;color:var(--oc-muted);}
 .oc-more{padding:0.375rem 0.625rem;border-block-start:1px dashed var(--oc-border);font-size:0.75rem;color:var(--oc-muted);}
 .oc-sr{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.oc-person{margin:0;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:start;cursor:pointer;text-decoration:underline dotted;text-underline-offset:0.2em;border-radius:0.25rem;}
+.oc-person:hover{color:var(--oc-ink);}
+.oc-person:focus-visible{outline:2px solid var(--ring,#595959);outline-offset:2px;}
 `;
 
 const e = escapeHtml;
@@ -120,6 +126,8 @@ const e = escapeHtml;
 interface Draw {
   labels: TreeLabels;
   sep: string;
+  /** On screen: a holder with an account is a button that opens their work card (never in the PDF). */
+  people?: boolean;
   /** In print: at most this many units to a row, the rest on further rows. */
   wrap?: number;
 }
@@ -127,9 +135,16 @@ interface Draw {
 /** A card holding this many rows or fewer stays whole on one printed page; a longer one runs on, its heading repeated. */
 const KEEP_ROWS = 8;
 
+/** A holder's name: plain text, or on screen, for someone with an account, the button to their work card. */
+function personHtml(h: { name: string; userId: string | null }, d: Draw): string {
+  if (!d.people || !h.userId) return e(h.name);
+  return `<button type="button" class="oc-person" data-person="${e(h.userId)}" aria-haspopup="dialog" title="${e(d.labels.person(h.name))}">${e(h.name)}</button>`;
+}
+
 function positionHtml(p: TreePosition, d: Draw): string {
-  const who = p.names.length
-    ? `<p class="oc-who">${p.names.map(e).join(d.sep)}</p>`
+  const people = p.people?.length ? p.people : p.names.map((name) => ({ name, userId: null }));
+  const who = people.length
+    ? `<p class="oc-who">${people.map((h) => personHtml(h, d)).join(d.sep)}</p>`
     : p.vacant === true
       ? `<p class="oc-vacant">${e(d.labels.vacant)}</p>`
       : "";
@@ -180,10 +195,12 @@ function nodeHtml(u: TreeUnit, d: Draw): string {
 /**
  * The drawing: nested lists of units, positions inside their unit's card,
  * connector lines in CSS. `wrap` (print only) breaks a row of more units
- * than a page holds into several rows.
+ * than a page holds into several rows. `people` (screen only) makes each
+ * holder with an account a button that opens their work card; a typed name
+ * stays text, and the PDF never has a button.
  */
-export function orgTreeHtml(roots: readonly TreeUnit[], labels: TreeLabels, locale: "ar" | "en", opts: { wrap?: number } = {}): string {
-  const d: Draw = { labels, sep: locale === "ar" ? "، " : ", ", wrap: opts.wrap };
+export function orgTreeHtml(roots: readonly TreeUnit[], labels: TreeLabels, locale: "ar" | "en", opts: { wrap?: number; people?: boolean } = {}): string {
+  const d: Draw = { labels, sep: locale === "ar" ? "، " : ", ", wrap: opts.wrap, people: opts.people };
   return `<div class="oc" dir="${locale === "ar" ? "rtl" : "ltr"}" lang="${locale}" role="group" aria-label="${e(labels.label)}"><ul class="oc-row oc-root">${roots
     .map((r) => nodeHtml(r, d))
     .join("")}</ul></div>`;

@@ -1,17 +1,27 @@
 import { Lock } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { ORG_CHART_CSS, orgTreeHtml, treeLabels, versionWords } from "@/lib/org-chart-html";
 import { buildTree, chartLevels, parseDepth } from "@/lib/org-chart-tree";
 import { cn } from "@/lib/utils";
 import type { Structure } from "@/services/org-chart";
+import { OrgTreeView } from "./org-tree-view";
 
 /** The address of a version on the tab (the current one has none), with the depth when one is chosen. */
 function href(base: string, version: string | null, depth?: number | null) {
   const q = new URLSearchParams();
   if (version) q.set("version", version);
   if (depth) q.set("depth", String(depth));
+  return q.size ? `${base}?${q}` : base;
+}
+
+/** The address of one of the tab's views of a version (the drawing has none). */
+export function viewHref(base: string, version: string | null, view: StructureView) {
+  const q = new URLSearchParams();
+  if (version) q.set("version", version);
+  if (view !== "drawing") q.set("view", view);
   return q.size ? `${base}?${q}` : base;
 }
 
@@ -28,15 +38,53 @@ export function shownDepth(structure: Structure, raw: string | undefined) {
   return { levels, depth: parseDepth(raw, levels) };
 }
 
+/** The tab's ways of showing the version: the drawing, the outline editor (the firm's draft) or the people in positions (the current version). */
+export type StructureView = "drawing" | "outline" | "people";
+
+/**
+ * Which views the reader has for the version shown, and the one asked for in
+ * the address (the first when it is not one of them). The outline is for the
+ * firm's editors on the draft; the people in positions for whoever changes
+ * holders, on the current version. An empty draft opens on the outline.
+ */
+export function structureViews(structure: Structure, raw: string | undefined): { views: StructureView[]; view: StructureView } {
+  const v = structure.shown?.version;
+  const views: StructureView[] = ["drawing"];
+  if (v?.state === "draft" && structure.can.canEditDraft) views.push("outline");
+  if (v?.state === "published" && structure.can.canChangeHolders) views.push("people");
+  const asked = views.find((x) => x === raw);
+  const fallback = v?.state === "draft" && structure.can.canEditDraft && !structure.shown?.units.length ? "outline" : "drawing";
+  return { views, view: asked ?? fallback };
+}
+
 /**
  * The Structure tab under its header (firm side on the client page, client
  * side on the Departments page): which version this is and when it took
  * effect, the other versions, how many levels to show, and the drawing. The
  * drawing is the same HTML as the PDF (lib/org-chart-html.ts); every name in
- * it is one the services sent this reader. The pages show it only once there
- * is a version to show (hasStructure()).
+ * it is one the services sent this reader, and on screen each holder with an
+ * account opens their work card (part 3). The pages show it only once there
+ * is a version to show (hasStructure()). With `view` other than the drawing,
+ * the page's own panel (`children`: the outline editor, the people in
+ * positions) takes the drawing's place.
  */
-export async function StructureBody({ structure, base, depthParam, audience }: { structure: Structure; base: string; depthParam?: string; audience: "firm" | "client" }) {
+export async function StructureBody({
+  structure,
+  base,
+  depthParam,
+  audience,
+  view = "drawing",
+  views = ["drawing"],
+  children,
+}: {
+  structure: Structure;
+  base: string;
+  depthParam?: string;
+  audience: "firm" | "client";
+  view?: StructureView;
+  views?: StructureView[];
+  children?: ReactNode;
+}) {
   const [t, format, locale] = await Promise.all([getTranslations("orgChart"), getFormatter(), getLocale()]);
   const lang = locale === "ar" ? "ar" : "en";
   const shown = structure.shown;
@@ -99,7 +147,21 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
           ) : null}
           {namesNote ? <p className="text-muted-foreground">{namesNote}</p> : null}
         </div>
-        {levels.length > 1 ? (
+        {views.length > 1 ? (
+          <nav aria-label={t("views.label")} className="flex items-center gap-1 text-sm">
+            {views.map((x) => (
+              <Link
+                key={x}
+                href={viewHref(base, param, x)}
+                aria-current={x === view ? "page" : undefined}
+                className={cn(buttonVariants({ variant: x === view ? "secondary" : "ghost", size: "sm" }))}
+              >
+                {t(`views.${x}`)}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
+        {view === "drawing" && levels.length > 1 ? (
           <nav aria-label={t("depth.label")} className="flex items-center gap-1 text-sm">
             <span className="me-1 text-muted-foreground">{t("depth.label")}</span>
             {[...levels.slice(0, -1), null].map((n) => (
@@ -116,13 +178,16 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
           </nav>
         ) : null}
       </div>
-      {roots.length ? (
+      {view !== "drawing" && children ? (
+        children
+      ) : roots.length ? (
         <>
           <style dangerouslySetInnerHTML={{ __html: ORG_CHART_CSS }} />
-          <div
-            className="overflow-x-auto rounded-xl border bg-card p-5 shadow-xs"
-            // Escaped in orgTreeHtml: the same drawing the PDF prints.
-            dangerouslySetInnerHTML={{ __html: orgTreeHtml(roots, treeLabels((k, values) => t(k as "title", values as never)), lang) }}
+          {/* Escaped in orgTreeHtml: the same drawing the PDF prints, with a button on each name that has a work card. */}
+          <OrgTreeView
+            html={orgTreeHtml(roots, treeLabels((k, values) => t(k as "title", values as never)), lang, { people: shown.names !== "none" })}
+            clientId={structure.client.id}
+            version={param}
           />
         </>
       ) : (

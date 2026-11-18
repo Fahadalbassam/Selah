@@ -10,6 +10,7 @@ import { ClientPeopleTabs, TeamTabs } from "@/components/people-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
+import { listVacancies } from "@/services/org-chart";
 import { teamMetrics } from "@/services/follow-through";
 import { teamLoad, type TeamLoad } from "@/services/team-load";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,8 @@ export default async function TeamPage() {
       clientTabs,
       // Admins manage their organisation's accounts here; everyone else sees the list.
       people: admin ? await listPeople(tx, principal, principal.orgId) : null,
+      // A client's admin may invite someone into a vacant position of the company's structure (org chart, part 3).
+      vacancies: principal.role === "client_admin" ? await listVacancies(tx, principal, principal.orgId) : [],
       team: admin ? [] : await listTeam(tx, principal),
       // The firm admin's staffing view; everyone else gets nothing.
       load: await teamMetrics(tx, principal, since.toISOString().slice(0, 10)).catch(() => null),
@@ -67,14 +70,14 @@ export default async function TeamPage() {
     };
   });
   if (!data) notFound();
-  const { team, people, load, queue, me, role, reviewDays, clientTabs } = data;
+  const { team, people, load, queue, me, role, reviewDays, vacancies, clientTabs } = data;
   const [t, tRole] = await Promise.all([getTranslations("team"), getTranslations("role")]);
   return (
     <>
       {clientTabs ? <ClientPeopleTabs tabs={clientTabs} current="people" /> : <TeamTabs current="people" />}
       {clientTabs ? <PageHeader title={t("titleClient")} description={t("hintClient")} /> : <PageHeader title={t("title")} />}
       {people ? (
-        <PeopleAdmin data={people} me={me} myRole={role} reviewDays={reviewDays} />
+        <PeopleAdmin data={people} me={me} myRole={role} reviewDays={reviewDays} vacancies={vacancies} />
       ) : team.length === 0 ? (
         <EmptyState icon={<Users animateOnView />} description={t("empty")} />
       ) : (

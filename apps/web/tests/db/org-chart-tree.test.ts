@@ -339,15 +339,15 @@ describe("the Structure tab reads exactly what the services allow", () => {
     for (const who of [U.admin, U.lead, U.team, U.obs]) expect(canReadDepartments(await principal(who), ACME), who).toBe(true);
   });
 
-  it("the Structure tab shows only when there is something the reader may read: a published version, and for the firm a draft with units", async () => {
+  it("the Structure tab shows only when there is something the reader may read: a published version, and for the firm a draft with units (for its editors, always)", async () => {
     const tab = (who: string, client = FRESH) => svc(who, (tx, p) => OC.hasStructure(tx, p, client));
     const read = (who: string) => svc(who, (tx, p) => OC.getStructure(tx, p, FRESH));
-    // No chart yet: no tab for anyone, and nothing to show.
-    expect([await tab(U.lead), await tab(U.admin), await tab(U.fadmin)]).toEqual([false, false, false]);
+    // No chart yet: nothing to show, and no tab, except for the firm's editors, who start one there (part 3).
+    expect([await tab(U.lead), await tab(U.admin), await tab(U.fadmin)]).toEqual([true, true, false]);
     expect([(await read(U.lead)).shown, (await read(U.fadmin)).shown]).toEqual([null, null]);
-    // Started, still empty: nothing to read yet.
+    // Started, still empty: nothing for the client to read yet.
     await svc(U.lead, (tx, p) => OC.startChart(tx, p, FRESH), true);
-    expect([await tab(U.lead), await tab(U.fadmin)]).toEqual([false, false]);
+    expect([await tab(U.lead), await tab(U.fadmin)]).toEqual([true, false]);
     // A draft with a unit: the firm's tab, never the client's.
     await build(U.lead, FRESH, [["board", { kind: "board", nameEn: "Fresh board" }]], [["chair", "board", { titleEn: "Fresh chair", isHead: true }]]);
     expect([await tab(U.lead), await tab(U.admin), await tab(U.fadmin)]).toEqual([true, true, false]);
