@@ -957,10 +957,13 @@ describe("a narrowed file is never copied out of its audience", () => {
        VALUES ($1,$2,$3,$4,'Adopt the pay scales',$5,'in_progress',app_firm_today() + 10,$6) ON CONFLICT DO NOTHING`,
       [ACT, PN, NUKHBA, REC, U.nmgr2, U.lead],
     );
-    // nmgr2 still sees the salary file (it is narrowed to leave out nmgr) and owns an open action.
-    await expect(
-      svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.client, submitForReview: false }), true),
-    ).rejects.toThrow(/limited audience/);
+    // nmgr2 still sees the salary file (it is narrowed to leave out nmgr) and owns an open action. The
+    // service says why, before anything is written: the database's own refusal is neutral (it names no
+    // narrowed copy), so these words can only come from the service (re-check N15).
+    const refused = await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.client, submitForReview: false }), true).catch(
+      (e: Error) => e,
+    );
+    expect(String(refused)).toMatch(/^Error: a file with a limited audience can't be used as evidence$/);
     // The database refuses the copy too, whoever writes it.
     await expect(
       rowsAs(
