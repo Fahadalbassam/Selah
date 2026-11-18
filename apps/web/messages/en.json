@@ -3454,7 +3454,8 @@
       "rate": "You have asked the assistant for many drafts in the last hour. Try again later.",
       "expired": "This check has expired. Bring the rows in again.",
       "changed": "The draft changed while you were checking. Bring the rows in again to check them against it.",
-      "generic": "That didn't work. Reload the page and try again."
+      "generic": "That didn't work. Reload the page and try again.",
+      "notHere": "The assistant can't draft here: it drafts only with the model on Selah's own server, and this server uses a hosted model. Use the Excel template."
     },
     "guide": {
       "sheet": "Guide",

@@ -76,6 +76,7 @@ function errorKey(status: number, message: string | undefined, way: Way): string
   if (m.includes("nothing to import")) return "nothing";
   if (m.includes("no text")) return "noText";
   if (m.includes("text too long")) return "textLong";
+  if (m.includes("local model only")) return "notHere";
   if (m.includes("expired")) return "expired";
   if (m.includes("rows with errors")) return "changed";
   return "generic";

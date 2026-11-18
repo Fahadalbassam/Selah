@@ -72,6 +72,8 @@ Object.assign(process.env, {
   S3_SECRET_KEY: "test",
   AI_SERVICE_URL: "http://ai.test",
   AI_SERVICE_TOKEN: "an-ai-token-that-is-long-enough-0123456789",
+  // The local model, said in so many words: unset counts as hosted (fail closed).
+  LLM_PROVIDER: "ollama",
 });
 
 const OC = await import("@/services/org-chart");
@@ -555,25 +557,31 @@ describe("the assistant's draft from pasted text", () => {
     "المدير المالي في شركة سهم للتجارة",
   ].join("\n");
 
-  it("is offered only when the AI service runs the local model, so no text reaches a hosted model", async () => {
+  it("is offered only when the AI service runs the local model, so no text reaches a hosted model: unset or unknown counts as hosted", async () => {
     sent.length = 0;
-    for (const hosted of ["openai_compat", "something-else"]) {
-      process.env.LLM_PROVIDER = hosted;
+    for (const hosted of ["openai_compat", "something-else", "Ollama", "ollama ", undefined]) {
+      if (hosted === undefined) delete process.env.LLM_PROVIDER;
+      else process.env.LLM_PROVIDER = hosted;
       try {
-        expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant, hosted).toBe(false);
-        await expect(svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, TEXT)), hosted).rejects.toThrow(REFUSED);
+        expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant, String(hosted)).toBe(false);
+        await expect(svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, TEXT)), String(hosted)).rejects.toThrow(REFUSED);
       } finally {
-        delete process.env.LLM_PROVIDER;
+        process.env.LLM_PROVIDER = "ollama";
       }
     }
     expect(sent).toEqual([]);
-    // The local model (the default): offered.
     expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant).toBe(true);
-    process.env.LLM_PROVIDER = "ollama";
+  });
+
+  it("says so plainly when the AI service itself refuses (it runs a hosted model whatever the web app's setting says)", async () => {
+    const before = answer.fn;
+    answer.fn = () => {
+      throw new Error("ai service /v1/org-chart/draft failed: 409");
+    };
     try {
-      expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant).toBe(true);
+      await expect(svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, "Driver"))).rejects.toThrow(/^local model only$/);
     } finally {
-      delete process.env.LLM_PROVIDER;
+      answer.fn = before;
     }
   });
 

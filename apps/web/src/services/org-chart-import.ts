@@ -34,7 +34,7 @@ import {
   type PlannedHolder,
   type Taken,
 } from "@/lib/org-chart-import";
-import { BadRequestError, NotFoundError, RateLimitError, UnavailableError } from "@/server/errors";
+import { BadRequestError, ConflictError, NotFoundError, RateLimitError, UnavailableError } from "@/server/errors";
 import { draftOrgChart } from "./ai-client";
 import { audit } from "./audit";
 import type { PreparedUpload } from "./evidence";
@@ -74,11 +74,13 @@ export function canImport(principal: Principal, clientOrgId: string): boolean {
 /**
  * Whether the AI service runs the local model, so pasted text never leaves
  * Selah's own server: the web app's copy of the service's setting
- * (LLM_PROVIDER, "ollama" unless set; the assistant's card says "local" from
- * the same setting), read the way maskingOn() reads it. Any other value,
- * known or not, counts as a hosted model.
+ * (LLM_PROVIDER), read straight from the environment. Only "ollama", given
+ * in so many words, is local: unset or anything else counts as a hosted
+ * model (fail closed; the recheck of 19 Nov found the hot-reload setup
+ * leaves it unset while the service runs a hosted model). The AI service
+ * checks its own setting too and refuses (409 "local model only").
  */
-export function localModel(provider: string = process.env.LLM_PROVIDER ?? "ollama"): boolean {
+export function localModel(provider: string | undefined = process.env.LLM_PROVIDER): boolean {
   return provider === "ollama";
 }
 
@@ -333,7 +335,9 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
   let reply: Awaited<ReturnType<typeof draftOrgChart>>;
   try {
     reply = await draftOrgChart(masked);
-  } catch {
+  } catch (e) {
+    // The service runs a hosted model whatever this app believes: it refuses, and the screen says the assistant cannot draft here.
+    if (e instanceof Error && /failed: 409$/.test(e.message)) throw new ConflictError("local model only");
     throw new UnavailableError("the assistant could not draft rows");
   }
   // A placeholder comes back only where the text had it: one the text never had stays a placeholder, and draftRows drops it.
