@@ -29,8 +29,16 @@ import type { Decision, Principal, Resource } from "./types";
  *   6. Audience   - was the item (a document, a meeting) narrowed with the
  *                   picker, and is this person left out? It only ever says
  *                   no: whoever always sees the item passes, and nobody gets
- *                   in who the five questions kept out (the restrictive
- *                   policies of migration 0111 say the same).
+ *                   in who the five questions kept out. It repeats what
+ *                   row-level security decides, and is a guard only: the
+ *                   restrictive policies (migrations 0111, 0118) hide the item
+ *                   from someone left out before any service builds a
+ *                   resource, and the database tells the services nothing
+ *                   about who is left out (app_audience_mine() answers only
+ *                   about the caller, and nothing to someone left out), so with
+ *                   the database's data this question never denies (re-check
+ *                   N13). It denies a resource that names the caller as left
+ *                   out, which only a test or a future caller can build.
  *
  * Pure function: no I/O, so it is cheap to call and easy to test exhaustively.
  */
