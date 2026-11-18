@@ -6,9 +6,11 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AUTH, MAIL, OUT, chromium, context, open, settle, shoot as shootPage } from "./lib.mjs";
 
-const PROJECT = "/projects/8c55994f-9b30-4023-bb4a-371e31134b35";
+// The project "حوكمة مجلس الإدارة"; its id changes with every fresh walkthrough copy.
+const PROJECT = `/projects/${process.env.REVIEW_PROJECT || "8c55994f-9b30-4023-bb4a-371e31134b35"}`;
 const TO = "audit-check@example.test";
 const notes = {};
+let realLink = null;
 const state = join(AUTH, "lead@mizan.test.json");
 // Notes are saved after every capture, so a step that fails loses nothing.
 const save = () => writeFileSync(join(OUT, "notes-upload-security.json"), JSON.stringify(notes, null, 2));
@@ -53,14 +55,16 @@ for (const locale of ["ar", "en"]) {
       else await new Promise((r) => setTimeout(r, 3000));
     }
     notes.mail = mail && { subject: mail.Subject, from: mail.From, replyTo: mail.ReplyTo, text: mail.Text.replace(/[A-Za-z0-9_-]{30,}/g, "<token>") };
-    notes.link = (mail?.Text.match(/https?:\/\/[^\s"<]+/) || [null])[0];
+    // The live link stays in memory; the notes file only ever holds it with the token hidden.
+    realLink = (mail?.Text.match(/https?:\/\/[^\s"<]+/) || [null])[0];
+    notes.link = realLink && realLink.replace(/[A-Za-z0-9_-]{20,}/, "<token>");
   }
   await c.ctx.close();
 }
 
 // The page the link opens, signed out.
-if (notes.link) {
-  const path = new URL(notes.link).pathname;
+if (realLink) {
+  const path = new URL(realLink).pathname;
   for (const [locale, dark] of [["ar", false], ["en", false], ["en", true]]) {
     const c = await context(browser, locale, { dark });
     const status = await open(c, path);
@@ -82,7 +86,6 @@ if (notes.link) {
     }
     await c.ctx.close();
   }
-  notes.link = notes.link.replace(/[A-Za-z0-9_-]{30,}/, "<token>");
 }
 await browser.close();
 writeFileSync(join(OUT, "notes-upload-security.json"), JSON.stringify(notes, null, 2));

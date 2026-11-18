@@ -6,8 +6,8 @@ import { chromium } from "@playwright/test";
 
 export const BASE = "http://localhost:3010";
 export const MAIL = "http://localhost:8035";
-export const OUT = resolve("../../docs/review/shots/phase1/public");
-export const AUTH = resolve("../../docs/review/shots/phase1/.auth");
+export const OUT = resolve(process.env.REVIEW_OUT || "../../docs/review/shots/phase1/public");
+export const AUTH = resolve(process.env.REVIEW_AUTH || "../../docs/review/shots/phase1/.auth");
 export { chromium };
 
 /** Runs in the page: what is on the screen (same counts as scripts/review/capture.mjs). */
