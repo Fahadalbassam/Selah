@@ -31,13 +31,18 @@ const RAWDAH = id(2); // departments off
 const OTHER = id(3); // another client of the firm
 const PR = id(4);
 const PO = id(5);
+const NUKHBA = id(6); // departments on
+const PN = id(7);
+const DEPT = { board: id(8), fin: id(9) };
 const U = {
-  lead: id(11), // the firm's lead consultant on both clients
+  lead: id(11), // the firm's lead consultant on all three clients
   radmin: id(12), // Rawdah's admin: not a member of the project
   rowner: id(13), // owner@rawdah.test: an action owner on the project, invited
   rmate: id(14), // her colleague, an action owner on the project, not invited
   oadmin: id(15), // the other client's admin
   oowner: id(16), // an action owner at the other client
+  nadmin: id(17), // Nukhba's admin
+  nmgr: id(18), // manager@nukhba.test: a manager in the Board secretariat only, on the project
 };
 const NAMES: Record<keyof typeof U, string> = {
   lead: "Majid Al-Subaie",
@@ -46,6 +51,8 @@ const NAMES: Record<keyof typeof U, string> = {
   rmate: "Sara Colleague",
   oadmin: "Other Admin",
   oowner: "Other Owner",
+  nadmin: "Fahd Al-Dosari",
+  nmgr: "Reem Al-Harbi",
 };
 const MEET = "https://meet.google.com/abc-defg-hij";
 const NOT_FOUND = /forbidden|not found/i;
@@ -83,6 +90,7 @@ const hour = (h: number) => new Date(Date.now() + h * 3_600_000);
 
 let MEETING = "";
 let OTHER_MEETING = "";
+let STEERING = "";
 
 beforeAll(async () => {
   const q = (text: string, params: unknown[] = []) => owner.query(text, params);
@@ -109,6 +117,24 @@ beforeAll(async () => {
   );
   // The client's admin is not a project member (as at Rawdah in the walkthrough); the owners are.
   await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$3), ($1,$4), ($2,$5)`, [PR, PO, U.rowner, U.rmate, U.oowner]);
+  // Al-Nukhba: departments on, and a manager in one of its two departments, so she may not see
+  // everything on the project and a meeting of the whole project does not open for her (decision 1a).
+  await q(`INSERT INTO organizations (id, kind, name, departments_enabled) VALUES ($1,'client','Al-Nukhba',true)`, [NUKHBA]);
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$3,'client_admin'), ($2,$3,'client_manager')`, [U.nadmin, U.nmgr, NUKHBA]);
+  await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,true)`, [NUKHBA, U.lead]);
+  await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Nukhba governance','active',$4)`, [
+    PN,
+    NUKHBA,
+    FIRM,
+    U.lead,
+  ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [PN, U.nmgr]);
+  await q(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$3,'أمانة المجلس','Board secretariat'), ($2,$3,'المالية','Finance')`, [
+    DEPT.board,
+    DEPT.fin,
+    NUKHBA,
+  ]);
+  await q(`INSERT INTO department_members (department_id, user_id) VALUES ($1,$2)`, [DEPT.board, U.nmgr]);
   const book = (projectId: string, title: string, attendees: string[]) =>
     svc(
       U.lead,
@@ -128,6 +154,8 @@ beforeAll(async () => {
   // The whole project, as "Hand-over of the quarterly reviews" in the walkthrough.
   MEETING = (await book(PR, "Hand-over", [U.radmin, U.rowner])).id;
   OTHER_MEETING = (await book(PO, "Other check-in", [U.oadmin, U.oowner])).id;
+  // The whole project, inviting the limited manager anyway (as on the steering meetings in the walkthrough).
+  STEERING = (await book(PN, "Steering committee", [U.nadmin, U.nmgr])).id;
 });
 
 afterAll(async () => {
@@ -161,6 +189,21 @@ describe("an attendee's name on a meeting", () => {
   it("is nothing for someone who cannot open the meeting: a colleague not invited", async () => {
     await expect(svc(U.rmate, (tx, p) => getMeeting(tx, p, MEETING))).rejects.toThrow(NOT_FOUND);
     expect(await rowsAs(U.rmate, `SELECT * FROM app_meeting_attendee_names($1)`, [MEETING])).toEqual([]);
+  });
+
+  // Being invited is not opening: the names go with the meeting, not with the invitation (review of
+  // this fix, S1: a function that also answered attendees passed every other meeting test).
+  it("is nothing for someone invited who may not open it: a manager limited to her department, on a meeting of the whole project", async () => {
+    const invited = await owner.query(`SELECT 1 FROM meeting_attendees WHERE meeting_id = $1 AND user_id = $2`, [STEERING, U.nmgr]);
+    expect(invited.rowCount).toBe(1);
+    await expect(svc(U.nmgr, (tx, p) => getMeeting(tx, p, STEERING))).rejects.toThrow(NOT_FOUND);
+    expect(await rowsAs(U.nmgr, `SELECT * FROM app_meeting_attendee_names($1)`, [STEERING])).toEqual([]);
+    // The client's admin, who may open it, reads them.
+    expect(namesOn(await svc(U.nadmin, (tx, p) => getMeeting(tx, p, STEERING)))).toEqual({
+      [U.lead]: NAMES.lead,
+      [U.nadmin]: NAMES.nadmin,
+      [U.nmgr]: NAMES.nmgr,
+    });
   });
 
   it("is nothing for another client, its admin or its owner", async () => {
