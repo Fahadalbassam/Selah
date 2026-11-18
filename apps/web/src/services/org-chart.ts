@@ -1386,10 +1386,26 @@ export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId:
     )
     .orderBy(asc(positionHolders.fromDate));
   const unitOf = new Map(units.map((u) => [u.id, u]));
+  // A holding on a position the current version dropped (it runs until the day before a later effective
+  // date): the position as it last stood, so the report lists everything the switch-off ends or cancels (N2).
+  const missing = [...new Set(held.filter((h) => !list.some((x) => x.lineageId === h.lineage)).map((h) => h.lineage))];
+  const lastRows = new Map<string, { id: string; code: string; titleAr: string | null; titleEn: string | null; plannedCount: number }>();
+  if (missing.length) {
+    const { rows } = await tx.execute<{ lineage_id: string; id: string; code: string; title_ar: string | null; title_en: string | null; planned_count: number }>(sql`
+      select distinct on (p.lineage_id) p.lineage_id, p.id, p.code, p.title_ar, p.title_en, p.planned_count
+      from positions p join org_chart_versions v on v.id = p.version_id
+      where v.chart_id = ${chart!.id}::uuid and v.state = 'superseded' and p.lineage_id in (${sql.join(
+        missing.map((m) => sql`${m}::uuid`),
+        sql`, `,
+      )})
+      order by p.lineage_id, v.number desc`);
+    for (const r of rows) lastRows.set(r.lineage_id, { id: r.id, code: r.code, titleAr: r.title_ar, titleEn: r.title_en, plannedCount: r.planned_count });
+  }
   return held.flatMap((h) => {
-    const p = list.find((x) => x.lineageId === h.lineage);
+    const current = list.find((x) => x.lineageId === h.lineage);
+    const p = current ?? lastRows.get(h.lineage);
     if (!p) return [];
-    const u = unitOf.get(p.unitId);
+    const u = current ? unitOf.get(current.unitId) : undefined;
     const cancelled = h.from > today;
     return [
       {
@@ -1404,9 +1420,24 @@ export async function positionsHeldBy(tx: Tx, principal: Principal, clientOrgId:
         /** Not started yet: cancelled when the account is switched off, never replaced. */
         cancelled,
         startsOn: cancelled ? h.from : null,
+        /** On a position the current version no longer has: it ends on the leaving day, never replaced. */
+        dropped: !current,
       },
     ];
   });
+}
+
+/**
+ * Whether a one-person position already has someone scheduled to start on
+ * or after a day (the leaving flow's replacement would overlap them).
+ */
+export async function successorScheduled(tx: Tx, positionId: string, from: string) {
+  const { rows } = await tx.execute<{ yes: boolean }>(sql`
+    select exists (
+      select 1 from positions p join position_holders h on h.position_lineage_id = p.lineage_id
+      where p.id = ${positionId}::uuid and p.planned_count = 1 and h.from_date >= ${from}::date
+    ) as yes`);
+  return rows[0]?.yes === true;
 }
 
 /**

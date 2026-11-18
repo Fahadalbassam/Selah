@@ -8,7 +8,7 @@ import { firmToday } from "@/lib/dates";
 import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
-import { changeHolder, dayAfter, positionsHeldBy, vacancyLineage } from "./org-chart";
+import { changeHolder, dayAfter, positionsHeldBy, successorScheduled, vacancyLineage } from "./org-chart";
 
 // Accounts (baseline: Accounts): who belongs to an
 // organisation, how they are invited, switched off, re-addressed and
@@ -219,7 +219,9 @@ export async function setActive(
   }
   for (const r of replacements) {
     // Only a holding that ends on the leaving day is taken over; one not started yet is cancelled (B2).
-    if (!positions.some((p) => p.positionId === r.positionId && !p.cancelled)) throw new BadRequestError("position");
+    // Only a holding that ends on the leaving day, on the current structure, is taken over: one not started is cancelled (B2),
+    // and one on a position the current version dropped ends with it (N2).
+    if (!positions.some((p) => p.positionId === r.positionId && !p.cancelled && !p.dropped)) throw new BadRequestError("position");
     if (r.userId === userId) throw new BadRequestError("replacement");
   }
   const changed = await tx
@@ -231,6 +233,9 @@ export async function setActive(
   if (changed.length) {
     const from = dayAfter(firmToday());
     for (const r of replacements) {
+      // Someone already scheduled to take it over (a one-person position with a later holding) is said plainly (N4).
+      const scheduled = await successorScheduled(tx, r.positionId, from);
+      if (scheduled) throw new BadRequestError("successor");
       await changeHolder(tx, principal, r.positionId, { start: { userId: r.userId ?? null, name: r.name ?? null, from } });
     }
   }

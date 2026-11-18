@@ -31,6 +31,10 @@ interface Holding {
 /** A position of the company's structure the person holds (services/org-chart.ts positionsHeldBy). */
 interface HeldPosition {
   positionId: string;
+  /** One row per holding: the same position can appear twice (one ending, one not started). */
+  holderId: string;
+  /** On a position the current structure no longer has: it ends on the leaving day, never replaced. */
+  dropped: boolean;
   titleAr: string | null;
   titleEn: string | null;
   unitNameAr: string | null;
@@ -271,7 +275,7 @@ export function DepartureDialog(props: {
               {positions.map((p) => {
                 const r = replacements[p.positionId] ?? { mode: "vacant", userId: "", name: "" };
                 return (
-                  <li key={p.positionId} className="grid gap-2 px-4 py-3 text-sm">
+                  <li key={p.holderId} className="grid gap-2 px-4 py-3 text-sm">
                     <p>
                       <span className="font-medium" dir="auto">
                         {local(p.titleAr, p.titleEn)}
@@ -285,6 +289,8 @@ export function DepartureDialog(props: {
                     </p>
                     {p.cancelled ? (
                       <p className="text-xs text-muted-foreground">{t("cancelledAppointment", { date: day(p.startsOn ?? "") })}</p>
+                    ) : p.dropped ? (
+                      <p className="text-xs text-muted-foreground">{t("droppedPosition")}</p>
                     ) : (
                     <RadioGroup
                       value={r.mode === "vacant" ? "vacant" : "replace"}
@@ -302,7 +308,7 @@ export function DepartureDialog(props: {
                       </label>
                     </RadioGroup>
                     )}
-                    {!p.cancelled && r.mode !== "vacant" ? (
+                    {!p.cancelled && !p.dropped && r.mode !== "vacant" ? (
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="grid gap-1">
                           <Label htmlFor={`d-rep-${p.positionId}`} className="text-xs">

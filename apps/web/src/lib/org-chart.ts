@@ -145,6 +145,7 @@ export const ORG_CHART_ERROR_KEYS = [
   "minimal_records",
   "position",
   "replacement",
+  "successor",
 ] as const;
 
 /** Specialties as the database keeps them: trimmed, without blanks or repeats, in the order given. */

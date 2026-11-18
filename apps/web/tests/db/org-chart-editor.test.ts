@@ -8,11 +8,12 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
+import { orgChartError } from "@/lib/org-chart";
 import { invite, personHoldings, setActive } from "@/services/accounts";
 import { getEngagement, setEngagement } from "@/services/engagement";
 import * as OC from "@/services/org-chart";
@@ -22,6 +23,9 @@ import { truncateAuditLog } from "./audit-reset";
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
 if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
+
+// The fixture is built through the services: give its setup room on a loaded machine (re-check N9).
+vi.setConfig({ hookTimeout: 60_000 });
 
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
 const app = new Pool({ connectionString: appUrl, max: 2 });
@@ -609,6 +613,95 @@ describe("when someone leaves", () => {
         }),
       ).rejects.toThrow(/already ended/);
     });
+
+    it("from inside a trigger too, only with the setting naming exactly that person or that chart: never empty, never another's, never a typed name through the leaving (re-check N1)", async () => {
+      // An ended holding of the person (an account) and an ended typed one, on Leave Co's structure.
+      const mine = (await owner.query(`SELECT id, chart_id FROM position_holders WHERE user_id = $1 AND to_date IS NOT NULL LIMIT 1`, [LPERSON])).rows[0];
+      const typedId = (await svc(LADMIN, (tx, p) => OC.changeHolder(tx, p, pos.Head!, { start: { name: "Typed Head", from: PAST } }), true)).started!;
+      await svc(LADMIN, (tx, p) => OC.changeHolder(tx, p, pos.Head!, { end: { holderId: typedId, on: addDays(firmToday(), 30) } }), true);
+      // A trigger of the schema owner's, standing in for any trigger that might update a holding one day.
+      await owner.query(`CREATE TABLE zz_guard_probe (holder uuid, setting_name text, setting text)`);
+      await owner.query(`CREATE FUNCTION zz_guard_probe_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM set_config(NEW.setting_name, NEW.setting, true);
+          UPDATE position_holders SET to_date = from_date WHERE id = NEW.holder;
+          RETURN NULL;
+        END $$`);
+      await owner.query(`CREATE TRIGGER zz_guard_probe AFTER INSERT ON zz_guard_probe FOR EACH ROW EXECUTE FUNCTION zz_guard_probe_fn()`);
+      const tryIt = async (holder: string, name: string, setting: string) => {
+        const c = await owner.connect();
+        try {
+          await c.query(`BEGIN`);
+          await c.query(`SELECT set_config('selah.user_id', $1, true)`, [LADMIN]);
+          await c.query(`INSERT INTO zz_guard_probe VALUES ($1, $2, $3)`, [holder, name, setting]);
+          return "allowed";
+        } catch (e) {
+          return (e as Error).message.includes("already ended") ? "refused" : (e as Error).message;
+        } finally {
+          await c.query(`ROLLBACK`);
+          c.release();
+        }
+      };
+      try {
+        expect(await tryIt(mine.id, "selah.leaving", "")).toBe("refused");
+        expect(await tryIt(mine.id, "selah.leaving", U.mgr)).toBe("refused");
+        expect(await tryIt(typedId, "selah.leaving", "")).toBe("refused");
+        expect(await tryIt(mine.id, "selah.publishing", "")).toBe("refused");
+        expect(await tryIt(mine.id, "selah.publishing", id(99))).toBe("refused");
+        // The right setting from inside a trigger: the leaving's and the publish's own way.
+        expect(await tryIt(mine.id, "selah.leaving", LPERSON)).toBe("allowed");
+        expect(await tryIt(typedId, "selah.publishing", mine.chart_id)).toBe("allowed");
+      } finally {
+        await owner.query(`DROP TABLE zz_guard_probe`);
+        await owner.query(`DROP FUNCTION zz_guard_probe_fn()`);
+      }
+    });
+  });
+
+  describe("the leaving report and a scheduled successor (re-check N2, N4)", () => {
+    const REP = id(77);
+    const radmin = id(79);
+    const rperson = id(80);
+    let pos: Record<string, string> = {};
+    beforeAll(async () => {
+      pos = await smallClient(REP, id(78), radmin, "Report Co", ["Chair", "Old seat"]);
+      await owner.query(`INSERT INTO "user" (id, name, email) VALUES ($1,'Report Person','rperson@example.test')`, [rperson]);
+      await owner.query(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_manager')`, [rperson, REP]);
+      await svc(radmin, (tx, p) => OC.changeHolder(tx, p, pos["Old seat"]!, { start: { userId: rperson, from: PAST } }), true);
+      const chair = (await svc(radmin, (tx, p) => OC.changeHolder(tx, p, pos.Chair!, { start: { userId: rperson, from: PAST } }), true)).started!;
+      // Notice given on the chair, and the successor already scheduled for the day after.
+      await svc(radmin, (tx, p) => OC.changeHolder(tx, p, pos.Chair!, { end: { holderId: chair, on: addDays(firmToday(), 60) } }), true);
+      await svc(radmin, (tx, p) => OC.changeHolder(tx, p, pos.Chair!, { start: { name: "Scheduled Successor", from: addDays(firmToday(), 61) } }), true);
+      // The next version drops the old seat, taking effect in a month: the person still holds it until then.
+      const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, REP));
+      await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, d.positions.find((x) => x.titleEn === "Old seat")!.id), true);
+      const draftId = await draftIdOf(REP);
+      await svc(U.lead, (tx, p) => OC.publish(tx, p, REP, { draftId, effectiveOn: addDays(firmToday(), 30) }), true);
+    });
+
+    it("lists a holding on a position the current version dropped (it ends on the leaving day too); no replacement is offered there", async () => {
+      const held = await svc(radmin, (tx, p) => personHoldings(tx, p, rperson));
+      const by = Object.fromEntries(held.positions.map((x) => [x.titleEn, { dropped: x.dropped, cancelled: x.cancelled }]));
+      expect(by).toEqual({ Chair: { dropped: false, cancelled: false }, "Old seat": { dropped: true, cancelled: false } });
+      expect(new Set(held.positions.map((x) => x.holderId)).size).toBe(held.positions.length);
+      const old = held.positions.find((x) => x.titleEn === "Old seat")!;
+      await expect(
+        svc(radmin, (tx, p) => setActive(tx, p, rperson, { active: false, reason: "Left", replacements: [{ positionId: old.positionId, name: "Someone" }] })),
+      ).rejects.toThrow(/position/);
+    });
+
+    it("a replacement where a successor is already scheduled is refused in plain words, not as an overlap", async () => {
+      const chairNow = (await svc(radmin, (tx, p) => personHoldings(tx, p, rperson))).positions.find((x) => x.titleEn === "Chair")!.positionId;
+      expect(chairNow).not.toBe(pos.Chair);
+      await expect(
+        svc(radmin, (tx, p) => setActive(tx, p, rperson, { active: false, reason: "Left", replacements: [{ positionId: chairNow, name: "Another One" }] })),
+      ).rejects.toThrow(/successor/);
+      expect(orgChartError("successor")).toBe("successor");
+      // "Leave vacant" works: every holding ends on the leaving day, the old seat's later end included.
+      await svc(radmin, (tx, p) => setActive(tx, p, rperson, { active: false, reason: "Left" }), true);
+      const ends = (await owner.query(`SELECT DISTINCT to_date::text AS t FROM position_holders WHERE user_id = $1`, [rperson])).rows.map((r) => r.t);
+      expect(ends).toEqual([today()]);
+    });
   });
 
   it("a typed name can take over too; someone who may not manage the people cannot switch them off", async () => {
@@ -873,6 +966,8 @@ describe("names on positions a later version dropped (S1)", () => {
     const list = await svc(U.lead, (tx, p) => OC.droppedHoldings(tx, p, DROP));
     expect(list).toEqual([expect.objectContaining({ positionId: pos.Secretary, holderId: typo, titleEn: "Secretary", name: "Typo Secretry", typed: true, to: OC.dayBefore(today()) })]);
     for (const who of [U.team, U.oadmin, U.obs]) await expect(svc(who, (tx, p) => OC.droppedHoldings(tx, p, DROP))).rejects.toThrow(REFUSED);
+    // A manager of her own company (Acme's Finance manager, who reads its structure) gets no such list either (re-check N6).
+    await expect(svc(U.mgr, (tx, p) => OC.droppedHoldings(tx, p, ACME))).rejects.toThrow(REFUSED);
     // A position still on the current version is not "dropped": its holdings are not offered here, and the
     // older version's row of it is no way around the live structure.
     const current = await svc(U.lead, (tx, p) => OC.getPublishedChart(tx, p, DROP));

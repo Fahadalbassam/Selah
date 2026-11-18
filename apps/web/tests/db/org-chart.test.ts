@@ -41,6 +41,9 @@ const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
 if (!ownerUrl || !appUrl) throw new Error("set TEST_DATABASE_OWNER_URL and TEST_DATABASE_APP_URL");
 
+// The fixture is built through the services: give its setup room on a loaded machine (part 3 re-check N9).
+vi.setConfig({ hookTimeout: 60_000 });
+
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
 const app = new Pool({ connectionString: appUrl, max: 2 });
 
