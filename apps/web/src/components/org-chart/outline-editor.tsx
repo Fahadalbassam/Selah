@@ -95,14 +95,19 @@ export function OutlineEditor(props: {
   const title = (p: Pick<OrgPosition, "titleAr" | "titleEn">) => localText(p.titleAr, p.titleEn, lang);
   const department = (id: string | null) => props.departments.find((d) => d.id === id);
 
-  // After a change the page reloads the draft: put the keyboard back on the row that moved.
+  // After a change the page reloads the draft: once the new rows arrive, put the keyboard back on the row that moved.
+  const before = useRef<{ units: OrgUnit[]; positions: OrgPosition[] } | null>(null);
+  const focusAfterReload = (id: string) => {
+    before.current = { units: props.units, positions: props.positions };
+    setFocusId(id);
+  };
   useEffect(() => {
-    if (!focusId) return;
+    if (!focusId || (before.current && before.current.units === props.units && before.current.positions === props.positions)) return;
     const el = list.current?.querySelector<HTMLElement>(`[data-row="${focusId}"] [data-row-main]`);
-    if (el) {
-      el.focus();
-      setFocusId(null);
-    }
+    el?.focus();
+    // Done either way: a row that is gone (removed) leaves focus where it is.
+    before.current = null;
+    setFocusId(null);
   }, [focusId, props.units, props.positions]);
 
   async function run(url: string, method: string, body: unknown, done: string, focus?: string) {
@@ -114,7 +119,7 @@ export function OutlineEditor(props: {
       return false;
     }
     toast.success(done);
-    if (focus) setFocusId(focus);
+    if (focus) focusAfterReload(focus);
     router.refresh();
     return true;
   }
@@ -323,7 +328,7 @@ export function OutlineEditor(props: {
           onClose={() => setPanel(null)}
           onSaved={(id) => {
             setPanel(null);
-            setFocusId(id);
+            focusAfterReload(id);
             router.refresh();
           }}
         />
@@ -339,7 +344,7 @@ export function OutlineEditor(props: {
           onClose={() => setPanel(null)}
           onSaved={(id) => {
             setPanel(null);
-            setFocusId(id);
+            focusAfterReload(id);
             router.refresh();
           }}
         />
