@@ -31,6 +31,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
   return (
     <>
+      <DepartmentTabs tabs={data.tabs} current="structure" />
       <PageHeader title={t("titleClient")} description={t("hintClient")}>
         {structure.shown?.units.length ? (
           <StructurePdfButton
@@ -42,7 +43,6 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
           />
         ) : null}
       </PageHeader>
-      <DepartmentTabs tabs={data.tabs} current="structure" />
       <StructureBody structure={structure} base="/departments/structure" depthParam={depth} audience="client" />
     </>
   );

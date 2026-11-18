@@ -157,6 +157,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
+      <ClientTabs clientId={client.id} current="overview" structure={data.structure} />
       <PageHeader
         title={localName(client, ar)}
         morph={`client-${client.id}`}
@@ -203,7 +204,6 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {tOff("banner", { date: format.dateTime(data.offboarding.current.archivedAt, { dateStyle: "medium" }) })}
         </p>
       ) : null}
-      <ClientTabs clientId={client.id} current="overview" structure={data.structure} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">

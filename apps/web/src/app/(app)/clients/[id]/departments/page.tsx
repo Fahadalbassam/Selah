@@ -32,8 +32,8 @@ export default async function ClientDepartmentsPage({ params }: { params: Promis
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {localName(org, ar)}
       </Link>
-      <PageHeader title={t("title")} description={t("hint")} />
       <ClientTabs clientId={id} current="departments" structure={data.structure} />
+      <PageHeader title={t("title")} description={t("hint")} />
       <DepartmentsManager data={org} people={data.people.map((p) => ({ userId: p.userId, name: p.name }))} />
     </>
   );

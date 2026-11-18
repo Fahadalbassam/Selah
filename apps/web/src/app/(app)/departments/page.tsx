@@ -31,8 +31,8 @@ export default async function DepartmentsPage() {
   const t = await getTranslations("engagement.departments");
   return (
     <>
-      <PageHeader title={t("title")} description={t("hintClient")} />
       <DepartmentTabs tabs={data.tabs} current="departments" />
+      <PageHeader title={t("title")} description={t("hintClient")} />
       <DepartmentsManager data={data.engagement} people={data.people.map((p) => ({ userId: p.userId, name: p.name }))} />
     </>
   );

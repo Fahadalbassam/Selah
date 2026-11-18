@@ -41,6 +41,7 @@ export default async function ClientStructurePage({
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {localName(structure.client, ar)}
       </Link>
+      <ClientTabs clientId={id} current="structure" structure />
       <PageHeader title={t("title")} description={t("hint")}>
         {structure.shown?.units.length ? (
           <StructurePdfButton
@@ -52,7 +53,6 @@ export default async function ClientStructurePage({
           />
         ) : null}
       </PageHeader>
-      <ClientTabs clientId={id} current="structure" structure />
       <StructureBody structure={structure} base={`/clients/${id}/structure`} depthParam={depth} audience="firm" />
     </>
   );
