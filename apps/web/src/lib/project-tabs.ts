@@ -72,9 +72,14 @@ export const OLD_TABS = {
 
 export type OldTab = keyof typeof OLD_TABS;
 
+/** Is this one of the old page's tab addresses? */
+export function isOldTab(tab: string | undefined): tab is OldTab {
+  return !!tab && Object.hasOwn(OLD_TABS, tab);
+}
+
 /** The new tab an old address stands for, or null when it is not an old address. */
 export function oldTabTarget(tab: string | undefined, firm: boolean): ProjectTab | null {
-  if (!tab || !Object.hasOwn(OLD_TABS, tab)) return null;
+  if (!isOldTab(tab)) return null;
   const to = OLD_TABS[tab as OldTab];
   return typeof to === "string" ? to : firm ? to.firm : to.client;
 }

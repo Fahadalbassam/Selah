@@ -16,6 +16,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { parseActionsQuery, type ActionsQuery } from "@/lib/action-filters";
 import { ACTION_RULES } from "@/lib/plan-rules";
+import { OLD_TABS, oldTabTarget, openTab } from "@/lib/project-tabs";
 import { actionBoard } from "@/services/action-board";
 import { projectProgress } from "@/services/follow-through";
 import { loadPrincipal } from "@/services/principal";
@@ -260,7 +261,28 @@ describe("nothing moved is lost: each old tab's content has its new place", () =
   });
 });
 
+describe("old tab addresses, per reader", () => {
+  it("each old tab goes to a tab this reader has; Assessments by side (Sources for the firm, Requests and files for the client)", async () => {
+    for (const who of [U.admin, U.lead, U.obs, U.cadmin, U.mgr, U.own]) {
+      const firm = (await svc(who, async (_tx, p) => p.orgKind)) === "firm";
+      const tabs = (await page(who)).tabs;
+      for (const old of Object.keys(OLD_TABS)) {
+        const to = oldTabTarget(old, firm)!;
+        // Activity goes to Progress, which an action owner does not have: the page then opens Plan.
+        expect(openTab(to, tabs), `${who} ${old}`).toBe(tabs.includes(to) ? to : "plan");
+      }
+      expect(oldTabTarget("assessments", firm), who).toBe(firm ? "plan" : "files");
+    }
+  });
+});
+
 describe("the status line and the rule chips equal their lists", () => {
+  it("count this project only: the closing project's open action is not in the main project's numbers", async () => {
+    const p = await page(U.lead);
+    expect(JSON.stringify(p.attention)).not.toContain(A.closingOpen);
+    expect(JSON.stringify((await page(U.lead, P.closing)).attention.reasons)).not.toContain(A.late);
+  });
+
   it("late and waiting for review are the Actions lists for this project, for every reader", async () => {
     for (const who of [U.admin, U.lead, U.obs, U.cadmin, U.mgr, U.own]) {
       const s = (await page(who)).attention.status;

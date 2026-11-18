@@ -73,6 +73,8 @@ describe("old tab addresses", () => {
   it("the page sends an old address on to the new one before drawing anything", () => {
     const page = src("app/(app)/projects/[id]/page.tsx");
     expect(page).toMatch(/const moved = oldTabTarget\(tab, [^)]+\);\s*if \(moved\) redirect\(projectTabHref\(id, moved/);
+    // Before the page's data is loaded (review item 2: the old address loaded it twice).
+    expect(page.indexOf("redirect(projectTabHref(id, moved")).toBeLessThan(page.indexOf("loadProjectPage(tx, principal, id)"));
   });
 
   it("a tab the reader does not get opens Plan; the address of Plan is the project's own", () => {

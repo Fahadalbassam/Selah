@@ -70,9 +70,11 @@ const DAY = 86_400_000;
  * rules (v_deviations, read with the caller's rights) are read only for the
  * firm and only when asked.
  */
-async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: boolean }): Promise<Loaded[]> {
+async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: boolean; projectId?: string }): Promise<Loaded[]> {
   const today = firmToday();
   const ownerOnly = principal.role === "action_owner" ? sql`and a.owner_user_id = ${principal.userId}::uuid` : sql``;
+  // One project only, when asked (the project page): filtered in SQL, not after reading the whole board.
+  const onProject = opts.projectId ? sql`and a.project_id = ${opts.projectId}::uuid` : sql``;
   const { rows } = await tx.execute<{
     id: string;
     title: string;
@@ -109,13 +111,13 @@ async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: bo
     left join "user" u on u.id = a.owner_user_id
     left join departments d on d.id = a.department_id
     left join organizations o on o.id = a.org_id
-    where true ${ownerOnly}
+    where true ${ownerOnly} ${onProject}
     order by a.due_date asc nulls last, a.id`);
   const deviations = new Map<string, Loaded["deviations"]>();
   if (opts.deviations && principal.orgKind === "firm" && rows.length) {
     const { rows: dev } = await tx.execute<{ entity_id: string; rule: "stale" | "slipped" | "churn" | "orphaned"; detail: Record<string, number | null> }>(sql`
       select d.entity_id, d.rule, d.detail from v_deviations d
-      where d.entity_type = 'action' and d.rule in ('stale', 'slipped', 'churn', 'orphaned')`);
+      where d.entity_type = 'action' and d.rule in ('stale', 'slipped', 'churn', 'orphaned') ${opts.projectId ? sql`and d.project_id = ${opts.projectId}::uuid` : sql``}`);
     for (const d of dev) {
       const m = deviations.get(d.entity_id) ?? new Map();
       m.set(d.rule, d.detail.days ?? d.detail.count ?? null);
@@ -430,7 +432,7 @@ export async function projectAttention(tx: Tx, principal: Principal, projectId: 
   const firm = principal.orgKind === "firm";
   const project = { type: "action" as const, orgId: principal.orgId, firmOrgId: principal.orgId, projectId };
   const firmRules = firm && authorize(principal, "deviation.read", project).allowed;
-  const mine = (await loadReadable(tx, principal, { deviations: firmRules })).filter((r) => r.projectId === projectId);
+  const mine = await loadReadable(tx, principal, { deviations: firmRules, projectId });
   const { rows: outcomes } = mine.length
     ? await tx.execute<{ id: string; outcome: string | null }>(
         sql`select id, closure_outcome::text as outcome from actions where id = any(${`{${mine.map((r) => r.id).join(",")}}`}::uuid[])`,

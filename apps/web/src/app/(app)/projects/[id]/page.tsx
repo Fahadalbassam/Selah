@@ -31,7 +31,7 @@ import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { parsePlanRule, PLAN_RULES, type PlanRule } from "@/lib/plan-rules";
-import { oldTabTarget, openTab, projectTabHref } from "@/lib/project-tabs";
+import { isOldTab, oldTabTarget, openTab, projectTabHref } from "@/lib/project-tabs";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { isOverdue } from "@/services/queries";
@@ -69,13 +69,17 @@ export default async function ProjectPage({
   // A link may open a tab (a notification about a request opens Requests and files), and Plan may be filtered by a rule.
   const { tab, rule: ruleParam } = await searchParams;
   if (!isUuid(id)) notFound();
+  // An old address (the eleven tabs before batch 3, lib/project-tabs.ts OLD_TABS) goes on to its new place
+  // before anything is loaded: only the reader's side is needed (where Assessments went differs by side).
+  if (isOldTab(tab)) {
+    const firm = await withPrincipal(async (_tx, principal) => principal.orgKind === "firm");
+    const moved = oldTabTarget(tab, firm);
+    if (moved) redirect(projectTabHref(id, moved));
+  }
   const page = await withPrincipal((tx, principal) => loadProjectPage(tx, principal, id));
   const { data, plan, team, people, roles, consultants, firmStaff, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, handover } =
     page;
   const { requests, closure, pulse, caseStudy, attention, evidence, upload, tabs } = page;
-  // An old address (the eleven tabs before batch 3, lib/project-tabs.ts OLD_TABS) goes on to its new place.
-  const moved = oldTabTarget(tab, firmStaff);
-  if (moved) redirect(projectTabHref(id, moved));
   const current = openTab(tab, tabs);
 
   const [t, tPlan, tp, ts, tVis, tKind, tPrio, tStatus, tMeeting, tRun, tPh, tE, tClose, format] = await Promise.all([
