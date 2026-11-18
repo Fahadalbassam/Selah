@@ -41,6 +41,18 @@ Decided by the lead inside those answers (17 and 18 Nov; logged in `lead-log.md`
 - **Translation masking** (`app_mask_terms_in`) returns only the names that appear in the text it is given.
 - **Org chart names for a manager**: only on the current published version, as of today, in their own branch, while "show names" is on; never holding dates. "Your manager" is shown to anyone whose position is in the chart and respects "show names".
 - **Indicator moved-away notice**: judges only periods that have ended; a notice a correction fixed is hidden; the client reads "Your company's reported figures, not verified impact" / «أرقام شركتكم كما أُبلغ عنها، وليست أثرًا موثّقًا».
+- **Visibility picker, inside the reviews (18 Nov):** mail to someone just left out is never deleted (`withdrawn_at`, re-checked just before sending); whoever saves an "only" list is written onto it; nobody on a meeting's attendee list can be left out (take them off first; that sends a cancellation); a file already used as evidence cannot be narrowed; the person a request is addressed to cannot be left out of the file that answers it.
+- **Deliverable hand-over (18 Nov):** only files already shared with the client can be handed over (handing over never shares); hand-over only by the client's lead or deputy or consultants staffed on the engagement's projects; closing a project warns about waiting rounds, which then read "No answer before the project closed".
+
+## Plan additions from Fahad (18 Nov 2026)
+
+Recorded before anything else, as he asked. Nothing running stops for them.
+
+1. **Org chart: a person's work card** (build inside org chart part 3, not as a separate feature). Clicking a person on the chart opens a small card with their open tasks, anything late, and their recent uploads, each linking to the item. It shows only what the viewer may already see: read it as the viewer, under row-level security, never through a function that reads for someone else; a typed name (no account) has no card; the card opens only where the viewer may see the name at all. It shows the work, never a score, ranking, count league or colour judging the person.
+2. **The last step, after Gate C: "Selah map"**, one interactive HTML file (Arabic and English) combining the handbook, the workflows, the production path and a full skeleton of Selah. The skeleton is one diagram of every feature and operation and how they connect; clicking a feature shows what it does, who uses it, its main files and folders, the database tables it uses, and the connected features and files to check when someone changes it. Features are grouped into sections a teammate can own (for example the assistant, the org chart, client confidentiality and permissions, files and evidence, meetings, indicators). Built from the real code, not from memory, with a test or script that flags a new feature folder missing from the map. Then the three team documents (handbook, workflows, production path) are updated to match the finished app.
+3. **The map also holds:** every screen (what it is for, who uses it, its one main action, a screenshot in Arabic and English); the exact tooltip and first-visit help text for each page, beside that page; and all 21 scenarios, client and consultant, each as steps linked to the screens it uses, with its result and anything that failed.
+
+For builders now: keep feature code in clearly named folders and keep `docs/` accurate as you go, because the map is built from them.
 
 ## The screen standard (batches 1 to 5)
 

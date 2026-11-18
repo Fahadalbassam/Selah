@@ -250,3 +250,21 @@ One open point carried to org chart part 3: a holder can be ended but not remove
 **Screen re-check of batch 0**: done, nothing blocking; see `page-audit.md` section 8 (faults go into one small pull request; three questions kept for Gate B).
 
 **Stops.** The org chart and picker builders stopped once at the five-hour usage limit and were resumed from saved work.
+
+## Plan additions from Fahad (18 Nov 2026, evening)
+
+Recorded first, as he asked (also in `work/build-brief.md`, "Plan additions from Fahad (18 Nov 2026)"). Nothing running stops for them.
+
+| # | Addition | Where it goes |
+|---|---|---|
+| 1 | **Org chart: a person's work card.** Clicking a person on the chart opens a small card: their open tasks, anything late, their recent uploads, each linking to the item; only what the viewer may already see; the work, never a score or ranking of the person. | Inside org chart part 3 (the editor, holders and vacancies), not a new feature. Part 2 is already built and in review. |
+| 2 | **"Selah map", the very last step, after Gate C.** One interactive HTML file, Arabic and English: the handbook, the workflows, the production path and a full skeleton of Selah (one diagram of every feature and operation and how they connect; clicking a feature shows what it does, who uses it, its main files and folders, its database tables, and the connected features and files to check when it changes). Features grouped into sections a teammate can own. Built from the real code, with a test or script that flags a new feature folder missing from the map. Then the three team documents are updated to match the finished app. | After Gate C. |
+| 3 | **The map also holds** every screen (purpose, who uses it, its one main action, a screenshot in both languages), the exact tooltip and first-visit help text beside each page, and all 21 scenarios as steps linked to their screens, with the result and anything that failed. | Same final step; it draws on phase 2 and phase 4. |
+
+**Confirmed still in the plan** (Fahad asked):
+
+- **Tooltips and first-visit help**: phase 2, big prompt section 6.1, after batches 1 to 5 and before phase 3 / Gate B. Tooltips only where a label does not say what happens, one short sentence, keyboard and right to left, Arabic written first; empty states that say what will appear; first-visit hints per role through the existing two-week welcome on the home page, not a tour that blocks the screen.
+- **The handbook**: phase 2, section 6.2 (firm guide, client guide, "what Selah will not do", the technical pack), checked by an independent helper following the client guide step by step.
+- **Scenarios 1 to 21**: phase 4, section 9, after Fahad's additions (assistant value test, docs pack, staging e2e, README fix, engagement-end reminder, lead-change notice, Dependabot) and before Gate C; scenario 19 (the isolation sweep) last.
+
+**The order now:** finish the features before batch 1 (picker, deliverable receipt, org chart parts 2 to 5 with the work card in part 3) and the re-check fixes; batches 1 to 5; phase 2 (handbook, tooltips, first-visit help); phase 3 (unfinished work, section 7) and Gate B; Fahad's additions; phase 4 (scenarios 1 to 21); Gate C; then the Selah map and the three team documents.
