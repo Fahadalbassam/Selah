@@ -11,13 +11,12 @@ import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
 import { Paperclip } from "@/components/animate-ui/icons/paperclip";
 import { Plus } from "@/components/animate-ui/icons/plus";
-import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
-import { Send } from "@/components/animate-ui/icons/send";
 import { X } from "@/components/animate-ui/icons/x";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ApiButton, callApi, FormDialog, type Field } from "@/components/form-dialog";
+import { RowMenu, useRowCall } from "@/components/row-menu";
 import { SectionHeader } from "@/components/section-header";
 import { ToneBadge, type Tone } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 import { INFO_REQUEST_AREAS, INFO_REQUEST_TEMPLATES, NO_OWNER, requestTitle } from "@/lib/info-requests";
+import { requestRowPlan } from "@/lib/row-actions";
 import { UPLOAD_LINK_DAY_CHOICES, UPLOAD_LINK_DAYS } from "@/lib/upload-links";
 import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import type { InfoRequestList } from "@/services/info-requests";
@@ -155,16 +156,15 @@ function ItemRow({
   const [confirm, confirmDialog] = useConfirm();
   // Giving the item to someone left out of a file sent for it is refused, said plainly (feature A).
   const refusal = useAudienceRefusal();
+  const call = useRowCall();
   const title = requestTitle(i, ar);
   const base = `/api/info-requests/${i.id}`;
-  const note = (status: "requested" | "not_applicable", label: string, hint: string) => (
+  // One main button (accept the file, or send one); the rest in the row's menu (page audit U15).
+  const plan = requestRowPlan(i.can);
+  const inMenu = new Set<string>(plan.menu);
+  const note = (status: "requested" | "not_applicable", label: string, hint: string, control: DialogControl) => (
     <FormDialog
-      trigger={
-        <Button size="sm" variant="ghost">
-          {status === "requested" ? <RotateCcw /> : null}
-          {label}
-        </Button>
-      }
+      control={control}
       title={label}
       description={hint}
       endpoint={`${base}/status`}
@@ -212,6 +212,81 @@ function ItemRow({
           ) : null}
           {i.overdue ? <ToneBadge tone="problem">{t("overdue")}</ToneBadge> : null}
           <ToneBadge tone={TONES[i.status]}>{t(`status.${i.status}`)}</ToneBadge>
+          <RowMenu
+            label={tc("moreFor", { name: title })}
+            items={[
+              {
+                key: "answer",
+                label: t(i.files.length ? "addFile" : "answer"),
+                allowed: inMenu.has("answer"),
+                dialog: (control) => <AnswerDialog item={i} title={title} files={files} projectId={projectId} control={control} />,
+              },
+              {
+                key: "sendLink",
+                label: t("link.send"),
+                allowed: inMenu.has("sendLink"),
+                dialog: (control) => (
+                  <FormDialog
+                    control={control}
+                    title={t("link.send")}
+                    description={t("link.hint")}
+                    endpoint={`${base}/links`}
+                    fields={[
+                      { name: "email", label: t("link.email"), required: true, maxLength: 254, dir: "ltr", placeholder: "name@company.sa" },
+                      {
+                        name: "days",
+                        label: t("link.days"),
+                        type: "select",
+                        defaultValue: String(UPLOAD_LINK_DAYS.default),
+                        options: UPLOAD_LINK_DAY_CHOICES.map((d) => ({ value: String(d), label: t("link.daysOption", { n: d }) })),
+                      },
+                    ]}
+                    submitLabel={t("link.sendSubmit")}
+                  />
+                ),
+              },
+              ...i.links.map((l) => ({
+                key: `revoke-${l.id}`,
+                label: t("link.revokeFor", { email: l.email }),
+                allowed: inMenu.has("revokeLink"),
+                confirm: t("link.revokeConfirm", { email: l.email }),
+                onSelect: () => void call({ endpoint: `/api/info-request-links/${l.id}`, method: "DELETE" }),
+              })),
+              { key: "returnIt", label: t("return"), allowed: inMenu.has("returnIt"), dialog: (control) => note("requested", t("return"), t("returnHint"), control) },
+              { key: "reopen", label: t("reopen"), allowed: inMenu.has("reopen"), dialog: (control) => note("requested", t("reopen"), t("reopenHint"), control) },
+              {
+                key: "notApplicable",
+                label: t("notApplicable"),
+                allowed: inMenu.has("notApplicable"),
+                dialog: (control) => note("not_applicable", t("notApplicable"), t("naHint"), control),
+              },
+              {
+                key: "edit",
+                label: t("edit"),
+                allowed: inMenu.has("edit"),
+                dialog: (control) => (
+                  <FormDialog
+                    control={control}
+                    title={t("edit")}
+                    endpoint={base}
+                    method="PATCH"
+                    sendEmptyAsNull
+                    explain={refusal}
+                    fields={itemFields(t, ownerOptions, { ...i, title })}
+                    submitLabel={tc("save")}
+                  />
+                ),
+              },
+              {
+                key: "remove",
+                label: t("remove"),
+                allowed: inMenu.has("remove"),
+                destructive: true,
+                confirm: t("removeConfirm", { title }),
+                onSelect: () => void call({ endpoint: base, method: "DELETE" }),
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -263,83 +338,41 @@ function ItemRow({
                   a: (c) => <bdi dir="ltr">{c}</bdi>,
                 })}
               </span>
-              <ApiButton
-                endpoint={`/api/info-request-links/${l.id}`}
-                method="DELETE"
-                variant="ghost"
-                size="sm"
-                label={t("link.revoke")}
-                confirm={t("link.revokeConfirm", { email: l.email })}
-              />
             </li>
           ))}
         </ul>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {i.can.answer ? <AnswerDialog item={i} title={title} files={files} projectId={projectId} /> : null}
-        {i.can.sendLink ? (
-          <FormDialog
-            trigger={
-              <Button size="sm" variant="ghost">
-                <Send />
-                {t("link.send")}
-              </Button>
-            }
-            title={t("link.send")}
-            description={t("link.hint")}
-            endpoint={`${base}/links`}
-            fields={[
-              { name: "email", label: t("link.email"), required: true, maxLength: 254, dir: "ltr", placeholder: "name@company.sa" },
-              {
-                name: "days",
-                label: t("link.days"),
-                type: "select",
-                defaultValue: String(UPLOAD_LINK_DAYS.default),
-                options: UPLOAD_LINK_DAY_CHOICES.map((d) => ({ value: String(d), label: t("link.daysOption", { n: d }) })),
-              },
-            ]}
-            submitLabel={t("link.sendSubmit")}
-          />
-        ) : null}
-        {i.can.review ? (
-          <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("review")} icon={<CircleCheck />} />
-        ) : null}
-        {i.can.returnIt ? note("requested", t("return"), t("returnHint")) : null}
-        {i.can.reopen ? note("requested", t("reopen"), t("reopenHint")) : null}
-        {i.can.notApplicable ? note("not_applicable", t("notApplicable"), t("naHint")) : null}
-        {i.can.edit ? (
-          <FormDialog
-            trigger={
-              <Button size="sm" variant="ghost">
-                {t("edit")}
-              </Button>
-            }
-            title={t("edit")}
-            endpoint={base}
-            method="PATCH"
-            sendEmptyAsNull
-            explain={refusal}
-            fields={itemFields(t, ownerOptions, { ...i, title })}
-            submitLabel={tc("save")}
-          />
-        ) : null}
-        {i.can.remove ? (
-          <ApiButton endpoint={base} method="DELETE" variant="ghost" label={t("remove")} confirm={t("removeConfirm", { title })} />
-        ) : null}
-      </div>
+      {plan.main === "review" ? (
+        <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("review")} icon={<CircleCheck />} />
+      ) : plan.main === "answer" ? (
+        <AnswerDialog item={i} title={title} files={files} projectId={projectId} />
+      ) : null}
       {confirmDialog}
     </li>
   );
 }
 
 /** Answer an item: upload a file, or pick one already shared on the project. */
-function AnswerDialog({ item, title, files, projectId }: { item: Item; title: string; files: InfoRequestList["files"]; projectId: string }) {
+function AnswerDialog({
+  item,
+  title,
+  files,
+  projectId,
+  control,
+}: {
+  item: Item;
+  title: string;
+  files: InfoRequestList["files"];
+  projectId: string;
+  /** Opened from the row's menu (another file, when the firm's main step is accepting) rather than its own button. */
+  control?: DialogControl;
+}) {
   const t = useTranslations("infoRequests");
   const tf = useTranslations("fileActions");
   const tc = useTranslations("common");
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(control);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState("");
@@ -399,14 +432,16 @@ function AnswerDialog({ item, title, files, projectId }: { item: Item; title: st
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setExisting(""), setAudience({ value: null, dirty: false }))}>
-      <DialogTrigger asChild>
-        {/* One per row, so outline: a card keeps a single solid button. */}
-        <Button size="sm" variant="outline">
-          <Paperclip />
-          {t(item.files.length ? "addFile" : "answer")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+      {control ? null : (
+        <DialogTrigger asChild>
+          {/* The row's one button, so outline: a card keeps a single solid button. */}
+          <Button size="sm" variant="outline" className="w-fit">
+            <Paperclip />
+            {t(item.files.length ? "addFile" : "answer")}
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent {...contentProps}>
         <form onSubmit={upload} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("answerTitle")}</DialogTitle>

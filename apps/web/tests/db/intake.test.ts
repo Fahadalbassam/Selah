@@ -9,7 +9,11 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { renderMail } from "@/lib/mail-templates";
 import { enteredInquiryInput } from "@/lib/inquiry-entry";
+import { inquiryBody } from "@/lib/inquiry-form";
+import { inquiryBodySchema } from "@/lib/inquiry-schema";
+import { PRIVACY_NOTICE_VERSION } from "@/lib/intake";
 import { enterInquiry, getInquiry, mailDecline, withdrawMarketingConsent } from "@/services/inquiries";
+import { submitInquiry } from "@/services/intake";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -121,6 +125,67 @@ describe("the public form", () => {
     expect(services.rows.map((r) => r.code)).toEqual(["delegation_matrix", "family_business_governance"]);
     const told = await owner.query(`SELECT user_id FROM notifications WHERE entity_id = $1 AND kind = 'inquiry.new'`, [row.id]);
     expect(told.rows.map((r) => r.user_id)).toEqual([U.admin]);
+  });
+
+  it("stores every answer the form sends, as the API takes it (its first two steps are one since batch 1)", async () => {
+    // A visitor who answered everything, the optional questions too, built and checked the way the page and the route do.
+    const sent = inquiryBodySchema.parse(
+      inquiryBody(
+        {
+          orgName: " Al-Waha Logistics ",
+          orgNameAr: "الواحة للخدمات اللوجستية",
+          sector: "trade_distribution",
+          employeeBand: "50-249",
+          ownershipType: "family_multi_partner",
+          familyGeneration: "second",
+          familyWorking: "4-10",
+          familyGovernance: "council",
+          contactName: "Huda",
+          requesterRole: "board_member",
+          contactRole: "Board secretary",
+          email: "Huda@Example.test",
+          phone: "+966 55 111 2222",
+          contactChannel: "whatsapp",
+          preferredLanguage: "en",
+          services: ["family_business_governance", "delegation_matrix"],
+          whyNow: "The founder is stepping back.",
+          message: "We would like a family council.",
+          urgency: "urgent",
+          heardFrom: "event",
+          selfCheck: { hasStrategy: true, hasKpis: false },
+          consent: true,
+          marketingConsent: true,
+        },
+        PRIVACY_NOTICE_VERSION,
+      ),
+    );
+    const { website, ...input } = sent;
+    expect(website).toBeUndefined();
+    const { ref } = await as(null, (c) => submitInquiry(drizzle(c, { schema }) as unknown as Tx, input, null, null), true);
+    const row = await byRef(ref);
+    const sector = (await owner.query(`SELECT code FROM sectors WHERE id = $1`, [row.sector_id])).rows[0]?.code;
+    expect({
+      org: [row.org_name, row.org_name_ar, sector, row.employee_band, row.ownership_type],
+      family: [row.family_generation, row.family_working, row.family_governance],
+      contact: [row.contact_name, row.requester_role, row.contact_role, row.contact_email, row.contact_phone, row.contact_channel, row.preferred_language],
+      need: [row.why_now, row.message, row.urgency, row.heard_from],
+      selfCheck: row.self_check,
+      version: row.privacy_notice_version,
+      consented: [row.consented_at !== null, row.marketing_consent_at !== null],
+    }).toEqual({
+      org: ["Al-Waha Logistics", "الواحة للخدمات اللوجستية", "trade_distribution", "50-249", "family_multi_partner"],
+      family: ["second", "4-10", "council"],
+      contact: ["Huda", "board_member", "Board secretary", "huda@example.test", "+966 55 111 2222", "whatsapp", "en"],
+      need: ["The founder is stepping back.", "We would like a family council.", "urgent", "event"],
+      selfCheck: { has_strategy: true, has_kpis: false },
+      version: PRIVACY_NOTICE_VERSION,
+      consented: [true, true],
+    });
+    const services = await owner.query(
+      `SELECT sa.code FROM inquiry_services s JOIN service_areas sa ON sa.id = s.service_area_id WHERE s.inquiry_id = $1 ORDER BY 1`,
+      [row.id],
+    );
+    expect(services.rows.map((r) => r.code)).toEqual(["delegation_matrix", "family_business_governance"]);
   });
 
   it("the public cannot read or write inquiries directly, but can read the lists", async () => {

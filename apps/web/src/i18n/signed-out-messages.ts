@@ -11,10 +11,8 @@ export const SIGNED_OUT_NAMESPACES = {
   auth: ["signIn", "account", "security", "consent", "common"],
   /** (public)/inquiry: the form and its side panel. */
   inquiry: ["inquiry"],
-  /** (public)/legal: server-rendered; its client components read no strings. */
+  /** (public)/legal, the inquiry privacy notice included: server-rendered; its client components read no strings. */
   legal: [],
-  /** (public)/privacy: server-rendered; its client components read no strings. */
-  privacy: [],
   /** (public)/upload: the file form of a no-login upload link. */
   upload: ["uploadLink", "fileActions", "common"],
 } as const satisfies Record<string, readonly string[]>;

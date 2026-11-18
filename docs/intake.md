@@ -4,6 +4,8 @@ How a prospective client reaches the firm. Tables in `src/db/schema`, rules in t
 
 ## The public form
 
+`/inquiry` asks in four steps: the organisation and the person (one step since batch 1), what they need, the optional questions about the organisation, and a review step that shows every answer with an "Edit" per step. The steps, their checks and the body the page sends are in `src/lib/inquiry-form.ts`, and the API's schema in `src/lib/inquiry-schema.ts`; `tests/inquiry-form.test.ts` and `tests/db/intake.test.ts` hold that every answer is asked, shown and stored. The form's privacy notice is `/legal/inquiry-privacy`, one document of the legal set (the old `/privacy` redirects there permanently, `next.config.ts`).
+
 `POST /api/inquiries` takes the form with no session. `GET /api/intake/options` returns its choices: the active service areas and sectors (admin-managed tables), employee bands, ownership types, urgency, how they heard of the firm, and the current privacy notice version.
 
 - The request must come from the site's own origin and is capped at 16 KB (413 above that).
