@@ -28,6 +28,7 @@ import { intakeOptions } from "@/services/intake";
 import { getClientTeam } from "@/services/staffing";
 import { EngagementDialog } from "@/components/engagement-form";
 import { NOT_COVERED } from "@/lib/engagements";
+import { RECEIPT_STATUSES } from "@/lib/deliverables";
 import { EngagementCard } from "./engagement-card";
 import { LegalProfileCard } from "./legal-profile-card";
 import { getClientProfile } from "@/services/client-profile";
@@ -89,7 +90,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     };
   });
   if (!data) notFound();
-  const [t, tc, tq, tp, ti, tCt, tPh, tE, tOff, format] = await Promise.all([
+  const [t, tc, tq, tp, ti, tCt, tPh, tE, tOff, tD, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
     getTranslations("assessment.question"),
@@ -99,6 +100,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     getTranslations("phases"),
     getTranslations("engagements"),
     getTranslations("offboarding"),
+    getTranslations("deliverables"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -309,6 +311,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
+                        {/* Each deliverable's status word, counted (F21): no percentage. */}
+                        {RECEIPT_STATUSES.some((s) => g.deliverables[s]) ? (
+                          <p className="text-xs text-muted-foreground">
+                            {tD("summary", {
+                              list: RECEIPT_STATUSES.filter((s) => g.deliverables[s])
+                                .map((s) => tD("summaryItem", { status: tD(`status.${s}`), n: g.deliverables[s]! }))
+                                .join(" · "),
+                            })}
+                          </p>
+                        ) : null}
                       </div>
                       {g.retainerFollows ? <ToneBadge tone="neutral">{tE("retainer")}</ToneBadge> : null}
                     </li>

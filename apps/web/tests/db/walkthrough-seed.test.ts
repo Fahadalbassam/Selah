@@ -76,6 +76,22 @@ describe("the walkthrough sample data", () => {
     expect(sent).toEqual([{ title: "مذكرة المقارنة مع الحدود الحالية" }]);
   });
 
+  it("has one Al-Nukhba deliverable received and one handed over and waiting (F21)", async () => {
+    const rows = await q(
+      `SELECT d.title, h.round, h.received_at IS NOT NULL AS received, h.receipt_source::text AS source, u.email AS receiver,
+              (SELECT array_agg(x.title) FROM documents x WHERE x.id = ANY (h.version_ids)) AS files
+       FROM deliverable_handovers h JOIN engagement_deliverables d ON d.id = h.deliverable_id LEFT JOIN "user" u ON u.id = h.received_by
+       ORDER BY d.title`,
+    );
+    expect(rows).toEqual([
+      { title: "تقرير تقييم الحوكمة", round: 1, received: true, source: "client_portal", receiver: "manager@nukhba.test", files: ["تقرير تقييم الحوكمة 2026.docx"] },
+      { title: "مصفوفة تفويض الصلاحيات المحدّثة", round: 1, received: false, source: null, receiver: null, files: ["مصفوفة الصلاحيات 2026 (مسودة).docx"] },
+    ]);
+    // The acceptor was told of each hand-over.
+    const told = await q(`SELECT u.email FROM notifications n JOIN "user" u ON u.id = n.user_id WHERE n.kind = 'deliverable.handed_over'`);
+    expect(told.map((r) => r.email)).toEqual(["manager@nukhba.test", "manager@nukhba.test"]);
+  });
+
   it("makes actions late without moving their dates: no date history but the one approved request (N15b)", async () => {
     const today = (await q(`SELECT app_firm_today()::text AS d`))[0].d as string;
     for (const title of ["ترشيح الأعضاء المستقلين للجنة", "إعداد لائحة عمل اللجنة", "مراجعة حدود الصلاحيات المالية"]) {

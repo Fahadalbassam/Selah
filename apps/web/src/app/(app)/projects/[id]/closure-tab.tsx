@@ -148,6 +148,12 @@ export async function ClosureTab({
             )
           ) : null}
           {closing && firm && caseStudyNotAsked ? <p className="text-xs text-muted-foreground">{t("caseStudyNotAsked")}</p> : null}
+          {/* Deliverables still waiting for the client's answer (F21): a warning, not a blocker. */}
+          {closing && firm && data.waitingDeliverables.length ? (
+            <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm" dir="auto">
+              {t("deliverablesWaiting", { titles: data.waitingDeliverables.map((d) => d.title).join(" · ") })}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

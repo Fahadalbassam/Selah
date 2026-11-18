@@ -16,7 +16,7 @@ There are two layers. Both must allow a request.
 1. **Organization.** Client users reach only their own organization. Firm staff reach client records only through a project their firm runs, and a consultant only for clients assigned to them.
 2. **Role.** Does `POLICY[permission]` grant this role anything? (`src/authz/policy.ts`)
 3. **Project membership or client assignment.** The firm admin sees every project the firm runs, and a client admin every project of their organization. A consultant sees only the projects they are staffed on (`project_members`); the lead of a client sees all of that client's projects. Being on a client's team alone opens the client's name and team, not its projects. Everyone else, including consultants on internal projects, must be a project member.
-4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer), or `staffed` (a consultant who is the client's lead or deputy or is staffed on any of its projects, observing or not: who reads its organisation structure).
+4. **Scope of the grant.** `any`, `assigned` (e.g. action owners and their actions), `own`, `shared` (explicit per-user shares), `owner_org` (who controls a document's labels and AI flag), `lead` (the client's lead or deputy), `team` (a department's files), `working` (a consultant who does the client's work: its lead or deputy, or staffed on one of its projects other than as an observer), `staffed` (a consultant who is the client's lead or deputy or is staffed on any of its projects, observing or not: who reads its organisation structure), or `engagement` (a consultant who is the client's lead or deputy or is staffed, not as an observer, on one of an engagement's open projects: who hands its deliverables over).
 5. **Visibility label.** `shared`, `firm_private` (firm only), `client_private` (that client only, not even the firm admin), `user_private` (creator only).
 
 ## Internal and client projects
@@ -137,6 +137,26 @@ Where an owner used to read a teammate's action, and what each does now (the rev
 | A meeting's agenda | Her own actions only, built when she opens it (see "A meeting's agenda" above) |
 
 Tests: `tests/db/owner-actions.test.ts` (owner@nukhba.test-style, with a teammate in her department, and owner@rawdah.test-style, at a client with no departments; a former owner after `app_hand_over()`; a catalog check that finds every table referring to an action, by a foreign key to `actions` or to a table under the rule, or by an `entity_type`/`source_type`/`target_type` pair, and fails unless it carries the rule or is named with its reason: `ai_chunks`, which owners never read since they never have the assistant, and `ai_drafts`, the firm's own) and the 1b block of `tests/authorize.test.ts`.
+
+## Deliverables handed over
+
+F21 in its minimal form (gate A follow-ups, 17 Nov 2026, 4a; migration `0092_deliverable_receipts`). An engagement's deliverable is handed over with the exact file versions, in rounds, and the client confirms receipt or comments. **Received is receipt only**: it never says the client accepted the work.
+
+| Who | Reads the rounds | Does |
+|---|---|---|
+| Firm admin | Every client's | Reads only: never hands over (the decision names the lead, the deputy and staffed consultants) |
+| The client's lead or deputy, or a consultant staffed (not as an observer) on a project of the deliverable's engagement that is not closed | Their clients' | Hands over, with files of the engagement's projects already shared with the client (`deliverable.hand_over`, scope `engagement`; `app_firm_hands_over()`); for a client the firm runs, records who at the client received it, how and when (`deliverable.receive` through `CONSULTANT_MANAGED_POLICY`) |
+| Other consultants on the client's team (observers, staffed on nothing, or staffed only under another engagement) | Their clients' | Nothing |
+| The client's admin | Every deliverable of the engagement, as before, and each round whose files they open | Confirms receipt or comments |
+| A client manager who is an acceptor or the sponsor on a project the deliverable relates to | Only those deliverables, and only rounds whose every file they open (not the engagement itself) | Confirms receipt or comments |
+| Any other manager, every action owner, another client | Nothing: Not found | Nothing |
+
+- **Who is asked.** The acceptors on the related projects (the deliverable's own, or every project its engagement covers), else the client's admins, else its sponsor; in each, only people who open every file (department, project membership and one-by-one shares as the files' own rules). A file a reader cannot open keeps the whole round from them, so nobody is shown a deliverable round they cannot open (`app_deliverable_receiver_ok()`, `app_user_opens_document()`).
+- **Before a hand-over** the dialog names who will be asked and any acceptor skipped because they cannot open every file picked (`app_hand_over_preview()`, for the people who may hand it over), so the firm sees it. A hand-over never shares a file: a firm-only file is shared only from its own Share action.
+- **The firm never confirms for a client that signs in.** It records a receipt only for a consultant-managed client, like `consultant_recorded` evidence.
+- A comment goes to the client's lead and deputy (the firm's admins when it has neither): in their notifications and in Today's decisions list, until a new version is handed over. The new home (D2) does not exist yet.
+- Writes go only through the database functions (`app_hand_over_deliverable()`, `app_confirm_deliverable_receipt()`, `app_comment_on_deliverable()`, `app_record_deliverable_receipt()`); the app role reads the table and writes nothing. Each is audited (`deliverable.*`). A denial answers 404.
+- Tests: `tests/db/deliverable-receipts.test.ts`.
 
 ## How a request flows
 

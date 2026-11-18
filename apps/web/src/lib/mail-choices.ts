@@ -47,6 +47,9 @@ export const WORK_MAIL_KINDS = [
   "inquiry.new",
   "pulse.requested",
   "support.requested",
+  // A deliverable handed over, and the client's comment on one (F21).
+  "deliverable.handed_over",
+  "deliverable.commented",
   // The client's organisation structure (migration 0091): to the client's lead and deputy.
   "org_chart.holder_changed",
   "org_chart.change_requested",

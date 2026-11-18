@@ -36,7 +36,8 @@ import { addClientRole } from "@/services/client-roles";
 import { disposeAction, moveClosure, requestClosure, writeLessons } from "@/services/closure";
 import { postComment } from "@/services/comments";
 import { createDepartment, putDepartmentMember, setEngagement, setShortNames } from "@/services/engagement";
-import { recordEngagement } from "@/services/engagements";
+import { addDeliverable, recordEngagement } from "@/services/engagements";
+import { handOverDeliverable, recordReceipt as recordDeliverableReceipt } from "@/services/deliverables";
 import { prepareUpload, submitEvidence } from "@/services/evidence";
 import { putProfile } from "@/services/expertise";
 import { setAssistantFlag } from "@/services/documents";
@@ -301,7 +302,7 @@ const board = await as(U.lead, (tx, p) =>
     endDate: day(105),
   }),
 );
-await as(U.admin, (tx, p) =>
+const boardEngagement = await as(U.admin, (tx, p) =>
   recordEngagement(tx, p, nukhba.id, {
     title: "اتفاقية خدمات استشارات الحوكمة ٢٠٢٦",
     signedOn: day(-80),
@@ -323,14 +324,41 @@ await as(U.lead, (tx, p) => addClientRole(tx, p, board.id, { role: "coordinator"
 await as(U.lead, (tx, p) => addClientRole(tx, p, board.id, { role: "observer", person: `contact:${auditor.id}` }));
 
 // Files the firm shares, and its own notes (firm only).
-for (const f of Object.values(F.nukhbaLibrary)) {
+const library: Partial<Record<keyof typeof F.nukhbaLibrary, string>> = {};
+for (const [key, f] of Object.entries(F.nukhbaLibrary) as [keyof typeof F.nukhbaLibrary, F.SeedFile][]) {
   const file = await upload(U.lead, { type: "project", id: board.id }, f);
-  await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "shared" }));
+  library[key] = (await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "shared" }))).id;
 }
 {
   const file = await upload(U.lead, { type: "project", id: board.id }, F.nukhbaPrivateNotes);
   await as(U.lead, (tx, p) => uploadProjectDocument(tx, p, board.id, { file, visibility: "firm_private" }));
 }
+
+// What the engagement delivers, handed over (F21, minimal): Reem, the board secretary, receives the
+// firm's deliverables. The assessment report was handed over and she confirmed receipt; the updated
+// delegation matrix was handed over and waits for her. Receipt only, never acceptance.
+await as(U.lead, (tx, p) => addClientRole(tx, p, board.id, { role: "acceptor", person: `user:${C.nManager}` }));
+const delivered = {
+  assessment: await as(U.admin, (tx, p) =>
+    addDeliverable(tx, p, boardEngagement.id, {
+      title: "تقرير تقييم الحوكمة",
+      acceptanceCriteria: "يستلمه أمين سر المجلس ويُعرض على المجلس في أول اجتماع بعد التسليم.",
+      dueOn: day(-50),
+      projectId: board.id,
+    }),
+  ),
+  matrix: await as(U.admin, (tx, p) =>
+    addDeliverable(tx, p, boardEngagement.id, {
+      title: "مصفوفة تفويض الصلاحيات المحدّثة",
+      acceptanceCriteria: "مسودة للنقاش مع الإدارة المالية قبل رفعها للمجلس.",
+      dueOn: day(10),
+      projectId: board.id,
+    }),
+  ),
+};
+await as(U.lead, (tx, p) => handOverDeliverable(tx, p, delivered.assessment.id, [library.assessment!]));
+await as(C.nManager, (tx, p) => recordDeliverableReceipt(tx, p, delivered.assessment.id, { round: 1 }));
+await as(U.deputy, (tx, p) => handOverDeliverable(tx, p, delivered.matrix.id, [library.doaNew!]));
 
 // The plan: findings, the recommendations they lead to, and the actions.
 const fnd = {
