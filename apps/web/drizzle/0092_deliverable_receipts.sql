@@ -313,7 +313,7 @@ BEGIN
   INSERT INTO notifications (user_id, kind, entity_type, entity_id)
     SELECT r.user_id, 'deliverable.handed_over', 'deliverable', did FROM app_deliverable_receivers(did, versions) r;
   INSERT INTO outbound_emails (to_email, kind, link)
-    SELECT u.email, 'deliverable.handed_over', '/' FROM app_deliverable_receivers(did, versions) r JOIN "user" u ON u.id = r.user_id
+    SELECT u.email, 'deliverable.handed_over', '/deliverables' FROM app_deliverable_receivers(did, versions) r JOIN "user" u ON u.id = r.user_id
     WHERE app_can_reset_password(r.user_id);
   RETURN hid;
 END $$;

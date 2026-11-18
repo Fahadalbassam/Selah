@@ -35,7 +35,7 @@ vi.mock("next-intl/server", async () => {
   };
 });
 
-const { commentOnDeliverable, getDeliverable, handOverChoices, handOverDeliverable, handOverPreview, listDeliverables, recordReceipt } = await import(
+const { commentOnDeliverable, deliverablesHandedOver, deliverablesToAnswer, getDeliverable, handOverChoices, handOverDeliverable, handOverPreview, listDeliverables, recordReceipt } = await import(
   "@/services/deliverables"
 );
 const { getEngagement, removeDeliverable } = await import("@/services/engagements");
@@ -296,6 +296,27 @@ describe("who answers for the client", () => {
     expect(done.rounds[0]).toMatchObject({ receivedBy: "acceptor", receiptSource: "client_portal" });
     // Once per round.
     await expect(svc(U.cadmin, (tx, p) => recordReceipt(tx, p, did, { round: 1 }))).rejects.toThrow(/already answered/);
+  });
+
+  it("the client's home lists only the rounds waiting for this reader's answer; all of them are on the deliverables page (S6)", async () => {
+    const waiting = await deliverable(G.acme, P.acme, "Home: waiting");
+    const done = await deliverable(G.acme, P.acme, "Home: received");
+    const f = await file(ACME, P.acme, "Home.pdf");
+    await handOver(U.lead, waiting, [f]);
+    await handOver(U.lead, done, [f]);
+    await svc(U.acceptor, (tx, p) => recordReceipt(tx, p, done, { round: 1 }));
+    const home = await svc(U.acceptor, (tx, p) => deliverablesToAnswer(tx, p));
+    expect(home.map((d) => d.title)).toContain("Home: waiting");
+    expect(home.map((d) => d.title)).not.toContain("Home: received");
+    expect(home.every((d) => d.can.confirm)).toBe(true);
+    const all = (await svc(U.acceptor, (tx, p) => deliverablesHandedOver(tx, p))).map((d) => d.title);
+    expect(all).toEqual(expect.arrayContaining(["Home: waiting", "Home: received"]));
+    // Nothing waits for someone who answers for none.
+    expect(await svc(U.mgr, (tx, p) => deliverablesToAnswer(tx, p))).toEqual([]);
+    // The notice opens the page with all of them.
+    const notice = (await svc(U.acceptor, (tx, p) => listNotifications(tx, p))).items.find((x) => x.kind === "deliverable.handed_over")!;
+    expect(notice.href).toBe("/deliverables");
+    expect((await q(`SELECT DISTINCT link FROM outbound_emails WHERE kind = 'deliverable.handed_over'`)).rows).toEqual([{ link: "/deliverables" }]);
   });
 
   it("the firm hands over: the lead, the deputy and a staffed consultant; not an observer, a consultant staffed on nothing, or the firm admin", async () => {

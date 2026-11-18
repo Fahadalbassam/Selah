@@ -119,7 +119,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
   }
 
   // A deliverable handed over (F21): titled under the reader's rights, so a client person reads it
-  // only while they answer for it; the firm's notice opens its engagement, the client's their home.
+  // only while they answer for it; the firm's notice opens its engagement, the client's the deliverables page.
   const deliverableIds = ids(rows, "deliverable");
   const deliverableLinks = new Map<string, string>();
   if (deliverableIds.length) {
@@ -128,7 +128,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
       .from(engagementDeliverables)
       .where(inArray(engagementDeliverables.id, deliverableIds))) {
       titles.set(d.id, { title: d.title, titleAr: null });
-      deliverableLinks.set(d.id, principal.orgKind === "firm" ? `/engagements/${d.engagementId}` : "/");
+      deliverableLinks.set(d.id, principal.orgKind === "firm" ? `/engagements/${d.engagementId}` : "/deliverables");
     }
   }
 

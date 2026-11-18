@@ -3280,8 +3280,8 @@
     "receivedOnField": "Received on",
     "round": "Hand-over {n}",
     "history": "Earlier hand-overs ({n})",
-    "cardTitle": "Files handed over to your company",
-    "cardHint": "Download each deliverable, then confirm you received it or write a comment for the firm. Confirming receipt never means you accept the work.",
+    "cardTitle": "Files waiting for your confirmation of receipt",
+    "cardHint": "The firm handed these over to your company. Download them, then confirm you received them, or write a comment. Confirming receipt never means you accept the work.",
     "summary": "Deliverables: {list}",
     "summaryItem": "{status} {n}",
     "text": {
@@ -3307,7 +3307,11 @@
       "person": "{name} ({as, select, acceptor {acceptor} admin {client admin} sponsor {sponsor} other {}})",
       "nobody": "Nobody at the client can open every file picked, so nobody will be asked. Check who can open them before you hand over.",
       "skipped": "Not asked, as they cannot open every file picked: {names} (acceptor)."
-    }
+    },
+    "seeAll": "All files handed over to your company",
+    "pageTitle": "Files handed over to your company",
+    "pageHint": "What the firm handed over and you answer for: the ones still waiting first, then the others with their earlier hand-overs.",
+    "pageEmpty": "Nothing has been handed over to you yet."
   },
   "clientRoles": {
     "title": "Client roles",

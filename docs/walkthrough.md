@@ -170,7 +170,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 
 ### 5.6 The other client roles at Al-Nukhba
 - **sponsor@nukhba.test**: unblock *ترشيح الأعضاء المستقلين للجنة* once the general assembly agrees, and answer a recommendation. He chairs steering and sits in all three departments, so he opens both steering meetings with their whole agenda.
-- **manager@nukhba.test**: sees the charter and committee work, not Finance's or Legal's. On *عرض المسودة* she answers Omar in the discussion (no new files while it waits for review). Ask the client assistant the client questions in section 7. She is the project's acceptor, so she was told of both hand-overs: her home page shows **ملفات سلّمها المكتب لشركتكم** with the two deliverables; download the matrix, then **تأكيد الاستلام** (receipt only, never acceptance) or **ملاحظة** (a comment the lead and deputy receive, on their notifications and Today).
+- **manager@nukhba.test**: sees the charter and committee work, not Finance's or Legal's. On *عرض المسودة* she answers Omar in the discussion (no new files while it waits for review). Ask the client assistant the client questions in section 7. She is the project's acceptor, so she was told of both hand-overs. Her home page shows **ملفات تنتظر تأكيدك استلامها** with only the one still waiting, the matrix, and a link to **كل الملفات التي سلّمها المكتب لشركتكم** (/deliverables) with both; download the matrix, then **تأكيد الاستلام** (receipt only, never acceptance) or **ملاحظة** (a comment the lead and deputy receive, on their notifications and Today).
 - **owner@nukhba.test**: **My actions (إجراءاتي)** shows only his three. On *إعداد لائحة عمل اللجنة*, read the reason, upload a new file and send it for review again. Start *نشر الميثاق المعتمد على موقع الشركة*. There is no assistant for action owners. **Help (المساعدة)**: first steps, "ask your consultant", and the problem form.
 - **finance@nukhba.test**: *تحديث مصفوفة الصلاحيات ورفعها للمجلس* shows an evidence list (one item answered, one open) and the date that already moved.
 
@@ -220,7 +220,7 @@ Copy an address in one window and paste it in the other. "Not found" is the expe
 | manager@nukhba.test | The plan, under the finding answered by *تحديث مصفوفة تفويض الصلاحيات* | "تعالجها توصية في إدارة أخرى" (answered in another department), not "no recommendation yet", and no title |
 | manager@nukhba.test | Departments (الإدارات) | Every department with its people; only her own (أمانة مجلس الإدارة) is a link |
 | owner@nukhba.test, finance@nukhba.test, manager@rawdah.test | A deliverable handed over to Reem (`/api/deliverables/:id`, the id from the engagement page in the admin's window) | Not found, and no card on their home: only the project's acceptor, the client's admin and its sponsor answer for it (Reem was asked, being the acceptor), and only someone who opens every file reads it. admin@nukhba.test and sponsor@nukhba.test see the same card on their home and could confirm too |
-| manager@nukhba.test | The engagement page *اتفاقية خدمات استشارات الحوكمة ٢٠٢٦* | Not found: she reads the deliverables she receives on her home page, not the engagement itself (only the client admin reads that) |
+| manager@nukhba.test | The engagement page *اتفاقية خدمات استشارات الحوكمة ٢٠٢٦* | Not found: she reads the deliverables she receives on her home page and on /deliverables, not the engagement itself (only the client admin reads that) |
 | manager@nukhba.test | A shared status pack (once the firm issues and shares one) | The numbers are whole. Each list shows only her department's items and says how many more were left out; an indicator names only the linked recommendations she can open |
 
 ## 7. Assistant demo questions
@@ -266,7 +266,7 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Pitch for a prospect (draft client) | Any consultant starts; admin converts | العملاء → بدء عرض; Madar Technology |
 | Clients, client team, lead and deputy, join requests | Admin (lead names project staff) | العملاء → a client |
 | Signed engagements; drafts become visible to the client when covered | Admin | Client page → التعاقدات الموقعة |
-| Deliverables handed over, receipt or comment (receipt is never acceptance) | Lead, deputy, staffed consultant hand over; the client's acceptor (else admin, else sponsor) confirms; the firm records it for a firm-run client | Engagement page → المخرجات; the receiver's home page |
+| Deliverables handed over, receipt or comment (receipt is never acceptance) | Lead, deputy, staffed consultant hand over; the client's acceptor (else admin, else sponsor) confirms; the firm records it for a firm-run client | Engagement page → المخرجات; the receiver's home page (what waits) and /deliverables (all of them) |
 | Engagement mode (full, restricted, firm-run) and departments | Admin | Client page; /clients/:id/departments |
 | Client groups and roll-up | Admin; named client people | العملاء → مجموعات العملاء; client: مجموعتنا |
 | Projects (client and internal), phases, team, client roles (sponsor, coordinator...) | Firm | المشاريع; project → الفريق |

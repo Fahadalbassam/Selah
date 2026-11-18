@@ -283,10 +283,18 @@ export async function listDeliverables(
     .map((d) => view(principal, d, rounds.get(d.id) ?? []));
 }
 
-/** The deliverables a client person answers for: on their home, with the card to confirm receipt or comment. */
-export async function deliverablesToAnswer(tx: Tx, principal: Principal): Promise<DeliverableView[]> {
+/** Every deliverable handed over that a client person answers for (the deliverables page, /deliverables). */
+export async function deliverablesHandedOver(tx: Tx, principal: Principal): Promise<DeliverableView[]> {
   if (principal.orgKind !== "client" || !["client_admin", "client_manager"].includes(principal.role)) return [];
   return listDeliverables(tx, principal, { clientOrgId: principal.orgId, handedOverOnly: true });
+}
+
+/**
+ * Only the rounds waiting for this client person's answer: their home card,
+ * whose one main action is Confirm receipt (review S6). Nothing when none wait.
+ */
+export async function deliverablesToAnswer(tx: Tx, principal: Principal): Promise<DeliverableView[]> {
+  return (await deliverablesHandedOver(tx, principal)).filter((d) => d.can.confirm);
 }
 
 /** One deliverable as the reader sees it. */

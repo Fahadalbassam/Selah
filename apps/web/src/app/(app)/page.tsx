@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ActionsTable } from "@/components/actions-table";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -45,7 +46,7 @@ function firstName(v: { name: string; nameAlt: string | null }, locale: string) 
 // Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
 // real records instead of sample data.
 export default async function OverviewPage() {
-  const { stats, firm, overview, indicators, viewer, isNew, dataSetup, handedOver } = await withPrincipal(async (tx, principal) => ({
+  const { stats, firm, overview, indicators, viewer, isNew, dataSetup, toAnswer } = await withPrincipal(async (tx, principal) => ({
     stats: await dashboard(tx, principal),
     firm: principal.orgKind === "firm",
     viewer: await getViewer(tx, principal),
@@ -63,8 +64,8 @@ export default async function OverviewPage() {
         : null,
     // A client's admin who has not yet said how its figures reach Selah sees a short, skippable setup step.
     dataSetup: principal.role === "client_admin" ? await dataSetupStep(tx, principal, principal.orgId) : null,
-    // Deliverables the firm handed over that this person answers for (F21): the acceptor, else the admin, else the sponsor.
-    handedOver: await deliverablesToAnswer(tx, principal),
+    // Only the deliverables waiting for this person's answer (F21; review S6): the acceptor, else the admin, else the sponsor.
+    toAnswer: await deliverablesToAnswer(tx, principal),
   }));
   const [t, tW, tD, tDl, locale] = await Promise.all([
     getTranslations("dashboard"),
@@ -73,8 +74,6 @@ export default async function OverviewPage() {
     getTranslations("deliverables"),
     getLocale(),
   ]);
-  // What still waits for this person's answer comes first.
-  const toAnswer = [...handedOver].sort((a, b) => Number(b.can.confirm) - Number(a.can.confirm));
   const side = firm ? "firm" : "client";
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
 
@@ -138,8 +137,11 @@ export default async function OverviewPage() {
             <CardTitle className="text-base">{tDl("cardTitle")}</CardTitle>
             <CardDescription>{tDl("cardHint")}</CardDescription>
           </CardHeader>
-          <CardContent className="px-5">
+          <CardContent className="space-y-3 px-5">
             <DeliverableList deliverables={toAnswer} firmRun={false} showProject />
+            <Link href="/deliverables" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+              {tDl("seeAll")}
+            </Link>
           </CardContent>
         </Card>
       ) : null}
