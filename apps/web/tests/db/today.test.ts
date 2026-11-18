@@ -1,4 +1,4 @@
-// The firm's "Today" page against a real Postgres: each person sees only
+// The firm's lists of the home page (once the "Today" page) against a real Postgres: each person sees only
 // work from the clients and projects they are staffed on, nobody is asked to
 // review their own work, the decisions go to whoever may take them, and
 // client users get no page at all.
@@ -179,8 +179,9 @@ describe("the Today page", () => {
     expect(t.reviews.map((r) => r.id)).toEqual([A.review]);
     expect(t.followUps.map((f) => [f.title, f.overdue, f.href])).toEqual([["Send the minutes", true, `/projects/${P.one}`]]);
     expect(t.meetings.map((m) => [m.title, m.organizer, m.href])).toEqual([["Weekly status", false, expect.stringMatching(/^\/meetings\//)]]);
-    // Not Acme's lead: no due-date list for the client, no join or deadline decisions.
-    expect(t.due).toEqual([]);
+    // Staffed on phase 1: its late work is his to follow too (page audit 4.2); phase 2 is not his.
+    expect(t.due.map((d) => d.id)).toEqual([A.overdue]);
+    // Not Acme's lead: no join or deadline decisions.
     expect(t.decisions.map((d) => d.kind)).toEqual(["info_request"]);
     expect(t.decisions[0]?.href).toBe(`/projects/${P.one}?tab=requests`);
   });

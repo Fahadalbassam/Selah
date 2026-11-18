@@ -78,23 +78,161 @@
     "client": "Client",
     "pitch": "Pitch"
   },
-  "dashboard": {
-    "title": "Overview",
-    "inProgress": "In progress",
-    "inProgressHint": "Client-claimed progress, not verified",
-    "blocked": "Blocked",
-    "blockedHint": "Their owners said what is in the way",
-    "awaitingReview": "Awaiting review",
-    "awaitingReviewHint": "Submitted evidence waiting for a consultant",
-    "verified": "Verified complete",
-    "verifiedHint": "Reviewed and accepted by a consultant",
-    "overdue": "Overdue",
-    "attentionFirm": "Needs your attention",
-    "attentionClient": "Needs your follow-up",
-    "empty": "Nothing needs your attention right now.",
-    "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact.",
-    "inProgressHintClient": "Under way, not yet checked by your consultant",
-    "claimNoteClient": "An action counts as done once your consultant has checked it."
+  "home": {
+    "title": "Home",
+    "nothingWaits": "Nothing waits for you right now.",
+    "showAll": "Show all ({n})",
+    "internal": "Internal projects",
+    "steps": {
+      "open": "Open",
+      "review": "Review",
+      "decide": "Decide",
+      "answer": "Answer",
+      "reply": "Reply",
+      "sendFile": "Send a file",
+      "look": "Look at the file",
+      "read": "Read",
+      "close": "Close for good",
+      "enterValue": "Enter the value",
+      "start": "Start work",
+      "sendForReview": "Send for review",
+      "resend": "Send the revised file for review",
+      "resume": "Resume work",
+      "choose": "Choose",
+      "readAndDecide": "Read and decide"
+    },
+    "firm": {
+      "description": "What waits for you across your clients and projects, then the action counts.",
+      "followedNote": "Reviews and late work here come from the clients and projects you follow or work on. Decisions only you can take come from every client.",
+      "reviews": {
+        "title": "Waiting for your review",
+        "description": "Submitted work on your projects that you may review. Work you own, submitted or gave the first sign-off on goes to a colleague.",
+        "since": "Waiting since {date}"
+      },
+      "due": {
+        "title": "Late or due this week",
+        "description": "Overdue or due within {days} days on the clients and projects you lead or are staffed on, and your own actions."
+      },
+      "followUps": {
+        "title": "Your follow-ups",
+        "description": "Open follow-ups assigned to you, overdue first.",
+        "noDate": "No date"
+      },
+      "meetings": {
+        "title": "Your meetings this week",
+        "description": "Today and the next {days} days, meetings you organise or attend.",
+        "today": "Today",
+        "organizer": "You organise",
+        "noAgenda": "No agenda"
+      },
+      "decisions": {
+        "title": "Waiting on your decision",
+        "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
+        "joinTitle": "{who} asks to join",
+        "proposed": "{who} proposes {date}",
+        "askedBy": "{who} asked on {date}",
+        "commentedBy": "{who} on {date}",
+        "disputedSince": "The client disagreed on {date}",
+        "closingSince": "Every closing step is done; closing started {date}",
+        "kinds": {
+          "join_request": "Join request",
+          "deadline_request": "Deadline change",
+          "closure_request": "Closure request",
+          "info_request": "Request item answered",
+          "deliverable_comment": "Comment on a deliverable",
+          "disputed": "Recommendation in dispute",
+          "ready_to_close": "Ready for the final close"
+        }
+      },
+      "problems": {
+        "handled": "Handled messages ({n})"
+      },
+      "inquiries": {
+        "title": "New inquiries",
+        "description": "Inquiries that arrived and are not sorted yet.",
+        "unread": "{n, plural, one {# new} other {# new}}",
+        "received": "Received {date}"
+      },
+      "visits": {
+        "title": "Since your last visit",
+        "description": "Actions that moved since you last opened each of your projects.",
+        "changed": "{count, plural, one {# action changed} other {# actions changed}}",
+        "changedWeek": "{count, plural, one {# action changed this week} other {# actions changed this week}}"
+      },
+      "counters": {
+        "label": "Across every action you can open",
+        "late": "Late",
+        "awaitingReview": "Awaiting review",
+        "reviewWaiting": "Reviews waiting over {days} days",
+        "blocked": "Blocked",
+        "open": "Show {label} in the Actions list"
+      }
+    },
+    "mine": {
+      "documents": {
+        "title": "Documents asked of you",
+        "description": "The firm asked you for these by name, and they are not sent yet."
+      },
+      "replies": {
+        "title": "Meetings waiting for your reply"
+      },
+      "nextMeeting": {
+        "title": "Your next meeting"
+      },
+      "followUps": {
+        "title": "Your follow-ups",
+        "description": "What you took on in meetings, overdue first."
+      },
+      "due": "Due {date}",
+      "late": "Late: it was due {date}",
+      "noDate": "No due date",
+      "dateAsked": "New date asked, waiting for an answer: {date}",
+      "today": "Today"
+    },
+    "client": {
+      "description": "What waits for you first, then how your company's work is going.",
+      "answers": {
+        "title": "Recommendations waiting for your company's answer",
+        "description": "Say whether your company agrees with each one, and what it will do."
+      },
+      "sentBack": {
+        "title": "Files sent back to you",
+        "description": "Your consultant asked for a change: send the revised file."
+      },
+      "late": {
+        "title": "Your actions that are late or stopped"
+      },
+      "dates": {
+        "title": "Answers to the dates you proposed",
+        "description": "What your consultant answered in the last {days} days.",
+        "agreed": "Your consultant agreed to the new date, {date}",
+        "notAgreed": "Your consultant did not agree to {date}"
+      },
+      "indicators": {
+        "title": "Indicators waiting for a value",
+        "due": "This period's value is due",
+        "missing": "This period's value is late"
+      },
+      "choices": {
+        "title": "Waiting for your choice",
+        "assistant": "Your consultants' firm offered your company the assistant",
+        "dataSharing": "How should your business figures reach Selah?"
+      }
+    },
+    "owner": {
+      "description": "Your actions, and what is asked of you.",
+      "empty": "You have no actions yet.",
+      "waiting": {
+        "title": "Waiting for you"
+      },
+      "withConsultant": {
+        "title": "With your consultant",
+        "description": "You sent these for review; your consultant is looking at them."
+      },
+      "finished": {
+        "title": "Finished ({n})"
+      }
+    }
   },
   "table": {
     "action": "Action",
@@ -241,73 +379,121 @@
   "actionsPage": {
     "title": "Actions",
     "mine": "Actions assigned to you",
-    "all": "All actions you can see",
-    "empty": "No actions."
-  },
-  "reviewPage": {
-    "title": "Review queue",
-    "subtitle": "Evidence waiting for the firm's decision, the longest wait first",
-    "empty": "Nothing is waiting for review.",
-    "count": "{n, plural, one {1 waiting} other {# waiting}}, {mine, plural, =0 {none yours to check} one {1 yours to check} other {# yours to check}}",
-    "waiting": "Waiting",
-    "stage": "Review",
-    "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
-    "oneReview": "One review",
-    "firstOfTwo": "First of two",
-    "secondOfTwo": "Second of two",
-    "signedBy": "Signed off by {name}",
-    "youSigned": "You signed off",
-    "notYours": "Yours or submitted by you"
-  },
-  "todayPage": {
-    "title": "Today",
-    "subtitle": "What needs you across your clients and projects",
-    "empty": "Nothing needs you today",
-    "emptyHint": "Reviews, due dates, follow-ups, meetings and requests waiting on you will show here.",
-    "internal": "Internal projects",
-    "reviews": {
-      "title": "Waiting for your review",
-      "description": "Submitted work on your projects. Work you own or submitted goes to a colleague.",
-      "since": "Waiting since {date}"
-    },
-    "due": {
-      "title": "Due this week",
-      "description": "Overdue or due within {days} days on the clients and projects you lead, and your own actions."
-    },
-    "followUps": {
-      "title": "Your follow-ups",
-      "description": "Open follow-ups assigned to you, overdue first.",
-      "noDate": "No date"
-    },
-    "meetings": {
-      "title": "Meetings this week",
-      "description": "Today and the next {days} days, meetings you organise or attend.",
-      "today": "Today",
-      "organizer": "You organise",
-      "agenda": "Agenda ready",
-      "noAgenda": "No agenda"
-    },
-    "decisions": {
-      "title": "Waiting on your decision",
-      "description": "Requests on your clients and projects that wait for a decision. Any consultant on the project decides a date change; moving a date later a third time needs the client's lead consultant, the internal project's lead or a firm admin.",
-      "joinTitle": "{who} asks to join",
-      "proposed": "{who} proposes {date}",
-      "askedBy": "{who} asked on {date}",
-      "kinds": {
-        "join_request": "Join request",
-        "deadline_request": "Deadline change",
-        "closure_request": "Closure request",
-        "info_request": "Request item answered",
-        "deliverable_comment": "Comment on a deliverable"
+    "empty": "No actions for you yet.",
+    "emptyFiltered": "Nothing for you in this list right now.",
+    "filtersLabel": "Action lists",
+    "filters": {
+      "all": {
+        "name": "All",
+        "hint": "Every action you can see."
       },
-      "commentedBy": "{who} on {date}"
+      "mine": {
+        "name": "Assigned to me",
+        "hint": "The actions you own."
+      },
+      "awaiting-review": {
+        "name": "Awaiting review",
+        "hint": "Evidence waiting for the firm's decision, the longest wait first.",
+        "nameClient": "Waiting for the firm",
+        "hintClient": "Evidence sent and waiting for the firm's review, the longest wait first."
+      },
+      "late": {
+        "name": "Late",
+        "hint": "Open and past its current due date."
+      },
+      "blocked": {
+        "name": "Blocked",
+        "hint": "Work has stopped, waiting on something outside the owner's hands."
+      },
+      "no-activity": {
+        "name": "No activity",
+        "hint": "No change, progress note or evidence for longer than the firm's stale period."
+      },
+      "date-moved": {
+        "name": "Date moved twice or more",
+        "hint": "The due date moved later two or more times since release."
+      },
+      "sent-back": {
+        "name": "Sent back twice or more",
+        "hint": "Two or more revision requests."
+      },
+      "no-owner": {
+        "name": "No active owner",
+        "hint": "The owner is no longer an active member of the client."
+      }
     },
-    "visits": {
-      "title": "Since your last visit",
-      "description": "Actions that moved since you last opened each of your projects.",
-      "changed": "{count, plural, one {# action changed} other {# actions changed}}",
-      "changedWeek": "{count, plural, one {# action changed this week} other {# actions changed this week}}"
+    "waiting": {
+      "label": "How long it has waited",
+      "any": "All waiting",
+      "long": "More than {days} days"
+    },
+    "facets": {
+      "label": "Narrow the list",
+      "client": "Client",
+      "allClients": "All clients",
+      "project": "Project",
+      "allProjects": "All projects",
+      "owner": "Owner",
+      "allOwners": "Everyone",
+      "department": "Department",
+      "allDepartments": "All departments",
+      "clear": "Clear"
+    },
+    "columns": {
+      "waiting": "Waiting",
+      "stage": "Review",
+      "why": "Why"
+    },
+    "reasons": {
+      "late": "{n, plural, one {# day late} other {# days late}}",
+      "blocked": "Blocked",
+      "stale": "No change for {n, plural, one {# day} other {# days}}",
+      "slipped": "Date moved {n, plural, one {once} other {# times}}",
+      "churn": "Sent back {n, plural, one {once} other {# times}}",
+      "orphaned": "The owner has left"
+    },
+    "review": {
+      "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
+      "oneReview": "One review",
+      "firstOfTwo": "First of two",
+      "secondOfTwo": "Second of two",
+      "signedBy": "Signed off by {name}",
+      "youSigned": "You signed off",
+      "notYours": "Yours or submitted by you"
+    },
+    "remind": {
+      "menu": "Remind the owner",
+      "sent": "Reminder sent to {name}",
+      "today": "Reminded today",
+      "last": "Last reminded {date}",
+      "errors": {
+        "already": "The owner was already reminded today.",
+        "noOwner": "This action has no active owner to remind.",
+        "settled": "Only open actions can be chased.",
+        "cannot": "The reminder couldn't be sent."
+      }
     }
+  },
+  "projectsTable": {
+    "viewLabel": "View",
+    "cards": "Cards",
+    "table": "Table",
+    "hint": "Counts from the work itself, never a judgement of the project or of anyone. Each number opens its list on Actions.",
+    "project": "Project",
+    "open": "Open",
+    "late": "Late",
+    "blocked": "Blocked",
+    "oldestReview": "Oldest review waiting",
+    "lead": "Lead",
+    "clientActive": "Client last active",
+    "days": "{n, plural, =0 {Today} one {1 day} other {# days}}",
+    "internal": "Internal project",
+    "recordedByFirm": "Recorded by the firm",
+    "never": "Not yet",
+    "closed": "Closed",
+    "lateOf": "Late actions in {project}",
+    "blockedOf": "Blocked actions in {project}",
+    "reviewsOf": "Reviews waiting in {project}"
   },
   "assistant": {
     "title": "Assistant",
@@ -4602,83 +4788,6 @@
     "noActionsClient": "No actions for you yet.",
     "actionsLeftOut": "{n, plural, one {# more action is not shown to you} other {# more actions are not shown to you}}"
   },
-  "oversight": {
-    "title": "Oversight",
-    "subtitle": "Every open project you can see, with the work that needs chasing. For the firm only.",
-    "signals": {
-      "off_track": "Off track",
-      "watch": "Watch",
-      "on_track": "On track",
-      "no_data": "No work yet"
-    },
-    "summary": {
-      "projects": "of {n, plural, one {# open project} other {# open projects}}",
-      "overdue": "Overdue actions",
-      "overdueHint": "Open past their current due date",
-      "reviews": "Reviews waiting",
-      "reviewsHint": "Longer than {days} days"
-    },
-    "reasons": {
-      "overdue": "{n} of {open} overdue",
-      "lateLong": "{n, plural, one {# action} other {# actions}} over {days} days late",
-      "blocked": "{n} blocked",
-      "extendedTwice": "{n} moved twice or more",
-      "reviewWaiting": "{n, plural, one {# review} other {# reviews}} waiting",
-      "orphaned": "{n} without an active owner",
-      "stale": "{n} with no change",
-      "disputed": "{n, plural, one {# recommendation} other {# recommendations}} disputed"
-    },
-    "health": {
-      "title": "Engagement health",
-      "hint": "Off track when a quarter or more of the open actions are overdue, or one is over {days} days past its original date. Watch when anything else needs attention. Counted from the work, never a judgement of a person.",
-      "none": "No open projects to show.",
-      "project": "Project",
-      "signal": "Signal",
-      "open": "Open",
-      "overdue": "Overdue",
-      "blocked": "Blocked",
-      "oldestReview": "Oldest review",
-      "lead": "Lead",
-      "clientActive": "Client last active",
-      "days": "{n, plural, one {# day} other {# days}}",
-      "internal": "Internal project",
-      "recordedByFirm": "Recorded by the firm",
-      "never": "Not yet",
-      "today": "Today",
-      "week": "Week of {date}: {signal}",
-      "weeks": "Signal over the last {n} weeks"
-    },
-    "rules": {
-      "blocked": {
-        "name": "Blocked",
-        "hint": "The owner marked the action blocked.",
-        "detail": "Waiting on something outside the owner"
-      },
-      "review_waiting": {
-        "name": "Review waiting",
-        "hint": "Evidence has waited for a consultant's review longer than {days} days.",
-        "detail": "Waiting {n, plural, one {# day} other {# days}} for review"
-      }
-    },
-    "exceptions": {
-      "title": "Exceptions",
-      "hint": "What breaks a fixed rule across your open projects, most pressing first.",
-      "none": "Nothing breaks a rule across your open projects right now.",
-      "all": "All"
-    },
-    "remind": {
-      "button": "Remind owner",
-      "sent": "Reminder sent to {name}",
-      "today": "Reminded today",
-      "last": "Last reminded {date}",
-      "errors": {
-        "already": "The owner was already reminded today.",
-        "noOwner": "This action has no active owner to remind.",
-        "settled": "Only open actions can be chased.",
-        "cannot": "The reminder couldn't be sent."
-      }
-    }
-  },
   "statusPack": {
     "title": "Status pack, {month}",
     "draft": "Draft",
@@ -4903,8 +5012,8 @@
       ],
       "consultant": [
         {
-          "title": "See what needs you today",
-          "hint": "Reviews, overdue work and requests across your clients."
+          "title": "All your actions",
+          "hint": "Every action on your projects, in one list."
         },
         {
           "title": "Open your projects",

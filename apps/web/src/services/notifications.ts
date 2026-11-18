@@ -215,11 +215,11 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
 function hrefFor(kind: string, entityType: string, entityId: string) {
   if (kind === "access_review.due") return "/team";
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=requests`;
-  // A drafted status pack waits on the project's progress tab; a quiet client shows on the oversight page.
+  // A drafted status pack waits on the project's progress tab; a quiet client shows in the Projects table ("Client last active").
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
-  if (kind === "project.client_quiet") return "/oversight";
-  // Reported problems: the firm admin reads them below the notifications, the reporter on the help page.
-  if (kind === "support.requested") return "/notifications#support";
+  if (kind === "project.client_quiet") return "/projects?view=table";
+  // Reported problems: the firm admin reads them on the home (page audit 4.2), the reporter on the help page.
+  if (kind === "support.requested") return "/#problems";
   if (kind === "support.handled") return "/help";
   // The client assistant (F39): the client's admin reads the notice; the firm sees the client page's card.
   if (kind === "client_ai.offered") return "/assistant";

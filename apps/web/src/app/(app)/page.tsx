@@ -1,36 +1,21 @@
-import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ActionsTable } from "@/components/actions-table";
-import { AnimatedNumber } from "@/components/animated-number";
-import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
-import { Clock } from "@/components/animate-ui/icons/clock";
-import { Hourglass } from "@/components/animate-ui/icons/hourglass";
-import { LoaderCircle } from "@/components/animate-ui/icons/loader-circle";
-import { TriangleAlert } from "@/components/animate-ui/icons/triangle-alert";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ClientHomeLists } from "@/components/home/client-home";
+import { FirmHomeLists } from "@/components/home/firm-home";
+import { OwnerHomeLists } from "@/components/home/owner-home";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { DeliverableList } from "@/components/deliverables/deliverable-list";
-import { deliverablesToAnswer } from "@/services/deliverables";
-import { cn } from "@/lib/utils";
-import { withPrincipal } from "@/server/page";
-import { dashboard, getViewer, isOverdue } from "@/services/queries";
-import { isNewcomer } from "@/services/consent";
 import { Welcome } from "@/components/welcome";
 import type { Role } from "@/authz";
-import { SectionHeader } from "@/components/section-header";
-import { ClientProgress } from "@/components/client-progress";
-import { clientOverview } from "@/services/client-overview";
-import { IndicatorsCard } from "@/components/indicators/indicators-card";
-import { listIndicators } from "@/services/indicators";
-import { dataSetupStep } from "@/services/indicator-data";
-import { DataSetupCard } from "@/components/indicators/data-mode-picker";
+import { openSection } from "@/lib/home";
+import { withPrincipal } from "@/server/page";
+import { isNewcomer } from "@/services/consent";
+import { home } from "@/services/home";
+import { getViewer } from "@/services/queries";
 
 const WELCOME_DAYS = 14;
 // Where each role's three welcome steps lead, in the order of messages welcome.steps.<role>.
 const WELCOME_LINKS: Record<Role, [string, string, string]> = {
   firm_admin: ["/clients", "/team", "/settings"],
-  consultant: ["/today", "/projects", "/review"],
+  consultant: ["/actions", "/projects", "/actions?filter=awaiting-review"],
   client_admin: ["/projects", "/team", "/help"],
   client_manager: ["/actions", "/projects", "/help"],
   action_owner: ["/actions", "/actions", "/help"],
@@ -43,51 +28,28 @@ function firstName(v: { name: string; nameAlt: string | null }, locale: string) 
   return name.split(" ")[0] ?? name;
 }
 
-// Layout from shadcn/ui block dashboard-01 (section cards + table), fed by
-// real records instead of sample data.
-export default async function OverviewPage() {
-  const { stats, firm, overview, indicators, viewer, isNew, dataSetup, toAnswer } = await withPrincipal(async (tx, principal) => ({
-    stats: await dashboard(tx, principal),
-    firm: principal.orgKind === "firm",
+/**
+ * The home, one per role (page audit 4.2; decision D2: Today became the
+ * home, and /today sends here): what waits for the reader first, each row
+ * with its next step, then how the work is going.
+ */
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ all?: string | string[] }> }) {
+  const open = openSection((await searchParams).all);
+  const { page, viewer, isNew } = await withPrincipal(async (tx, principal) => ({
+    page: await home(tx, principal),
     viewer: await getViewer(tx, principal),
     // New people (two weeks from their first sign-in) get a short welcome with three places to start.
     isNew: await isNewcomer(tx, principal, WELCOME_DAYS),
-    // The client's admins and managers see their work across projects (F30).
-    overview:
-      principal.role === "client_admin" || principal.role === "client_manager"
-        ? await clientOverview(tx, principal, principal.orgId).catch(() => null)
-        : null,
-    // Beside it, the business indicators they report (KPI layer B).
-    indicators:
-      principal.role === "client_admin" || principal.role === "client_manager"
-        ? await listIndicators(tx, principal, principal.orgId, { includeInactive: true }).catch(() => null)
-        : null,
-    // A client's admin who has not yet said how its figures reach Selah sees a short, skippable setup step.
-    dataSetup: principal.role === "client_admin" ? await dataSetupStep(tx, principal, principal.orgId) : null,
-    // Only the deliverables waiting for this person's answer (F21; review S6): the acceptor, else the admin, else the sponsor.
-    toAnswer: await deliverablesToAnswer(tx, principal),
   }));
-  const [t, tW, tD, tDl, locale] = await Promise.all([
-    getTranslations("dashboard"),
-    getTranslations("welcome"),
-    getTranslations("indicatorData"),
-    getTranslations("deliverables"),
-    getLocale(),
-  ]);
-  const side = firm ? "firm" : "client";
+  const [t, tW, locale] = await Promise.all([getTranslations("home"), getTranslations("welcome"), getLocale()]);
+  const side = viewer.orgKind === "firm" ? "firm" : "client";
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
-
-  const cards = [
-    // A client reads about its own work, never about "the client" (page audit 4.7).
-    { label: t("inProgress"), hint: t(firm ? "inProgressHint" : "inProgressHintClient"), value: stats.inProgress, icon: LoaderCircle },
-    { label: t("awaitingReview"), hint: t("awaitingReviewHint"), value: stats.awaitingReview, icon: Hourglass },
-    { label: t("blocked"), hint: t("blockedHint"), value: stats.blocked, icon: TriangleAlert, tone: "text-destructive" },
-    { label: t("verified"), hint: t("verifiedHint"), value: stats.verified, icon: CircleCheck, tone: "text-success" },
-  ];
+  const description =
+    page.kind === "firm" ? t(page.data.admin ? "firm.followedNote" : "firm.description") : page.kind === "owner" ? t("owner.description") : t("client.description");
 
   return (
     <>
-      <PageHeader title={t("title")} />
+      <PageHeader title={t("title")} description={description} />
       {isNew ? (
         <Welcome
           greeting={tW("greeting", { name: firstName(viewer, locale) })}
@@ -99,60 +61,13 @@ export default async function OverviewPage() {
           dir={locale === "ar" ? "rtl" : "ltr"}
         />
       ) : null}
-      {dataSetup ? (
-        <DataSetupCard title={tD("setup.title")} hint={tD("setup.hint")} clientId={dataSetup.clientId} proposal={dataSetup.proposal} />
-      ) : null}
-      <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {cards.map((c) => (
-          <Card key={c.label} className="group gap-3 bg-surface py-5 text-surface-foreground shadow-xs">
-            <CardHeader className="px-5">
-              <CardDescription className="flex items-center gap-2">
-                <c.icon animateOnView animateOnHover className={cn("size-4", c.tone)} />
-                {c.label}
-              </CardDescription>
-              <CardTitle className="text-3xl font-semibold">
-                <AnimatedNumber value={c.value} />
-              </CardTitle>
-            </CardHeader>
-            <CardFooter className="px-5 text-xs text-muted-foreground">{c.hint}</CardFooter>
-          </Card>
-        ))}
-      </div>
-      {/* Full-strength text: at /90 on the tinted background it was 4.36:1, under AA. */}
-      {stats.overdue > 0 ? (
-        <Alert
-          variant="destructive"
-          className="animate-page-in border-destructive/30 bg-destructive/5 *:data-[slot=alert-description]:text-destructive"
-        >
-          <Clock animateOnView />
-          <AlertDescription>
-            <span>
-              {t("overdue")}: <span className="font-semibold tabular-nums">{stats.overdue}</span>
-            </span>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {toAnswer.length ? (
-        <Card className="gap-4 py-5 shadow-xs">
-          <CardHeader className="px-5">
-            <CardTitle className="text-base">{tDl("cardTitle")}</CardTitle>
-            <CardDescription>{tDl("cardHint")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 px-5">
-            <DeliverableList deliverables={toAnswer} firmRun={false} showProject />
-            <Link href="/deliverables" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-              {tDl("seeAll")}
-            </Link>
-          </CardContent>
-        </Card>
-      ) : null}
-      {overview && overview.projects.length ? <ClientProgress data={overview} tiles={false} /> : null}
-      {indicators && (indicators.indicators.length || indicators.canManage) ? <IndicatorsCard data={indicators} /> : null}
-      <section className="space-y-3">
-        <SectionHeader title={firm ? t("attentionFirm") : t("attentionClient")} />
-        <ActionsTable rows={stats.attention.map((r) => ({ ...r, overdue: isOverdue(r) }))} empty={t("empty")} />
-      </section>
-      <p className="text-xs leading-relaxed text-muted-foreground">{t(firm ? "claimNote" : "claimNoteClient")}</p>
+      {page.kind === "firm" ? (
+        <FirmHomeLists data={page.data} open={open} />
+      ) : page.kind === "owner" ? (
+        <OwnerHomeLists data={page.data} open={open} />
+      ) : (
+        <ClientHomeLists data={page.data} open={open} />
+      )}
     </>
   );
 }

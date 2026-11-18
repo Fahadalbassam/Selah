@@ -32,7 +32,8 @@ describe("the firm admin's sidebar", () => {
   it("points Home at / and keeps Actions marked on the review and oversight pages", () => {
     const nav = sidebarFor("firm_admin", none);
     expect(row(nav, "home")).toMatchObject({ href: "/" });
-    expect(row(nav, "actions")).toMatchObject({ href: "/actions", match: ["/review", "/oversight"] });
+    // The filtered addresses (/actions?filter=…) share the path, so the row stays marked on them.
+    expect(row(nav, "actions")).toEqual({ key: "actions", href: "/actions" });
     expect(row(nav, "assistant")).toMatchObject({ card: true });
     // Today has no row of its own: it lives inside Home.
     expect(rows(nav)).not.toContain("today");
@@ -87,7 +88,8 @@ describe("the client admin's sidebar", () => {
     expect(row(sidebarFor("client_admin", { assistant: "card" }), "assistant")).toMatchObject({ card: true });
   });
 
-  it("shows Our group only when the firm granted it", () => {
+  it("shows Our group only when the firm granted it, pointing at the home's group section", () => {
+    expect(row(sidebarFor("client_admin", { inGroup: true }), "group")).toMatchObject({ href: "/#group" });
     expect(groups(sidebarFor("client_admin", { inGroup: true }))).toEqual([
       ["workspace", ["home", "projects", "actions"]],
       ["company", ["people", "group", "audit"]],
@@ -212,6 +214,8 @@ describe("where the removed rows live", () => {
   it("client groups are a view on Clients: the old address redirects there, and no page of its own is left", async () => {
     const redirects = (await config.redirects?.()) ?? [];
     expect(redirects).toContainEqual({ source: "/clients/groups", destination: "/clients?view=groups", permanent: true });
+    // The other moved addresses stay sent on too.
+    for (const source of ["/review", "/oversight", "/today", "/group", "/privacy"]) expect(redirects.map((r) => r.source)).toContain(source);
     expect(existsSync("src/app/(app)/clients/groups/page.tsx")).toBe(false);
     // One group's page stays, and leads back to the view.
     const group = readFileSync("src/app/(app)/clients/groups/[id]/page.tsx", "utf8");
@@ -228,6 +232,8 @@ describe("where the removed rows live", () => {
   it("Projects carries the kind filter that the three sub-entries were", () => {
     const page = readFileSync("src/app/(app)/projects/page.tsx", "utf8");
     for (const href of ['"/projects"', '"/projects?kind=client"', '"/projects?kind=internal"']) expect(page).toContain(href);
+    // The filter keeps the firm's table view.
+    for (const href of ['"/projects?view=table"', '"/projects?view=table&kind=client"', '"/projects?view=table&kind=internal"']) expect(page).toContain(href);
   });
 
   it("Expertise is a tab on Team", () => {

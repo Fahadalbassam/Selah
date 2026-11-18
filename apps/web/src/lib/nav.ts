@@ -68,8 +68,8 @@ export function sidebarFor(role: Role, facts: NavFacts): NavSection[] {
           home,
           projects,
           { key: "clients", href: "/clients" },
-          // The review queue and oversight are reached from Actions until they become its filters.
-          { key: "actions", href: "/actions", match: ["/review", "/oversight"] },
+          // One list with filters (/actions?filter=…): the row is marked on every filtered address, as they share its path.
+          { key: "actions", href: "/actions" },
           ...(admin || facts.inquiryAssigned ? [{ key: "inquiries" as const, href: "/inquiries" }] : []),
           { key: "assistant", href: "/assistant", card: true },
         ],
@@ -103,7 +103,8 @@ export function sidebarFor(role: Role, facts: NavFacts): NavSection[] {
       rows: [
         // The company's people; departments and the structure are its tabs (read-only for managers).
         { key: "people", href: "/team", match: ["/departments"] },
-        ...(facts.inGroup ? [{ key: "group" as const, href: "/group" }] : []),
+        // The group's roll-up is a section of the home (October item 8); /group redirects there.
+        ...(facts.inGroup ? [{ key: "group" as const, href: "/#group" }] : []),
         ...(admin ? [audit] : []),
       ],
     },

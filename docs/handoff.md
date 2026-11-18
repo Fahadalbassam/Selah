@@ -67,7 +67,7 @@ Each client is in one of three modes (`docs/engagement.md`):
 4. **The client works.** The owner moves the action to In Progress, can mark it Blocked with a reason, asks for a new date, comments in the action's thread, and submits evidence (files, scanned for viruses) against the evidence list the consultant asked for.
 5. **The firm reviews.** A consultant verifies the work or asks for a revision with a reason. Nobody reviews work they own or submitted evidence for. Some work needs a **second sign-off** from a different consultant (by client rule or per action).
 6. **Follow-up.** Reminders and a four-level escalation ladder chase overdue work; meetings get an automatic agenda; the client can sign a **risk acceptance**; actions are closed with an outcome.
-7. **Reporting.** Live project metrics, monthly status packs, frozen reports shared with the client, PDF and Excel exports, firm-wide oversight with an on-track / watch / off-track signal.
+7. **Reporting.** Live project metrics, monthly status packs, frozen reports shared with the client, PDF and Excel exports, firm-wide oversight as filters on the Actions list and a Projects table of counts (no health word, D5).
 8. **Closing.** A project closes through a gate: every open item is disposed of, the client names who sustains each, lessons are recorded, and the project becomes read-only. A closing survey and case-study consent are optional.
 
 ### Action states
@@ -131,7 +131,7 @@ Grouped by area; the PR numbers are in `docs/progress-checklist.md`.
 
 **Clients and staffing**
 - Clients, client overview page and client-wide report, lead and deputy, consultant join requests, observers, watching a client or project.
-- Three engagement modes, minimal records, optional departments, client groups with a holding view (`/group`).
+- Three engagement modes, minimal records, optional departments, client groups with a holding view (a section of the holding's people's home).
 - Internal projects (the firm's own work, never visible to clients).
 - Team page with workload and team load (reviews waiting, second sign-offs, overdue work per consultant; no scores or rankings).
 - Typeable people pickers.
@@ -143,7 +143,7 @@ Grouped by area; the PR numbers are in `docs/progress-checklist.md`.
 - Deadline change requests, slip history and aging buckets, risk acceptances, closing with outcomes.
 - Reminders and four-level escalation, quiet-client alerts, daily digest mail, mail choices that respect the Saudi week.
 - Plan trace (assessment → finding → recommendation → action → evidence) and "since your last visit".
-- **Today** page for firm staff: reviews waiting, due this week, follow-ups, meetings, decisions waiting.
+- **The home, one per role** (`/`; `/today` redirects there): for firm staff the decisions, reviews, late work, follow-ups, meetings and changes waiting for them, then a line of counts that open the Actions filters; for a client admin or manager what waits for them, then the company's progress and indicators; for an action owner their own actions in three groups.
 
 **Assessments**
 - Template builder with versions and authors, a starter template, assessments per client project, a visible 1-3 weight, gaps confirmed as findings by a consultant, follow-up table, comparison and reassessment, frozen assessment report (`docs/assessments.md`). Scores are firm-only. Never "compliant" or "non-compliant".
@@ -161,7 +161,7 @@ Grouped by area; the PR numbers are in `docs/progress-checklist.md`.
 - **Team metrics** for the firm admin: reviews done, review time, waiting and overdue work. No per-consultant scores.
 - **Client business indicators** (KPI layer B): the client's own measures (company or department), baseline, target, values over time with corrections kept, firm-entered values marked, a one-time check against the client's source, links to recommendations as stated intent (never cause), due and missing periods, reminders. Labelled "client-reported, not verified impact".
 - **Indicator data in three modes**, chosen by the client admin (`docs/indicator-data.md`): typed in (default), Excel/CSV upload with matching and review, or connected (a published Google Sheet read daily, or the client's own system sending figures with a private key). No per-vendor connectors.
-- Engagement health on the oversight page (counts, never a weighted score), eight weeks of history, monthly status packs, frozen and shared reports, closure report PDF.
+- Engagement health as counts on the Projects table and the Actions filters (D5: no health word), weekly history kept by the job, monthly status packs, frozen and shared reports, closure report PDF.
 
 **Import and export** (`docs/import-export.md`)
 - Import a plan from Excel or Word with column matching and row review; nothing is created until confirmed, and the file is not stored.
