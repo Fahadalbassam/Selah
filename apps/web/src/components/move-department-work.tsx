@@ -3,7 +3,7 @@
 import { ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 
 interface Counts {
   recommendations: number;
@@ -37,30 +38,43 @@ export function MoveDepartmentWork({
   name,
   active,
   targets,
+  control,
 }: {
   department: string;
   name: string;
   active: boolean;
   targets: { id: string; name: string }[];
+  /** Opened from the department card's menu rather than its own button. */
+  control?: DialogControl;
 }) {
   const t = useTranslations("engagement.departments.move");
   const tc = useTranslations("common");
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(control);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [to, setTo] = useState(targets[0]?.id ?? "");
   const [switchOff, setSwitchOff] = useState(active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onOpenChange(next: boolean) {
-    setOpen(next);
-    setError(null);
-    if (!next) return;
+  // Each time it opens, count what would move first (closing clears the last count).
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void callApi(`/api/departments/${department}/move`, "GET").then((r) => {
+      if (!live) return;
+      if (r.ok) setCounts(r.data as Counts);
+      else setError(r.error);
+    });
+    return () => {
+      live = false;
+    };
+  }, [open, department]);
+
+  function close() {
+    setOpen(false);
     setCounts(null);
-    const r = await callApi(`/api/departments/${department}/move`, "GET");
-    if (r.ok) setCounts(r.data as Counts);
-    else setError(r.error);
+    setError(null);
   }
 
   async function submit(e: FormEvent) {
@@ -70,20 +84,22 @@ export function MoveDepartmentWork({
     const r = await callApi(`/api/departments/${department}/move`, "POST", { to, switchOff });
     setBusy(false);
     if (!r.ok) return setError(r.error);
-    setOpen(false);
+    close();
     toast.success(t("done", { ...(r.data as Counts) }));
     router.refresh();
   }
 
   const nothing = counts !== null && counts.recommendations + counts.actions === 0;
   return (
-    <Dialog open={open} onOpenChange={(o) => void onOpenChange(o)}>
-      <DialogTrigger asChild>
-        <Button size="icon" variant="ghost" className="size-7" aria-label={t("open")} title={t("open")}>
-          <ArrowRightLeft />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
+      {control ? null : (
+        <DialogTrigger asChild>
+          <Button size="icon" variant="ghost" className="size-7" aria-label={t("open")} title={t("open")}>
+            <ArrowRightLeft />
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("title", { name })}</DialogTitle>
@@ -133,7 +149,7 @@ export function MoveDepartmentWork({
             </p>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={close}>
               {tc("cancel")}
             </Button>
             <Button type="submit" disabled={busy || counts === null || !to || (nothing && !switchOff)}>

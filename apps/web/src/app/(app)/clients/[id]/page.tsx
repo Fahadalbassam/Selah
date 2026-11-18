@@ -47,6 +47,7 @@ import { getClientReviewRule } from "@/services/second-review";
 import { SecondReviewRuleCard } from "./second-review-card";
 import { hasStructure } from "@/services/org-chart";
 import { ClientTabs } from "./client-tabs";
+import { ClientTeamMenu, ContactMenu } from "@/components/client-team-row";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -340,7 +341,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 data.candidates.length ? (
                   <FormDialog
                     trigger={
-                      <Button size="sm">
+                      <Button size="sm" variant="outline">
                         <UserPlus />
                         {t("addConsultant")}
                       </Button>
@@ -388,32 +389,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       {m.email} · {t("since", { date: format.dateTime(m.since, { dateStyle: "medium" }) })}
                     </p>
                   </div>
-                  {can.setLead && !m.isLead ? (
-                    <ApiButton endpoint={`/api/clients/${client.id}/lead`} method="PUT" body={{ userId: m.userId }} label={t("makeLead")} variant="ghost" />
-                  ) : null}
-                  {can.setDeputy && !m.isLead ? (
-                    m.isDeputy ? (
-                      <ApiButton endpoint={`/api/clients/${client.id}/deputy`} method="DELETE" label={t("removeDeputy")} variant="ghost" confirm={t("removeDeputyConfirm")} />
-                    ) : (
-                      <ApiButton
-                        endpoint={`/api/clients/${client.id}/deputy`}
-                        method="PUT"
-                        body={{ userId: m.userId }}
-                        label={t("makeDeputy")}
-                        variant="ghost"
-                        confirm={t("makeDeputyConfirm")}
-                      />
-                    )
-                  ) : null}
-                  {can.manage && (!m.isLead || can.setLead) && (!m.isDeputy || can.setDeputy) ? (
-                    <ApiButton
-                      endpoint={`/api/clients/${client.id}/consultants/${m.userId}`}
-                      method="DELETE"
-                      label={t("remove")}
-                      variant="ghost"
-                      confirm={t("removeConfirm")}
-                    />
-                  ) : null}
+                  <ClientTeamMenu
+                    clientId={client.id}
+                    member={{ userId: m.userId, name: m.name, isLead: m.isLead, isDeputy: m.isDeputy }}
+                    can={{ manage: can.manage, setLead: can.setLead, setDeputy: can.setDeputy }}
+                  />
                 </div>
               ))}
             </CardContent>
@@ -470,31 +450,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           )}
                         </p>
                       </div>
-                      {open && data.editContacts ? (
-                        <>
-                          <FormDialog
-                            trigger={
-                              <Button size="sm" variant="ghost">
-                                <Pencil />
-                                {tCt("edit")}
-                              </Button>
-                            }
-                            title={tCt("editTitle")}
-                            endpoint={`/api/contacts/${c.id}`}
-                            method="PATCH"
-                            sendEmptyAsNull
-                            fields={contactFields(c)}
-                            submitLabel={tq("save")}
-                          />
-                          <ApiButton
-                            endpoint={`/api/contacts/${c.id}`}
-                            method="DELETE"
-                            label={tCt("remove")}
-                            variant="ghost"
-                            confirm={tCt("removeConfirm", { name: c.name })}
-                          />
-                        </>
-                      ) : null}
+                      <ContactMenu contact={{ id: c.id, name: c.name }} fields={contactFields(c)} canEdit={open && data.editContacts} />
                     </div>
                   ))}
                 </CardContent>

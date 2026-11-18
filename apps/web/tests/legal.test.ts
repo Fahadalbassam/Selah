@@ -102,13 +102,15 @@ describe("the sub-processor list", () => {
 
 describe("page addresses inside the legal texts", () => {
   it("are picked out as links, with the sentence around them untouched", () => {
-    expect(splitPageAddresses("Listed at /legal/sub-processors. See /privacy.")).toEqual([
+    expect(splitPageAddresses("Listed at /legal/sub-processors. See /legal/inquiry-privacy.")).toEqual([
       { text: "Listed at " },
       { text: "/legal/sub-processors", href: "/legal/sub-processors" },
       { text: ". See " },
-      { text: "/privacy", href: "/privacy" },
+      { text: "/legal/inquiry-privacy", href: "/legal/inquiry-privacy" },
       { text: "." },
     ]);
+    // The inquiry notice's old address, still named by the accepted privacy notice, goes to its new place.
+    expect(splitPageAddresses("See /privacy.")).toEqual([{ text: "See " }, { text: "/privacy", href: "/legal/inquiry-privacy" }, { text: "." }]);
     expect(splitPageAddresses("مذكورة في /legal/sub-processors.")).toEqual([
       { text: "مذكورة في " },
       { text: "/legal/sub-processors", href: "/legal/sub-processors" },
@@ -132,7 +134,7 @@ describe("page addresses inside the legal texts", () => {
     for (const s of strings) expect(splitPageAddresses(s).map((p) => p.text).join("")).toBe(s);
     // Every address the texts name today becomes a link.
     const linked = strings.flatMap((s) => splitPageAddresses(s).filter((p) => p.href).map((p) => p.href));
-    expect(new Set(linked)).toEqual(new Set(["/privacy", "/legal/sub-processors"]));
+    expect(new Set(linked)).toEqual(new Set(["/legal/inquiry-privacy", "/legal/sub-processors"]));
     expect(linked.length).toBe(8);
   });
 });

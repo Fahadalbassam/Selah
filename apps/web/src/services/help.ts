@@ -2,17 +2,20 @@ import "server-only";
 import { desc, eq, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { organizations, supportRequests, user } from "@/db/schema";
-import { assertAllowed, authorize, OPEN_STATUSES, type Principal, type Resource } from "@/authz";
+import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import { ConflictError, NotFoundError, RateLimitError } from "@/server/errors";
 import { audit, auditDetached } from "./audit";
-import { isOverdue, listActions, listProjects } from "./queries";
+import { listProjects } from "./queries";
 
-// Help for client people (F13, migration 0058_help). Two doors: a question
-// about the work goes in the action's thread, a technical problem goes to
-// the firm's admins. The database decides who the consultants are
-// (app_my_consultants) and holds the support rules (app_report_problem,
+// Help for client people (F13, migration 0058_help; trimmed in batch 1, page
+// audit U17). Three things: the person's consultants (a question about the
+// work goes in the action's thread, anything else to their work address), a
+// message to the firm's management (its admins: a problem with Selah, or a
+// concern the client would rather not raise with the consultant), and the
+// common questions. The database decides who the consultants are
+// (app_my_consultants) and holds the message rules (app_report_problem,
 // app_handle_support_request, RLS on support_requests); these calls check
-// the same permissions first and keep the audit trail. Report text is never
+// the same permissions first and keep the audit trail. The text is never
 // put in the audit meta.
 
 const helpOf = (p: Principal): Resource => ({ type: "organization", orgId: p.orgId, projectId: null });
@@ -42,7 +45,11 @@ interface Consultant {
   isDeputy: boolean;
 }
 
-/** The help page: the person's consultants, their open actions and their own reports. Client people only. */
+/**
+ * The help page: the person's consultants, the firm's name as its own record
+ * gives it (read under the same rule as every page: a client reads the firm
+ * of a project it can open), and the person's own messages. Client people only.
+ */
 export async function getHelp(tx: Tx, principal: Principal) {
   if (principal.orgKind !== "client" || !authorize(principal, "help.read", helpOf(principal)).allowed) throw new NotFoundError("help");
 
@@ -58,13 +65,12 @@ export async function getHelp(tx: Tx, principal: Principal) {
     .filter((p) => p.kind === "client")
     .map((p) => ({ id: p.id, title: p.title, state: p.state, consultants: rows.filter((r) => r.project_id === p.id).map(person) }));
 
-  const [org] = await tx
-    .select({ engagementMode: organizations.engagementMode })
+  const [firm] = await tx
+    .select({ name: organizations.name, nameAr: organizations.nameAr })
     .from(organizations)
-    .where(eq(organizations.id, principal.orgId))
+    .where(eq(organizations.kind, "firm"))
     .limit(1);
 
-  const open = await listActions(tx, principal, { mineOnly: true, status: [...OPEN_STATUSES], limit: 5 });
   const mine = await tx
     .select({ id: supportRequests.id, body: supportRequests.body, createdAt: supportRequests.createdAt, handledAt: supportRequests.handledAt })
     .from(supportRequests)
@@ -77,9 +83,8 @@ export async function getHelp(tx: Tx, principal: Principal) {
     lead: lead ? person(lead) : null,
     deputy: deputy ? person(deputy) : null,
     projects,
-    engagementMode: org?.engagementMode ?? "full",
+    firm: firm ?? null,
     readOnly: principal.readOnly === true,
-    openActions: open.map((a) => ({ ...a, overdue: isOverdue(a) })),
     reports: mine,
     can: { report: authorize(principal, "support_request.create", report).allowed },
   };
@@ -94,7 +99,7 @@ export async function askMentionFor(tx: Tx, principal: Principal) {
   return rows.map((r) => r.user_id);
 }
 
-/** A client person reports a technical problem; the firm's admins are told. */
+/** A client person writes to the firm's management (a problem with Selah, or a concern); the firm's admins are told. */
 export async function reportProblem(tx: Tx, principal: Principal, input: { body: string }) {
   if (principal.orgKind !== "client") throw new NotFoundError("help");
   assertAllowed(principal, "support_request.create", { type: "support_request", orgId: principal.orgId, projectId: null, createdBy: principal.userId });
