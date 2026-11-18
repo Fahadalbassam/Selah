@@ -143,6 +143,22 @@ describe("the picker, opened", () => {
     expect(picker("en", { mode: "only", people: nobodyLocked, selected: ["omar"] })).not.toContain(en.audience.errors.onlyEmpty);
   });
 
+  it("speaks to the reader about her own company's admin on the company's own item, and names the firm admin as the app does", () => {
+    const own = people.filter((p) => p.side === "client");
+    // On the client's own item the reader is at the client: "your company's admin", never "the client's".
+    expect(picker("ar", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).toContain("مدير حساب شركتك");
+    expect(picker("en", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).toContain("Your company&#x27;s admin");
+    expect(picker("ar", { defaultOpen: true, owner: "client", mode: "only", people: own, selected: ["admin"] })).not.toContain("مدير حساب العميل");
+    // The firm admin is "مدير المكتب", as everywhere else in the app.
+    const firmAdmin: AudiencePerson = { id: "fa", name: { ar: "فهد", en: "Fahd" }, side: "firm", locked: "firmAdmin" };
+    expect(picker("ar", { defaultOpen: true, mode: "only", people: [...people, firmAdmin], selected: ["fa"] })).toContain("مدير المكتب");
+  });
+
+  it("names the audit entries in the past tense, like their neighbours", () => {
+    expect([en.audit.actions.document_audience, en.audit.actions.meeting_audience]).toEqual(["Changed who sees a file", "Changed who sees a meeting"]);
+    expect([ar.audit.actions.document_audience, ar.audit.actions.meeting_audience]).toEqual(["غيّر من يرى ملفًا", "غيّر من يرى اجتماعًا"]);
+  });
+
   it("tells the client admin, on the company's own item, that the firm's team still sees it", () => {
     expect(picker("en", { defaultOpen: true, owner: "client" })).toContain("team on this work still sees it. To keep a file from the firm, make it private to your company.");
     expect(picker("ar", { defaultOpen: true, owner: "client", kind: "meeting" })).toContain("يبقى فريق المكتب على هذا العمل ممن يرونه.");
