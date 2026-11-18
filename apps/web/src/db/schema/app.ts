@@ -1943,7 +1943,7 @@ export const engagementDeliverables = pgTable(
 );
 
 // A deliverable handed over to the client, one row per round (F21, minimal;
-// migration 0091_deliverable_receipts). The firm hands over the exact file
+// migration 0092_deliverable_receipts). The firm hands over the exact file
 // versions (documents ids, kept as they were: a later version is a new round);
 // the client's receiver confirms receipt or comments, once per round. For a
 // client the firm runs, the consultant records who at the client received it,

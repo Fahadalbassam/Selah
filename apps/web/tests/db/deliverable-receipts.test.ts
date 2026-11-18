@@ -1,6 +1,6 @@
 // A deliverable handed over, and the client confirms receipt (F21 in its
 // minimal form; the gate A follow-ups of 17 Nov 2026, 4a; migration
-// 0091_deliverable_receipts) against a real Postgres. Another client never
+// 0092_deliverable_receipts) against a real Postgres. Another client never
 // reaches it; only the client's acceptor, admin or sponsor answers, asked in
 // that order; the firm records a receipt only for a client it runs; a receipt
 // keeps the exact versions; the reminder goes once after ten Saudi working

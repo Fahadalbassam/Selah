@@ -29,7 +29,13 @@ export interface EngagementSummary {
   displayAlias: string | null;
   departmentCount: number;
   canChangeMode: boolean;
-  fit: { activeAccounts: number; nonAdminAccounts: number; restrictedMaxAdmins: number; hasContactsOrFiles: boolean } | null;
+  fit: {
+    activeAccounts: number;
+    nonAdminAccounts: number;
+    restrictedMaxAdmins: number;
+    hasContactsOrFiles: boolean;
+    hasStructureNames: boolean;
+  } | null;
 }
 
 /** How the client takes part, on the client page. The firm admin changes it here. */
@@ -41,6 +47,8 @@ export function EngagementCard({ data }: { data: EngagementSummary }) {
   const [modeOpen, setModeOpen] = useState(false);
   const [minimalOpen, setMinimalOpen] = useState(false);
   const mode = data.engagementMode ?? "full";
+  // Why minimal records cannot be switched on yet; the database checks again on save.
+  const minimalBlocker = data.fit?.hasContactsOrFiles ? t("minimal.blocked") : data.fit?.hasStructureNames ? t("minimal.blockedStructure") : null;
 
   async function minimalOff() {
     if (!(await confirm(t("minimal.offConfirm")))) return;
@@ -87,13 +95,13 @@ export function EngagementCard({ data }: { data: EngagementSummary }) {
                   {t("minimal.switchOff")}
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" onClick={() => setMinimalOpen(true)} disabled={data.fit?.hasContactsOrFiles}>
+                <Button size="sm" variant="outline" onClick={() => setMinimalOpen(true)} disabled={!!minimalBlocker}>
                   {t("minimal.switchOn")}
                 </Button>
               )
             ) : null}
-            {data.canChangeMode && !data.minimalRecords && data.fit?.hasContactsOrFiles ? (
-              <p className="text-xs text-muted-foreground">{t("minimal.blocked")}</p>
+            {data.canChangeMode && !data.minimalRecords && minimalBlocker ? (
+              <p className="text-xs text-muted-foreground">{minimalBlocker}</p>
             ) : null}
           </div>
         ) : null}

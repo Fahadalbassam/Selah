@@ -10,7 +10,7 @@ import { fileControls, loadDocument, shareDocument } from "./documents";
 import { downloadable } from "./scan";
 
 // A deliverable handed over, and the client's receipt (F21, minimal;
-// migration 0091_deliverable_receipts). The firm hands over the exact file
+// migration 0092_deliverable_receipts). The firm hands over the exact file
 // versions; the client's acceptor (else its admin, else its sponsor) confirms
 // receipt or comments; for a client the firm runs, the consultant records the
 // receipt. Every round is kept. "Received" is receipt only, never acceptance.

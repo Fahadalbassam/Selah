@@ -1,5 +1,5 @@
 {
-  "id": "ff25a2a5-307a-4a75-a0a6-9a6eec485486",
+  "id": "67ee2f53-8e63-4b4e-bb5f-cf3dc0315c01",
   "prevId": "84abfbab-6e11-4783-af33-55b92abe3062",
   "version": "7",
   "dialect": "postgresql",
@@ -6301,249 +6301,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.deliverable_handovers": {
-      "name": "deliverable_handovers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "deliverable_id": {
-          "name": "deliverable_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "round": {
-          "name": "round",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version_ids": {
-          "name": "version_ids",
-          "type": "uuid[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivered_by": {
-          "name": "delivered_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "received_by": {
-          "name": "received_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "receipt_source": {
-          "name": "receipt_source",
-          "type": "record_source",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_by_name": {
-          "name": "received_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_via": {
-          "name": "received_via",
-          "type": "received_via",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_on": {
-          "name": "received_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comment": {
-          "name": "comment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commented_by": {
-          "name": "commented_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commented_at": {
-          "name": "commented_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reminded_at": {
-          "name": "reminded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "deliverable_handovers_round": {
-          "name": "deliverable_handovers_round",
-          "columns": [
-            {
-              "expression": "deliverable_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "round",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deliverable_handovers_org_idx": {
-          "name": "deliverable_handovers_org_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "deliverable_handovers_deliverable_id_engagement_deliverables_id_fk": {
-          "name": "deliverable_handovers_deliverable_id_engagement_deliverables_id_fk",
-          "tableFrom": "deliverable_handovers",
-          "tableTo": "engagement_deliverables",
-          "columnsFrom": [
-            "deliverable_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "deliverable_handovers_org_id_organizations_id_fk": {
-          "name": "deliverable_handovers_org_id_organizations_id_fk",
-          "tableFrom": "deliverable_handovers",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "deliverable_handovers_delivered_by_user_id_fk": {
-          "name": "deliverable_handovers_delivered_by_user_id_fk",
-          "tableFrom": "deliverable_handovers",
-          "tableTo": "user",
-          "columnsFrom": [
-            "delivered_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "deliverable_handovers_received_by_user_id_fk": {
-          "name": "deliverable_handovers_received_by_user_id_fk",
-          "tableFrom": "deliverable_handovers",
-          "tableTo": "user",
-          "columnsFrom": [
-            "received_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "deliverable_handovers_commented_by_user_id_fk": {
-          "name": "deliverable_handovers_commented_by_user_id_fk",
-          "tableFrom": "deliverable_handovers",
-          "tableTo": "user",
-          "columnsFrom": [
-            "commented_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "deliverable_handover_round": {
-          "name": "deliverable_handover_round",
-          "value": "\"deliverable_handovers\".\"round\" >= 1"
-        },
-        "deliverable_handover_versions": {
-          "name": "deliverable_handover_versions",
-          "value": "cardinality(\"deliverable_handovers\".\"version_ids\") BETWEEN 1 AND 20"
-        },
-        "deliverable_handover_receipt": {
-          "name": "deliverable_handover_receipt",
-          "value": "(\"deliverable_handovers\".\"received_at\" IS NULL AND \"deliverable_handovers\".\"received_by\" IS NULL AND \"deliverable_handovers\".\"receipt_source\" IS NULL AND \"deliverable_handovers\".\"received_by_name\" IS NULL AND \"deliverable_handovers\".\"received_via\" IS NULL AND \"deliverable_handovers\".\"received_on\" IS NULL)\n        OR (\"deliverable_handovers\".\"received_at\" IS NOT NULL AND \"deliverable_handovers\".\"received_by\" IS NOT NULL AND \"deliverable_handovers\".\"receipt_source\" = 'client_portal'\n            AND \"deliverable_handovers\".\"received_by_name\" IS NULL AND \"deliverable_handovers\".\"received_via\" IS NULL AND \"deliverable_handovers\".\"received_on\" IS NULL)\n        OR (\"deliverable_handovers\".\"received_at\" IS NOT NULL AND \"deliverable_handovers\".\"received_by\" IS NOT NULL AND \"deliverable_handovers\".\"receipt_source\" = 'consultant_recorded'\n            AND char_length(btrim(\"deliverable_handovers\".\"received_by_name\")) BETWEEN 2 AND 200 AND \"deliverable_handovers\".\"received_via\" IS NOT NULL AND \"deliverable_handovers\".\"received_on\" IS NOT NULL)"
-        },
-        "deliverable_handover_comment": {
-          "name": "deliverable_handover_comment",
-          "value": "(\"deliverable_handovers\".\"comment\" IS NULL AND \"deliverable_handovers\".\"commented_by\" IS NULL AND \"deliverable_handovers\".\"commented_at\" IS NULL)\n        OR (char_length(btrim(\"deliverable_handovers\".\"comment\")) BETWEEN 3 AND 2000 AND \"deliverable_handovers\".\"commented_by\" IS NOT NULL AND \"deliverable_handovers\".\"commented_at\" IS NOT NULL)"
-        },
-        "deliverable_handover_one_answer": {
-          "name": "deliverable_handover_one_answer",
-          "value": "\"deliverable_handovers\".\"received_at\" IS NULL OR \"deliverable_handovers\".\"commented_at\" IS NULL"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.department_members": {
@@ -16817,6 +16574,1282 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.org_chart_change_requests": {
+      "name": "org_chart_change_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chart_id": {
+          "name": "chart_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "what": {
+          "name": "what",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "where_text": {
+          "name": "where_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "why": {
+          "name": "why",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "org_chart_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "closed_by": {
+          "name": "closed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "org_chart_change_requests_chart_idx": {
+          "name": "org_chart_change_requests_chart_idx",
+          "columns": [
+            {
+              "expression": "chart_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "org_chart_change_requests_org_id_organizations_id_fk": {
+          "name": "org_chart_change_requests_org_id_organizations_id_fk",
+          "tableFrom": "org_chart_change_requests",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "org_chart_change_requests_created_by_user_id_fk": {
+          "name": "org_chart_change_requests_created_by_user_id_fk",
+          "tableFrom": "org_chart_change_requests",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_chart_change_requests_closed_by_user_id_fk": {
+          "name": "org_chart_change_requests_closed_by_user_id_fk",
+          "tableFrom": "org_chart_change_requests",
+          "tableTo": "user",
+          "columnsFrom": [
+            "closed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_chart_change_requests_chart_fk": {
+          "name": "org_chart_change_requests_chart_fk",
+          "tableFrom": "org_chart_change_requests",
+          "tableTo": "org_charts",
+          "columnsFrom": [
+            "chart_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "org_chart_request_what": {
+          "name": "org_chart_request_what",
+          "value": "char_length(btrim(\"org_chart_change_requests\".\"what\")) BETWEEN 3 AND 1000"
+        },
+        "org_chart_request_texts": {
+          "name": "org_chart_request_texts",
+          "value": "char_length(coalesce(\"org_chart_change_requests\".\"where_text\", '')) <= 300 AND char_length(coalesce(\"org_chart_change_requests\".\"why\", '')) <= 1000"
+        },
+        "org_chart_request_closed": {
+          "name": "org_chart_request_closed",
+          "value": "(\"org_chart_change_requests\".\"status\" = 'open') = (\"org_chart_change_requests\".\"closed_at\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.org_chart_versions": {
+      "name": "org_chart_versions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chart_id": {
+          "name": "chart_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "org_chart_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_on": {
+          "name": "effective_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_by": {
+          "name": "published_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolution_document_id": {
+          "name": "resolution_document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "show_names": {
+          "name": "show_names",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "published_snapshot": {
+          "name": "published_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "based_on_id": {
+          "name": "based_on_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "org_chart_versions_one_draft": {
+          "name": "org_chart_versions_one_draft",
+          "columns": [
+            {
+              "expression": "chart_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"org_chart_versions\".\"state\" = 'draft'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_chart_versions_one_current": {
+          "name": "org_chart_versions_one_current",
+          "columns": [
+            {
+              "expression": "chart_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"org_chart_versions\".\"state\" = 'published'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_chart_versions_number_uq": {
+          "name": "org_chart_versions_number_uq",
+          "columns": [
+            {
+              "expression": "chart_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "org_chart_versions_org_id_organizations_id_fk": {
+          "name": "org_chart_versions_org_id_organizations_id_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "org_chart_versions_published_by_user_id_fk": {
+          "name": "org_chart_versions_published_by_user_id_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "user",
+          "columnsFrom": [
+            "published_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_chart_versions_resolution_document_id_documents_id_fk": {
+          "name": "org_chart_versions_resolution_document_id_documents_id_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "resolution_document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "org_chart_versions_based_on_id_org_chart_versions_id_fk": {
+          "name": "org_chart_versions_based_on_id_org_chart_versions_id_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "org_chart_versions",
+          "columnsFrom": [
+            "based_on_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_chart_versions_created_by_user_id_fk": {
+          "name": "org_chart_versions_created_by_user_id_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_chart_versions_chart_fk": {
+          "name": "org_chart_versions_chart_fk",
+          "tableFrom": "org_chart_versions",
+          "tableTo": "org_charts",
+          "columnsFrom": [
+            "chart_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "org_chart_versions_id_org_uq": {
+          "name": "org_chart_versions_id_org_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "org_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "org_chart_version_published": {
+          "name": "org_chart_version_published",
+          "value": "(\"org_chart_versions\".\"state\" = 'draft') = (\"org_chart_versions\".\"number\" IS NULL) AND (\"org_chart_versions\".\"state\" = 'draft') = (\"org_chart_versions\".\"effective_on\" IS NULL)\n        AND (\"org_chart_versions\".\"state\" = 'draft') = (\"org_chart_versions\".\"published_at\" IS NULL) AND (\"org_chart_versions\".\"state\" = 'draft') = (\"org_chart_versions\".\"published_snapshot\" IS NULL)"
+        },
+        "org_chart_version_superseded": {
+          "name": "org_chart_version_superseded",
+          "value": "(\"org_chart_versions\".\"state\" = 'superseded') = (\"org_chart_versions\".\"superseded_at\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.org_charts": {
+      "name": "org_charts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "org_charts_org_id_organizations_id_fk": {
+          "name": "org_charts_org_id_organizations_id_fk",
+          "tableFrom": "org_charts",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "org_charts_created_by_user_id_fk": {
+          "name": "org_charts_created_by_user_id_fk",
+          "tableFrom": "org_charts",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "org_charts_org_id_unique": {
+          "name": "org_charts_org_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "org_id"
+          ]
+        },
+        "org_charts_id_org_uq": {
+          "name": "org_charts_id_org_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "org_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.org_units": {
+      "name": "org_units",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "org_unit_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level": {
+          "name": "level",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "advisory": {
+          "name": "advisory",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "org_units_code_uq": {
+          "name": "org_units_code_uq",
+          "columns": [
+            {
+              "expression": "version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_units_parent_idx": {
+          "name": "org_units_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_units_department_idx": {
+          "name": "org_units_department_idx",
+          "columns": [
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "org_units_org_id_organizations_id_fk": {
+          "name": "org_units_org_id_organizations_id_fk",
+          "tableFrom": "org_units",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "org_units_parent_id_org_units_id_fk": {
+          "name": "org_units_parent_id_org_units_id_fk",
+          "tableFrom": "org_units",
+          "tableTo": "org_units",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "org_units_version_fk": {
+          "name": "org_units_version_fk",
+          "tableFrom": "org_units",
+          "tableTo": "org_chart_versions",
+          "columnsFrom": [
+            "version_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "org_units_department_fk": {
+          "name": "org_units_department_fk",
+          "tableFrom": "org_units",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "org_unit_named": {
+          "name": "org_unit_named",
+          "value": "coalesce(\"org_units\".\"name_ar\", \"org_units\".\"name_en\") IS NOT NULL"
+        },
+        "org_unit_name_length": {
+          "name": "org_unit_name_length",
+          "value": "char_length(coalesce(\"org_units\".\"name_ar\", '')) <= 200 AND char_length(coalesce(\"org_units\".\"name_en\", '')) <= 200"
+        },
+        "org_unit_code": {
+          "name": "org_unit_code",
+          "value": "\"org_units\".\"code\" ~ '^[0-9A-Za-z][0-9A-Za-z.-]{0,39}$'"
+        },
+        "org_unit_level": {
+          "name": "org_unit_level",
+          "value": "\"org_units\".\"level\" BETWEEN 1 AND 12"
+        },
+        "org_unit_not_own_parent": {
+          "name": "org_unit_not_own_parent",
+          "value": "\"org_units\".\"parent_id\" IS DISTINCT FROM \"org_units\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.position_holders": {
+      "name": "position_holders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chart_id": {
+          "name": "chart_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_lineage_id": {
+          "name": "position_lineage_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "from_date": {
+          "name": "from_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_date": {
+          "name": "to_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ended_by": {
+          "name": "ended_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "position_holders_lineage_idx": {
+          "name": "position_holders_lineage_idx",
+          "columns": [
+            {
+              "expression": "position_lineage_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "position_holders_user_idx": {
+          "name": "position_holders_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "position_holders_chart_idx": {
+          "name": "position_holders_chart_idx",
+          "columns": [
+            {
+              "expression": "chart_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "position_holders_org_id_organizations_id_fk": {
+          "name": "position_holders_org_id_organizations_id_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "position_holders_position_lineage_id_positions_id_fk": {
+          "name": "position_holders_position_lineage_id_positions_id_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "positions",
+          "columnsFrom": [
+            "position_lineage_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "position_holders_user_id_user_id_fk": {
+          "name": "position_holders_user_id_user_id_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "position_holders_created_by_user_id_fk": {
+          "name": "position_holders_created_by_user_id_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "position_holders_ended_by_user_id_fk": {
+          "name": "position_holders_ended_by_user_id_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "user",
+          "columnsFrom": [
+            "ended_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "position_holders_chart_fk": {
+          "name": "position_holders_chart_fk",
+          "tableFrom": "position_holders",
+          "tableTo": "org_charts",
+          "columnsFrom": [
+            "chart_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "position_holder_who": {
+          "name": "position_holder_who",
+          "value": "num_nonnulls(\"position_holders\".\"user_id\", \"position_holders\".\"name\") = 1"
+        },
+        "position_holder_name": {
+          "name": "position_holder_name",
+          "value": "\"position_holders\".\"name\" IS NULL OR char_length(btrim(\"position_holders\".\"name\")) BETWEEN 2 AND 200"
+        },
+        "position_holder_dates": {
+          "name": "position_holder_dates",
+          "value": "\"position_holders\".\"to_date\" IS NULL OR \"position_holders\".\"to_date\" >= \"position_holders\".\"from_date\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.positions": {
+      "name": "positions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "name": "unit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lineage_id": {
+          "name": "lineage_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title_ar": {
+          "name": "title_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_en": {
+          "name": "title_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reports_to_id": {
+          "name": "reports_to_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_head": {
+          "name": "is_head",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "specialties": {
+          "name": "specialties",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "planned_count": {
+          "name": "planned_count",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "positions_code_uq": {
+          "name": "positions_code_uq",
+          "columns": [
+            {
+              "expression": "version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_lineage_uq": {
+          "name": "positions_lineage_uq",
+          "columns": [
+            {
+              "expression": "version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lineage_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_one_head": {
+          "name": "positions_one_head",
+          "columns": [
+            {
+              "expression": "unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"positions\".\"is_head\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_unit_idx": {
+          "name": "positions_unit_idx",
+          "columns": [
+            {
+              "expression": "unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_reports_to_idx": {
+          "name": "positions_reports_to_idx",
+          "columns": [
+            {
+              "expression": "reports_to_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_lineage_idx": {
+          "name": "positions_lineage_idx",
+          "columns": [
+            {
+              "expression": "lineage_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "positions_org_id_organizations_id_fk": {
+          "name": "positions_org_id_organizations_id_fk",
+          "tableFrom": "positions",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "positions_unit_id_org_units_id_fk": {
+          "name": "positions_unit_id_org_units_id_fk",
+          "tableFrom": "positions",
+          "tableTo": "org_units",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "positions_lineage_id_positions_id_fk": {
+          "name": "positions_lineage_id_positions_id_fk",
+          "tableFrom": "positions",
+          "tableTo": "positions",
+          "columnsFrom": [
+            "lineage_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "positions_reports_to_id_positions_id_fk": {
+          "name": "positions_reports_to_id_positions_id_fk",
+          "tableFrom": "positions",
+          "tableTo": "positions",
+          "columnsFrom": [
+            "reports_to_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "positions_version_fk": {
+          "name": "positions_version_fk",
+          "tableFrom": "positions",
+          "tableTo": "org_chart_versions",
+          "columnsFrom": [
+            "version_id",
+            "org_id"
+          ],
+          "columnsTo": [
+            "id",
+            "org_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "position_titled": {
+          "name": "position_titled",
+          "value": "coalesce(\"positions\".\"title_ar\", \"positions\".\"title_en\") IS NOT NULL"
+        },
+        "position_title_length": {
+          "name": "position_title_length",
+          "value": "char_length(coalesce(\"positions\".\"title_ar\", '')) <= 200 AND char_length(coalesce(\"positions\".\"title_en\", '')) <= 200"
+        },
+        "position_code": {
+          "name": "position_code",
+          "value": "\"positions\".\"code\" ~ '^[0-9A-Za-z][0-9A-Za-z.-]{0,39}$'"
+        },
+        "position_planned": {
+          "name": "position_planned",
+          "value": "\"positions\".\"planned_count\" BETWEEN 1 AND 999"
+        },
+        "position_specialties": {
+          "name": "position_specialties",
+          "value": "cardinality(\"positions\".\"specialties\") <= 30"
+        },
+        "position_not_own_manager": {
+          "name": "position_not_own_manager",
+          "value": "\"positions\".\"reports_to_id\" IS DISTINCT FROM \"positions\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -17554,6 +18587,38 @@
         "firm_private",
         "client_private",
         "user_private"
+      ]
+    },
+    "public.org_chart_request_status": {
+      "name": "org_chart_request_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "done",
+        "declined"
+      ]
+    },
+    "public.org_chart_state": {
+      "name": "org_chart_state",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "superseded"
+      ]
+    },
+    "public.org_unit_kind": {
+      "name": "org_unit_kind",
+      "schema": "public",
+      "values": [
+        "board",
+        "committee",
+        "executive",
+        "sector",
+        "department",
+        "section",
+        "unit",
+        "office"
       ]
     }
   },

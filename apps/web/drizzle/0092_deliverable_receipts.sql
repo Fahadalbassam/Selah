@@ -421,7 +421,7 @@ BEGIN
         WHEN x.entity_type = 'project' AND x.kind = 'report.pack_drafted' THEN app_cadence_due(c.reminders, today)
         -- an indicator whose latest value moved away (0090)
         WHEN x.entity_type = 'kpi_value' AND x.kind = 'indicator.moved_away' THEN app_cadence_due(c.reminders, today)
-        -- a deliverable handed over and still waiting after ten working days (F21, 0091)
+        -- a deliverable handed over and still waiting after ten working days (F21, 0092)
         WHEN x.entity_type = 'deliverable' AND x.kind = 'deliverable.reminder' THEN app_cadence_due(c.reminders, today)
         WHEN x.entity_type = 'action' AND x.kind = ANY (app_update_mail_kinds()) THEN c.updates <> 'instant' AND app_cadence_due(c.updates, today)
         ELSE false
@@ -467,6 +467,7 @@ BEGIN
 END $$;
 --> statement-breakpoint
 -- 9. The two new mails are work mail: they wait for the reader's sending hours.
+--    Both lists start from 0091_org_chart's (every org chart kind kept).
 ALTER TABLE outbound_emails DROP CONSTRAINT outbound_kind;
 --> statement-breakpoint
 ALTER TABLE outbound_emails ADD CONSTRAINT outbound_kind CHECK (kind IN (
@@ -475,12 +476,13 @@ ALTER TABLE outbound_emails ADD CONSTRAINT outbound_kind CHECK (kind IN (
   'inquiry.new', 'inquiry.received', 'inquiry.declined', 'action.assigned', 'action.revision_requested',
   'action.verified_complete', 'evidence.requested', 'action.commented', 'action.mentioned', 'follow_up.digest', 'client.archived',
   'pulse.requested', 'sign_in_link', 'info_request.upload_link', 'support.requested',
+  'org_chart.holder_changed', 'org_chart.change_requested',
   'deliverable.handed_over', 'deliverable.commented'));
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION app_work_mail_kinds() RETURNS text[]
 LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path = public, pg_temp AS $$
   SELECT app_update_mail_kinds() || ARRAY['follow_up.digest', 'access_review.due', 'inquiry.new', 'pulse.requested', 'support.requested',
-    'deliverable.handed_over', 'deliverable.commented']
+    'org_chart.holder_changed', 'org_chart.change_requested', 'deliverable.handed_over', 'deliverable.commented']
 $$;
 --> statement-breakpoint
 -- 10. A file handed over is relied on (latest: 0063): its uploader can no

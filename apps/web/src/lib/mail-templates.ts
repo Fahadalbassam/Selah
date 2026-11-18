@@ -30,6 +30,8 @@ export const MAIL_KINDS = [
   "support.requested",
   "deliverable.handed_over",
   "deliverable.commented",
+  "org_chart.holder_changed",
+  "org_chart.change_requested",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -377,6 +379,36 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
       subject: "The client commented on files handed over",
       lines: ["The client wrote a comment instead of confirming receipt of a deliverable you handed over.", "Read it in Selah; you can hand over a new version."],
       action: "Read the comment",
+      },
+    },
+  // The client's organisation structure (migration 0091): to the client's lead
+  // and deputy. Never the name of who joined or left, nor the text of a
+  // suggestion: they are read in Selah. At most one holder mail a day.
+  "org_chart.holder_changed": {
+    ar: {
+      subject: "تغيّر شاغلو مناصب في هيكل عميل",
+      lines: ["حدّث العميل أو أحد زملائك من يشغل منصبًا أو أكثر في الهيكل التنظيمي المعتمد لدى أحد عملائك.", "سجّل الدخول لترى التغيير."],
+      action: "فتح صفحة العميل",
+    },
+    en: {
+      subject: "People in a client's structure changed",
+      lines: ["The client or a colleague updated who holds one or more positions in a client's published organisation structure.", "Sign in to see the change."],
+      action: "Open the client page",
+    },
+  },
+  "org_chart.change_requested": {
+    ar: {
+      subject: "اقتراح تعديل على هيكل عميل",
+      lines: ["اقترح مسؤول لدى أحد عملائك تعديلًا على الهيكل التنظيمي للعميل.", "اقرأ الاقتراح في صلة، وأجرِ التعديل في المسودة إن وافقت عليه، ثم اعتمد نسخة جديدة."],
+      action: "قراءة الاقتراح",
+    },
+    en: {
+      subject: "A client suggested a change to its structure",
+      lines: [
+        "An admin at one of your clients suggested a change to its organisation structure.",
+        "Read the suggestion in Selah; if you agree, make the change in the draft and publish a new version.",
+      ],
+      action: "Read the suggestion",
     },
   },
 };

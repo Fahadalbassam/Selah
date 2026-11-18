@@ -24,7 +24,7 @@ project ─┬─ findings ── recommendations ── actions ─┬─ evide
 - **Health history** (F18, `project_health_weeks`). One row per open project and week (starting Sunday): signal, open, overdue and cautions, written by the daily job and updated until the week ends. Firm-only, read-only to the app.
 - **Deputy consultant** (F18, `client_assignments.is_deputy`). At most one per client, never the lead, named by the firm admin. A full backup for the lead: the same powers, and a copy of the lead's alerts. The lead stays the accountable name.
 - **Status packs** (F19, `reports` with kind `status_pack`). The monthly report drafted by the job for last month, one per project and month. While a draft (no `metrics`) it is firm-only and its numbers and lists are worked out live; issuing writes the note and freezes `metrics` and `pack` (the lists as JSON). Sharing is the report's own step and needs an issued pack. The app role cannot read `pack`; it reads an issued pack through `app_report_pack_for()`, which leaves out what the reader's departments may not see (migration 0074).
-- **Deliverables handed over** (F21, minimal; `deliverable_handovers`, migration 0091). One row per round of an engagement deliverable: `version_ids` (the exact documents handed over, never changed), `delivered_by` and `delivered_at`, then one answer: the client's receipt (`received_by`, `received_at`, `receipt_source = 'client_portal'`), the firm's record for a client it runs (`consultant_recorded`, with `received_by_name`, `received_via`, `received_on`), or a comment (`comment`, `commented_by`, `commented_at`); `reminded_at` marks the one reminder. `org_id` is the client, set by the database. Receipt is never acceptance. See docs/engagement.md.
+- **Deliverables handed over** (F21, minimal; `deliverable_handovers`, migration 0092). One row per round of an engagement deliverable: `version_ids` (the exact documents handed over, never changed), `delivered_by` and `delivered_at`, then one answer: the client's receipt (`received_by`, `received_at`, `receipt_source = 'client_portal'`), the firm's record for a client it runs (`consultant_recorded`, with `received_by_name`, `received_via`, `received_on`), or a comment (`comment`, `commented_by`, `commented_at`); `reminded_at` marks the one reminder. `org_id` is the client, set by the database. Receipt is never acceptance. See docs/engagement.md.
 - **Quiet clients** (F18). The daily job notifies the client's lead (`project.client_quiet`) when no one at a full or restricted client has acted on an active project with open work for 14 days; once per quiet spell, mailed with the person's reminders.
 - **Clients move their actions.** An action owner moves their own actions through the workflow; a client manager or admin may also change the owner. The trigger allows a client user to change only `status`, `owner_user_id` and `blocked_reason` (an allow-list, so new columns are the firm's by default).
 - **The owner** must be an active member of the project's org (the client, or the firm for internal projects) and staffed on the project, when named and again when a draft is released.
@@ -124,6 +124,38 @@ It also returns open and overdue counts. A periodic report (`POST /api/projects/
 | `POST /api/actions/:id/deadline-requests`; `PATCH /api/deadline-requests/:id` | ask: owner or client manager; decide: firm |
 | `GET /api/projects/:id/progress` | anyone on the project |
 | `POST /api/projects/:id/reports` | firm |
+
+## The client's organisation structure (org chart)
+
+Gate A follow-ups, 17 Nov 2026, feature B. Migration `0091_org_chart`, schema `src/db/schema/org-chart.ts`, constants `src/lib/org-chart.ts`, services `src/services/org-chart.ts`, tests `tests/db/org-chart.test.ts`. Like business indicators it belongs to the client, not to a project. It is a structure of **positions, not people**: a position outlives whoever sits in it. Selah records the structure the firm decides; it never designs, scores or judges one. **The chart never grants or limits access**: a unit linked to a department is a label, and departments stay the only rule for who sees work (authorization.md, "The client's organisation structure").
+
+```
+org_charts (one per client)
+  └─ org_chart_versions (state: draft · published · superseded)
+       ├─ org_units (tree: parent_id) ── positions (reports_to_id, lineage_id)
+       └─ published_snapshot (jsonb: the structure, no names)
+position_holders ── positions.lineage_id (the position across versions)
+org_chart_change_requests (the client admin's "suggest a change")
+```
+
+| Table | What it holds |
+|---|---|
+| `org_charts` | One per client (`org_id` unique). Started by the firm's editors (`app_start_org_chart()`), which also makes the first draft. |
+| `org_chart_versions` | The firm's **one draft**, the **one current published** version and the **history** (superseded, never deleted). A published version has its number (1, 2, 3...), the day it takes effect (`effective_on`), who published it and when, an optional board resolution (`resolution_document_id`, a shared file of the client), the client admin's `show_names` switch, and `published_snapshot`: the units and positions as published, without names, read by the client view, the PDF and the history. Written only by the database's functions; what was published never changes (`check_org_chart_version()`). |
+| `org_units` | A unit of a version: kind (board, committee, executive, sector, department, section, unit, office), code (`2.4`), names in Arabic and English, level, order, `advisory` (drawn with a dotted line beside its parent, such as internal audit beside the chief executive) and an optional `department_id` (a label only). Codes are unique within a version. |
+| `positions` | A position of a version: its unit, code (`2.4.1`), titles in Arabic and English, whom it reports to, whether it heads its unit (one head per unit), specialties (a list), planned number of people (1 to 999). `lineage_id` is the same position across versions: the id of its first row, copied into every later draft. Codes are unique within a version. |
+| `position_holders` | Who sits in a position, from `from_date` to `to_date`: an active person of the client (`user_id`) or a typed name, never both. A position with no current holder is vacant ("شاغر / Vacant"). A holding belongs to the position's lineage, so it carries over to every version that keeps the position. It only ends, once; the app never deletes one. None at a client with minimal records. |
+| `org_chart_change_requests` | "Suggest a change": what (required), where and why, from the client's admin; open until the firm marks it done or declined, once. |
+
+**Why published versions keep their rows and a snapshot.** The rows of a published version are frozen by the database (a unit or position changes only while its version is the draft), so holders, "your manager", vacancies and the manager's branch are plain queries on the current structure. The snapshot is the frozen copy the later screens and the PDF draw from, and it carries no names, so no reader can learn a name from it. Publishing turns the draft into the current version (number, effective day, snapshot), makes the previous one history, carries the names switch over (off for a first version), ends today any holding on a position the new version drops, and copies the new version into a fresh draft (`app_org_chart_copy()`), so the firm always has one draft to edit.
+
+**Why holders follow the position, not the version.** The client admin keeps the people current on the published structure while the firm may be reworking the draft. Tying holdings to the position's lineage means both see the same people, a new version keeps who holds what without copying or merging, and who held a position when stays one dated history across versions.
+
+**No cycles.** A unit never sits under itself or one of its own units, and a position never reports to itself through a chain: refused by the services (`moveUnit()`, `updatePosition()`) and by the triggers (`check_org_unit()`, `check_position()`), which also keep parents, units and reporting lines inside one version.
+
+**Names on the server only.** The client's managers never read `position_holders`; `app_org_chart_holders(version, day)` returns each position's holders and names a holder only where the reader may see the name (`app_org_chart_named_positions()`); the others arrive as filled, with no name, person, dates or id. `app_my_manager()` gives a client person the position theirs reports to and who holds it.
+
+**The assistant.** Typed holder names are in the project's list of names (`app_mask_names()`, read by `app_mask_terms()` and `app_mask_terms_in()`), so a hosted model never receives them raw: the assistant and translation mask with the names written in what they send (`app_mask_terms_in()`), whoever asks. The whole list (`app_mask_terms()`) gives a caller only the holder names she may read. The chart is not indexed yet; when it is (a later part), unit and position titles only, labelled `shared`, never names: a record source in `src/jobs/index-documents.ts` (`indexRecords()`) with its passages filtered in `scopeFilter()` in `src/services/assistant.ts`.
 
 ## Handover and deviations
 
