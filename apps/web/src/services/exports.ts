@@ -11,6 +11,8 @@ import { writeXlsx, type CellValue } from "@/lib/office/xlsx-write";
 import { IMPORT_FIELDS, type ImportField } from "@/lib/plan-import";
 import { renderClientReportHtml } from "@/lib/client-report-html";
 import { renderClosureHtml } from "@/lib/closure-html";
+import { dayText, filesText, receiptText } from "@/lib/deliverables";
+import { listDeliverables } from "./deliverables";
 import { indicatorTable } from "@/lib/indicator-html";
 import { indicatorSnapshot } from "./indicators";
 import { renderReportHtml } from "@/lib/report-html";
@@ -353,6 +355,15 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
   const t = await getTranslations({ locale });
   const ar = locale === "ar";
   const today = firmToday();
+  // The engagement's deliverables for this project (its own, and the ones not tied to a project), with
+  // their receipt (F21), read under the reader's rights: none for someone who may see none.
+  const deliverables =
+    project.kind === "client"
+      ? (await listDeliverables(tx, principal, { clientOrgId: project.orgId })).filter(
+          (d) => d.projectId === projectId || (d.projectId === null && d.engagementId === project.engagementId),
+        )
+      : [];
+  const td = (key: string, values?: Record<string, string | number>) => t(`deliverables.text.${key}` as "deliverables.text.file", values as never);
   const html = renderClosureHtml({
     locale,
     firmName: firmOrg ? localName(firmOrg, ar) : "",
@@ -377,6 +388,21 @@ export async function closurePdf(tx: Tx, principal: Principal, projectId: string
     })),
     // The client's business indicators as known on the closing day, beside the work (KPI layer B).
     indicators: project.kind === "client" ? await indicatorPdfTable(tx, t, locale, { clientOrgId: project.orgId, projectId }, closure.current.closedAt ? firmToday(new Date(closure.current.closedAt)) : today) : null,
+    // The status is the latest round's, for every reader (review S3); a reader who cannot open that round
+    // sees the last round they can open, marked as replaced.
+    deliverables: deliverables.map((d) => {
+      const seen = d.rounds[0];
+      const day = dayText(locale);
+      return {
+        title: d.title,
+        status: t(`deliverables.status.${d.status}`),
+        files: filesText(seen, td),
+        receipt:
+          seen && seen.round !== d.latestRound
+            ? `${td("handedOver", { date: day(seen.deliveredAt), name: seen.deliveredBy ?? "—" })} · ${t("deliverables.status.replaced")}`
+            : receiptText(seen, td, day, d.closed),
+      };
+    }),
     t: (key, values) => t(`closurePdf.${key}` as "closurePdf.title", values as Record<string, string | number>),
   });
   if (pdfsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many pdf exports");

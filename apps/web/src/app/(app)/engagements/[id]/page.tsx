@@ -3,6 +3,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { DeliverableList } from "@/components/deliverables/deliverable-list";
 import { CoverDialog, EngagementDialog } from "@/components/engagement-form";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
@@ -23,7 +24,13 @@ export default async function EngagementPage({ params }: { params: Promise<{ id:
     data: await getEngagement(tx, principal, id),
     firm: principal.orgKind === "firm",
   }));
-  const [t, tPh, format, locale] = await Promise.all([getTranslations("engagements"), getTranslations("phases"), getFormatter(), getLocale()]);
+  const [t, tPh, tD, format, locale] = await Promise.all([
+    getTranslations("engagements"),
+    getTranslations("phases"),
+    getTranslations("deliverables"),
+    getFormatter(),
+    getLocale(),
+  ]);
   const { engagement: g, client, can } = data;
   const day = (d: string | null) => (d ? format.dateTime(new Date(d), { dateStyle: "medium" }) : null);
   const facts: [string, string | null][] = [
@@ -170,41 +177,30 @@ export default async function EngagementPage({ params }: { params: Promise<{ id:
                 />
               ) : null}
             </CardHeader>
-            <CardContent className="px-5">
+            <CardContent className="space-y-2 px-5">
               {data.deliverables.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("noDeliverables")}</p>
               ) : (
-                <ul className="divide-y">
-                  {data.deliverables.map((d) => {
-                    const project = d.projectId ? data.projects.find((p) => p.id === d.projectId) : null;
-                    return (
-                      <li key={d.id} className="flex flex-wrap items-start gap-3 py-3 text-sm">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <p className="font-medium" dir="auto">
-                            {d.title}
-                          </p>
-                          {d.acceptanceCriteria ? (
-                            <p className="whitespace-pre-wrap text-muted-foreground" dir="auto">
-                              {d.acceptanceCriteria}
-                            </p>
-                          ) : null}
-                          <p className="text-xs text-muted-foreground">
-                            {[d.dueOn ? t("dueOn", { date: day(d.dueOn)! }) : t("noDue"), project ? title(project) : null].filter(Boolean).join(" · ")}
-                          </p>
-                        </div>
-                        {can.edit ? (
-                          <ApiButton
-                            endpoint={`/api/engagements/${g.id}/deliverables/${d.id}`}
-                            method="DELETE"
-                            label={t("removeDeliverable")}
-                            variant="ghost"
-                            confirm={t("removeDeliverableConfirm")}
-                          />
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <>
+                  {/* Received is receipt only (F21): the words say so on both sides. */}
+                  <p className="text-xs text-muted-foreground">{firm ? tD("receiptOnlyFirm") : tD("receiptOnlyClient")}</p>
+                  <DeliverableList
+                    deliverables={data.deliverables}
+                    firmRun={data.firmRun}
+                    extra={(d) =>
+                      // A deliverable that was handed over stays on record.
+                      can.edit && d.rounds.length === 0 ? (
+                        <ApiButton
+                          endpoint={`/api/engagements/${g.id}/deliverables/${d.id}`}
+                          method="DELETE"
+                          label={t("removeDeliverable")}
+                          variant="ghost"
+                          confirm={t("removeDeliverableConfirm")}
+                        />
+                      ) : null
+                    }
+                  />
+                </>
               )}
             </CardContent>
           </Card>

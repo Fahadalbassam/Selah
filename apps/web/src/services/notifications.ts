@@ -5,6 +5,7 @@ import {
   actions,
   clientKpis,
   clientKpiValues,
+  engagementDeliverables,
   inquiries,
   mailKpiMutes,
   mailMutes,
@@ -117,6 +118,20 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     }
   }
 
+  // A deliverable handed over (F21): titled under the reader's rights, so a client person reads it
+  // only while they answer for it; the firm's notice opens its engagement, the client's the deliverables page.
+  const deliverableIds = ids(rows, "deliverable");
+  const deliverableLinks = new Map<string, string>();
+  if (deliverableIds.length) {
+    for (const d of await tx
+      .select({ id: engagementDeliverables.id, title: engagementDeliverables.title, engagementId: engagementDeliverables.engagementId })
+      .from(engagementDeliverables)
+      .where(inArray(engagementDeliverables.id, deliverableIds))) {
+      titles.set(d.id, { title: d.title, titleAr: null });
+      deliverableLinks.set(d.id, principal.orgKind === "firm" ? `/engagements/${d.engagementId}` : "/deliverables");
+    }
+  }
+
   // A period whose indicator moved away (migration 0090): the period's
   // current figure, so a correction since is what the line states (one that
   // brought it back hides the notice altogether, in the database). Read under
@@ -184,7 +199,13 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
       ...r,
       title: t?.title ?? null,
       titleAr: t?.titleAr ?? null,
-      href: !t ? null : f ? `/indicators/${f.kpiId}` : hrefFor(r.kind, r.entityType, r.entityId),
+      href: !t
+        ? null
+        : f
+          ? `/indicators/${f.kpiId}`
+          : r.entityType === "deliverable"
+            ? (deliverableLinks.get(r.entityId) ?? null)
+            : hrefFor(r.kind, r.entityType, r.entityId),
       facts: f,
     };
   });

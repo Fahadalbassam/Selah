@@ -277,8 +277,10 @@
         "join_request": "Join request",
         "deadline_request": "Deadline change",
         "closure_request": "Closure request",
-        "info_request": "Request item answered"
-      }
+        "info_request": "Request item answered",
+        "deliverable_comment": "Comment on a deliverable"
+      },
+      "commentedBy": "{who} on {date}"
     },
     "visits": {
       "title": "Since your last visit",
@@ -1977,7 +1979,10 @@
       "indicator_feed_failing": "A connection for {title}'s indicator figures has stopped working",
       "org_chart_holder_changed": "Who holds positions in {title}'s organisation structure changed",
       "org_chart_change_requested": "{title} suggested a change to its organisation structure",
-      "indicator_moved_away": "{title}: {value} {unit} in {period}, baseline {baseline} {unit}{withTarget, select, yes {, target {target} {unit} by {targetDate}} other {}}, {direction, select, lower_better {lower is better} other {higher is better}}. {reader, select, client {Your company's reported figures, not verified impact.} other {Figures reported by the client, not verified impact.}}"
+      "indicator_moved_away": "{title}: {value} {unit} in {period}, baseline {baseline} {unit}{withTarget, select, yes {, target {target} {unit} by {targetDate}} other {}}, {direction, select, lower_better {lower is better} other {higher is better}}. {reader, select, client {Your company's reported figures, not verified impact.} other {Figures reported by the client, not verified impact.}}",
+      "deliverable_handed_over": "The firm handed over {title}: confirm you received it, or comment",
+      "deliverable_reminder": "{title} was handed over ten working days ago and still waits for your confirmation of receipt",
+      "deliverable_commented": "The client commented on {title} instead of confirming receipt"
     },
     "mail": {
       "section": "Mail",
@@ -1987,7 +1992,7 @@
       "updates": "Updates on your actions",
       "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
       "reminders": "Reminders and escalations",
-      "remindersHint": "Due-soon and overdue reminders, requested documents, and an indicator's latest figure compared with its baseline or target, gathered into one summary.",
+      "remindersHint": "Due-soon and overdue reminders, requested documents, an indicator's latest figure compared with its baseline or target, and files handed over to you still waiting for your confirmation of receipt, gathered into one summary.",
       "cadence": {
         "instant": "Right away",
         "daily": "Daily summary",
@@ -2478,7 +2483,8 @@
       "history": "Earlier records",
       "someone": "someone",
       "conditionsField": "Conditions (optional)"
-    }
+    },
+    "deliverablesWaiting": "Handed over and still waiting for an answer: {titles}. Closing does not wait for them; once the project is closed, nothing more is recorded on them and they read \"No answer before the project closed\"."
   },
   "closurePdf": {
     "kind": "Closure report",
@@ -2500,7 +2506,12 @@
     "noOpen": "No action was left open.",
     "sustainedBy": "Sustained by {name}",
     "footer": "Closure report · exported {date}",
-    "claimNote": "Verified means a consultant reviewed the evidence and accepted it. It shows what was implemented, not that the organisation improved."
+    "claimNote": "Verified means a consultant reviewed the evidence and accepted it. It shows what was implemented, not that the organisation improved.",
+    "deliverablesTitle": "Handed over",
+    "deliverablesNote": "Received means the files arrived, confirmed in Selah or recorded by the firm. It never means the work was accepted.",
+    "colDeliverable": "Deliverable",
+    "colFiles": "Files",
+    "colReceipt": "Receipt"
   },
   "engagement": {
     "title": "How the client takes part",
@@ -3232,6 +3243,76 @@
     "deleteClient": "Delete client",
     "deleteClientConfirm": "Delete this client? It never signed and holds no files. This cannot be undone."
   },
+  "deliverables": {
+    "status": {
+      "not_handed_over": "Not handed over",
+      "waiting": "Handed over (waiting)",
+      "received": "Received",
+      "commented": "Commented",
+      "replaced": "Replaced by a later hand-over",
+      "no_answer": "No answer before the project closed"
+    },
+    "receiptOnlyFirm": "Received means the files reached the client. It never means the client accepted the work.",
+    "receiptOnlyClient": "Confirming receipt only says the files reached your company. It never means you accept the work.",
+    "handOver": "Hand over",
+    "handOverNew": "Hand over a new version",
+    "handOverTitle": "Hand over: {title}",
+    "handOverHint": "Pick the files that make up this deliverable, from the engagement's projects. Each file starts at its latest version; pick an earlier one if needed. Before you hand over, this dialog says who at the client will be asked to confirm receipt or comment.",
+    "handOverHintFirmRun": "Pick the files that make up this deliverable. Each file starts at its latest version. This client has no accounts: once it has the files, record who received them.",
+    "noFiles": "No file of this engagement's projects is ready to hand over: add it on the project's Documents tab, and share it with the client from its menu.",
+    "versionOption": "Version {n} · {date}",
+    "versionField": "Version",
+    "pickOne": "Pick at least one file.",
+    "loading": "Loading the files…",
+    "confirm": "Confirm receipt",
+    "confirmTitle": "Confirm your company received these files",
+    "confirmHint": "This tells the firm the files reached your company. It does not mean you accept the work. It is recorded once, for this hand-over.",
+    "comment": "Comment",
+    "commentTitle": "Write a comment for the firm",
+    "commentHint": "Say what is missing or needs changing. The firm reads it and can hand over a new version.",
+    "commentField": "Your comment",
+    "record": "Record receipt",
+    "recordTitle": "Record that the client received the files",
+    "recordHint": "This client has no accounts in Selah. Say who at the client received the files, how and on which day. It is recorded once, and shown as recorded by the firm.",
+    "receivedByField": "Received by, at the client",
+    "receivedByPlaceholder": "Name or role, for example: the board secretary",
+    "receivedViaField": "How the client received them",
+    "receivedOnField": "Received on",
+    "round": "Hand-over {n}",
+    "history": "Earlier hand-overs ({n})",
+    "cardTitle": "Files waiting for your confirmation of receipt",
+    "cardHint": "The firm handed these over to your company. Download them, then confirm you received them, or write a comment. Confirming receipt never means you accept the work.",
+    "summary": "Deliverables: {list}",
+    "summaryItem": "{status} {n}",
+    "text": {
+      "notHandedOver": "Not handed over yet",
+      "waiting": "Handed over on {date} by {name}; waiting for confirmation of receipt",
+      "received": "Receipt confirmed on {date} by {name}",
+      "recorded": "Received on {date} by {person} ({via}); recorded by {name}",
+      "commented": "Comment on {date} by {name}: {comment}",
+      "file": "{title} (v{version})",
+      "hiddenFiles": "{n, plural, one {# file you can't open} other {# files you can't open}}",
+      "via": {
+        "meeting": "in a meeting",
+        "email": "by email",
+        "phone": "by phone",
+        "document": "in a document"
+      },
+      "noAnswer": "Handed over on {date} by {name}; no answer before the project closed",
+      "handedOver": "Handed over on {date} by {name}"
+    },
+    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it.",
+    "preview": {
+      "asked": "Will be asked to confirm receipt: {names}.",
+      "person": "{name} ({as, select, acceptor {acceptor} admin {client admin} sponsor {sponsor} other {}})",
+      "nobody": "Nobody at the client can open every file picked, so nobody will be asked. Check who can open them before you hand over.",
+      "skipped": "Not asked, as they cannot open every file picked: {names} (acceptor)."
+    },
+    "seeAll": "All files handed over to your company",
+    "pageTitle": "Files handed over to your company",
+    "pageHint": "What the firm handed over and you answer for: the ones still waiting first, then the others with their earlier hand-overs.",
+    "pageEmpty": "Nothing has been handed over to you yet."
+  },
   "clientRoles": {
     "title": "Client roles",
     "hint": "Who stands for the client on this project. The sponsor is told at the last escalation level.",
@@ -3886,7 +3967,11 @@
       "org_chart_holders": "Change who holds positions in the organisation structure",
       "org_chart_request_read": "Read suggested changes to the organisation structure",
       "org_chart_request_create": "Suggested a change to the organisation structure",
-      "org_chart_request_close": "Answered a suggested change to the organisation structure"
+      "org_chart_request_close": "Answered a suggested change to the organisation structure",
+      "deliverable_hand_over": "Deliverable handed over",
+      "deliverable_receipt": "Deliverable receipt confirmed",
+      "deliverable_receipt_record": "Deliverable receipt recorded for the client",
+      "deliverable_comment": "Comment on a deliverable handed over"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4271,7 +4356,7 @@
       "noteField": "Note (optional)",
       "open": "Your export pack",
       "notPacked": "Not in the pack (over the size limit)",
-      "readme": "Export pack for {client}\nMade on {date} by {maker} in Selah.\n\nWhat is inside:\n- projects.csv: {projects, plural, one {# project} other {# projects}}\n- recommendations.csv: the recommendations shared with your organisation\n- actions.csv: {actions, plural, one {# action} other {# actions}}, with how each one still open at closing was settled and who sustains it\n- files.csv: every file, with its SHA-256 checksum and its place in this pack\n- files/: {files, plural, one {# file} other {# files}}\n- manifest.json: the SHA-256 checksum of every entry, to show nothing changed\n\nOnly records shared with your organisation or private to it are included.{skipped, plural, =0 {} one { One file was over the size limit and is listed in files.csv only.} other { # files were over the size limit and are listed in files.csv only.}}",
+      "readme": "Export pack for {client}\nMade on {date} by {maker} in Selah.\n\nWhat is inside:\n- projects.csv: {projects, plural, one {# project} other {# projects}}\n- recommendations.csv: the recommendations shared with your organisation\n- actions.csv: {actions, plural, one {# action} other {# actions}}, with how each one still open at closing was settled and who sustains it\n- files.csv: every file, with its SHA-256 checksum and its place in this pack\n- deliverables.csv: each deliverable the firm handed over, every hand-over, and its receipt (receipt, never acceptance)\n- files/: {files, plural, one {# file} other {# files}}\n- manifest.json: the SHA-256 checksum of every entry, to show nothing changed\n\nOnly records shared with your organisation or private to it are included.{skipped, plural, =0 {} one { One file was over the size limit and is listed in files.csv only.} other { # files were over the size limit and are listed in files.csv only.}}",
       "csv": {
         "project": "Project",
         "state": "State",
@@ -4295,7 +4380,15 @@
         "uploaded": "Uploaded on",
         "bytes": "Size (bytes)",
         "sha256": "SHA-256",
-        "path": "In this pack"
+        "path": "In this pack",
+        "engagement": "Engagement",
+        "deliverable": "Deliverable",
+        "round": "Hand-over",
+        "files": "Files",
+        "handedOver": "Handed over on",
+        "handedOverBy": "Handed over by",
+        "receiptStatus": "Status",
+        "receipt": "Receipt"
       },
       "making": "Making the pack…",
       "tooMany": "You've made several packs in the last few minutes. Try again in a little while.",
