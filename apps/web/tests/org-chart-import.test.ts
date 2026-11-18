@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { readDocx } from "@/lib/office/docx-read";
 import { readXlsx } from "@/lib/office/xlsx-read";
 import { writeXlsx } from "@/lib/office/xlsx-write";
+import { readEntries } from "@/lib/office/zip";
 import { ORG_UNIT_KINDS } from "@/lib/org-chart";
 import {
   checkOrgImport,
@@ -16,6 +17,7 @@ import {
   fillCodes,
   findTemplateSheet,
   guessKind,
+  ORG_CODE_FIELDS,
   ORG_IMPORT_FIELDS,
   ORG_IMPORT_LIMITS,
   outlineRows,
@@ -427,6 +429,48 @@ describe("a Word outline", () => {
       ["1.2", "unit", 2, "1"],
       ["2", "unit", 1, null],
     ]);
+  });
+});
+
+describe("codes stay as typed: Excel must not turn 2.10 into 2.1", () => {
+  const headers = ORG_IMPORT_FIELDS.map((f) => `${ar.orgChartImport.fields[f]}\n${en.orgChartImport.fields[f]}`);
+
+  it("the template formats the code columns as Text", () => {
+    const bytes = writeXlsx([{ name: "S", rtl: true, columns: ORG_IMPORT_FIELDS.map((f) => ({ header: headers[ORG_IMPORT_FIELDS.indexOf(f)]!, text: ORG_CODE_FIELDS.includes(f) })), rows: [] }]);
+    const files = readEntries(bytes, (p) => p.endsWith(".xml"));
+    const xfs = [...(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(files.get("xl/styles.xml")!)![1]!.matchAll(/<xf [^>]*>/g))].map((m) => m[0]);
+    const textStyle = xfs.findIndex((x) => /numFmtId="49"/.test(x));
+    expect(textStyle).toBeGreaterThan(0);
+    const cols = [...files.get("xl/worksheets/sheet1.xml")!.matchAll(/<col min="(\d+)"[^>]*?(?: style="(\d+)")?\/>/g)].map((m) => [Number(m[1]) - 1, m[2] ? Number(m[2]) : null]);
+    const textColumns = cols.filter(([, s]) => s === textStyle).map(([c]) => ORG_IMPORT_FIELDS[c as number]);
+    expect(textColumns).toEqual(["unitCode", "parentCode", "positionCode", "reportsTo"]);
+    expect([...ORG_CODE_FIELDS]).toEqual(["unitCode", "parentCode", "positionCode", "reportsTo"]);
+  });
+
+  it("reads a code typed as text exactly (2.10 stays 2.10), and warns of a code Excel stored as a number", () => {
+    const line = (o: OrgValues) => ORG_IMPORT_FIELDS.map((f): string | number => o[f] ?? "");
+    const body = [
+      line({ unitCode: "2", unitNameEn: "Chief executive's office", unitKind: "executive", positionCode: "2.10", titleEn: "Tenth officer" }),
+      line({ unitCode: "2", positionCode: "2.11", titleEn: "Eleventh officer", reportsTo: "2.10" }),
+      // Typed into a General cell: Excel kept the number 2.1, not the text 2.10.
+      line({ unitCode: "2", positionCode: "2.12", titleEn: "Twelfth officer" }).map((v, i) => (ORG_IMPORT_FIELDS[i] === "reportsTo" ? 2.1 : v)),
+      line({ unitCode: "2", positionCode: "2.1", titleEn: "First officer" }),
+    ];
+    const bytes = writeXlsx([{ name: "S", rtl: false, columns: headers.map((header) => ({ header })), rows: body }]);
+    const found = findTemplateSheet(readXlsx(bytes))!;
+    const rows = sheetRows(found.sheet.rows, found.headerRow, found.mapping, found.sheet.numeric);
+    expect(rows.map((r) => [r.values.positionCode, r.values.reportsTo])).toEqual([
+      ["2.10", undefined],
+      ["2.11", "2.10"],
+      ["2.12", "2.1"],
+      ["2.1", undefined],
+    ]);
+    const c = checkOrgImport(rows, ctx(), "add");
+    expect(c.rows.flatMap((r) => r.errors)).toEqual([]);
+    expect(c.plan.positions.find((p) => p.code === "2.11")!.reportsTo).toBe("2.10");
+    expect(warningsAt(c, 4)).toEqual(["numericCode"]);
+    expect(at(c, 4).warnings[0]).toMatchObject({ field: "reportsTo", values: { value: "2.1" } });
+    expect(c.rows.filter((r) => r.line !== 4).flatMap((r) => r.warnings)).toEqual([]);
   });
 });
 

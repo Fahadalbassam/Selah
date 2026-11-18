@@ -17,6 +17,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
 import { writeXlsx } from "@/lib/office/xlsx-write";
+import { readEntries } from "@/lib/office/zip";
 import { ORG_IMPORT_FIELDS, type OrgValues } from "@/lib/org-chart-import";
 import type { PreparedUpload } from "@/services/evidence";
 import { loadPrincipal } from "@/services/principal";
@@ -482,6 +483,17 @@ describe("saving into the draft", () => {
     expect(d.units.find((u) => u.code === "2.1.9")).toMatchObject({ parent: "2.1", level: 4, kind: "section" });
     expect(d.positions.find((p) => p.code === "2.9")).toMatchObject({ unit: "2", reportsTo: "2.1" });
     expect(await plansOf(SAHM)).toEqual(plans);
+  });
+
+  it("serves a template whose code columns are Text, so Excel keeps a code such as 2.10 as typed", async () => {
+    for (const locale of ["ar", "en"] as const) {
+      const file = await IM.orgChartTemplate(locale);
+      const files = readEntries(file.bytes, (p) => p.endsWith(".xml"));
+      const xfs = [...(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(files.get("xl/styles.xml")!)![1]!.matchAll(/<xf [^>]*>/g))].map((m) => m[0]);
+      const text = xfs.findIndex((x) => /numFmtId="49"/.test(x));
+      const cols = [...files.get("xl/worksheets/sheet1.xml")!.matchAll(/<col min="(\d+)"[^>]*?(?: style="(\d+)")?\/>/g)];
+      expect(cols.filter((m) => Number(m[2]) === text).map((m) => ORG_IMPORT_FIELDS[Number(m[1]) - 1])).toEqual(["unitCode", "parentCode", "positionCode", "reportsTo"]);
+    }
   });
 
   it("reads a Word outline through the same scan and review", async () => {

@@ -7,6 +7,12 @@ export interface SheetData {
   rows: string[][];
   /** More rows or columns than the reader keeps. */
   truncated: boolean;
+  /**
+   * The cells Excel stored as numbers ("row:column", 0-based, as in `rows`):
+   * their text is the number, which may differ from what was typed (2.10
+   * typed into a General cell is kept as 2.1).
+   */
+  numeric: string[];
 }
 
 export const SHEET_LIMITS = { rows: 2000, columns: 60, sheets: 30 };
@@ -124,6 +130,7 @@ export function readXlsx(bytes: Uint8Array, options: { percents?: boolean } = {}
     if (!xml) continue;
     const ws = (parseXml(xml, { arrays: ["row", "c", "r"] }) as Node).worksheet as Node | undefined;
     const rows: string[][] = [];
+    const numeric: string[] = [];
     let truncated = false;
     for (const row of list((ws?.sheetData as Node | undefined)?.row)) {
       const rowNumber = Number(attr(row, "r") ?? rows.length + 1);
@@ -142,11 +149,14 @@ export function readXlsx(bytes: Uint8Array, options: { percents?: boolean } = {}
           continue;
         }
         cells[col] = cellText(c, shared, dateStyles, date1904, percentStyles);
+        // A plain number (no type, not shown as a date or a percentage).
+        if ((attr(c, "t") ?? "n") === "n" && c.v !== undefined && !dateStyles.has(Number(attr(c, "s") ?? -1)) && !percentStyles.has(Number(attr(c, "s") ?? -1)))
+          numeric.push(`${rowNumber - 1}:${col}`);
       }
       while (rows.length < rowNumber - 1) rows.push([]);
       rows.push(Array.from(cells, (v) => v ?? ""));
     }
-    sheets.push({ name: attr(s, "name") ?? `Sheet ${sheets.length + 1}`, rows: trimRows(rows), truncated });
+    sheets.push({ name: attr(s, "name") ?? `Sheet ${sheets.length + 1}`, rows: trimRows(rows), truncated, numeric });
   }
   return sheets;
 }

@@ -19,6 +19,7 @@ import {
   draftRows,
   fillCodes,
   findTemplateSheet,
+  ORG_CODE_FIELDS,
   ORG_IMPORT_FIELDS,
   ORG_IMPORT_LIMITS,
   outlineRows,
@@ -267,7 +268,7 @@ export async function parseImportFile(tx: Tx, principal: Principal, clientOrgId:
     if (source === "xlsx") {
       const found = findTemplateSheet(readXlsx(file.bytes));
       if (!found) throw new BadRequestError("not the template");
-      rows = fillCodes(sheetRows(found.sheet.rows, found.headerRow, found.mapping), takenOf(view.ctx));
+      rows = fillCodes(sheetRows(found.sheet.rows, found.headerRow, found.mapping, found.sheet.numeric), takenOf(view.ctx));
     } else {
       const blocks = readDocx(file.bytes);
       if (!blocks.some((b) => b.type === "heading")) throw new BadRequestError("no headings");
@@ -544,7 +545,7 @@ async function templateSheets(locale: Locale, rows: CellValue[][]) {
   };
   const rtl = locale === "ar";
   return [
-    { name: t("guide.structureSheet"), rtl, columns: ORG_IMPORT_FIELDS.map((f) => ({ header: header(f), width: WIDTH[f] ?? 14 })), rows },
+    { name: t("guide.structureSheet"), rtl, columns: ORG_IMPORT_FIELDS.map((f) => ({ header: header(f), width: WIDTH[f] ?? 14, text: ORG_CODE_FIELDS.includes(f) })), rows },
     {
       name: t("guide.sheet"),
       rtl,

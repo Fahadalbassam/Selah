@@ -489,7 +489,7 @@ export function OrgChartImportWizard({
               row={editing}
               onClose={() => setEditing(null)}
               onSave={(values) => {
-                setRows(rows.map((x) => (x.line === editing.line ? { ...x, values, include: true, filled: x.filled.filter((f) => values[f] === x.values[f]) } : x)));
+                setRows(rows.map((x) => (x.line === editing.line ? { ...x, values, include: true, filled: x.filled.filter((f) => values[f] === x.values[f]), numbers: x.numbers?.filter((f) => values[f] === x.values[f]) } : x)));
                 setEditing(null);
               }}
             />

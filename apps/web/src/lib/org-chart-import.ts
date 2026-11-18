@@ -45,6 +45,9 @@ export const ORG_IMPORT_FIELDS = [
 export type OrgField = (typeof ORG_IMPORT_FIELDS)[number];
 export type OrgValues = Partial<Record<OrgField, string>>;
 
+/** The columns that hold codes: the template formats them as Text, so Excel keeps a code as typed. */
+export const ORG_CODE_FIELDS: readonly OrgField[] = ["unitCode", "parentCode", "positionCode", "reportsTo"];
+
 /** What a row says about its unit (besides the unit's code). */
 const UNIT_DETAIL: readonly OrgField[] = ["unitNameAr", "unitNameEn", "unitKind", "parentCode", "level", "advisory"];
 /** What makes a row a position. */
@@ -57,6 +60,8 @@ export interface OrgRow {
   values: OrgValues;
   /** Fields Selah filled: a unit's code taken from the row above, or a code given where there was none. */
   filled: OrgField[];
+  /** Code columns Excel stored as a number with a decimal point, which may not be what was typed (2.10 is kept as 2.1). */
+  numbers?: OrgField[];
 }
 
 export type OrgImportSource = "xlsx" | "docx" | "text";
@@ -225,7 +230,8 @@ export function findTemplateSheet<S extends { name: string; rows: string[][] }>(
 const has = (v: OrgValues, fields: readonly OrgField[]) => fields.some((f) => !!v[f]?.trim());
 
 /** A sheet's rows under the mapping. Blank rows are skipped; a position row with no unit at all takes the unit of the row above (merged or empty cells). */
-export function sheetRows(rows: string[][], headerRow: number, mapping: (OrgField | null)[]): OrgRow[] {
+export function sheetRows(rows: string[][], headerRow: number, mapping: (OrgField | null)[], numeric: readonly string[] = []): OrgRow[] {
+  const stored = new Set(numeric);
   const out: OrgRow[] = [];
   let unit: string | undefined;
   for (let r = headerRow + 1; r < rows.length; r++) {
@@ -242,7 +248,9 @@ export function sheetRows(rows: string[][], headerRow: number, mapping: (OrgFiel
       filled.push("unitCode");
     }
     if (values.unitCode) unit = values.unitCode;
-    out.push({ line: r + 1, include: true, values, filled });
+    // A code Excel kept as a number with a decimal point may have lost a trailing zero (2.10 is 2.1).
+    const numbers = mapping.flatMap((f, c) => (f && ORG_CODE_FIELDS.includes(f) && stored.has(`${r}:${c}`) && (rows[r]?.[c] ?? "").includes(".") ? [f] : []));
+    out.push({ line: r + 1, include: true, values, filled, ...(numbers.length ? { numbers } : {}) });
   }
   return out;
 }
@@ -672,6 +680,7 @@ export type OrgIssueCode =
   // Warnings: saved as they are, since the app allows them (a level set by hand, more people than planned).
   | "levelParent"
   | "tooManyHolders"
+  | "numericCode"
   // Notes: plain facts about what saving does.
   | "filled"
   | "codeGiven"
@@ -829,6 +838,9 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
       p.position = code("positionCode");
       if (r.filled.includes("positionCode") && p.position) note(r.line, { code: "codeGiven", field: "positionCode", values: { code: p.position } });
       p.reportsTo = code("reportsTo");
+    }
+    for (const f of r.numbers ?? []) {
+      if (v[f]?.trim()) warn(r.line, { code: "numericCode", field: f, values: { value: v[f]!.trim() } });
     }
   }
 

@@ -84,7 +84,7 @@ Uploads go through the same checks and ClamAV scan as every upload before anythi
 
 | Column | Notes |
 |---|---|
-| Unit code, Parent unit code | A code such as 2.4 (Latin letters, digits, dots, dashes; Arabic-Indic digits are read as digits). Every row of a unit carries its code; a position row with no unit columns at all takes the unit of the row above. The parent must be a unit of these rows (adding: or of the draft). |
+| Unit code, Parent unit code | A code such as 2.4 (Latin letters, digits, dots, dashes; Arabic-Indic digits are read as digits). The template formats every code column (unit code, parent unit code, position code, reports to) as Text, so Excel keeps a code as typed: 2.10 stays 2.10. A code cell Excel stored as a number with a decimal point (typed into a General cell, where 2.10 becomes 2.1) is read as stored, with a warning to check it (`numeric` in `readXlsx()`). Every row of a unit carries its code; a position row with no unit columns at all takes the unit of the row above. The parent must be a unit of these rows (adding: or of the draft). |
 | Unit name (Arabic), Unit name (English) | At least one. The first row that describes a unit defines it; a later row that says something different about the same code is a duplicate code. |
 | Unit kind | Board, committee, executive, sector, department, section, unit or office, in Arabic or English. Left empty, it is read from the unit's name ("الإدارة المالية" is a department), else "unit", and the row says so. |
 | Level | 1 to 12; left empty, one below its parent (1 at the top). A unit is expected to sit lower than its parent; one that does not (the firm may set a level by hand on the Structure tab) is saved as written, with a warning to check it. |

@@ -3179,6 +3179,7 @@
       "holderName": "\"{value}\" is not a name: a typed name is 2 to 200 characters.",
       "holderAndVacant": "The row says the position is vacant and also names who holds it.",
       "tooManyHolders": "The position is planned for {planned} and the row names {count}: all of them are planned; check the number.",
+      "numericCode": "{field}: Excel stored this code as the number {value}, which turns a code such as 2.10 into 2.1. Check it, and type codes into the template's columns, which keep them as text.",
       "badPlanned": "Planned people must be a whole number from 1 to 999.",
       "specialties": "At most 30 specialties, each up to 100 characters.",
       "tooLong": "{field} is longer than {max} characters.",
@@ -3220,7 +3221,7 @@
       "rules": {
         "one": "One row for each position. Repeat the unit's columns on each of its positions' rows, or leave them empty below the first.",
         "unitOnly": "A unit with no positions gets a row of its own, with the position columns left empty.",
-        "codes": "Codes join the rows: \"Parent unit code\" points to a unit's code and \"Reports to\" to a position's code, never a title.",
+        "codes": "Codes join the rows: \"Parent unit code\" points to a unit's code and \"Reports to\" to a position's code, never a title. The code columns are formatted as Text, so a code such as 2.10 stays as typed.",
         "review": "Nothing is saved until the rows are checked in Selah, and nothing is published from an import."
       },
       "fields": {
