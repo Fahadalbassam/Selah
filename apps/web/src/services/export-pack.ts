@@ -19,6 +19,7 @@ import {
 import { assertAllowed, authorize, type Principal } from "@/authz";
 import type { Locale } from "@/i18n/config";
 import { csvCell } from "@/lib/audit";
+import { firmToday } from "@/lib/dates";
 import { dayText, filesText, receiptText, roundStatus } from "@/lib/deliverables";
 import { localName } from "@/lib/names";
 import { PACK_LABELS, PACK_MAX_BYTES, packPath } from "@/lib/offboarding";
@@ -304,7 +305,8 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
               d.title,
               r.round,
               filesText(r, tr),
-              r.deliveredAt.toISOString().slice(0, 10),
+              // The firm's day, not the UTC one (review S7).
+              firmToday(r.deliveredAt),
               r.deliveredBy,
               ts(`deliverables.status.${roundStatus(r, r.round === d.latestRound, d.closed)}` as "deliverables.status.waiting"),
               roundStatus(r, r.round === d.latestRound, d.closed) === "replaced" ? null : receiptText(r, tr, packDay, d.closed),

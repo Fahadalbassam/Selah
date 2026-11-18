@@ -162,6 +162,13 @@ beforeAll(async () => {
   await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [DELIVERABLE, DOC.shared]);
   await run(U.cadmin, `SELECT app_confirm_deliverable_receipt($1, 1)`, [DELIVERABLE]);
   await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [id(63), DOC.shared]);
+  // A hand-over at 01:30 in the firm's day, which is still the day before in UTC (review S7).
+  await q(`INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Late-night hand-over')`, [id(64), ENGAGEMENT, DONE]);
+  await q(
+    `INSERT INTO deliverable_handovers (deliverable_id, org_id, round, version_ids, delivered_by, delivered_at)
+     VALUES ($1,$2,1,ARRAY[$3]::uuid[],$4, ((app_firm_today() - 1)::timestamp + time '22:30') AT TIME ZONE 'UTC')`,
+    [id(64), ACME, DOC.shared, U.lead],
+  );
   await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [DONE]);
 });
 
@@ -207,6 +214,11 @@ describe("making a pack", () => {
     expect(deliverablesCsv).toMatch(/Annex never sent[^\r\n]*deliverables\.status\.not_handed_over/);
     // A round never answered before the project closed says so (S1).
     expect(deliverablesCsv).toMatch(/Bylaws never answered[^\r\n]*deliverables\.status\.no_answer/);
+    // The hand-over day is the firm's day, like the other dates of the pack's receipts (S7).
+    const days = (await owner.query(`SELECT app_firm_today()::text AS today, (app_firm_today() - 1)::text AS before`)).rows[0];
+    const late = deliverablesCsv.split("\r\n").find((l) => l.includes("Late-night hand-over"))!;
+    expect(late).toContain(`"${days.today}"`);
+    expect(late).not.toContain(`"${days.before}"`);
     // The client's private file is not the firm admin's to read, so the firm's pack leaves it out;
     // the firm-only, personal and infected files are in no pack.
     expect(row.file_count).toBe(1);
