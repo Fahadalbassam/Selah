@@ -30,7 +30,16 @@
     "clientGroups": "Client groups",
     "group": "Our group",
     "help": "Help",
-    "dataSharing": "Data sharing"
+    "dataSharing": "Data sharing",
+    "home": "Home",
+    "company": "Company",
+    "myExpertise": "My expertise",
+    "mailOptions": "Mail options",
+    "assistantConsent": "Assistant consent",
+    "security": "Two-factor sign-in",
+    "teamTabs": "Team and expertise",
+    "clientViews": "Clients and groups",
+    "projectKinds": "Kinds of project"
   },
   "header": {
     "language": "العربية",
@@ -39,7 +48,6 @@
     "theme": "Toggle theme",
     "signOut": "Sign out",
     "account": "Account",
-    "security": "Sign-in security",
     "toggleSidebar": "Show or hide the sidebar"
   },
   "role": {
@@ -226,7 +234,9 @@
     "role": "Role",
     "projects": "Projects",
     "projectsHint": "Projects: those each person works on that you can open too.",
-    "empty": "You can't view the team list."
+    "empty": "You can't view the team list.",
+    "titleClient": "People",
+    "hintClient": "The people at your company who use Selah."
   },
   "actionsPage": {
     "title": "Actions",
@@ -903,7 +913,11 @@
     "removeDeputy": "Remove deputy",
     "removeDeputyConfirm": "Remove the deputy? They stay on the client's team.",
     "clientDeputyBadge": "Client deputy · backs up the lead",
-    "leadOnly": "Only the lead consultant"
+    "leadOnly": "Only the lead consultant",
+    "andOthers": "{n, plural, one {and # other} other {and # others}}",
+    "consultantsCount": "{n, plural, one {# consultant} other {# consultants}}",
+    "pitches": "Pitches",
+    "pitchesHint": "Organisations the firm started a pitch for that are not clients yet."
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -1597,7 +1611,8 @@
       "evidenced": "With evidence",
       "verified": "Verified",
       "overdue": "Overdue",
-      "gapsSuggested": "{n, plural, one {# suggested gap} other {# suggested gaps}}, {confirmed} confirmed"
+      "gapsSuggested": "{n, plural, one {# suggested gap} other {# suggested gaps}}, {confirmed} confirmed",
+      "templateLink": "Template: {name}, version {version}"
     },
     "compare": {
       "title": "Compare assessments",
@@ -2018,9 +2033,8 @@
       "deliverable_commented": "The client commented on {title} instead of confirming receipt"
     },
     "mail": {
-      "section": "Mail",
       "sectionHint": "In-app notifications always arrive. These choices only change what reaches your inbox, and when.",
-      "title": "Mail choices",
+      "title": "When mail reaches you",
       "hint": "Every mail is a short line and a link: titles and details stay in Selah.",
       "updates": "Updates on your actions",
       "updatesHint": "When an action is given to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
@@ -2043,7 +2057,7 @@
       "always": "Nothing is sent on Friday. Invitations, password and address mails, and meeting invites always go at once.",
       "next": "With these choices, a work mail queued now goes out {when}.",
       "muted": "Muted actions and indicators",
-      "mutedHint": "No mail about these actions and indicators. Their notifications still appear here.",
+      "mutedHint": "No mail about these actions and indicators. You still get their notifications in Selah.",
       "mutedNone": "You haven't muted any action or indicator.",
       "mute": "Mute mail",
       "unmute": "Unmute",
@@ -4851,6 +4865,13 @@
       "agreed": "The assistant is on for your company.",
       "withdrawConfirm": "Switch off the assistant for everyone at your company? Their chats stay hidden. The firm can offer it again.",
       "withdrawn": "The assistant is off for your company."
+    },
+    "consentView": {
+      "hint": "What your company agreed to for the assistant, who agreed and when.",
+      "inForce": "Consent in force",
+      "agreedBy": "{name} agreed on {date}.",
+      "limit": "Questions per person each day: {n}.",
+      "agreedTo": "What you agreed to"
     }
   },
   "welcome": {
@@ -5466,9 +5487,10 @@
       "structure": "Structure"
     },
     "clientTabs": {
-      "label": "Departments and structure",
+      "label": "People, departments and structure",
       "departments": "Departments",
-      "structure": "Structure"
+      "structure": "Structure",
+      "people": "People"
     },
     "title": "Organisation structure",
     "titleClient": "Your company's structure",

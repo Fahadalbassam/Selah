@@ -5,38 +5,86 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
+import { LinkTabs } from "@/components/link-tabs";
 import { PageHeader } from "@/components/page-header";
-import { PeopleStack } from "@/components/people-stack";
+import { SectionHeader } from "@/components/section-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { authorize } from "@/authz";
+import { clientTeamLine, splitPitches } from "@/lib/clients-list";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
+import { listGroups } from "@/services/client-groups";
+import { intakeOptions } from "@/services/intake";
 import { listDeletions } from "@/services/offboarding";
 import { listClients } from "@/services/queries";
 import { clientDirectory, myPendingRequests, pendingRequestCounts } from "@/services/staffing";
 import { EmptyState } from "@/components/empty-state";
 import { Users } from "@/components/animate-ui/icons/users";
 import { ToneBadge } from "@/components/tone-badge";
+import { EnterInquiryDialog } from "../inquiries/enter-inquiry";
+import { GroupsView } from "./groups-view";
 
-export default async function ClientsPage() {
+const VIEWS = { clients: "/clients", groups: "/clients?view=groups" } as const;
+
+// The firm's clients, with the holding groups as a second view (page audit
+// rows 17 and 21: the sidebar's "All clients" and "Client groups" became this
+// page's two views; /clients/groups redirects here). Each client's team is the
+// lead's name and "and N others"; pitches have a small table of their own
+// (October review item 3). "Enter an inquiry" sits beside "Start a pitch".
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const view = (await searchParams).view === "groups" ? "groups" : "clients";
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
-    const firm = { type: "organization" as const, orgId: principal.orgId, firmOrgId: principal.orgId, projectId: null };
+    const firm = { orgId: principal.orgId, firmOrgId: principal.orgId, projectId: null };
+    const admin = principal.role === "firm_admin";
+    if (view === "groups") {
+      return {
+        view,
+        admin,
+        canCreate: authorize(principal, "client_group.manage", { type: "client_group", ...firm }).allowed,
+        groups: await listGroups(tx, principal),
+      } as const;
+    }
+    const canEnter = authorize(principal, "inquiry.enter", { type: "inquiry", ...firm }).allowed;
+    const directory = await clientDirectory(tx, principal);
     return {
-      admin: principal.role === "firm_admin",
-      canAdd: authorize(principal, "organization.create", firm).allowed,
-      canPitch: authorize(principal, "organization.pitch", firm).allowed,
+      view,
+      admin,
+      canAdd: authorize(principal, "organization.create", { type: "organization", ...firm }).allowed,
+      canPitch: authorize(principal, "organization.pitch", { type: "organization", ...firm }).allowed,
       clients: await listClients(tx, principal),
-      directory: principal.role === "consultant" ? (await clientDirectory(tx, principal)).filter((c) => !c.assigned) : [],
+      directory: principal.role === "consultant" ? directory.filter((c) => !c.assigned) : [],
+      // "Enter an inquiry": the clients this person can name as the referrer or the returning client, as on Inquiries.
+      inquiry: canEnter ? { options: await intakeOptions(tx), clients: directory.filter((c) => admin || c.assigned) } : null,
       mine: await myPendingRequests(tx, principal),
       requests: await pendingRequestCounts(tx, principal),
       // Clients deleted after their retention period: only this record remains (firm admin).
       deletions: await listDeletions(tx, principal),
-    };
+    } as const;
   });
   if (!data) notFound();
+  const tNav = await getTranslations("nav");
+  const tabs = (
+    <LinkTabs
+      label={tNav("clientViews")}
+      tabs={[
+        { href: VIEWS.clients, label: tNav("allClients") },
+        { href: VIEWS.groups, label: tNav("clientGroups") },
+      ]}
+      current={VIEWS[view]}
+    />
+  );
+  if (data.view === "groups") {
+    return (
+      <>
+        {tabs}
+        <GroupsView admin={data.admin} canCreate={data.canCreate} groups={data.groups} />
+      </>
+    );
+  }
+
   const [t, tc, tE, tOff, format] = await Promise.all([
     getTranslations("staffing"),
     getTranslations("clients"),
@@ -47,10 +95,86 @@ export default async function ClientsPage() {
   const day = (d: Date | string | null) => (d ? format.dateTime(new Date(d), { dateStyle: "medium" }) : "—");
   const ar = (await getLocale()) === "ar";
   const name = (c: { name: string; nameAr: string | null }) => localName(c, ar);
+  const { clients, pitches } = splitPitches(data.clients);
+
+  // The lead by name and the others counted, instead of a row of initials.
+  const team = (c: (typeof data.clients)[number]) => {
+    const line = clientTeamLine({ lead: c.lead, others: c.consultants });
+    const all = c.consultants.join(ar ? "، " : ", ");
+    if (line.kind === "nobody") return <span className="text-muted-foreground">{tc("none")}</span>;
+    if (line.kind === "noLead") {
+      return (
+        <span className="text-muted-foreground" title={all}>
+          {t("noLead")} · {t("consultantsCount", { n: line.others })}
+        </span>
+      );
+    }
+    return (
+      <span>
+        <span className="font-medium">{line.lead}</span>
+        {line.others ? (
+          <span className="text-muted-foreground" title={all}>
+            {" "}
+            {t("andOthers", { n: line.others })}
+          </span>
+        ) : null}
+      </span>
+    );
+  };
+
+  const table = (list: typeof clients) => (
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>{t("client")}</TableHead>
+            <TableHead>{t("team")}</TableHead>
+            <TableHead className="text-end">{t("projects")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((c) => {
+            const pending = data.requests.get(c.id) ?? 0;
+            return (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">
+                  <Link href={`/clients/${c.id}`} className="hover:underline">
+                    <MorphTitle name={`client-${c.id}`} className="inline-block">
+                      {name(c)}
+                    </MorphTitle>
+                  </Link>
+                  {c.status === "archived" ? (
+                    <ToneBadge tone="neutral" className="ms-2">
+                      {tOff("archived")}
+                    </ToneBadge>
+                  ) : null}
+                  {pending ? (
+                    <ToneBadge tone="waiting" className="ms-2">
+                      {t("requests", { count: pending })}
+                    </ToneBadge>
+                  ) : null}
+                </TableCell>
+                <TableCell className="whitespace-normal">{team(c)}</TableCell>
+                <TableCell className="text-end tabular-nums">{c.projectCount}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <>
+      {tabs}
       <PageHeader title={tc("title")} description={data.admin ? t("subtitleAdmin") : t("subtitle")}>
+        {data.inquiry ? (
+          <EnterInquiryDialog
+            sectors={data.inquiry.options.sectors}
+            services={data.inquiry.options.services}
+            clients={data.inquiry.clients.map((c) => ({ id: c.id, name: name(c) }))}
+          />
+        ) : null}
         {data.canPitch ? (
           <FormDialog
             trigger={
@@ -92,59 +216,15 @@ export default async function ClientsPage() {
         ) : null}
       </PageHeader>
 
-      {data.clients.length === 0 ? (
-        <EmptyState icon={<Users animateOnView />} description={tc("empty")} />
-      ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead>{t("client")}</TableHead>
-                <TableHead>{t("lead")}</TableHead>
-                <TableHead>{t("team")}</TableHead>
-                <TableHead className="text-end">{t("projects")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.clients.map((c) => {
-                const pending = data.requests.get(c.id) ?? 0;
-                return (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">
-                      <Link href={`/clients/${c.id}`} className="hover:underline">
-                        <MorphTitle name={`client-${c.id}`} className="inline-block">
-                          {name(c)}
-                        </MorphTitle>
-                      </Link>
-                      {c.prospect ? (
-                        <ToneBadge tone="waiting" className="ms-2">
-                          {tE("prospect")}
-                        </ToneBadge>
-                      ) : null}
-                      {c.status === "archived" ? (
-                        <ToneBadge tone="neutral" className="ms-2">
-                          {tOff("archived")}
-                        </ToneBadge>
-                      ) : null}
-                      {pending ? (
-                        <ToneBadge tone="waiting" className="ms-2">
-                          {t("requests", { count: pending })}
-                        </ToneBadge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className={c.lead ? "" : "text-muted-foreground"}>{c.lead ?? t("noLead")}</TableCell>
-                    <TableCell>
-                      {/* The lead has their own column; with no one else, say so instead of "none" (review L06). */}
-                      <PeopleStack names={c.consultants} empty={c.lead ? t("leadOnly") : tc("none")} />
-                    </TableCell>
-                    <TableCell className="text-end tabular-nums">{c.projectCount}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      {clients.length === 0 && pitches.length === 0 ? <EmptyState icon={<Users animateOnView />} description={tc("empty")} /> : null}
+      {clients.length ? table(clients) : null}
+
+      {pitches.length ? (
+        <section className="space-y-3">
+          <SectionHeader title={t("pitches")} description={t("pitchesHint")} />
+          {table(pitches)}
+        </section>
+      ) : null}
 
       {data.directory.length ? (
         <Card className="gap-4 py-5 shadow-xs">

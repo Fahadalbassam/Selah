@@ -1,26 +1,39 @@
+import { Mail } from "lucide-react";
+import Link from "next/link";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton } from "@/components/form-dialog";
-import { MailChoicesForm, MutedActions } from "@/components/mail-choices";
 import { MarkAllRead, NotificationList } from "@/components/notifications";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { ToneBadge } from "@/components/tone-badge";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { withPrincipal } from "@/server/page";
 import { listSupportRequests } from "@/services/help";
-import { getMailPreferences, listNotifications } from "@/services/notifications";
+import { listNotifications } from "@/services/notifications";
 
+// The notification list (page audit row 34). Mail options and muted actions
+// have their own view (/notifications/mail), opened from the user menu.
 export default async function NotificationsPage() {
-  const { items, unread, mail, support } = await withPrincipal(async (tx, principal) => ({
+  const { items, unread, support } = await withPrincipal(async (tx, principal) => ({
     ...(await listNotifications(tx, principal, 100)),
-    mail: await getMailPreferences(tx, principal),
     // The firm admin reads what clients reported from the help page (F13).
+    // It stays here until the admin's home holds it (batch 2, homes).
     support: await listSupportRequests(tx, principal),
   }));
-  const [t, tHelp, format, ar] = await Promise.all([getTranslations("notifications"), getTranslations("help.support"), getFormatter(), getLocale().then((l) => l === "ar")]);
-  const { muted, mutedIndicators, nextMailAt, ...choices } = mail;
+  const [t, tNav, tHelp, format, ar] = await Promise.all([
+    getTranslations("notifications"),
+    getTranslations("nav"),
+    getTranslations("help.support"),
+    getFormatter(),
+    getLocale().then((l) => l === "ar"),
+  ]);
   return (
     <>
       <PageHeader title={t("title")} description={t("unread", { n: unread })}>
+        <Link href="/notifications/mail" data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <Mail />
+          {tNav("mailOptions")}
+        </Link>
         {unread > 0 ? <MarkAllRead /> : null}
       </PageHeader>
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -57,9 +70,6 @@ export default async function NotificationsPage() {
           </div>
         </section>
       ) : null}
-      <SectionHeader title={t("mail.section")} description={t("mail.sectionHint")} />
-      <MailChoicesForm initial={{ ...choices, nextMailAt: nextMailAt?.toISOString() ?? null }} />
-      <MutedActions items={muted} indicators={mutedIndicators} />
     </>
   );
 }

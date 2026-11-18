@@ -3,12 +3,14 @@ import { getTranslations } from "next-intl/server";
 import { Users } from "@/components/animate-ui/icons/users";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { TeamTabs } from "@/components/people-tabs";
 import { withPrincipal } from "@/server/page";
 import { expertiseOverview } from "@/services/expertise";
 import { ExpertiseTable } from "./expertise-table";
 
-// What each consultant can lead. The firm admin records services and
-// sectors; each consultant keeps their own languages and availability.
+// What each consultant can lead, a tab of Team (page audit 4.1). The firm
+// admin records services and sectors; each consultant keeps their own
+// languages and availability, from "My expertise" in their user menu.
 export default async function ExpertisePage() {
   const data = await withPrincipal(async (tx, principal) =>
     principal.orgKind === "firm" ? { overview: await expertiseOverview(tx, principal), me: principal.userId } : null,
@@ -18,6 +20,7 @@ export default async function ExpertisePage() {
   const { overview } = data;
   return (
     <>
+      <TeamTabs current="expertise" />
       <PageHeader title={t("title")} description={overview.canManage ? t("hint") : t("hintOwn")} />
       {overview.consultants.length === 0 ? (
         <EmptyState icon={<Users animateOnView />} description={t("empty")} />
