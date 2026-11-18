@@ -21,6 +21,7 @@ import {
   outlineRows,
   parseKind,
   parseYesNo,
+  removedIfSkipped,
   sheetRows,
   splitList,
   structureRows,
@@ -336,6 +337,32 @@ describe("the review step's checks", () => {
       expect(ok.plan.positions.map((p) => [p.code, p.inDraft])).toEqual([["1.1", true]]);
       expect(ok.plan.removeUnits).toEqual(["9"]);
       expect(ok.plan.removePositions).toEqual(["9.1"]);
+    });
+
+    it("replacing: names every position that leaves the draft, with who holds it today", () => {
+      // Position 1.1 renumbered to 1.10 in Excel: by code, 1.1 leaves the draft, and with it Khalid's place.
+      const rows = [row(2, { unitCode: "1", unitNameAr: "مجلس الإدارة", unitKind: "board", positionCode: "1.10", titleAr: "رئيس المجلس", head: "yes" })];
+      const c = checkOrgImport(rows, ctx({ draft: { ...draft, positions: draft.positions.map((p) => (p.code === "1.1" ? { ...p, holders: [{ userId: "u-khalid", name: "خالد العتيبي" }] } : p)) } }), "replace");
+      expect(c.plan.leaving).toEqual({
+        positions: [
+          { code: "1.1", titleAr: "رئيس المجلس", titleEn: null, holders: ["خالد العتيبي"] },
+          { code: "9.1", titleAr: null, titleEn: "Old position", holders: [] },
+        ],
+        units: [{ code: "9", nameAr: null, nameEn: "Old unit" }],
+      });
+      expect(checkOrgImport(rows, ctx({ draft }), "add").plan.leaving).toEqual({ positions: [], units: [] });
+    });
+
+    it("says what skipping a row takes out of the draft when replacing, and nothing when adding", () => {
+      const rows = [
+        row(2, { unitCode: "1", unitNameAr: "مجلس الإدارة", unitKind: "board", positionCode: "1.1", titleAr: "رئيس المجلس", head: "yes" }),
+        row(3, { unitCode: "9", unitNameEn: "Old unit", parentCode: "1", level: "2", positionCode: "9.1", titleEn: "Old position", reportsTo: "1.1" }),
+        row(4, { unitCode: "3", unitNameEn: "Legal", parentCode: "1", level: "2" }),
+      ];
+      expect(removedIfSkipped(rows, 3, ctx({ draft }), "replace")).toEqual({ positions: ["9.1"], units: ["9"] });
+      // A new unit: skipping it removes nothing that is in the draft.
+      expect(removedIfSkipped(rows, 4, ctx({ draft }), "replace")).toEqual({ positions: [], units: [] });
+      expect(removedIfSkipped(rows, 3, ctx({ draft }), "add")).toEqual({ positions: [], units: [] });
     });
   });
 

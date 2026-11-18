@@ -736,6 +736,14 @@ export interface PlannedPosition {
   line: number;
 }
 
+/** A position of the draft that saving with "Replace" removes, and the names of who holds it today. */
+export interface LeavingPosition {
+  code: string;
+  titleAr: string | null;
+  titleEn: string | null;
+  holders: string[];
+}
+
 export interface OrgImportCheck {
   rows: OrgRowCheck[];
   plan: {
@@ -745,6 +753,8 @@ export interface OrgImportCheck {
     /** Replacing: the draft's units and positions the rows do not hold, removed on saving. */
     removeUnits: string[];
     removePositions: string[];
+    /** Replacing: what leaves the draft, by name, and who holds each position today (their holding ends when the draft is published). */
+    leaving: { positions: LeavingPosition[]; units: { code: string; nameAr: string | null; nameEn: string | null }[] };
   };
   counts: { units: number; positions: number; withErrors: number; withWarnings: number; removeUnits: number; removePositions: number };
   /** More rows than one import takes. */
@@ -1061,9 +1071,15 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
   const out = included.map((r) => checks.get(r.line)!);
   const removeUnits = replace ? ctx.draft.units.map((u) => u.code).filter((c) => !units.has(c)) : [];
   const removePositions = replace ? ctx.draft.positions.map((p) => p.code).filter((c) => !lineOf.has(c)) : [];
+  const leaving = {
+    positions: ctx.draft.positions
+      .filter((p) => removePositions.includes(p.code))
+      .map((p) => ({ code: p.code, titleAr: p.titleAr, titleEn: p.titleEn, holders: p.holders.flatMap((h) => (h.name ? [h.name] : [])) })),
+    units: ctx.draft.units.filter((u) => removeUnits.includes(u.code)).map((u) => ({ code: u.code, nameAr: u.nameAr, nameEn: u.nameEn })),
+  };
   return {
     rows: out,
-    plan: { units: plannedUnits, positions: planned, removeUnits, removePositions },
+    plan: { units: plannedUnits, positions: planned, removeUnits, removePositions, leaving },
     counts: {
       units: plannedUnits.length,
       positions: planned.length,
@@ -1073,5 +1089,24 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
       removePositions: removePositions.length,
     },
     tooMany: included.length > ORG_IMPORT_LIMITS.rows,
+  };
+}
+
+/**
+ * What leaving one row out takes out of the draft when replacing it: the
+ * draft's positions and units that only that row kept ("Skip this row" says
+ * so). Nothing when adding, where the draft stays as it is.
+ */
+export function removedIfSkipped(rows: readonly OrgRow[], line: number, ctx: OrgImportContext, mode: OrgImportMode): { positions: string[]; units: string[] } {
+  if (mode !== "replace") return { positions: [], units: [] };
+  const kept = checkOrgImport(rows, ctx, mode).plan;
+  const skipped = checkOrgImport(
+    rows.map((r) => (r.line === line ? { ...r, include: false } : r)),
+    ctx,
+    mode,
+  ).plan;
+  return {
+    positions: skipped.removePositions.filter((c) => !kept.removePositions.includes(c)),
+    units: skipped.removeUnits.filter((c) => !kept.removeUnits.includes(c)),
   };
 }

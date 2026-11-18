@@ -28,6 +28,7 @@ import {
   ORG_IMPORT_FIELDS,
   ORG_IMPORT_LIMITS,
   parseYesNo,
+  removedIfSkipped,
   type Dropped,
   type OrgField,
   type OrgImportContext,
@@ -97,6 +98,7 @@ export function OrgChartImportWizard({
   const tf = useTranslations("orgChartImport.fields");
   const tk = useTranslations("orgChartImport.kinds");
   const router = useRouter();
+  const locale = useLocale();
   const [confirm, confirmDialog] = useConfirm();
 
   const [step, setStep] = useState<Step>("source");
@@ -108,11 +110,14 @@ export function OrgChartImportWizard({
   const [mode, setMode] = useState<OrgImportMode | null>(draft ? null : "add");
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<OrgRow | null>(null);
+  // Replacing removes what the rows do not hold: the person ticks that they have looked at it.
+  const [leavingSeen, setLeavingSeen] = useState(false);
 
   function received(body: Imported) {
     setImported(body);
     setRows(body.rows);
     setMode(draft ? null : "add");
+    setLeavingSeen(false);
     setStep("review");
   }
 
@@ -160,7 +165,11 @@ export function OrgChartImportWizard({
   const check = useMemo(() => checkOrgImport(rows, ctx, mode ?? "add"), [rows, ctx, mode]);
   const byLine = useMemo(() => new Map(check.rows.map((r) => [r.line, r])), [check]);
   const nothing = check.counts.units + check.counts.positions === 0;
-  const blocked = busy || !mode || check.counts.withErrors > 0 || check.tooMany || nothing;
+  const leaving = mode === "replace" ? check.plan.leaving : { positions: [], units: [] };
+  const mustSeeLeaving = leaving.positions.length + leaving.units.length > 0 && !leavingSeen;
+  const blocked = busy || !mode || check.counts.withErrors > 0 || check.tooMany || nothing || mustSeeLeaving;
+  /** In Replace, what "Skip this row" takes out of the draft (only rows with an error show the button). */
+  const skipEffect = (r: OrgRow) => (mode === "replace" && byLine.get(r.line)?.errors.length ? removedIfSkipped(rows, r.line, ctx, mode) : null);
 
   async function save() {
     const c = check.counts;
@@ -372,6 +381,45 @@ export function OrgChartImportWizard({
             </Card>
           ) : null}
 
+          {leaving.positions.length + leaving.units.length ? (
+            <Card className="gap-3 py-4 shadow-xs">
+              <CardHeader className="px-5">
+                <CardTitle className="text-sm">{t("review.leavingTitle")}</CardTitle>
+                <CardDescription>{t("review.leavingHint")}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 px-5">
+                <ul className="grid gap-1 text-sm">
+                  {leaving.positions.map((p) => (
+                    <li key={`p${p.code}`} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-mono text-xs text-muted-foreground" dir="ltr">
+                        {p.code}
+                      </span>
+                      <bdi>{(locale === "ar" ? (p.titleAr ?? p.titleEn) : (p.titleEn ?? p.titleAr)) ?? ""}</bdi>
+                      {p.holders.length ? (
+                        <span className="text-xs text-foreground">{t("review.leavingHeld", { names: p.holders.join(locale === "ar" ? "، " : ", ") })}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{t("review.vacant")}</span>
+                      )}
+                    </li>
+                  ))}
+                  {leaving.units.map((u) => (
+                    <li key={`u${u.code}`} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-mono text-xs text-muted-foreground" dir="ltr">
+                        {u.code}
+                      </span>
+                      <bdi>{(locale === "ar" ? (u.nameAr ?? u.nameEn) : (u.nameEn ?? u.nameAr)) ?? ""}</bdi>
+                      <span className="text-xs text-muted-foreground">{t("review.unit")}</span>
+                    </li>
+                  ))}
+                </ul>
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox checked={leavingSeen} onCheckedChange={(on) => setLeavingSeen(on === true)} className="mt-0.5" />
+                  <span>{t("review.leavingConfirm")}</span>
+                </label>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {rows.length ? (
             <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
               <Table>
@@ -396,6 +444,7 @@ export function OrgChartImportWizard({
                       issueText={issueText}
                       onInclude={(include) => setRows(rows.map((x) => (x.line === r.line ? { ...x, include } : x)))}
                       onEdit={() => setEditing(r)}
+                      skipRemoves={skipEffect(r)}
                     />
                   ))}
                 </TableBody>
@@ -409,6 +458,8 @@ export function OrgChartImportWizard({
             </p>
           ) : !mode ? (
             <p className="text-sm text-muted-foreground">{t("review.chooseMode")}</p>
+          ) : mustSeeLeaving ? (
+            <p className="text-sm text-muted-foreground">{t("review.leavingFirst")}</p>
           ) : check.counts.withErrors ? (
             <p className="text-sm text-destructive">{t("review.blocked", { n: check.counts.withErrors })}</p>
           ) : check.tooMany ? (
@@ -450,7 +501,15 @@ export function OrgChartImportWizard({
   );
 }
 
-function ReviewRow(props: { row: OrgRow; check: OrgRowCheck | undefined; issueText: (i: OrgIssue) => string; onInclude: (on: boolean) => void; onEdit: () => void }) {
+function ReviewRow(props: {
+  row: OrgRow;
+  check: OrgRowCheck | undefined;
+  issueText: (i: OrgIssue) => string;
+  onInclude: (on: boolean) => void;
+  onEdit: () => void;
+  /** Replacing: what skipping this row takes out of the draft. */
+  skipRemoves: { positions: string[]; units: string[] } | null;
+}) {
   const t = useTranslations("orgChartImport.review");
   const locale = useLocale();
   const { row, check } = props;
@@ -523,7 +582,9 @@ function ReviewRow(props: { row: OrgRow; check: OrgRowCheck | undefined; issueTe
               ))}
               {check.errors.length ? (
                 <Button variant="ghost" size="sm" className="-ms-2 h-7" onClick={() => props.onInclude(false)}>
-                  {t("skip")}
+                  {props.skipRemoves && props.skipRemoves.positions.length + props.skipRemoves.units.length
+                    ? t("skipRemoves", { codes: [...props.skipRemoves.units, ...props.skipRemoves.positions].join(locale === "ar" ? "، " : ", ") })
+                    : t("skip")}
                 </Button>
               ) : null}
             </>
