@@ -268,3 +268,13 @@ Recorded first, as he asked (also in `work/build-brief.md`, "Plan additions from
 - **Scenarios 1 to 21**: phase 4, section 9, after Fahad's additions (assistant value test, docs pack, staging e2e, README fix, engagement-end reminder, lead-change notice, Dependabot) and before Gate C; scenario 19 (the isolation sweep) last.
 
 **The order now:** finish the features before batch 1 (picker, deliverable receipt, org chart parts 2 to 5 with the work card in part 3) and the re-check fixes; batches 1 to 5; phase 2 (handbook, tooltips, first-visit help); phase 3 (unfinished work, section 7) and Gate B; Fahad's additions; phase 4 (scenarios 1 to 21); Gate C; then the Selah map and the three team documents.
+
+### 18 Nov, evening
+
+**Merged** (CI green, low code review with no findings, screens checked by the lead): #171 deliverable handed over and received (4a, migration 0092), #172 org chart part 2 (the drawn tree, the Structure tabs, the PDF; no migration), #173 fixes from the screen re-check of batch 0 (migration 0093). Documents: #169, #170.
+
+**Reviews.** Org chart part 2 (`work/org-chart-tree-review.md`): nothing blocking, five should-fix, fixed. Re-check fixes (`work/recheck-fix-review.md`): nothing blocking; one missing deny test added (an invited, department-limited manager gets no attendee names). Kept open: that manager's Meetings tab still reads "none for you yet" although she is invited (a Gate B question); a Tab pressed within about 100 ms of choosing from a list can still be lost (an end-to-end test is planned).
+
+**Decided by the lead:** org chart part 2 shows the Structure tab only once there is something to read; with departments off a manager sees only the Structure tab, the client admin keeps both (the switch lives there). Org chart part 3 lets the people who may change holders **remove a holding entered by mistake** (asked first; the audit records the removal without the typed name), so a mistyped name can be deleted and minimal records become possible again.
+
+**Paused** on Fahad's request (he closed the laptop): Docker Desktop, every selah-lead container (data kept) and the Windows Ollama app stopped; the picker and org chart part 3 helpers stopped mid-work. **Resumed** the same evening: my copy restarted without a reset (the helpers' test databases survived), both helpers continued, and org chart part 4 (imports) started beside part 3.
