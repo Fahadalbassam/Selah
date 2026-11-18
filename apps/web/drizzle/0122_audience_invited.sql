@@ -191,7 +191,8 @@ BEGIN
   RETURN withdrawn;
 END $$;
 --> statement-breakpoint
--- 4. The new mail kind (latest list: 0060), and whether an address is still on a meeting's
+-- 4. The new mail kind (latest list: 0092_deliverable_receipts, every kind there kept; not work
+--    mail, so app_work_mail_kinds() is unchanged), and whether an address is still on a meeting's
 --    attendee list, as a person or a contact.
 ALTER TABLE outbound_emails DROP CONSTRAINT outbound_kind;
 --> statement-breakpoint
@@ -200,7 +201,9 @@ ALTER TABLE outbound_emails ADD CONSTRAINT outbound_kind CHECK (kind IN (
   'meeting.invite', 'meeting.cancel', 'meeting.removed', 'password_reset', 'password_reset.notice', 'two_factor.reset',
   'inquiry.new', 'inquiry.received', 'inquiry.declined', 'action.assigned', 'action.revision_requested',
   'action.verified_complete', 'evidence.requested', 'action.commented', 'action.mentioned', 'follow_up.digest', 'client.archived',
-  'pulse.requested', 'sign_in_link', 'info_request.upload_link', 'support.requested'));
+  'pulse.requested', 'sign_in_link', 'info_request.upload_link', 'support.requested',
+  'org_chart.holder_changed', 'org_chart.change_requested',
+  'deliverable.handed_over', 'deliverable.commented'));
 --> statement-breakpoint
 CREATE FUNCTION app_meeting_address_on(mid uuid, addr text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$

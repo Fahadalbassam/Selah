@@ -419,7 +419,7 @@ export async function handOverDeliverable(tx: Tx, principal: Principal, id: stri
   assertAllowed(principal, "deliverable.hand_over", resource);
   if (new Set(versionIds).size !== versionIds.length) throw new BadRequestError("pick each file once");
   for (const versionId of versionIds) {
-    const loaded = await loadDocument(tx, versionId);
+    const loaded = await loadDocument(tx, versionId, principal);
     if (!loaded || loaded.doc.orgId !== row.clientOrgId || loaded.doc.purpose !== "deliverable") throw new BadRequestError("hand over this client's deliverable files");
     if (loaded.doc.visibility !== "shared") throw new BadRequestError("this file is firm-only: share it with the client first, from the file's own menu");
     const [project] = await tx.select({ engagementId: projects.engagementId }).from(projects).where(eq(projects.id, loaded.doc.projectId));
