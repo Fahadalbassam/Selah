@@ -15,6 +15,8 @@ import {
   type OrgChartRequestStatus,
   type OrgChartState,
   type OrgUnitKind,
+  versionStatus,
+  type VersionStatus,
 } from "@/lib/org-chart";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
@@ -393,6 +395,82 @@ export async function getVersion(tx: Tx, principal: Principal, versionId: string
     positions: list,
   };
 }
+
+/** Whether the reader may open the client's structure at all: the Structure tabs and the PDF. */
+export const canReadStructure = (principal: Principal, clientOrgId: string) => can(principal, "org_chart.read", clientOrgId);
+
+/**
+ * Whether the Structure tab shows for the reader: they may read the client's
+ * structure and there is something in it for them, a published version or,
+ * for the firm, a draft with at least one unit. Until then there is no tab
+ * and no empty page. A client person never learns of a draft: the database
+ * shows them published versions only.
+ */
+export async function hasStructure(tx: Tx, principal: Principal, clientOrgId: string): Promise<boolean> {
+  if (!UUID.test(clientOrgId) || !canReadStructure(principal, clientOrgId)) return false;
+  const firm = principal.orgKind === "firm";
+  const { rows } = await tx.execute<{ ok: boolean }>(sql`
+    select exists (
+      select 1 from org_chart_versions v
+      where v.org_id = ${clientOrgId}::uuid
+        and (v.state <> 'draft' or (${firm} and exists (select 1 from org_units u where u.version_id = v.id)))
+    ) as ok`);
+  return rows[0]?.ok === true;
+}
+
+/** One version as the Structure tab and the PDF draw it. */
+export interface StructureShown {
+  version: OrgVersionSummary;
+  /** Current, upcoming, replaced (when and by which) or the draft, on the day read. */
+  status: VersionStatus;
+  /** The day whose holders are shown. */
+  asOf: string;
+  names: NamesShown;
+  units: OrgUnit[];
+  positions: OrgPosition[];
+}
+
+/**
+ * What the Structure tab and its PDF show: the version the reader picked
+ * ("draft", a version's id, or nothing for the current one), read through
+ * getPublishedChart, getDraft and getVersion, so the names, holders and dates
+ * are exactly the ones those allow; nothing is decided again here. With
+ * nothing picked: the current version or, for the firm while nothing is
+ * published yet, its draft. The draft never reaches a client person (404),
+ * nor does another client's version. `versions` is listVersions: the draft
+ * only for the firm.
+ */
+export async function getStructure(tx: Tx, principal: Principal, clientOrgId: string, pick?: string | null, today = firmToday()) {
+  const current = await getPublishedChart(tx, principal, clientOrgId, today);
+  const listed = await listVersions(tx, principal, clientOrgId);
+  const versions = listed.map((v) => ({ ...v, status: versionStatus(v, listed, today) }));
+  const statusOf = (id: string) => versions.find((v) => v.id === id)!.status;
+  const draftSummary = principal.orgKind === "firm" ? (versions.find((v) => v.state === "draft") ?? null) : null;
+  const draft = async (): Promise<StructureShown> => {
+    if (!draftSummary) throw new NotFoundError("draft");
+    const d = await getDraft(tx, principal, clientOrgId, today);
+    if (!d.draft || d.draft.id !== draftSummary.id) throw new NotFoundError("draft");
+    return { version: draftSummary, status: { kind: "draft" }, asOf: today, names: current.client.minimalRecords ? "none" : "all", units: d.units, positions: d.positions };
+  };
+  let shown: StructureShown | null = null;
+  if (pick === "draft") shown = await draft();
+  else if (pick) {
+    if (!UUID.test(pick) || !versions.some((v) => v.id === pick)) throw new NotFoundError("version");
+    if (pick === draftSummary?.id) shown = await draft();
+    else {
+      const status = statusOf(pick);
+      // A replaced version still in effect (its successor takes effect later) shows today's holders.
+      const v = await getVersion(tx, principal, pick, status.kind === "current" ? today : undefined);
+      shown = { version: v.version, status, asOf: v.asOf, names: v.names, units: v.units, positions: v.positions };
+    }
+  } else if (current.version) {
+    shown = { version: current.version, status: statusOf(current.version.id), asOf: today, names: current.names, units: current.units, positions: current.positions };
+  } else if (draftSummary) shown = await draft();
+  const { departmentsEnabled } = await clientOf(tx, clientOrgId);
+  return { client: { ...current.client, departmentsEnabled }, today, current: current.version, versions, shown };
+}
+
+export type Structure = Awaited<ReturnType<typeof getStructure>>;
 
 /**
  * Positions of the current structure nobody holds today (for the invite form

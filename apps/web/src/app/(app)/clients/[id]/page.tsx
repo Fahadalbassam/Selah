@@ -20,7 +20,7 @@ import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canWriteContacts, listContacts } from "@/services/accounts";
-import { getEngagement } from "@/services/engagement";
+import { canReadDepartments, getEngagement } from "@/services/engagement";
 import { listEngagements } from "@/services/engagements";
 import { discardBlock } from "@/services/prospects";
 import { suggestClientLeads } from "@/services/inquiries";
@@ -45,6 +45,8 @@ import { ClientAiCard } from "./client-ai-card";
 import { getClientAi } from "@/services/client-ai";
 import { getClientReviewRule } from "@/services/second-review";
 import { SecondReviewRuleCard } from "./second-review-card";
+import { hasStructure } from "@/services/org-chart";
+import { ClientTabs } from "./client-tabs";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -82,6 +84,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
       // When evidence needs a second consultant's sign-off (F22).
       secondReview: team.client.prospect ? null : await getClientReviewRule(tx, principal, id),
+      // The Departments and Structure tabs, for the people who may open them (F43).
+      departments: canReadDepartments(principal, id),
+      structure: await hasStructure(tx, principal, id),
     };
   });
   if (!data) notFound();
@@ -155,6 +160,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
+      <ClientTabs clientId={client.id} current="overview" structure={data.structure} departments={data.departments} />
       <PageHeader
         title={localName(client, ar)}
         morph={`client-${client.id}`}

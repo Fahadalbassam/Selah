@@ -65,11 +65,16 @@ export function escapeHtml(value: string | null | undefined): string {
     .replace(/'/g, "&#39;");
 }
 
-/** The fonts and print styles every exported report shares. */
-export function reportStyles(): string {
-  const fonts = REPORT_FONTS.map(
+/** The report fonts, sent with each PDF (services/pdf.ts), as "Plex". */
+export function reportFontFaces(): string {
+  return REPORT_FONTS.map(
     (f) => `@font-face{font-family:"Plex";src:url("${f.file}") format("woff2");font-weight:${f.weight};font-style:normal;unicode-range:${f.range};}`,
   ).join("");
+}
+
+/** The fonts and print styles every exported report shares. */
+export function reportStyles(): string {
+  const fonts = reportFontFaces();
   return `${fonts}
 @page{size:A4;margin:16mm 15mm 18mm;}
 *{box-sizing:border-box;}
