@@ -171,6 +171,21 @@ export async function plannedNames(tx: Tx, positionIds: string[]): Promise<Recor
   return Object.fromEntries([...plans].map(([id, list]) => [id, list.flatMap((h) => (h.name ? [h.name] : []))]));
 }
 
+/**
+ * Remove who is planned for a position of the client's draft ("Remove plan"
+ * in the draft editor): the draft's editors only, anyone else a 404. A plan
+ * is the firm's working note: removing it changes nobody's holding.
+ */
+export async function clearPlan(tx: Tx, principal: Principal, clientOrgId: string, positionId: string) {
+  const view = await importContext(tx, principal, clientOrgId);
+  if (!view || !UUID.test(positionId)) throw new NotFoundError("position");
+  const d = await OC.getDraft(tx, principal, clientOrgId);
+  const position = d.positions.find((p) => p.id === positionId);
+  if (!position) throw new NotFoundError("position");
+  await setPlans(tx, principal, clientOrgId, { id: position.id, code: position.code }, []);
+  return { ok: true };
+}
+
 /** Whether a position's plan already is this list (same people, same order). */
 const samePlan = (current: Plan[], wanted: PlannedHolder[]) =>
   current.length === wanted.length &&

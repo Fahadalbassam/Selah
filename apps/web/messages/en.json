@@ -3435,7 +3435,7 @@
       "unitInDraft": "Unit {code} is already in your draft: it stays as it is.",
       "unitUpdated": "Unit {code} is in your draft: it is updated.",
       "positionUpdated": "Position {code} is in your draft: it is updated. Who holds it today does not change here.",
-      "planned": "Planned: placed in the position when this version of the structure is published, not before.",
+      "planned": "Planned: kept with the position in the draft, and nobody is placed from here; publishing that places them is not built yet.",
       "namesNotKept": "This client keeps minimal records, so no names are kept: the holder is left out."
     },
     "errors": {
@@ -3482,7 +3482,7 @@
         "titleEn": "The position's title in English.",
         "reportsTo": "The code of the position it reports to, never its title, because titles repeat.",
         "head": "Yes for the position that heads its unit: one per unit.",
-        "holder": "Who is planned for it: the e-mail of someone at the client with a Selah account, or a typed name. Several are separated by ; or ؛. They are placed when the structure is published; it does not change who holds it today.",
+        "holder": "Who is planned for it: the e-mail of someone at the client with a Selah account, or a typed name. Several are separated by ; or ؛. The plan stays with the draft; it does not change who holds the position today.",
         "specialties": "Separated by ; or ؛",
         "vacant": "Yes when nobody holds it.",
         "planned": "How many people it is planned for. Empty: 1."
@@ -3506,7 +3506,10 @@
         "planned": "1"
       }
     },
-    "plannedLine": "Planned, placed when published: {names}"
+    "plannedLine": "Planned (stays with the draft until placed): {names}",
+    "removePlan": "Remove plan",
+    "removePlanConfirm": "Remove who is planned for \"{title}\"? Nobody's holding changes.",
+    "planRemoved": "Plan removed."
   },
   "exports": {
     "excel": "Excel",

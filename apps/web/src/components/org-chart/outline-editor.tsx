@@ -158,6 +158,11 @@ export function OutlineEditor(props: {
     if (!(await confirm(t("removePositionConfirm", { title: title(p) })))) return;
     await run(`/api/org-chart/positions/${p.id}`, "DELETE", undefined, t("removed"));
   }
+  /** Part 4: clear who is planned for a position (a working note of the firm; nobody's holding changes). */
+  async function removePlan(p: OrgPosition) {
+    if (!(await confirm(tImport("removePlanConfirm", { title: title(p) })))) return;
+    await run(`/api/clients/${props.clientId}/structure/plans/${p.id}`, "DELETE", undefined, tImport("planRemoved"));
+  }
   async function restart() {
     if (!props.draftId || !(await confirm(t("restartConfirm")))) return;
     await run(`/api/clients/${props.clientId}/structure/draft/reset`, "POST", { draftId: props.draftId }, t("restarted"));
@@ -282,6 +287,7 @@ export function OutlineEditor(props: {
             <DropdownMenuItem disabled={props.units.length < 2} onSelect={() => setMoving({ kind: "position", id: p.id })}>
               {t("moveToUnit")}
             </DropdownMenuItem>
+            {props.plans?.[p.id]?.length ? <DropdownMenuItem onSelect={() => void removePlan(p)}>{tImport("removePlan")}</DropdownMenuItem> : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => void removePosition(p)}>
               {t("remove")}

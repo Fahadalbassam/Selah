@@ -88,6 +88,7 @@ const SAHM = id(2); // full, departments on: the chart under test
 const OTHER = id(3); // another client of the firm
 const MANAGED = id(4); // consultant-managed with minimal records: titles only
 const NOPROJ = id(5); // a client with no project yet: the assistant has nothing to read for it
+const FAMILY = id(9); // consultant-managed, names kept for now: switched to minimal records once no name is planned
 const P = id(6);
 const P_OTHER = id(7);
 const P_MANAGED = id(8);
@@ -236,8 +237,8 @@ beforeAll(async () => {
     `INSERT INTO organizations (id, kind, name, name_ar, engagement_mode, departments_enabled, minimal_records, display_alias) VALUES
       ($1,'firm','Mizan Advisory','ميزان للاستشارات',NULL,false,false,NULL), ($2,'client','Sahm Trading','شركة سهم للتجارة','full',true,false,NULL),
       ($3,'client','Other Client',NULL,'full',false,false,NULL), ($4,'client','Managed','', 'consultant_managed',false,true,'Family office A'),
-      ($5,'client','Noproj Client',NULL,'full',false,false,NULL)`,
-    [FIRM, SAHM, OTHER, MANAGED, NOPROJ],
+      ($5,'client','Noproj Client',NULL,'full',false,false,NULL), ($6,'client','Family',NULL,'consultant_managed',false,false,NULL)`,
+    [FIRM, SAHM, OTHER, MANAGED, NOPROJ, FAMILY],
   );
   await q(`INSERT INTO firm_settings (org_id) VALUES ($1)`, [FIRM]);
   for (const [k, uid] of Object.entries(U)) await q(`INSERT INTO "user" (id, name, email) VALUES ($1,$2,$3)`, [uid, NAMES[k as keyof typeof U], `${k}@example.test`]);
@@ -254,8 +255,8 @@ beforeAll(async () => {
   );
   await q(
     `INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES
-      ($1,$2,true,false), ($1,$3,false,true), ($1,$4,false,false), ($1,$5,false,false), ($1,$6,false,false), ($7,$2,true,false)`,
-    [SAHM, U.lead, U.deputy, U.cons, U.obs, U.team, MANAGED],
+      ($1,$2,true,false), ($1,$3,false,true), ($1,$4,false,false), ($1,$5,false,false), ($1,$6,false,false), ($7,$2,true,false), ($8,$2,true,false)`,
+    [SAHM, U.lead, U.deputy, U.cons, U.obs, U.team, MANAGED, FAMILY],
   );
   await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false), ($1,$3,true), ($1,$4,false), ($1,$5,false)`, [P, U.cons, U.obs, U.mgr, U.owner]);
   await q(`INSERT INTO departments (org_id, name_ar, name_en) VALUES ($1,'المالية','Finance')`, [SAHM]);
@@ -420,10 +421,17 @@ describe("saving into the draft", () => {
     });
   });
 
-  it("publishing leaves the plans for part 5, and no client reader ever sees one", async () => {
+  it("publishing carries the plans to the new draft, never leaves them on the published version, and no client reader ever sees one", async () => {
+    const plans = await plansOf(SAHM);
     const draftId = (await svc(U.lead, (tx, p) => OC.getDraft(tx, p, SAHM))).draft!.id;
     await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId, effectiveOn: firmToday() }), true);
     expect(await holdingsOf(SAHM)).toBe(0);
+    // The same plans, on the new draft's positions of the same lineage; none on the published version.
+    expect(await plansOf(SAHM)).toEqual(plans);
+    const onPublished = await q(`SELECT count(*)::int AS n FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id JOIN org_chart_versions v ON v.id = p.version_id WHERE h.org_id = $1 AND v.state <> 'draft'`, [SAHM]);
+    expect(onPublished.rows[0].n).toBe(0);
+    const lineage = await q(`SELECT DISTINCT p.lineage_id = l.lineage_id AS same FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id JOIN positions l ON l.version_id = $2 AND l.code = p.code WHERE h.org_id = $1`, [SAHM, draftId]);
+    expect(lineage.rows).toEqual([{ same: true }]);
     for (const who of [U.cadmin, U.mgr]) {
       const seen = await svc(who, (tx, p) => OC.getStructure(tx, p, SAHM));
       expect(seen.shown!.positions.every((p) => p.holders.length === 0)).toBe(true);
@@ -520,6 +528,20 @@ describe("saving into the draft", () => {
     ]);
     await expect(svc(U.lead, (tx, pr) => IM.parseImportFile(tx, pr, SAHM, upload(zipSync({ "word/document.xml": strToU8(`<?xml version="1.0"?><w:document ${W}><w:body><w:p><w:r><w:t>Just text</w:t></w:r></w:p></w:body></w:document>`) }), "plain.docx", DOCX)))).rejects.toThrow(/no headings/);
     await expect(svc(U.lead, (tx, pr) => IM.parseImportFile(tx, pr, SAHM, upload(writeXlsx([{ name: "x", rtl: false, columns: [{ header: "Something" }], rows: [["else"]] }]), "other.xlsx")))).rejects.toThrow(/not the template/);
+  });
+
+  it("refuses minimal records while the draft plans a named person, and allows it once the plan is removed", async () => {
+    const rows = [{ unitCode: "1", unitNameEn: "Family council", positionCode: "1.1", titleEn: "Chair", head: "yes", holder: "Typed Family Chair" }];
+    await importFile(U.lead, FAMILY, upload(workbook(rows), "family.xlsx"));
+    const toMinimal = () => q(`UPDATE organizations SET minimal_records = true, display_alias = 'Family office B' WHERE id = $1`, [FAMILY]);
+    await expect(toMinimal()).rejects.toThrow(/remove the names of people/);
+    const position = (await q(`SELECT position_id FROM org_chart_planned_holders WHERE org_id = $1`, [FAMILY])).rows[0].position_id as string;
+    // Only the draft's editors remove a plan.
+    for (const who of [U.cadmin, U.obs]) await expect(svc(who, (tx, p) => IM.clearPlan(tx, p, FAMILY, position)), who).rejects.toThrow(REFUSED);
+    await svc(U.lead, (tx, p) => IM.clearPlan(tx, p, FAMILY, position), true);
+    expect(await plansOf(FAMILY)).toEqual({});
+    await toMinimal();
+    expect((await q(`SELECT minimal_records FROM organizations WHERE id = $1`, [FAMILY])).rows[0].minimal_records).toBe(true);
   });
 
   it("keeps no names at a client with minimal records: no plan, no holding", async () => {
