@@ -154,7 +154,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       ) : null}
-      {pack ? <StatusPackLists pack={pack.pack} links /> : null}
+      {pack ? <StatusPackLists pack={pack.pack} links firm={firm} /> : null}
     </>
   );
 }

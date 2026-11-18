@@ -31,7 +31,14 @@ describe("the firm's own view of a draft", () => {
   it("says in one muted line, in both languages, that the client sees nothing yet and will read the thread after release", () => {
     expect(en.action.draftNotice).toBe("Not visible to the client until you release it. Comments here become visible to the client after release.");
     expect(ar.action.draftNotice).toMatch(/[؀-ۿ]/);
-    expect(page).toContain(`firmView && action.status === "draft" ? <p className="text-sm text-muted-foreground">{t("draftNotice")}</p> : null`);
+    expect(page).toContain(`firmView && action.status === "draft" ? (`);
+  });
+
+  it("is not 'until you release it' for someone who cannot release it, an observer (screen re-check of batch 0)", () => {
+    expect(en.action.draftNoticeReader).toBe("Not visible to the client until it is released. Comments here become visible to the client after release.");
+    expect(ar.action.draftNoticeReader).toMatch(/[؀-ۿ]/);
+    // Release is the move to "assigned"; the page offers only the moves the reader may make.
+    expect(page).toContain(`t(data.moves.includes("assigned") ? "draftNotice" : "draftNoticeReader")`);
   });
 });
 

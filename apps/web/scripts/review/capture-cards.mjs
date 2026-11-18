@@ -35,7 +35,8 @@ for (const account of ACCOUNTS) {
       await button.click();
       await page.waitForTimeout(5000);
       const shot = `${name}-1280.png`;
-      await page.screenshot({ path: join(dir, shot) });
+      // caret: "initial": hiding the caret writes caret-color inline on inputs, which a hydrating page reports as a mismatch (see capture.mjs).
+      await page.screenshot({ path: join(dir, shot), caret: "initial" });
       const card = await page.evaluate((sel) => {
         const el = document.querySelector(sel) || document.querySelector('[class*="floating"]');
         if (!el) return null;

@@ -21,6 +21,9 @@ const text = (s: string) =>
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ");
+// A message with the people's names filled in, and its longest fixed part (to check a line is not drawn).
+const fill = (s: string, names: string) => s.replaceAll("{names}", names);
+const piece = (s: string) => s.split("{names}").sort((a, b) => b.length - a.length)[0]!;
 const reem = { name: "Reem", departmentIds: ["board"] };
 const sara = { name: "Sara", departmentIds: [] };
 
@@ -31,7 +34,7 @@ describe("the invite warning while booking a meeting of the whole project", () =
       expect(out).toContain("Reem");
       const words = (locale === "en" ? en : ar).meeting.form;
       expect(text(out)).toContain(words.makeDepartmentMeeting.replace("{department}", "Board secretariat"));
-      expect(text(out)).not.toContain(words.leftOutNoOffer);
+      expect(text(out)).not.toContain(piece(words.leftOutNoOffer));
     }
   });
 
@@ -40,7 +43,7 @@ describe("the invite warning while booking a meeting of the whole project", () =
       const words = (locale === "en" ? en : ar).meeting.form;
       const out = text(html(locale, createElement(LeftOutWarning, { people: [sara], offers: [] })));
       expect(out).toContain("Sara");
-      expect(out).not.toContain(words.leftOutNoOffer);
+      expect(out).not.toContain(piece(words.leftOutNoOffer));
       expect(out).toMatch(locale === "en" ? /no department/ : /أي إدارة/);
     }
   });
@@ -51,9 +54,9 @@ describe("the invite warning when adding someone to a meeting already booked", (
     for (const locale of ["en", "ar"] as const) {
       const words = (locale === "en" ? en : ar).meeting.form;
       const inOne = text(html(locale, createElement(LeftOutWarning, { people: [reem], booked: true })));
-      expect(inOne).toContain(words.leftOutKeepsDepartment);
+      expect(inOne).toContain(fill(words.leftOutKeepsDepartment, "Reem"));
       const inNone = text(html(locale, createElement(LeftOutWarning, { people: [sara], booked: true })));
-      expect(inNone).not.toContain(words.leftOutKeepsDepartment);
+      expect(inNone).not.toContain(piece(words.leftOutKeepsDepartment));
       expect(inNone).toMatch(locale === "en" ? /no department/ : /أي إدارة/);
     }
   });

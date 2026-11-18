@@ -417,7 +417,7 @@ export function IndicatorImportWizard({ clientId, ctx, onBehalf }: { clientId: s
                   </TableBody>
                 </Table>
               </div>
-              <p className="text-xs text-muted-foreground">{ti("claimNote")}</p>
+              <p className="text-xs text-muted-foreground">{ti(onBehalf ? "claimNote" : "claimNoteClient")}</p>
               {errorText ? (
                 <p role="alert" className="text-xs text-destructive">
                   {errorText}

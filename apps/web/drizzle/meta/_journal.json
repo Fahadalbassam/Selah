@@ -561,6 +561,13 @@
       "when": 1794961123385,
       "tag": "0092_deliverable_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794978016445,
+      "tag": "0093_meeting_attendee_names",
+      "breakpoints": true
     }
   ]
 }
