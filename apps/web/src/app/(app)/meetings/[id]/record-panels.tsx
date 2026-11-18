@@ -1,7 +1,9 @@
 "use client";
 
-import { UserPlus } from "lucide-react";
+import { Ban, UserPlus } from "lucide-react";
 import { Check } from "@/components/animate-ui/icons/check";
+import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { X } from "@/components/animate-ui/icons/x";
@@ -70,25 +72,60 @@ function ShareSwitch(props: { id: string; meetingShared: boolean; shared: boolea
   );
 }
 
-/** The attendee's own answer to the invitation. */
+/**
+ * The attendee's own answer to the invitation, in their own voice ("I'll
+ * attend"). The chosen answer reads as "on" (secondary), so the card's one
+ * solid button stays the call link.
+ */
 export function RespondButtons({ meetingId, current }: { meetingId: string; current: string }) {
   const t = useTranslations("meeting");
   const { busy, run } = useCall();
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label={t("yourAnswer")}>
       <span className="text-muted-foreground">{t("yourAnswer")}</span>
       {(["accepted", "tentative", "declined"] as const).map((r) => (
         <Button
           key={r}
           size="sm"
-          variant={current === r ? "default" : "outline"}
+          variant={current === r ? "secondary" : "outline"}
+          aria-pressed={current === r}
           disabled={busy}
           onClick={() => run(`/api/meetings/${meetingId}/response`, "PUT", { response: r })}
         >
-          {t(`response.${r}`)}
+          {t(`reply.${r}`)}
         </Button>
       ))}
     </div>
+  );
+}
+
+/** Rare things about a scheduled meeting, for whoever runs it: cancelling it (then send the cancellation). */
+export function MeetingMenu({ meetingId }: { meetingId: string }) {
+  const t = useTranslations("meeting");
+  const { busy, run } = useCall();
+  const [confirm, confirmDialog] = useConfirm();
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t("menu")} title={t("menu")}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={async () => {
+              if (await confirm(t("cancelConfirm"))) await run(`/api/meetings/${meetingId}`, "PATCH", { status: "cancelled" });
+            }}
+          >
+            <Ban />
+            {t("cancelMeeting")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {confirmDialog}
+    </>
   );
 }
 

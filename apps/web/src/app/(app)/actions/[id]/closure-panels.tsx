@@ -8,15 +8,7 @@ import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -32,22 +24,22 @@ interface Acceptance {
 }
 
 /**
- * The client's signed acceptances of the risk of not finishing this action.
- * A client admin or manager signs one; the firm can then close the action
- * as "risk accepted".
+ * The client's signed acceptances of the risk of not finishing this action,
+ * as a record: drawn only once one is signed. A client admin or manager signs
+ * one from the page menu (SignDialog); the firm can then close the action as
+ * "risk accepted".
  */
-export function RiskAcceptances({ actionId, items, canSign }: { actionId: string; items: Acceptance[]; canSign: boolean }) {
+export function RiskAcceptances({ items, firmView }: { items: Acceptance[]; firmView: boolean }) {
   const t = useTranslations("action.risk");
   const format = useFormatter();
-  if (!items.length && !canSign) return null;
+  if (!items.length) return null;
   return (
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-base">{t("title")}</CardTitle>
-        <CardDescription>{canSign ? t("hintClient") : t("hint")}</CardDescription>
+        <CardDescription>{firmView ? t("hint") : t("hintRead")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-5">
-        {items.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
         <ul className="space-y-3">
           {items.map((a) => (
             <li key={a.id} className={cn("space-y-1 rounded-lg border px-3 py-2.5", !a.current && "opacity-60")}>
@@ -63,21 +55,29 @@ export function RiskAcceptances({ actionId, items, canSign }: { actionId: string
             </li>
           ))}
         </ul>
-        {canSign ? <SignDialog actionId={actionId} /> : null}
       </CardContent>
     </Card>
   );
 }
 
-function SignDialog({ actionId }: { actionId: string }) {
+/** Sign a risk acceptance, opened from the action page's menu (a client admin or manager). */
+export function SignDialog({ actionId, open, onOpenChange }: { actionId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations("action.risk");
   const ta = useTranslations("action");
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [statement, setStatement] = useState("");
   const [agreed, setAgreed] = useState(false);
   const { busy, error, go, setError } = useRun(() => router.refresh());
   const ready = statement.trim().length >= 10 && agreed;
+  // Opened from the menu, so the fields are cleared on the way out.
+  function setOpen(next: boolean) {
+    onOpenChange(next);
+    setError(null);
+    if (!next) {
+      setStatement("");
+      setAgreed(false);
+    }
+  }
   function submit(e: FormEvent) {
     e.preventDefault();
     if (ready)
@@ -87,28 +87,14 @@ function SignDialog({ actionId }: { actionId: string }) {
       );
   }
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        setError(null);
-        if (o) {
-          setStatement("");
-          setAgreed(false);
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
-          {t("sign")}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("sign")}</DialogTitle>
-            <DialogDescription>{t("signHint")}</DialogDescription>
+            <DialogDescription>{t("hintClient")}</DialogDescription>
           </DialogHeader>
+          <p className="text-sm text-muted-foreground">{t("signHint")}</p>
           <div className="grid gap-2">
             <Label htmlFor="risk-statement">{t("statement")}</Label>
             <Textarea

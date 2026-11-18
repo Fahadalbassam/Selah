@@ -76,7 +76,8 @@ export async function GroupProgress({ total, companies, links }: { total: Client
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[30%]">{t("company")}</TableHead>
-                <TableHead className="whitespace-normal">{t("form")}</TableHead>
+                {/* How each company is held in Selah ("linked client") is the firm's word; the group's own people do not see it (page audit row 26). */}
+                {links ? <TableHead className="whitespace-normal">{t("form")}</TableHead> : null}
                 <TableHead className="whitespace-normal">{tm("implemented")}</TableHead>
                 <TableHead className="whitespace-normal">{tp("verifiedCol")}</TableHead>
                 <TableHead className="whitespace-normal">{tm("outcome.open")}</TableHead>
@@ -87,9 +88,11 @@ export async function GroupProgress({ total, companies, links }: { total: Client
               {companies.map((c) => (
                 <TableRow key={c.unit?.id ?? c.client.id}>
                   <TableCell className="whitespace-normal">{name(c)}</TableCell>
-                  <TableCell className="whitespace-normal text-muted-foreground">
-                    {c.unit ? t("formUnit", { client: localName(c.client, ar) }) : t("formLinked")}
-                  </TableCell>
+                  {links ? (
+                    <TableCell className="whitespace-normal text-muted-foreground">
+                      {c.unit ? t("formUnit", { client: localName(c.client, ar) }) : t("formLinked")}
+                    </TableCell>
+                  ) : null}
                   <TableCell className="tabular-nums">{percent(c.numbers.implementedPct)}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {tp("ofApplies", { verified: c.numbers.verified, applies: applies(c.numbers) })}

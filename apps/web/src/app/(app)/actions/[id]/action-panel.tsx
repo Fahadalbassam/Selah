@@ -50,6 +50,8 @@ interface Props {
   recordFor?: boolean;
   /** A draft whose named owner is no longer an active member of the project team: release would be refused. */
   ownerGone?: boolean;
+  /** Under the buttons: a client reader's two plain lines (what is expected next and by when, what happened last). */
+  after?: ReactNode;
 }
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -94,7 +96,7 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false, recordFor = false, ownerGone = false }: Props) {
+export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false, recordFor = false, ownerGone = false, after }: Props) {
   const t = useTranslations("action");
   const router = useRouter();
   const transition = (to: ActionStatus, reason?: string) =>
@@ -197,10 +199,12 @@ export function ActionPanel({ actionId, status, moves, can, close, openItems = [
         {/* Said before the click, in the words the refusal would use. */}
         {status === "draft" && ownerGone ? <p className="text-sm text-destructive">{t("errors.ownerGone")}</p> : null}
         {buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : <p className="text-sm text-muted-foreground">{note}</p>}
-        {status === "awaiting_review" && second ? <SecondReviewStatus view={second} firmView={firmView} /> : null}
+        {/* The sign-off count is the firm's machinery: not drawn for a client reader (page audit 4.5). */}
+        {status === "awaiting_review" && second && firmView ? <SecondReviewStatus view={second} firmView={firmView} /> : null}
         {status === "revision_requested" && moves.includes("in_progress") ? (
           <p className="text-sm text-muted-foreground">{t("revisionNote")}</p>
         ) : null}
+        {after}
         {can.addUpdate ? <UpdateForm actionId={actionId} recordFor={recordFor} onDone={done} /> : null}
       </CardContent>
     </Card>

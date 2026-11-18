@@ -15,14 +15,17 @@ type People = NonNullable<Awaited<ReturnType<typeof getProjectPeople>>>;
  * the client's mode: a consultant-managed client has no accounts.
  */
 export async function ProjectPeople({ projectId, clientId, firm, data }: { projectId: string; clientId: string; firm: boolean; data: People }) {
-  const [t, tRole] = await Promise.all([getTranslations("projectPeople"), getTranslations("role")]);
+  // A client reader's own roles in their own words ("Admin", not "Client admin").
+  const [t, tRole] = await Promise.all([getTranslations("projectPeople"), getTranslations(firm ? "role" : "roleClient")]);
   const managed = data.mode === "consultant_managed";
+  // The client's admin reads about "your people", never "the client's people" (page audit 4.7).
+  const own = firm ? "" : "Client";
   return (
     <Card className="h-fit gap-4 py-5 shadow-xs">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">{t("title")}</CardTitle>
-          <CardDescription>{t(`hint.${data.mode}`)}</CardDescription>
+          <CardTitle className="text-base">{t(`title${own}`)}</CardTitle>
+          <CardDescription>{t(`hint${own}.${data.mode}`)}</CardDescription>
         </div>
         {data.can.manage && !managed ? (
           data.candidates.length ? (
@@ -48,7 +51,7 @@ export async function ProjectPeople({ projectId, clientId, firm, data }: { proje
               submitLabel={t("addButton")}
             />
           ) : (
-            <span className="text-xs text-muted-foreground">{t("noCandidates")}</span>
+            <span className="text-xs text-muted-foreground">{t(`noCandidates${own}`)}</span>
           )
         ) : null}
       </CardHeader>
@@ -63,7 +66,7 @@ export async function ProjectPeople({ projectId, clientId, firm, data }: { proje
             ) : null}
           </p>
         ) : data.people.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">{t("none")}</p>
+          <p className="py-2 text-sm text-muted-foreground">{t(`none${own}`)}</p>
         ) : null}
         {data.people.map((m) => (
           <div key={m.userId} className="flex flex-wrap items-center gap-3 py-3">
@@ -84,7 +87,7 @@ export async function ProjectPeople({ projectId, clientId, firm, data }: { proje
                   method="DELETE"
                   label={t("remove")}
                   variant="ghost"
-                  confirm={t("removeConfirm", { name: m.name })}
+                  confirm={t(`removeConfirm${own}`, { name: m.name })}
                 />
               )
             ) : null}
