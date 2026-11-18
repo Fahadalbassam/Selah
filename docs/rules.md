@@ -246,7 +246,7 @@ Decision of 17 Nov 2026, feature A (docs/authorization.md, "Who sees an item"). 
 
 ### The client's organisation structure (org chart)
 
-Migration 0091 (part 1), and 0160 for the editor, holders, the leaving and invite hooks and the work card (part 3). The data: [data-model.md](data-model.md), "The client's organisation structure"; who sees and changes what: [authorization.md](authorization.md), "The client's organisation structure".
+Migration 0091 (part 1), and 0096 for the editor, holders, the leaving and invite hooks and the work card (part 3). The data: [data-model.md](data-model.md), "The client's organisation structure"; who sees and changes what: [authorization.md](authorization.md), "The client's organisation structure".
 
 | Rule | Database | Checked first in | Tests |
 |---|---|---|---|

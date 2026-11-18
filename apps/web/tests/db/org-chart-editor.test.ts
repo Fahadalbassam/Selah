@@ -1,4 +1,4 @@
-// The organisation structure, part 3 (migration 0160): the outline editor's
+// The organisation structure, part 3 (migration 0096): the outline editor's
 // own calls (starting from nothing, starting again from the current version,
 // moving units with their levels), holders and vacancies, removing a holding
 // entered by mistake, the leaving and invite hooks, and a person's work card.

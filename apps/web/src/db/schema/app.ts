@@ -2454,7 +2454,7 @@ export const invitations = pgTable(
      * Optional: the vacant position of the client's structure the person
      * fills (its lineage, org chart part 3). Accepting the invitation starts
      * the holding. The foreign key to positions(id), ON DELETE SET NULL, is
-     * written in migration 0160 (declaring it here would make the schema
+     * written in migration 0096 (declaring it here would make the schema
      * files import each other).
      */
     positionLineageId: uuid("position_lineage_id"),
