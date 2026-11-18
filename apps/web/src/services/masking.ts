@@ -27,10 +27,10 @@ export async function projectMasker(tx: Tx, projectId: string, on = maskingOn())
 }
 
 /**
- * The masking for one text, for translation: only the names of its projects
- * written in that text (app_mask_terms_in), never the project's list, so
- * action owners have it too. It masks as the whole list would. Off, it
- * changes nothing.
+ * The masking for one text, for translation and the assistant: only the
+ * names of its projects written in that text (app_mask_terms_in), never the
+ * list of names the asker may read, so it masks every name in the text,
+ * whoever asks (action owners included). Off, it changes nothing.
  */
 export async function textMasker(tx: Tx, projectIds: string[], text: string, on = maskingOn()): Promise<Masker> {
   if (!on || projectIds.length === 0) return createMasker([]);
@@ -39,14 +39,4 @@ export async function textMasker(tx: Tx, projectIds: string[], text: string, on 
     FROM unnest(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) pid, LATERAL app_mask_terms_in(pid, ${text}) t`);
   // The names of one record share a number within their project.
   return createMasker(rows.map((r) => ({ kind: r.kind, term: r.term, entity: `${r.pid}:${r.grp}` })), { places: true });
-}
-
-/** The masking for a question across several projects: each project's names, together. */
-export async function projectsMasker(tx: Tx, projectIds: string[], on = maskingOn()): Promise<Masker> {
-  if (!on || projectIds.length === 0) return createMasker([]);
-  if (projectIds.length === 1) return projectMasker(tx, projectIds[0]!, on);
-  const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`
-    SELECT DISTINCT t.kind, t.term, t.entity
-    FROM unnest(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) pid, LATERAL app_mask_terms(pid) t`);
-  return createMasker(rows, { places: true });
 }

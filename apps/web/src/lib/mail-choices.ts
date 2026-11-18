@@ -40,7 +40,17 @@ export const UPDATE_MAIL_KINDS = [
  * Mail held through quiet hours, Friday, Saturday and outside Ramadan hours.
  * Account and security mail, meeting invites and mail to inquirers go at once.
  */
-export const WORK_MAIL_KINDS = [...UPDATE_MAIL_KINDS, "follow_up.digest", "access_review.due", "inquiry.new", "pulse.requested", "support.requested"] as const;
+export const WORK_MAIL_KINDS = [
+  ...UPDATE_MAIL_KINDS,
+  "follow_up.digest",
+  "access_review.due",
+  "inquiry.new",
+  "pulse.requested",
+  "support.requested",
+  // The client's organisation structure (migration 0091): to the client's lead and deputy.
+  "org_chart.holder_changed",
+  "org_chart.change_requested",
+] as const;
 
 /** The weekly summary goes out on this day (0 = Sunday, the first day of the Saudi week). */
 export const WEEKLY_DAY = 0;
