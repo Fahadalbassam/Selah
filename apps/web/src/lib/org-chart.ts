@@ -51,6 +51,15 @@ export function departmentTabs(input: { admin: boolean; departmentsEnabled: bool
   return ["departments", "structure"];
 }
 
+/**
+ * The firm's Structure page's line under its title (orgChart.*): with
+ * nothing drawn yet (no structure, or a draft with no unit), how to start,
+ * since there are no levels to choose and no PDF; otherwise the usual line.
+ */
+export function structureHint(input: { hasUnits: boolean }): "hint" | "hintEmpty" {
+  return input.hasUnits ? "hint" : "hintEmpty";
+}
+
 /** What a version is on a day, for the words on the Structure tab and the PDF. */
 export type VersionStatus =
   | { kind: "draft" }

@@ -9,6 +9,7 @@ import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { isUuid } from "@/lib/ids";
+import { structureHint } from "@/lib/org-chart";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
@@ -88,7 +89,7 @@ export default async function ClientStructurePage({
         {localName(structure.client, ar)}
       </Link>
       <ClientTabs clientId={id} current="structure" structure departments={data.departments} />
-      <PageHeader title={t("title")} description={t("hint")}>
+      <PageHeader title={t("title")} description={t(structureHint({ hasUnits: !!structure.shown?.units.length }))}>
         <div className="flex flex-wrap items-center gap-2">
           {editLink}
           {structure.shown?.units.length && view === "drawing" ? (

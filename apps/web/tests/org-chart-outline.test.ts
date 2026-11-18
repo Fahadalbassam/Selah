@@ -2,7 +2,7 @@
 // indented list, and what each row's moves ask the server for. The server
 // checks every move again (tests/db/org-chart-editor.test.ts).
 import { describe, expect, it } from "vitest";
-import { ORG_CHART_ERROR_KEYS, orgChartError } from "@/lib/org-chart";
+import { ORG_CHART_ERROR_KEYS, orgChartError, structureHint } from "@/lib/org-chart";
 import { arrowMove, outlineTree, parseSpecialties, positionMove, reportsToChoices, unitAndBelow, unitMove } from "@/lib/org-chart-outline";
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
@@ -69,6 +69,19 @@ describe("the draft as a list", () => {
   it("Alt with an arrow: up and down move; the side arrows indent towards the reading direction's end", () => {
     expect(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "a"].map((k) => arrowMove(k, true))).toEqual(["up", "down", "indent", "outdent", null]);
     expect(["ArrowLeft", "ArrowRight"].map((k) => arrowMove(k, false))).toEqual(["outdent", "indent"]);
+  });
+});
+
+describe("the Structure page's header says only what is true now (S4)", () => {
+  it("with nothing drawn yet: how to start, never levels or a PDF", () => {
+    expect(structureHint({ hasUnits: false })).toBe("hintEmpty");
+    expect(structureHint({ hasUnits: true })).toBe("hint");
+    const chart = (m: unknown) => (m as { orgChart: Record<string, unknown> }).orgChart;
+    expect(chart(en).hintEmpty).toMatch(/top unit/);
+    expect(chart(en).hintEmpty).not.toMatch(/level|PDF/i);
+    expect(chart(ar).hintEmpty).not.toMatch(/المستويات|PDF/);
+    // The structure exists for the reader once drawn: the usual line, which mentions both.
+    expect(chart(en).hint).toMatch(/PDF/);
   });
 });
 

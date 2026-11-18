@@ -5717,6 +5717,7 @@
       "more": "Only the ones due soonest are shown.",
       "uploaded": "Uploaded on {date}",
       "gone": "This person is no longer shown to you on the structure."
-    }
+    },
+    "hintEmpty": "Start the structure with its top unit, such as the board, then add the units and positions under it. It stays the firm's draft: the client does not see it."
   }
 }
