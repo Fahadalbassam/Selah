@@ -468,6 +468,7 @@
     "confirm": "Confirm",
     "saving": "Saving…",
     "draftNotice": "Not visible to the client until you release it. Comments here become visible to the client after release.",
+    "draftNoticeReader": "Not visible to the client until it is released. Comments here become visible to the client after release.",
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "Someone else changed this action. Reload to see the latest.",
@@ -1280,7 +1281,7 @@
       "wholeProject": "The whole project",
       "departmentHint": "A department's meeting gets an agenda of that department's work only. A whole-project meeting opens only for people who see all of the project's work.",
       "departmentOnlyHint": "A whole-project meeting opens only for people who see all of the project's work, so you book one for one of your departments.",
-      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. You can still save it.",
+      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. They still get the calendar invitation when it is sent, with the title, time, link and who is invited, not the agenda. You can still save it.",
       "makeDepartmentMeeting": "Make it a {department} meeting",
       "leftOutNoOffer": "To include them, book a meeting for their department instead.",
       "leftOutNoDepartment": "{n, plural, one {Someone in no department is not included by any department's meeting either: have them added to a department first, or leave them out.} other {People in no department are not included by any department's meeting either: have them added to a department first, or leave them out.}}",
@@ -1610,7 +1611,7 @@
   },
   "metrics": {
     "tab": "Progress",
-    "hint": "Counted from the work itself: actions, reviews and evidence. The client's admins and managers see the same numbers.",
+    "hint": "Counted from the work itself: actions, reviews and evidence. Each person sees the figures for the work they may see.",
     "implemented": "Implemented",
     "implementedOf": "{verified} of {applies} actions that still apply are verified",
     "noneYet": "No released actions yet.",
@@ -2886,7 +2887,7 @@
         "actionDetails": "What is needed. Optional.",
         "owner": "A person on the project team, by name or email. For clients the firm manages, the person's name (or job title).",
         "department": "One of the client's departments, if it uses them. Optional.",
-        "dueDate": "Needed to send the action to its owner. Same formats as above.",
+        "dueDate": "Needed to release the action to its owner. Same formats as above.",
         "evidence": "What the client must send, one item per line or separated by semicolons. Optional."
       }
     }
@@ -2945,13 +2946,13 @@
       "newFindings": "New findings",
       "newRecommendations": "New recommendations",
       "actions": "Actions",
-      "released": "{n} sent to their owners",
+      "released": "{n} released to their owners",
       "drafts": "All as drafts",
       "needFix": "Rows that need a fix",
       "toCheck": "{n} to check",
       "visibility": "Who sees the new findings and recommendations",
-      "release": "Send actions that have an owner and a due date to their owners now",
-      "releaseHint": "They are told straight away. Every other action stays a draft, which the client doesn't see and owners aren't told about until the firm sends it.",
+      "release": "Release actions that have an owner and a due date to their owners now",
+      "releaseHint": "They are told straight away. Every other action stays a draft, which the client doesn't see and owners aren't told about until the firm releases it.",
       "include": "Import row {n}",
       "line": "Row",
       "plan": "Finding and recommendation",
@@ -2971,7 +2972,7 @@
       "createsFinding": "New finding",
       "createsRecommendation": "New recommendation",
       "createsDraft": "Draft action",
-      "createsRelease": "Action sent to its owner",
+      "createsRelease": "Action released to its owner",
       "createsNothing": "Nothing new",
       "backToColumns": "Back to the columns",
       "import": "Import",
@@ -3001,7 +3002,7 @@
       "recommendationDiffers": "{field} differs from an earlier row of the same recommendation; the first is kept.",
       "actionExists": "This action is already in the project.",
       "actionRepeated": "The same action appears twice in the file.",
-      "staysDraft": "Stays a draft: it needs an owner and a future due date to be sent.",
+      "staysDraft": "Stays a draft: it needs an owner and a future due date to be released.",
       "filled": "{field} taken from the row above."
     },
     "errors": {

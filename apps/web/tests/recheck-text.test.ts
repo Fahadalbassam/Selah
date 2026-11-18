@@ -1,0 +1,130 @@
+// Screen texts from the re-check of the screens batch 0 changed (page audit
+// section 8, fault 3), checked against the real message catalogues, Arabic
+// first.
+import { createTranslator } from "next-intl";
+import { describe, expect, it } from "vitest";
+import ar from "../messages/ar.json";
+import en from "../messages/en.json";
+
+type Messages = typeof ar;
+const tr = (locale: "ar" | "en", namespace: string) =>
+  createTranslator({ locale, messages: (locale === "ar" ? ar : en) as Messages, namespace: namespace as never }) as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
+
+/** Every string of a catalogue with its key. */
+function flat(o: object, path = "", out: [string, string][] = []): [string, string][] {
+  for (const [k, v] of Object.entries(o)) {
+    const p = path ? `${path}.${k}` : k;
+    if (typeof v === "string") out.push([p, v]);
+    else flat(v as object, p, out);
+  }
+  return out;
+}
+const get = (m: object, key: string) => key.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], m) as string;
+
+describe("releasing a draft action: one Arabic verb everywhere", () => {
+  // The draft line said «حتى تُصدره», the button «إسناد إلى المسؤول», the add dialog «إرساله إلى المسؤول الآن».
+  const keys = [
+    "action.move.assigned",
+    "action.draftNotice",
+    "action.draftNoticeReader",
+    "action.errors.ownerGone",
+    "action.errors.replacementDraft",
+    "action.secondReview.revisions",
+    "plan.action.addHint",
+    "plan.action.noOwners",
+    "plan.action.release",
+    "plan.action.releaseHint",
+    "plan.action.released",
+    "plan.errors.releaseNeeds",
+    "planImport.review.released",
+    "planImport.review.release",
+    "planImport.review.releaseHint",
+    "planImport.review.createsRelease",
+    "planImport.issues.staysDraft",
+    "importExport.guide.fields.dueDate",
+    "insight.deviations.rules.slipped.hint",
+  ];
+
+  it("is «إسناد» (the button's word) in every Arabic line about it, and «release» in English", () => {
+    for (const key of keys) {
+      const a = get(ar, key);
+      expect(a, key).toMatch(/إسناد|أُسند|يُسند|تُسند|أسنِد/);
+      expect(a, key).not.toMatch(/إصدار|أصدر|يُصدر|تُصدر|إرساله|يرسله|يرسلها|تُرسل إلى المسؤول|يُرسل إلى المسؤول|إرسال الإجراءات|ليُرسل|قبل الإرسال/);
+      expect(get(en, key), key).toMatch(/[Rr]eleas/);
+    }
+  });
+
+  it("says «released actions» with the same word on the progress figures and reports", () => {
+    for (const key of ["metrics.noneYet", "metrics.historyHint", "reportPdf.noneYet", "clientProgress.pdf.noneYet"]) {
+      expect(get(ar, key), key).toContain("مُسندة");
+      expect(get(ar, key), key).not.toMatch(/المعتمدة|مُطلقة/);
+    }
+  });
+
+  it("tells someone who cannot release it (an observer) when the client sees it, without 'you release'", () => {
+    expect(en.action.draftNotice).toMatch(/until you release it/);
+    expect(en.action.draftNoticeReader).toMatch(/until it is released/);
+    expect(en.action.draftNoticeReader).not.toMatch(/\byou\b/i);
+    // Arabic needs no "you" for either: «قبل إسناده» fits the reader and the person who releases it, man or woman.
+    expect(ar.action.draftNoticeReader).not.toMatch(/تُسنده|تُصدره/);
+  });
+});
+
+describe("a status change in the activity record reads from, then to", () => {
+  it("in Arabic: «من «قيد التنفيذ» إلى «مغلق»», never «إلى … بعد …»", () => {
+    const values = { from: "قيد التنفيذ", to: "مغلق" };
+    expect(tr("ar", "project")("changed", values)).toBe("تغيير الحالة من «قيد التنفيذ» إلى «مغلق»");
+    expect(tr("ar", "inbox.events")("status_changed", values)).toBe("نقل الطلب من «قيد التنفيذ» إلى «مغلق»");
+    expect(tr("ar", "action.entry")("moved", values)).toBe("نقل الإجراء من قيد التنفيذ إلى مغلق");
+    expect(tr("en", "project")("changed", values)).toBe("moved قيد التنفيذ to مغلق");
+  });
+});
+
+describe("the Progress tab's note says what is true since departments limit readers (D8)", () => {
+  it("no longer says the client's admins and managers see the same numbers", () => {
+    expect(ar.metrics.hint).not.toMatch(/الأرقام نفسها|مديرو العميل/);
+    expect(en.metrics.hint).not.toMatch(/same numbers|client's admins/);
+    expect(ar.metrics.hint).toContain("يرى كل شخص أرقام العمل الذي يحق له الاطلاع عليه");
+    expect(en.metrics.hint).toContain("Each person sees the figures for the work they may see");
+  });
+});
+
+describe("the invite warnings on the meeting form and the add-attendee form", () => {
+  const keys = ["leftOut", "leftOutNoOffer", "leftOutNoDepartment", "leftOutKeepsDepartment", "departmentOnlyHint"];
+
+  it("use no verb or pronoun that fits only a man for the person named (Reem, Sara)", () => {
+    for (const key of keys) {
+      const a = get(ar.meeting.form, key);
+      // «لن يتمكن {names}», «لإشراكه», «إضافته», «لكنه», «تحجز» (you, masculine) were the old forms.
+      expect(a, key).not.toMatch(/يتمكن|لن يتمكنوا|لإشراكه|لإشراكهم|إضافته|إضافتهم|لكنه|استبعده|استبعدهم|يشمله|يشملهم|لإدارته|لإدارتهم|ينتمي|ينتمون|تحجز /);
+    }
+    const out = tr("ar", "meeting.form")("leftOut", { names: "ريم الحربي", n: 1 });
+    expect(out).toContain("لا يُفتح هذا الاجتماع لـريم الحربي");
+  });
+
+  it("say plainly that the calendar invitation still goes out to the person, without the agenda", () => {
+    const a = tr("ar", "meeting.form")("leftOut", { names: "ريم الحربي", n: 1 });
+    expect(a).toContain("تصل دعوة التقويم إلى ريم الحربي");
+    expect(a).toContain("دون جدول الأعمال");
+    const e = tr("en", "meeting.form")("leftOut", { names: "Reem", n: 1 });
+    expect(e).toMatch(/still get the calendar invitation/);
+    expect(e).toMatch(/not the agenda/);
+  });
+});
+
+describe("the firm admin's role label", () => {
+  it("is «مدير المكتب», as everywhere else", () => {
+    expect(ar.role.firm_admin).toBe("مدير المكتب");
+    expect(tr("ar", "account.invite")("subtitle", { role: ar.role.firm_admin })).toBe("دُعيت بصفة مدير المكتب.");
+    expect(tr("ar", "help.steps")("description", { role: ar.role.firm_admin })).toBe("ثلاث خطوات تبدأ بها في دورك (مدير المكتب).");
+  });
+
+  it("and no screen calls the firm's admins «مدير الشركة», «مسؤولو الشركة» or «مسؤول في المكتب»", () => {
+    // The versioned legal texts are left as accepted (their wording changes only with a new version).
+    const lines = flat(ar).filter(([k]) => !k.startsWith("legal."));
+    expect(lines.filter(([, v]) => /مدير الشركة|مديري الشركة|مديرو الشركة|مسؤولو الشركة|مسؤول في المكتب|مسؤولي المكتب|مسؤولو المكتب|مسؤول المكتب/.test(v))).toEqual([]);
+  });
+});

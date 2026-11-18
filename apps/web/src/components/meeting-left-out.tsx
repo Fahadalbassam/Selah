@@ -26,11 +26,16 @@ export function LeftOutWarning(props: {
   const format = useFormatter();
   if (!props.people.length) return null;
   const n = props.people.length;
-  const names = format.list(
-    props.people.map((p) => p.name),
-    { type: "conjunction" },
-  );
+  // Each line names the people it is about: the Arabic says no "him" or "them" (a man's word for a woman).
+  const list = (people: { name: string }[]) =>
+    format.list(
+      people.map((p) => p.name),
+      { type: "conjunction" },
+    );
+  const names = list(props.people);
   const homeless = props.people.filter((p) => p.departmentIds.length === 0);
+  const homelessNames = list(homeless);
+  const inADepartment = list(props.people.filter((p) => p.departmentIds.length > 0));
   const offers = props.booked ? [] : (props.offers ?? []);
   return (
     <Alert data-testid="meeting-left-out">
@@ -46,9 +51,9 @@ export function LeftOutWarning(props: {
             ))}
           </div>
         ) : homeless.length === n ? null : (
-          <p>{props.booked ? t("leftOutKeepsDepartment") : t("leftOutNoOffer")}</p>
+          <p>{props.booked ? t("leftOutKeepsDepartment", { names: inADepartment }) : t("leftOutNoOffer", { names: inADepartment })}</p>
         )}
-        {homeless.length ? <p>{t("leftOutNoDepartment", { n: homeless.length })}</p> : null}
+        {homeless.length ? <p>{t("leftOutNoDepartment", { n: homeless.length, names: homelessNames })}</p> : null}
       </AlertDescription>
     </Alert>
   );
