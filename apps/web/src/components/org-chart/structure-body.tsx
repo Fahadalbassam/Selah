@@ -33,14 +33,14 @@ export function shownDepth(structure: Structure, raw: string | undefined) {
  * side on the Departments page): which version this is and when it took
  * effect, the other versions, how many levels to show, and the drawing. The
  * drawing is the same HTML as the PDF (lib/org-chart-html.ts); every name in
- * it is one the services sent this reader. Nothing is published yet: one
- * plain line.
+ * it is one the services sent this reader. The pages show it only once there
+ * is a version to show (hasStructure()).
  */
 export async function StructureBody({ structure, base, depthParam, audience }: { structure: Structure; base: string; depthParam?: string; audience: "firm" | "client" }) {
   const [t, format, locale] = await Promise.all([getTranslations("orgChart"), getFormatter(), getLocale()]);
   const lang = locale === "ar" ? "ar" : "en";
   const shown = structure.shown;
-  if (!shown) return <p className="text-sm text-muted-foreground">{audience === "firm" ? t("noneFirm") : t("noneClient")}</p>;
+  if (!shown) return null;
 
   const day = (iso: string) => format.dateTime(new Date(`${iso}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
   const v = shown.version;
@@ -78,7 +78,7 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
       {draft ? (
         <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
           <Lock className="size-4 shrink-0" />
-          {structure.current ? t("draftBanner") : `${t("draftBanner")} ${t("draftOnly")}`}
+          {structure.current ? t("draftBanner") : `${t("draftBanner")} ${t("notPublished")}`}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">

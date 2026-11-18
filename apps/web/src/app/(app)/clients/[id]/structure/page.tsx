@@ -8,13 +8,14 @@ import { PageHeader } from "@/components/page-header";
 import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
-import { canReadStructure, getStructure } from "@/services/org-chart";
+import { getStructure, hasStructure } from "@/services/org-chart";
 import { ClientTabs } from "../client-tabs";
 
 // A client's organisation structure, firm side, read only (org chart, part 2):
 // the current version, the firm's draft (marked, never shown to the client)
 // and the history. For the firm admin, the client's lead and deputy, and
-// consultants staffed on its projects, observers included; anyone else 404.
+// consultants staffed on its projects, observers included, once there is a
+// published version or a draft with units; anyone else, or before then, 404.
 export default async function ClientStructurePage({
   params,
   searchParams,
@@ -26,10 +27,11 @@ export default async function ClientStructurePage({
   if (!isUuid(id)) notFound();
   const { version, depth } = await searchParams;
   const structure = await withPrincipal(async (tx, principal) => {
-    if (principal.orgKind !== "firm" || !canReadStructure(principal, id)) return null;
+    // No tab and no page until there is a structure this person may read.
+    if (principal.orgKind !== "firm" || !(await hasStructure(tx, principal, id))) return null;
     return getStructure(tx, principal, id, version ?? null);
   });
-  if (!structure) notFound();
+  if (!structure?.shown) notFound();
   const t = await getTranslations("orgChart");
   const ar = (await getLocale()) === "ar";
   const { levels, depth: shownLevels } = shownDepth(structure, depth);

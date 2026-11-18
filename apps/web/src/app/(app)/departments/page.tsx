@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
-import { canReadStructure } from "@/services/org-chart";
+import { hasStructure } from "@/services/org-chart";
 import { DepartmentTabs } from "./department-tabs";
 
 // The client's own departments. Its admin manages them; managers see them.
@@ -16,7 +16,7 @@ export default async function DepartmentsPage() {
     const people = engagement.canManageDepartments
       ? (await listPeople(tx, principal, principal.orgId)).people.filter((p) => p.active)
       : [];
-    return { engagement, people, structure: canReadStructure(principal, principal.orgId) };
+    return { engagement, people, structure: await hasStructure(tx, principal, principal.orgId) };
   });
   if (!data) notFound();
   const t = await getTranslations("engagement.departments");

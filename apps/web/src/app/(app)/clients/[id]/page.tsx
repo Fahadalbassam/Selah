@@ -44,7 +44,7 @@ import { ClientAiCard } from "./client-ai-card";
 import { getClientAi } from "@/services/client-ai";
 import { getClientReviewRule } from "@/services/second-review";
 import { SecondReviewRuleCard } from "./second-review-card";
-import { canReadStructure } from "@/services/org-chart";
+import { hasStructure } from "@/services/org-chart";
 import { ClientTabs } from "./client-tabs";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,8 +83,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
       // When evidence needs a second consultant's sign-off (F22).
       secondReview: team.client.prospect ? null : await getClientReviewRule(tx, principal, id),
-      // The Structure tab, for the people who may read the client's structure (F43).
-      structure: canReadStructure(principal, id),
+      // The Structure tab, once there is a structure this person may read (F43).
+      structure: await hasStructure(tx, principal, id),
     };
   });
   if (!data) notFound();

@@ -330,15 +330,35 @@ describe("the Structure tab reads exactly what the services allow", () => {
     await expect(svc(U.team, (tx, p) => OC.getStructure(tx, p, ACME))).rejects.toThrow(REFUSED);
   });
 
-  it("a client with nothing published: nothing for its people; the firm sees its draft once started", async () => {
+  it("the Structure tab shows only when there is something the reader may read: a published version, and for the firm a draft with units", async () => {
+    const tab = (who: string, client = FRESH) => svc(who, (tx, p) => OC.hasStructure(tx, p, client));
     const read = (who: string) => svc(who, (tx, p) => OC.getStructure(tx, p, FRESH));
-    expect([(await read(U.lead)).shown, (await read(U.lead)).current, (await read(U.fadmin)).shown]).toEqual([null, null, null]);
+    // No chart yet: no tab for anyone, and nothing to show.
+    expect([await tab(U.lead), await tab(U.admin), await tab(U.fadmin)]).toEqual([false, false, false]);
+    expect([(await read(U.lead)).shown, (await read(U.fadmin)).shown]).toEqual([null, null]);
+    // Started, still empty: nothing to read yet.
     await svc(U.lead, (tx, p) => OC.startChart(tx, p, FRESH), true);
+    expect([await tab(U.lead), await tab(U.fadmin)]).toEqual([false, false]);
+    // A draft with a unit: the firm's tab, never the client's.
+    await build(U.lead, FRESH, [["board", { kind: "board", nameEn: "Fresh board" }]], [["chair", "board", { titleEn: "Fresh chair", isHead: true }]]);
+    expect([await tab(U.lead), await tab(U.admin), await tab(U.fadmin)]).toEqual([true, true, false]);
     const firm = await read(U.lead);
-    expect([firm.current, firm.shown!.version.state, firm.shown!.units]).toEqual([null, "draft", []]);
+    expect([firm.current, firm.shown!.version.state]).toEqual([null, "draft"]);
     const client = await read(U.fadmin);
     expect([client.shown, client.versions]).toEqual([null, []]);
     await expect(pdf(U.fadmin, FRESH)).rejects.toThrow(REFUSED);
+    // Published: everyone who reads the structure has the tab; never an action owner, another client or a firm person outside the client.
+    await publishAs(U.lead, FRESH);
+    expect([await tab(U.lead), await tab(U.fadmin)]).toEqual([true, true]);
+    expect([await tab(U.cadmin), await tab(U.mgr), await tab(U.obs)]).toEqual([false, false, false]);
+    expect([await tab(U.cadmin, ACME), await tab(U.mgr, ACME), await tab(U.obs, ACME), await tab(U.owner, ACME), await tab(U.team, ACME), await tab(U.oadmin, ACME)]).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });
 
@@ -382,7 +402,7 @@ describe("the PDF holds what the tab holds", () => {
   it("the firm's draft prints for the firm, marked; never for the client", async () => {
     const { html, footer } = await pdf(U.deputy, ACME, { version: "draft" });
     expect(html).toContain(DRAFT_ONLY);
-    expect(html).toContain('<p class="draft">The firm&#39;s draft: the client does not see it until it is published.</p>');
+    expect(html).toContain('<p class="draft">The firm&#39;s draft: the client does not see it.</p>');
     expect(footer).toContain("Unpublished draft");
     await expect(pdf(U.cadmin, ACME, { version: "draft" })).rejects.toThrow(REFUSED);
     await expect(pdf(U.cadmin, ACME, { version: await draftIdOf(ACME) })).rejects.toThrow(REFUSED);

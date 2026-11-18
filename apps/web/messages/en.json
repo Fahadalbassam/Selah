@@ -5351,10 +5351,8 @@
     "titleClient": "Your company's structure",
     "hint": "This client's published structure: its units, its positions and who holds each one today. Choose how many levels to show, or download it as a PDF.",
     "hintClient": "Your company's structure as your consultants published it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF to print.",
-    "noneFirm": "No structure has been published for this client yet. The firm admin, the client's lead or deputy, or a consultant staffed on one of its projects can start one.",
-    "noneClient": "Your consultants have not published your company's structure yet.",
-    "draftOnly": "Nothing is published yet, so the client sees no structure until the lead, the deputy or the firm admin publishes this draft.",
-    "draftBanner": "The firm's draft: the client does not see it until it is published.",
+    "notPublished": "Nothing has been published to the client yet.",
+    "draftBanner": "The firm's draft: the client does not see it.",
     "emptyDraft": "This draft has no units yet.",
     "version": {
       "number": "Version {n}",

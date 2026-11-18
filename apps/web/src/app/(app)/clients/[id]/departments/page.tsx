@@ -9,7 +9,7 @@ import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
 import { getEngagement } from "@/services/engagement";
-import { canReadStructure } from "@/services/org-chart";
+import { hasStructure } from "@/services/org-chart";
 import { ClientTabs } from "../client-tabs";
 
 // A client's departments, from the firm side. The firm admin manages them.
@@ -20,7 +20,7 @@ export default async function ClientDepartmentsPage({ params }: { params: Promis
     if (principal.orgKind !== "firm") return null;
     const engagement = await getEngagement(tx, principal, id);
     const people = engagement.canManageDepartments ? (await listPeople(tx, principal, id)).people.filter((p) => p.active) : [];
-    return { engagement, people, structure: canReadStructure(principal, id) };
+    return { engagement, people, structure: await hasStructure(tx, principal, id) };
   });
   if (!data) notFound();
   const t = await getTranslations("engagement.departments");

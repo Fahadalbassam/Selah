@@ -397,6 +397,25 @@ export async function getVersion(tx: Tx, principal: Principal, versionId: string
 /** Whether the reader may open the client's structure at all: the Structure tabs and the PDF. */
 export const canReadStructure = (principal: Principal, clientOrgId: string) => can(principal, "org_chart.read", clientOrgId);
 
+/**
+ * Whether the Structure tab shows for the reader: they may read the client's
+ * structure and there is something in it for them, a published version or,
+ * for the firm, a draft with at least one unit. Until then there is no tab
+ * and no empty page. A client person never learns of a draft: the database
+ * shows them published versions only.
+ */
+export async function hasStructure(tx: Tx, principal: Principal, clientOrgId: string): Promise<boolean> {
+  if (!UUID.test(clientOrgId) || !canReadStructure(principal, clientOrgId)) return false;
+  const firm = principal.orgKind === "firm";
+  const { rows } = await tx.execute<{ ok: boolean }>(sql`
+    select exists (
+      select 1 from org_chart_versions v
+      where v.org_id = ${clientOrgId}::uuid
+        and (v.state <> 'draft' or (${firm} and exists (select 1 from org_units u where u.version_id = v.id)))
+    ) as ok`);
+  return rows[0]?.ok === true;
+}
+
 /** One version as the Structure tab and the PDF draw it. */
 export interface StructureShown {
   version: OrgVersionSummary;

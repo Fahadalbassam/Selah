@@ -4,7 +4,7 @@ import { StructureBody, shownDepth, shownParam } from "@/components/org-chart/st
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
 import { withPrincipal } from "@/server/page";
-import { canReadStructure, getStructure } from "@/services/org-chart";
+import { getStructure, hasStructure } from "@/services/org-chart";
 import { DepartmentTabs } from "../department-tabs";
 
 // The client's own organisation structure, read only (org chart, part 2): the
@@ -16,10 +16,11 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
   const { version, depth } = await searchParams;
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "client" || !["client_admin", "client_manager"].includes(principal.role)) return null;
-    if (!canReadStructure(principal, principal.orgId)) return null;
+    // No tab and no page until a version is published.
+    if (!(await hasStructure(tx, principal, principal.orgId))) return null;
     return { orgId: principal.orgId, structure: await getStructure(tx, principal, principal.orgId, version ?? null) };
   });
-  if (!data) notFound();
+  if (!data?.structure.shown) notFound();
   const { structure } = data;
   const t = await getTranslations("orgChart");
   const { levels, depth: shownLevels } = shownDepth(structure, depth);

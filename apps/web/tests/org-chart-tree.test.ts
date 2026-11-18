@@ -276,7 +276,7 @@ describe("the words, Arabic first", () => {
   });
 
   it("speaks to the client about its own company, never about 'the client'", () => {
-    for (const key of ["titleClient", "hintClient", "noneClient"] as const) {
+    for (const key of ["titleClient", "hintClient"] as const) {
       expect(ar.orgChart[key]).toMatch(/شركتكم/);
       expect(ar.orgChart[key]).not.toContain("العميل");
       expect(en.orgChart[key]).toMatch(/your company/i);
@@ -285,6 +285,13 @@ describe("the words, Arabic first", () => {
     for (const key of ["branch", "hidden", "history", "noDepartment"] as const) {
       expect(ar.orgChart.names[key]).not.toContain("العميل");
       expect(en.orgChart.names[key]).not.toMatch(/\bthe client\b/i);
+    }
+  });
+
+  it("promises no action the app does not have yet (starting or publishing a structure comes with its buttons)", () => {
+    for (const messages of [ar, en]) {
+      const all = JSON.stringify(messages.orgChart);
+      expect(all).not.toMatch(/can start one|publishes this draft|until it is published|يستطيع البدء|حتى ينشر|حتى تُنشر/);
     }
   });
 
