@@ -388,6 +388,30 @@ describe("saving into the draft", () => {
     expect(await holdingsOf(SAHM)).toBe(0);
   });
 
+  it("round-trips what the app itself allows: a level set by hand at its parent's, more people planned than the planned number", async () => {
+    // All in one transaction, rolled back: the next tests start from the draft as it was.
+    await svc(U.lead, async (tx, p) => {
+      const d = await OC.getDraft(tx, p, SAHM);
+      const audit = d.units.find((u) => u.code === "2.2")!;
+      await OC.updateUnit(tx, p, audit.id, { level: 1 });
+      const more = [{ ...SAHM_ROWS[0]!, holder: "Reem Al-Harbi; Second Chair" }];
+      const read1 = await IM.parseImportFile(tx, p, SAHM, upload(workbook([...more, ...SAHM_ROWS.slice(1).map((r) => (r.unitCode === "2.2" ? { ...r, level: "1" } : r))]), "more.xlsx"));
+      await IM.saveImport(tx, p, SAHM, { token: read1.token, rows: read1.rows, mode: "replace" });
+      const snapshot = async () => {
+        const now = await OC.getDraft(tx, p, SAHM);
+        return { units: now.units.map((u) => [u.code, u.level]), plans: (await IM.importContext(tx, p, SAHM))!.ctx.draft.positions.map((x) => [x.code, x.planned]) };
+      };
+      const before = await snapshot();
+      expect(before.units).toContainEqual(["2.2", 1]);
+      expect(before.plans).toContainEqual(["1.1", [{ userId: null, name: "Reem Al-Harbi" }, { userId: null, name: "Second Chair" }]]);
+      const file = await IM.orgChartWorkbook(tx, p, SAHM, "draft", "ar");
+      const read2 = await IM.parseImportFile(tx, p, SAHM, upload(file.bytes, file.fileName));
+      const saved = await IM.saveImport(tx, p, SAHM, { token: read2.token, rows: read2.rows, mode: "replace" });
+      expect(saved.counts).toMatchObject({ unitsChanged: 0, positionsChanged: 0, planned: 0 });
+      expect(await snapshot()).toEqual(before);
+    });
+  });
+
   it("publishing leaves the plans for part 5, and no client reader ever sees one", async () => {
     const draftId = (await svc(U.lead, (tx, p) => OC.getDraft(tx, p, SAHM))).draft!.id;
     await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId, effectiveOn: firmToday() }), true);

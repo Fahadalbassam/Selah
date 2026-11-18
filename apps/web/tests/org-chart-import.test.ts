@@ -63,6 +63,7 @@ const sample = (): OrgRow[] => [
 const at = (c: ReturnType<typeof checkOrgImport>, line: number) => c.rows.find((r) => r.line === line)!;
 const errorsAt = (c: ReturnType<typeof checkOrgImport>, line: number) => at(c, line).errors.map((i) => i.code);
 const notesAt = (c: ReturnType<typeof checkOrgImport>, line: number) => at(c, line).notes.map((i) => i.code);
+const warningsAt = (c: ReturnType<typeof checkOrgImport>, line: number) => at(c, line).warnings.map((i) => i.code);
 const edit = (rows: OrgRow[], line: number, values: OrgValues) => rows.map((r) => (r.line === line ? { ...r, values: { ...r.values, ...values } } : r));
 
 describe("the template's headings", () => {
@@ -221,10 +222,13 @@ describe("the review step's checks", () => {
     expect(named.plan.positions.find((p) => p.code === "2.1")!.holders).toEqual([{ name: "Reem Al-Harbi" }]);
   });
 
-  it("flags a level that does not match the parent, and fills an empty one", () => {
+  it("warns of a level that does not sit below its parent but takes it (the firm may set levels by hand), and fills an empty one", () => {
     const c = checkOrgImport(edit(sample(), 4, { level: "2" }), ctx(), "add");
-    expect(errorsAt(c, 4)).toEqual(["levelParent"]);
-    expect(at(c, 4).errors[0]!.values).toEqual({ level: 2, parent: 2 });
+    expect(errorsAt(c, 4)).toEqual([]);
+    expect(warningsAt(c, 4)).toEqual(["levelParent"]);
+    expect(at(c, 4).warnings[0]!.values).toEqual({ level: 2, parent: 2 });
+    expect(c.plan.units.find((u) => u.code === "2.1")!.level).toBe(2);
+    expect(c.counts).toMatchObject({ withErrors: 0, withWarnings: 1 });
     expect(errorsAt(checkOrgImport(edit(sample(), 4, { level: "13" }), ctx(), "add"), 4)).toEqual(["badLevel"]);
     expect(errorsAt(checkOrgImport(edit(sample(), 4, { level: "ثلاثة" }), ctx(), "add"), 4)).toEqual(["badLevel"]);
     const filled = checkOrgImport(edit(sample(), 4, { level: "" }), ctx(), "add");
@@ -232,9 +236,12 @@ describe("the review step's checks", () => {
     expect(notesAt(filled, 4)).toContain("levelGiven");
   });
 
-  it("flags a vacant position that names a holder, more holders than planned, and two heads in one unit", () => {
+  it("flags a vacant position that names a holder and two heads in one unit, and warns of more people than planned", () => {
     expect(errorsAt(checkOrgImport(edit(sample(), 5, { holder: "Someone" }), ctx(), "add"), 5)).toEqual(["holderAndVacant"]);
-    expect(errorsAt(checkOrgImport(edit(sample(), 4, { holder: "A person; Another person" }), ctx(), "add"), 4)).toEqual(["tooManyHolders"]);
+    const more = checkOrgImport(edit(sample(), 4, { holder: "A person; Another person" }), ctx(), "add");
+    expect(errorsAt(more, 4)).toEqual([]);
+    expect(warningsAt(more, 4)).toEqual(["tooManyHolders"]);
+    expect(more.plan.positions.find((p) => p.code === "2.1.1")!.holders).toEqual([{ name: "A person" }, { name: "Another person" }]);
     expect(errorsAt(checkOrgImport(edit(sample(), 5, { head: "yes" }), ctx(), "add"), 5)).toEqual(["twoHeads"]);
   });
 
@@ -401,10 +408,12 @@ describe("the round trip: the template exports a structure and imports it back t
     { id: "u1", parentId: null, kind: "board" as const, code: "1", nameAr: "مجلس الإدارة", nameEn: "Board", level: 1, sortOrder: 0, advisory: false },
     { id: "u2", parentId: "u1", kind: "executive" as const, code: "2", nameAr: "الرئيس التنفيذي", nameEn: null, level: 2, sortOrder: 0, advisory: false },
     { id: "u4", parentId: "u2", kind: "department" as const, code: "2.1", nameAr: "الإدارة المالية", nameEn: "Finance", level: 4, sortOrder: 0, advisory: false },
-    { id: "u3", parentId: "u1", kind: "unit" as const, code: "2.9", nameAr: null, nameEn: "Internal audit", level: 2, sortOrder: 1, advisory: true },
+    // A level set by hand, at its parent's: the app allows it, so the file brings it back.
+    { id: "u3", parentId: "u1", kind: "unit" as const, code: "2.9", nameAr: null, nameEn: "Internal audit", level: 1, sortOrder: 1, advisory: true },
   ];
   const positions = [
-    { id: "p1", unitId: "u1", code: "1.1", titleAr: "رئيس المجلس", titleEn: "Chair", reportsToId: null, isHead: true, specialties: [], plannedCount: 1, sortOrder: 0, holders: [{ userId: null, name: "نواف القاسمي", named: true }], vacant: false },
+    // More people than planned: the app allows it too.
+    { id: "p1", unitId: "u1", code: "1.1", titleAr: "رئيس المجلس", titleEn: "Chair", reportsToId: null, isHead: true, specialties: [], plannedCount: 1, sortOrder: 0, holders: [{ userId: null, name: "نواف القاسمي", named: true }, { userId: null, name: "Second Chair", named: true }], vacant: false },
     { id: "p2", unitId: "u2", code: "2.1", titleAr: "الرئيس التنفيذي", titleEn: null, reportsToId: "p1", isHead: true, specialties: ["الاستراتيجية", "Board relations"], plannedCount: 1, sortOrder: 0, holders: [{ userId: "u-reem", name: "Reem Al-Harbi", named: true }], vacant: false },
     { id: "p3", unitId: "u4", code: "2.1.1", titleAr: "محاسب", titleEn: "Accountant", reportsToId: "p2", isHead: false, specialties: [], plannedCount: 3, sortOrder: 0, holders: [{ userId: null, name: "Two Holder", named: true }, { userId: "u-khalid", name: "خالد العتيبي", named: true }], vacant: false },
     { id: "p4", unitId: "u4", code: "2.1.2", titleAr: "مدقق", titleEn: null, reportsToId: "p2", isHead: false, specialties: [], plannedCount: 1, sortOrder: 1, holders: [], vacant: true },

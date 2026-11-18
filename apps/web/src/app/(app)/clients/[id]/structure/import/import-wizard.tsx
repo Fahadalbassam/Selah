@@ -459,8 +459,8 @@ function ReviewRow(props: { row: OrgRow; check: OrgRowCheck | undefined; issueTe
   const unitName = local(v.unitNameAr, v.unitNameEn);
   const title = local(v.titleAr, v.titleEn);
   const isPosition = !!(v.positionCode || v.titleAr || v.titleEn);
-  const tone = !row.include ? "neutral" : check?.errors.length ? "problem" : "open";
-  const label = !row.include ? t("leftOut") : check?.errors.length ? t("fix") : t("ready");
+  const tone = !row.include ? "neutral" : check?.errors.length ? "problem" : check?.warnings.length ? "waiting" : "open";
+  const label = !row.include ? t("leftOut") : check?.errors.length ? t("fix") : check?.warnings.length ? t("warn") : t("ready");
   return (
     <TableRow className={cn("align-top", !row.include && "text-muted-foreground")} data-line={row.line}>
       <TableCell>
@@ -508,6 +508,11 @@ function ReviewRow(props: { row: OrgRow; check: OrgRowCheck | undefined; issueTe
             <>
               {check.errors.map((i, k) => (
                 <p key={`e${k}`} className="text-xs text-destructive">
+                  {props.issueText(i)}
+                </p>
+              ))}
+              {check.warnings.map((i, k) => (
+                <p key={`w${k}`} className="text-xs text-foreground">
                   {props.issueText(i)}
                 </p>
               ))}

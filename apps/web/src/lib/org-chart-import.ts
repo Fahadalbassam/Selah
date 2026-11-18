@@ -18,7 +18,7 @@ import { asciiDigits, normText } from "./plan-import";
  * Selah records the structure the firm decides. The checks are about the
  * data only (a code that points nowhere, a loop, a duplicate, a missing
  * title, a holder who is not a person of the client, a level that
- * contradicts its parent); nothing here suggests, scores or judges a
+ * contradicts its parent, a warning only); nothing here suggests, scores or judges a
  * structure, and the assistant's draft never adds a unit, a position or a
  * name that is not in the text it was given.
  */
@@ -659,7 +659,6 @@ export type OrgIssueCode =
   | "loop"
   | "unitLoop"
   | "badLevel"
-  | "levelParent"
   | "badKind"
   | "badYesNo"
   | "twoHeads"
@@ -667,10 +666,12 @@ export type OrgIssueCode =
   | "holderNotUser"
   | "holderName"
   | "holderAndVacant"
-  | "tooManyHolders"
   | "badPlanned"
   | "specialties"
   | "tooLong"
+  // Warnings: saved as they are, since the app allows them (a level set by hand, more people than planned).
+  | "levelParent"
+  | "tooManyHolders"
   // Notes: plain facts about what saving does.
   | "filled"
   | "codeGiven"
@@ -692,7 +693,11 @@ export interface OrgIssue {
 
 export interface OrgRowCheck {
   line: number;
+  /** The row cannot be saved until it is fixed or skipped. */
   errors: OrgIssue[];
+  /** It can be saved as it is, but look first: something the app allows yet may be a slip. */
+  warnings: OrgIssue[];
+  /** Plain facts about what saving does. */
   notes: OrgIssue[];
 }
 
@@ -741,7 +746,7 @@ export interface OrgImportCheck {
     removeUnits: string[];
     removePositions: string[];
   };
-  counts: { units: number; positions: number; withErrors: number; removeUnits: number; removePositions: number };
+  counts: { units: number; positions: number; withErrors: number; withWarnings: number; removeUnits: number; removePositions: number };
   /** More rows than one import takes. */
   tooMany: boolean;
 }
@@ -768,8 +773,9 @@ function parseLevel(raw: string | undefined): number | null | undefined {
 export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, mode: OrgImportMode): OrgImportCheck {
   const replace = mode === "replace";
   const included = rows.filter((r) => r.include);
-  const checks = new Map<number, OrgRowCheck>(included.map((r) => [r.line, { line: r.line, errors: [], notes: [] }]));
+  const checks = new Map<number, OrgRowCheck>(included.map((r) => [r.line, { line: r.line, errors: [], warnings: [], notes: [] }]));
   const err = (line: number, issue: OrgIssue) => checks.get(line)!.errors.push(issue);
+  const warn = (line: number, issue: OrgIssue) => checks.get(line)!.warnings.push(issue);
   const note = (line: number, issue: OrgIssue) => checks.get(line)!.notes.push(issue);
   const draftUnit = new Map(ctx.draft.units.map((u) => [u.code, u]));
   const draftPosition = new Map(ctx.draft.positions.map((p) => [p.code, p]));
@@ -903,7 +909,8 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
     if (u.parent !== code) err(u.line, { code: "unitLoop", field: "parentCode" });
   }
 
-  // Levels: given, or one below the parent (the top is 1). A unit sits lower than its parent.
+  // Levels: given, or one below the parent (the top is 1). A unit is expected to sit lower than its
+  // parent; one that does not is taken and warned of, since the firm may set levels by hand.
   const levelOf = new Map<string, number>();
   const resolve = (code: string, depth = 0): number => {
     if (levelOf.has(code)) return levelOf.get(code)!;
@@ -924,7 +931,7 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
     if (!u.given) {
       if (lvl > ORG_CHART_LIMITS.level.max) err(u.line, { code: "badLevel", field: "level", values: { value: lvl } });
       else note(u.line, { code: "levelGiven", values: { level: lvl } });
-    } else if (lvl <= parentLevel) err(u.line, { code: "levelParent", field: "level", values: { level: lvl, parent: parentLevel } });
+    } else if (lvl <= parentLevel) warn(u.line, { code: "levelParent", field: "level", values: { level: lvl, parent: parentLevel } });
   }
 
   // 3. Positions.
@@ -1001,7 +1008,7 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
         }
       }
       if (vacant === true && splitList(v.holder).length) err(line, { code: "holderAndVacant", field: "vacant" });
-      else if (holders.length > plannedCount) err(line, { code: "tooManyHolders", field: "holder", values: { planned: plannedCount, count: holders.length } });
+      else if (holders.length > plannedCount) warn(line, { code: "tooManyHolders", field: "holder", values: { planned: plannedCount, count: holders.length } });
     }
     if (isHead && p.unit) {
       const first = heads.get(p.unit);
@@ -1061,6 +1068,7 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
       units: plannedUnits.length,
       positions: planned.length,
       withErrors: out.filter((c) => c.errors.length).length,
+      withWarnings: out.filter((c) => c.warnings.length).length,
       removeUnits: removeUnits.length,
       removePositions: removePositions.length,
     },
