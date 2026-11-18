@@ -96,6 +96,9 @@ const publishAs = async (who: string, client: string) => {
 };
 const today = () => firmToday();
 const tomorrow = () => OC.dayAfter(firmToday());
+/** Who holds each position of a structure as read, by English title. */
+const holderNamesOf = (chart: { positions: OC.OrgPosition[] }) =>
+  Object.fromEntries(chart.positions.map((p) => [p.titleEn, p.holders.map((h) => h.name)]));
 
 /** Acme's positions on the current version, by English title. */
 const POS: Record<string, string> = {};
@@ -327,6 +330,37 @@ describe("holders and vacancies", () => {
     await expect(svc(U.mgr, (tx, p) => OC.holderCandidates(tx, p, ACME))).rejects.toThrow(REFUSED);
   });
 
+  it("people are placed only on the live structure, never from the draft: the firm's editors included, and straight in the database (B1)", async () => {
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, ACME));
+    const chairDraft = d.positions.find((p) => p.lineageId === POS.chair)!;
+    const hr = d.units.find((u) => u.nameEn === "Human resources")!;
+    const before = holderNamesOf(await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, ACME)));
+    // The draft's copy of a published position: refused, so a planned successor never reaches the company.
+    for (const who of [U.lead, U.cons, U.admin]) {
+      await expect(svc(who, (tx, p) => OC.changeHolder(tx, p, chairDraft.id, { start: { name: "Planned Successor", from: today() } }))).rejects.toThrow(/draft/);
+      await expect(svc(who, (tx, p) => OC.listHoldings(tx, p, chairDraft.id))).rejects.toThrow(/draft/);
+    }
+    // A position only the draft has: refused too, by the service and by the database.
+    const trainer = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, hr.id, { titleEn: "Draft-only trainer" }), true);
+    await expect(svc(U.lead, (tx, p) => OC.changeHolder(tx, p, trainer.id, { start: { name: "Draft Trainer", from: today() } }))).rejects.toThrow(/draft/);
+    const chart = (await owner.query(`SELECT id FROM org_charts WHERE org_id = $1`, [ACME])).rows[0].id;
+    const insert = (lineage: string) =>
+      attempt(U.lead, `INSERT INTO position_holders (position_lineage_id, chart_id, org_id, name, from_date, created_by) VALUES ($1,$2,$3,'Draft Trainer',$4,$5)`, [
+        lineage,
+        chart,
+        ACME,
+        today(),
+        U.lead,
+      ]);
+    await expect(insert(trainer.id)).rejects.toThrow(/positions of the published structure \(its current version\), never in the draft/);
+    // Nothing changed on the company's structure.
+    expect(holderNamesOf(await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, ACME)))).toEqual(before);
+    // On the published structure the firm's editors still place people (part 1), and the lead is told.
+    const ok = await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, POS.recruiter!, { start: { name: "Live Recruiter", from: today() } }));
+    expect(ok.started).toBeTruthy();
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, trainer.id), true);
+  });
+
   it("the vacancy list: positions nobody holds today", async () => {
     const vac = await svc(U.cadmin, (tx, p) => OC.listVacancies(tx, p, ACME));
     expect(vac.map((v) => v.titleEn).sort()).toEqual(["Legal counsel", "Recruiter"]);
@@ -371,15 +405,13 @@ describe("removing a holding entered by mistake", () => {
     expect((await owner.query(`SELECT count(*)::int AS n FROM position_holders WHERE id = $1`, [typo.started])).rows[0].n).toBe(0);
   });
 
-  it("the client's admin cannot remove one placed in the firm's draft; the firm's editors can", async () => {
+  it("a holding is never removed through a draft position: the draft holds nobody", async () => {
     const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, ACME));
-    const hr = d.units.find((u) => u.nameEn === "Human resources")!;
-    const newPos = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, hr.id, { titleEn: "Draft-only trainer" }), true);
-    const placed = await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, newPos.id, { start: { name: "Draft Trainer", from: today() } }), true);
-    await expect(svc(U.cadmin, (tx, p) => OC.removeHolder(tx, p, newPos.id, placed.started!))).rejects.toThrow(REFUSED);
-    await expect(attempt(U.cadmin, `SELECT app_remove_position_holder($1, $2)`, [newPos.id, placed.started])).rejects.toThrow(/no such holding/);
-    await svc(U.lead, (tx, p) => OC.removeHolder(tx, p, newPos.id, placed.started!), true);
-    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, newPos.id), true);
+    const recruiterDraft = d.positions.find((p) => p.lineageId === POS.recruiter)!;
+    const typo = await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, POS.recruiter!, { start: { name: "Draft Typo", from: today() } }), true);
+    await expect(svc(U.lead, (tx, p) => OC.removeHolder(tx, p, recruiterDraft.id, typo.started!))).rejects.toThrow(/draft/);
+    // On the published structure the same people remove it.
+    await svc(U.lead, (tx, p) => OC.removeHolder(tx, p, POS.recruiter!, typo.started!), true);
   });
 
   it("once no holding names anyone, the client may switch to minimal records", async () => {

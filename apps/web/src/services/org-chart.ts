@@ -1076,10 +1076,12 @@ export interface HolderChange {
 
 /**
  * Change who holds a position: someone joined, left, or replaces the person
- * there. The client's admin does it on the published structure, and so do
- * the firm's editors (also in the draft). Every change is audited, and a
- * change on the published structure tells the client's lead and deputy (the
- * database does it). Nobody's history is deleted: a holding ends.
+ * there. Only on the live structure, the current published version: the
+ * client's admin and the firm's editors (part 1), never from the firm's
+ * draft (the lead's decision B1, part 3: a draft never shows the company a
+ * planned successor; the database refuses it too). Every change is audited
+ * and tells the client's lead and deputy (the database does it). Nobody's
+ * history is deleted: a holding ends.
  */
 export async function changeHolder(tx: Tx, principal: Principal, positionId: string, change: HolderChange) {
   const [row] = await tx
@@ -1091,6 +1093,7 @@ export async function changeHolder(tx: Tx, principal: Principal, positionId: str
   if (!row) throw new NotFoundError("position");
   const { position, state, chartId } = row;
   assertAllowed(principal, "org_chart.holders", resource(principal, position.orgId, state === "draft"));
+  if (state === "draft") throw new BadRequestError("draft");
   if (state === "superseded") throw new BadRequestError("history");
   const client = await clientOf(tx, position.orgId);
   if (client.minimalRecords) throw new BadRequestError("minimal_records");
@@ -1164,7 +1167,11 @@ export async function changeHolder(tx: Tx, principal: Principal, positionId: str
   return { started, ended };
 }
 
-/** A position for the people in it: the version it is in, read under the caller's rights, and the holders permission checked. */
+/**
+ * A position for the people in it: the version it is in, read under the
+ * caller's rights, and the holders permission checked. Only a position of the
+ * live structure (never the draft's, B1).
+ */
 async function holderPosition(tx: Tx, principal: Principal, positionId: string) {
   const [row] = await tx
     .select({ position: positions, state: orgChartVersions.state })
@@ -1174,6 +1181,7 @@ async function holderPosition(tx: Tx, principal: Principal, positionId: string) 
     .limit(1);
   if (!row) throw new NotFoundError("position");
   assertAllowed(principal, "org_chart.holders", resource(principal, row.position.orgId, row.state === "draft"));
+  if (row.state === "draft") throw new BadRequestError("draft");
   if (row.state === "superseded") throw new BadRequestError("history");
   const client = await clientOf(tx, row.position.orgId);
   if (client.minimalRecords) throw new BadRequestError("minimal_records");

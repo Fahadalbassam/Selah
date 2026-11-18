@@ -12,7 +12,7 @@ import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
-import { editorChoices, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
+import { editorChoices, getPublishedChart, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
 import { ClientTabs } from "../client-tabs";
 
 // A client's organisation structure, firm side: the current version, the
@@ -45,7 +45,9 @@ export default async function ClientStructurePage({
       view,
       departments: canReadDepartments(principal, id),
       choices: editing ? await editorChoices(tx, principal, id) : null,
-      candidates: (editing || people) && structure.can.canChangeHolders ? await holderCandidates(tx, principal, id) : [],
+      // The positions of the live structure: in the draft editor their holders show, read only (B1).
+      liveLineages: editing && structure.current ? (await getPublishedChart(tx, principal, id)).positions.map((p) => p.lineageId) : [],
+      candidates: people && structure.can.canChangeHolders ? await holderCandidates(tx, principal, id) : [],
       vacancies: people ? await listVacancies(tx, principal, id) : [],
     };
   });
@@ -65,8 +67,9 @@ export default async function ClientStructurePage({
       units={structure.shown?.version.state === "draft" ? structure.shown.units : []}
       positions={structure.shown?.version.state === "draft" ? structure.shown.positions : []}
       departments={data.choices.departments}
-      candidates={data.candidates}
-      canChangeHolders={structure.can.canChangeHolders}
+      liveLineages={data.liveLineages}
+      peopleHref={structure.current && structure.can.canChangeHolders ? viewHref(base, null, "people") : null}
+      names={!structure.client.minimalRecords}
       banner={!structure.shown}
     />
   ) : null;

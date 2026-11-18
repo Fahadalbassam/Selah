@@ -2,6 +2,7 @@
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { Lock, Plus } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -33,7 +34,7 @@ import { ORG_CHART_LIMITS, ORG_UNIT_KINDS, type OrgUnitKind } from "@/lib/org-ch
 import { arrowMove, outlineTree, parseSpecialties, positionMove, reportsToChoices, unitAndBelow, unitMove, type OutlineNode, type UnitMove } from "@/lib/org-chart-outline";
 import { localText } from "@/lib/org-chart-tree";
 import type { OrgPosition, OrgUnit } from "@/services/org-chart";
-import { HoldersPanel, useOrgChartError, type HolderCandidate } from "./holders-panel";
+import { useOrgChartError } from "./holders-panel";
 
 type Node = OutlineNode<OrgUnit, OrgPosition>;
 type Panel =
@@ -55,7 +56,7 @@ export interface Department {
  * the firm's draft as an indented list. Each row's ⋯ menu adds, moves up and
  * down, indents, outdents, moves under another unit and removes; opening a
  * row (its name) opens the side panel with its details (for a position:
- * reports to, head, specialties, how many people, and who holds it). No drag
+ * reports to, head, specialties, how many people, and who holds it today, read only: holders change on "People in positions", never from the draft). No drag
  * and drop. Every change goes through the services of part 1
  * (services/org-chart.ts) by its API route, which checks it again; the page
  * then reloads the draft. For the firm's editors only; the draft stays the
@@ -69,8 +70,12 @@ export function OutlineEditor(props: {
   units: OrgUnit[];
   positions: OrgPosition[];
   departments: Department[];
-  candidates: HolderCandidate[];
-  canChangeHolders: boolean;
+  /** Positions (lineages) of the current published version: their holders show, read only. */
+  liveLineages: string[];
+  /** "People in positions" on the published structure, where holders change; null before anything is published. */
+  peopleHref: string | null;
+  /** The client keeps names (not minimal records): show who holds a position. */
+  names: boolean;
   /** Before anything exists the page has no version line: the editor says itself that this is the firm's draft. */
   banner?: boolean;
 }) {
@@ -255,7 +260,7 @@ export function OutlineEditor(props: {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-60">
-            <DropdownMenuItem onSelect={() => setPanel({ kind: "position", id: p.id })}>{props.canChangeHolders ? t("detailsAndPeople") : t("details")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setPanel({ kind: "position", id: p.id })}>{t("details")}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={at <= 0} onSelect={() => movePositionBy(node, p, "up")}>
               {t("moveUp")}
@@ -339,8 +344,9 @@ export function OutlineEditor(props: {
           unit={panel.kind === "newPosition" ? unitFor(panel.unitId) : unitFor(positionFor(panel.id)?.unitId ?? "")}
           positions={props.positions}
           units={props.units}
-          candidates={props.candidates}
-          canChangeHolders={props.canChangeHolders}
+          live={panel.kind === "position" && props.liveLineages.includes(positionFor(panel.id)?.lineageId ?? "")}
+          peopleHref={props.peopleHref}
+          names={props.names}
           onClose={() => setPanel(null)}
           onSaved={(id) => {
             setPanel(null);
@@ -521,14 +527,21 @@ function UnitPanel(props: { clientId: string; unit?: OrgUnit; parent?: OrgUnit; 
   );
 }
 
-/** A position's details (reports to, head, specialties, planned people) and who holds it; or a new position in `unit`. */
+/**
+ * A position's details (reports to, head, specialties, planned people), or a
+ * new position in `unit`. Who holds it is read only here (the lead's
+ * decision B1): today's holders when the position is also on the published
+ * structure, and a line to "People in positions", where holders change.
+ */
 function PositionPanel(props: {
   position?: OrgPosition;
   unit?: OrgUnit;
   positions: OrgPosition[];
   units: OrgUnit[];
-  candidates: HolderCandidate[];
-  canChangeHolders: boolean;
+  /** The position is also on the current published version. */
+  live: boolean;
+  peopleHref: string | null;
+  names: boolean;
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
@@ -645,13 +658,37 @@ function PositionPanel(props: {
             </div>
           </div>
         </form>
-        {p && props.canChangeHolders ? (
-          <div className="border-t p-5">
-            <HoldersPanel positionId={p.id} plannedCount={p.plannedCount} candidates={props.candidates} side="firm" />
-          </div>
-        ) : null}
+        {p && props.names ? <HoldersReadOnly position={p} live={props.live} peopleHref={props.peopleHref} /> : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Who holds a position, read only in the draft editor, with the way to where holders change. */
+function HoldersReadOnly(props: { position: OrgPosition; live: boolean; peopleHref: string | null }) {
+  const t = useTranslations("orgChart.editor");
+  const tTree = useTranslations("orgChart.tree");
+  const rtl = useLocale() === "ar";
+  const names = props.position.holders.flatMap((h) => (h.named && h.name ? [h.name] : []));
+  return (
+    <section aria-labelledby={`ro-${props.position.id}`} className="grid gap-2 border-t p-5 text-sm">
+      <h3 id={`ro-${props.position.id}`} className="font-semibold">
+        {t("holdersTitle")}
+      </h3>
+      {props.live ? (
+        <p dir="auto">{names.length ? names.join(rtl ? "، " : ", ") : props.position.vacant ? tTree("vacant") : "—"}</p>
+      ) : (
+        <p className="text-muted-foreground">{t("draftOnlyHolders")}</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {t("holdersElsewhere")}{" "}
+        {props.peopleHref ? (
+          <Link href={props.peopleHref} className="text-foreground underline underline-offset-2">
+            {t("holdersLink")}
+          </Link>
+        ) : null}
+      </p>
+    </section>
   );
 }
 

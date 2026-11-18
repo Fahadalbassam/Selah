@@ -225,6 +225,85 @@ BEGIN
   PERFORM app_org_chart_copy(cur, d.id);
 END $$;
 --> statement-breakpoint
+-- 7. People are placed only on the live structure (the lead's decision B1,
+--    review of part 3): a new holding is of a position of the current
+--    published version, for everyone, the firm's editors included and
+--    whoever is not signed in (an invitation accepted). The firm's draft
+--    therefore never holds anyone, and a draft can never show the company a
+--    planned successor. Latest definition: 0091_org_chart; unchanged apart
+--    from the draft no longer being allowed and the check no longer skipped
+--    for jobs.
+CREATE OR REPLACE FUNCTION check_position_holder() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  lchart uuid;
+  lorg uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    IF (to_jsonb(NEW) - '{to_date,ended_by,ended_at}'::text[]) <> (to_jsonb(OLD) - '{to_date,ended_by,ended_at}'::text[]) THEN
+      RAISE EXCEPTION 'a holding only ends; to change who holds the position, end this holding and add the next'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.to_date IS NOT DISTINCT FROM OLD.to_date THEN
+      RETURN NEW;
+    END IF;
+    IF OLD.to_date IS NOT NULL OR NEW.to_date IS NULL THEN
+      RAISE EXCEPTION 'this holding has already ended' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.to_date < OLD.from_date THEN
+      RAISE EXCEPTION 'a holding ends on or after the day it started' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.ended_by := coalesce(app_uid(), NEW.ended_by);
+    NEW.ended_at := now();
+    RETURN NEW;
+  END IF;
+
+  SELECT v.chart_id, v.org_id INTO lchart, lorg
+  FROM positions p JOIN org_chart_versions v ON v.id = p.version_id
+  WHERE p.id = NEW.position_lineage_id AND p.lineage_id = p.id;
+  IF lchart IS NULL THEN
+    RAISE EXCEPTION 'no such position' USING ERRCODE = 'check_violation';
+  END IF;
+  NEW.chart_id := lchart;
+  NEW.org_id := lorg;
+  IF coalesce((SELECT o.minimal_records FROM organizations o WHERE o.id = lorg), false) THEN
+    RAISE EXCEPTION 'this client keeps minimal records: its structure has titles only, no names' USING ERRCODE = 'check_violation';
+  END IF;
+  NEW.name := nullif(btrim(NEW.name), '');
+  IF NEW.user_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM org_memberships m WHERE m.user_id = NEW.user_id AND m.org_id = lorg AND m.active) THEN
+    RAISE EXCEPTION 'a holder is one of the client''s own active people, or a typed name' USING ERRCODE = 'check_violation';
+  END IF;
+  -- The chart's publish lock, shared: a holding added while a publish of the chart is under way
+  -- waits for it, then is checked against what was published (a position it dropped is refused).
+  PERFORM pg_advisory_xact_lock_shared(hashtext('org_chart'), hashtext(lchart::text));
+  IF NOT EXISTS (
+    SELECT 1 FROM positions p JOIN org_chart_versions v ON v.id = p.version_id
+    WHERE p.lineage_id = NEW.position_lineage_id AND v.chart_id = lchart AND v.state = 'published') THEN
+    RAISE EXCEPTION 'people are placed in positions of the published structure (its current version), never in the draft' USING ERRCODE = 'check_violation';
+  END IF;
+  IF app_uid() IS NOT NULL THEN
+    NEW.created_by := app_uid();
+  END IF;
+  NEW.created_at := now();
+  IF NEW.to_date IS NULL THEN
+    NEW.ended_by := NULL;
+    NEW.ended_at := NULL;
+  ELSE
+    NEW.ended_by := NEW.created_by;
+    NEW.ended_at := now();
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('position_holder'), hashtext(NEW.position_lineage_id::text));
+  IF EXISTS (
+    SELECT 1 FROM position_holders h
+    WHERE h.position_lineage_id = NEW.position_lineage_id
+      AND (h.user_id = NEW.user_id OR lower(h.name) = lower(NEW.name))
+      AND daterange(h.from_date, h.to_date, '[]') && daterange(NEW.from_date, NEW.to_date, '[]')) THEN
+    RAISE EXCEPTION 'this person already holds the position on some of those days' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
 REVOKE ALL ON FUNCTION check_invitation_position(), app_org_chart_tell_lead(uuid, uuid), end_holdings_on_leaving(),
   app_remove_position_holder(uuid, uuid), app_reset_org_chart_draft(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint

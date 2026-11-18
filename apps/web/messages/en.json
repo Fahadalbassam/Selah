@@ -5492,7 +5492,8 @@
       "ownPeople": "Choose one of the company's active people, or type a name.",
       "endBefore": "A holding ends on or after the day it started.",
       "alreadyEnded": "This holding has already ended.",
-      "nothingPublished": "Nothing is published yet to start again from."
+      "nothingPublished": "Nothing is published yet to start again from.",
+      "draft": "People are placed on the published structure, under People in positions, never in the draft."
     },
     "tabs": {
       "label": "Client pages",
@@ -5589,7 +5590,6 @@
       "addUnitInside": "Add a unit inside",
       "addPosition": "Add a position",
       "details": "Details",
-      "detailsAndPeople": "Details and who holds it",
       "moveUp": "Move up",
       "moveDown": "Move down",
       "indent": "Indent under the unit above",
@@ -5618,7 +5618,11 @@
       "moved": "Moved.",
       "removed": "Removed.",
       "positions": "Positions of {name}",
-      "units": "Units under {name}"
+      "units": "Units under {name}",
+      "holdersTitle": "Who holds it today",
+      "draftOnlyHolders": "This position is only in the draft, so nobody holds it.",
+      "holdersElsewhere": "People are placed in positions on the published structure, never in the draft:",
+      "holdersLink": "People in positions"
     },
     "unit": {
       "newTitle": "New unit",

@@ -651,7 +651,7 @@ describe("people in positions", () => {
     expect(two.ended).toEqual([]);
   });
 
-  it("the client's admin places people only on the published structure, never in the firm's draft", async () => {
+  it("people are placed only on the published structure, never in the firm's draft", async () => {
     const { draft } = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, ACME));
     const draftUnit = (await owner.query(`SELECT id FROM org_units WHERE version_id = $1 AND code = '1.1.3'`, [draft!.id])).rows[0].id;
     await as(U.lead, async (c) => {
@@ -676,11 +676,13 @@ describe("people in positions", () => {
     // Through the service the draft's position is not even there for the client's admin.
     const draftPos = (await owner.query(`SELECT id FROM positions WHERE version_id = $1 LIMIT 1`, [draft!.id])).rows[0].id;
     await expect(svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, draftPos, { start: { name: "Draft Person", from: PAST } }))).rejects.toThrow(REFUSED);
-    // The firm's editors may (the import fills the draft).
-    await svc(U.lead, async (tx, p) => {
-      const pos = await OC.addPosition(tx, p, draftUnit, { titleEn: "Trainer" });
-      return OC.changeHolder(tx, p, pos.id, { start: { name: "Draft Person", from: PAST } });
-    });
+    // Nor do the firm's editors (part 3, the lead's decision B1): people are placed only on the live structure.
+    await expect(
+      svc(U.lead, async (tx, p) => {
+        const pos = await OC.addPosition(tx, p, draftUnit, { titleEn: "Trainer" });
+        return OC.changeHolder(tx, p, pos.id, { start: { name: "Draft Person", from: PAST } });
+      }),
+    ).rejects.toThrow(/draft/);
   });
 });
 

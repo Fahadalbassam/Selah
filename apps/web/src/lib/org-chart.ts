@@ -106,6 +106,7 @@ export function orgChartError(message: string | undefined): string | null {
     [/cannot report to itself|cannot sit under itself/, "cycle"],
     [/move or remove the units and positions inside this unit first/, "not_empty"],
     [/a published structure never changes/, "published"],
+    [/never in the draft/, "draft"],
     [/minimal records/, "minimal_records"],
   ];
   return rules.find(([re]) => re.test(message))?.[1] ?? null;
@@ -128,6 +129,7 @@ export const ORG_CHART_ERROR_KEYS = [
   "overlap",
   "date",
   "published",
+  "draft",
   "history",
   "minimal_records",
   "position",
