@@ -22,7 +22,9 @@ test("consultant records a finding, answers it with a recommendation and release
   await page.goto(`/projects/${ids.board()}`);
   await hydrated(page, "main");
 
-  await page.getByRole("button", { name: t("plan.findings.add") }).click();
+  // Batch 3: "Add a finding" is in the menu beside "Add a recommendation".
+  await page.getByRole("button", { name: t("projectPage.menu.planLabel") }).click();
+  await page.getByRole("menuitem", { name: t("plan.findings.add") }).click();
   const fd = page.getByRole("dialog");
   await fd.locator("#f-title").fill(findingTitle);
   await fd.locator("#f-description").fill("Board minutes for 2025 are unsigned.");
@@ -30,19 +32,21 @@ test("consultant records a finding, answers it with a recommendation and release
   await toastSaved(page);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  // "Add a recommendation" on the finding's row answers that finding.
-  await page.getByRole("listitem").filter({ hasText: findingTitle }).getByRole("button", { name: t("plan.rec.add") }).click();
+  // "Add a recommendation for it" on the finding's row (findings with no recommendation, at the end of Plan) answers that finding.
+  await page.getByRole("listitem").filter({ hasText: findingTitle }).getByRole("button", { name: t("plan.rec.addForFinding") }).click();
   const rd = page.getByRole("dialog");
   await rd.locator("#r-title").fill(recTitle);
   await rd.locator("#r-rationale").fill("سبب الاختبار");
   await rd.locator("#r-priority").click();
   await page.getByRole("option", { name: t("priority.high") }).click();
+  // The evidence field is behind "More fields" (October review, item 5); it opened by itself, the finding being chosen.
+  await expect(rd.locator("#r-evidence")).toBeVisible();
   await rd.locator("#r-evidence").fill("ملف PDF موقع");
   await rd.getByRole("button", { name: t("plan.rec.save") }).click();
   await toastSaved(page);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const card = page.locator("[data-slot=card]").filter({ hasText: recTitle });
-  await expect(card.getByText(t("plan.rec.answers", { finding: findingTitle }))).toBeVisible();
+  await expect(card.getByText(t("projectPage.finding.lineFirm", { finding: findingTitle }))).toBeVisible();
 
   await card.getByRole("button", { name: t("plan.action.add") }).click();
   const ad = page.getByRole("dialog");

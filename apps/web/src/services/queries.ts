@@ -4,6 +4,8 @@ import type { Tx } from "@/db/client";
 import {
   actions,
   activityEvents,
+  assessmentAnswers,
+  assessments,
   clientAssignments,
   departments,
   documents,
@@ -302,11 +304,17 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgId: findings.orgId,
       projectId: findings.projectId,
       fromAssessment: sql<boolean>`${findings.assessmentAnswerId} is not null`,
+      // The assessment it came from, as the reader may open it (row 4d: Trace's "came from this assessment"
+      // is on the finding line now). Row-level security leaves it null where the reader may not.
+      assessmentId: assessments.id,
+      assessmentTitle: assessments.title,
       releasedAt: findings.releasedAt,
       withdrawnAt: findings.withdrawnAt,
       withdrawnReason: findings.withdrawnReason,
     })
     .from(findings)
+    .leftJoin(assessmentAnswers, eq(assessmentAnswers.id, findings.assessmentAnswerId))
+    .leftJoin(assessments, eq(assessments.id, assessmentAnswers.assessmentId))
     .where(eq(findings.projectId, id))
     .orderBy(asc(findings.createdAt));
 
@@ -343,6 +351,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       state: documents.state,
       createdAt: documents.createdAt,
       uploadedBy: documents.uploadedBy,
+      // Who added it, by name where the reader may read that person (the user-row rule); otherwise left out.
+      uploaderName: user.name,
       ownerOrgId: documents.ownerOrgId,
       departmentId: documents.departmentId,
       orgId: documents.orgId,
@@ -351,6 +361,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       settled: sql<boolean>`app_document_settled(${documents.id})`,
     })
     .from(documents)
+    .leftJoin(user, eq(user.id, documents.uploadedBy))
     .where(
       and(
         eq(documents.projectId, id),
@@ -452,6 +463,47 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     })),
     activity,
   };
+}
+
+export interface PlanEvidence {
+  /** The files sent for each action, oldest first, as the reader may open them. */
+  evidence: { id: string; documentId: string; title: string; recordedByFirm: boolean; at: Date }[];
+  /** The last review decision, if any: accepted, sent back, or not accepted. Never the reviewer's reason. */
+  review: { outcome: "accept" | "revise" | "reject"; at: Date } | null;
+}
+
+/**
+ * What an opened action row on Plan shows (page audit row 4d: Trace's
+ * evidence and review result): the files sent and the last decision, for the
+ * actions the reader already opened on the page (`actionIds`, from
+ * getProject, so already authorized). Read with the reader's rights: a file
+ * they may not open is not listed.
+ */
+export async function planEvidence(tx: Tx, actionIds: string[]): Promise<Record<string, PlanEvidence>> {
+  const out: Record<string, PlanEvidence> = Object.fromEntries(actionIds.map((id) => [id, { evidence: [], review: null }]));
+  if (!actionIds.length) return out;
+  const sent = await tx
+    .select({
+      id: evidenceSubmissions.id,
+      actionId: evidenceSubmissions.actionId,
+      documentId: documents.id,
+      title: documents.title,
+      source: evidenceSubmissions.source,
+      at: evidenceSubmissions.submittedAt,
+    })
+    .from(evidenceSubmissions)
+    .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+    .where(inArray(evidenceSubmissions.actionId, actionIds))
+    .orderBy(asc(evidenceSubmissions.submittedAt));
+  for (const e of sent)
+    out[e.actionId]?.evidence.push({ id: e.id, documentId: e.documentId, title: e.title, recordedByFirm: e.source === "consultant_recorded", at: e.at });
+  const decided = await tx
+    .select({ actionId: reviews.actionId, outcome: reviews.outcome, at: reviews.createdAt })
+    .from(reviews)
+    .where(inArray(reviews.actionId, actionIds))
+    .orderBy(asc(reviews.createdAt));
+  for (const r of decided) if (out[r.actionId]) out[r.actionId]!.review = { outcome: r.outcome as "accept" | "revise" | "reject", at: r.at };
+  return out;
 }
 
 /** Firm side: the clients this user may see, with the consultants assigned to each. */

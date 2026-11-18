@@ -1,23 +1,19 @@
 "use client";
 
-import { ClipboardCheck, Gauge, ListChecks, Lightbulb } from "lucide-react";
-import { FileText } from "@/components/animate-ui/icons/file-text";
-import { Search } from "@/components/animate-ui/icons/search";
-import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
-import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
-import { CircleX } from "@/components/animate-ui/icons/circle-x";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { traceRoots } from "@/lib/trace";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
 
-/** What moved since this person last opened the project. Shown once, then the mark moves to now. */
+/**
+ * What moved since this person last opened the project: one line above the
+ * tabs ("8 actions moved since your last visit"), opened on demand (page
+ * audit 4.3), so the tabs start near the top. The mark moves to now once shown.
+ */
 export function SinceLastVisit(props: {
   projectId: string;
   since: string | Date;
@@ -26,6 +22,7 @@ export function SinceLastVisit(props: {
 }) {
   const t = useTranslations("insight");
   const format = useFormatter();
+  const [open, setOpen] = useState(false);
   const [all, setAll] = useState(false);
   useEffect(() => {
     void fetch(`/api/projects/${props.projectId}/since-last-visit`, { method: "PUT" });
@@ -33,22 +30,21 @@ export function SinceLastVisit(props: {
   if (!props.changes.length) return null;
   const shown = all ? props.changes : props.changes.slice(0, 5);
   return (
-    <Card className="gap-3 py-4 shadow-xs">
-      <CardHeader className="px-5">
-        <CardTitle className="text-base">
-          {props.firstVisit
-            ? t("since.firstTitle", { n: props.changes.length })
-            : t("since.title", {
-                n: props.changes.length,
-                date: format.dateTime(new Date(props.since), { dateStyle: "medium" }),
-              })}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-5">
-        <ul className="divide-y">
+    <Collapsible open={open} onOpenChange={setOpen} className="text-sm">
+      <CollapsibleTrigger className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+        {props.firstVisit
+          ? t("since.firstTitle", { n: props.changes.length })
+          : t("since.title", {
+              n: props.changes.length,
+              date: format.dateTime(new Date(props.since), { dateStyle: "medium" }),
+            })}
+        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="mt-2 divide-y rounded-xl border bg-card px-4 shadow-xs">
           {shown.map((c) => (
-            <li key={c.actionId} className="flex items-center gap-3 py-2 text-sm">
-              <Link href={`/actions/${c.actionId}`} className="min-w-0 flex-1 truncate hover:underline">
+            <li key={c.actionId} className="flex items-center gap-3 py-2">
+              <Link href={`/actions/${c.actionId}`} className="min-w-0 flex-1 truncate hover:underline" dir="auto">
                 {c.title}
               </Link>
               <StatusBadge status={c.status as ActionStatus} />
@@ -60,234 +56,11 @@ export function SinceLastVisit(props: {
           ))}
         </ul>
         {props.changes.length > 5 ? (
-          <button type="button" onClick={() => setAll(!all)} className="mt-2 text-sm text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={() => setAll(!all)} className="mt-2 text-muted-foreground hover:text-foreground">
             {all ? t("since.fewer") : t("since.more", { n: props.changes.length - 5 })}
           </button>
         ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-export interface DeviationRow {
-  entityType: "action" | "recommendation";
-  entityId: string;
-  rule: string;
-  detail: Record<string, string | number | null>;
-  title: string | null;
-  status: string | null;
-  dueDate: string | null;
-  owner: string | null;
-}
-
-/** The deviation rules over the project: what breaks which rule, and by how much. */
-export function Deviations({ rows }: { rows: DeviationRow[] }) {
-  const t = useTranslations("insight.deviations");
-  const format = useFormatter();
-  const counts = rows.reduce<Record<string, number>>((m, r) => ((m[r.rule] = (m[r.rule] ?? 0) + 1), m), {});
-  const detail = (r: DeviationRow) => {
-    const d = r.detail;
-    if (r.rule === "overdue" || r.rule === "stale") return t(`detail.${r.rule}`, { n: Number(d.days ?? 0) });
-    if (r.rule === "slipped" || r.rule === "churn") return t(`detail.${r.rule}`, { n: Number(d.count ?? 0) });
-    if (r.rule === "disputed") {
-      return t("detail.disputed", { date: d.since ? format.dateTime(new Date(String(d.since)), { dateStyle: "medium" }) : "—" });
-    }
-    return t(`detail.${r.rule}`);
-  };
-  return (
-    <div className="space-y-4">
-      <p className="max-w-3xl text-sm text-muted-foreground">{t("hint")}</p>
-      {rows.length === 0 ? (
-        <p className="rounded-xl border bg-card px-4 py-6 text-center text-sm text-muted-foreground">{t("none")}</p>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(counts).map(([rule, n]) => (
-              <Badge key={rule} variant="outline" className="gap-1.5" title={t(`rules.${rule}.hint`)}>
-                {t(`rules.${rule}.name`)}
-                <span className="tabular-nums text-muted-foreground">{n}</span>
-              </Badge>
-            ))}
-          </div>
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead>{t("item")}</TableHead>
-                  <TableHead>{t("rule")}</TableHead>
-                  <TableHead>{t("detailHead")}</TableHead>
-                  <TableHead>{t("owner")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={`${r.entityId}-${r.rule}`}>
-                    <TableCell className="max-w-80">
-                      <Link
-                        href={`/${r.entityType === "action" ? "actions" : "recommendations"}/${r.entityId}`}
-                        className="block truncate font-medium hover:underline"
-                        dir="auto"
-                      >
-                        {r.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <span title={t(`rules.${r.rule}.hint`)}>{t(`rules.${r.rule}.name`)}</span>
-                    </TableCell>
-                    <TableCell
-                      className={cn("tabular-nums", (r.rule === "overdue" || r.rule === "orphaned" || r.rule === "disputed") && "text-destructive")}
-                    >
-                      {detail(r)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{r.owner ?? "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-export interface TraceNode {
-  nodeType: "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
-  nodeId: string;
-  parentType: TraceNode["nodeType"] | null;
-  parentId: string | null;
-  label: string | null;
-  state: string | null;
-}
-
-const ICON = {
-  assessment: ClipboardCheck,
-  kpi: Gauge,
-  finding: Search,
-  recommendation: Lightbulb,
-  action: ListChecks,
-  evidence: FileText,
-};
-
-/**
- * The project as one tree, from assessments and findings to the evidence
- * and reviews that close them, and from the client's business indicators to
- * the recommendations meant to move them. A recommendation under an
- * indicator is a cross-reference; it is shown in full under its finding.
- */
-export function Trace({ rows }: { rows: TraceNode[] }) {
-  const t = useTranslations("insight.trace");
-  const tPrio = useTranslations("priority");
-  const children = new Map<string, TraceNode[]>();
-  for (const r of rows) {
-    if (!r.parentId) continue;
-    const k = `${r.parentType}:${r.parentId}`;
-    children.set(k, [...(children.get(k) ?? []), r]);
-  }
-  const kids = (n: TraceNode) => children.get(`${n.nodeType}:${n.nodeId}`) ?? [];
-  const roots = (type: TraceNode["nodeType"]) => traceRoots(rows).filter((r) => r.nodeType === type);
-  // Recommendations whose only parent is an indicator still belong at the top of the work tree.
-  const withFinding = new Set(
-    rows.filter((r) => r.nodeType === "recommendation" && r.parentType === "finding").map((r) => r.nodeId),
-  );
-  const loose = rows.filter(
-    (r, i, all) =>
-      r.nodeType === "recommendation" &&
-      !withFinding.has(r.nodeId) &&
-      all.findIndex((x) => x.nodeType === "recommendation" && x.nodeId === r.nodeId) === i,
-  );
-
-  function Node({ n, depth, refOnly }: { n: TraceNode; depth: number; refOnly?: boolean }): ReactNode {
-    if (n.nodeType === "review") {
-      const Icon = n.state === "accept" ? CircleCheck : n.state === "revise" ? RotateCcw : CircleX;
-      return (
-        <li className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
-          <Icon className={cn("size-4", n.state === "accept" ? "text-success" : "text-destructive")} />
-          {t(`review.${n.state ?? "reject"}`)}
-        </li>
-      );
-    }
-    const Icon = ICON[n.nodeType];
-    const sub = refOnly ? [] : kids(n);
-    const label = n.label ?? "—";
-    return (
-      <li className="py-1">
-        <div className="flex items-center gap-2 text-sm">
-          <Icon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">{t(`types.${n.nodeType}`)}</span>
-          {n.nodeType === "action" || n.nodeType === "assessment" || n.nodeType === "kpi" ? (
-            <Link
-              href={`/${n.nodeType === "action" ? "actions" : n.nodeType === "kpi" ? "indicators" : "assessments"}/${n.nodeId}`}
-              className="min-w-0 truncate font-medium hover:underline"
-            >
-              {label}
-            </Link>
-          ) : (
-            <span className={cn("min-w-0 truncate", n.nodeType !== "evidence" && "font-medium")}>{label}</span>
-          )}
-          {n.nodeType === "action" && n.state ? <StatusBadge status={n.state as ActionStatus} /> : null}
-          {n.nodeType === "action" && n.parentType === "action" ? <Badge variant="outline">{t("replaces")}</Badge> : null}
-          {n.nodeType === "recommendation" && n.state ? (
-            <span className="text-xs text-muted-foreground">{tPrio(n.state as never)}</span>
-          ) : null}
-          {n.nodeType === "evidence" && n.state === "consultant_recorded" ? (
-            <span className="text-xs text-muted-foreground">{t("recorded")}</span>
-          ) : null}
-          {refOnly ? <span className="text-xs text-muted-foreground">{t("seeBelow")}</span> : null}
-        </div>
-        {sub.length ? (
-          <ul className={cn("ms-2 border-s ps-4", depth > 3 && "ps-3")}>
-            {sub.map((c) => (
-              <Node key={`${c.nodeType}:${c.nodeId}:${n.nodeId}`} n={c} depth={depth + 1} refOnly={n.nodeType === "kpi"} />
-            ))}
-          </ul>
-        ) : null}
-      </li>
-    );
-  }
-
-  const assessments = roots("assessment");
-  const findings = [...assessments, ...roots("finding")];
-  const indicators = roots("kpi");
-  if (!findings.length && !loose.length && !indicators.length) {
-    return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
-  }
-  return (
-    <div className="grid gap-6">
-      <p className="max-w-3xl text-sm text-muted-foreground">{t("hint")}</p>
-      {findings.length || loose.length ? (
-        <Card className="gap-3 py-5 shadow-xs">
-          <CardHeader className="px-5">
-            <CardTitle className="text-base">{t("work")}</CardTitle>
-            <CardDescription>{t("workHint")}</CardDescription>
-          </CardHeader>
-          <CardContent className="px-5">
-            <ul>
-              {findings.map((n) => (
-                <Node key={n.nodeId} n={n} depth={0} />
-              ))}
-              {loose.map((n) => (
-                <Node key={n.nodeId} n={{ ...n, parentType: null, parentId: null }} depth={0} />
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-      {indicators.length ? (
-        <Card className="gap-3 py-5 shadow-xs">
-          <CardHeader className="px-5">
-            <CardTitle className="text-base">{t("goals")}</CardTitle>
-            <CardDescription>{t("goalsHint")}</CardDescription>
-          </CardHeader>
-          <CardContent className="px-5">
-            <ul>
-              {indicators.map((n) => (
-                <Node key={n.nodeId} n={n} depth={0} />
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

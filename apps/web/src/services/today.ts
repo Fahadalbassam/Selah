@@ -564,7 +564,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
       id: r.id,
       ...at(r.projectId),
       title: r.title,
-      href: `/projects/${r.projectId}?tab=requests`,
+      href: `/projects/${r.projectId}?tab=files`,
       who: null,
       proposed: null,
       at: r.at,

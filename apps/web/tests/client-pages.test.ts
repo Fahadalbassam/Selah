@@ -197,9 +197,9 @@ describe("the client's Progress tab", () => {
   it("is the share verified, how the actions ended and the shared reports: no firm measures, no handover card", () => {
     expect(progressParts(false)).toEqual({ implemented: true, outcomes: true, reports: true, measures: false, lateAgainstOriginal: false, history: false, handover: false });
     expect(Object.values(progressParts(true)).every(Boolean)).toBe(true);
-    const page = source("app/(app)/projects/[id]/page.tsx");
-    expect(page).toMatch(/handover: principal\.orgKind === "firm" \? await getHandover/);
-    expect(page).toMatch(/\{handover \? <HandoverCard/);
+    // The page's data is loaded in services/project-page.ts since batch 3.
+    expect(source("services/project-page.ts")).toMatch(/handover: principal\.orgKind === "firm" \? await getHandover/);
+    expect(source("app/(app)/projects/[id]/page.tsx")).toMatch(/\{handover \? <HandoverCard/);
     expect(source("app/(app)/projects/[id]/progress-tab.tsx")).toMatch(/if \(!parts\.measures\)\s*return \(\s*<div className="space-y-6">\s*<p className="text-sm text-muted-foreground">\{t\("hintClient"\)\}<\/p>/);
   });
 

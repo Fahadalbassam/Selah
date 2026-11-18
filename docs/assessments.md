@@ -15,7 +15,7 @@ Assessment → gaps → findings → recommendations → actions → progress an
 5. **From here, the existing system.** The finding is an ordinary finding. Recommendations answer it (`POST /api/projects/:id/recommendations` with `findingId`), actions carry them out, and progress, evidence, reviews, reminders and metrics work exactly as they do for a recommendation made directly. There is one recommendation system, and direct recommendations need no assessment.
 6. **Follow-up.** `GET /api/assessments/:id/follow-up` lists each confirmed gap with its recommendations and released actions: reported (awaiting review), evidenced (evidence submitted) and verified (accepted by a consultant's review), counted apart and never added together. "Evidenced" overlaps the other two. Verified is also split by whose evidence it rested on: the client's, or recorded by a consultant. The review records who verified, the decision and when.
 7. **Reports.** `POST /api/assessments/:id/report` freezes the section scores and the follow-up table into a report (firm-private until shared, like any report), with the line that the percentages are indicative and not a certification.
-8. **Trace.** `GET /api/projects/:id/trace` now starts at the assessment: assessment → finding → recommendation → action → evidence or review.
+8. **Where a finding came from.** On the project's Plan each finding line names the assessment it came from, linked where the reader may open it (the Trace tab that drew this went in batch 3, decision D2).
 
 ## Templates
 
@@ -87,7 +87,7 @@ A client is assessed again by retaking a final assessment (`POST /api/assessment
 ## Screens
 
 - **Assessment templates** (a sidebar row for the firm admin and the named template authors; everyone else on the firm side opens a template from the assessment that uses it, where the header links to the template and version it was made from): the template list; install the starter template. A template page shows one version at a time (`?v=`), the open draft by default. Authors add and edit sections and questions, set each question's legal form labels, source, locator and verified flag, and publish.
-- **Project, Assessments tab**: the project's assessments with totals (firm only); start one from a published template.
+- **Project, Plan → Sources**: the project's assessments with totals (firm only); start one from a published template. A client reader finds the assessments the firm shared under **Requests and files** (batch 3).
 - **Assessment page**: each question with its source labels per legal form and its basis. Answers save as they are given, with a client-visible comment and a firm-only note. After finalising, each gap is shown as a suggested gap and a consultant confirms it as a finding. The page also shares the assessment, retakes it and opens the comparison.
 - **Compare**: per-section points before and after (firm only) and each changed answer, with reworded questions flagged.
 - The client's legal form is set on the client page.

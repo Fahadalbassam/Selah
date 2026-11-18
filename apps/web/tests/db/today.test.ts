@@ -183,7 +183,7 @@ describe("the Today page", () => {
     expect(t.due.map((d) => d.id)).toEqual([A.overdue]);
     // Not Acme's lead: no join or deadline decisions.
     expect(t.decisions.map((d) => d.kind)).toEqual(["info_request"]);
-    expect(t.decisions[0]?.href).toBe(`/projects/${P.one}?tab=requests`);
+    expect(t.decisions[0]?.href).toBe(`/projects/${P.one}?tab=files`);
   });
 
   it("gives an unassigned consultant nothing from that client", async () => {

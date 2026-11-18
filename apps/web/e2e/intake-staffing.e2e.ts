@@ -125,7 +125,7 @@ test("a consultant asks to join the new client; the lead approves (Arabic)", asy
   await expect(noura.getByText(t("staffing.noRequests"))).toBeVisible();
   // The lead staffs Khalid on the project.
   await noura.goto(`/projects/${projectId}`);
-  await noura.getByRole("tab", { name: t("staffing.projectTeam") }).click();
+  await noura.getByRole("tab", { name: t("projectPage.tabs.people") }).click();
   await noura.getByRole("button", { name: t("staffing.staff") }).click();
   await noura.getByRole("dialog").locator('button[type="submit"]').click();
   await expect(noura.getByRole("dialog")).toHaveCount(0);
