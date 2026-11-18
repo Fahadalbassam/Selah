@@ -14,6 +14,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
 import { buildTree } from "@/lib/org-chart-tree";
+import { canReadDepartments, getEngagement } from "@/services/engagement";
 import * as OC from "@/services/org-chart";
 import { loadPrincipal } from "@/services/principal";
 import { truncateAuditLog } from "./audit-reset";
@@ -330,6 +331,14 @@ describe("the Structure tab reads exactly what the services allow", () => {
     await expect(svc(U.team, (tx, p) => OC.getStructure(tx, p, ACME))).rejects.toThrow(REFUSED);
   });
 
+  it("the firm's Departments tab beside it is Not found, never an error, for a firm person outside the client's team", async () => {
+    const principal = async (who: string) => (await svc(who, async (_tx, p) => p))!;
+    // The lead of Acme is not on Other's team: the page answers Not found instead of failing on getEngagement().
+    expect(canReadDepartments(await principal(U.lead), OTHER)).toBe(false);
+    await expect(svc(U.lead, (tx, p) => getEngagement(tx, p, OTHER))).rejects.toThrow(/forbidden/);
+    for (const who of [U.admin, U.lead, U.team, U.obs]) expect(canReadDepartments(await principal(who), ACME), who).toBe(true);
+  });
+
   it("the Structure tab shows only when there is something the reader may read: a published version, and for the firm a draft with units", async () => {
     const tab = (who: string, client = FRESH) => svc(who, (tx, p) => OC.hasStructure(tx, p, client));
     const read = (who: string) => svc(who, (tx, p) => OC.getStructure(tx, p, FRESH));
@@ -454,6 +463,18 @@ describe("the PDF holds what the tab holds", () => {
     const { html } = await pdf(U.admin, OTHER);
     expect(html).toContain('<p class="meta">Version 2 · Takes effect on Jan 1, 2099</p>');
     expect(html).not.toContain("current");
+  });
+
+  it("the file is named after the structure, the client and the version, so two downloads do not share a name", async () => {
+    const today = firmToday();
+    const now = await pdf(U.cadmin, ACME, {}, "ar");
+    expect([now.file.fileName, now.file.title]).toEqual([`selah-structure-v2-${today}.pdf`, "الهيكل التنظيمي - أكمي - الإصدار 2"]);
+    const old = await pdf(U.cadmin, ACME, { version: V1 });
+    expect([old.file.fileName, old.file.title]).toEqual([`selah-structure-v1-${today}.pdf`, "Organisation structure - Acme - Version 1"]);
+    const draft = await pdf(U.lead, ACME, { version: "draft" });
+    expect([draft.file.fileName, draft.file.title]).toEqual([`selah-structure-draft-${today}.pdf`, "Organisation structure - Acme - Draft"]);
+    // The draft's banner is on every page.
+    expect(draft.html.match(/<p class="draft">/g)!.length).toBe(draft.html.match(/<section class="page">/g)!.length);
   });
 
   it("a minimal-records client prints titles only", async () => {

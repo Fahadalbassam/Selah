@@ -225,7 +225,7 @@ Copy an address in one window and paste it in the other. "Not found" is the expe
 | admin@nukhba.test, manager@nukhba.test | /departments/structure?version=draft (or the draft's id, copied from the lead's window) | Not found: the firm's draft never reaches the company. lead@mizan.test opens it on the client page's Structure tab |
 | admin@rawdah.test, manager@rawdah.test | Al-Nukhba's structure or its PDF (/api/clients/<Al-Nukhba's id>/structure/pdf) | Not found |
 | lead2@mizan.test, admin@rawdah.test, manager@rawdah.test | Rawdah's client page; Rawdah's Departments page | No Structure tab: Rawdah has no structure yet, so there is nothing to read and no empty page (/clients/<Rawdah>/structure and /departments/structure answer Not found) |
-| consultant@mizan.test, observer@mizan.test | Al-Nukhba's client page → الهيكل | They read it with every name (staffed on its project, the observer too). lead2@mizan.test: Not found |
+| consultant@mizan.test, observer@mizan.test | Al-Nukhba's client page → الهيكل | They read it with every name (staffed on its project, the observer too). lead2@mizan.test: Not found, on /clients/<Al-Nukhba>/structure and /clients/<Al-Nukhba>/departments alike (never an error page) |
 | manager@nukhba.test | A shared status pack (once the firm issues and shares one) | The numbers are whole. Each list shows only her department's items and says how many more were left out; an indicator names only the linked recommendations she can open |
 
 ## 7. Assistant demo questions

@@ -1,4 +1,3 @@
-import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { route } from "@/server/http";
 import { exportLocale } from "@/server/locale";
@@ -8,6 +7,7 @@ import { download, orgChartPdf } from "@/services/exports";
  * The client's organisation structure as a PDF, holding what this person's
  * Structure tab holds (the firm, the client's admin and its managers; another
  * client's chart, an action owner and the draft for a client person: 404).
+ * Saved as "<structure> - <client> - <version>.pdf".
  */
 export const GET = route(
   {
@@ -23,7 +23,6 @@ export const GET = route(
   async ({ tx, principal, params, query }) => {
     const locale = await exportLocale(query.lang);
     const file = await orgChartPdf(tx, principal, params.id, { version: query.version, size: query.size, depth: query.depth, names: query.names === "1" }, locale);
-    const t = await getTranslations({ locale, namespace: "orgChart" });
-    return download(file, t("pdf.title"));
+    return download(file, file.title);
   },
 );

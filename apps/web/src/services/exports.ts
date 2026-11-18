@@ -474,7 +474,13 @@ export interface OrgChartPdfOptions {
  * where the database sends them, the draft only for the firm, another
  * client's chart a 404. Without names, no holder's name at all.
  */
-export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: string, options: OrgChartPdfOptions, locale: Locale): Promise<ExportFile> {
+export async function orgChartPdf(
+  tx: Tx,
+  principal: Principal,
+  clientOrgId: string,
+  options: OrgChartPdfOptions,
+  locale: Locale,
+): Promise<ExportFile & { title: string }> {
   const view = await getStructure(tx, principal, clientOrgId, options.version);
   const shown = view.shown;
   if (!shown) throw new NotFoundError("org chart");
@@ -512,7 +518,14 @@ export async function orgChartPdf(tx: Tx, principal: Principal, clientOrgId: str
     outcome: "allow",
     meta: { client: view.client.id, format: "pdf", number: shown.version.number, size: options.size, depth, names },
   });
-  return { bytes, fileName: fileName("selah-structure", "pdf"), contentType: "application/pdf" };
+  // Named after the structure, the client and the version, so two downloads never share a name.
+  const which = draft ? tr("version.draft") : tr("version.number", { n: shown.version.number ?? 0 });
+  return {
+    bytes,
+    fileName: fileName(`selah-structure-${draft ? "draft" : `v${shown.version.number}`}`, "pdf"),
+    contentType: "application/pdf",
+    title: [tr("pdf.title"), clientName, which].join(" - "),
+  };
 }
 
 /** An attachment response: no caching, and the browser must not guess the type. */

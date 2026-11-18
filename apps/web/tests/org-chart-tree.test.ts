@@ -422,6 +422,16 @@ describe("the words, Arabic first", () => {
     }
   });
 
+  it("the firm's line under the title holds for any version shown, the draft too", () => {
+    expect(en.orgChart.hint).not.toMatch(/published/i);
+    expect(ar.orgChart.hint).not.toContain("المنشور");
+  });
+
+  it("tells a manager why she sees no names when her company does not use departments", () => {
+    expect(ar.orgChart.names.departmentsOff).toContain("لا تعمل بالإدارات");
+    expect(en.orgChart.names.departmentsOff).toMatch(/does not use departments/);
+  });
+
   it("never scores or judges a structure", () => {
     const all = JSON.stringify([ar.orgChart, en.orgChart]);
     expect(all).not.toMatch(/span of control|نطاق الإشراف|healthy|unhealthy|too many|good structure|سليم|ضعيف/i);

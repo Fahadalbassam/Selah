@@ -20,7 +20,7 @@ import { isUuid } from "@/lib/ids";
 import { localLabel, localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canWriteContacts, listContacts } from "@/services/accounts";
-import { getEngagement } from "@/services/engagement";
+import { canReadDepartments, getEngagement } from "@/services/engagement";
 import { listEngagements } from "@/services/engagements";
 import { discardBlock } from "@/services/prospects";
 import { suggestClientLeads } from "@/services/inquiries";
@@ -83,7 +83,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       clientAi: team.client.prospect ? null : await getClientAi(tx, principal, id),
       // When evidence needs a second consultant's sign-off (F22).
       secondReview: team.client.prospect ? null : await getClientReviewRule(tx, principal, id),
-      // The Structure tab, once there is a structure this person may read (F43).
+      // The Departments and Structure tabs, for the people who may open them (F43).
+      departments: canReadDepartments(principal, id),
       structure: await hasStructure(tx, principal, id),
     };
   });
@@ -157,7 +158,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {tc("title")}
       </Link>
-      <ClientTabs clientId={client.id} current="overview" structure={data.structure} />
+      <ClientTabs clientId={client.id} current="overview" structure={data.structure} departments={data.departments} />
       <PageHeader
         title={localName(client, ar)}
         morph={`client-${client.id}`}

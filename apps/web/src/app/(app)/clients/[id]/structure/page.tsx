@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
+import { canReadDepartments } from "@/services/engagement";
 import { getStructure, hasStructure } from "@/services/org-chart";
 import { ClientTabs } from "../client-tabs";
 
@@ -26,12 +27,13 @@ export default async function ClientStructurePage({
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const { version, depth } = await searchParams;
-  const structure = await withPrincipal(async (tx, principal) => {
+  const data = await withPrincipal(async (tx, principal) => {
     // No tab and no page until there is a structure this person may read.
     if (principal.orgKind !== "firm" || !(await hasStructure(tx, principal, id))) return null;
-    return getStructure(tx, principal, id, version ?? null);
+    return { structure: await getStructure(tx, principal, id, version ?? null), departments: canReadDepartments(principal, id) };
   });
-  if (!structure?.shown) notFound();
+  if (!data?.structure.shown) notFound();
+  const { structure } = data;
   const t = await getTranslations("orgChart");
   const ar = (await getLocale()) === "ar";
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
@@ -41,7 +43,7 @@ export default async function ClientStructurePage({
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {localName(structure.client, ar)}
       </Link>
-      <ClientTabs clientId={id} current="structure" structure />
+      <ClientTabs clientId={id} current="structure" structure departments={data.departments} />
       <PageHeader title={t("title")} description={t("hint")}>
         {structure.shown?.units.length ? (
           <StructurePdfButton

@@ -68,9 +68,11 @@ export async function StructureBody({ structure, base, depthParam, audience }: {
       : audience === "client" && shown.names === "none"
         ? v.state === "superseded"
           ? t("names.history")
-          : v.showNames
-            ? t("names.noDepartment")
-            : t("names.hidden")
+          : !v.showNames
+            ? t("names.hidden")
+            : !structure.client.departmentsEnabled
+              ? t("names.departmentsOff")
+              : t("names.noDepartment")
         : null;
 
   return (

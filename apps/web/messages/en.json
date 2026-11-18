@@ -5349,7 +5349,7 @@
     },
     "title": "Organisation structure",
     "titleClient": "Your company's structure",
-    "hint": "This client's published structure: its units, its positions and who holds each one today. Choose how many levels to show, or download it as a PDF.",
+    "hint": "This client's structure as the firm drew it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF.",
     "hintClient": "Your company's structure as your consultants published it: its units, its positions and who holds each one. Choose how many levels to show, or download it as a PDF to print.",
     "notPublished": "Nothing has been published to the client yet.",
     "draftBanner": "The firm's draft: the client does not see it.",
@@ -5376,6 +5376,7 @@
       "branch": "You see the names of the people in your own department and in the positions above it.",
       "hidden": "Your company does not show the names of the people in positions to its managers.",
       "noDepartment": "Managers see names only in their own department's part of the structure and above it, and you have no department in it.",
+      "departmentsOff": "Managers see names only within their own departments, and your company does not use departments in Selah.",
       "history": "Earlier versions show the positions only, without names.",
       "minimal": "Positions only: this client keeps minimal records, so no names are kept."
     },
