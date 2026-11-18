@@ -1,4 +1,4 @@
-import { ArrowLeft, Ban, CalendarPlus, Pencil, Video } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Pencil, Video } from "lucide-react";
 import { Send } from "@/components/animate-ui/icons/send";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { messagesFor } from "@/i18n/messages";
 import { agendaLines } from "@/lib/agenda";
 import { isUuid } from "@/lib/ids";
-import { leftOutOfMeeting } from "@/lib/meetings";
+import { leftOutOfMeeting, meetingSections } from "@/lib/meetings";
 import { withPrincipal } from "@/server/page";
 import { getMeeting, meetingInvitees } from "@/services/meetings";
 import {
@@ -26,6 +26,7 @@ import {
   DecisionForm,
   FollowUpForm,
   FollowUpToggle,
+  MeetingMenu,
   RemoveAttendee,
   RespondButtons,
   SummaryBlock,
@@ -59,6 +60,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
   const scheduled = meeting.status === "scheduled";
   const held = meeting.status === "held";
   const shared = meeting.visibility === "shared";
+  // Before the meeting: what a person needs to attend. The record appears once it is held (page audit U14).
+  const show = meetingSections(meeting.status, followUps.length);
   const lang: "ar" | "en" = meeting.spokenLang === "en" ? "en" : "ar";
   // The agenda is one stored text in the meeting's language, whatever language
   // the page is in. Agendas stored before migration 0072 carry status keys and
@@ -111,7 +114,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
               {t(`status.${meeting.status}`)}
             </ToneBadge>
             <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
-            <Badge variant="outline">{tVis(meeting.visibility)}</Badge>
+            {/* Who sees it is the firm's question; a client reader only ever sees the meetings shared with them. */}
+            {firm ? <Badge variant="outline">{tVis(meeting.visibility)}</Badge> : null}
             {limited ? <AudienceMarker kind="meeting" /> : null}
           </>
         }
@@ -181,17 +185,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                       label={t("markHeld")}
                     />
                   ) : null}
-                  {scheduled ? (
-                    <ApiButton
-                      endpoint={`/api/meetings/${meeting.id}`}
-                      method="PATCH"
-                      body={{ status: "cancelled" }}
-                      label={t("cancelMeeting")}
-                      icon={<Ban />}
-                      variant="ghost"
-                      confirm={t("cancelConfirm")}
-                    />
-                  ) : null}
+                  {/* Cancelling is rare: in the menu, behind the same question. */}
+                  {scheduled ? <MeetingMenu meetingId={meeting.id} /> : null}
                 </div>
               ) : null}
               {mine && scheduled && canRespond ? <RespondButtons meetingId={meeting.id} current={mine.response} /> : null}
@@ -244,6 +239,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : null}
 
+          {show.summary ? (
           <Card className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">
               <CardTitle className="text-base">{t("summary")}</CardTitle>
@@ -264,8 +260,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                       {tr("confirmedBy", {
                         who: summary.confirmedByName ?? "—",
                         date: format.dateTime(summary.confirmedAt, { dateStyle: "medium" }),
-                      })}{" "}
-                      · {tVis(summary.visibility)}
+                      })}
+                      {firm ? ` · ${tVis(summary.visibility)}` : null}
                     </p>
                     <SummarySources
                       meetingId={meeting.id}
@@ -299,13 +295,13 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                       }}
                     />
                   );
-                return (
-                  view ?? <p className="text-muted-foreground">{canRun && scheduled ? tr("summaryAfter") : t("noSummary")}</p>
-                );
+                return view ?? <p className="text-muted-foreground">{t("noSummary")}</p>;
               })()}
             </CardContent>
           </Card>
+          ) : null}
 
+          {show.decisions ? (
           <Card className="gap-3 py-5 shadow-xs">
             <CardHeader className="px-5">
               <CardTitle className="text-base">{t("decisions")}</CardTitle>
@@ -332,13 +328,14 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                   </li>
                 ))}
               </ol>
-              {canRun && held ? (
+              {canRun && show.record ? (
                 <DecisionForm meetingId={meeting.id} meetingShared={shared} defaultLang={lang} decisions={pickable} />
               ) : null}
             </CardContent>
           </Card>
+          ) : null}
 
-          {followUps.length || (canFollowUp && meeting.status !== "cancelled") ? (
+          {show.followUps && (followUps.length || canFollowUp) ? (
             <Card className="gap-3 py-5 shadow-xs">
               <CardHeader className="px-5">
                 <CardTitle className="text-base">{tr("followUps")}</CardTitle>
@@ -369,7 +366,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                     </li>
                   ))}
                 </ul>
-                {canFollowUp && meeting.status !== "cancelled" ? (
+                {canFollowUp && show.record ? (
                   <FollowUpForm
                     meetingId={meeting.id}
                     meetingShared={shared}
@@ -381,7 +378,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : null}
 
-          {firm && canRun ? (
+          {firm && canRun && show.transcript ? (
             <TranscriptPanel
               meetingId={meeting.id}
               consent={meeting.transcriptConsent}

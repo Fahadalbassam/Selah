@@ -213,7 +213,8 @@ export function CommentThread({
                         <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
                           <Checkbox checked={mentions.includes(p.id)} onCheckedChange={(on) => toggle(p.id, on === true)} />
                           <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                          <span className="text-xs text-muted-foreground">{t(`sides.${p.side}`)}</span>
+                          {/* A client reader's own side is "your company", never "the client". */}
+                          <span className="text-xs text-muted-foreground">{t(`sides.${p.side === "client" && !firmView ? "yours" : p.side}`)}</span>
                         </label>
                       </li>
                     ))}

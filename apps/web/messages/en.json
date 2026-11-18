@@ -75,7 +75,7 @@
     "inProgress": "In progress",
     "inProgressHint": "Client-claimed progress, not verified",
     "blocked": "Blocked",
-    "blockedHint": "Reported by owners",
+    "blockedHint": "Their owners said what is in the way",
     "awaitingReview": "Awaiting review",
     "awaitingReviewHint": "Submitted evidence waiting for a consultant",
     "verified": "Verified complete",
@@ -84,7 +84,9 @@
     "attentionFirm": "Needs your attention",
     "attentionClient": "Needs your follow-up",
     "empty": "Nothing needs your attention right now.",
-    "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact."
+    "claimNote": "Numbers come from the recorded work. Claimed progress is not verification: only a consultant's review marks an action verified complete, and that still does not prove business impact.",
+    "inProgressHintClient": "Under way, not yet checked by your consultant",
+    "claimNoteClient": "An action counts as done once your consultant has checked it."
   },
   "table": {
     "action": "Action",
@@ -115,7 +117,7 @@
     "noRecsClient": "No recommendations for you yet.",
     "noDocs": "No documents for you yet.",
     "noActivity": "No activity recorded.",
-    "requiredEvidence": "Required evidence",
+    "requiredEvidence": "What shows it is done",
     "priority": "Priority",
     "version": "Version",
     "aiIndexed": "Available to assistant",
@@ -141,7 +143,7 @@
       "department_moved": "moved a department's unfinished work to another department",
       "created": "added an action",
       "updated": "updated an action",
-      "evidence_submitted": "submitted evidence",
+      "evidence_submitted": "sent a file",
       "document_shared": "shared a file",
       "assessment_started": "started an assessment",
       "assessment_finalised": "finalised an assessment",
@@ -170,6 +172,13 @@
       "recommendation_response_answered": "answered a response to a recommendation",
       "other": "made a change",
       "second_review_requested": "signed off and asked for a second sign-off"
+    },
+    "eventsClient": {
+      "assessment_shared": "shared an assessment with your company",
+      "assessment_unshared": "took an assessment back from your company",
+      "risk_accepted": "recorded that your company accepts the risk",
+      "finding_released": "shared a finding with your company",
+      "recommendation_released": "shared a recommendation with your company"
     }
   },
   "priority": {
@@ -433,9 +442,9 @@
   "action": {
     "back": "Back to actions",
     "owner": "Owner",
-    "due": "Due",
+    "due": "Due date",
     "recommendation": "Recommendation",
-    "requiredEvidence": "Evidence the consultant expects",
+    "requiredEvidence": "What shows it is done",
     "blocked": "Blocked: {reason}",
     "nextStep": "Next step",
     "noMoves": "Nothing for you to do on this action right now.",
@@ -445,7 +454,7 @@
       "assigned": "Release to owner",
       "in_progress": "Start work",
       "blocked": "Mark as blocked",
-      "awaiting_review": "Submit for review",
+      "awaiting_review": "Send for review",
       "verified_complete": "Accept and verify",
       "revision_requested": "Request revision",
       "closed": "Close action"
@@ -457,13 +466,13 @@
     "reviseHint": "Tell the owner what is missing. They will see this reason.",
     "acceptHint": "Accepting marks this action as verified complete. A consultant can reopen it later, with a reason.",
     "closeHint": "Closing ends work on this action without verification. Choose how it ended; the note is shown on the action.",
-    "evidenceTitle": "Submit evidence",
-    "evidenceHint": "Attach the file that proves this action is done. Allowed: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images and text, up to 20 MB. Files are scanned for viruses.",
+    "evidenceTitle": "Send a file",
+    "evidenceHint": "Choose the file that shows this action is done. Allowed: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images and text, up to 20 MB. Files are scanned for viruses.",
     "file": "File",
     "note": "Note for the reviewer (optional)",
-    "sendForReview": "Send for review now",
-    "upload": "Upload",
-    "uploadOnly": "Attach evidence",
+    "sendForReview": "Send for review",
+    "upload": "Send",
+    "uploadOnly": "Send a file",
     "addUpdate": "Add a progress note",
     "updatePlaceholder": "What changed since the last update?",
     "post": "Post note",
@@ -479,14 +488,14 @@
       "too_large": "The file is larger than 20 MB.",
       "empty": "The file is empty.",
       "openEvidence": "Accept or waive every item on the evidence list first.",
-      "needEvidence": "Attach evidence before sending for review.",
+      "needEvidence": "No file has been sent yet. Send the file with Send for review.",
       "infected": "The file was flagged by the virus scanner and was not stored.",
       "scanner": "The virus scanner is unavailable, so uploads are paused. Try again shortly.",
       "unavailable": "This file can't be downloaded: it hasn't been cleared by the virus scanner.",
       "pastDate": "The new date is in the past.",
       "sameDate": "That's already the due date.",
       "notSigned": "The client hasn't signed a risk acceptance for this action since it was last reopened.",
-      "notShared": "Only files shared between the client and the firm can be used as evidence.",
+      "notShared": "Only a file shared by both sides can be used as evidence.",
       "needsLead": "The date has already moved later twice. The client's lead consultant or a firm admin approves a third move.",
       "needsSignOff": "This work needs two sign-offs. Use Sign off first; another consultant then verifies it.",
       "alreadySigned": "Someone already gave the first sign-off. Reload to see it.",
@@ -495,12 +504,12 @@
       "receivedFuture": "The day it was received can't be after today.",
       "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
       "replacementDraft": "The replacement is still a draft the client can't see. Release it first.",
-      "narrowed": "A file with a limited audience can't be used as evidence. Upload the evidence instead.",
+      "narrowed": "A file with a limited audience can't be used as evidence. Send a new file instead.",
       "notEvidence": "This file can't be used as evidence."
     },
     "entry": {
       "update": "posted an update",
-      "evidence": "submitted evidence",
+      "evidence": "sent a file",
       "accept": "accepted the evidence",
       "revise": "requested a revision",
       "reject": "rejected the evidence",
@@ -527,7 +536,7 @@
     },
     "items": {
       "title": "Evidence list",
-      "hintClient": "What the consultant asked you to send. Answer each item with its own \"Send a file\" button. A file sent with \"Submit for review\" answers the only open item, or the one you choose when several are open. The consultant accepts it or says what's missing.",
+      "hintClient": "What your consultant asked for on this action. Send each item's file with the Send a file button beside it, or with Send for review. Your consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
       "hintFirmRun": "What the client needs to provide for this action. The client has no account in Selah, so record each file when it reaches you, then accept, reject or waive the item.",
       "none": "No items yet.",
@@ -556,13 +565,14 @@
       "addHintFirmRun": "Name a document or record the client needs to provide. Selah does not tell the client, so ask them yourself.",
       "itemTitle": "What to send",
       "itemDescription": "Details (optional)",
-      "itemDue": "Due date (optional)"
+      "itemDue": "Due date (optional)",
+      "titleClient": "What to send"
     },
     "deadline": {
       "title": "Due date changes",
       "none": "No change requested.",
-      "ask": "Ask for a new date",
-      "askHint": "Propose a new due date and say why. The consultant approves or declines it.",
+      "ask": "Propose a new date",
+      "askHint": "Propose a new due date and say why. The consultant agrees or declines.",
       "newDate": "New due date",
       "send": "Send request",
       "to": "Move to {date}",
@@ -613,15 +623,15 @@
     "risk": {
       "title": "Risk acceptance",
       "hint": "The client's signed statements that they accept the risk of not finishing this action. With one, the action can be closed as risk accepted.",
-      "hintClient": "If your organisation decides not to finish this action, sign here that you accept the risk. The firm can then close it as risk accepted.",
-      "none": "Nothing signed yet.",
+      "hintClient": "If your company decides not to finish this action, sign here that you accept the risk. The firm can then close it as risk accepted.",
       "beforeReopen": "signed before the action was reopened",
       "sign": "Accept the risk",
       "signHint": "Your name, this statement and the time are kept with the action and can't be changed or removed.",
       "statement": "Statement",
-      "statementPlaceholder": "Why your organisation accepts not doing this, and what it will do instead.",
-      "agree": "I accept the risk of not finishing this action, on behalf of my organisation.",
-      "signButton": "Sign"
+      "statementPlaceholder": "Why your company accepts not doing this, and what it will do instead.",
+      "agree": "I accept the risk of not finishing this action, on behalf of my company.",
+      "signButton": "Sign",
+      "hintRead": "What your company signed to accept the risk of not finishing this action. With it, the firm can close the action as risk accepted."
     },
     "pickExisting": "Choose from Selah files",
     "uploadNew": "Upload a new file",
@@ -678,7 +688,8 @@
       "unmention": "Don't mention {name}",
       "sides": {
         "firm": "Firm",
-        "client": "Client"
+        "client": "Client",
+        "yours": "Your company"
       },
       "you": "You",
       "someone": "Someone",
@@ -752,6 +763,34 @@
         }
       },
       "onlyOne": "Only {name} on the team can review this, so after the first sign-off the firm's admins give the second."
+    },
+    "plain": {
+      "due": "Due {due}.",
+      "late": "It is late: it was due {due}.",
+      "reminder": "A reminder goes out on {on}.",
+      "tell": "If it is still open on {on}, {who} will be told too.",
+      "who": {
+        "managers": "your company's managers",
+        "department_head": "the head of the department",
+        "lead_consultant": "your lead consultant",
+        "project_lead": "the firm's project lead",
+        "sponsor": "the project's sponsor",
+        "admins": "your company's admins",
+        "firm": "the firm's management"
+      },
+      "proposedMine": "The new date you proposed, {date}, is waiting for your consultant's answer.",
+      "proposedBy": "{who} proposed a new date, {date}. It is waiting for your consultant's answer.",
+      "someone": "A colleague",
+      "movedAgreed": "New date {date}, agreed by {who} on {at}.",
+      "movedSet": "New date {date}, set by {who} on {at}.",
+      "moved": "New date {date}, since {at}.",
+      "declinedBy": "The proposed date, {date}, was declined by {who} on {at}.",
+      "declined": "The proposed date, {date}, was declined on {at}.",
+      "ask": "I need more time"
+    },
+    "menu": {
+      "label": "More options",
+      "acceptRisk": "Accept the risk of not finishing it"
     }
   },
   "common": {
@@ -1290,7 +1329,8 @@
       "makeDepartmentMeeting": "Make it a {department} meeting",
       "leftOutNoOffer": "To include them, book a meeting for their department instead.",
       "leftOutNoDepartment": "{n, plural, one {Someone in no department is not included by any department's meeting either: have them added to a department first, or leave them out.} other {People in no department are not included by any department's meeting either: have them added to a department first, or leave them out.}}",
-      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department. You can still add them; they won't be able to open it."
+      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department. You can still add them; they won't be able to open it.",
+      "yourPeople": "Your company"
     },
     "record": {
       "mainPoints": "Main points",
@@ -1302,7 +1342,6 @@
       "editSummary": "Edit summary",
       "close": "Close",
       "confirmedBy": "Confirmed by {who} on {date}",
-      "summaryAfter": "Write the summary once the meeting is marked as held.",
       "addDecision": "Record a decision",
       "decision": "Decision",
       "decidedBy": "Decided by",
@@ -1354,7 +1393,13 @@
         "noLine": "The summary has no such line.",
         "file": "Choose a file of this project and a page from 1."
       }
-    }
+    },
+    "reply": {
+      "accepted": "I'll attend",
+      "tentative": "Maybe",
+      "declined": "I can't attend"
+    },
+    "menu": "More options"
   },
   "assessment": {
     "templates": {
@@ -1697,7 +1742,8 @@
     "secondSignOffs": "Second sign-offs",
     "due7": "Due in 7 days",
     "due30": "Due in 30 days",
-    "notAccepting": "Not taking new clients"
+    "notAccepting": "Not taking new clients",
+    "hintClient": "How much of this project's work your consultant has verified, how the actions ended, and the reports the firm has shared with you. The figures count the actions you may see."
   },
   "inbox": {
     "title": "Inquiries",
@@ -1912,7 +1958,7 @@
     "empty": "Nothing new.",
     "gone": "An update about something you can no longer open",
     "kinds": {
-      "action_assigned": "{title} was released to you",
+      "action_assigned": "{title} was given to you",
       "action_in_progress": "Work started on {title}",
       "action_blocked": "{title} was marked blocked",
       "action_awaiting_review": "{title} is waiting for review",
@@ -1994,7 +2040,7 @@
       "title": "Mail choices",
       "hint": "Every mail is a short line and a link: titles and details stay in Selah.",
       "updates": "Updates on your actions",
-      "updatesHint": "When an action is released to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
+      "updatesHint": "When an action is given to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
       "reminders": "Reminders and escalations",
       "remindersHint": "Due-soon and overdue reminders, requested documents, an indicator's latest figure compared with its baseline or target, and files handed over to you still waiting for your confirmation of receipt, gathered into one summary.",
       "cadence": {
@@ -2358,12 +2404,12 @@
     },
     "note": "Reason or note",
     "noteRequired": "Reason (required)",
-    "sustainer": "Who sustains it",
+    "sustainer": "Who carries it on",
     "sustainerLater": "Name later",
     "sustainerHint": "An account or contact at the organisation. The client's admin or the sponsor can also name them.",
     "contactSuffix": "{name} (contact)",
     "noSustainer": "Who sustains it is not named yet",
-    "sustainedBy": "Sustained by {name}",
+    "sustainedBy": "Carried on by {name}",
     "nameSustainer": "Name who sustains it",
     "nameTitle": "Who sustains this action",
     "nameHint": "Name the person at your organisation who keeps this going after the project closes.",
@@ -2444,7 +2490,7 @@
     "caseStudyNotAsked": "Case-study consent: not asked yet. This doesn't stop the project from closing.",
     "caseStudy": {
       "title": "Case-study consent",
-      "hint": "Whether the firm may cite this project, and how. The client's sponsor or admin decides and can withdraw it at any time. Without a consent, the firm does not cite the project.",
+      "hint": "Whether the firm may cite this project, and how. The project's sponsor or the organisation's admin decides, and can withdraw it at any time. Without a consent, the firm does not cite the project.",
       "levels": {
         "none": "None",
         "metrics_only": "Metrics only",
@@ -2453,9 +2499,9 @@
       },
       "levelHints": {
         "none": "the firm does not cite this project",
-        "metrics_only": "figures and results only, with nothing that identifies the client",
-        "anonymised": "the story of the work, with the client disguised",
-        "named": "the firm may name the client"
+        "metrics_only": "figures and results only, with nothing that identifies the organisation",
+        "anonymised": "the story of the work, without naming the organisation",
+        "named": "the firm may name the organisation"
       },
       "level": "How the firm may cite the project",
       "chooseLevel": "Choose a level",
@@ -2478,7 +2524,7 @@
       "revoke": "Withdraw consent",
       "revokeConfirm": "Withdraw the consent? The firm will no longer cite this project. The record and its withdrawal are kept.",
       "notAsked": "Not asked yet",
-      "defaultNone": "Until the client gives consent, the answer is none.",
+      "defaultNone": "Until consent is given, the answer is none.",
       "withdrawn": "Withdrawn",
       "givenBy": "Given by {who} on {date}",
       "recordedBy": "Recorded by the firm ({who}) on {date}",
@@ -2580,7 +2626,7 @@
       "onConfirm": "Use departments? Work already filed under a department becomes visible only to its people, the admins, the firm and the owner.",
       "offConfirm": "Stop using departments? Everyone on each project will see all of its work again.",
       "list": "Departments",
-      "listHintOn": "The firm files actions under a department on the action page.",
+      "listHintOn": "The firm sets each action's department, on the action's page.",
       "listHintOff": "Departments are off, so they don't limit who sees what yet.",
       "add": "Add",
       "addHint": "A department cuts across projects, such as HR or finance.",
@@ -2746,7 +2792,9 @@
       "visibility": "Who can see it",
       "answeredBy": "{n, plural, =0 {No recommendation yet} one {# recommendation} other {# recommendations}}",
       "answeredElsewhere": "Answered in another department",
-      "answeredElsewhereToo": ", and in another department"
+      "answeredElsewhereToo": ", and in another department",
+      "titleClient": "What the consultants found",
+      "hintClient": "What the consultants found at your company, and the recommendations that answer each."
     },
     "rec": {
       "add": "Add a recommendation",
@@ -3125,7 +3173,16 @@
     "removeConfirm": "Take {name} off this project? They stop seeing it, unless they are a client admin.",
     "owns": "{n, plural, one {owns # open action} other {owns # open actions}}",
     "reassignFirst": "Reassign their actions first",
-    "switchedOff": "switched off"
+    "switchedOff": "switched off",
+    "titleClient": "Your people on this project",
+    "hintClient": {
+      "full": "Managers and action owners see only the projects they are on, and only people on the project can own its actions. Your company's admins see every project.",
+      "restricted": "Only your company's admins have accounts, and they see every project. Add them here so they can own this project's actions.",
+      "consultant_managed": "The firm records your company's work in Selah."
+    },
+    "noCandidatesClient": "All your people are on this project.",
+    "noneClient": "Nobody from your company is on it yet.",
+    "removeConfirmClient": "Take {name} off this project? They stop seeing it, unless they are one of your company's admins."
   },
   "fileActions": {
     "menu": "More for {title}",
@@ -3342,12 +3399,14 @@
       "observer": "Observer"
     },
     "about": {
-      "sponsor": "Owns the engagement at the client and hears about escalations.",
+      "sponsor": "Owns the project, and is told when work stays late.",
       "coordinator": "The day-to-day point of contact.",
       "steering": "Reviews progress and settles priorities.",
       "acceptor": "Signs off deliverables.",
       "observer": "Follows along, such as a board or family council member."
-    }
+    },
+    "titleClient": "Who speaks for your company",
+    "hintClient": "Who speaks for your company on this project, and who receives what the firm hands over."
   },
   "legalProfile": {
     "title": "Legal profile",
@@ -3527,9 +3586,9 @@
     "choose": "Choose"
   },
   "infoRequests": {
-    "title": "Information requests",
+    "title": "Documents requested",
     "hintFirm": "List what you need from the client: they see each item, send files against it, and you review what comes in.",
-    "hintClient": "What the firm needs from you for this project.",
+    "hintClient": "The documents the firm needs from you for this project.",
     "overdueCount": "{n} overdue",
     "emptyFirm": "Nothing requested yet. Start from the list or add your own item.",
     "emptyClient": "No requests for you yet.",
@@ -3556,7 +3615,7 @@
     "description": "Details for the client",
     "owner": "Who sends it",
     "noOwner": "No one named yet",
-    "ownedBy": "From <who>{name}</who>",
+    "ownedBy": "Asked of: <who>{name}</who>",
     "due": "Due date",
     "dueOn": "Due {date}",
     "overdueOn": "Was due {date}",
@@ -3683,7 +3742,7 @@
     "notesHint": "Firm only. The client never sees them.",
     "pooledTitle": "Progress across the group",
     "pooledHint": "The actions of every member company you can see, counted together, with each company beside the total.",
-    "pooledNote": "The total counts the actions of all member companies together; it is not an average of their percentages. Each company's work stays on its own client's pages.",
+    "pooledNote": "The total counts the actions of all member companies together; it is not an average of their percentages. Each company's work stays on its own pages.",
     "company": "Company",
     "form": "Form",
     "formUnit": "Inside {client}",
@@ -4494,14 +4553,16 @@
       "colleague": "A colleague other than the one who recorded it confirms it.",
       "already": "Someone already did this. Refresh to see it.",
       "past": "The date can't be in the past."
-    }
+    },
+    "titleClient": "Your company's answer",
+    "whoRespondsClient": "Your company's admin answers, or the project's sponsor."
   },
   "recommendationPage": {
     "back": "Back to the project",
     "answers": "Answers the finding",
     "targetOutcome": "Target outcome",
-    "requiredEvidence": "Evidence that shows it's done",
-    "due": "Due",
+    "requiredEvidence": "What shows it is done",
+    "due": "Due date",
     "priority": "Priority",
     "source": "Source",
     "project": "Project",
@@ -4788,7 +4849,7 @@
       },
       "revision": {
         "q": "A revision was requested. What do I do?",
-        "a": "Read the consultant's reason in the action's history. Press Resume work, make the changes, then press Submit for review again with the new evidence."
+        "a": "Read the consultant's reason in the action's history. Press Resume work, make the changes, then press Send for review again with the new file."
       },
       "blocked": {
         "q": "Something outside my control is stopping the work.",
@@ -4796,7 +4857,7 @@
       },
       "dueDate": {
         "q": "I need more time.",
-        "a": "On the action, under Due date changes, press Ask for a new date: propose a date and say why. The consultant approves or declines it."
+        "a": "On the action, under the next step, press I need more time: propose a date and say why. The consultant agrees or declines."
       },
       "whoSees": {
         "q": "Who reads what I write in an action's discussion?",
@@ -4903,7 +4964,7 @@
         },
         {
           "title": "Invite your people",
-          "hint": "Managers and action owners from your organisation."
+          "hint": "Managers and action owners from your company."
         },
         {
           "title": "Get help",
@@ -4913,7 +4974,7 @@
       "client_manager": [
         {
           "title": "See your actions",
-          "hint": "Due dates, next steps and what evidence is expected."
+          "hint": "Due dates, next steps and what shows each one is done."
         },
         {
           "title": "Follow your projects",
@@ -4930,8 +4991,8 @@
           "hint": "Each one says what to do next."
         },
         {
-          "title": "Upload evidence",
-          "hint": "Attach the file on the action itself."
+          "title": "Send the file",
+          "hint": "From the action's own page."
         },
         {
           "title": "Get help",
@@ -5138,7 +5199,10 @@
         "operations": "Operations",
         "governance": "Governance"
       }
-    }
+    },
+    "hintClient": "Your own business figures, month by month, beside the work.",
+    "emptyManageClient": "No indicators yet. Add the figures you already track, such as monthly sales or customer complaints, with a starting value.",
+    "linkedHintClient": "Your company's indicators this recommendation is expected to move."
   },
   "indicatorData": {
     "title": "How figures reach Selah",
@@ -5525,5 +5589,10 @@
       "title": "Organisation structure",
       "printed": "Printed on {date}"
     }
+  },
+  "roleClient": {
+    "client_admin": "Admin",
+    "client_manager": "Manager",
+    "action_owner": "Action owner"
   }
 }
