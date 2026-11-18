@@ -82,7 +82,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J08.1** Run assessments — lane: firm · map: exists · wave: — · pr: #6, #13
 - [x] **J08.2** Upload a deliverable — lane: firm · map: exists · wave: — · pr: #28, #29
 - [x] **J08.3** Share or version a file — lane: firm · map: wave 1 · covered by: F03 · wave: 1 · pr: #61
-- [ ] **J08.4** Deliverable sign-off (firm: Sends a version for review; client: Accepts or comments) — lane: shared · map: missing · covered by: F21 · wave: frozen
+- [x] **J08.4** Deliverable sign-off (firm: Sends a version for review; client: Accepts or comments) — lane: shared · map: missing · covered by: F21 · wave: 1 (minimal F21, decision 4a of 17 Nov 2026: the firm hands over the exact versions; the client confirms receipt, never acceptance, or comments) · pr: (#PR)
 - [ ] **J08.5** Comments on drafts — lane: client · map: missing · covered by: F21 · wave: frozen
 
 ### J09 · Follow-through · المتابعة
@@ -120,7 +120,7 @@ Fourteen stages. In each stage the firm's steps come first, then the step both s
 - [x] **J12.2** Close project (no gate) — lane: firm · map: exists · wave: — · pr: main
 - [x] **J12.3** Closing gate, read-only — lane: firm · map: wave 1 · covered by: F25 · wave: 1 · pr: #79
 - [x] **J12.4** Handover (firm: Disposes every open item; client: Names who sustains each) — lane: shared · map: wave 1 · covered by: F25 · wave: 1 · pr: #79
-- [ ] **J12.5** Acknowledges deliverables — lane: client · map: missing · covered by: F21 · wave: frozen
+- [x] **J12.5** Acknowledges deliverables — lane: client · map: missing · covered by: F21 · wave: 1 (minimal F21: the receipt is in the closure report and the export pack) · pr: (#PR)
 
 ### J13 · After-care and renewal · ما بعد الإغلاق
 
@@ -172,7 +172,7 @@ The 35 ranked items. Wave 1 is lifted from the freeze, wave 2 comes straight aft
 - [x] **F18** Firm-wide exceptions and engagement health — tier: 4 · size: M · wave: 1 · journey: J11.2 · pr: #101, #102, #104
 - [x] **F19** Scheduled status pack — tier: 4 · size: S–M · wave: 1 · journey: J11.3 · pr: #103
 - [ ] **F20** Change request log — tier: 4 · size: S · wave: frozen · journey: J10.3
-- [ ] **F21** Deliverable versions and client acceptance — tier: 4 · size: M–L · wave: frozen · journey: J08.4, J08.5, J12.5
+- [x] **F21** Deliverable versions and client acceptance — tier: 4 · size: M–L · wave: 1, built in its minimal form (decision 4a of 17 Nov 2026: hand-over rounds with exact versions, receipt or comment by the acceptor, else the admin, else the sponsor, consultant-recorded receipt for clients the firm runs, one reminder after ten working days, receipts in the closure report and export pack; receipt is never acceptance); the rest stays frozen (comments pinned to pages of a draft, side-by-side versions, e-signature, approval workflows on drafts, any link to invoicing) · journey: J08.4, J08.5, J12.5 · pr: (#PR)
 - [x] **F22** Second reviewer when evidence rounds loop: a client rule (off, after two revisions, high priority work, every action) and a per-action switch for the lead, deputy or firm admin; the first consultant signs off, a different one verifies; never the owner, a submitter or the first reviewer — tier: 4 · size: S · wave: 4 · decision: Fahad said "go ahead do all" on 2026-10-25 · pr: #130
 - [ ] **F23** Schedule screen — tier: 4 · size: S · wave: frozen
 - [ ] **F24** Decision register — tier: 4 · size: S · wave: frozen

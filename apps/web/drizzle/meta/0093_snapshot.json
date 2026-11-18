@@ -1,6 +1,6 @@
 {
-  "id": "1f042ee6-4c7d-4725-ad65-c30d20dd91a1",
-  "prevId": "67ee2f53-8e63-4b4e-bb5f-cf3dc0315c01",
+  "id": "53e31dbe-52e9-42e7-9e7d-cf3ff6c7b01f",
+  "prevId": "f8448fd8-9bf6-4c0e-a06c-5c0b5d2222c8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6301,6 +6301,249 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deliverable_handovers": {
+      "name": "deliverable_handovers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "deliverable_id": {
+          "name": "deliverable_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "round": {
+          "name": "round",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_ids": {
+          "name": "version_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivered_by": {
+          "name": "delivered_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "received_by": {
+          "name": "received_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receipt_source": {
+          "name": "receipt_source",
+          "type": "record_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_by_name": {
+          "name": "received_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_via": {
+          "name": "received_via",
+          "type": "received_via",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_on": {
+          "name": "received_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commented_by": {
+          "name": "commented_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commented_at": {
+          "name": "commented_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reminded_at": {
+          "name": "reminded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "deliverable_handovers_round": {
+          "name": "deliverable_handovers_round",
+          "columns": [
+            {
+              "expression": "deliverable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "round",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "deliverable_handovers_org_idx": {
+          "name": "deliverable_handovers_org_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "deliverable_handovers_deliverable_id_engagement_deliverables_id_fk": {
+          "name": "deliverable_handovers_deliverable_id_engagement_deliverables_id_fk",
+          "tableFrom": "deliverable_handovers",
+          "columnsFrom": [
+            "deliverable_id"
+          ],
+          "tableTo": "engagement_deliverables",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "deliverable_handovers_org_id_organizations_id_fk": {
+          "name": "deliverable_handovers_org_id_organizations_id_fk",
+          "tableFrom": "deliverable_handovers",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "tableTo": "organizations",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "deliverable_handovers_delivered_by_user_id_fk": {
+          "name": "deliverable_handovers_delivered_by_user_id_fk",
+          "tableFrom": "deliverable_handovers",
+          "columnsFrom": [
+            "delivered_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "deliverable_handovers_received_by_user_id_fk": {
+          "name": "deliverable_handovers_received_by_user_id_fk",
+          "tableFrom": "deliverable_handovers",
+          "columnsFrom": [
+            "received_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "deliverable_handovers_commented_by_user_id_fk": {
+          "name": "deliverable_handovers_commented_by_user_id_fk",
+          "tableFrom": "deliverable_handovers",
+          "columnsFrom": [
+            "commented_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "deliverable_handover_round": {
+          "name": "deliverable_handover_round",
+          "value": "\"deliverable_handovers\".\"round\" >= 1"
+        },
+        "deliverable_handover_versions": {
+          "name": "deliverable_handover_versions",
+          "value": "cardinality(\"deliverable_handovers\".\"version_ids\") BETWEEN 1 AND 20"
+        },
+        "deliverable_handover_receipt": {
+          "name": "deliverable_handover_receipt",
+          "value": "(\"deliverable_handovers\".\"received_at\" IS NULL AND \"deliverable_handovers\".\"received_by\" IS NULL AND \"deliverable_handovers\".\"receipt_source\" IS NULL AND \"deliverable_handovers\".\"received_by_name\" IS NULL AND \"deliverable_handovers\".\"received_via\" IS NULL AND \"deliverable_handovers\".\"received_on\" IS NULL)\n        OR (\"deliverable_handovers\".\"received_at\" IS NOT NULL AND \"deliverable_handovers\".\"received_by\" IS NOT NULL AND \"deliverable_handovers\".\"receipt_source\" = 'client_portal'\n            AND \"deliverable_handovers\".\"received_by_name\" IS NULL AND \"deliverable_handovers\".\"received_via\" IS NULL AND \"deliverable_handovers\".\"received_on\" IS NULL)\n        OR (\"deliverable_handovers\".\"received_at\" IS NOT NULL AND \"deliverable_handovers\".\"received_by\" IS NOT NULL AND \"deliverable_handovers\".\"receipt_source\" = 'consultant_recorded'\n            AND char_length(btrim(\"deliverable_handovers\".\"received_by_name\")) BETWEEN 2 AND 200 AND \"deliverable_handovers\".\"received_via\" IS NOT NULL AND \"deliverable_handovers\".\"received_on\" IS NOT NULL)"
+        },
+        "deliverable_handover_comment": {
+          "name": "deliverable_handover_comment",
+          "value": "(\"deliverable_handovers\".\"comment\" IS NULL AND \"deliverable_handovers\".\"commented_by\" IS NULL AND \"deliverable_handovers\".\"commented_at\" IS NULL)\n        OR (char_length(btrim(\"deliverable_handovers\".\"comment\")) BETWEEN 3 AND 2000 AND \"deliverable_handovers\".\"commented_by\" IS NOT NULL AND \"deliverable_handovers\".\"commented_at\" IS NOT NULL)"
+        },
+        "deliverable_handover_one_answer": {
+          "name": "deliverable_handover_one_answer",
+          "value": "\"deliverable_handovers\".\"received_at\" IS NULL OR \"deliverable_handovers\".\"commented_at\" IS NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.department_members": {

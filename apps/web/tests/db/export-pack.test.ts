@@ -56,6 +56,8 @@ const HIDDEN_REC = id(32); // firm-only
 const ACT = id(41);
 const HIDDEN_ACT = id(42);
 const DOC = { shared: id(51), clientOnly: id(52), firmOnly: id(53), personal: id(54), infected: id(55) };
+const ENGAGEMENT = id(60);
+const DELIVERABLE = id(61);
 
 async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
   const c = await app.connect();
@@ -146,6 +148,27 @@ beforeAll(async () => {
       [did, DONE, ACME, vis === "client_private" ? ACME : FIRM, by, title, vis, key, body.byteLength, sha(body), scan],
     );
   }
+  // A deliverable the firm handed over and the client's admin received (F21), before the project closed.
+  await q(`INSERT INTO engagements (id, firm_org_id, client_org_id, title, signed_on, scope) VALUES ($1,$2,$3,'Acme engagement',app_firm_today() - 60,'Board work')`, [
+    ENGAGEMENT,
+    FIRM,
+    ACME,
+  ]);
+  await q(`UPDATE projects SET engagement_id = $2 WHERE id = $1`, [DONE, ENGAGEMENT]);
+  await q(
+    `INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Charter hand-over'), ($4,$2,$3,'Annex never sent'), ($5,$2,$3,'Bylaws never answered')`,
+    [DELIVERABLE, ENGAGEMENT, DONE, id(62), id(63)],
+  );
+  await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [DELIVERABLE, DOC.shared]);
+  await run(U.cadmin, `SELECT app_confirm_deliverable_receipt($1, 1)`, [DELIVERABLE]);
+  await run(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [id(63), DOC.shared]);
+  // A hand-over at 01:30 in the firm's day, which is still the day before in UTC (review S7).
+  await q(`INSERT INTO engagement_deliverables (id, engagement_id, project_id, title) VALUES ($1,$2,$3,'Late-night hand-over')`, [id(64), ENGAGEMENT, DONE]);
+  await q(
+    `INSERT INTO deliverable_handovers (deliverable_id, org_id, round, version_ids, delivered_by, delivered_at)
+     VALUES ($1,$2,1,ARRAY[$3]::uuid[],$4, ((app_firm_today() - 1)::timestamp + time '22:30') AT TIME ZONE 'UTC')`,
+    [id(64), ACME, DOC.shared, U.lead],
+  );
   await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [DONE]);
 });
 
@@ -181,8 +204,21 @@ describe("making a pack", () => {
 
     const names = Object.keys(files).sort();
     expect(names).toEqual(
-      ["README.txt", "actions.csv", "files.csv", "files/Acme governance/Board charter.pdf", "manifest.json", "projects.csv", "recommendations.csv"].sort(),
+      ["README.txt", "actions.csv", "deliverables.csv", "files.csv", "files/Acme governance/Board charter.pdf", "manifest.json", "projects.csv", "recommendations.csv"].sort(),
     );
+    // What the firm handed over and its receipt (F21): every hand-over, and the deliverable never handed over.
+    const deliverablesCsv = strFromU8(files["deliverables.csv"]!);
+    expect(deliverablesCsv).toContain("Charter hand-over");
+    expect(deliverablesCsv).toContain("deliverables.status.received");
+    expect(deliverablesCsv).toMatch(/deliverables\.text\.received [^\r\n]*cadmin/);
+    expect(deliverablesCsv).toMatch(/Annex never sent[^\r\n]*deliverables\.status\.not_handed_over/);
+    // A round never answered before the project closed says so (S1).
+    expect(deliverablesCsv).toMatch(/Bylaws never answered[^\r\n]*deliverables\.status\.no_answer/);
+    // The hand-over day is the firm's day, like the other dates of the pack's receipts (S7).
+    const days = (await owner.query(`SELECT app_firm_today()::text AS today, (app_firm_today() - 1)::text AS before`)).rows[0];
+    const late = deliverablesCsv.split("\r\n").find((l) => l.includes("Late-night hand-over"))!;
+    expect(late).toContain(`"${days.today}"`);
+    expect(late).not.toContain(`"${days.before}"`);
     // The client's private file is not the firm admin's to read, so the firm's pack leaves it out;
     // the firm-only, personal and infected files are in no pack.
     expect(row.file_count).toBe(1);

@@ -38,7 +38,7 @@ Selah doesn't create Meet links (that needs a Google Workspace connection). The 
 - A person must be able to open the project. For a firm-private meeting, they must also be firm staff.
 - Contacts belong to the meeting's client, and only the firm adds them, because only the firm sees the contact list.
 - `PUT /api/meetings/:id/response` lets an attendee answer for themselves. That is the only change an attendee can make.
-- **Names.** Everyone who may open the meeting reads its attendees' names, and nothing else about them (the lead's decision, 18 Nov 2026; `app_meeting_attendee_names()`, migration `0150_meeting_attendee_names`). An action owner invited with the client's admin sees the admin's name although they share no project; the user-row rule is not widened.
+- **Names.** Everyone who may open the meeting reads its attendees' names, and nothing else about them (the lead's decision, 18 Nov 2026; `app_meeting_attendee_names()`, migration `0093_meeting_attendee_names`). An action owner invited with the client's admin sees the admin's name although they share no project; the user-row rule is not widened.
 
 ## After the meeting
 

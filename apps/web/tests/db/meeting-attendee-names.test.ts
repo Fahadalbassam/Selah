@@ -5,7 +5,7 @@
 // At Rawdah the client's admin is not a project member, so an action owner
 // invited with her could not read her user row (app_can_see_user), and the
 // meeting page drew her as a nameless "—". The names now come from
-// app_meeting_attendee_names() (migration 0150): names only, only for a
+// app_meeting_attendee_names() (migration 0093): names only, only for a
 // meeting the caller can open. The user-row rule itself is unchanged.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db

@@ -234,7 +234,7 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
   // Contact names come through RLS: only the firm sees them. A person's name
   // comes with the meeting, not the user-row rule: whoever may open the
   // meeting reads its attendees' names, and nothing else about them
-  // (app_meeting_attendee_names, migration 0150).
+  // (app_meeting_attendee_names, migration 0093).
   const rows = await tx
     .select({
       id: meetingAttendees.id,
