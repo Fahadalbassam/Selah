@@ -637,7 +637,10 @@ export interface DraftPosition {
   isHead: boolean;
   titleAr: string | null;
   titleEn: string | null;
+  /** Who holds it today (its lineage's holdings, on the live structure): never changed by an import. */
   holders: { userId: string | null; name: string | null }[];
+  /** Who is planned for it (org_chart_planned_holders), placed when the draft is published (part 5). */
+  planned?: { userId: string | null; name: string | null }[];
 }
 
 export type OrgIssueCode =
@@ -677,6 +680,7 @@ export type OrgIssueCode =
   | "unitInDraft"
   | "unitUpdated"
   | "positionUpdated"
+  | "planned"
   | "namesNotKept";
 
 export interface OrgIssue {
@@ -716,9 +720,13 @@ export interface PlannedPosition {
   isHead: boolean;
   specialties: string[];
   plannedCount: number;
-  /** Who holds it from the day it is saved; none when vacant (and always none at a minimal-records client). */
+  /**
+   * Who is planned for it: the row's holder column, saved as the position's
+   * planned holders (never a holding) and placed when the draft is published.
+   * None when vacant, and always none at a minimal-records client.
+   */
   holders: PlannedHolder[];
-  /** A position of the draft with this code (replacing: it is updated, its people stay). */
+  /** A position of the draft with this code (replacing: it is updated, and its plan becomes the row's; who holds it today does not change). */
   inDraft: boolean;
   line: number;
 }
@@ -1006,6 +1014,8 @@ export function checkOrgImport(rows: readonly OrgRow[], ctx: OrgImportContext, m
     }
     const inDraft = !!p.position && replace && draftPosition.has(p.position);
     if (inDraft) note(line, { code: "positionUpdated", values: { code: p.position! } });
+    // The holder column is a plan: nobody is placed until the draft is published.
+    if (holders.length && vacant !== true) note(line, { code: "planned", field: "holder" });
     if (p.position && p.unit && lineOf.get(p.position) === p)
       planned.push({ code: p.position, unitCode: p.unit, titleAr, titleEn, reportsTo: p.reportsTo ?? null, isHead, specialties, plannedCount, holders: vacant === true ? [] : holders, inDraft, line });
   }

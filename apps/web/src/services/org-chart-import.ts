@@ -1,11 +1,11 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { authorize, CLIENT_ROLES, type Principal } from "@/authz";
 import type { Tx } from "@/db/client";
-import { orgMemberships, projects, user } from "@/db/schema";
+import { orgChartPlannedHolders, orgMemberships, projects, user } from "@/db/schema";
 import { env } from "@/env";
 import type { Locale } from "@/i18n/config";
 import { firmToday } from "@/lib/dates";
@@ -30,6 +30,7 @@ import {
   type OrgImportSource,
   type OrgRow,
   type OrgValues,
+  type PlannedHolder,
   type Taken,
 } from "@/lib/org-chart-import";
 import { BadRequestError, NotFoundError, RateLimitError, UnavailableError } from "@/server/errors";
@@ -98,6 +99,71 @@ async function assistantProjects(tx: Tx, principal: Principal, clientOrgId: stri
     .map((p) => p.id);
 }
 
+export interface Plan {
+  userId: string | null;
+  /** The typed name, or the person's name for an account. */
+  name: string | null;
+  typed: boolean;
+}
+
+/**
+ * The planned holders of positions of the draft, in the order the row gave
+ * them, read under the reader's row-level security: the draft's editors read
+ * them, anyone else none (migration 0170).
+ */
+async function plansOf(tx: Tx, positionIds: string[]): Promise<Map<string, Plan[]>> {
+  const out = new Map<string, Plan[]>();
+  if (!positionIds.length) return out;
+  const rows = await tx
+    .select({ positionId: orgChartPlannedHolders.positionId, userId: orgChartPlannedHolders.userId, typed: orgChartPlannedHolders.name, name: user.name })
+    .from(orgChartPlannedHolders)
+    .leftJoin(user, eq(user.id, orgChartPlannedHolders.userId))
+    .where(inArray(orgChartPlannedHolders.positionId, positionIds))
+    .orderBy(asc(orgChartPlannedHolders.sortOrder), asc(orgChartPlannedHolders.createdAt));
+  for (const r of rows) out.set(r.positionId, [...(out.get(r.positionId) ?? []), { userId: r.userId, name: r.typed ?? r.name, typed: r.typed !== null }]);
+  return out;
+}
+
+/**
+ * Replace who is planned for a position of the draft (the import's holder
+ * column; never a holding: people are placed only on the live structure,
+ * and publishing, part 5, places the planned ones). The database refuses a
+ * position outside the draft, a client with minimal records, a person who is
+ * not one of the client's own active people, and anyone but the draft's
+ * editors. Audited without the names.
+ */
+async function setPlans(tx: Tx, principal: Principal, clientOrgId: string, position: { id: string; code: string }, holders: PlannedHolder[]) {
+  await tx.delete(orgChartPlannedHolders).where(eq(orgChartPlannedHolders.positionId, position.id));
+  if (holders.length)
+    await tx.insert(orgChartPlannedHolders).values(
+      holders.map((h, i) => ({
+        orgId: clientOrgId,
+        positionId: position.id,
+        userId: "userId" in h ? h.userId : null,
+        name: "name" in h ? h.name : null,
+        sortOrder: i,
+        createdBy: principal.userId,
+      })),
+    );
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.plan",
+    resourceType: "org_chart",
+    resourceId: position.id,
+    outcome: "allow",
+    meta: { client: clientOrgId, code: position.code, accounts: holders.filter((h) => "userId" in h).length, typed: holders.filter((h) => "name" in h).length },
+  });
+}
+
+/** Whether a position's plan already is this list (same people, same order). */
+const samePlan = (current: Plan[], wanted: PlannedHolder[]) =>
+  current.length === wanted.length &&
+  current.every((c, i) => {
+    const w = wanted[i]!;
+    return "userId" in w ? c.userId === w.userId : c.typed && c.name === w.name;
+  });
+
 /** What an import works against, for the import page and the server's own checks. Null for anyone who may not import (the caller answers 404). */
 export async function importContext(tx: Tx, principal: Principal, clientOrgId: string) {
   if (!UUID.test(clientOrgId) || !canImport(principal, clientOrgId)) return null;
@@ -112,6 +178,7 @@ export async function importContext(tx: Tx, principal: Principal, clientOrgId: s
         .from(orgMemberships)
         .innerJoin(user, eq(user.id, orgMemberships.userId))
         .where(and(eq(orgMemberships.orgId, clientOrgId), eq(orgMemberships.active, true), inArray(orgMemberships.role, [...CLIENT_ROLES])));
+  const plans = await plansOf(tx, d.positions.map((p) => p.id));
   const ctx: OrgImportContext = {
     minimalRecords: d.client.minimalRecords,
     people,
@@ -133,6 +200,7 @@ export async function importContext(tx: Tx, principal: Principal, clientOrgId: s
         titleAr: p.titleAr,
         titleEn: p.titleEn,
         holders: p.holders.map((h) => ({ userId: h.userId, name: h.name })),
+        planned: (plans.get(p.id) ?? []).map((h) => ({ userId: h.userId, name: h.name })),
       })),
     },
   };
@@ -294,9 +362,10 @@ export interface SaveInput {
  * Write the reviewed rows into the client's draft, all or nothing, through
  * the org chart's services: the chart and its draft are started when there
  * are none; replacing, a unit or position with the same code is updated in
- * place (the people in a position stay, and holdings follow it), the rest
- * of the draft is removed; adding, the draft stays and the rows are added.
- * People are placed only in positions the import creates, from today. The
+ * place (who holds it today does not change, and holdings follow it), the
+ * rest of the draft is removed; adding, the draft stays and the rows are
+ * added. The holder column is a plan (org_chart_planned_holders): nobody is
+ * placed by an import, publishing places the planned people (part 5). The
  * rows are checked again here against the draft as it is now; any row with
  * an error refuses the whole save. Nothing is published.
  */
@@ -317,12 +386,12 @@ export async function saveImport(tx: Tx, principal: Principal, clientOrgId: stri
   await OC.startChart(tx, principal, clientOrgId);
   const d = await OC.getDraft(tx, principal, clientOrgId);
   if (!d.draft) throw new NotFoundError("draft");
-  const today = firmToday();
   const unitByCode = new Map(d.units.map((u) => [u.code, u]));
   const unitId = new Map(d.units.map((u) => [u.code, u.id]));
   const positionByCode = new Map(d.positions.map((p) => [p.code, p]));
   const positionId = new Map(d.positions.map((p) => [p.code, p.id]));
-  const counts = { unitsAdded: 0, unitsChanged: 0, unitsRemoved: 0, positionsAdded: 0, positionsChanged: 0, positionsRemoved: 0, holders: 0 };
+  const plans = await plansOf(tx, d.positions.map((p) => p.id));
+  const counts = { unitsAdded: 0, unitsChanged: 0, unitsRemoved: 0, positionsAdded: 0, positionsChanged: 0, positionsRemoved: 0, planned: 0 };
 
   // 1. Units, parents first: a unit of the draft is moved and changed in place, a new one added.
   let anyMoved = false;
@@ -395,13 +464,14 @@ export async function saveImport(tx: Tx, principal: Principal, clientOrgId: stri
     if (target && cur?.reportsToId !== target) await OC.setReportsTo(tx, principal, positionId.get(p.code)!, target);
   }
 
-  // 5. People, only in the positions this import created, from today (never at a minimal-records client: the check gave none).
+  // 5. People are planned, never placed: the row's holder column becomes the position's plan (a
+  //    position kept by its code has its plan replaced; who holds it today does not change).
+  //    Never at a minimal-records client: the check gave none, and the database refuses one.
   for (const p of plan.positions) {
-    if (p.inDraft) continue;
-    for (const h of p.holders) {
-      await OC.changeHolder(tx, principal, positionId.get(p.code)!, { start: { ...("userId" in h ? { userId: h.userId } : { name: h.name }), from: today } });
-      counts.holders++;
-    }
+    const current = p.inDraft ? (plans.get(positionByCode.get(p.code)!.id) ?? []) : [];
+    if (samePlan(current, p.holders)) continue;
+    await setPlans(tx, principal, clientOrgId, { id: positionId.get(p.code)!, code: p.code }, p.holders);
+    counts.planned += p.holders.length;
   }
 
   // 6. Replacing: the draft's units the rows do not hold go, the deepest first (they are empty by now).
@@ -512,11 +582,26 @@ export async function orgChartWorkbook(tx: Tx, principal: Principal, clientOrgId
   const shown = view.shown;
   if (!shown) throw new NotFoundError("org chart");
   const names = shown.names !== "none";
-  const ids = [...new Set(shown.positions.flatMap((p) => p.holders.flatMap((h) => (h.named && h.userId ? [h.userId] : []))))];
+  const draft = shown.version.state === "draft";
+  // The draft's holder column is its plan, so the file comes back as the same plan: who is
+  // planned for each position (read as the reader: the draft's editors only), and vacant
+  // only where nobody is planned and nobody holds it today. A published version: its holders.
+  const plans = draft ? await plansOf(tx, shown.positions.map((p) => p.id)) : new Map<string, Plan[]>();
+  const positions = draft
+    ? shown.positions.map((p) => {
+        const planned = plans.get(p.id) ?? [];
+        return {
+          ...p,
+          holders: planned.map((h) => ({ userId: h.userId, name: h.name, named: true })),
+          vacant: p.vacant === null ? null : planned.length === 0 && p.holders.length === 0,
+        };
+      })
+    : shown.positions;
+  const ids = [...new Set(positions.flatMap((p) => p.holders.flatMap((h) => (h.named && h.userId ? [h.userId] : []))))];
   const emails = new Map(
     ids.length ? (await tx.select({ id: user.id, email: user.email }).from(user).where(inArray(user.id, ids))).map((u) => [u.id, u.email]) : [],
   );
-  const rows = structureRows(shown.units, shown.positions, {
+  const rows = structureRows(shown.units, positions, {
     locale,
     names,
     holderText: (h) => (h.userId ? (emails.get(h.userId) ?? h.name) : h.name),
@@ -531,7 +616,6 @@ export async function orgChartWorkbook(tx: Tx, principal: Principal, clientOrgId
     outcome: "allow",
     meta: { client: view.client.id, format: "xlsx", number: shown.version.number, names },
   });
-  const draft = shown.version.state === "draft";
   const t = await getTranslations({ locale, namespace: "orgChart" });
   return {
     bytes,

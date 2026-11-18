@@ -8,6 +8,7 @@
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { createHash } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -296,6 +297,22 @@ describe("who may import", () => {
   });
 });
 
+/** The plans of the client's draft by position code (read as the database's owner, past every rule). */
+async function plansOf(client: string) {
+  const { rows } = await q(
+    `SELECT p.code, h.user_id, h.name FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id
+     JOIN org_chart_versions v ON v.id = p.version_id WHERE h.org_id = $1 AND v.state = 'draft' ORDER BY p.code, h.sort_order`,
+    [client],
+  );
+  const out: Record<string, { userId: string | null; name: string | null }[]> = {};
+  for (const r of rows) (out[r.code] ??= []).push({ userId: r.user_id, name: r.name });
+  return out;
+}
+/** How many holdings (people in positions) the client's structure has, now or in the past. */
+const holdingsOf = async (client: string) => Number((await q(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [client])).rows[0].n);
+/** How many plans a person can read, straight from row-level security. */
+const plansSeenBy = (who: string) => as(who, async (c) => Number((await c.query(`SELECT count(*)::int AS n FROM org_chart_planned_holders`)).rows[0].n));
+
 describe("saving into the draft", () => {
   it("refuses the whole save when a row has an error, and saves nothing", async () => {
     const bad = SAHM_ROWS.map((r) => (r.positionCode === "2.1.1" ? { ...r, parentCode: "9" } : r));
@@ -303,10 +320,10 @@ describe("saving into the draft", () => {
     expect(await q(`SELECT 1 FROM org_charts WHERE org_id = $1`, [SAHM]).then((r) => r.rowCount)).toBe(0);
   });
 
-  it("starts the chart and its draft, writes every row, places people by e-mail or typed name, and publishes nothing", async () => {
+  it("starts the chart and its draft, writes every row, plans people by e-mail or typed name without placing anyone, and publishes nothing", async () => {
     await truncateAuditLog(owner);
     const saved = await importFile(U.lead, SAHM, upload(workbook(SAHM_ROWS), "structure.xlsx"));
-    expect(saved.counts).toMatchObject({ unitsAdded: 4, positionsAdded: 4, holders: 2, unitsRemoved: 0, positionsRemoved: 0 });
+    expect(saved.counts).toMatchObject({ unitsAdded: 4, positionsAdded: 4, planned: 2, unitsRemoved: 0, positionsRemoved: 0 });
     const d = await draftOf(U.lead, SAHM);
     expect(d.units).toEqual([
       { code: "1", nameAr: "مجلس الإدارة", nameEn: "Board", kind: "board", level: 1, advisory: false, parent: null },
@@ -315,17 +332,37 @@ describe("saving into the draft", () => {
       { code: "2.2", nameAr: null, nameEn: "Internal audit", kind: "unit", level: 2, advisory: true, parent: "1" },
     ]);
     const pos = Object.fromEntries(d.positions.map((p) => [p.code, p]));
-    expect(pos["1.1"]).toMatchObject({ unit: "1", isHead: true, reportsTo: null, vacant: false, holders: [{ userId: null, name: "Reem Al-Harbi" }] });
-    expect(pos["2.1"]).toMatchObject({ unit: "2", titleEn: "CEO", isHead: true, reportsTo: "1.1", holders: [{ userId: U.mgr, name: NAMES.mgr }] });
-    expect(pos["2.1.1"]).toMatchObject({ reportsTo: "2.1", specialties: ["الميزانية", "التقارير المالية"], vacant: true });
-    expect(pos["2.1.2"]).toMatchObject({ reportsTo: "2.1.1", plannedCount: 2, vacant: true, holders: [] });
+    expect(pos["1.1"]).toMatchObject({ unit: "1", isHead: true, reportsTo: null });
+    expect(pos["2.1"]).toMatchObject({ unit: "2", titleEn: "CEO", isHead: true, reportsTo: "1.1" });
+    expect(pos["2.1.1"]).toMatchObject({ reportsTo: "2.1", specialties: ["الميزانية", "التقارير المالية"] });
+    expect(pos["2.1.2"]).toMatchObject({ reportsTo: "2.1.1", plannedCount: 2 });
+    // An import places nobody: the holder column is a plan, for publishing to carry out.
+    expect(await holdingsOf(SAHM)).toBe(0);
+    expect(d.positions.every((p) => p.holders.length === 0)).toBe(true);
+    expect(await plansOf(SAHM)).toEqual({ "1.1": [{ userId: null, name: "Reem Al-Harbi" }], "2.1": [{ userId: U.mgr, name: null }] });
     // Nothing is published: the client sees no structure, and the Structure tab offers it nothing.
     expect(await publishedCount(SAHM)).toBe(0);
     expect((await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM))).version).toBeNull();
     expect(await svc(U.cadmin, (tx, p) => OC.hasStructure(tx, p, SAHM))).toBe(false);
-    const logged = (await q(`SELECT action, meta FROM audit_log WHERE action LIKE 'org_chart.import%'`)).rows;
-    expect(logged.map((r) => r.action).sort()).toEqual(["org_chart.import", "org_chart.import_read"]);
+    const logged = (await q(`SELECT action, meta FROM audit_log WHERE action LIKE 'org_chart.import%' OR action = 'org_chart.plan'`)).rows;
+    expect(logged.map((r) => r.action).sort()).toEqual(["org_chart.import", "org_chart.import_read", "org_chart.plan", "org_chart.plan"]);
     expect(logged.find((r) => r.action === "org_chart.import")!.meta).toMatchObject({ source: "xlsx", mode: "add", unitsAdded: 4 });
+    // The audit says a plan changed, never whom it names.
+    expect(JSON.stringify(logged.filter((r) => r.action === "org_chart.plan").map((r) => r.meta))).not.toMatch(/Reem|mgr@/);
+  });
+
+  it("lets only the draft's editors read or write a plan: never a client person, an observer or anyone of another client", async () => {
+    for (const who of [U.admin, U.lead, U.deputy, U.cons]) expect(await plansSeenBy(who), who).toBe(2);
+    for (const who of [U.cadmin, U.mgr, U.owner, U.obs, U.team, U.oadmin]) expect(await plansSeenBy(who), who).toBe(0);
+    const position = (await q(`SELECT h.position_id FROM org_chart_planned_holders h WHERE h.org_id = $1 LIMIT 1`, [SAHM])).rows[0].position_id;
+    for (const who of [U.cadmin, U.mgr, U.obs]) {
+      await expect(
+        as(who, (c) => c.query(`INSERT INTO org_chart_planned_holders (org_id, position_id, name, created_by) VALUES ($1,$2,'Someone Else',$3)`, [SAHM, position, who])),
+        who,
+      ).rejects.toThrow(/row-level security/);
+      expect((await as(who, (c) => c.query(`DELETE FROM org_chart_planned_holders`))).rowCount, who).toBe(0);
+    }
+    expect(await plansSeenBy(U.lead)).toBe(2);
   });
 
   it("asks whether to replace the draft or add to it once the draft holds something", async () => {
@@ -334,50 +371,84 @@ describe("saving into the draft", () => {
     await expect(importFile(U.lead, SAHM, upload(workbook(SAHM_ROWS), "again.xlsx"), "add")).rejects.toThrow(/rows with errors/);
   });
 
-  it("round-trips: the draft exported in the template and brought back in is the same structure, the same positions and people", async () => {
+  it("round-trips: the draft exported in the template and brought back in is the same structure, the same positions and plans", async () => {
     const before = await draftOf(U.lead, SAHM);
-    const holdings = Number((await q(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [SAHM])).rows[0].n);
+    const plans = await plansOf(SAHM);
     for (const locale of ["ar", "en"] as const) {
       const file = await svc(U.lead, (tx, p) => IM.orgChartWorkbook(tx, p, SAHM, "draft", locale));
       const read = await svc(U.lead, (tx, p) => IM.parseImportFile(tx, p, SAHM, upload(file.bytes, file.fileName)));
-      // A person with an account goes out as their e-mail, so they come back as the same person.
+      // The draft's holder column is its plan; a person with an account goes out as their e-mail, so they come back as the same person.
       expect(read.rows.find((r) => r.values.positionCode === "2.1")!.values.holder).toBe("mgr@example.test");
+      expect(read.rows.find((r) => r.values.positionCode === "1.1")!.values.holder).toBe("Reem Al-Harbi");
       const saved = await svc(U.lead, (tx, p) => IM.saveImport(tx, p, SAHM, { token: read.token, rows: read.rows, mode: "replace" }), true);
-      expect(saved.counts).toMatchObject({ unitsAdded: 0, unitsRemoved: 0, positionsAdded: 0, positionsRemoved: 0, holders: 0 });
+      expect(saved.counts).toMatchObject({ unitsAdded: 0, unitsRemoved: 0, positionsAdded: 0, positionsRemoved: 0, planned: 0 });
       expect(await draftOf(U.lead, SAHM)).toEqual(before);
+      expect(await plansOf(SAHM)).toEqual(plans);
     }
-    expect(Number((await q(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [SAHM])).rows[0].n)).toBe(holdings);
+    expect(await holdingsOf(SAHM)).toBe(0);
   });
 
-  it("replacing a published structure's draft changes the draft only: the published version stays as it was", async () => {
+  it("publishing leaves the plans for part 5, and no client reader ever sees one", async () => {
     const draftId = (await svc(U.lead, (tx, p) => OC.getDraft(tx, p, SAHM))).draft!.id;
     await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId, effectiveOn: firmToday() }), true);
-    const seen = await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM));
-    const reem = (await draftOf(U.lead, SAHM)).positions.find((p) => p.code === "1.1")!;
+    expect(await holdingsOf(SAHM)).toBe(0);
+    for (const who of [U.cadmin, U.mgr]) {
+      const seen = await svc(who, (tx, p) => OC.getStructure(tx, p, SAHM));
+      expect(seen.shown!.positions.every((p) => p.holders.length === 0)).toBe(true);
+      expect(JSON.stringify(seen)).not.toMatch(/Reem|mgr@example/);
+      expect(await plansSeenBy(who)).toBe(0);
+      // The whole masking list names no plan for them (the firm's editors' list does); a text that names one is still masked.
+      const list = await svc(who, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms(${P}::uuid)`)).rows.map((r) => r.term));
+      expect(list).not.toContain("Reem Al-Harbi");
+      const inText = await svc(who, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms_in(${P}::uuid, 'The Chair is Reem Al-Harbi')`)).rows.map((r) => r.term));
+      expect(inText).toContain("Reem Al-Harbi");
+    }
+    const firm = await svc(U.lead, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms(${P}::uuid)`)).rows.map((r) => r.term));
+    expect(firm).toContain("Reem Al-Harbi");
+    // The snapshot the client reads has no names either.
+    const snap = (await q(`SELECT published_snapshot::text AS s FROM org_chart_versions WHERE org_id = $1 AND state = 'published'`, [SAHM])).rows[0].s as string;
+    expect(snap).not.toMatch(/Reem|mgr@example/);
+  });
 
+  it("replacing a published structure's draft changes the draft only: the published version stays, plans go with their positions, holdings never", async () => {
+    // The client's admin places someone on the live structure.
+    const live = await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM));
+    const director = live.positions.find((p) => p.code === "2.1.1")!;
+    await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, director.id, { start: { name: "Khalid Typed", from: firmToday() } }), true);
+    const holdings = await holdingsOf(SAHM);
+    const seen = await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM));
+
+    // Finance renamed, its two positions gone (the director's has someone in it on the live structure), a new one.
     const changed = [
-      ...SAHM_ROWS.filter((r) => r.positionCode !== "2.1.2").map((r) => (r.unitCode === "2.1" && r.unitNameAr ? { ...r, unitNameAr: "الإدارة المالية والإدارية" } : r)),
-      { unitCode: "2.1", positionCode: "2.1.3", titleAr: "أمين صندوق", reportsTo: "2.1.1", holder: "Saad Al-Dosari" },
+      ...SAHM_ROWS.filter((r) => r.positionCode !== "2.1.2" && r.positionCode !== "2.1.1"),
+      { unitCode: "2.1", unitNameAr: "الإدارة المالية والإدارية", unitNameEn: "Finance", unitKind: "إدارة", parentCode: "2", level: "3" },
+      { unitCode: "2.1", positionCode: "2.1.3", titleAr: "أمين صندوق", reportsTo: "2.1", holder: "Saad Al-Dosari" },
     ];
     const saved = await importFile(U.lead, SAHM, upload(workbook(changed), "v2.xlsx"), "replace");
-    expect(saved.counts).toMatchObject({ unitsChanged: 1, positionsAdded: 1, positionsRemoved: 1, holders: 1 });
+    expect(saved.counts).toMatchObject({ unitsChanged: 1, positionsAdded: 1, positionsRemoved: 2 });
 
-    // The client's view and the number of published versions are unchanged.
+    // The client's view, the number of published versions and every holding are unchanged.
     expect(await publishedCount(SAHM)).toBe(1);
     expect(await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM))).toEqual(seen);
-    // The draft holds the change; a position kept by its code keeps its people and its history.
+    expect(await holdingsOf(SAHM)).toBe(holdings);
+    expect((await q(`SELECT to_date FROM position_holders WHERE org_id = $1 AND name = 'Khalid Typed'`, [SAHM])).rows).toEqual([{ to_date: null }]);
+    // The draft holds the change, with the plans the rows give.
     const d = await draftOf(U.lead, SAHM);
     expect(d.units.find((u) => u.code === "2.1")!.nameAr).toBe("الإدارة المالية والإدارية");
-    expect(d.positions.map((p) => p.code)).toEqual(["1.1", "2.1", "2.1.1", "2.1.3"]);
-    expect(d.positions.find((p) => p.code === "1.1")).toMatchObject({ holders: reem.holders });
-    expect(d.positions.find((p) => p.code === "2.1.3")).toMatchObject({ reportsTo: "2.1.1", holders: [{ name: "Saad Al-Dosari" }] });
+    expect(d.positions.map((p) => p.code)).toEqual(["1.1", "2.1", "2.1.3"]);
+    expect(await plansOf(SAHM)).toEqual({
+      "1.1": [{ userId: null, name: "Reem Al-Harbi" }],
+      "2.1": [{ userId: U.mgr, name: null }],
+      "2.1.3": [{ userId: null, name: "Saad Al-Dosari" }],
+    });
   });
 
   it("adding keeps everything in the draft and uses its units by code", async () => {
     const before = await draftOf(U.lead, SAHM);
+    const plans = await plansOf(SAHM);
     const rows = [
       { unitCode: "2.1.9", unitNameEn: "Treasury", unitKind: "section", parentCode: "2.1", level: "4" },
-      { unitCode: "2.1.9", positionCode: "2.1.9.1", titleEn: "Treasurer", reportsTo: "2.1.1" },
+      { unitCode: "2.1.9", positionCode: "2.1.9.1", titleEn: "Treasurer", reportsTo: "2.1" },
       { unitCode: "2", positionCode: "2.9", titleEn: "Executive assistant", reportsTo: "2.1" },
     ];
     await importFile(U.cons, SAHM, upload(workbook(rows), "add.xlsx"), "add");
@@ -386,6 +457,7 @@ describe("saving into the draft", () => {
     expect(d.positions.filter((p) => before.positions.some((b) => b.id === p.id))).toEqual(before.positions);
     expect(d.units.find((u) => u.code === "2.1.9")).toMatchObject({ parent: "2.1", level: 4, kind: "section" });
     expect(d.positions.find((p) => p.code === "2.9")).toMatchObject({ unit: "2", reportsTo: "2.1" });
+    expect(await plansOf(SAHM)).toEqual(plans);
   });
 
   it("reads a Word outline through the same scan and review", async () => {
@@ -407,13 +479,15 @@ describe("saving into the draft", () => {
     await expect(svc(U.lead, (tx, pr) => IM.parseImportFile(tx, pr, SAHM, upload(writeXlsx([{ name: "x", rtl: false, columns: [{ header: "Something" }], rows: [["else"]] }]), "other.xlsx")))).rejects.toThrow(/not the template/);
   });
 
-  it("keeps no names at a client with minimal records", async () => {
+  it("keeps no names at a client with minimal records: no plan, no holding", async () => {
     const rows = [{ unitCode: "1", unitNameEn: "Family council", positionCode: "1.1", titleEn: "Chair", head: "yes", holder: "Some Typed Name" }];
     await importFile(U.lead, MANAGED, upload(workbook(rows), "managed.xlsx"));
     expect((await draftOf(U.lead, MANAGED)).positions.map((p) => p.titleEn)).toEqual(["Chair"]);
-    expect(Number((await q(`SELECT count(*)::int AS n FROM position_holders WHERE org_id = $1`, [MANAGED])).rows[0].n)).toBe(0);
+    expect(await plansOf(MANAGED)).toEqual({});
+    expect(await holdingsOf(MANAGED)).toBe(0);
   });
 });
+
 
 describe("the assistant's draft from pasted text", () => {
   const TEXT = [

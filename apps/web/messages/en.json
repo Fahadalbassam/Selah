@@ -3182,7 +3182,8 @@
       "levelGiven": "Level {level}, one below its parent.",
       "unitInDraft": "Unit {code} is already in your draft: it stays as it is.",
       "unitUpdated": "Unit {code} is in your draft: it is updated.",
-      "positionUpdated": "Position {code} is in your draft: it is updated, and the people in it stay as they are.",
+      "positionUpdated": "Position {code} is in your draft: it is updated. Who holds it today does not change here.",
+      "planned": "Planned: placed in the position when this version of the structure is published, not before.",
       "namesNotKept": "This client keeps minimal records, so no names are kept: the holder is left out."
     },
     "errors": {
@@ -3228,7 +3229,7 @@
         "titleEn": "The position's title in English.",
         "reportsTo": "The code of the position it reports to, never its title, because titles repeat.",
         "head": "Yes for the position that heads its unit: one per unit.",
-        "holder": "Who holds it: the e-mail of someone at the client with a Selah account, or a typed name. Several are separated by ; or ؛",
+        "holder": "Who is planned for it: the e-mail of someone at the client with a Selah account, or a typed name. Several are separated by ; or ؛. They are placed when the structure is published; it does not change who holds it today.",
         "specialties": "Separated by ; or ؛",
         "vacant": "Yes when nobody holds it.",
         "planned": "How many people it is planned for. Empty: 1."
@@ -4199,6 +4200,7 @@
       "org_chart_import_read": "Read a file to bring into the organisation structure's draft",
       "org_chart_import_draft": "Asked the assistant to draft the organisation structure from pasted text",
       "org_chart_import": "Brought rows into the organisation structure's draft",
+      "org_chart_plan": "Changed who is planned for a position of the organisation structure's draft",
       "org_chart_workbook": "Organisation structure downloaded as an Excel workbook",
       "deliverable_hand_over": "Deliverable handed over",
       "deliverable_receipt": "Deliverable receipt confirmed",
