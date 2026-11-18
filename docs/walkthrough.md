@@ -135,7 +135,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 
 ### 5.1 Start signed out
 1. Open http://localhost:3000. You land on the sign-in page: accounts are by invitation only, there is a "send me a sign-in link" option for client managers and owners, and a link to the public inquiry form.
-2. Open http://localhost:3000/inquiry to show what a prospect fills in. Don't send it unless you want a third inquiry in the inbox.
+2. Open http://localhost:3000/inquiry to show what a prospect fills in: four steps, the organisation and the person on the first, and a review step that shows every answer. Its privacy notice is in the legal set (/legal/inquiry-privacy; the old /privacy sends you there). Don't send it unless you want a third inquiry in the inbox.
 
 ### 5.2 The firm admin — admin@mizan.test
 1. **Overview (نظرة عامة)**: totals across every client.

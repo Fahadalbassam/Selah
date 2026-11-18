@@ -23,6 +23,13 @@ const config: NextConfig = {
   outputFileTracingIncludes: {
     "/api/reports/[id]/pdf": ["./node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-{arabic,latin}-{400,600}-normal.woff2"],
   },
+  // Old addresses of pages that moved, sent on for good before anything is drawn.
+  async redirects() {
+    return [
+      // The inquiry privacy notice joined the legal set (page audit row 51).
+      { source: "/privacy", destination: "/legal/inquiry-privacy", permanent: true },
+    ];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

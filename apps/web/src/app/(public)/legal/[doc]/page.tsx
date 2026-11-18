@@ -6,12 +6,14 @@ import { getTranslations } from "next-intl/server";
 import { ToneBadge } from "@/components/tone-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { env } from "@/env";
+import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   edgeMode,
   LEGAL_DOCS,
   LEGAL_SLUGS,
-  LEGAL_VERSIONS,
   legalDocFromSlug,
+  legalVersion,
   splitPageAddresses,
   SUBPROCESSOR_ROWS,
   subprocessorsInUse,
@@ -44,16 +46,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // The documents people accept at their first sign-in (terms, privacy notice,
-// AI-use notice), and the ones a client's legal and IT teams read before
-// signing (the data agreement template, the sub-processor list and the
-// security overview, R5). Public, so they can be read before an account
+// AI-use notice), the notice for the public inquiry form (once at /privacy,
+// which redirects here), and the ones a client's legal and IT teams read
+// before signing (the data agreement template, the sub-processor list and
+// the security overview, R5). Public, so they can be read before an account
 // exists (R1).
 export default async function LegalPage({ params }: Props) {
   const doc = legalDocFromSlug((await params).doc);
   if (!doc) notFound();
   const t = await getTranslations("legal");
   const sections = doc === "subprocessors" ? [] : (t.raw(`${doc}.sections`) as { title: string; body: string }[]);
-  const version = doc in LEGAL_VERSIONS ? LEGAL_VERSIONS[doc as keyof typeof LEGAL_VERSIONS] : null;
+  const version = legalVersion(doc);
   // What this server knows about itself: how traffic comes in, where mail
   // goes and where the model runs. Every "in use" badge is read from its setting.
   const e = env();
@@ -138,6 +141,13 @@ export default async function LegalPage({ params }: Props) {
           ))}
         </div>
       )}
+
+      {doc === "inquiry_privacy" ? (
+        <Link href="/inquiry" data-slot="button" className={buttonVariants({ variant: "outline" })}>
+          <ArrowLeft animateOnHover className="rtl:-scale-x-100" />
+          {t("inquiry_privacy.back")}
+        </Link>
+      ) : null}
 
       <nav className="space-y-2 border-t pt-6">
         <p className="text-sm font-medium">{t("others")}</p>

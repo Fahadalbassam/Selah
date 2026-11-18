@@ -880,10 +880,9 @@
     "language": "العربية",
     "stepOf": "Step {current} of {total}",
     "steps": {
-      "org": "Organisation",
-      "contact": "Contact",
+      "you": "Your details",
       "needs": "What you need",
-      "about": "About you",
+      "about": "About your organisation",
       "review": "Review"
     },
     "org": {
@@ -895,7 +894,8 @@
       "sectorPlaceholder": "Choose a sector",
       "size": "Number of employees",
       "ownership": "Ownership",
-      "ownershipPlaceholder": "Choose one"
+      "ownershipPlaceholder": "Choose one",
+      "legend": "Your organisation"
     },
     "contact": {
       "name": "Your name",
@@ -911,7 +911,8 @@
       "titleHint": "Optional, in your own words.",
       "channel": "How should we reach you?",
       "whatsapp": "WhatsApp number",
-      "phoneNeeded": "Include the country code, for example +966."
+      "phoneNeeded": "Include the country code, for example +966.",
+      "legend": "How we reach you"
     },
     "needs": {
       "services": "Which services are you interested in?",
@@ -1049,25 +1050,6 @@
         "unsure": "Not sure"
       }
     }
-  },
-  "privacy": {
-    "metaTitle": "Privacy notice",
-    "title": "Privacy notice for inquiries",
-    "version": "Version {version}",
-    "intro": "This notice explains what happens to the details you send through the inquiry form on this site, which is run by the consulting firm that uses Selah.",
-    "collectTitle": "What we collect",
-    "collect": "Your organisation's name and sector; your name, role and job title, email and phone, and how you prefer to be reached; the services you're interested in, why now, and your message. Optionally, its size and ownership type, three light questions for family businesses, and your answers to the six self-check questions. We don't accept files through the form.",
-    "whyTitle": "Why",
-    "why": "Only to respond to your inquiry, check it for conflicts of interest, and decide whether and how the firm can help. We don't sell it. We send you news about events and publications only if you tick the separate box for it, and you can stop it at any time.",
-    "whoTitle": "Who sees it",
-    "who": "The firm's administrators, and the one consultant they assign to your inquiry. Other clients never see it.",
-    "technicalTitle": "Technical details",
-    "technical": "To stop abuse, we keep a keyed one-way hash of your network address and browser, never the address itself, and allow a few inquiries per hour from one address.",
-    "keepTitle": "How long we keep it",
-    "keep": "If we start working together, your inquiry becomes part of your client record. Otherwise the contact details and message are erased 12 months after the inquiry is closed, or 30 days for spam. We keep only anonymous figures, such as sector and size, for statistics.",
-    "rightsTitle": "Your rights",
-    "rights": "You can ask to see, correct or delete your details by replying to the email you receive from the firm, or by contacting the firm directly. Requests are answered within 30 days, in line with the Saudi Personal Data Protection Law.",
-    "back": "Back to the inquiry form"
   },
   "account": {
     "password": {
@@ -4086,6 +4068,37 @@
           "body": "If a breach puts your data at risk, the firm tells SDAIA within 72 hours where the law requires it, and tells you without undue delay what happened and what to do."
         }
       ]
+    },
+    "inquiry_privacy": {
+      "title": "Privacy notice for inquiries",
+      "intro": "This notice explains what happens to the details you send through the inquiry form on this site, which is run by the consulting firm that uses Selah.",
+      "sections": [
+        {
+          "title": "What we collect",
+          "body": "Your organisation's name and sector; your name, role and job title, email and phone, and how you prefer to be reached; the services you're interested in, why now, and your message. Optionally, its size and ownership type, three light questions for family businesses, and your answers to the six self-check questions. We don't accept files through the form."
+        },
+        {
+          "title": "Why",
+          "body": "Only to respond to your inquiry, check it for conflicts of interest, and decide whether and how the firm can help. We don't sell it. We send you news about events and publications only if you tick the separate box for it, and you can stop it at any time."
+        },
+        {
+          "title": "Who sees it",
+          "body": "The firm's administrators, and the one consultant they assign to your inquiry. Other clients never see it."
+        },
+        {
+          "title": "Technical details",
+          "body": "To stop abuse, we keep a keyed one-way hash of your network address and browser, never the address itself, and allow a few inquiries per hour from one address."
+        },
+        {
+          "title": "How long we keep it",
+          "body": "If we start working together, your inquiry becomes part of your client record. Otherwise the contact details and message are erased 12 months after the inquiry is closed, or 30 days for spam. We keep only anonymous figures, such as sector and size, for statistics."
+        },
+        {
+          "title": "Your rights",
+          "body": "You can ask to see, correct or delete your details by replying to the email you receive from the firm, or by contacting the firm directly. Requests are answered within 30 days, in line with the Saudi Personal Data Protection Law."
+        }
+      ],
+      "back": "Back to the inquiry form"
     },
     "ai_notice": {
       "title": "How Selah uses AI",
