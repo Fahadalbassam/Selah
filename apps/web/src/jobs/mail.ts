@@ -35,7 +35,7 @@ interface Row {
 export interface MailRunResult {
   sent: number;
   failed: number;
-  /** Meeting mail not sent because its addressee was left out of the meeting (kept, marked withdrawn). */
+  /** Meeting mail not sent because its addressee is no longer on the meeting, or is left out of it (kept, marked withdrawn). */
   withdrawn: number;
 }
 

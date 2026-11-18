@@ -32,7 +32,9 @@ const pool = new Pool({ connectionString: url, max: 2 });
 async function drain() {
   for (;;) {
     const { sent, failed, withdrawn } = await runMail(pool, deliver, appUrl!);
-    if (sent || failed || withdrawn) console.log(`mail: ${sent} sent, ${failed} to retry, ${withdrawn} withdrawn (addressee left out of the meeting)`);
+    if (sent || failed || withdrawn) {
+      console.log(`mail: ${sent} sent, ${failed} to retry, ${withdrawn} withdrawn (addressee no longer on the meeting, or left out of it)`);
+    }
     if (sent + failed + withdrawn < 20) return;
   }
 }
