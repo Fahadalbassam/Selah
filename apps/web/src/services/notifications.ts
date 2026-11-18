@@ -217,9 +217,9 @@ function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Pr
   // An invitation's person was not placed in the position chosen (org chart, part 3): People in positions, where they are placed.
   if (kind === "org_chart.invite_not_placed") return orgKind === "client" ? "/departments/structure?view=people" : `/clients/${entityId}/structure?view=people`;
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=requests`;
-  // A drafted status pack waits on the project's progress tab; a quiet client shows on the oversight page.
+  // A drafted status pack waits on the project's progress tab; a quiet client shows in the Projects table ("Client last active").
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
-  if (kind === "project.client_quiet") return "/oversight";
+  if (kind === "project.client_quiet") return "/projects?view=table";
   // Reported problems: the firm admin reads them below the notifications, the reporter on the help page.
   if (kind === "support.requested") return "/notifications#support";
   if (kind === "support.handled") return "/help";

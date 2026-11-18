@@ -1,6 +1,9 @@
-// Engagement health (F18): one signal per project from counts the firm
-// already keeps. The database holds the same rule (migration oversight:
-// app_health_signal()); tests/db/oversight.test.ts proves the two agree.
+// Engagement health (F18): the thresholds behind the counts the firm keeps
+// per project. Since decision D5 (batch 2C) no screen shows a health word:
+// the Actions filters and the Projects table show counts. The database still
+// works out the old signal for the weekly history the daily job keeps
+// (app_health_signal(), project_health_weeks), and healthSignal() mirrors it
+// so tests/db/oversight.test.ts can prove the two agree; nothing reads it.
 
 /** Off track once this share of the open actions is overdue. */
 export const HEALTH_OVERDUE_SHARE = 0.25;
@@ -42,8 +45,6 @@ export function healthSignal(h: HealthInput): HealthSignal {
 
 /** The client's lead hears when no one at the client has acted on an active project for this long. */
 export const CLIENT_QUIET_DAYS = 14;
-/** Weeks of signal history the oversight page shows. */
-export const HEALTH_WEEKS_SHOWN = 8;
 
 /** The Sunday a day's week starts on (the Saudi working week), as YYYY-MM-DD. */
 export function weekStart(day: string): string {

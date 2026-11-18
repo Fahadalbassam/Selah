@@ -143,7 +143,8 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 3. **Clients → Client groups (مجموعات العملاء)**: مجموعة النخبة, the holding and its subsidiary rolled up together, and who on the client side may see the group.
 4. **Inquiries (الطلبات الواردة)**: the two inquiries. Open one to rate it, check conflicts, book discovery and, later, win it into a client.
 5. **Team (الفريق)**: people and the access review, the review and workload table per consultant (team load), and **Expertise (الخبرات)**. Back on **Clients**, مؤسسة الروضة shows "1 request": Omar asked to join its team; approve or decline it on the client page.
-6. **Actions (الإجراءات)**: three tabs at the top: every action, **Awaiting review (بانتظار المراجعة)**, and **Oversight (الإشراف)**: every running project with its health signal and the exceptions across clients.
+6. **Actions (الإجراءات)**: one list with its lists as links across the top, each with its count: **الكل**, **المسندة إليّ**, **بانتظار المراجعة** (how long each has waited and the sign-off stage; **أكثر من 7 أيام** keeps the long waits), **متأخرة**, **متعثرة**, then the firm's rules **بلا نشاط**, **تأجّلت مرتين أو أكثر**, **أُعيدت للتعديل مرتين أو أكثر**, **بلا مكلَّف نشط**. An action both late and blocked is one row, with both reasons. Under them, narrow by client, project, owner (type a name) and department. On a rule list the row's **⋯** menu holds **تذكير المكلَّف** (once a day). The address keeps the choice (`/actions?filter=late&project=…`); the old **/review** and **/oversight** addresses open the matching list.
+   **Projects (المشاريع) → جدول**: the firm's table of every project: open, late, blocked, the oldest waiting review, the lead and the client's last activity, as counts with no health word; each number opens its list on Actions.
 7. **Audit log (سجل التدقيق)**: every step the seed took, by the person who took it, with the chain check.
 8. **Settings (الإعدادات)**, in the menu under your name at the foot of the sidebar: reminders, escalation, retention.
 9. **Close a project**: Projects → *Strategic Plan 2027* → **Closing (الإغلاق)**. Everything is settled; press **Close project (إغلاق المشروع)** and download the closure report PDF. The project is now read-only for everyone.
@@ -311,7 +312,7 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | A person's work card on the structure (open tasks, late, recent uploads) | Whoever sees that person's name on the drawing; read as them | Press a name on the drawing |
 | Business indicators (client-reported) | Client admin and managers enter; so do the firm admin and the consultants who do the client's work (lead, deputy, staffed on a project); an observer reads | Client page → مؤشرات الأعمال; indicator page |
 | Today page | Firm | اليوم |
-| Oversight; team load (reviews and work per consultant) | Admin | الإجراءات → الإشراف; الفريق |
+| Rule lists across projects (late, blocked, no activity, date moved, sent back, no active owner) with Remind the owner; the Projects table of counts; team load (reviews and work per consultant) | Firm (the reminder: firm staff on the project, not an observer); team load: Admin | الإجراءات (the lists at the top); المشاريع → جدول; الفريق |
 | Closing a project, lessons, handover, case study consent | Lead starts; admin closes; client asks | Project → الإغلاق |
 | Archiving a client, grace period, export pack | Admin | Client page |
 | Notifications and mail choices | Everyone | Bell icon; /notifications |
