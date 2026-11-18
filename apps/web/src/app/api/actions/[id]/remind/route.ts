@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { route } from "@/server/http";
-import { remindOwner } from "@/services/oversight";
+import { remindOwner } from "@/services/action-board";
 
 const params = z.object({ id: z.uuid() });
 

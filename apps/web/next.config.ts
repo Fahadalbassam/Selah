@@ -28,6 +28,10 @@ const config: NextConfig = {
     return [
       // The inquiry privacy notice joined the legal set (page audit row 51).
       { source: "/privacy", destination: "/legal/inquiry-privacy", permanent: true },
+      // The review queue and Oversight became filters of the Actions list (page audit rows 8 and 9, D2);
+      // Oversight's per-project columns are the Projects table (/projects?view=table).
+      { source: "/review", destination: "/actions?filter=awaiting-review", permanent: true },
+      { source: "/oversight", destination: "/actions?filter=late", permanent: true },
     ];
   },
   async headers() {

@@ -1,7 +1,11 @@
-// Oversight across projects (F18, 2026-10-24): a health signal per open
-// project from counts the firm already keeps, the exceptions across every
-// project the caller can see, and a one-click reminder to an action's owner,
-// once a day.
+// Oversight across projects (F18, 2026-10-24): counts per open project, the
+// rule breaks across every project the caller can see, and a one-click
+// reminder to an action's owner, once a day. Since batch 2C (page audit 4.6,
+// D2 and D5) the Oversight page is gone: its list is the Actions filters and
+// its per-project columns the Projects table, both in services/action-board.ts
+// (tests/db/action-board.test.ts), with no health word on any screen. This
+// file keeps the database's own rules: the thresholds the daily job still
+// uses, the reminder, the weekly history and quiet clients.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -18,7 +22,8 @@ import {
   REVIEW_WAIT_DAYS,
   weekStart,
 } from "@/lib/health";
-import { exceptions, portfolio, remindOwner } from "@/services/oversight";
+import { parseActionsQuery, type ActionFilterKey } from "@/lib/action-filters";
+import { actionBoard, projectsTable, remindOwner } from "@/services/action-board";
 import { loadPrincipal } from "@/services/principal";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -84,6 +89,8 @@ const svc = <T>(userId: string, fn: (tx: Tx, p: Principal) => Promise<T>) =>
     const tx = drizzle(c, { schema }) as unknown as Tx;
     return fn(tx, (await loadPrincipal(tx, userId))!);
   });
+const list = (userId: string, filter: ActionFilterKey) =>
+  svc(userId, (tx, p) => actionBoard(tx, p, { ...parseActionsQuery({}), filter }));
 const refused = (p: Promise<unknown>) =>
   p.then(
     () => "",
@@ -197,55 +204,32 @@ describe("the database agrees with lib/health.ts", () => {
   });
 });
 
-describe("the portfolio", () => {
-  it("shows the lead their client's open projects with counts, a signal and why", async () => {
+describe("the Projects table (was the portfolio)", () => {
+  it("shows the lead their client's projects with counts, the lead and the client's last activity, and no signal (D5)", async () => {
     await owner.query(
       `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event) VALUES ($1,$2,$3,'action',$4,'progress')`,
       [P.acme, ACME, U.cowner, A.open],
     );
-    const rows = await svc(U.lead, (tx, p) => portfolio(tx, p));
-    expect(rows.map((r) => r.projectId)).toEqual([P.acme]); // not Beta, not the pitch
-    const [acme] = rows;
-    // Open: open, secret, late, review (four). Overdue: late (1 of 4 is a quarter).
-    expect(acme).toMatchObject({
-      total: 5,
-      open: 4,
-      overdue: 1,
-      awaitingReview: 1,
-      reviewWaiting: 1,
-      lead: "lead",
-      signal: "off_track",
-    });
-    expect(acme!.oldestReviewDays).toBeGreaterThanOrEqual(9);
-    expect(acme!.clientLastActive).toBeInstanceOf(Date);
-  });
-
-  it("is on track once nothing needs attention", async () => {
-    await owner.query(
-      `UPDATE actions SET due_date = $2, updated_at = now() WHERE id = $1`,
-      [A.late, day(5)],
-    );
-    await owner.query(
-      `UPDATE actions SET status = 'revision_requested', updated_at = now() WHERE id = $1`,
-      [A.review],
-    );
-    const [acme] = await svc(U.lead, (tx, p) => portfolio(tx, p));
-    expect(acme!.signal).toBe("on_track");
+    // The review has waited ten days since it was sent.
+    await owner.query(`UPDATE actions SET awaiting_review_at = now() - interval '10 days' WHERE id = $1`, [A.review]);
+    const rows = (await svc(U.lead, (tx, p) => projectsTable(tx, p)))!;
+    expect(rows.map((r) => r.projectId).sort()).toEqual([P.acme, P.draft].sort()); // not Beta
+    const acme = rows.find((r) => r.projectId === P.acme)!;
+    // Open: open, secret, late, review (four). Late: one.
+    expect(acme).toMatchObject({ open: 4, late: 1, blocked: 0, oldestReviewDays: 10, lead: "lead" });
+    expect(acme).not.toHaveProperty("signal");
+    expect(acme.clientLastActive).toBeInstanceOf(Date);
   });
 
   it("is the whole firm for the admin, only their own for another consultant, and nothing for the client", async () => {
     expect(
-      (await svc(U.admin, (tx, p) => portfolio(tx, p)))
+      (await svc(U.admin, (tx, p) => projectsTable(tx, p)))!
         .map((r) => r.projectId)
         .sort(),
-    ).toEqual([P.acme, P.beta]);
-    const beta = await svc(U.other, (tx, p) => portfolio(tx, p));
-    expect(beta.map((r) => [r.projectId, r.signal])).toEqual([
-      [P.beta, "no_data"],
-    ]);
-    await expect(svc(U.cadmin, (tx, p) => portfolio(tx, p))).rejects.toThrow(
-      /not found|page/i,
-    );
+    ).toEqual([P.acme, P.beta, P.draft].sort());
+    const beta = (await svc(U.other, (tx, p) => projectsTable(tx, p)))!;
+    expect(beta.map((r) => [r.projectId, r.open])).toEqual([[P.beta, 0]]);
+    expect(await svc(U.cadmin, (tx, p) => projectsTable(tx, p))).toBeNull();
     // Straight to the database, the client gets no rows.
     expect((await sql(U.cadmin, `SELECT * FROM app_portfolio()`)).rows).toEqual(
       [],
@@ -262,31 +246,26 @@ describe("the portfolio", () => {
   });
 });
 
-describe("exceptions", () => {
-  it("lists what breaks a rule, with blocked actions and reviews waiting too long", async () => {
+describe("the rule lists (were the exceptions)", () => {
+  it("list late, blocked and waiting reviews, with a reminder for the late owner", async () => {
     await owner.query(
       `UPDATE actions SET status = 'blocked', updated_at = now() WHERE id = $1`,
       [A.open],
     );
-    const rows = await svc(U.lead, (tx, p) => exceptions(tx, p));
-    const got = rows.map((r) => [r.rule, r.entityId]);
-    expect(got).toContainEqual(["overdue", A.late]);
-    expect(got).toContainEqual(["review_waiting", A.review]);
-    expect(got).toContainEqual(["blocked", A.open]);
-    expect(rows[0]!.rule).toBe("overdue");
-    expect(rows.find((r) => r.entityId === A.late)!.can.remind).toBe(true);
+    expect((await list(U.lead, "late")).rows.map((r) => r.id)).toEqual([A.late]);
+    expect((await list(U.lead, "blocked")).rows.map((r) => r.id)).toEqual([A.open]);
+    expect((await list(U.lead, "awaiting-review")).rows.map((r) => r.id)).toEqual([A.review]);
+    expect((await list(U.lead, "late")).rows[0]!.remind!.can).toBe(true);
     // Another consultant's view holds nothing of Acme.
     expect(
-      (await svc(U.other, (tx, p) => exceptions(tx, p))).filter(
-        (r) => r.projectId === P.acme,
-      ),
+      (await list(U.other, "late")).rows.filter((r) => r.projectId === P.acme),
     ).toEqual([]);
   });
 
-  it("offers no reminder to an observer", async () => {
-    const rows = await svc(U.obs, (tx, p) => exceptions(tx, p));
+  it("offer no reminder to an observer", async () => {
+    const rows = (await list(U.obs, "late")).rows;
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((r) => !r.can.remind)).toBe(true);
+    expect(rows.every((r) => !r.remind?.can)).toBe(true);
   });
 });
 
@@ -308,10 +287,10 @@ describe("reminding an owner", () => {
     expect(
       await refused(svc(U.admin, (tx, p) => remindOwner(tx, p, A.late))),
     ).toMatch(/already reminded today/);
-    const rows = await svc(U.lead, (tx, p) => exceptions(tx, p));
-    expect(rows.find((x) => x.entityId === A.late)).toMatchObject({
+    const rows = (await list(U.lead, "late")).rows;
+    expect(rows.find((x) => x.id === A.late)!.remind).toMatchObject({
       remindedToday: true,
-      can: { remind: false },
+      can: false,
     });
     // Kept: the record can't be changed or removed.
     expect(await refused(sql(U.lead, `DELETE FROM action_reminders`))).not.toBe(
@@ -374,7 +353,7 @@ describe("reminding an owner", () => {
 });
 
 describe("weekly health history", () => {
-  it("keeps this week's signal for every open project, once per week, and shows it to the firm", async () => {
+  it("keeps this week's counts for every open project, once per week, readable by the firm only", async () => {
     expect((await owner.query(`SELECT app_snapshot_health($1) AS n`, [today])).rows[0].n).toBe(2);
     expect((await owner.query(`SELECT app_snapshot_health($1) AS n`, [today])).rows[0].n).toBe(2);
     const rows = (await owner.query(`SELECT project_id, week_start::text AS w, signal FROM project_health_weeks ORDER BY project_id`)).rows;
@@ -388,8 +367,11 @@ describe("weekly health history", () => {
       ACME,
       day(-7 - new Date(`${today}T00:00:00Z`).getUTCDay()),
     ]);
-    const [acme] = await svc(U.lead, (tx, p) => portfolio(tx, p));
-    expect(acme!.weeks.map((w) => w.signal)).toEqual(["watch", "off_track"]);
+    // The weeks the lead may read, oldest first (no screen draws them since D5; see docs/metrics.md).
+    expect((await sql(U.lead, `SELECT open, overdue FROM project_health_weeks WHERE project_id = $1 ORDER BY week_start`, [P.acme])).rows).toEqual([
+      { open: 3, overdue: 1 },
+      { open: 4, overdue: 1 },
+    ]);
     // Firm-only, and only for projects the caller can see.
     expect((await sql(U.cadmin, `SELECT * FROM project_health_weeks`)).rows).toEqual([]);
     expect((await sql(U.other, `SELECT project_id FROM project_health_weeks`)).rows).toEqual([{ project_id: P.beta }]);
@@ -400,8 +382,8 @@ describe("weekly health history", () => {
     await owner.query(`UPDATE actions SET due_date = $2 WHERE id = $1`, [A.open, day(20)]);
     await owner.query(`UPDATE actions SET due_date = $2 WHERE id = $1`, [A.open, day(30)]);
     expect((await owner.query(`SELECT extended_twice FROM app_project_health($1)`, [P.acme])).rows[0].extended_twice).toBe(1);
-    const [acme] = await svc(U.lead, (tx, p) => portfolio(tx, p));
-    expect(acme!.extendedTwice).toBe(1);
+    // Under the app role, the lead counts the same moves.
+    expect((await sql(U.lead, `SELECT extended_twice FROM app_project_health($1)`, [P.acme])).rows[0].extended_twice).toBe(1);
   });
 });
 
