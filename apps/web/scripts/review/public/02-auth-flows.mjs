@@ -136,7 +136,9 @@ const browser = await chromium.launch();
   }
 
   // The reset form's own errors, on a made-up token (so no password can change).
+  // Since #153 a made-up token may show "this link doesn't work" with no form; then there is nothing to fill.
   await open(c, `/reset-password/${FAKE32}`);
+  if (await page.locator("#password").count()) {
   await hydrated(page);
   await page.locator("#password").fill("short");
   await page.locator("#confirm").fill("short");
@@ -154,12 +156,15 @@ const browser = await chromium.launch();
   await settle(page, 300);
   notes.resetFakeToken = await page.locator("form .text-destructive").innerText();
   await shoot(c, "ar", "34-reset-password-dead-link-after-submit");
+  } else {
+    notes.resetFakeToken = "no form on a made-up token";
+  }
 
   // The e-mail change page: any well-formed token shows the button; pressing it with a made-up one shows the error.
   await open(c, `/confirm-email/${FAKE43}`);
   await page.waitForTimeout(500);
-  await page.getByRole("button").first().click();
-  await page.locator(".text-destructive").waitFor({ timeout: 30_000 });
+  { const own = page.locator("form button, main button"); if (await own.count()) await own.first().click(); else notes.confirmEmailNoButton = true; }
+  await page.locator(".text-destructive").waitFor({ timeout: 30_000 }).catch(() => { notes.confirmEmailNoErrorShown = true; });
   await shoot(c, "ar", "52-confirm-email-dead-link-after-press");
 
   // The sign-in link page from the real mail.
@@ -216,8 +221,8 @@ const browser = await chromium.launch();
   await shoot(c, "en", "12-forgot-password-sent-unknown-address");
   await open(c, `/confirm-email/${FAKE43}`);
   await page.waitForTimeout(500);
-  await page.getByRole("button").first().click();
-  await page.locator(".text-destructive").waitFor({ timeout: 30_000 });
+  { const own = page.locator("form button, main button"); if (await own.count()) await own.first().click(); else notes.confirmEmailNoButton = true; }
+  await page.locator(".text-destructive").waitFor({ timeout: 30_000 }).catch(() => { notes.confirmEmailNoErrorShown = true; });
   await shoot(c, "en", "52-confirm-email-dead-link-after-press");
   await c.ctx.close();
 }

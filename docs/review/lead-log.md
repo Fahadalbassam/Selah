@@ -232,3 +232,21 @@ Items d, e and f were already parked for Gate B as known gaps; they are now conf
 | 4a, deliverable handed over and received | `feature/deliverable-receipt` | Builder running. |
 
 One open point carried to org chart part 3: a holder can be ended but not removed, so once anyone is named, switching a client to minimal records stays refused until a removal path exists.
+
+### 18 Nov, later
+
+**Merged** (CI green, low code review with no findings): #167 indicator moved away (4b, migration 0090), #168 org chart part 1 (data, rules and services, migration 0091). #166 (this log).
+
+**A failure of mine.** I restarted my own copy with a clean slate (`walkthrough --fresh`) to re-check screens. Its database server also holds the helpers' test databases, so the restart deleted them mid-run (test data only; Fahad's copy untouched). I recreated all of them and `selah_check`, told every helper, and each re-ran its tests. Rule from now on (also in my notes): never reset my copy while a helper is working.
+
+**Decisions I made inside the reviews** (none widens access; each avoids deleting data):
+
+- Picker, mail to someone just left out: never deleted; marked `withdrawn_at` and kept, and the mail job checks the recipient again just before sending.
+- Picker, an "only these people" list: whoever saves it is written onto it, so a later save by someone else cannot shut them out.
+- Picker, leaving out someone already on a meeting (required, with a follow-up, and also optional): refused; the organiser takes them off the meeting first.
+- Org chart, the assistant's masking: built from every name written in what is sent (as translation does), whoever asks; the per-person list stays for what a person may read.
+- Deliverable hand-over: only files already shared with the client can be handed over (handing over never shares a file); closing a project warns about waiting rounds, and an unanswered round then reads "No answer before the project closed"; hand-over only by the client's lead or deputy or consultants staffed on the engagement's projects, and the dialog names who will be asked.
+
+**Screen re-check of batch 0**: done, nothing blocking; see `page-audit.md` section 8 (faults go into one small pull request; three questions kept for Gate B).
+
+**Stops.** The org chart and picker builders stopped once at the five-hour usage limit and were resumed from saved work.

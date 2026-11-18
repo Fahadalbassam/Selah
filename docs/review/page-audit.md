@@ -515,3 +515,39 @@ Kept as this audit has them, although the October text differs: the Handover car
 One permission question from the October review goes to Fahad with the agenda choice: should "Link / Unlink" an indicator to a recommendation be the firm's alone? Today the client admin can, and `docs/authorization.md` says so; the October review calls the link the consultant's statement.
 
 From the research folder: support for D1 (comparable portals let clients delegate requests to colleagues, with an owner-change history) and for three parked gaps (a complaint route to the firm admin, the lead handover, a reviewer who is not the author). For the agenda (D8) the research adds a third option, set out with the agenda choice.
+
+## 8. Re-check before batch 1: the screens batch 0 changed (added 18 Nov 2026)
+
+Fahad asked (17 Nov) to re-check only the screens that are new or changed since this audit. This section covers the screens batch 0 changed (#153, #156, #160, #161, #165). The new features (the visibility picker, the org chart, deliverable receipt, the indicator notice) each get their own screen check before they merge and are added here.
+
+**How.** The same capture script as phase 1, on a fresh copy of the walkthrough data on `main` after #165 (`shots/recheck1/`; the signed-out upload page re-captured once its link worked). Two helpers judged the changed screens against phase 1 (`work/recheck-firm-public.md`, `work/recheck-client.md`); an independent helper tried to break both reports (`work/recheck-check.md`): it found nothing blocking, confirmed the five blocking conditions itself, and checked 24 "fixed" claims against the screenshots (all hold).
+
+**The decisions hold on every captured screen.**
+
+| Decision | Result |
+|---|---|
+| D6: no client sees a draft action | The draft's title appears 0 times in every client account's captures, both languages (phase 1: up to 5 per account) |
+| 1b: an action owner sees only their own actions | Owners' pages carry only their own titles and counts |
+| D8 and 1a: a department-limited manager | 0 titles from other departments; "Not found" on a whole-project meeting (shown on the #165 branch's screen check; the code on `main` is the same) |
+| 1a, Fahad's answer: an invited owner at a client with no departments | The Rawdah owner opens her meeting and sees only her 2 actions |
+| 1c: indicator links are the firm's | No Link / Unlink in any client account |
+| D4: observers change nothing on indicators | Indicator page: 16 buttons to 1; meetings 13 to 1 |
+| #153: the signed-out pages | Every captured item fixed (language switch, dead links, waiting time, the review step, legal pages, the upload page, consent) |
+
+**Faults found (none blocking), fixed in one small pull request:**
+
+1. The in-app "Not found" page shows two language switches (`app/not-found.tsx` draws the signed-out corner switch everywhere since #153). Limited readers now land there often (1a).
+2. An invited action owner sees a colleague (the client admin) as a nameless "—" attendee: attendee names follow the user-row rule, not the meeting. The lead's decision (17 Nov) is that an invited owner sees the attendees.
+3. Wording: three Arabic verbs for releasing a draft; the observer reads "until you release it"; one activity line reads backwards in Arabic; the Progress tab says client managers and owners see the same figures (no longer true); the meeting warnings use a masculine verb for anyone and do not say the calendar invitation still goes out; the role label «مدير الشركة» for the firm admin where everything else says «مدير المكتب».
+4. Tabs that say "none yet" (Meetings, Requests) when items exist that this reader cannot open.
+5. The client-side indicator banner and `/indicators/data` speak about "the client" to the client; the decided wording ("Your company's reported figures, not verified impact") is used.
+6. Hydration warnings that remain (meetings, notifications, actions, departments, plan import); the hard meeting errors are gone.
+7. To verify: after choosing a role with the keyboard in the inquiry form, focus may jump to the top of the page.
+
+**Kept for later batches:** the Rawdah admin home's empty indicators card whose only solid button is «مؤشر جديد» (batch 2, homes); the Trace tab showing a Finance finding with nothing under it to a client reader (Trace goes in batch 2, D2); the "Better/Worse than baseline" chip and the "toward target" percentage (batch 5 wording).
+
+**Questions for Fahad, kept for Gate B (nothing waits on them):**
+
+- A meeting's agenda headings and status words follow the meeting's language, not the reader's. Recommendation: follow the reader's language.
+- A department-limited manager can be invited (after a warning) to a whole-project meeting she cannot open. She receives the calendar invitation (title, time, call link, organiser, the invitees' names and addresses; nothing about the work). Options: keep it and say "N meetings you're invited to are open only to people who see the whole project"; or refuse the invitation. Recommendation: refuse it and suggest a department meeting, so an invitation always opens.
+- The firm's free-text report note can name another department's work to a limited manager (the note is the firm's own text; Selah cannot filter it). Recommendation: a line in the handbook for consultants.
