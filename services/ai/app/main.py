@@ -127,7 +127,6 @@ class OrgDraftPosition(BaseModel):
     title: str
     reports_to: str
     head: bool
-    holder: str
     specialties: list[str]
 
 

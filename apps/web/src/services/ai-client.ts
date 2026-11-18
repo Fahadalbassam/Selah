@@ -132,7 +132,6 @@ const orgDraftSchema = z.object({
         title: z.string(),
         reports_to: z.string(),
         head: z.boolean(),
-        holder: z.string(),
         specialties: z.array(z.string()).max(30),
       }),
     )
@@ -144,8 +143,10 @@ export type OrgDraft = z.infer<typeof orgDraftSchema>;
 
 /**
  * Units and positions arranged from pasted text (org chart, part 4), through
- * the service's chat_json with a strict schema. The text must already be
- * masked; the caller keeps only what is written in it (lib/org-chart-import.ts).
+ * the service's chat_json with a strict schema that has no field for a
+ * person. The text must already be masked; the caller keeps only what is
+ * written in it (lib/org-chart-import.ts). Anything else the service sends
+ * back is dropped here (zod keeps only the fields named).
  */
 export function draftOrgChart(text: string): Promise<OrgDraft> {
   return call("/v1/org-chart/draft", { text }, orgDraftSchema);

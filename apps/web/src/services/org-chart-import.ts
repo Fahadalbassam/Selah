@@ -68,13 +68,27 @@ export function canImport(principal: Principal, clientOrgId: string): boolean {
 }
 
 /**
+ * Whether the AI service runs the local model, so pasted text never leaves
+ * Selah's own server: the web app's copy of the service's setting
+ * (LLM_PROVIDER, "ollama" unless set; the assistant's card says "local" from
+ * the same setting), read the way maskingOn() reads it. Any other value,
+ * known or not, counts as a hosted model.
+ */
+export function localModel(provider: string = process.env.LLM_PROVIDER ?? "ollama"): boolean {
+  return provider === "ollama";
+}
+
+/**
  * The client's projects the reader may ask the assistant about, the way the
  * assistant decides it (authorize "assistant.query" on each project the
- * reader can open). Empty means the assistant is off here: the paste option
- * is hidden and drafting from text is refused. Their names are what the
- * pasted text is masked with.
+ * reader can open), and only with the local model (the coordinator's
+ * decision, 18 Nov: a pasted chart is mostly names Selah does not know, and
+ * those could not be masked before a hosted model). Empty means the paste
+ * option is hidden and drafting from text is refused. Their names are what
+ * the pasted text is masked with, as a second line.
  */
 async function assistantProjects(tx: Tx, principal: Principal, clientOrgId: string): Promise<string[]> {
+  if (!localModel()) return [];
   const rows = await tx
     .select({ id: projects.id, orgId: projects.orgId, firmOrgId: projects.firmOrgId })
     .from(projects)
@@ -209,15 +223,16 @@ export async function parseImportFile(tx: Tx, principal: Principal, clientOrgId:
 }
 
 /**
- * "Paste a list or description and let the assistant draft it": the text is
- * masked before it leaves the server (textMasker, the same masking as the
- * assistant's: every name of the client's projects written in the text),
- * sent through the AI service's chat_json with a strict schema, and the
- * names are put back only where the text had them. Only units, positions,
- * names and specialties written in the text are kept (draftRows); anything
- * else the model returns is left out and listed, never added. The rows go to
- * the same review step as a file. Only where the assistant is on for this
- * reader at this client.
+ * "Paste a list or description and let the assistant draft it", with the
+ * local model only. The draft never handles people: the schema has no field
+ * for one and the prompt asks for units and positions only, so the screen
+ * asks for titles only (names are added later). As a second line the text is
+ * still masked (textMasker, the same masking as the assistant's: every name
+ * of the client's projects written in the text) and placeholders are put
+ * back only where the text had them. Only units, positions and specialties
+ * written in the text are kept (draftRows); anything else the model returns
+ * is left out and listed, never added. The rows go to the same review step
+ * as a file. Only where the assistant is on for this reader at this client.
  */
 export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: string, text: string): Promise<ImportedRows> {
   const view = await importContext(tx, principal, clientOrgId);
@@ -236,12 +251,20 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
   } catch {
     throw new UnavailableError("the assistant could not draft rows");
   }
-  // The names come back only where the text had them: a placeholder the text never had stays a placeholder, and draftRows drops it.
+  // A placeholder comes back only where the text had it: one the text never had stays a placeholder, and draftRows drops it.
   const back = (s: string) => masker.unmask(s);
   const { rows, dropped } = draftRows(
     {
-      units: reply.units.map((u) => ({ ...u, name: back(u.name), code: back(u.code) })),
-      positions: reply.positions.map((p) => ({ ...p, title: back(p.title), code: back(p.code), holder: back(p.holder), specialties: p.specialties.map(back) })),
+      units: reply.units.map((u) => ({ ref: u.ref, parent: u.parent, kind: u.kind, name: back(u.name), code: back(u.code) })),
+      positions: reply.positions.map((p) => ({
+        ref: p.ref,
+        unit: p.unit,
+        reports_to: p.reports_to,
+        head: p.head,
+        title: back(p.title),
+        code: back(p.code),
+        specialties: p.specialties.map(back),
+      })),
     },
     body,
     takenOf(view.ctx),

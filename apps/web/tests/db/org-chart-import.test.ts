@@ -419,10 +419,33 @@ describe("the assistant's draft from pasted text", () => {
   const TEXT = [
     "Sahm Trading structure, prepared by Mizan Advisory.",
     "Finance department: the Finance Manager is Nawaf Al-Qasimi; the Accountant is Reem Al-Harbi (reem.h@example.test, 0551234567).",
+    "Khalid Al-Otaibi is the Driver.",
     "المدير المالي في شركة سهم للتجارة",
   ].join("\n");
 
-  it("masks every name it knows before the text leaves, puts names back only where the text had them, and never adds a position", async () => {
+  it("is offered only when the AI service runs the local model, so no text reaches a hosted model", async () => {
+    sent.length = 0;
+    for (const hosted of ["openai_compat", "something-else"]) {
+      process.env.LLM_PROVIDER = hosted;
+      try {
+        expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant, hosted).toBe(false);
+        await expect(svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, TEXT)), hosted).rejects.toThrow(REFUSED);
+      } finally {
+        delete process.env.LLM_PROVIDER;
+      }
+    }
+    expect(sent).toEqual([]);
+    // The local model (the default): offered.
+    expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant).toBe(true);
+    process.env.LLM_PROVIDER = "ollama";
+    try {
+      expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant).toBe(true);
+    } finally {
+      delete process.env.LLM_PROVIDER;
+    }
+  });
+
+  it("never handles people, still masks the names it knows as a second line, and never adds a position", async () => {
     process.env.AI_MASKING = "on";
     try {
       sent.length = 0;
@@ -433,41 +456,37 @@ describe("the assistant's draft from pasted text", () => {
         return {
           units: [{ ref: "U1", parent: "", code: "", name: `${dept} department`, kind: "department" }],
           positions: [
+            // A model that answers with people anyway: none of them is kept.
             { ref: "P1", unit: "U1", code: "", title: `${dept} Manager`, reports_to: "", head: true, holder: people[0] ?? "", specialties: [] },
             { ref: "P2", unit: "U1", code: "", title: "Accountant", reports_to: "P1", head: false, holder: people[1] ?? "", specialties: [] },
             // Not in the text: never added.
-            { ref: "P3", unit: "U1", code: "", title: "Chief Risk Officer", reports_to: "P1", head: false, holder: "", specialties: [] },
-            { ref: "P4", unit: "", code: "", title: "المدير المالي", reports_to: "", head: false, holder: "[PERSON_99]", specialties: [] },
+            { ref: "P3", unit: "U1", code: "", title: "Chief Risk Officer", reports_to: "P1", head: false, specialties: [] },
+            { ref: "P4", unit: "", code: "", title: "المدير المالي", reports_to: "", head: false, holder: "Khalid Al-Otaibi", specialties: [] },
           ],
         };
       };
       // Committed: it writes nothing but its audit record.
       const draft = await svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, TEXT), true);
 
-      // What reached the model: no name Selah knows (the client, the firm, a person with an account,
-      // a name typed into the structure, a department), no e-mail and no phone number.
+      // What reached the (local) model: no name Selah knows (the client, the firm, a person with an
+      // account, a name typed into the structure, a department), no e-mail and no phone number.
       expect(sent).toHaveLength(1);
       for (const name of ["Sahm", "سهم", "Mizan", "Nawaf", "Qasimi", "Reem", "Harbi", "reem.h@example.test", "0551234567", "Finance"]) expect(sent[0]).not.toContain(name);
       expect(sent[0]).toContain("المدير المالي");
 
-      // The names came back where they were; the position the text never named was left out and listed.
+      // Titles came back unmasked; no person did; the position the text never named was left out and listed.
       const byTitle = Object.fromEntries(draft.rows.filter((r) => r.values.positionCode).map((r) => [r.values.titleEn ?? r.values.titleAr, r.values]));
       expect(Object.keys(byTitle).sort()).toEqual(["Accountant", "Finance Manager", "المدير المالي"].sort());
-      expect(byTitle["Finance Manager"]).toMatchObject({ holder: "Nawaf Al-Qasimi", head: "yes" });
-      expect(byTitle["Accountant"]).toMatchObject({ holder: "Reem Al-Harbi", reportsTo: byTitle["Finance Manager"]!.positionCode });
-      expect(byTitle["المدير المالي"]!.holder).toBeUndefined();
+      expect(byTitle["Finance Manager"]).toMatchObject({ head: "yes" });
+      expect(byTitle["Accountant"]).toMatchObject({ reportsTo: byTitle["Finance Manager"]!.positionCode });
+      expect(draft.rows.filter((r) => r.values.holder)).toEqual([]);
+      expect(JSON.stringify(draft.rows)).not.toMatch(/Nawaf|Reem|Khalid/);
       expect(byTitle["المدير المالي"]!.unitCode).toBeUndefined();
       expect(draft.rows.find((r) => r.values.unitNameEn)!.values.unitNameEn).toBe("Finance department");
-      expect(draft.dropped).toEqual(
-        expect.arrayContaining([
-          { kind: "position", text: "Chief Risk Officer" },
-          { kind: "holder", text: "[PERSON_99]" },
-        ]),
-      );
-      expect(JSON.stringify(draft.rows)).not.toContain("Chief Risk Officer");
+      expect(draft.dropped).toEqual([{ kind: "position", text: "Chief Risk Officer" }]);
       // The audit record says what happened, never the text.
       const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'org_chart.import_draft'`)).rows;
-      expect(entry.meta).toMatchObject({ dropped: 2, model: "fake" });
+      expect(entry.meta).toMatchObject({ dropped: 1, model: "fake" });
       expect(entry.meta.masked).toBeGreaterThan(4);
       expect(JSON.stringify(entry.meta)).not.toMatch(/Nawaf|Accountant/);
 

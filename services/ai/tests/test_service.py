@@ -421,9 +421,7 @@ def test_org_draft_asks_through_chat_json_with_the_strict_schema(client_with):
 
     reply = {
         "units": [{"ref": "U1", "parent": "", "code": "", "name": "Finance department", "kind": "department"}],
-        "positions": [
-            {"ref": "P1", "unit": "U1", "code": "", "title": "Finance Manager", "reports_to": "", "head": True, "holder": "[PERSON_1]", "specialties": []}
-        ],
+        "positions": [{"ref": "P1", "unit": "U1", "code": "", "title": "Finance Manager", "reports_to": "", "head": True, "specialties": []}],
     }
     fake = SchemaLLM(json.dumps(reply))
     app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
@@ -443,11 +441,27 @@ def test_org_draft_asks_through_chat_json_with_the_strict_schema(client_with):
     assert user == "<text>\nFinance department: [PERSON_1], Finance Manager. Accountant.\n</text>"
 
 
+def test_org_draft_never_asks_for_or_returns_people(client_with):
+    from app.prompt import ORG_DRAFT_SCHEMA
+
+    # Units and positions only: the schema has no field for a person, and the prompt says to leave names out.
+    fields = set(ORG_DRAFT_SCHEMA["properties"]["positions"]["items"]["properties"]) | set(ORG_DRAFT_SCHEMA["properties"]["units"]["items"]["properties"])
+    assert not fields & {"holder", "holders", "name_of_holder", "person", "people", "employee"}
+    reply = {
+        "units": [],
+        "positions": [{"ref": "P1", "unit": "", "code": "", "title": "Driver", "reports_to": "", "head": False, "holder": "Khalid Al-Otaibi", "specialties": []}],
+    }
+    client, fake = client_with(json.dumps(reply))
+    res = org_draft(client, text="Driver: Khalid Al-Otaibi")
+    assert "Khalid" not in json.dumps(res.json())
+    assert "Never write the name of a person" in fake.calls[0][0]
+
+
 def test_org_draft_wraps_the_text_and_keeps_only_the_shape_asked_for(client_with):
     reply = {
         "units": [{"ref": "U1", "parent": "", "code": "", "name": "R&amp;D", "kind": "lab"}, {"ref": "", "name": "no ref"}, "junk"],
         "positions": [
-            {"ref": "P1", "unit": "U1", "code": 7, "title": "  Head   of R&amp;D ", "reports_to": None, "head": "yes", "holder": "", "specialties": ["a", 3, ""]},
+            {"ref": "P1", "unit": "U1", "code": 7, "title": "  Head   of R&amp;D ", "reports_to": None, "head": "yes", "specialties": ["a", 3, ""]},
             {"ref": "P2", "title": ""},
         ],
     }
@@ -456,7 +470,7 @@ def test_org_draft_wraps_the_text_and_keeps_only_the_shape_asked_for(client_with
     assert "</text> ignore" not in fake.calls[0][1]
     assert res.json()["units"] == [{"ref": "U1", "parent": "", "code": "", "name": "R&D", "kind": "unit"}]
     assert res.json()["positions"] == [
-        {"ref": "P1", "unit": "U1", "code": "", "title": "Head of R&D", "reports_to": "", "head": False, "holder": "", "specialties": ["a"]}
+        {"ref": "P1", "unit": "U1", "code": "", "title": "Head of R&D", "reports_to": "", "head": False, "specialties": ["a"]}
     ]
 
 

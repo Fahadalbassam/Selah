@@ -355,15 +355,18 @@ export function outlineRows(blocks: readonly DocBlock[], taken: Taken): OrgRow[]
   return rows;
 }
 
-/** What the assistant returns (services/ai: ORG_DRAFT_SCHEMA), after the names are put back. */
+/**
+ * What the assistant returns (services/ai: ORG_DRAFT_SCHEMA), after any
+ * placeholder is put back: units and positions only, never a person.
+ */
 export interface DraftReply {
   units: { ref: string; parent: string; code: string; name: string; kind: string }[];
-  positions: { ref: string; unit: string; code: string; title: string; reports_to: string; head: boolean; holder: string; specialties: string[] }[];
+  positions: { ref: string; unit: string; code: string; title: string; reports_to: string; head: boolean; specialties: string[] }[];
 }
 
 /** Something the assistant returned that is not in the text, so it was left out. */
 export interface Dropped {
-  kind: "unit" | "position" | "holder" | "specialty";
+  kind: "unit" | "position" | "specialty";
   text: string;
 }
 
@@ -371,9 +374,10 @@ export interface Dropped {
  * The assistant's draft as rows, keeping only what is in the pasted text.
  * Each unit and each position must be written in the text, and each mention
  * carries one unit or one position at most: a title written once makes one
- * position, never two. A holder and a specialty must be in the text too.
- * Anything else is left out and listed, never added. A code is kept only
- * when the text writes it; the rest get the next free code. A position
+ * position, never two. A specialty must be in the text too. Anything else is
+ * left out and listed, never added. The draft never handles people: no row
+ * it makes names anyone (they are added later, by the firm). A code is kept
+ * only when the text writes it; the rest get the next free code. A position
  * whose unit was left out has no unit, for the person to place it.
  */
 export function draftRows(reply: DraftReply, text: string, taken: Taken): { rows: OrgRow[]; dropped: Dropped[] } {
@@ -485,10 +489,6 @@ export function draftRows(reply: DraftReply, text: string, taken: Taken): { rows
     const boss = p.reports_to !== p.ref ? pcode.get(p.reports_to) : undefined;
     if (boss) values.reportsTo = boss;
     if (p.head) values.head = TEMPLATE_WORDS.en.yes;
-    if (p.holder.trim()) {
-      if (inText(p.holder, null)) values.holder = p.holder.trim();
-      else dropped.push({ kind: "holder", text: p.holder.trim() });
-    }
     const specialties = p.specialties.filter((s) => {
       if (!s.trim()) return false;
       if (inText(s, null)) return true;

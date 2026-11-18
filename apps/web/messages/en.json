@@ -3058,7 +3058,7 @@
       "upload": "Upload and check",
       "reading": "Scanning and reading…",
       "wordHint": "Headings 1, 2 and 3 become units at levels 1, 2 and 3, each under the heading above it. Bulleted or numbered lines under a heading become positions in that unit. Other paragraphs are left out.",
-      "textHint": "Paste a job list, an outline or text copied from a slide, and let the assistant draft the rows. It only arranges what is in your text and never adds a position. Names are hidden from the model before the text leaves Selah.",
+      "textHint": "Paste a job list, an outline or text copied from a slide, and let the assistant draft the units and positions. Write titles only and leave people's names out: names are added later. The assistant only arranges what is in your text, never adds a position, and runs on Selah's own server.",
       "textLabel": "Text to draft from",
       "textCount": "{n} of {max} characters",
       "draft": "Draft from text",
@@ -3146,7 +3146,6 @@
     "drop": {
       "unit": "Unit",
       "position": "Position",
-      "holder": "Name",
       "specialty": "Specialty"
     },
     "issues": {

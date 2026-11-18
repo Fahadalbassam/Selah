@@ -454,7 +454,7 @@ describe("the round trip: the template exports a structure and imports it back t
   });
 });
 
-describe("the assistant's draft never adds a position", () => {
+describe("the assistant's draft never adds a position, and never handles people", () => {
   const text = [
     "Finance department: the Finance Manager (Nawaf Al-Qasimi) leads it and handles budgets.",
     "An Accountant reports to the Finance Manager.",
@@ -467,13 +467,14 @@ describe("the assistant's draft never adds a position", () => {
       { ref: "U3", parent: "", code: "", name: "الموارد البشرية", kind: "department" },
     ],
     positions: [
-      { ref: "P1", unit: "U1", code: "", title: "Finance Manager", reports_to: "", head: true, holder: "Nawaf Al-Qasimi", specialties: ["budgets", "payroll"] },
-      { ref: "P2", unit: "U1", code: "", title: "Accountant", reports_to: "P1", head: false, holder: "", specialties: [] },
-      { ref: "P3", unit: "U1", code: "", title: "Accountant", reports_to: "P1", head: false, holder: "", specialties: [] },
-      { ref: "P4", unit: "U2", code: "", title: "Procurement Officer", reports_to: "", head: false, holder: "", specialties: [] },
-      { ref: "P5", unit: "U1", code: "", title: "Finance Manager", reports_to: "", head: false, holder: "Someone Invented", specialties: [] },
-      { ref: "P6", unit: "U3", code: "", title: "مدير الموارد البشرية", reports_to: "", head: true, holder: "", specialties: [] },
-      { ref: "P7", unit: "U3", code: "", title: "الأخصائي", reports_to: "P6", head: false, holder: "", specialties: [] },
+      // A model that writes a person anyway: the draft never takes it.
+      { ref: "P1", unit: "U1", code: "", title: "Finance Manager", reports_to: "", head: true, specialties: ["budgets", "payroll"], ...({ holder: "Nawaf Al-Qasimi" } as object) },
+      { ref: "P2", unit: "U1", code: "", title: "Accountant", reports_to: "P1", head: false, specialties: [] },
+      { ref: "P3", unit: "U1", code: "", title: "Accountant", reports_to: "P1", head: false, specialties: [] },
+      { ref: "P4", unit: "U2", code: "", title: "Procurement Officer", reports_to: "", head: false, specialties: [] },
+      { ref: "P5", unit: "U1", code: "", title: "Finance Manager", reports_to: "", head: false, specialties: [] },
+      { ref: "P6", unit: "U3", code: "", title: "مدير الموارد البشرية", reports_to: "", head: true, specialties: [] },
+      { ref: "P7", unit: "U3", code: "", title: "الأخصائي", reports_to: "P6", head: false, specialties: [] },
     ],
   };
 
@@ -485,17 +486,16 @@ describe("the assistant's draft never adds a position", () => {
         { kind: "position", text: "Accountant" },
         { kind: "position", text: "Procurement Officer" },
         { kind: "specialty", text: "payroll" },
-        { kind: "holder", text: "Someone Invented" },
       ]),
     );
-    expect(dropped).toHaveLength(5);
+    expect(dropped).toHaveLength(4);
     const titles = rows.map((r) => r.values.titleEn ?? r.values.titleAr).filter(Boolean);
     // "Finance Manager" is written twice in the text, "Accountant" once; the Arabic one after "و".
     expect(titles.sort()).toEqual(["Accountant", "Finance Manager", "Finance Manager", "الأخصائي", "مدير الموارد البشرية"].sort());
     const c = checkOrgImport(rows, ctx(), "add");
     expect(c.rows.flatMap((r) => r.errors)).toEqual([]);
-    const fm = c.plan.positions.find((p) => p.holders.length)!;
-    expect(fm).toMatchObject({ titleEn: "Finance Manager", isHead: true, holders: [{ name: "Nawaf Al-Qasimi" }], specialties: ["budgets"] });
+    const fm = c.plan.positions.find((p) => p.isHead && p.titleEn === "Finance Manager")!;
+    expect(fm).toMatchObject({ specialties: ["budgets"] });
     expect(c.plan.positions.find((p) => p.titleEn === "Accountant")!.reportsTo).toBe(fm.code);
     expect(c.plan.units.map((u) => [u.nameEn ?? u.nameAr, u.kind])).toEqual([
       ["Finance department", "department"],
@@ -503,8 +503,14 @@ describe("the assistant's draft never adds a position", () => {
     ]);
   });
 
+  it("never takes a person's name from the model, even one written in the text", () => {
+    const { rows } = draftRows(reply, text, { units: new Set(), positions: new Set() });
+    expect(rows.filter((r) => r.values.holder || r.values.vacant)).toEqual([]);
+    expect(JSON.stringify(rows)).not.toContain("Nawaf");
+  });
+
   it("puts a position whose unit is not in the text in no unit, for a person to place", () => {
-    const { rows } = draftRows({ units: [{ ref: "U9", parent: "", code: "", name: "Invented unit", kind: "unit" }], positions: [{ ref: "P1", unit: "U9", code: "", title: "Accountant", reports_to: "", head: false, holder: "", specialties: [] }] }, text, {
+    const { rows } = draftRows({ units: [{ ref: "U9", parent: "", code: "", name: "Invented unit", kind: "unit" }], positions: [{ ref: "P1", unit: "U9", code: "", title: "Accountant", reports_to: "", head: false, specialties: [] }] }, text, {
       units: new Set(),
       positions: new Set(),
     });
