@@ -14,7 +14,7 @@ import { answer, answerStream, embed, type Answer, type HistoryTurn, type Passag
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
 import { indicatorSnapshot } from "./indicators";
-import { projectsMasker } from "./masking";
+import { textMasker } from "./masking";
 import { listProjects } from "./queries";
 
 const TOP_K = 8;
@@ -226,12 +226,17 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
     ...kept.map((r) => toSource(r, r.type)),
   ];
   // A hosted model gets placeholders for known names, never the names (docs/assistant.md).
-  // Across projects, the source labels name clients, so they are masked too.
-  const masker = await projectsMasker(tx, ids);
-  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
-  const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
+  // Across projects, the source labels name clients, so they are masked too. The masking is
+  // built from every name of the projects written in what is sent (app_mask_terms_in), as
+  // for translation, never from the list of names the asker may read: a name she may not
+  // read but wrote, or that a passage holds (a typed holder of the client's structure),
+  // is masked all the same, for every asker.
   const history = chat ? await recentTurns(tx, chat.id) : [];
   const question = input.question;
+  const outgoing = [question, ...sources.flatMap((s) => [s.text, s.source]), ...history.map((h) => h.content)].join("\n");
+  const masker = await textMasker(tx, ids, outgoing);
+  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
+  const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
   // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
   const maskedQuestion = subject.length ? `${masker.mask(question).slice(0, 1960)}\n(This chat is about passage P1.)` : masker.mask(question);
 

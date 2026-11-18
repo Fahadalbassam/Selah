@@ -32,6 +32,12 @@ export interface Principal {
    * on the client's team reads (decision D4).
    */
   workingClientIds?: ReadonlySet<string>;
+  /**
+   * Consultants only: the clients they lead or deputise for, or are staffed on any project of
+   * (observing or not, open or closed), while still on the client's team. They read the client's
+   * organisation structure (org chart, migration 0091; the database: app_org_chart_firm_reader()).
+   */
+  staffedClientIds?: ReadonlySet<string>;
   /** Client users only: the departments they belong to (their team). */
   departmentIds: ReadonlySet<string>;
   /** Client users only: their client is archived and in its grace period, so they can only read. */
@@ -76,9 +82,12 @@ export type ResourceType =
   | "meeting"
   | "department"
   | "indicator"
+  | "org_chart"
+  | "org_chart_request"
   | "assessment_template"
   | "assessment"
   | "engagement"
+  | "deliverable"
   | "support_request";
 
 /**
@@ -120,8 +129,16 @@ export interface Resource {
   /**
    * An action (or a record under one) that is still the firm's draft. Nobody at
    * the client reads it until the firm releases it (decision D6; migration 0076).
+   * Also the firm's draft of a client's organisation structure, which nobody at
+   * the client reads until it is published (migration 0091).
    */
   draft?: boolean;
+  /**
+   * An engagement's records (a deliverable): the engagement's projects that are
+   * not closed. The "engagement" scope admits a consultant staffed (not as an
+   * observer) on one of them, or the client's lead or deputy (F21).
+   */
+  relatedProjectIds?: readonly string[];
   /**
    * Who sees the item, when it was narrowed with the picker (documents but
    * evidence, and meetings; decision of 17 Nov 2026, feature A). Loaded from

@@ -23,12 +23,20 @@ export const CLIENT_FROZEN_TABLES = [
   "client_kpi_values",
   "client_kpis",
   "client_profiles",
+  // A deliverable's hand-overs and receipts (F21, 0092).
+  "deliverable_handovers",
   "departments",
   "engagements",
   "indicator_feeds",
   "indicator_imports",
   "invitations",
   "join_requests",
+  "org_chart_change_requests",
+  "org_chart_versions",
+  "org_charts",
+  "org_units",
+  "position_holders",
+  "positions",
   "projects",
 ] as const;
 

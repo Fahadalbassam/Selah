@@ -7,7 +7,9 @@
 // "follow_up.overdue.2", ...). Information requests still waiting on the
 // client are reminded the same way (app_info_requests_due(),
 // info_request_reminders): one notification per person, project and kind
-// ("info_request.overdue"), however many items.
+// ("info_request.overdue"), however many items. A deliverable handed over
+// and still waiting after ten working days reminds its receivers once
+// ("deliverable.reminder"); the count of those rounds is added to `sent`.
 //
 // Then app_queue_digests() (migration 0019) queues the summary mail, which
 // only says there is something new and links to the notifications page:
@@ -51,6 +53,9 @@ export async function runFollowUps(db: Queryable, today: string): Promise<{ sent
      SELECT (SELECT count(*) FROM sent) + (SELECT count(*) FROM ir_sent) AS sent`,
     [today],
   );
+  // A deliverable handed over and still waiting after ten Saudi working days
+  // reminds its receivers once (F21, app_remind_deliverables), in the same summary.
+  const deliverables = await db.query(`SELECT app_remind_deliverables($1::date) AS n`, [today]);
   const mailed = await db.query(`SELECT app_queue_digests($1::date) AS mailed`, [today]);
-  return { sent: Number(rows[0]!.sent), mailed: Number(mailed.rows[0]!.mailed) };
+  return { sent: Number(rows[0]!.sent) + Number(deliverables.rows[0]!.n), mailed: Number(mailed.rows[0]!.mailed) };
 }

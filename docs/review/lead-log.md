@@ -208,3 +208,63 @@ Recorded before anything else, as he asked. The current order stays; these are a
 | g | **Review the open Dependabot pull requests** (Fahad counts 18): merge the safe ones when green, close the ones the Next.js update (#158) already covers, and list any that need him | |
 
 Items d, e and f were already parked for Gate B as known gaps; they are now confirmed as work to do, in this slot.
+
+## 18 Nov 2026
+
+**Batch 0 is closed.** Merged after green checks and a review with nothing blocking: #159 (log), #160 (drafts hidden from clients, D6), #161 (the remaining screen bugs), #162 (the picker, part 1: screens only), #163 (the dated picomatch exception Fahad approved), #164 (his plan additions), #165 (agenda option C, action owners see only their own actions, indicator links firm-only). The picomatch advisory still has no fixed version today (latest 4.0.7); checked again, exception unchanged.
+
+**Decisions I made inside Fahad's answers** (also in `work/build-brief.md`, so every builder follows them):
+
+- "May see everything on the project" is one stable rule: firm staff on the project, the client admin, and a manager when departments are off or when they are in every active department.
+- An action owner invited to a meeting sees its summary, decisions, shared notes, attendees and their own follow-ups only.
+- When a department head cannot open an action, an escalation goes to the client admins instead.
+- The translation step's masking (`app_mask_terms_in`) returns only names that appear in the text it is given.
+- Org chart: a manager sees holder names only on the current published version, as of today, in their own branch, while "show names" is on; never holding dates. "Your manager" is shown to anyone whose position is in the chart, and respects "show names".
+- Indicator notice: it judges only periods that have ended; a notice that a correction fixed is hidden; the client sees "Your company's reported figures, not verified impact".
+
+**Features (all before batch 1):**
+
+| Feature | Branch | State |
+|---|---|---|
+| Who sees an item, part 2 (the picker enforced: files, meetings, mail, search, exports, assistant) | `feature/audience-picker` | Built (9 commits; lint, types, 578 unit and 971 database tests pass). Independent review running (`work/audience-picker-review.md`). Two points I asked it to judge: a change that lets the client's deputy appear in the picker even when not staffed on the project (it should match the existing rule, not widen it), and whether mail still queued for someone just left out should be cancelled rather than deleted. |
+| Org chart, part 1 (tables, rules, services; no screens) | `feature/org-chart-data` | Built; review (`work/org-chart-data-review.md`) found one blocking fault (a rewritten check had broken pitches) and nine others. All ten fixed, one commit each (979 database tests pass). Independent re-check running (`work/org-chart-data-recheck.md`). |
+| 4b, indicator moved away | `feature/indicator-moved-away` | Built; review (`work/indicator-moved-away-review.md`) asked for changes (judge only ended periods, hide corrected notices, more tests, wording). Builder fixing. |
+| 4a, deliverable handed over and received | `feature/deliverable-receipt` | Builder running. |
+
+One open point carried to org chart part 3: a holder can be ended but not removed, so once anyone is named, switching a client to minimal records stays refused until a removal path exists.
+
+### 18 Nov, later
+
+**Merged** (CI green, low code review with no findings): #167 indicator moved away (4b, migration 0090), #168 org chart part 1 (data, rules and services, migration 0091). #166 (this log).
+
+**A failure of mine.** I restarted my own copy with a clean slate (`walkthrough --fresh`) to re-check screens. Its database server also holds the helpers' test databases, so the restart deleted them mid-run (test data only; Fahad's copy untouched). I recreated all of them and `selah_check`, told every helper, and each re-ran its tests. Rule from now on (also in my notes): never reset my copy while a helper is working.
+
+**Decisions I made inside the reviews** (none widens access; each avoids deleting data):
+
+- Picker, mail to someone just left out: never deleted; marked `withdrawn_at` and kept, and the mail job checks the recipient again just before sending.
+- Picker, an "only these people" list: whoever saves it is written onto it, so a later save by someone else cannot shut them out.
+- Picker, leaving out someone already on a meeting (required, with a follow-up, and also optional): refused; the organiser takes them off the meeting first.
+- Org chart, the assistant's masking: built from every name written in what is sent (as translation does), whoever asks; the per-person list stays for what a person may read.
+- Deliverable hand-over: only files already shared with the client can be handed over (handing over never shares a file); closing a project warns about waiting rounds, and an unanswered round then reads "No answer before the project closed"; hand-over only by the client's lead or deputy or consultants staffed on the engagement's projects, and the dialog names who will be asked.
+
+**Screen re-check of batch 0**: done, nothing blocking; see `page-audit.md` section 8 (faults go into one small pull request; three questions kept for Gate B).
+
+**Stops.** The org chart and picker builders stopped once at the five-hour usage limit and were resumed from saved work.
+
+## Plan additions from Fahad (18 Nov 2026, evening)
+
+Recorded first, as he asked (also in `work/build-brief.md`, "Plan additions from Fahad (18 Nov 2026)"). Nothing running stops for them.
+
+| # | Addition | Where it goes |
+|---|---|---|
+| 1 | **Org chart: a person's work card.** Clicking a person on the chart opens a small card: their open tasks, anything late, their recent uploads, each linking to the item; only what the viewer may already see; the work, never a score or ranking of the person. | Inside org chart part 3 (the editor, holders and vacancies), not a new feature. Part 2 is already built and in review. |
+| 2 | **"Selah map", the very last step, after Gate C.** One interactive HTML file, Arabic and English: the handbook, the workflows, the production path and a full skeleton of Selah (one diagram of every feature and operation and how they connect; clicking a feature shows what it does, who uses it, its main files and folders, its database tables, and the connected features and files to check when it changes). Features grouped into sections a teammate can own. Built from the real code, with a test or script that flags a new feature folder missing from the map. Then the three team documents are updated to match the finished app. | After Gate C. |
+| 3 | **The map also holds** every screen (purpose, who uses it, its one main action, a screenshot in both languages), the exact tooltip and first-visit help text beside each page, and all 21 scenarios as steps linked to their screens, with the result and anything that failed. | Same final step; it draws on phase 2 and phase 4. |
+
+**Confirmed still in the plan** (Fahad asked):
+
+- **Tooltips and first-visit help**: phase 2, big prompt section 6.1, after batches 1 to 5 and before phase 3 / Gate B. Tooltips only where a label does not say what happens, one short sentence, keyboard and right to left, Arabic written first; empty states that say what will appear; first-visit hints per role through the existing two-week welcome on the home page, not a tour that blocks the screen.
+- **The handbook**: phase 2, section 6.2 (firm guide, client guide, "what Selah will not do", the technical pack), checked by an independent helper following the client guide step by step.
+- **Scenarios 1 to 21**: phase 4, section 9, after Fahad's additions (assistant value test, docs pack, staging e2e, README fix, engagement-end reminder, lead-change notice, Dependabot) and before Gate C; scenario 19 (the isolation sweep) last.
+
+**The order now:** finish the features before batch 1 (picker, deliverable receipt, org chart parts 2 to 5 with the work card in part 3) and the re-check fixes; batches 1 to 5; phase 2 (handbook, tooltips, first-visit help); phase 3 (unfinished work, section 7) and Gate B; Fahad's additions; phase 4 (scenarios 1 to 21); Gate C; then the Selah map and the three team documents.

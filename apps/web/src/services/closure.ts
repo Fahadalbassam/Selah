@@ -15,6 +15,7 @@ import type { BlockerKind, Disposition } from "@/lib/closure";
 import { NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { sponsorOf } from "./client-roles";
+import { listDeliverables } from "./deliverables";
 import { listActions } from "./queries";
 import { loadProject } from "./staffing";
 
@@ -150,11 +151,23 @@ export async function getClosure(tx: Tx, principal: Principal, projectId: string
           .orderBy(asc(clientContacts.name))
       : [];
 
+  // Deliverables of this project handed over and still waiting for the client's
+  // answer (F21): a warning while closing, never a blocker; once the project is
+  // closed nothing more is written, and such a round reads "No answer before the
+  // project closed".
+  const waitingDeliverables =
+    firm && closing && project.kind === "client"
+      ? (await listDeliverables(tx, principal, { clientOrgId: project.orgId }))
+          .filter((d) => d.projectId === projectId && d.status === "waiting")
+          .map((d) => ({ id: d.id, title: d.title, engagementId: d.engagementId }))
+      : [];
+
   return {
     kind: project.kind,
     state,
     /** The firm's view (blockers, lessons, every decision) or the client's. */
     firm,
+    waitingDeliverables,
     current: current
       ? {
           startedAt: current.startedAt,

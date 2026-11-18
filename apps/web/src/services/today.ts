@@ -5,6 +5,9 @@ import type { Tx } from "@/db/client";
 import {
   actions,
   deadlineChangeRequests,
+  deliverableHandovers,
+  engagementDeliverables,
+  engagements,
   followUps,
   infoRequests,
   joinRequests,
@@ -80,7 +83,7 @@ export interface MeetingItem extends Item {
 }
 
 export interface DecisionItem extends Omit<Item, "projectId" | "projectTitle"> {
-  kind: "join_request" | "deadline_request" | "closure_request" | "info_request";
+  kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment";
   projectId: string | null;
   projectTitle: string | null;
   /** Who asked (join, deadline and closure requests). */
@@ -539,6 +542,48 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
       proposed: null,
       at: r.at,
     });
+  }
+  // A client's comment on a deliverable handed over (F21), for the client's lead
+  // and deputy, until the firm hands over a new version: the latest round only.
+  if (!admin && principal.leadClientIds.size) {
+    const commented = await tx
+      .select({
+        deliverableId: deliverableHandovers.deliverableId,
+        round: deliverableHandovers.round,
+        commentedAt: deliverableHandovers.commentedAt,
+        who: requester.name,
+        title: engagementDeliverables.title,
+        engagementId: engagementDeliverables.engagementId,
+        clientOrgId: engagements.clientOrgId,
+        orgName: organizations.name,
+        orgNameAr: organizations.nameAr,
+      })
+      .from(deliverableHandovers)
+      .innerJoin(engagementDeliverables, eq(engagementDeliverables.id, deliverableHandovers.deliverableId))
+      .innerJoin(engagements, eq(engagements.id, engagementDeliverables.engagementId))
+      .innerJoin(organizations, eq(organizations.id, engagements.clientOrgId))
+      .leftJoin(requester, eq(requester.id, deliverableHandovers.commentedBy))
+      .where(
+        and(
+          inArray(engagements.clientOrgId, [...principal.leadClientIds]),
+          sql`${deliverableHandovers.commentedAt} is not null`,
+          sql`not exists (select 1 from deliverable_handovers n where n.deliverable_id = ${deliverableHandovers.deliverableId} and n.round > ${deliverableHandovers.round})`,
+        ),
+      );
+    for (const c of commented) {
+      decisions.push({
+        kind: "deliverable_comment",
+        id: c.deliverableId,
+        group: { id: c.clientOrgId, internal: false, name: c.orgName, nameAr: c.orgNameAr },
+        projectId: null,
+        projectTitle: null,
+        title: c.title,
+        href: `/engagements/${c.engagementId}`,
+        who: c.who,
+        proposed: null,
+        at: c.commentedAt!,
+      });
+    }
   }
   decisions.sort((a, b) => a.at.getTime() - b.at.getTime());
 

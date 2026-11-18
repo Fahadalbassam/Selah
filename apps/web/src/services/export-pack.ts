@@ -19,12 +19,15 @@ import {
 import { assertAllowed, authorize, type Principal } from "@/authz";
 import type { Locale } from "@/i18n/config";
 import { csvCell } from "@/lib/audit";
+import { firmToday } from "@/lib/dates";
+import { dayText, filesText, receiptText, roundStatus } from "@/lib/deliverables";
 import { localName } from "@/lib/names";
 import { PACK_LABELS, PACK_MAX_BYTES, packPath } from "@/lib/offboarding";
 import { createAttemptLimiter } from "@/auth/attempts";
 import { ConflictError, NotFoundError, RateLimitError } from "@/server/errors";
 import { audit } from "./audit";
 import { audiencesForMe } from "./audience";
+import { listDeliverables } from "./deliverables";
 import { downloadable } from "./scan";
 import { getObject, putObject, signedDownloadUrl, DOWNLOAD_TTL_SECONDS } from "./storage";
 
@@ -294,6 +297,32 @@ export async function makeExportPack(tx: Tx, principal: Principal, orgId: string
     csv([
       [t("csv.project"), t("csv.file"), t("csv.version"), t("csv.label"), t("csv.uploadedBy"), t("csv.uploaded"), t("csv.bytes"), t("csv.sha256"), t("csv.path")],
       ...fileLines,
+    ]),
+  );
+  // What the firm handed over and the client's receipt (F21): one line per round, every round kept,
+  // and a line for a deliverable never handed over. Read under the maker's rights. Receipt, not acceptance.
+  const handed = await listDeliverables(tx, principal, { clientOrgId: orgId });
+  const tr = (key: string, values?: Record<string, string | number>) => ts(`deliverables.text.${key}` as "deliverables.text.file", values as never);
+  const packDay = dayText(locale);
+  put(
+    "deliverables.csv",
+    csv([
+      [t("csv.engagement"), t("csv.deliverable"), t("csv.round"), t("csv.files"), t("csv.handedOver"), t("csv.handedOverBy"), t("csv.receiptStatus"), t("csv.receipt")],
+      ...handed.flatMap((d) =>
+        d.rounds.length
+          ? d.rounds.map((r) => [
+              d.engagementTitle,
+              d.title,
+              r.round,
+              filesText(r, tr),
+              // The firm's day, not the UTC one (review S7).
+              firmToday(r.deliveredAt),
+              r.deliveredBy,
+              ts(`deliverables.status.${roundStatus(r, r.round === d.latestRound, d.closed)}` as "deliverables.status.waiting"),
+              roundStatus(r, r.round === d.latestRound, d.closed) === "replaced" ? null : receiptText(r, tr, packDay, d.closed),
+            ])
+          : [[d.engagementTitle, d.title, null, null, null, null, ts("deliverables.status.not_handed_over"), null]],
+      ),
     ]),
   );
 

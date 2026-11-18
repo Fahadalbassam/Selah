@@ -1507,6 +1507,30 @@ export const clientKpiLinks = pgTable(
   (t) => [primaryKey({ columns: [t.kpiId, t.recommendationId] }), index("client_kpi_links_rec_idx").on(t.recommendationId)],
 );
 
+// One row per indicator and period whose latest value was on the other side
+// of the baseline from the client's chosen direction, or short of the target
+// after its date: the people told were told once for that period
+// (indicator.moved_away, migration 0090). Written only by the database; the
+// app has no grant on it.
+export const kpiMovedAwayLog = pgTable(
+  "kpi_moved_away_log",
+  {
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
+    period: date("period").notNull(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // The value that was saved when the notice went out.
+    valueId: uuid("value_id")
+      .notNull()
+      .references(() => clientKpiValues.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.kpiId, t.period] })],
+);
+
 // How a client's indicator figures reach Selah (2026-10-30): the client's own
 // choice of how much it shares. typed: no data leaves its systems, someone
 // types each period's figure; files: it uploads exports (Excel, CSV) and a
@@ -1967,6 +1991,66 @@ export const engagementDeliverables = pgTable(
   (t) => [index("engagement_deliverables_engagement_idx").on(t.engagementId)],
 );
 
+// A deliverable handed over to the client, one row per round (F21, minimal;
+// migration 0092_deliverable_receipts). The firm hands over the exact file
+// versions (documents ids, kept as they were: a later version is a new round);
+// the client's receiver confirms receipt or comments, once per round. For a
+// client the firm runs, the consultant records who at the client received it,
+// how and on which day. "Received" is receipt only, never acceptance.
+export const deliverableHandovers = pgTable(
+  "deliverable_handovers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deliverableId: uuid("deliverable_id")
+      .notNull()
+      .references(() => engagementDeliverables.id, { onDelete: "cascade" }),
+    // The client, for the row rules and the archive freeze; the database sets it.
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    round: integer("round").notNull(),
+    versionIds: uuid("version_ids").array().notNull(),
+    deliveredBy: uuid("delivered_by")
+      .notNull()
+      .references(() => user.id),
+    deliveredAt: ts("delivered_at").notNull().defaultNow(),
+    // Who confirmed in Selah, or the consultant who recorded it for a client the firm runs.
+    receivedBy: uuid("received_by").references(() => user.id),
+    receivedAt: ts("received_at"),
+    receiptSource: recordSource("receipt_source"),
+    // Recorded by the firm only: who at the client received it, how and on which day.
+    receivedByName: text("received_by_name"),
+    receivedVia: receivedVia("received_via"),
+    receivedOn: date("received_on"),
+    comment: text("comment"),
+    commentedBy: uuid("commented_by").references(() => user.id),
+    commentedAt: ts("commented_at"),
+    // The one reminder after ten working days (app_remind_deliverables).
+    remindedAt: ts("reminded_at"),
+  },
+  (t) => [
+    uniqueIndex("deliverable_handovers_round").on(t.deliverableId, t.round),
+    index("deliverable_handovers_org_idx").on(t.orgId),
+    check("deliverable_handover_round", sql`${t.round} >= 1`),
+    check("deliverable_handover_versions", sql`cardinality(${t.versionIds}) BETWEEN 1 AND 20`),
+    check(
+      "deliverable_handover_receipt",
+      sql`(${t.receivedAt} IS NULL AND ${t.receivedBy} IS NULL AND ${t.receiptSource} IS NULL AND ${t.receivedByName} IS NULL AND ${t.receivedVia} IS NULL AND ${t.receivedOn} IS NULL)
+        OR (${t.receivedAt} IS NOT NULL AND ${t.receivedBy} IS NOT NULL AND ${t.receiptSource} = 'client_portal'
+            AND ${t.receivedByName} IS NULL AND ${t.receivedVia} IS NULL AND ${t.receivedOn} IS NULL)
+        OR (${t.receivedAt} IS NOT NULL AND ${t.receivedBy} IS NOT NULL AND ${t.receiptSource} = 'consultant_recorded'
+            AND char_length(btrim(${t.receivedByName})) BETWEEN 2 AND 200 AND ${t.receivedVia} IS NOT NULL AND ${t.receivedOn} IS NOT NULL)`,
+    ),
+    check(
+      "deliverable_handover_comment",
+      sql`(${t.comment} IS NULL AND ${t.commentedBy} IS NULL AND ${t.commentedAt} IS NULL)
+        OR (char_length(btrim(${t.comment})) BETWEEN 3 AND 2000 AND ${t.commentedBy} IS NOT NULL AND ${t.commentedAt} IS NOT NULL)`,
+    ),
+    // A round is answered once: received, or commented on.
+    check("deliverable_handover_one_answer", sql`${t.receivedAt} IS NULL OR ${t.commentedAt} IS NULL`),
+  ],
+);
+
 // ------------------------------------------------- consultant expertise
 
 // What a consultant can lead, as the firm admin records it. Used only to
@@ -2139,6 +2223,22 @@ export const mailMutes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.actionId] })],
+);
+
+// Mail about one business indicator (indicator.moved_away) switched off by
+// one person, beside the action mutes. The in-app notices still come.
+export const mailKpiMutes = pgTable(
+  "mail_kpi_mutes",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kpiId: uuid("kpi_id")
+      .notNull()
+      .references(() => clientKpis.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kpiId] })],
 );
 
 // ------------------------------------------------------------------- AI

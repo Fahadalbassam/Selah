@@ -19,6 +19,8 @@ export interface ClosureHtmlInput {
   items: { title: string; recommendation: string; status: string; disposition: string; sustainer: string | null; note: string | null }[];
   /** The client's business indicators (KPI layer B), with the note that they are the client's own figures. */
   indicators?: { table: IndicatorTable; claim: string } | null;
+  /** The engagement's deliverables for this project, with their receipt (F21); left out when the reader may see none. */
+  deliverables?: { title: string; status: string; files: string; receipt: string }[];
   /** Strings under messages "closurePdf". */
   t: (key: string, values?: Record<string, string | number>) => string;
 }
@@ -92,6 +94,24 @@ td{padding:2mm;border-bottom:1px solid #e4e4e4;vertical-align:top;}
       : `<p class="muted">${e(t("noOpen"))}</p>`
   }
 </section>
+${
+  input.deliverables?.length
+    ? `<section>
+  <h2>${e(t("deliverablesTitle"))}</h2>
+  <p class="muted small">${e(t("deliverablesNote"))}</p>
+  <table><thead><tr><th>${e(t("colDeliverable"))}</th><th>${e(t("colStatus"))}</th><th>${e(t("colFiles"))}</th><th>${e(t("colReceipt"))}</th></tr></thead><tbody>${input.deliverables
+    .map(
+      (d) => `<tr>
+      <td dir="auto">${e(d.title)}</td>
+      <td>${e(d.status)}</td>
+      <td class="small" dir="auto">${e(d.files)}</td>
+      <td class="small" dir="auto">${e(d.receipt)}</td>
+    </tr>`,
+    )
+    .join("")}</tbody></table>
+</section>`
+    : ""
+}
 ${indicatorSection(input.indicators?.table, input.indicators?.claim ?? "")}
 <p class="claim">${e(t("claimNote"))}</p>
 </body>
