@@ -694,12 +694,14 @@ describe("the server refuses", () => {
 
   it("a client's admin leaving out the firm's people", async () => {
     await expect(set(U.ncadmin, DOC.client, "except", [U.cons])).rejects.toThrow(/your company/);
-    await expect(set(U.ncadmin, DOC.client, "only", [U.nmgr2, U.cons])).rejects.toThrow(/your company/);
-    // On her own item with "only", the firm's people still see it.
-    await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "only", people: [U.ncadmin, U.nmgr2] }), true);
+    // On her own item with "only", the firm's people still see it; naming one on the list changes nothing and is accepted (re-check S8).
+    await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "only", people: [U.ncadmin, U.nmgr2, U.cons] }), true);
     try {
       expect(await rowsAs(U.cons, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
+      expect(await rowsAs(U.lead, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toHaveLength(1);
       expect(await rowsAs(U.nmgr, `SELECT 1 FROM documents WHERE id = $1`, [DOC.client])).toEqual([]);
+      // Nothing is stored for the firm's person: the list holds the saver (nmgr2 uploaded the file, so she is locked, not stored).
+      expect((await q(`SELECT user_id FROM item_audience_people WHERE item_id = $1`, [DOC.client])).rows.map((r) => r.user_id)).toEqual([U.ncadmin]);
     } finally {
       await svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, DOC.client, { mode: "except", people: [U.nmgr] }), true);
     }
@@ -747,6 +749,25 @@ describe("the server refuses", () => {
     await q(`UPDATE follow_ups SET status = 'done' WHERE meeting_id = $1`, [mid]);
     await svc(U.lead, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.nmgr2] }), true);
     expect(await rowsAs(U.nmgr2, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+  });
+
+  it("on the client's own meeting, a firm consultant's follow-up does not stop its admin, and the consultant may be on her \"only\" list (re-check S8)", async () => {
+    const mid = (
+      await svc(
+        U.ncadmin,
+        (tx, p) =>
+          M.bookMeeting(tx, p, PN, { kind: "status", title: "Company session", startsAt: hour(500), endsAt: hour(501), location: "online", joinUrl: MEET, attendees: [{ userId: U.nmgr2 }] }),
+        true,
+      )
+    ).id;
+    await svc(U.lead, (tx, p) => M.addFollowUp(tx, p, mid, { title: "Send the draft", assigneeUserId: U.cons }), true);
+    // The firm always sees a client's own meeting: the consultant is never left out, so nothing is refused.
+    await svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.ncadmin, U.nmgr2] }), true);
+    await svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "only", people: [U.ncadmin, U.nmgr2, U.cons] }), true);
+    expect(await rowsAs(U.cons, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toHaveLength(1);
+    expect(await rowsAs(U.nmgr, `SELECT 1 FROM meetings WHERE id = $1`, [mid])).toEqual([]);
+    // Leaving the firm's people out of the client's own item is still refused.
+    await expect(svc(U.ncadmin, (tx, p) => M.setMeetingAudience(tx, p, mid, { mode: "except", people: [U.cons] }))).rejects.toThrow(/your company/);
   });
 
   it("a follow-up written from one of the meeting's decisions is refused for someone left out, too", async () => {
