@@ -5496,7 +5496,8 @@
       "alreadyEnded": "This holding has already ended.",
       "nothingPublished": "Nothing is published yet to start again from.",
       "draft": "People are placed on the published structure, under People in positions, never in the draft.",
-      "draftOnlyHeld": "A position only the draft has holds someone, and nobody is placed in the draft. Reload the page."
+      "draftOnlyHeld": "A position only the draft has holds someone, and nobody is placed in the draft. Reload the page.",
+      "archived": "This client is archived: its structure is read only."
     },
     "tabs": {
       "label": "Client pages",

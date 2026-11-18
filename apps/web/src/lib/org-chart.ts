@@ -108,6 +108,7 @@ export function orgChartError(message: string | undefined): string | null {
     [/a published structure never changes/, "published"],
     [/never in the draft/, "draft"],
     [/a position only the draft has holds someone/, "draftOnlyHeld"],
+    [/this client is archived/, "archived"],
     [/minimal records/, "minimal_records"],
   ];
   return rules.find(([re]) => re.test(message))?.[1] ?? null;

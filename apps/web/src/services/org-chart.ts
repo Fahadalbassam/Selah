@@ -142,6 +142,7 @@ async function clientOf(tx: Tx, clientOrgId: string) {
       kind: organizations.kind,
       minimalRecords: organizations.minimalRecords,
       departmentsEnabled: organizations.departmentsEnabled,
+      status: organizations.status,
     })
     .from(organizations)
     .where(eq(organizations.id, clientOrgId))
@@ -176,14 +177,20 @@ function namesShown(p: Principal, client: Client, version: { state: OrgChartStat
   return "none";
 }
 
-/** What the reader may do on the client's structure, for the screens. */
+/**
+ * What the reader may do on the client's structure, for the screens. An
+ * archived client's structure is read only, like its other client-level
+ * records (check_client_open() refuses every write): nothing is offered to
+ * anyone (S3 of the part 3 review).
+ */
 function abilities(p: Principal, client: Client) {
+  const open = client.status !== "archived";
   return {
-    canEditDraft: can(p, "org_chart.edit", client.id, true),
-    canPublish: can(p, "org_chart.publish", client.id, true),
-    canChangeHolders: !client.minimalRecords && can(p, "org_chart.holders", client.id),
-    canSetShowNames: can(p, "org_chart.show_names", client.id),
-    canSuggest: can(p, "org_chart_request.create", client.id),
+    canEditDraft: open && can(p, "org_chart.edit", client.id, true),
+    canPublish: open && can(p, "org_chart.publish", client.id, true),
+    canChangeHolders: open && !client.minimalRecords && can(p, "org_chart.holders", client.id),
+    canSetShowNames: open && can(p, "org_chart.show_names", client.id),
+    canSuggest: open && can(p, "org_chart_request.create", client.id),
   };
 }
 
@@ -365,7 +372,7 @@ export async function getDraft(tx: Tx, principal: Principal, clientOrgId: string
     client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
     chartId: chart?.id ?? null,
     today,
-    canStart: !chart && can(principal, "org_chart.edit", client.id, true),
+    canStart: !chart && client.status !== "archived" && can(principal, "org_chart.edit", client.id, true),
     ...abilities(principal, client),
   };
   if (!draft) return { ...base, draft: null, units: [] as OrgUnit[], positions: [] as OrgPosition[] };
@@ -448,8 +455,9 @@ export async function hasStructure(tx: Tx, principal: Principal, clientOrgId: st
   if (!UUID.test(clientOrgId) || !canReadStructure(principal, clientOrgId)) return false;
   if (principal.orgKind === "firm" && can(principal, "org_chart.edit", clientOrgId, true)) {
     // A client the firm cannot open is not there, whatever the policy says (row-level security decides).
-    const [org] = await tx.select({ kind: organizations.kind }).from(organizations).where(eq(organizations.id, clientOrgId)).limit(1);
-    if (org?.kind === "client") return true;
+    const [org] = await tx.select({ kind: organizations.kind, status: organizations.status }).from(organizations).where(eq(organizations.id, clientOrgId)).limit(1);
+    // An archived client's structure is read only: nothing to start there (S3).
+    if (org?.kind === "client" && org.status !== "archived") return true;
   }
   const firm = principal.orgKind === "firm";
   const { rows } = await tx.execute<{ ok: boolean }>(sql`

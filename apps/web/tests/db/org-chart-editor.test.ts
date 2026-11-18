@@ -799,6 +799,35 @@ describe("names on positions a later version dropped (S1)", () => {
   });
 });
 
+describe("an archived client's structure is read only (S3)", () => {
+  const ARCH = id(16);
+  const ARCH_EMPTY = id(18);
+  beforeAll(async () => {
+    await smallClient(ARCH, id(17), id(39), "Archived Co", ["Chair"]);
+    await owner.query(`INSERT INTO organizations (id, kind, name, engagement_mode, departments_enabled) VALUES ($1,'client','Archived Empty','full',false)`, [ARCH_EMPTY]);
+    await owner.query(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Archived empty project','closed',$4)`, [
+      id(19),
+      ARCH_EMPTY,
+      FIRM,
+      U.admin,
+    ]);
+    await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,true,false)`, [ARCH_EMPTY, U.lead]);
+    await owner.query(`UPDATE projects SET state = 'closed' WHERE org_id = $1`, [ARCH]);
+    await owner.query(`UPDATE organizations SET status = 'archived' WHERE id IN ($1, $2)`, [ARCH, ARCH_EMPTY]);
+  });
+
+  it("no tab to start a structure, and no editing, publishing or holder changes offered, for anyone", async () => {
+    for (const who of [U.lead, U.admin]) {
+      expect(await svc(who, (tx, p) => OC.hasStructure(tx, p, ARCH_EMPTY)), who).toBe(false);
+      const s = await svc(who, (tx, p) => OC.getStructure(tx, p, ARCH));
+      expect(s.can, who).toEqual({ canEditDraft: false, canPublish: false, canChangeHolders: false, canSetShowNames: false, canSuggest: false });
+      expect((await svc(who, (tx, p) => OC.getDraft(tx, p, ARCH))).canStart, who).toBe(false);
+    }
+    // The structure itself still reads (history is kept).
+    expect((await svc(U.lead, (tx, p) => OC.getStructure(tx, p, ARCH))).shown?.positions.map((p) => p.titleEn)).toEqual(["Chair"]);
+  });
+});
+
 describe("audit", () => {
   it("the new writes are in the audit log, with labels", async () => {
     const actions = (await owner.query(`SELECT DISTINCT action FROM audit_log WHERE action LIKE 'org_chart%' ORDER BY 1`)).rows.map((r) => r.action);
