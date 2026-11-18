@@ -344,7 +344,38 @@ describe("the outline editor", () => {
     // The reporting lines are rebuilt inside the draft.
     const analyst = again.positions.find((p) => p.titleEn === "Analyst")!;
     expect(again.positions.find((p) => p.id === analyst.reportsToId)?.titleEn).toBe("CFO");
-    expect((await owner.query(`SELECT 1 FROM audit_log WHERE action = 'org_chart.draft_reset' AND actor_id = $1`, [U.lead])).rowCount).toBe(1);
+    // The audit row says what was lost: the draft's units and positions replaced, and how many positions only the draft had (S2).
+    expect((await owner.query(`SELECT meta FROM audit_log WHERE action = 'org_chart.draft_reset' AND actor_id = $1`, [U.lead])).rows).toEqual([
+      { meta: { client: ACME, units: 5, positions: 10, draftOnlyPositions: 1 } },
+    ]);
+  });
+
+  it("a position only the draft has never holds anyone, and the database says so when it is removed (S2)", async () => {
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, ACME));
+    const hr = d.units.find((u) => u.nameEn === "Human resources")!;
+    const temp = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, hr.id, { titleEn: "Temp planner" }), true);
+    const chart = (await owner.query(`SELECT id FROM org_charts WHERE org_id = $1`, [ACME])).rows[0].id;
+    // A holding there can only be forced past the rules by the schema owner (here, to test the second lock).
+    const c = await owner.connect();
+    try {
+      await c.query(`BEGIN`);
+      await c.query(`ALTER TABLE position_holders DISABLE TRIGGER position_holder_rules`);
+      await c.query(`INSERT INTO position_holders (position_lineage_id, chart_id, org_id, name, from_date, created_by) VALUES ($1,$2,$3,'Forced Person',$4,$5)`, [
+        temp.id,
+        chart,
+        ACME,
+        PAST,
+        U.lead,
+      ]);
+      await c.query(`ALTER TABLE position_holders ENABLE TRIGGER position_holder_rules`);
+      await c.query(`COMMIT`);
+    } finally {
+      c.release();
+    }
+    // Removing the position (or starting the draft again) would delete that holding without a trace: refused.
+    await expect(svc(U.lead, (tx, p) => OC.deletePosition(tx, p, temp.id))).rejects.toThrow(/only the draft has holds/);
+    await owner.query(`DELETE FROM position_holders WHERE position_lineage_id = $1`, [temp.id]);
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, temp.id), true);
   });
 });
 

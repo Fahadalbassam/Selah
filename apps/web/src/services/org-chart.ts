@@ -1038,8 +1038,19 @@ export async function publish(
 export async function resetDraft(tx: Tx, principal: Principal, clientOrgId: string, input: { draftId: string }) {
   const { chartId, draft } = await draftOf(tx, principal, clientOrgId);
   if (!UUID.test(input.draftId ?? "")) throw new BadRequestError("draft_id");
+  // What is lost, for the audit row (S2): the draft's units and positions, and how many positions only the draft had.
+  const { rows } = await tx.execute<{ units: number; positions: number; draft_only: number }>(sql`
+    select (select count(*)::int from org_units u where u.version_id = ${draft.id}::uuid) as units,
+           (select count(*)::int from positions p where p.version_id = ${draft.id}::uuid) as positions,
+           (select count(*)::int from positions p where p.version_id = ${draft.id}::uuid and p.lineage_id = p.id) as draft_only`);
   await tx.execute(sql`select app_reset_org_chart_draft(${chartId}::uuid, ${input.draftId}::uuid)`);
-  await logEdit(tx, principal, "org_chart.draft_reset", draft.id, { client: clientOrgId });
+  const lost = rows[0]!;
+  await logEdit(tx, principal, "org_chart.draft_reset", draft.id, {
+    client: clientOrgId,
+    units: lost.units,
+    positions: lost.positions,
+    draftOnlyPositions: lost.draft_only,
+  });
   return { ok: true };
 }
 

@@ -5495,7 +5495,8 @@
       "endBefore": "A holding ends on or after the day it started.",
       "alreadyEnded": "This holding has already ended.",
       "nothingPublished": "Nothing is published yet to start again from.",
-      "draft": "People are placed on the published structure, under People in positions, never in the draft."
+      "draft": "People are placed on the published structure, under People in positions, never in the draft.",
+      "draftOnlyHeld": "A position only the draft has holds someone, and nobody is placed in the draft. Reload the page."
     },
     "tabs": {
       "label": "Client pages",
@@ -5601,9 +5602,9 @@
       "remove": "Remove",
       "removeUnitConfirm": "Remove the unit “{name}” from the draft?",
       "removeUnitBlocked": "Move or remove what is inside it first",
-      "removePositionConfirm": "Remove the position “{title}” from the draft? Whoever reported to it reports to nobody until you choose.",
+      "removePositionConfirm": "Remove the position “{title}” from the draft? Its details in the draft are lost, and whoever reported to it reports to nobody until you choose. The published structure and who holds its positions do not change.",
       "restart": "Start again from the current version",
-      "restartConfirm": "The draft becomes a copy of the current published version again, and every change made to it since is lost. Continue?",
+      "restartConfirm": "The draft becomes a copy of the current published version again: the units and positions added, changed, moved or removed in it since that version are lost. Nobody's holding changes, since nobody is placed in the draft. Continue?",
       "restarted": "The draft is a copy of the current version again.",
       "rowActions": "Actions for {name}",
       "pageActions": "More for the draft",

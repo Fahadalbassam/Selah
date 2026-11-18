@@ -107,6 +107,7 @@ export function orgChartError(message: string | undefined): string | null {
     [/move or remove the units and positions inside this unit first/, "not_empty"],
     [/a published structure never changes/, "published"],
     [/never in the draft/, "draft"],
+    [/a position only the draft has holds someone/, "draftOnlyHeld"],
     [/minimal records/, "minimal_records"],
   ];
   return rules.find(([re]) => re.test(message))?.[1] ?? null;

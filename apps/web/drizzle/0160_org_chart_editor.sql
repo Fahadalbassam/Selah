@@ -329,7 +329,29 @@ BEGIN
   RETURN NEW;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION check_invitation_position(), app_org_chart_tell_lead(uuid, uuid), end_holdings_on_leaving(),
+-- 8. A position only the draft has never holds anyone (S2 of the part 3
+--    review; it follows from 7). The second lock: removing such a position
+--    (or starting the draft again, which removes them) would delete its
+--    holdings through the foreign key without a trace, so it is refused if
+--    one ever exists. Jobs and a discarded client pass.
+CREATE FUNCTION check_position_holdings() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF app_uid() IS NULL OR current_setting('selah.discard', true) IS NOT DISTINCT FROM 'on' THEN
+    RETURN OLD;
+  END IF;
+  -- Only the draft's own positions: a published one is refused by check_position() anyway.
+  IF OLD.id = OLD.lineage_id
+     AND EXISTS (SELECT 1 FROM org_chart_versions v WHERE v.id = OLD.version_id AND v.state = 'draft')
+     AND EXISTS (SELECT 1 FROM position_holders h WHERE h.position_lineage_id = OLD.id) THEN
+    RAISE EXCEPTION 'a position only the draft has holds someone; nobody is placed in the draft' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN OLD;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER position_holdings BEFORE DELETE ON positions FOR EACH ROW EXECUTE FUNCTION check_position_holdings();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION check_invitation_position(), app_org_chart_tell_lead(uuid, uuid), end_holdings_on_leaving(), check_position_holdings(),
   app_remove_position_holder(uuid, uuid), app_reset_org_chart_draft(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_remove_position_holder(uuid, uuid), app_reset_org_chart_draft(uuid, uuid) TO selah_app;

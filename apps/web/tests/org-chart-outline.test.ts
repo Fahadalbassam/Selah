@@ -94,6 +94,16 @@ describe("the editor's refusals, in the reader's language", () => {
     }
   });
 
+  it("starting again and removing a position say plainly what is lost, and that nobody's holding changes (S2)", () => {
+    const editor = (m: unknown) => (m as { orgChart: { editor: Record<string, string> } }).orgChart.editor;
+    expect(editor(ar).restartConfirm).toMatch(/الوحدات والمناصب/);
+    expect(editor(ar).restartConfirm).toMatch(/شاغلي المناصب/);
+    expect(editor(en).restartConfirm).toMatch(/units and positions/);
+    expect(editor(en).restartConfirm).toMatch(/nobody's holding/i);
+    expect(editor(en).removePositionConfirm).toMatch(/published structure/);
+    expect(editor(ar).removePositionConfirm).toMatch(/الهيكل المنشور/);
+  });
+
   it("the removal asks first, in plain words, that it cannot be undone", () => {
     const holders = (m: unknown) => (m as { orgChart: { holders: Record<string, string> } }).orgChart.holders;
     expect(holders(ar).removeConfirm).toContain("لا يمكن التراجع");
