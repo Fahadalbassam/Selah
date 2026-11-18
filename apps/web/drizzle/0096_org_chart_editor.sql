@@ -287,10 +287,13 @@ BEGIN
     IF NEW.to_date IS NOT DISTINCT FROM OLD.to_date THEN
       RETURN NEW;
     END IF;
-    -- Only the leaving (end_holdings_on_leaving(), a trigger) moves an end date earlier, for the person leaving.
+    -- Only the leaving (end_holdings_on_leaving(), for the person leaving) and publishing (close_dropped_holdings(),
+    -- for the chart published) move an end date earlier, each from inside its trigger, with its own setting naming
+    -- exactly whose holdings; never an empty or missing setting, never a typed name through the leaving.
     IF (OLD.to_date IS NOT NULL OR NEW.to_date IS NULL)
-       AND NOT (OLD.to_date IS NOT NULL AND NEW.to_date IS NOT NULL AND NEW.to_date < OLD.to_date
-                AND pg_trigger_depth() > 1 AND current_setting('selah.leaving', true) = OLD.user_id::text) THEN
+       AND NOT (OLD.to_date IS NOT NULL AND NEW.to_date IS NOT NULL AND NEW.to_date < OLD.to_date AND pg_trigger_depth() > 1
+                AND ((OLD.user_id IS NOT NULL AND coalesce(current_setting('selah.leaving', true), '') = OLD.user_id::text)
+                     OR coalesce(current_setting('selah.publishing', true), '') = OLD.chart_id::text)) THEN
       RAISE EXCEPTION 'this holding has already ended' USING ERRCODE = 'check_violation';
     END IF;
     IF NEW.to_date < OLD.from_date THEN
@@ -369,7 +372,102 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER position_holdings BEFORE DELETE ON positions FOR EACH ROW EXECUTE FUNCTION check_position_holdings();
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION check_invitation_position(), app_org_chart_tell_lead(uuid, uuid), end_holdings_on_leaving(), check_position_holdings(),
+-- 9. Publishing applies the leaving rule to the positions the new version
+--    drops (the lead's decision R2 in the part 3 re-check): a holding that
+--    has started by the day the new version takes effect ends the day
+--    before (also one with a later end date); one that has not started by
+--    then is removed (it never took effect), audited as a count without
+--    names; each ending is audited; the lead and deputy are told. It runs
+--    as a trigger when the draft becomes the published version, so the end
+--    dates it moves earlier pass check_position_holder() only from there
+--    (selah.publishing names the chart). Latest definition of the publish:
+--    0091_org_chart; unchanged apart from the old rule (end today any open
+--    holding of a dropped position) leaving it for this trigger.
+CREATE OR REPLACE FUNCTION app_publish_org_chart(cid uuid, p_draft uuid, p_effective date, p_resolution uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  c org_charts;
+  d org_chart_versions;
+  prev_names boolean;
+  next_number integer;
+  fresh uuid;
+BEGIN
+  SELECT * INTO c FROM org_charts WHERE id = cid;
+  IF c.id IS NULL OR NOT app_org_chart_publisher(c.org_id) THEN
+    RAISE EXCEPTION 'no such structure' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF p_effective IS NULL THEN
+    RAISE EXCEPTION 'give the day the structure takes effect' USING ERRCODE = 'check_violation';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('org_chart'), hashtext(cid::text));
+  SELECT * INTO d FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'draft' FOR UPDATE;
+  IF d.id IS DISTINCT FROM p_draft THEN
+    RAISE EXCEPTION 'this draft is no longer the current one; reload the page' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM org_units u WHERE u.version_id = d.id) THEN
+    RAISE EXCEPTION 'the draft has no units yet' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_resolution IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM documents x WHERE x.id = p_resolution AND x.org_id = c.org_id AND x.visibility = 'shared' AND x.state <> 'archived') THEN
+    RAISE EXCEPTION 'the resolution must be a file of this client that the client can see' USING ERRCODE = 'check_violation';
+  END IF;
+  SELECT v.show_names INTO prev_names FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'published';
+  UPDATE org_chart_versions SET state = 'superseded', superseded_at = now() WHERE chart_id = cid AND state = 'published';
+  SELECT coalesce(max(v.number), 0) + 1 INTO next_number FROM org_chart_versions v WHERE v.chart_id = cid;
+  -- close_dropped_holdings() runs here, as the draft becomes the published version.
+  UPDATE org_chart_versions SET state = 'published', number = next_number, effective_on = p_effective,
+      published_by = app_uid(), published_at = now(), resolution_document_id = p_resolution,
+      show_names = coalesce(prev_names, false), published_snapshot = app_org_chart_snapshot_of(d.id)
+    WHERE id = d.id;
+  INSERT INTO org_chart_versions (chart_id, org_id, state, based_on_id, created_by)
+    VALUES (cid, c.org_id, 'draft', d.id, app_uid()) RETURNING id INTO fresh;
+  PERFORM app_org_chart_copy(d.id, fresh);
+  RETURN d.id;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION close_dropped_holdings() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  h record;
+  n integer;
+  e date := NEW.effective_on - 1;
+  changed boolean := false;
+BEGIN
+  PERFORM set_config('selah.publishing', NEW.chart_id::text, true);
+  FOR h IN
+    UPDATE position_holders x SET to_date = e
+    WHERE x.chart_id = NEW.chart_id AND x.from_date <= e AND (x.to_date IS NULL OR x.to_date > e)
+      AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.version_id = NEW.id AND p.lineage_id = x.position_lineage_id)
+    RETURNING x.id, x.org_id, x.position_lineage_id, x.to_date
+  LOOP
+    changed := true;
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+      VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_end', 'org_chart', h.position_lineage_id, 'allow',
+        jsonb_build_object('client', h.org_id, 'holder', h.id, 'on', h.to_date, 'version', NEW.id));
+  END LOOP;
+  PERFORM set_config('selah.publishing', '', true);
+  WITH gone AS (
+    DELETE FROM position_holders x
+    WHERE x.chart_id = NEW.chart_id AND x.from_date > e
+      AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.version_id = NEW.id AND p.lineage_id = x.position_lineage_id)
+    RETURNING 1
+  ) SELECT count(*) INTO n FROM gone;
+  IF n > 0 THEN
+    changed := true;
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+      VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_cancel', 'org_chart', NEW.org_id, 'allow',
+        jsonb_build_object('client', NEW.org_id, 'count', n, 'version', NEW.id));
+  END IF;
+  IF changed THEN
+    PERFORM app_org_chart_tell_lead(NEW.org_id, app_uid());
+  END IF;
+  RETURN NULL;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER publish_closes_dropped AFTER UPDATE OF state ON org_chart_versions
+  FOR EACH ROW WHEN (OLD.state = 'draft' AND NEW.state = 'published') EXECUTE FUNCTION close_dropped_holdings();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION check_invitation_position(), app_org_chart_tell_lead(uuid, uuid), end_holdings_on_leaving(), check_position_holdings(), close_dropped_holdings(),
   app_remove_position_holder(uuid, uuid), app_reset_org_chart_draft(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_remove_position_holder(uuid, uuid), app_reset_org_chart_draft(uuid, uuid) TO selah_app;

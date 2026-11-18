@@ -886,8 +886,8 @@ describe("publishing freezes the snapshot", () => {
     expect(current.positions.map((p) => p.titleEn)).toContain("Finance director");
     // Holdings follow their positions into the new version...
     expect(holderNames(current)["Finance director"]).toEqual(["Cfo Person"]);
-    // ...and a holding on a position it dropped ends today.
-    expect((await owner.query(`SELECT to_date::text AS d FROM position_holders WHERE id = $1`, [officer.started])).rows[0].d).toBe(firmToday());
+    // ...and a holding on a position it dropped ends the day before the new version takes effect (here today, so yesterday; R2 of the part 3 re-check).
+    expect((await owner.query(`SELECT to_date::text AS d FROM position_holders WHERE id = $1`, [officer.started])).rows[0].d).toBe(OC.dayBefore(firmToday()));
     // History reads as published, with who held what then.
     const old = await svc(U.cadmin, (tx, p) => OC.getVersion(tx, p, V1));
     expect(old.version.state).toBe("superseded");

@@ -871,7 +871,7 @@ describe("names on positions a later version dropped (S1)", () => {
 
   it("are listed for the people who change holders, and nobody else", async () => {
     const list = await svc(U.lead, (tx, p) => OC.droppedHoldings(tx, p, DROP));
-    expect(list).toEqual([expect.objectContaining({ positionId: pos.Secretary, holderId: typo, titleEn: "Secretary", name: "Typo Secretry", typed: true, to: today() })]);
+    expect(list).toEqual([expect.objectContaining({ positionId: pos.Secretary, holderId: typo, titleEn: "Secretary", name: "Typo Secretry", typed: true, to: OC.dayBefore(today()) })]);
     for (const who of [U.team, U.oadmin, U.obs]) await expect(svc(who, (tx, p) => OC.droppedHoldings(tx, p, DROP))).rejects.toThrow(REFUSED);
     // A position still on the current version is not "dropped": its holdings are not offered here, and the
     // older version's row of it is no way around the live structure.
@@ -893,6 +893,49 @@ describe("names on positions a later version dropped (S1)", () => {
     expect((await owner.query(`SELECT minimal_records AS on FROM organizations WHERE id = $1`, [DROP])).rows[0].on).toBe(true);
     expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'org_chart.holder_remove' AND resource_id = $1`, [pos.Secretary])).rows[0].n).toBe(1);
     expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE audit_log::text ILIKE '%Secretry%'`)).rows[0].n).toBe(0);
+  });
+});
+
+describe("publishing applies the leaving rule to the positions it drops (R2)", () => {
+  const PUB = id(74);
+  const padmin = id(76);
+  let pos: Record<string, string> = {};
+  const held: Record<string, string> = {};
+  beforeAll(async () => {
+    pos = await smallClient(PUB, id(75), padmin, "Pub Co", ["Chair", "Officer", "Planner", "Clerk"]);
+    await owner.query(`INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,false,true)`, [PUB, U.deputy]);
+    const hold = async (title: string, name: string, from: string) =>
+      (held[title] = (await svc(padmin, (tx, p) => OC.changeHolder(tx, p, pos[title]!, { start: { name, from } }), true)).started!);
+    await hold("Officer", "Officer One", PAST);
+    // Notice given: the officer's holding ends two months from now.
+    await svc(padmin, (tx, p) => OC.changeHolder(tx, p, pos.Officer!, { end: { holderId: held.Officer!, on: addDays(firmToday(), 60) } }), true);
+    await hold("Planner", "Planner Two", addDays(firmToday(), 10));
+    await hold("Clerk", "Clerk Three", PAST);
+  });
+
+  it("a started holding ends the day before the new version takes effect, a later end date included; one not started is removed, counted without names; the lead and deputy are told", async () => {
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, PUB));
+    for (const title of ["Officer", "Planner", "Clerk"]) {
+      await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, d.positions.find((x) => x.titleEn === title)!.id), true);
+    }
+    await owner.query(`DELETE FROM notifications`);
+    const effective = addDays(firmToday(), 5);
+    const draftId = await draftIdOf(PUB);
+    const v2 = await svc(U.lead, (tx, p) => OC.publish(tx, p, PUB, { draftId, effectiveOn: effective }), true);
+    const ends = OC.dayBefore(effective);
+    const rows = (
+      await owner.query(`SELECT name, from_date::text AS f, to_date::text AS t FROM position_holders WHERE org_id = $1 ORDER BY name`, [PUB])
+    ).rows;
+    expect(rows).toEqual([
+      { name: "Clerk Three", f: PAST, t: ends },
+      { name: "Officer One", f: PAST, t: ends },
+    ]);
+    expect((await owner.query(`SELECT actor_id, meta FROM audit_log WHERE action = 'org_chart.holder_cancel' AND meta->>'client' = $1`, [PUB])).rows).toEqual([
+      { actor_id: U.lead, meta: { client: PUB, count: 1, version: v2.versionId } },
+    ]);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'org_chart.holder_end' AND meta->>'client' = $1 AND meta->>'version' = $2`, [PUB, v2.versionId])).rows[0].n).toBe(2);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE audit_log::text ~ '(Officer One|Planner Two|Clerk Three)'`)).rows[0].n).toBe(0);
+    expect((await owner.query(`SELECT user_id FROM notifications WHERE kind = 'org_chart.holder_changed' AND entity_id = $1`, [PUB])).rows).toEqual([{ user_id: U.deputy }]);
   });
 });
 
