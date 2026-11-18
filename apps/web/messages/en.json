@@ -491,7 +491,8 @@
       "receivedFuture": "The day it was received can't be after today.",
       "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
       "replacementDraft": "The replacement is still a draft the client can't see. Release it first.",
-      "narrowed": "A file with a limited audience can't be used as evidence. Upload the evidence instead."
+      "narrowed": "A file with a limited audience can't be used as evidence. Upload the evidence instead.",
+      "notEvidence": "This file can't be used as evidence."
     },
     "entry": {
       "update": "posted an update",
@@ -5310,7 +5311,8 @@
       "requiredAttendee": "Someone you're leaving out is a required attendee: make them optional or take them off the meeting first.",
       "followUp": "Someone you're leaving out has an open follow-up on this meeting: give it to someone else first.",
       "closed": "The project is closed, so who sees its items doesn't change.",
-      "archived": "This file is archived, so who sees it doesn't change."
+      "archived": "This file is archived, so who sees it doesn't change.",
+      "usedAsEvidence": "This file was already used as evidence on an action, so its audience can't be limited."
     },
     "marker": {
       "label": "Limited audience",

@@ -282,6 +282,7 @@ describe("the server's refusals, said plainly (audienceRefusal)", () => {
       ['an "only" list needs at least one person', "onlyEmpty"],
       ["this project is closed", "closed"],
       ["this file is archived", "archived"],
+      ["this file was already used as evidence on an action, so its audience can't be limited", "usedAsEvidence"],
     ];
     for (const [message, key] of cases) {
       expect(audienceRefusal(message), message).toBe(key);

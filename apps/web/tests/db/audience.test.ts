@@ -855,9 +855,9 @@ describe("an \"only\" list keeps the person who saved it", () => {
 
 // ------------------------------------------------------------------ copies
 describe("a narrowed file is never copied out of its audience", () => {
+  const REC = id(61);
+  const ACT = id(62);
   it("a file with a limited audience can't be used as evidence: the service and the database refuse it, and the one left out still sees nothing", async () => {
-    const REC = id(61);
-    const ACT = id(62);
     await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Pay policy','shared',$4) ON CONFLICT DO NOTHING`, [
       REC,
       PN,
@@ -881,14 +881,44 @@ describe("a narrowed file is never copied out of its audience", () => {
          SELECT project_id, org_id, $2, $3, 'evidence', 'submitted', title, 'shared', 'k-copy', content_type, size_bytes, sha256, scan_status FROM documents WHERE id = $1`,
         [DOC.client, NUKHBA, U.nmgr2],
       ),
-    ).rejects.toThrow(/limited audience/);
+    ).rejects.toThrow(/can't be used as evidence/);
     expect(await rowsAs(U.nmgr, `SELECT id FROM documents WHERE title = $1`, [TITLE.client])).toEqual([]);
     // A file nobody narrowed is still used as before.
-    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: DOC.open, submitForReview: false }), true);
-    expect(await rowsAs(U.nmgr, `SELECT purpose FROM documents WHERE title = $1 ORDER BY purpose`, [TITLE.open])).toEqual([
+    const PLAIN = id(74);
+    await doc(PLAIN, { by: U.cons, ownerOrg: FIRM, title: "Plain plan" });
+    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: PLAIN, submitForReview: false }), true);
+    expect(await rowsAs(U.nmgr, `SELECT purpose FROM documents WHERE title = 'Plain plan' ORDER BY purpose`)).toEqual([
       { purpose: "deliverable" },
       { purpose: "evidence" },
     ]);
+  });
+
+  it("the database's refusal of the same bytes says nothing about a narrowed copy (someone left out may hold the file)", async () => {
+    // nmgr is left out of the salary file and holds its bytes: her fresh upload of them is refused neutrally.
+    const err = await rowsAs(
+      U.nmgr2,
+      `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$2,$3,'evidence','submitted','my upload','shared','k-fresh','application/pdf',10,$4,'clean')`,
+      [PN, NUKHBA, U.nmgr2, `sha-${DOC.client}`],
+    ).catch((e: Error) => e);
+    expect(String(err)).toMatch(/this file can't be used as evidence/);
+    expect(String(err)).not.toMatch(/limited|audience|narrow/);
+  });
+
+  it("a file already used as evidence can't be narrowed: the copy would stay in front of the people left out (review S7)", async () => {
+    const BONUS = id(73);
+    await doc(BONUS, { by: U.nmgr2, ownerOrg: NUKHBA, title: "Bonus table canary", purpose: "client_document" });
+    await svc(U.nmgr2, (tx, p) => F.attachExistingEvidence(tx, p, ACT, { documentId: BONUS, submitForReview: false }), true);
+    for (const audience of [
+      { mode: "except" as const, people: [U.nmgr] },
+      { mode: "only" as const, people: [U.ncadmin, U.nmgr2] },
+    ]) {
+      await expect(svc(U.ncadmin, (tx, p) => D.setDocumentAudience(tx, p, BONUS, audience)), audience.mode).rejects.toThrow(
+        /already used as evidence on an action, so its audience can't be limited/,
+      );
+    }
+    // Nothing changed: the file and its copy are seen as before, and nobody was misled into thinking it hidden.
+    expect(await rowsAs(U.ncadmin, `SELECT 1 FROM item_audiences WHERE item_id = $1`, [BONUS])).toEqual([]);
   });
 });
 

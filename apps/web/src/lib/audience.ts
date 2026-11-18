@@ -127,6 +127,7 @@ export function reconcileAudience(
 
 /** Why the server refused an audience, as a message key under `audience.errors`. */
 export const AUDIENCE_REFUSALS = [
+  ["already used as evidence", "usedAsEvidence"],
   ["required attendee", "requiredAttendee"],
   ["open follow-up", "followUp"],
   ["invited and left out", "invitedLeftOut"],
