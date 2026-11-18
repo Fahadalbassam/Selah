@@ -39,6 +39,56 @@ export const ORG_CHART_LIMITS = {
 } as const;
 
 /**
+ * The tabs of the client's Departments page for a reader (client admins and
+ * managers): Structure once there is a structure to read. When the company
+ * does not use departments, a manager sees only the Structure, since the
+ * Departments tab holds nothing for her; the client admin keeps both,
+ * because the switch that turns departments on lives on the Departments tab.
+ */
+export function departmentTabs(input: { admin: boolean; departmentsEnabled: boolean; structure: boolean }): ("departments" | "structure")[] {
+  if (!input.structure) return ["departments"];
+  if (!input.departmentsEnabled && !input.admin) return ["structure"];
+  return ["departments", "structure"];
+}
+
+/** What a version is on a day, for the words on the Structure tab and the PDF. */
+export type VersionStatus =
+  | { kind: "draft" }
+  /** In effect today; `until` and `by` when a later version, already published, takes effect on a coming day. */
+  | { kind: "current"; until?: string; by?: number }
+  /** Published, but its day has not come yet. */
+  | { kind: "upcoming"; on: string }
+  /** Replaced: the day the version that replaced it took effect, and its number. */
+  | { kind: "past"; replacedOn: string; by: number };
+
+/**
+ * What a version is on a day (YYYY-MM-DD). The version in effect is the
+ * latest published one whose effective day has come; a version published to
+ * take effect later is "upcoming", and the one it replaces stays current
+ * until that day. A version is replaced on the day a later one took effect.
+ */
+export function versionStatus(
+  v: { id: string; state: OrgChartState; number: number | null; effectiveOn: string | null },
+  all: readonly { id: string; state: OrgChartState; number: number | null; effectiveOn: string | null }[],
+  today: string,
+): VersionStatus {
+  if (v.state === "draft" || v.number === null) return { kind: "draft" };
+  const dated = all
+    .filter((x): x is typeof x & { number: number; effectiveOn: string } => x.state !== "draft" && x.number !== null && x.effectiveOn !== null)
+    .sort((a, b) => a.number - b.number);
+  const inEffect = dated.filter((x) => x.effectiveOn <= today).at(-1);
+  const later = dated.filter((x) => x.number > v.number!);
+  if (inEffect?.id === v.id) {
+    const next = later[0];
+    return next ? { kind: "current", until: next.effectiveOn, by: next.number } : { kind: "current" };
+  }
+  if (!inEffect || v.number > inEffect.number) return { kind: "upcoming", on: v.effectiveOn ?? today };
+  // Replaced by the first later version that has taken effect.
+  const by = later.find((x) => x.effectiveOn <= today) ?? later[0]!;
+  return { kind: "past", replacedOn: by.effectiveOn, by: by.number };
+}
+
+/**
  * The message key (under orgChart.errors) for a refusal the database words in English, so a
  * screen can show it in the reader's language; null for anything else.
  */
