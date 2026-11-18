@@ -1,6 +1,7 @@
 import { UserPlus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
-import { ApiButton, FormDialog } from "@/components/form-dialog";
+import { FormDialog } from "@/components/form-dialog";
+import { RemoveFromProject } from "./project-menu";
 import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,12 +75,10 @@ export async function ClientRolesCard({ projectId, data, firm }: { projectId: st
                       </span>
                     ) : null}
                     {data.can.manage && (data.can.contacts || !r.contactId) ? (
-                      <ApiButton
+                      <RemoveFromProject
+                        name={r.name}
                         endpoint={`/api/projects/${projectId}/client-roles/${r.id}`}
-                        method="DELETE"
                         label={t("remove")}
-                        variant="ghost"
-                        size="sm"
                         confirm={t("removeConfirm", { name: r.name, role: t(`roles.${role}`) })}
                       />
                     ) : null}

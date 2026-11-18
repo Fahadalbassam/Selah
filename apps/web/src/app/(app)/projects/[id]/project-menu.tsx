@@ -73,13 +73,13 @@ export function ProjectMenu(props: {
  * The one rare action of a row on the People tab (page audit U15): take a
  * person off the project, from the row's menu, asked first.
  */
-export function RemoveFromProject({ name, endpoint, confirm }: { name: string; endpoint: string; confirm: string }) {
+export function RemoveFromProject({ name, endpoint, confirm, label }: { name: string; endpoint: string; confirm: string; label?: string }) {
   const t = useTranslations("projectPage.row");
   const run = useRowCall();
   return (
     <RowMenu
       label={t("more", { name })}
-      items={[{ key: "remove", label: t("remove"), allowed: true, destructive: true, confirm, onSelect: () => void run({ endpoint, method: "DELETE" }) }]}
+      items={[{ key: "remove", label: label ?? t("remove"), allowed: true, destructive: true, confirm, onSelect: () => void run({ endpoint, method: "DELETE" }) }]}
     />
   );
 }

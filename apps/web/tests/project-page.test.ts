@@ -169,6 +169,13 @@ describe("the screen standard on the project page", () => {
     for (const k of ["edit", "watch", "startClosing", "askToClose"]) expect(menu).toContain(`key: "${k}"`);
   });
 
+  it("People: every row's Remove is in its row menu, staff, client people and client roles alike (review item 4)", () => {
+    for (const f of ["app/(app)/projects/[id]/client-roles-card.tsx", "app/(app)/projects/[id]/project-people.tsx"]) {
+      expect(src(f), f).toContain("<RemoveFromProject");
+      expect(src(f), f).not.toContain("<ApiButton");
+    }
+  });
+
   it("the client's upload is on Requests and files; the Files card keeps Add a file for the firm only (October item 13)", () => {
     expect(src("components/file-explorer.tsx")).toMatch(/orgKind === "firm" \? <UploadDialog/);
     expect(src("app/(app)/projects/[id]/page.tsx")).toContain("<AddFileDialog");
