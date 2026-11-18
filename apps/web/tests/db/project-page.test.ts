@@ -54,7 +54,8 @@ const A = {
   churn: id(47), // own, sent back twice (Legal)
   closingOpen: id(48), // on the closing project
 };
-const DOC = { review: id(51), done: id(52), finance: id(53) };
+const DOC = { review: id(51), done: id(52), finance: id(53), firmOnly: id(54) };
+const FAR = id(18); // a consultant on Acme's team, staffed on the closing project only
 const NAME = Object.fromEntries(Object.entries(A).map(([k, v]) => [v, k]));
 
 async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
@@ -144,6 +145,18 @@ beforeAll(async () => {
     );
     await x(`INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`, [P.main, ACME, aid, doc, U.own]);
   }
+  // A firm-only file sent for an action every Legal reader may open: the action shows, the file does not (review item 6).
+  await x(
+    `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, title, storage_key, content_type, size_bytes, sha256, visibility, state, department_id)
+     VALUES ($1,$2,$3,$4,$5,'evidence','Firm-only file canary',$6,'text/plain',1,$6,'firm_private','submitted',$7)`,
+    [DOC.firmOnly, P.main, ACME, FIRM, U.lead, `k-${DOC.firmOnly}`, DEPT.legal],
+  );
+  await x(`INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`, [P.main, ACME, A.late, DOC.firmOnly, U.own]);
+  // A consultant on the client's team, staffed on the closing project only (review item 6).
+  await x(`INSERT INTO "user" (id, name, email) VALUES ($1,'elsewhere','elsewhere@example.test')`, [FAR]);
+  await x(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'consultant')`, [FAR, FIRM]);
+  await x(`INSERT INTO client_assignments (client_org_id, user_id, is_lead) VALUES ($1,$2,false)`, [ACME, FAR]);
+  await x(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P.closing, FAR]);
   await x(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome) VALUES ($1,$2,$3,$4,'accept')`, [P.main, ACME, A.done, U.lead]);
   for (let i = 0; i < 2; i++)
     await x(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, reason) VALUES ($1,$2,$3,$4,'revise','Again')`, [P.main, ACME, A.churn, U.lead]);
@@ -352,6 +365,24 @@ describe("only what the reader may open", () => {
     const firm = await page(U.lead);
     expect(JSON.stringify(firm.data)).toContain("Draft canary");
     expect(firm.attention.rules.late).not.toContain(A.draft);
+  });
+
+  it("an opened action row the reader may open lists only the files they may open (a firm-only file stays the firm's)", async () => {
+    const firm = (await page(U.lead)).evidence[A.late]!.evidence.map((e) => e.title);
+    expect(firm).toEqual(["Firm-only file canary"]);
+    for (const who of [U.cadmin, U.mgr, U.own]) {
+      const p = await page(who);
+      expect(p.data.recommendations.flatMap((r) => r.actions.map((a) => a.id)), who).toContain(A.late);
+      expect(p.evidence[A.late]!.evidence, who).toEqual([]);
+      expect(JSON.stringify(p), who).not.toContain("Firm-only file canary");
+    }
+  });
+
+  it("a consultant staffed on another project of the same client is named there, not here", async () => {
+    for (const who of [U.cadmin, U.own]) {
+      expect((await page(who)).consultants!.staffed.map((s) => s.userId), who).toEqual([U.cons]);
+      expect((await page(who, P.closing)).consultants!.staffed.map((s) => s.userId), who).toEqual([FAR]);
+    }
   });
 
   it("the client admin may add a file on the project's Requests and files tab", async () => {
