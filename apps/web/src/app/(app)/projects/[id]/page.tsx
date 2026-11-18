@@ -498,7 +498,7 @@ export default async function ProjectPage({
                         overdue: isOverdue(a),
                         reasons: rule ? attention.reasons[a.id] : undefined,
                       }))}
-                      evidence={evidence}
+                      evidence={Object.fromEntries(r.actions.map((a) => [a.id, evidence[a.id] ?? { evidence: [], review: null }]))}
                       client={!firmStaff}
                     />
                   </CardContent>

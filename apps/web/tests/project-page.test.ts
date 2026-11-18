@@ -110,6 +110,10 @@ describe("Trace goes (D2), its parts on Plan", () => {
     expect(plan).toMatch(/review\.outcome/);
     expect(plan).toMatch(/evidence\.map/);
     expect(src("services/queries.ts")).toMatch(/assessmentTitle: assessments\.title/);
+    // Each card is sent its own actions' evidence only, not the whole project's (review item 3).
+    const page = src("app/(app)/projects/[id]/page.tsx");
+    expect(page).not.toMatch(/evidence=\{evidence\}/);
+    expect(page).toMatch(/evidence=\{Object\.fromEntries\(r\.actions\.map\(\(a\) => \[a\.id, evidence\[a\.id\]/);
   });
 });
 
