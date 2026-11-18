@@ -35,7 +35,9 @@ vi.mock("next-intl/server", async () => {
   };
 });
 
-const { commentOnDeliverable, getDeliverable, handOverChoices, handOverDeliverable, listDeliverables, recordReceipt } = await import("@/services/deliverables");
+const { commentOnDeliverable, getDeliverable, handOverChoices, handOverDeliverable, handOverPreview, listDeliverables, recordReceipt } = await import(
+  "@/services/deliverables"
+);
 const { getEngagement, removeDeliverable } = await import("@/services/engagements");
 const { listNotifications } = await import("@/services/notifications");
 const { today } = await import("@/services/today");
@@ -71,9 +73,10 @@ const U = {
   mgr: id(24), // Acme's manager on the project, no client role
   owner: id(25), // Acme's action owner on the project
   betaAdmin: id(31),
+  hr: id(18), // on Acme's team, staffed only on the project of Acme's other engagement
 };
-const P = { acme: id(41), closing: id(42), beta: id(43), waha: id(44) };
-const G = { acme: id(51), beta: id(52), waha: id(53) };
+const P = { acme: id(41), closing: id(42), beta: id(43), waha: id(44), hr: id(45) };
+const G = { acme: id(51), beta: id(52), waha: id(53), hr: id(54) };
 const FIN = id(61); // Acme's Finance department
 
 async function as<T>(userId: string | null, fn: (c: PoolClient) => Promise<T>, commit = false): Promise<T> {
@@ -181,6 +184,22 @@ beforeAll(async () => {
     `INSERT INTO project_client_roles (project_id, org_id, role, user_id, created_by) VALUES ($1,$2,'acceptor',$3,$5), ($1,$2,'sponsor',$4,$5)`,
     [P.acme, ACME, U.acceptor, U.sponsor, U.admin],
   );
+  // Acme's other engagement, with its own project, where only U.hr is staffed.
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'consultant')`, [U.hr, FIRM]);
+  await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [ACME, U.hr]);
+  await q(`INSERT INTO engagements (id, firm_org_id, client_org_id, title, signed_on, scope) VALUES ($1,$2,$3,'Acme HR review',app_firm_today() - 20,'HR policies')`, [
+    G.hr,
+    FIRM,
+    ACME,
+  ]);
+  await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, engagement_id, created_by) VALUES ($1,'client',$2,$3,'Acme HR review','active',$4,$5)`, [
+    P.hr,
+    ACME,
+    FIRM,
+    G.hr,
+    U.admin,
+  ]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P.hr, U.hr]);
 });
 
 beforeEach(async () => {
@@ -321,6 +340,39 @@ describe("who answers for the client", () => {
     const after = await svc(U.wlead, (tx, p) => recordReceipt(tx, p, wdid, recorded));
     expect(after.status).toBe("received");
     expect(after.rounds[0]).toMatchObject({ receiptSource: "consultant_recorded", receivedByName: "Board secretary", receivedVia: "email", receivedBy: "wlead" });
+  });
+});
+
+describe("who hands over, with which files, and who will be asked (S2)", () => {
+  it("only the lead, the deputy or a consultant staffed (not observing) on a project the engagement covers; only files of the engagement's projects", async () => {
+    const did = await deliverable(G.acme, P.acme, "Board evaluation, second year");
+    const doc = await file(ACME, P.acme, "Evaluation, second year.pdf");
+    const hrDoc = await file(ACME, P.hr, "HR policy.pdf");
+    // Staffed only under Acme's other engagement: not for this one.
+    await expect(handOver(U.hr, did, [doc])).rejects.toThrow(/forbidden/);
+    await expect(sqlAs(U.hr, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [did, doc])).rejects.toThrow(/hands a deliverable over/);
+    expect((await svc(U.hr, (tx, p) => getDeliverable(tx, p, did))).can.handOver).toBe(false);
+    // Under its own engagement, they do.
+    const hrDid = await deliverable(G.hr, P.hr, "HR handbook");
+    expect((await handOver(U.hr, hrDid, [hrDoc])).round).toBe(1);
+    // A file of another engagement's project is neither offered nor taken.
+    const offered = (await svc(U.lead, (tx, p) => handOverChoices(tx, p, did))).files.flatMap((c) => c.versions.map((v) => v.id));
+    expect(offered).toContain(doc);
+    expect(offered).not.toContain(hrDoc);
+    await expect(handOver(U.lead, did, [hrDoc])).rejects.toThrow(/engagement's projects/);
+    await expect(sqlAs(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [did, hrDoc])).rejects.toThrow(/engagement's projects/);
+  });
+
+  it("before saving, says who will be asked, and when an acceptor is skipped because they cannot open every file", async () => {
+    const did = await deliverable(G.acme, P.acme, "Finance pack");
+    const plain = await file(ACME, P.acme, "Pack.pdf");
+    const fin = await file(ACME, P.acme, "Pack, finance annex.pdf", { department: FIN });
+    expect(await svc(U.lead, (tx, p) => handOverPreview(tx, p, did, [plain]))).toEqual({ asked: [{ name: "acceptor", as: "acceptor" }], skipped: [] });
+    expect(await svc(U.lead, (tx, p) => handOverPreview(tx, p, did, [plain, fin]))).toEqual({ asked: [{ name: "cadmin", as: "admin" }], skipped: [{ name: "acceptor" }] });
+    // Only someone who may hand it over gets the preview.
+    await expect(svc(U.obs, (tx, p) => handOverPreview(tx, p, did, [plain]))).rejects.toThrow(/forbidden/);
+    await expect(sqlAs(U.obs, `SELECT * FROM app_hand_over_preview($1, ARRAY[$2]::uuid[])`, [did, plain])).rejects.toThrow(/hands a deliverable over/);
+    await expect(svc(U.acceptor, (tx, p) => handOverPreview(tx, p, did, [plain]))).rejects.toThrow(/not found/);
   });
 });
 

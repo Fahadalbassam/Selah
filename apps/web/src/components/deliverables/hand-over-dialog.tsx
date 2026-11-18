@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,11 @@ interface Choices {
   firmOnly: { title: string; projectTitle: string }[];
 }
 
+interface Preview {
+  asked: { name: string; as: "acceptor" | "admin" | "sponsor" }[];
+  skipped: { name: string }[];
+}
+
 /**
  * Hand a deliverable over (F21): one line per file already shared with the
  * client, at its latest version unless an earlier one is picked. A hand-over
@@ -41,16 +46,33 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Who will be asked for the files picked (S2): asked again each time the picks change; the newest answer wins.
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const asking = useRef(0);
+
+  async function ask(next: Record<string, string | null>) {
+    const versionIds = Object.values(next).filter((v): v is string => !!v);
+    const n = ++asking.current;
+    if (!versionIds.length) return setPreview(null);
+    const r = await callApi(`/api/deliverables/${deliverableId}/hand-over/preview`, "POST", { versionIds });
+    if (n === asking.current) setPreview(r.ok ? (r.data as Preview) : null);
+  }
+
+  function choose(next: Record<string, string | null>) {
+    setPicked(next);
+    void ask(next);
+  }
 
   async function load() {
     setChoices(null);
+    setPreview(null);
     setError(null);
     const r = await callApi(`/api/deliverables/${deliverableId}/hand-over`, "GET");
     if (!r.ok) return setError(tc(`errors.${r.error}`));
     const { files: list, firmOnly: hidden } = r.data as Choices;
     setChoices(list);
     setFirmOnly(hidden);
-    setPicked(Object.fromEntries(list.map((c) => [c.key, c.picked ? c.versions[0]!.id : null])));
+    choose(Object.fromEntries(list.map((c) => [c.key, c.picked ? c.versions[0]!.id : null])));
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -100,7 +122,7 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
                       <Checkbox
                         id={`h-${c.key}`}
                         checked={!!chosen}
-                        onCheckedChange={(on) => setPicked((p) => ({ ...p, [c.key]: on === true ? c.versions[0]!.id : null }))}
+                        onCheckedChange={(on) => choose({ ...picked, [c.key]: on === true ? c.versions[0]!.id : null })}
                       />
                       <Label htmlFor={`h-${c.key}`} className="grid gap-0.5 font-normal">
                         <span className="font-medium" dir="auto">
@@ -116,7 +138,7 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
                         size="sm"
                         aria-label={t("versionField")}
                         value={chosen}
-                        onChange={(e) => setPicked((p) => ({ ...p, [c.key]: e.target.value }))}
+                        onChange={(e) => choose({ ...picked, [c.key]: e.target.value })}
                       >
                         {c.versions.map((v) => (
                           <NativeSelectOption key={v.id} value={v.id}>
@@ -135,6 +157,19 @@ export function HandOverDialog({ deliverableId, title, trigger, firmRun }: { del
             <p className="text-xs text-muted-foreground" dir="auto">
               {t("firmOnlyFiles", { titles: firmOnly.map((f) => f.title).join(" · ") })}
             </p>
+          ) : null}
+          {/* Before saving, who at the client will be asked, and an acceptor skipped because they cannot open every file (S2). */}
+          {preview && !firmRun ? (
+            <div className="grid gap-1 rounded-md bg-muted px-3 py-2 text-sm" dir="auto">
+              <p>
+                {preview.asked.length
+                  ? t("preview.asked", { names: preview.asked.map((a) => t("preview.person", { name: a.name, as: a.as })).join(" · ") })
+                  : t("preview.nobody")}
+              </p>
+              {preview.skipped.length ? (
+                <p className="text-xs text-muted-foreground">{t("preview.skipped", { names: preview.skipped.map((s) => s.name).join(" · ") })}</p>
+              ) : null}
+            </div>
           ) : null}
           {error ? (
             <p role="alert" className="text-sm text-destructive">

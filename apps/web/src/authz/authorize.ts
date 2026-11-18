@@ -145,6 +145,11 @@ function scopeCovers(scope: Scope, p: Principal, r: Resource): boolean {
       return p.workingClientIds?.has(r.clientOrgId ?? r.orgId) ?? false;
     case "staffed":
       return p.staffedClientIds?.has(r.clientOrgId ?? r.orgId) ?? false;
+    case "engagement":
+      return (
+        p.leadClientIds.has(r.clientOrgId ?? r.orgId) ||
+        (r.relatedProjectIds?.some((id) => p.projectIds.has(id) && !p.observedProjectIds?.has(id)) ?? false)
+      );
   }
 }
 

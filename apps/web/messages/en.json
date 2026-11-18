@@ -3257,9 +3257,9 @@
     "handOver": "Hand over",
     "handOverNew": "Hand over a new version",
     "handOverTitle": "Hand over: {title}",
-    "handOverHint": "Pick the files that make up this deliverable. Each file starts at its latest version; pick an earlier one if needed. The client's acceptor is told, and confirms receipt or comments.",
+    "handOverHint": "Pick the files that make up this deliverable, from the engagement's projects. Each file starts at its latest version; pick an earlier one if needed. Before you hand over, this dialog says who at the client will be asked to confirm receipt or comment.",
     "handOverHintFirmRun": "Pick the files that make up this deliverable. Each file starts at its latest version. This client has no accounts: once it has the files, record who received them.",
-    "noFiles": "No deliverable file of this client is ready to hand over. Add it on the project's Documents tab first.",
+    "noFiles": "No file of this engagement's projects is ready to hand over: add it on the project's Documents tab, and share it with the client from its menu.",
     "versionOption": "Version {n} · {date}",
     "versionField": "Version",
     "pickOne": "Pick at least one file.",
@@ -3301,7 +3301,13 @@
       "noAnswer": "Handed over on {date} by {name}; no answer before the project closed",
       "handedOver": "Handed over on {date} by {name}"
     },
-    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it."
+    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it.",
+    "preview": {
+      "asked": "Will be asked to confirm receipt: {names}.",
+      "person": "{name} ({as, select, acceptor {acceptor} admin {client admin} sponsor {sponsor} other {}})",
+      "nobody": "Nobody at the client can open every file picked, so nobody will be asked. Check who can open them before you hand over.",
+      "skipped": "Not asked, as they cannot open every file picked: {names} (acceptor)."
+    }
   },
   "clientRoles": {
     "title": "Client roles",

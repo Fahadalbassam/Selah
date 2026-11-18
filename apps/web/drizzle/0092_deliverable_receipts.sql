@@ -248,6 +248,21 @@ BEGIN
   RETURN h;
 END $$;
 --> statement-breakpoint
+-- Who hands a deliverable over for the firm (and records the receipt of a
+-- client it runs): the client's lead or deputy, or a consultant staffed, not
+-- as an observer, on a project of the deliverable's engagement that is not
+-- closed. Staffing under another engagement of the same client does not count.
+CREATE FUNCTION app_firm_hands_over(did uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT app_role() = 'consultant' AND EXISTS (
+    SELECT 1 FROM engagement_deliverables d JOIN engagements g ON g.id = d.engagement_id
+    WHERE d.id = did AND app_firm_works_with(g.client_org_id) AND (
+      app_is_client_lead(g.client_org_id)
+      OR EXISTS (
+        SELECT 1 FROM project_members pm JOIN projects p ON p.id = pm.project_id
+        WHERE pm.user_id = app_uid() AND NOT pm.observer AND p.engagement_id = g.id AND p.state <> 'closed')))
+$$;
+--> statement-breakpoint
 -- 4. Hand a deliverable over: the files' exact versions, and the next round.
 CREATE FUNCTION app_hand_over_deliverable(did uuid, versions uuid[]) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -258,7 +273,7 @@ DECLARE
   hid uuid;
 BEGIN
   SELECT * INTO d FROM engagement_deliverables WHERE id = did;
-  IF d.id IS NULL OR app_role() IS DISTINCT FROM 'consultant' OR NOT app_firm_changes_kpis(client) THEN
+  IF d.id IS NULL OR NOT app_firm_hands_over(did) THEN
     RAISE EXCEPTION 'the client''s lead, deputy or a consultant staffed on its projects hands a deliverable over' USING ERRCODE = 'insufficient_privilege';
   END IF;
   IF d.project_id IS NOT NULL AND (SELECT p.state FROM projects p WHERE p.id = d.project_id) = 'closed' THEN
@@ -277,6 +292,12 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'hand over this client''s deliverable files, shared with it and cleared by the scan' USING ERRCODE = 'check_violation';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM unnest(versions) v JOIN documents x ON x.id = v JOIN projects p ON p.id = x.project_id
+    WHERE p.engagement_id IS DISTINCT FROM d.engagement_id
+  ) THEN
+    RAISE EXCEPTION 'hand over files of the engagement''s projects' USING ERRCODE = 'check_violation';
+  END IF;
   INSERT INTO deliverable_handovers (deliverable_id, org_id, round, version_ids, delivered_by)
     VALUES (did, client, coalesce((SELECT max(h.round) FROM deliverable_handovers h WHERE h.deliverable_id = did), 0) + 1, versions, app_uid())
     RETURNING id INTO hid;
@@ -287,6 +308,32 @@ BEGIN
     SELECT u.email, 'deliverable.handed_over', '/' FROM app_deliverable_receivers(did, versions) r JOIN "user" u ON u.id = r.user_id
     WHERE app_can_reset_password(r.user_id);
   RETURN hid;
+END $$;
+--> statement-breakpoint
+-- 4b. Before a hand-over, the firm sees who will be asked for these files
+--     (the first group of app_deliverable_receivers, with its group: 1
+--     acceptor, 2 admin, 3 sponsor) and which acceptors are skipped because
+--     they cannot open every file. Only for someone who may hand it over.
+CREATE FUNCTION app_hand_over_preview(did uuid, versions uuid[]) RETURNS TABLE (user_id uuid, tier integer, asked boolean)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF NOT app_firm_hands_over(did) THEN
+    RAISE EXCEPTION 'the client''s lead, deputy or a consultant staffed on its projects hands a deliverable over' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN QUERY
+    WITH people AS (
+      SELECT r.user_id AS uid, CASE r.role WHEN 'acceptor' THEN 1 ELSE 3 END AS t
+        FROM project_client_roles r
+        WHERE r.user_id IS NOT NULL AND r.role IN ('acceptor', 'sponsor') AND r.project_id IN (SELECT app_deliverable_projects(did))
+          AND EXISTS (SELECT 1 FROM org_memberships m WHERE m.user_id = r.user_id AND m.active AND m.role IN ('client_admin', 'client_manager'))
+      UNION
+      SELECT m.user_id, 2 FROM org_memberships m WHERE m.org_id = app_deliverable_client(did) AND m.active AND m.role = 'client_admin'
+    ),
+    graded AS (SELECT p.uid, p.t, app_deliverable_receiver_ok(did, p.uid, versions) AS able FROM people p),
+    first AS (SELECT min(g.t) AS t FROM graded g WHERE g.able)
+    SELECT g.uid, g.t, g.able AND g.t = (SELECT f.t FROM first f)
+    FROM graded g
+    WHERE (g.able AND g.t = (SELECT f.t FROM first f)) OR (g.t = 1 AND NOT g.able);
 END $$;
 --> statement-breakpoint
 -- 5. The client confirms receipt: who, when, and the round's files as they were.
@@ -349,7 +396,7 @@ DECLARE
   h deliverable_handovers;
   client uuid := app_deliverable_client(did);
 BEGIN
-  IF client IS NULL OR app_role() IS DISTINCT FROM 'consultant' OR NOT app_firm_changes_kpis(client) THEN
+  IF client IS NULL OR NOT app_firm_hands_over(did) THEN
     RAISE EXCEPTION 'the client''s lead, deputy or a consultant staffed on its projects records the receipt' USING ERRCODE = 'insufficient_privilege';
   END IF;
   IF (SELECT o.engagement_mode FROM organizations o WHERE o.id = client) IS DISTINCT FROM 'consultant_managed' THEN
@@ -497,6 +544,10 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
       WHERE e.document_id = doc AND s.status <> 'draft')
     OR EXISTS (SELECT 1 FROM deliverable_handovers h WHERE doc = ANY (h.version_ids))
 $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_firm_hands_over(uuid), app_hand_over_preview(uuid, uuid[]) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_hand_over_preview(uuid, uuid[]) TO selah_app;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app_deliverable_client(uuid), app_deliverable_projects(uuid), app_user_opens_document(uuid, uuid),
   app_deliverable_receiver_ok(uuid, uuid, uuid[]), app_deliverable_receivers(uuid, uuid[]), app_can_read_handover(uuid, uuid[]),

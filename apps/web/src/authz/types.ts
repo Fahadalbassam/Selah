@@ -133,6 +133,12 @@ export interface Resource {
    * the client reads until it is published (migration 0091).
    */
   draft?: boolean;
+  /**
+   * An engagement's records (a deliverable): the engagement's projects that are
+   * not closed. The "engagement" scope admits a consultant staffed (not as an
+   * observer) on one of them, or the client's lead or deputy (F21).
+   */
+  relatedProjectIds?: readonly string[];
 }
 
 export interface Decision {

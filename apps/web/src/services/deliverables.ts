@@ -34,9 +34,11 @@ interface Deliverable {
   engagementMode: "full" | "restricted" | "consultant_managed" | null;
   archived: boolean;
   projectState: Resource["projectState"];
+  /** The engagement's projects that are not closed, as far as the reader sees them (who hands over: scope `engagement`). */
+  openProjectIds: string[];
 }
 
-const resourceOf = (d: Pick<Deliverable, "id" | "clientOrgId" | "firmOrgId" | "engagementMode" | "projectState">): Resource => ({
+const resourceOf = (d: Pick<Deliverable, "id" | "clientOrgId" | "firmOrgId" | "engagementMode" | "projectState" | "openProjectIds">): Resource => ({
   type: "deliverable",
   id: d.id,
   orgId: d.clientOrgId,
@@ -46,6 +48,7 @@ const resourceOf = (d: Pick<Deliverable, "id" | "clientOrgId" | "firmOrgId" | "e
   engagementMode: d.engagementMode,
   // A closed project's deliverables stay as they are (authorize refuses writes; so does the database).
   projectState: d.projectState,
+  relatedProjectIds: d.openProjectIds,
 });
 
 /**
@@ -87,6 +90,12 @@ async function fetchDeliverables(tx: Tx, where: SQL | undefined): Promise<Delive
         .where(inArray(organizations.id, clients))
     ).map((o) => [o.id, o]),
   );
+  // The engagements' projects that are not closed, under the reader's rights: who may hand over (scope "engagement").
+  const engagementIds = [...new Set(rows.map((r) => r.engagementId))];
+  const openProjects = await tx
+    .select({ id: projects.id, engagementId: projects.engagementId })
+    .from(projects)
+    .where(and(inArray(projects.engagementId, engagementIds), ne(projects.state, "closed")));
   return rows.flatMap((r) => {
     const party = partyOf.get(r.id);
     const org = party ? orgs.get(party.client_org_id) : undefined;
@@ -101,6 +110,7 @@ async function fetchDeliverables(tx: Tx, where: SQL | undefined): Promise<Delive
         engagementMode: org.engagementMode,
         archived: org.status === "archived",
         projectState: r.projectState ?? undefined,
+        openProjectIds: openProjects.filter((p) => p.engagementId === r.engagementId).map((p) => p.id),
       },
     ];
   });
@@ -320,6 +330,8 @@ export async function handOverChoices(tx: Tx, principal: Principal, id: string):
     .where(
       and(
         eq(documents.orgId, row.clientOrgId),
+        // Only the files of the deliverable's engagement's projects (S2).
+        eq(projects.engagementId, row.engagementId),
         eq(documents.purpose, "deliverable"),
         ne(documents.state, "archived"),
         isNull(documents.withdrawnAt),
@@ -348,6 +360,37 @@ export async function handOverChoices(tx: Tx, principal: Principal, id: string):
   return { files, firmOnly };
 }
 
+export interface HandOverPreview {
+  /** Who will be asked to confirm receipt, and as what (the first group with anyone who opens every file). */
+  asked: { name: string; as: "acceptor" | "admin" | "sponsor" }[];
+  /** Acceptors who are not asked because they cannot open every file picked. */
+  skipped: { name: string }[];
+}
+
+/**
+ * Before a hand-over, who at the client will be asked for these files: the
+ * acceptors, else the admins, else the sponsor, in each only people who open
+ * every file; and the acceptors skipped because they cannot (S2). The database
+ * decides (app_hand_over_preview), for someone who may hand it over.
+ */
+export async function handOverPreview(tx: Tx, principal: Principal, id: string, versionIds: string[]): Promise<HandOverPreview> {
+  const { resource } = await loadDeliverable(tx, principal, id);
+  assertAllowed(principal, "deliverable.hand_over", resource);
+  const { rows } = await tx.execute<{ user_id: string; tier: number; asked: boolean }>(
+    sql`select * from app_hand_over_preview(${id}::uuid, ${sql.param(versionIds)}::uuid[])`,
+  );
+  const names = new Map<string, string>();
+  const people = [...new Set(rows.map((r) => r.user_id))];
+  if (people.length) for (const u of await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, people))) names.set(u.id, u.name);
+  const as = ["acceptor", "admin", "sponsor"] as const;
+  const askedIds = new Set(rows.filter((r) => r.asked).map((r) => r.user_id));
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  return {
+    asked: [...new Map(rows.filter((r) => r.asked).map((r) => [r.user_id, { name: names.get(r.user_id) ?? "—", as: as[r.tier - 1]! }])).values()].sort(byName),
+    skipped: [...new Set(rows.filter((r) => !r.asked && !askedIds.has(r.user_id)).map((r) => r.user_id))].map((u) => ({ name: names.get(u) ?? "—" })).sort(byName),
+  };
+}
+
 /**
  * Hand a deliverable over: the exact versions picked, in a new round. Only
  * versions already shared with the client: a hand-over never shares anything
@@ -362,6 +405,8 @@ export async function handOverDeliverable(tx: Tx, principal: Principal, id: stri
     const loaded = await loadDocument(tx, versionId);
     if (!loaded || loaded.doc.orgId !== row.clientOrgId || loaded.doc.purpose !== "deliverable") throw new BadRequestError("hand over this client's deliverable files");
     if (loaded.doc.visibility !== "shared") throw new BadRequestError("this file is firm-only: share it with the client first, from the file's own menu");
+    const [project] = await tx.select({ engagementId: projects.engagementId }).from(projects).where(eq(projects.id, loaded.doc.projectId));
+    if (project?.engagementId !== row.engagementId) throw new BadRequestError("hand over files of the engagement's projects");
   }
   const { rows } = await tx.execute<{ id: string }>(sql`select app_hand_over_deliverable(${id}::uuid, ${sql.param(versionIds)}::uuid[]) as id`);
   const handoverId = rows[0]!.id;

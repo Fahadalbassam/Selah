@@ -769,3 +769,35 @@ describe("a draft action is the firm's until it is released (D6)", () => {
     }
   });
 });
+
+describe("deliverables handed over (F21; review S2)", () => {
+  const deliverable = (related: string[], mode: "full" | "consultant_managed" = "full"): Resource => ({
+    type: "deliverable",
+    orgId: ACME,
+    firmOrgId: FIRM,
+    projectId: null,
+    clientOrgId: ACME,
+    engagementMode: mode,
+    relatedProjectIds: related,
+  });
+
+  it("a consultant hands over only under an engagement they work on: staffed (not observing) on one of its open projects, or the client's lead", () => {
+    const staffed = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    expect(authorize(staffed, "deliverable.hand_over", deliverable([ACME_PROJ_1])).allowed).toBe(true);
+    // Staffed under another engagement of the same client.
+    expect(authorize(staffed, "deliverable.hand_over", deliverable([ACME_PROJ_2])).allowed).toBe(false);
+    expect(authorize({ ...staffed, observedProjectIds: new Set([ACME_PROJ_1]) }, "deliverable.hand_over", deliverable([ACME_PROJ_1])).allowed).toBe(false);
+    expect(authorize(principal("consultant", [], undefined, [], { clients: [ACME] }), "deliverable.hand_over", deliverable([])).allowed).toBe(true);
+    expect(authorize(principal("firm_admin"), "deliverable.hand_over", deliverable([ACME_PROJ_1])).allowed).toBe(false);
+  });
+
+  it("the firm records a receipt only for a client it runs, with the same people; the client never hands over", () => {
+    const staffed = principal("consultant", [ACME_PROJ_1], undefined, [ACME]);
+    expect(authorize(staffed, "deliverable.receive", deliverable([ACME_PROJ_1])).allowed).toBe(false);
+    expect(authorize(staffed, "deliverable.receive", deliverable([ACME_PROJ_1], "consultant_managed")).allowed).toBe(true);
+    expect(authorize(staffed, "deliverable.receive", deliverable([ACME_PROJ_2], "consultant_managed")).allowed).toBe(false);
+    for (const role of ["client_admin", "client_manager", "action_owner"] as Role[]) {
+      expect(authorize(principal(role, [ACME_PROJ_1]), "deliverable.hand_over", deliverable([ACME_PROJ_1])).allowed, role).toBe(false);
+    }
+  });
+});
