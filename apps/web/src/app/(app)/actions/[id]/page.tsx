@@ -18,6 +18,7 @@ import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { actionPageCards, plainDateLines } from "@/lib/action-plain";
 import { firmRun } from "@/lib/engagement";
 import { isUuid } from "@/lib/ids";
 import { localLabel } from "@/lib/names";
@@ -33,6 +34,7 @@ import { askMentionFor } from "@/services/help";
 import { actionSecondReview } from "@/services/second-review";
 import { ActionPanel } from "./action-panel";
 import { AskConsultant } from "./ask-consultant";
+import { ActionMenu, PlainDateLines } from "./client-view";
 import { CommentThread } from "./comment-thread";
 import { RiskAcceptances } from "./closure-panels";
 import { DownloadButton } from "./download-button";
@@ -50,9 +52,10 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads, second } = await withPrincipal(async (tx, principal) => {
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads, second, me } = await withPrincipal(async (tx, principal) => {
     const data = await getActionDetail(tx, principal, id);
     return {
+      me: principal.userId,
       ladder: await actionLadder(tx, principal, id),
       muted: await isActionMuted(tx, principal, id),
       // Firm staff see when mail to the owner isn't getting through.
@@ -96,6 +99,21 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       : null;
   // The first of the client's lead and deputy who can see this action.
   const askMention = leads?.find((u) => thread.people.some((p) => p.id === u)) ?? null;
+  // A client reader does not get the firm's machinery (page audit 4.5): no reminder ladder, no date
+  // history, no sign-off count; two plain lines say what is expected next and what happened last.
+  const cards = actionPageCards(firmView);
+  const plain = firmView
+    ? null
+    : plainDateLines({
+        status: action.status,
+        dueDate: action.dueDate,
+        overdue: action.overdue,
+        ladder,
+        requests: follow.deadlines,
+        moves: slip.history,
+        readerId: me,
+      });
+  const timeline = cards.signOffs ? data.timeline : data.timeline.filter((e) => e.kind !== "signoff");
 
   return (
     <>
@@ -109,8 +127,10 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           </VerifiedBurst>
         }>
         {leads && thread.can.write ? <AskConsultant /> : null}
-        <MuteButton actionId={action.id} muted={muted} />
+        {cards.muteButton ? <MuteButton actionId={action.id} muted={muted} /> : null}
         {data.askAssistant ? <AskAbout projectId={action.projectId} type="action" id={action.id} /> : null}
+        {/* A client reader: mail and risk acceptance are rare, so they sit in the page menu. */}
+        {cards.muteButton ? null : <ActionMenu actionId={action.id} muted={muted} canSign={closing.can.sign} />}
       </PageHeader>
       {recordedForClient ? (
         <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
@@ -161,10 +181,20 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             can={data.can}
             close={closing.can.close ? { signed: closing.signed, replacements: closing.replacements } : undefined}
             openItems={follow.items.filter((i) => i.status === "open").map((i) => ({ id: i.id, title: i.title }))}
-            second={second}
+            // The sign-off round is the firm's: it does not reach a client reader's page at all.
+            second={cards.signOffs ? second : undefined}
             firmView={firmView}
             recordFor={firmView && recordedForClient}
             ownerGone={data.ownerGone}
+            after={
+              plain ? (
+                <PlainDateLines
+                  next={plain.next}
+                  last={plain.last}
+                  ask={follow.can.requestDeadline ? { actionId: action.id, dueDate: action.dueDate } : undefined}
+                />
+              ) : null
+            }
           />
 
           <EvidenceList
@@ -236,9 +266,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
               <CardTitle className="text-base">{t("history")}</CardTitle>
             </CardHeader>
             <CardContent className="px-5">
-              {data.timeline.length === 0 ? <p className="text-sm text-muted-foreground">{t("noHistory")}</p> : null}
+              {timeline.length === 0 ? <p className="text-sm text-muted-foreground">{t("noHistory")}</p> : null}
               <ol className="space-y-5">
-                {data.timeline.map((e, i) => {
+                {timeline.map((e, i) => {
                   const Icon =
                     e.kind === "update"
                       ? MessageSquare
@@ -345,7 +375,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                   ]
                 : []),
               ...(context.requiredEvidence ? [[t("requiredEvidence"), context.requiredEvidence] as const] : []),
-              ...(context.projectKind === "client" ? [[tTable("client"), (ar ? context.orgNameAr : null) ?? context.orgName] as const] : []),
+              // The client's name, for the firm; a client reader is that client.
+              ...(context.projectKind === "client" && firmView ? [[tTable("client"), (ar ? context.orgNameAr : null) ?? context.orgName] as const] : []),
             ].map(([k, v], i) => (
               <div key={i} className="space-y-1 px-5 py-3">
                 <dt className="text-xs text-muted-foreground">{k}</dt>
@@ -354,17 +385,19 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             ))}
           </dl>
         </Card>
-        <DeadlineRequests
-          actionId={action.id}
-          dueDate={action.dueDate}
-          requests={follow.deadlines}
-          slip={slip}
-          canRequest={follow.can.requestDeadline}
-          canDecide={follow.can.decideDeadline}
-        />
-        <ReminderLadder running={ladder.running} steps={ladder.steps} />
-        {firmView ? <SecondReviewCard actionId={action.id} view={second} /> : null}
-        <RiskAcceptances actionId={action.id} items={closing.acceptances} canSign={closing.can.sign} />
+        {cards.dateHistory ? (
+          <DeadlineRequests
+            actionId={action.id}
+            dueDate={action.dueDate}
+            requests={follow.deadlines}
+            slip={slip}
+            canRequest={follow.can.requestDeadline}
+            canDecide={follow.can.decideDeadline}
+          />
+        ) : null}
+        {cards.ladder ? <ReminderLadder running={ladder.running} steps={ladder.steps} /> : null}
+        {cards.signOffs ? <SecondReviewCard actionId={action.id} view={second} /> : null}
+        <RiskAcceptances items={closing.acceptances} firmView={firmView} />
         </div>
       </div>
     </>

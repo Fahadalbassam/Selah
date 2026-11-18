@@ -40,7 +40,7 @@ for (const [u, locale, theme] of combos) {
     page.on("response", (r) => { if (r.status() >= 500) note("http5xx", `${r.status()} ${r.url()}`); });
 
     const seen = new Set<string>();
-    const queue = ["/", "/notifications", "/departments", "/projects?kind=internal", "/security", "/assessments/compare"];
+    const queue = ["/", "/notifications", "/notifications/mail", "/departments", "/projects?kind=internal", "/security", "/assessments/compare"];
     const perPattern = new Map<string, number>();
     while (queue.length) {
       const path = queue.shift()!;

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { firmToday } from "@/lib/dates";
+import { progressParts } from "@/lib/progress-parts";
 import type { Progress } from "@/services/follow-through";
 
 type Row = Record<string, string | number | null | undefined>;
@@ -52,7 +53,12 @@ function historyPoints(history: ProgressData["history"]): HistoryPoint[] {
   return [...byDate.values()].filter((p) => p.total > 0);
 }
 
-/** The project's implementation numbers. Firm staff also get the reports list here. */
+/**
+ * The project's implementation numbers and its reports. A client reader gets
+ * the plain part (page audit U11, batch 1; lib/progress-parts.ts): the share
+ * verified, how the actions ended and the reports the firm shared with them.
+ * The firm's working measures are not drawn for them.
+ */
 export async function ProgressTab({
   projectId,
   data,
@@ -70,7 +76,7 @@ export async function ProgressTab({
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
   const percent = (v: number | null) => (v === null ? "—" : `${Math.round(v)}%`);
   const applies = progress.total - progress.notApplicable - progress.superseded;
-  const points = historyPoints(data.history);
+  const parts = progressParts(firm);
   const basis = [
     [t("basisClient"), num(live.verified_client_evidence)],
     [t("basisConsultant"), num(live.verified_consultant_recorded)],
@@ -81,44 +87,121 @@ export async function ProgressTab({
   );
   const median = num(live.median_days_awaiting_review);
 
+  const implemented = (
+    <Card className="h-fit gap-3 py-5 shadow-xs">
+      <CardHeader className="px-5">
+        <CardDescription>{t("implemented")}</CardDescription>
+        <CardTitle className="text-4xl font-semibold tabular-nums">
+          {/* The headline rolls up digit by digit from zero (Animate UI Sliding Number). */}
+          {progress.implementedPct === null ? (
+            "—"
+          ) : (
+            <span dir="ltr" className="inline-flex">
+              <SlidingCount number={Math.round(progress.implementedPct)} fromNumber={0} />%
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 px-5">
+        {progress.implementedPct === null ? (
+          <p className="text-sm text-muted-foreground">{t("noneYet")}</p>
+        ) : (
+          <>
+            <Meter value={progress.implementedPct} label={t("implemented")} />
+            <p className="text-sm text-muted-foreground">{t("implementedOf", { verified: progress.verified, applies })}</p>
+          </>
+        )}
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-3 text-sm">
+          {outcomes.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">{k}</dt>
+              <dd className="tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+
+  const reportList = reports ? (
+    <Card className="h-fit gap-3 py-5 shadow-xs">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+        <div className="space-y-1.5">
+          <CardTitle className="text-base">{t("reports")}</CardTitle>
+          <CardDescription>{firm ? t("reportsHint") : t("reportsHintClient")}</CardDescription>
+        </div>
+        {reports.can.write ? (
+          <FormDialog
+            trigger={
+              <Button variant="outline" size="sm">
+                <FilePlus2 />
+                {t("newReport")}
+              </Button>
+            }
+            title={t("newReport")}
+            description={t("newReportHint")}
+            endpoint={`/api/projects/${projectId}/reports`}
+            fields={[
+              { name: "title", label: t("reportTitle"), required: true, maxLength: 300 },
+              { name: "periodStart", label: t("periodStart"), type: "date", required: true },
+              { name: "periodEnd", label: t("periodEnd"), type: "date", required: true, defaultValue: firmToday() },
+              { name: "bodyMd", label: t("notes"), type: "textarea", maxLength: 100_000 },
+            ]}
+            submitLabel={t("create")}
+            redirectTo="/reports/:id"
+          />
+        ) : null}
+      </CardHeader>
+      <CardContent className="px-5">
+        {reports.reports.length === 0 ? <p className="text-sm text-muted-foreground">{t("noReports")}</p> : null}
+        <ul className="divide-y">
+          {reports.reports.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0">
+              <FileText className="size-4 text-muted-foreground" />
+              <Link href={`/reports/${r.id}`} className="font-medium hover:underline">
+                {r.kind === "status_pack" && r.periodStart ? tPack("title", { month: month(r.periodStart) }) : r.title}
+              </Link>
+              {r.periodStart && r.periodEnd ? (
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {t("period", { start: day(r.periodStart), end: day(r.periodEnd) })}
+                </span>
+              ) : null}
+              {r.kind === "status_pack" && !r.issued ? (
+                <Badge variant="outline">{tPack("listDraft")}</Badge>
+              ) : firm ? (
+                <Badge variant={r.visibility === "shared" ? "secondary" : "outline"}>
+                  {r.visibility === "shared" ? t("shared") : t("firmOnly")}
+                </Badge>
+              ) : null}
+              <span className="ms-auto text-xs text-muted-foreground">
+                {t("by", { who: r.author ?? "—", date: day(r.createdAt) })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  // A client reader: the share verified with how the actions ended, beside the reports shared with them.
+  if (!parts.measures)
+    return (
+      <div className="space-y-6">
+        <p className="text-sm text-muted-foreground">{t("hintClient")}</p>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          {implemented}
+          {reportList}
+        </div>
+      </div>
+    );
+
+  const points = historyPoints(data.history);
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">{t("hint")}</p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <Card className="gap-3 py-5 shadow-xs">
-          <CardHeader className="px-5">
-            <CardDescription>{t("implemented")}</CardDescription>
-            <CardTitle className="text-4xl font-semibold tabular-nums">
-              {/* The headline rolls up digit by digit from zero (Animate UI Sliding Number). */}
-              {progress.implementedPct === null ? (
-                "—"
-              ) : (
-                <span dir="ltr" className="inline-flex">
-                  <SlidingCount number={Math.round(progress.implementedPct)} fromNumber={0} />%
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 px-5">
-            {progress.implementedPct === null ? (
-              <p className="text-sm text-muted-foreground">{t("noneYet")}</p>
-            ) : (
-              <>
-                <Meter value={progress.implementedPct} label={t("implemented")} />
-                <p className="text-sm text-muted-foreground">{t("implementedOf", { verified: progress.verified, applies })}</p>
-              </>
-            )}
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-3 text-sm">
-              {outcomes.map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">{k}</dt>
-                  <dd className="tabular-nums">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardContent>
-        </Card>
+        {implemented}
 
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <StatTile
@@ -146,81 +229,21 @@ export async function ProgressTab({
         </div>
       </div>
 
-      {progress.late ? <LateAgainstOriginal late={progress.late} /> : null}
+      {parts.lateAgainstOriginal && progress.late ? <LateAgainstOriginal late={progress.late} /> : null}
 
-      <Card className="gap-3 py-5 shadow-xs">
-        <CardHeader className="px-5">
-          <CardTitle className="text-base">{t("history")}</CardTitle>
-          <CardDescription>{t("historyHint")}</CardDescription>
-        </CardHeader>
-        <CardContent className="px-5">
-          {points.length < 2 ? (
-            <p className="text-sm text-muted-foreground">{t("historyEmpty")}</p>
-          ) : (
-            <MetricHistory points={points} />
-          )}
-        </CardContent>
-      </Card>
-
-      {reports ? (
+      {parts.history ? (
         <Card className="gap-3 py-5 shadow-xs">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">{t("reports")}</CardTitle>
-              <CardDescription>{firm ? t("reportsHint") : t("reportsHintClient")}</CardDescription>
-            </div>
-            {reports.can.write ? (
-              <FormDialog
-                trigger={
-                  <Button variant="outline" size="sm">
-                    <FilePlus2 />
-                    {t("newReport")}
-                  </Button>
-                }
-                title={t("newReport")}
-                description={t("newReportHint")}
-                endpoint={`/api/projects/${projectId}/reports`}
-                fields={[
-                  { name: "title", label: t("reportTitle"), required: true, maxLength: 300 },
-                  { name: "periodStart", label: t("periodStart"), type: "date", required: true },
-                  { name: "periodEnd", label: t("periodEnd"), type: "date", required: true, defaultValue: firmToday() },
-                  { name: "bodyMd", label: t("notes"), type: "textarea", maxLength: 100_000 },
-                ]}
-                submitLabel={t("create")}
-                redirectTo="/reports/:id"
-              />
-            ) : null}
+          <CardHeader className="px-5">
+            <CardTitle className="text-base">{t("history")}</CardTitle>
+            <CardDescription>{t("historyHint")}</CardDescription>
           </CardHeader>
           <CardContent className="px-5">
-            {reports.reports.length === 0 ? <p className="text-sm text-muted-foreground">{t("noReports")}</p> : null}
-            <ul className="divide-y">
-              {reports.reports.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0">
-                  <FileText className="size-4 text-muted-foreground" />
-                  <Link href={`/reports/${r.id}`} className="font-medium hover:underline">
-                    {r.kind === "status_pack" && r.periodStart ? tPack("title", { month: month(r.periodStart) }) : r.title}
-                  </Link>
-                  {r.periodStart && r.periodEnd ? (
-                    <span className="text-sm text-muted-foreground tabular-nums">
-                      {t("period", { start: day(r.periodStart), end: day(r.periodEnd) })}
-                    </span>
-                  ) : null}
-                  {r.kind === "status_pack" && !r.issued ? (
-                    <Badge variant="outline">{tPack("listDraft")}</Badge>
-                  ) : firm ? (
-                    <Badge variant={r.visibility === "shared" ? "secondary" : "outline"}>
-                      {r.visibility === "shared" ? t("shared") : t("firmOnly")}
-                    </Badge>
-                  ) : null}
-                  <span className="ms-auto text-xs text-muted-foreground">
-                    {t("by", { who: r.author ?? "—", date: day(r.createdAt) })}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {points.length < 2 ? <p className="text-sm text-muted-foreground">{t("historyEmpty")}</p> : <MetricHistory points={points} />}
           </CardContent>
         </Card>
       ) : null}
+
+      {reportList}
     </div>
   );
 }

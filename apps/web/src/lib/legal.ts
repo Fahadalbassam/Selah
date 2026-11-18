@@ -1,8 +1,10 @@
-// The documents behind Selah's first sign-in (R1) and the ones published for
-// clients' legal and IT teams. Accepted documents carry a version: the date
-// their text last changed. The database holds the same dates
-// (app_legal_version(), tests/db/rule-parity.test.ts compares them), and a
-// person is asked again when one changes.
+// The documents behind Selah's first sign-in (R1), the ones published for
+// clients' legal and IT teams, and the notice for the public inquiry form.
+// Accepted documents carry a version: the date their text last changed. The
+// database holds the same dates (app_legal_version(),
+// tests/db/rule-parity.test.ts compares them), and a person is asked again
+// when one changes.
+import { PRIVACY_NOTICE_VERSION } from "@/lib/intake";
 
 /** Accepted at the first sign-in, each recorded on its own. */
 export const ACCEPTED_DOCS = ["terms", "privacy", "ai_notice"] as const;
@@ -18,13 +20,28 @@ export const LEGAL_VERSIONS: Record<AcceptedDoc, string> = {
 export const REFERENCE_DOCS = ["data_agreement", "subprocessors", "security"] as const;
 export type ReferenceDoc = (typeof REFERENCE_DOCS)[number];
 
-export type LegalDoc = AcceptedDoc | ReferenceDoc;
-export const LEGAL_DOCS: readonly LegalDoc[] = [...ACCEPTED_DOCS, ...REFERENCE_DOCS];
+/**
+ * For people with no account: the privacy notice of the public inquiry form
+ * (once at /privacy, page audit row 51). Not accepted at sign-in; the form
+ * sends back the version it showed (PRIVACY_NOTICE_VERSION).
+ */
+export const NOTICE_DOCS = ["inquiry_privacy"] as const;
+export type NoticeDoc = (typeof NOTICE_DOCS)[number];
+
+export type LegalDoc = AcceptedDoc | ReferenceDoc | NoticeDoc;
+export const LEGAL_DOCS: readonly LegalDoc[] = [...ACCEPTED_DOCS, ...NOTICE_DOCS, ...REFERENCE_DOCS];
+
+/** The date a document's text last changed, where it has one: accepted documents and the inquiry notice. */
+export function legalVersion(doc: LegalDoc): string | null {
+  if (doc === "inquiry_privacy") return PRIVACY_NOTICE_VERSION;
+  return doc in LEGAL_VERSIONS ? LEGAL_VERSIONS[doc as AcceptedDoc] : null;
+}
 
 /** The public address of each document: /legal/<slug>. */
 export const LEGAL_SLUGS: Record<LegalDoc, string> = {
   terms: "terms",
   privacy: "privacy",
+  inquiry_privacy: "inquiry-privacy",
   ai_notice: "ai",
   data_agreement: "data-agreement",
   subprocessors: "sub-processors",
@@ -104,10 +121,13 @@ export function subprocessorsInUse(settings: {
 }
 
 /**
- * The legal texts name other pages by their address ("/legal/sub-processors",
- * "/privacy"). Splits a text into plain pieces and those addresses, so the
- * page can show each as a link set left to right; the words stay as written.
- * Only addresses of pages that exist are picked out.
+ * The legal texts name other pages by their address ("/legal/sub-processors").
+ * Splits a text into plain pieces and those addresses, so the page can show
+ * each as a link set left to right; the words stay as written. Only
+ * addresses of pages that exist are picked out. The accepted privacy notice
+ * still names the inquiry notice by its old address, /privacy (an accepted
+ * text changes only with a new version); that address links straight to the
+ * notice's place in the legal set.
  */
 export function splitPageAddresses(text: string): { text: string; href?: string }[] {
   const parts: { text: string; href?: string }[] = [];
@@ -117,7 +137,7 @@ export function splitPageAddresses(text: string): { text: string; href?: string 
     const address = m[0].replace(/-+$/, "");
     if (m[1] !== undefined && !legalDocFromSlug(address.slice("/legal/".length))) continue;
     if (m.index > last) parts.push({ text: text.slice(last, m.index) });
-    parts.push({ text: address, href: address });
+    parts.push({ text: address, href: m[1] === undefined ? `/legal/${LEGAL_SLUGS.inquiry_privacy}` : address });
     last = m.index + address.length;
   }
   if (last < text.length) parts.push({ text: text.slice(last) });

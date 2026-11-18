@@ -100,6 +100,10 @@ export interface ActionFilter {
   /** Filed under this department. */
   departmentId?: string;
   mineOnly?: boolean;
+  /** Owned by this person (still only the actions the reader may read). */
+  ownerUserId?: string;
+  /** Leave out closed projects, whose open actions were settled at closing. */
+  liveProjects?: boolean;
   status?: ActionStatus[];
   /** Overdue ones, or ones in these states. */
   attention?: ActionStatus[];
@@ -117,6 +121,8 @@ function actionConditions(principal: Principal, filter: ActionFilter) {
   if (filter.departmentId) conditions.push(eq(actions.departmentId, filter.departmentId));
   if (filter.clientOrgId) conditions.push(eq(actions.orgId, filter.clientOrgId), sql`exists (select 1 from projects p where p.id = ${actions.projectId} and p.kind = 'client')`);
   if (filter.mineOnly || principal.role === "action_owner") conditions.push(eq(actions.ownerUserId, principal.userId));
+  if (filter.ownerUserId) conditions.push(eq(actions.ownerUserId, filter.ownerUserId));
+  if (filter.liveProjects) conditions.push(projectNotClosed);
   if (filter.status) conditions.push(inArray(actions.status, filter.status));
   if (filter.attention) {
     conditions.push(

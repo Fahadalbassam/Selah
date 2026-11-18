@@ -18,19 +18,17 @@ const ALLOWED: Record<SignedOutArea, string[]> = {
   auth: ["signIn", "account", "security", "consent", "common"],
   inquiry: ["inquiry"],
   legal: [],
-  privacy: [],
   upload: ["uploadLink", "fileActions", "common"],
 };
 
 /** Namespaces written for visitors and for every account alike. Everything else in the catalogue is the app's own. */
-const PUBLIC_SAFE = new Set(["app", "signIn", "notFound", "account", "security", "consent", "common", "inquiry", "privacy", "legal", "uploadLink", "fileActions"]);
+const PUBLIC_SAFE = new Set(["app", "signIn", "notFound", "account", "security", "consent", "common", "inquiry", "legal", "uploadLink", "fileActions"]);
 
 /** The file that hands each area its strings. */
 const PROVIDERS: Record<SignedOutArea, string> = {
   auth: `${APP}/(auth)/layout.tsx`,
   inquiry: `${APP}/(public)/inquiry/layout.tsx`,
   legal: `${APP}/(public)/legal/layout.tsx`,
-  privacy: `${APP}/(public)/privacy/layout.tsx`,
   upload: `${APP}/(public)/upload/[token]/page.tsx`,
 };
 
@@ -39,7 +37,6 @@ const FOLDERS: Record<SignedOutArea, string> = {
   auth: `${APP}/(auth)`,
   inquiry: `${APP}/(public)/inquiry`,
   legal: `${APP}/(public)/legal`,
-  privacy: `${APP}/(public)/privacy`,
   upload: `${APP}/(public)/upload`,
 };
 
@@ -61,7 +58,7 @@ describe("what signed-out pages send to the browser", () => {
   it("never includes a namespace written for the firm's or a client's own screens", () => {
     const firmOnly = Object.keys(ar).filter((ns) => !PUBLIC_SAFE.has(ns));
     // The catalogue's internal wording, by name: the audit found these in the sign-in page's source.
-    for (const ns of ["staffing", "conflicts", "qualification", "audit", "engagement", "oversight", "settings", "clients"]) {
+    for (const ns of ["staffing", "conflicts", "qualification", "audit", "engagement", "insight", "settings", "clients"]) {
       expect(firmOnly, ns).toContain(ns);
     }
     for (const area of AREAS) {

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ChoiceOption, QuestionType } from "@/lib/assessments";
 import { isUuid } from "@/lib/ids";
+import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { assessmentFollowUp, getAssessment, listAssessments } from "@/services/assessments";
 import { getProject } from "@/services/queries";
@@ -38,6 +39,8 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
       // Evidence is a project file the firm can see, never a client-private one.
       files: project.documents.filter((d) => d.visibility !== "client_private").map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt })),
       templateId: all.find((x) => x.id === id)?.templateId,
+      // The template and version it was made from: firm staff open it from here (page audit row 38).
+      template: firm ? (all.find((x) => x.id === id) ?? null) : null,
       others: all.filter((x) => x.id !== id),
       followUp: firm && a.status === "final" ? await assessmentFollowUp(tx, principal, id) : [],
       firm,
@@ -84,6 +87,11 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
               {t("legalForm")}: {tq(`forms.${a.legalForm}`)}
             </Badge>
             {firm ? <Badge variant="outline">{a.sharedWithClient ? t("sharedWithClient") : t("firmOnly")}</Badge> : null}
+            {data.template ? (
+              <Link href={`/templates/${data.template.templateId}?v=${data.template.versionId}`} className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+                {t("templateLink", { name: localName({ name: data.template.templateName, nameAr: data.template.templateNameAr }, ar), version: data.template.version })}
+              </Link>
+            ) : null}
           </>
         }
       />

@@ -6,6 +6,7 @@ import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
+import { LinkTabs } from "@/components/link-tabs";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,17 +14,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { withPrincipal } from "@/server/page";
 import { listProjects } from "@/services/queries";
+import { projectsTable } from "@/services/action-board";
+import { ProjectsTable, ProjectViewLinks } from "./projects-table";
 import { EmptyState } from "@/components/empty-state";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 
-export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
-  const { kind } = await searchParams;
-  const { projects, firm } = await withPrincipal(async (tx, principal) => ({
-    projects: await listProjects(tx, principal),
-    firm: principal.orgKind === "firm",
-  }));
-  const shown = kind === "internal" || kind === "client" ? projects.filter((p) => p.kind === kind) : projects;
-  const [t, tKind, tS] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing")]);
+// The firm's kind filter (page audit 4.1: the sidebar's three Projects sub-entries). It keeps the table view.
+const KINDS = [
+  { kind: null, href: "/projects", table: "/projects?view=table", label: "allProjects" },
+  { kind: "client", href: "/projects?kind=client", table: "/projects?view=table&kind=client", label: "clientProjects" },
+  { kind: "internal", href: "/projects?kind=internal", table: "/projects?view=table&kind=internal", label: "internalProjects" },
+] as const;
+
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string; view?: string }> }) {
+  const { kind, view } = await searchParams;
+  const { projects, firm, table } = await withPrincipal(async (tx, principal) => {
+    // The firm's table view (page audit 4.6): Oversight's columns per project, as counts (D5).
+    const table = principal.orgKind === "firm" && view === "table" ? await projectsTable(tx, principal) : null;
+    return { projects: table ? [] : await listProjects(tx, principal), firm: principal.orgKind === "firm", table };
+  });
+  const ofKind = <T extends { kind: string }>(list: T[]) => (kind === "internal" || kind === "client" ? list.filter((p) => p.kind === kind) : list);
+  const shown = ofKind(projects);
+  const [t, tKind, tS, tNav] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing"), getTranslations("nav")]);
   const ar = (await getLocale()) === "ar";
 
   return (
@@ -49,8 +61,18 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
           />
         ) : null}
       </PageHeader>
+      {firm ? (
+        <LinkTabs
+          label={tNav("projectKinds")}
+          tabs={KINDS.map((k) => ({ href: table ? k.table : k.href, label: tNav(k.label) }))}
+          current={((k) => (table ? k.table : k.href))(KINDS.find((k) => k.kind === kind) ?? KINDS[0])}
+        />
+      ) : null}
       {firm ? <p className="text-xs text-muted-foreground">{t("internalNote")}</p> : null}
-      {shown.length === 0 ? (
+      {firm ? <ProjectViewLinks view={table ? "table" : "cards"} kind={kind === "internal" || kind === "client" ? kind : undefined} /> : null}
+      {table ? (
+        <ProjectsTable rows={ofKind(table)} />
+      ) : shown.length === 0 ? (
         <EmptyState icon={<FileText animateOnView />} description={t("empty")} />
       ) : (
         <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -63,16 +85,19 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                   <TiltContent className="h-full">
                     <Card className="h-full gap-3 py-5 shadow-xs transition-[border-color,box-shadow,translate] duration-(--duration-base) ease-(--ease-out-soft) group-hover:-translate-y-0.5 group-hover:border-foreground/20 group-hover:shadow-md">
                       <CardHeader className="px-5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
-                            {p.kind === "internal" ? <Lock className="size-3" /> : p.pitch ? <FilePenLine className="size-3" /> : <Building2 className="size-3" />}
-                            {p.pitch ? tKind("pitch") : tKind(p.kind)}
-                          </Badge>
-                        </div>
+                        {/* The kind and the client's name are the firm's to sort by; a client reader's projects are all its own. */}
+                        {firm ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant={p.kind === "internal" ? "secondary" : "outline"} className="gap-1">
+                              {p.kind === "internal" ? <Lock className="size-3" /> : p.pitch ? <FilePenLine className="size-3" /> : <Building2 className="size-3" />}
+                              {p.pitch ? tKind("pitch") : tKind(p.kind)}
+                            </Badge>
+                          </div>
+                        ) : null}
                         <CardTitle className="text-base leading-snug">
                           <MorphTitle name={`project-${p.id}`}>{p.title}</MorphTitle>
                         </CardTitle>
-                        {p.kind === "client" ? (
+                        {p.kind === "client" && firm ? (
                           <CardDescription>
                             {t("client")}: {(ar ? p.orgNameAr : null) ?? p.orgName}
                           </CardDescription>

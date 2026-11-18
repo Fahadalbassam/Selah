@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
@@ -107,6 +108,7 @@ export function IndicatorDialog({
   departments,
   defaultDepartmentId = null,
   trigger,
+  control,
 }: {
   clientOrgId: string;
   /** Present when editing. */
@@ -114,12 +116,14 @@ export function IndicatorDialog({
   locked?: boolean;
   departments: { id: string; nameAr: string; nameEn: string | null }[];
   defaultDepartmentId?: string | null;
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  /** Opened from a menu rather than its own button. */
+  control?: DialogControl;
 }) {
   const t = useTranslations("indicators");
   const ar = useLocale() === "ar";
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(control);
   const [direction, setDirection] = useState(indicator?.direction ?? "higher_better");
   const [frequency, setFrequency] = useState(indicator?.frequency ?? "monthly");
   const [department, setDepartment] = useState(indicator?.departmentId ?? defaultDepartmentId ?? "company");
@@ -178,8 +182,8 @@ export function IndicatorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl" {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{indicator ? t("editTitle") : t("newTitle")}</DialogTitle>
@@ -340,6 +344,7 @@ export function ValueDialog({
   correct,
   onBehalf,
   trigger,
+  control,
 }: {
   indicatorId: string;
   unit: string;
@@ -350,11 +355,13 @@ export function ValueDialog({
   correct?: { period: string; valueId: string; value: number };
   /** The firm entering it for the client. */
   onBehalf: boolean;
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  /** Opened from a value row's menu rather than its own button. */
+  control?: DialogControl;
 }) {
   const t = useTranslations("indicators");
   const locale = useLocale() as "ar" | "en";
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(control);
   const [period, setPeriod] = useState(correct?.period ?? periods[0] ?? "");
   const { busy, error, setError, send } = useSend();
 
@@ -374,8 +381,8 @@ export function ValueDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
+      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      <DialogContent {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{correct ? t("correctTitle") : t("valueTitle")}</DialogTitle>

@@ -7,7 +7,7 @@
 // Kept apart from `positions` on purpose: clients read every column of a
 // published version's positions, and a plan is the firm's alone. Only the
 // draft's editors read and write it (row-level security, migration
-// 0170_org_chart_planned_holders); no client person ever reads one. A planned
+// 0098_org_chart_planned_holders); no client person ever reads one. A planned
 // typed name joins the masking list like a typed holder's.
 import { sql } from "drizzle-orm";
 import { check, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";

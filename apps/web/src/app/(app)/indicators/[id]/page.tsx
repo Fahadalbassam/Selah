@@ -1,14 +1,13 @@
-import { ArrowLeft, Gauge, Trash2 } from "lucide-react";
-import { Pencil } from "lucide-react";
+import { ArrowLeft, Gauge } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { ApiButton } from "@/components/form-dialog";
-import { IndicatorDialog, LinkDialog, ValueDialog } from "@/components/indicators/indicator-dialogs";
+import { LinkDialog, ValueDialog } from "@/components/indicators/indicator-dialogs";
 import { indicatorName, MovementBadge } from "@/components/indicators/indicators-card";
 import { IndicatorTrend } from "@/components/indicators/indicator-trend";
-import { MuteButton } from "@/components/mail-choices";
+import { IndicatorPageMenu, ValueRowActions } from "@/components/indicators/value-row-actions";
 import { PageHeader } from "@/components/page-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +39,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
   if (!data.detail) notFound();
   const { detail, firm, mail } = data;
   const { indicator: k, series, history, links } = detail;
-  const [t, tMail, format, locale] = await Promise.all([getTranslations("indicators"), getTranslations("notifications.mail"), getFormatter(), getLocale()]);
+  const [t, format, locale] = await Promise.all([getTranslations("indicators"), getFormatter(), getLocale()]);
   const ar = locale === "ar";
   const lang = ar ? "ar" : "en";
   const s = k.summary;
@@ -90,40 +89,17 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
             }
           />
         ) : null}
-        {detail.canManage ? (
-          <>
-            <IndicatorDialog
-              clientOrgId={detail.client.id}
-              indicator={k}
-              locked={locked}
-              departments={detail.departments}
-              trigger={
-                <Button size="sm" variant="outline">
-                  <Pencil />
-                  {t("edit")}
-                </Button>
-              }
-            />
-            <ApiButton
-              endpoint={`/api/indicators/${k.id}`}
-              method="PATCH"
-              body={{ active: !k.active }}
-              label={k.active ? t("switchOff") : t("switchOn")}
-              confirm={k.active ? t("switchOffConfirm") : undefined}
-            />
-            {detail.canDelete ? (
-              <ApiButton
-                endpoint={`/api/indicators/${k.id}`}
-                method="DELETE"
-                label={t("delete")}
-                icon={<Trash2 className="size-4" />}
-                confirm={t("deleteConfirm")}
-                redirectTo={back}
-              />
-            ) : null}
-          </>
-        ) : null}
-        {mail?.told ? <MuteButton indicatorId={k.id} muted={mail.muted} title={tMail("indicatorMuteHint")} /> : null}
+        {/* One main button ("Enter a value"); changing, pausing, deleting and the mail choice are in the menu (page audit U15). */}
+        <IndicatorPageMenu
+          name={name}
+          clientOrgId={detail.client.id}
+          indicator={k}
+          locked={locked}
+          departments={detail.departments}
+          can={{ manage: detail.canManage, delete: detail.canDelete }}
+          back={back}
+          mail={mail?.told ? { muted: mail.muted } : null}
+        />
       </PageHeader>
       <p className="-mt-3 flex max-w-3xl items-start gap-2 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
         <Gauge className="mt-0.5 size-4 shrink-0" />
@@ -238,26 +214,20 @@ export default async function IndicatorPage({ params }: { params: Promise<{ id: 
                               )}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-col items-end gap-1">
-                                {v && detail.canReport ? (
-                                  <ValueDialog
-                                    indicatorId={k.id}
-                                    unit={k.unit}
-                                    frequency={k.frequency}
-                                    periods={[]}
-                                    correct={{ period: p.period, valueId: v.id, value: v.value }}
-                                    onBehalf={firm}
-                                    trigger={
-                                      <Button size="sm" variant="ghost">
-                                        {t("correct")}
-                                      </Button>
-                                    }
-                                  />
-                                ) : null}
-                                {v && detail.canCheck && !v.checkedAt && v.enteredById !== detail.viewerId ? (
-                                  <ApiButton endpoint={`/api/indicator-values/${v.id}/check`} label={t("check")} variant="ghost" title={t("checkHint")} />
-                                ) : null}
-                              </div>
+                              {v ? (
+                                <ValueRowActions
+                                  indicatorId={k.id}
+                                  unit={k.unit}
+                                  frequency={k.frequency}
+                                  onBehalf={firm}
+                                  periodText={periodLabel(p.period, k.frequency, lang)}
+                                  value={{ id: v.id, period: p.period, value: v.value }}
+                                  can={{
+                                    check: detail.canCheck && !v.checkedAt && v.enteredById !== detail.viewerId,
+                                    correct: detail.canReport,
+                                  }}
+                                />
+                              ) : null}
                             </TableCell>
                           </TableRow>
                         );

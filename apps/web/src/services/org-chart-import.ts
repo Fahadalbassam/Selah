@@ -112,7 +112,7 @@ export interface Plan {
 /**
  * The planned holders of positions of the draft, in the order the row gave
  * them, read under the reader's row-level security: the draft's editors read
- * them, anyone else none (migration 0170).
+ * them, anyone else none (migration 0098).
  */
 async function plansOf(tx: Tx, positionIds: string[]): Promise<Map<string, Plan[]>> {
   const out = new Map<string, Plan[]>();
@@ -157,6 +157,16 @@ async function setPlans(tx: Tx, principal: Principal, clientOrgId: string, posit
     outcome: "allow",
     meta: { client: clientOrgId, code: position.code, accounts: holders.filter((h) => "userId" in h).length, typed: holders.filter((h) => "name" in h).length },
   });
+}
+
+/**
+ * The names planned for positions of the draft, by position id, for the
+ * draft editor (part 3): read under the reader's row-level security, so only
+ * the draft's editors get any; never a holder, never shown to a client.
+ */
+export async function plannedNames(tx: Tx, positionIds: string[]): Promise<Record<string, string[]>> {
+  const plans = await plansOf(tx, positionIds);
+  return Object.fromEntries([...plans].map(([id, list]) => [id, list.flatMap((h) => (h.name ? [h.name] : []))]));
 }
 
 /** Whether a position's plan already is this list (same people, same order). */

@@ -364,6 +364,11 @@ describe("saving into the draft", () => {
       expect((await as(who, (c) => c.query(`DELETE FROM org_chart_planned_holders`))).rowCount, who).toBe(0);
     }
     expect(await plansSeenBy(U.lead)).toBe(2);
+    // The draft editor's plan line (part 3's editor): names for the draft's editors, none for anyone else.
+    const ids = (await q(`SELECT position_id FROM org_chart_planned_holders WHERE org_id = $1`, [SAHM])).rows.map((r) => r.position_id as string);
+    const lead = await svc(U.lead, (tx) => IM.plannedNames(tx, ids));
+    expect(Object.values(lead).flat().sort()).toEqual(["Nawaf Al-Qasimi", "Reem Al-Harbi"]);
+    for (const who of [U.obs, U.cadmin]) expect(await svc(who, (tx) => IM.plannedNames(tx, ids)), who).toEqual({});
   });
 
   it("asks whether to replace the draft or add to it once the draft holds something", async () => {

@@ -85,11 +85,14 @@ export async function IndicatorsCard({
   data,
   scope = "client",
   departmentId = null,
+  quiet = false,
 }: {
   data: IndicatorList;
   /** A department's page shows only its own, and adds new ones to it. */
   scope?: "client" | "department";
   departmentId?: string | null;
+  /** Below other work (the client home): "New indicator" stays an outline button, never the page's solid one (page audit 8). */
+  quiet?: boolean;
 }) {
   const t = await getTranslations("indicators");
   const { counts } = data;
@@ -103,7 +106,7 @@ export async function IndicatorsCard({
             <Gauge className="size-4 text-muted-foreground" />
             {scope === "client" ? t("title") : t("departmentTitle")}
           </CardTitle>
-          <CardDescription>{t("hint")}</CardDescription>
+          <CardDescription>{t(data.firm ? "hint" : "hintClient")}</CardDescription>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
         {scope === "client" && (data.canManage || data.canImport) ? (
@@ -124,7 +127,7 @@ export async function IndicatorsCard({
             departments={data.departments}
             defaultDepartmentId={departmentId}
             trigger={
-              <Button size="sm" variant={active.length ? "outline" : "default"}>
+              <Button size="sm" variant={active.length || quiet ? "outline" : "default"}>
                 <Plus />
                 {t("new")}
               </Button>
@@ -152,7 +155,7 @@ export async function IndicatorsCard({
           </div>
         ) : null}
         {active.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{data.canManage ? t("emptyManage") : t("empty")}</p>
+          <p className="text-sm text-muted-foreground">{data.canManage ? t(data.firm ? "emptyManage" : "emptyManageClient") : t("empty")}</p>
         ) : (
           <ul className="divide-y">
             {active.map((k) => (

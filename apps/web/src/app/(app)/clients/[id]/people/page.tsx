@@ -6,17 +6,20 @@ import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { listPeople } from "@/services/accounts";
+import { listVacancies } from "@/services/org-chart";
 import { PeopleAdmin } from "../../../team/people-admin";
 
 // The firm admin manages a client's accounts.
 export default async function ClientPeoplePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) =>
-    principal.role === "firm_admin"
-      ? { people: await listPeople(tx, principal, id), me: principal.userId, role: principal.role }
-      : null,
-  );
+  const data = await withPrincipal(async (tx, principal) => {
+    if (principal.role !== "firm_admin") return null;
+    const people = await listPeople(tx, principal, id);
+    // The invite form offers the vacant positions of the client's structure (org chart, part 3).
+    const vacancies = people.organization.kind === "client" ? await listVacancies(tx, principal, id) : [];
+    return { people, vacancies, me: principal.userId, role: principal.role };
+  });
   if (!data || data.people.organization.kind !== "client") notFound();
   const ar = (await getLocale()) === "ar";
   const org = data.people.organization;
@@ -26,7 +29,7 @@ export default async function ClientPeoplePage({ params }: { params: Promise<{ i
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {localName(org, ar)}
       </Link>
-      <PeopleAdmin data={data.people} me={data.me} myRole={data.role} reviewDays={null} asPage />
+      <PeopleAdmin data={data.people} me={data.me} myRole={data.role} reviewDays={null} asPage vacancies={data.vacancies} />
     </>
   );
 }

@@ -10,7 +10,7 @@ import type { listClientRoles } from "@/services/client-roles";
 type Data = NonNullable<Awaited<ReturnType<typeof listClientRoles>>>;
 
 /** Who is who on the client's side: sponsor, coordinator, steering committee, acceptors, observers. */
-export async function ClientRolesCard({ projectId, data }: { projectId: string; data: Data }) {
+export async function ClientRolesCard({ projectId, data, firm }: { projectId: string; data: Data; firm: boolean }) {
   const t = await getTranslations("clientRoles");
   const byRole = (role: ClientRoleName) => data.roles.filter((r) => r.role === role);
   const options = [
@@ -22,8 +22,9 @@ export async function ClientRolesCard({ projectId, data }: { projectId: string; 
     <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">{t("title")}</CardTitle>
-          <CardDescription>{t("hint")}</CardDescription>
+          {/* The client reads "who speaks for your company"; the escalation rule is the firm's to know (page audit 4.7). */}
+          <CardTitle className="text-base">{t(firm ? "title" : "titleClient")}</CardTitle>
+          <CardDescription>{t(firm ? "hint" : "hintClient")}</CardDescription>
         </div>
         {data.can.manage && options.length ? (
           <FormDialog

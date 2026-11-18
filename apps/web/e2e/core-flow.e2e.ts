@@ -78,7 +78,8 @@ test("owner sees it, starts work, posts a note and is refused an infected file (
 
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
   await page.locator("#file").setInputFiles({ name: "eicar.txt", mimeType: "text/plain", buffer: EICAR });
-  await page.getByRole("button", { name: t("action.sendForReview") }).click();
+  // The page's button and the dialog's say the same words ("send for review"): press the dialog's.
+  await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await expect(page.getByRole("alert").filter({ hasText: t("action.errors.infected") })).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/owner-ar-infected.png" });
   await page.context().close();
@@ -91,7 +92,7 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
   await page.locator("#file").setInputFiles({ name: "minutes.pdf", mimeType: "application/pdf", buffer: pdf() });
   await page.locator("#note").fill("المحضر مرفق");
-  await page.getByRole("button", { name: t("action.sendForReview") }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await toastSaved(page);
   await expect(page.getByText(t("action.awaitingNote"))).toBeVisible();
   // Bug 12: with one evidence item open, the file sent for review answers it.
@@ -100,10 +101,11 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   await page.context().close();
 });
 
-test("consultant finds it in the review queue, downloads it and asks for a revision (English)", async ({ browser }) => {
+test("consultant finds it in the Actions list awaiting review, downloads it and asks for a revision (English)", async ({ browser }) => {
   const t = L("en");
   const page = await open(browser, "khalid", "en", "dark");
-  await page.goto("/review");
+  // The review queue is a filter of the Actions list (page audit 4.6); /review redirects there.
+  await page.goto("/actions?filter=awaiting-review");
   await page.getByRole("link", { name: actTitle }).click();
   // The button asks for a one-minute signed link to the private bucket and follows it.
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: t("action.download") }).first().click()]);
@@ -123,7 +125,8 @@ test("owner is notified, asks for a later date and resubmits (Arabic)", async ({
   await page.goto("/notifications");
   await expect(page.getByText(t("notifications.kinds.action_revision_requested", { title: actTitle }))).toBeVisible();
   await page.goto(`/actions/${actionId}`);
-  await page.getByRole("button", { name: t("action.deadline.ask") }).click();
+  // A client reader proposes a new date from the quiet "I need more time" under the next step (page audit 4.5).
+  await page.getByRole("button", { name: t("action.plain.ask") }).click();
   await pickNextMonthDay(page, "new-date");
   await page.locator("#date-reason").fill("ننتظر توقيع رئيس المجلس");
   await page.getByRole("button", { name: t("action.deadline.send") }).click();

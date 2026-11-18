@@ -26,10 +26,10 @@ test("a visitor sends the public inquiry form (English, then the sent page in Ar
   const p = await ctx.newPage();
   await p.goto("/inquiry");
   await hydrated(p, "form");
+  // One first step for the organisation and the person (batch 1).
   await p.getByLabel("Organisation name").fill(org);
   await p.getByRole("combobox", { name: "Sector" }).click();
   await p.getByRole("option").first().click();
-  await p.getByRole("button", { name: "Continue" }).click();
   await p.getByLabel("Your name").fill("Faisal Test");
   await p.getByRole("combobox", { name: "Your role" }).click();
   await p.getByRole("option", { name: "Board member" }).click();
@@ -50,6 +50,12 @@ test("a visitor sends the public inquiry form (English, then the sent page in Ar
   await p.getByRole("radiogroup", { name: "Which generation runs the business today?" }).getByRole("radio", { name: "The second generation" }).click();
   await p.getByRole("radiogroup", { name: "A written strategy" }).getByRole("radio", { name: "No" }).click();
   await p.getByRole("button", { name: "Continue" }).click();
+  // Every answer is shown on the review step before sending.
+  for (const answer of [org, "Faisal Test", `faisal-${stamp}@qimma.example`, "+966 55 000 0000", "The board changes in January."]) {
+    await expect(p.getByText(answer, { exact: false }).first()).toBeVisible();
+  }
+  // The privacy notice is in the legal set; its old address sends people there.
+  await expect(p.getByRole("link", { name: "Read the privacy notice" })).toHaveAttribute("href", "/legal/inquiry-privacy");
   await p.getByRole("button", { name: "Send inquiry" }).click();
   await expect(p.getByText(/privacy notice/i).first()).toBeVisible();
   await p.getByRole("checkbox", { name: /privacy notice/ }).click();

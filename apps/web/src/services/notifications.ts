@@ -205,21 +205,23 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
           ? `/indicators/${f.kpiId}`
           : r.entityType === "deliverable"
             ? (deliverableLinks.get(r.entityId) ?? null)
-            : hrefFor(r.kind, r.entityType, r.entityId),
+            : hrefFor(r.kind, r.entityType, r.entityId, principal.orgKind),
       facts: f,
     };
   });
   return { items, unread: await unreadCount(tx, principal) };
 }
 
-function hrefFor(kind: string, entityType: string, entityId: string) {
+function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Principal["orgKind"]) {
   if (kind === "access_review.due") return "/team";
+  // An invitation's person was not placed in the position chosen (org chart, part 3): People in positions, where they are placed.
+  if (kind === "org_chart.invite_not_placed") return orgKind === "client" ? "/departments/structure?view=people" : `/clients/${entityId}/structure?view=people`;
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=requests`;
-  // A drafted status pack waits on the project's progress tab; a quiet client shows on the oversight page.
+  // A drafted status pack waits on the project's progress tab; a quiet client shows in the Projects table ("Client last active").
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;
-  if (kind === "project.client_quiet") return "/oversight";
-  // Reported problems: the firm admin reads them below the notifications, the reporter on the help page.
-  if (kind === "support.requested") return "/notifications#support";
+  if (kind === "project.client_quiet") return "/projects?view=table";
+  // Reported problems: the firm admin reads them on the home (page audit 4.2), the reporter on the help page.
+  if (kind === "support.requested") return "/#problems";
   if (kind === "support.handled") return "/help";
   // The client assistant (F39): the client's admin reads the notice; the firm sees the client page's card.
   if (kind === "client_ai.offered") return "/assistant";

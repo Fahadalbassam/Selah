@@ -185,7 +185,7 @@ describe("the firm admin's role label", () => {
   it("is «مدير المكتب», as everywhere else", () => {
     expect(ar.role.firm_admin).toBe("مدير المكتب");
     expect(tr("ar", "account.invite")("subtitle", { role: ar.role.firm_admin })).toBe("دُعيت بصفة مدير المكتب.");
-    expect(tr("ar", "help.steps")("description", { role: ar.role.firm_admin })).toBe("ثلاث خطوات تبدأ بها في دورك (مدير المكتب).");
+    // (The Help page's "first steps", which also named the role, went in batch 1, page audit U17.)
   });
 
   it("and no screen calls the firm's admins «مدير الشركة», «مسؤولو الشركة» or «مسؤول في المكتب»", () => {

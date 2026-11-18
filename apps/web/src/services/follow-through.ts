@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, ne, notInArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
   actionNotes,
@@ -326,6 +327,8 @@ export async function actionFollowThrough(tx: Tx, principal: Principal, actionId
         .where(eq(evidenceSubmissions.actionId, actionId))
         .orderBy(asc(evidenceSubmissions.submittedAt))
     : [];
+  // Who decided, for the client's plain line ("New date …, agreed by …"); the same names the date history shows.
+  const decider = alias(user, "decider");
   const deadlines = authorize(principal, "deadline_request.read", deadlineResource).allowed
     ? await tx
         .select({
@@ -336,11 +339,14 @@ export async function actionFollowThrough(tx: Tx, principal: Principal, actionId
           dueDateThen: deadlineChangeRequests.dueDateThen,
           raisedLate: deadlineChangeRequests.raisedLate,
           requestedBy: user.name,
+          requestedById: deadlineChangeRequests.requestedBy,
           createdAt: deadlineChangeRequests.createdAt,
           decidedAt: deadlineChangeRequests.decidedAt,
+          decidedBy: decider.name,
         })
         .from(deadlineChangeRequests)
         .leftJoin(user, eq(user.id, deadlineChangeRequests.requestedBy))
+        .leftJoin(decider, eq(decider.id, deadlineChangeRequests.decidedBy))
         .where(eq(deadlineChangeRequests.actionId, actionId))
         .orderBy(desc(deadlineChangeRequests.createdAt))
     : [];

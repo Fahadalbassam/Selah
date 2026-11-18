@@ -54,7 +54,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
               ? data.firmStaff
                 ? null
                 : tr("noAccounts")
-              : tr("whoResponds");
+              : tr(data.firmStaff ? "whoResponds" : "whoRespondsClient");
 
   return (
     <>
@@ -96,7 +96,8 @@ export default async function RecommendationPage({ params }: { params: Promise<{
             <Card className="gap-4 py-5 shadow-xs">
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
                 <div className="space-y-1.5">
-                  <CardTitle className="text-base">{tr("title")}</CardTitle>
+                  {/* The client reads "your company's answer", never "the client's response" (page audit 4.7). */}
+                  <CardTitle className="text-base">{tr(data.firmStaff ? "title" : "titleClient")}</CardTitle>
                   <CardDescription>
                     {data.firmStaff ? (context.mode === "consultant_managed" ? tr("hintOnBehalf") : tr("hintFirm")) : tr("hintClient")}
                   </CardDescription>
@@ -219,7 +220,8 @@ export default async function RecommendationPage({ params }: { params: Promise<{
           <dl className="divide-y text-sm">
             {[
               [t("project"), <Link key="p" href={`/projects/${r.projectId}`} className="text-primary hover:underline">{context.projectTitle}</Link>],
-              ...(client ? [[t("client"), (ar ? context.orgNameAr : null) ?? context.orgName] as const] : []),
+              // The client's name, for the firm; a client reader is that client.
+              ...(client && data.firmStaff ? [[t("client"), (ar ? context.orgNameAr : null) ?? context.orgName] as const] : []),
               ...(data.finding ? [[t("answers"), <span key="f" dir="auto">{data.finding.title}</span>] as const] : []),
               [t("priority"), tPrio(r.priority)],
               [t("due"), <span key="d" className="tabular-nums">{r.dueDate ? day(r.dueDate) : "—"}</span>],

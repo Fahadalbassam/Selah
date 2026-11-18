@@ -34,9 +34,8 @@ test("consultant asks in Arabic and gets a sourced answer, then switches to Engl
   expect(text).toMatch(/500/);
   void answer;
 
-  // Language switch from the user menu: the interface flips; the latest answer is translated.
-  await page.getByRole("button", { name: /khalid@mizan.example/ }).click();
-  await page.getByRole("menuitem", { name: /English/ }).click();
+  // Language switch in the top bar (it left the user menu, October review item 6): the interface flips; the latest answer is translated.
+  await page.getByTitle(/\(English\)/).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr", { timeout: 15_000 });
   // Only the latest answer is translated automatically; the question stays as asked.
   await expect.poll(async () => /500/.test(await page.locator("#assistant-card").innerText()) && /[A-Za-z]{4,} [A-Za-z]{4,} [A-Za-z]{3,}/.test(await page.locator("#assistant-card").innerText()), { timeout: 60_000 }).toBe(true);

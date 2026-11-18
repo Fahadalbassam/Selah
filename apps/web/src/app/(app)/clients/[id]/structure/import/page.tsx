@@ -25,13 +25,13 @@ export default async function StructureImportPage({ params }: { params: Promise<
   const client = localName(view.client, ar);
   return (
     <>
-      {/* The Structure tab exists once the draft holds something; before that, back to the client. */}
+      {/* The draft's editors always have the Structure tab (part 3), with nothing in it yet too. */}
       <Link
-        href={view.draftHasContent ? `/clients/${id}/structure?version=draft` : `/clients/${id}`}
+        href={view.draftHasContent ? `/clients/${id}/structure?version=draft` : `/clients/${id}/structure`}
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
-        {view.draftHasContent ? t("back") : client}
+        {t("back")}
       </Link>
       <PageHeader title={t("title")} description={t("description", { client })} />
       <OrgChartImportWizard

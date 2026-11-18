@@ -32,7 +32,7 @@ export const CLIENT_FROZEN_TABLES = [
   "invitations",
   "join_requests",
   "org_chart_change_requests",
-  // Who the firm plans to place in its draft's positions (org chart, part 4, 0170).
+  // Who the firm plans to place in its draft's positions (org chart, part 4, 0098).
   "org_chart_planned_holders",
   "org_chart_versions",
   "org_charts",

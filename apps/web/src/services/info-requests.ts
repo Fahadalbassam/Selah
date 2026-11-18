@@ -164,8 +164,9 @@ export async function listInfoRequests(tx: Tx, principal: Principal, projectId: 
         reopen: manage && r.status === "not_applicable",
         edit: manage,
         remove: manage && r.status === "requested",
-        // A no-login upload link for this one item (F14).
+        // A no-login upload link for this one item (F14), and stopping one (revokeUploadLink asks the same).
         sendLink: manage && open && projectOpen,
+        revokeLink: manage,
       },
     };
   });
