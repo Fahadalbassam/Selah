@@ -51,6 +51,15 @@ export function departmentTabs(input: { admin: boolean; departmentsEnabled: bool
   return ["departments", "structure"];
 }
 
+/**
+ * The firm's Structure page's line under its title (orgChart.*): with
+ * nothing drawn yet (no structure, or a draft with no unit), how to start,
+ * since there are no levels to choose and no PDF; otherwise the usual line.
+ */
+export function structureHint(input: { hasUnits: boolean }): "hint" | "hintEmpty" {
+  return input.hasUnits ? "hint" : "hintEmpty";
+}
+
 /** What a version is on a day, for the words on the Structure tab and the PDF. */
 export type VersionStatus =
   | { kind: "draft" }
@@ -94,9 +103,50 @@ export function versionStatus(
  */
 export function orgChartError(message: string | undefined): string | null {
   if (!message) return null;
-  const rules: [RegExp, string][] = [[/this draft is no longer the current one/, "draftChanged"]];
+  // The services' own refusals (BadRequestError) carry a key.
+  if ((ORG_CHART_ERROR_KEYS as readonly string[]).includes(message)) return message;
+  const rules: [RegExp, string][] = [
+    [/this draft is no longer the current one/, "draftChanged"],
+    [/already holds the position on some of those days/, "alreadyHolds"],
+    [/a holder is one of the client's own active people/, "ownPeople"],
+    [/a holding ends on or after the day it started/, "endBefore"],
+    [/this holding has already ended/, "alreadyEnded"],
+    [/nothing is published yet to start again from/, "nothingPublished"],
+    [/cannot report to itself|cannot sit under itself/, "cycle"],
+    [/move or remove the units and positions inside this unit first/, "not_empty"],
+    [/a published structure never changes/, "published"],
+    [/never in the draft/, "draft"],
+    [/a position only the draft has holds someone/, "draftOnlyHeld"],
+    [/this client is archived/, "archived"],
+    [/minimal records/, "minimal_records"],
+  ];
   return rules.find(([re]) => re.test(message))?.[1] ?? null;
 }
+
+/** The keys the org chart services refuse with (BadRequestError), each with a sentence under orgChart.errors. */
+export const ORG_CHART_ERROR_KEYS = [
+  "name",
+  "name_length",
+  "code",
+  "code_taken",
+  "level",
+  "department",
+  "cycle",
+  "not_empty",
+  "specialties",
+  "planned",
+  "holder",
+  "holder_name",
+  "overlap",
+  "date",
+  "published",
+  "draft",
+  "history",
+  "minimal_records",
+  "position",
+  "replacement",
+  "successor",
+] as const;
 
 /** Specialties as the database keeps them: trimmed, without blanks or repeats, in the order given. */
 export function cleanSpecialties(list: readonly string[]): string[] {

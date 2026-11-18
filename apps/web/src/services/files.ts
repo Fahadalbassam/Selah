@@ -81,13 +81,26 @@ export interface FileEntry {
 /** Most files a list returns; the newest come first. */
 const LIMIT = 1000;
 
-export async function listFiles(tx: Tx, principal: Principal, filter: { actionId?: string } = {}): Promise<FileEntry[]> {
+export async function listFiles(
+  tx: Tx,
+  principal: Principal,
+  filter: {
+    actionId?: string;
+    /** Only files this person uploaded (still only the ones the reader may open). */
+    uploadedBy?: string;
+    /** Only this organisation's files. */
+    orgId?: string;
+    /** At most this many rows read (the newest first); the default is the explorer's limit. */
+    limit?: number;
+  } = {},
+): Promise<FileEntry[]> {
   // Picking evidence: only files of the same client as the action.
-  let orgId: string | undefined;
+  let orgId: string | undefined = filter.orgId;
   if (filter.actionId) {
     const loaded = await loadAction(tx, filter.actionId);
     if (!loaded) throw new NotFoundError("action");
     assertAllowed(principal, "action.read", loaded.resource);
+    if (orgId && orgId !== loaded.action.orgId) return [];
     orgId = loaded.action.orgId;
   }
 
@@ -138,10 +151,11 @@ export async function listFiles(tx: Tx, principal: Principal, filter: { actionId
         // Only the latest version of a file; older ones stay on its history.
         sql`not exists (select 1 from documents n where n.supersedes_id = ${documents.id})`,
         orgId ? eq(documents.orgId, orgId) : undefined,
+        filter.uploadedBy ? eq(documents.uploadedBy, filter.uploadedBy) : undefined,
       ),
     )
     .orderBy(desc(documents.createdAt))
-    .limit(LIMIT);
+    .limit(Math.min(filter.limit ?? LIMIT, LIMIT));
   if (rows.length === 0) return [];
 
   const ids = rows.map((r) => r.doc.id);

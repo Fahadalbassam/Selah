@@ -241,6 +241,26 @@ describe("the drawing", () => {
     expect(arHtml).toContain("يتبع: منصب chair");
   });
 
+  it("on screen, a holder with an account is a button to their work card; a typed name, a hidden name and the PDF have none", () => {
+    const people = buildTree(
+      [unit("u", null, "board", 1)],
+      [
+        pos("a", "u", { holders: [{ name: "Reem <b>", named: true, userId: "u-1" }], vacant: false }),
+        pos("b", "u", { holders: [{ name: "Typed Name", named: true, userId: null }], vacant: false }),
+        pos("c", "u", { holders: [{ name: null, named: false, userId: null }], vacant: false }),
+      ],
+      { locale: "en", depth: null, names: true },
+    );
+    const screen = orgTreeHtml(people, labels("en"), "en", { people: true });
+    expect(screen.match(/<button /g)).toHaveLength(1);
+    expect(screen).toContain('<button type="button" class="oc-person" data-person="u-1" aria-haspopup="dialog" title="See Reem &lt;b&gt;&#39;s work">Reem &lt;b&gt;</button>');
+    expect(screen).toContain("Typed Name");
+    // Without `people` (the PDF, a copy without names): no button at all.
+    expect(orgTreeHtml(people, labels("en"), "en")).not.toContain("<button");
+    expect(orgTreeHtml(buildTree([unit("u", null, "board", 1)], [pos("a", "u", { holders: [{ name: "Reem", named: true, userId: "u-1" }], vacant: false })], { locale: "en", depth: null, names: false }), labels("en"), "en", { people: true })).not.toContain("Reem");
+    expect(labels("ar").person("ريم")).toBe("عرض أعمال ريم");
+  });
+
   it("draws advisory units on a dotted line, beside their parent", () => {
     const html = orgTreeHtml(tree(), labels("en"), "en");
     expect(html).toMatch(/<div class="oc-beside"><ul class="oc-beside-list"><li class="oc-adv">/);
