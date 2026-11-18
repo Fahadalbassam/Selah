@@ -38,8 +38,9 @@ Do not edit `components/ui/*` for a single screen. Change the look of one usage 
 | `ActionsTable` | Any list of actions (title, project, owner, due date, status). |
 | `ListPager` | Previous and next links under a long list, with "1–50 of 230". Hidden when everything fits on one page. Pages are a `?page=` link, so they survive a reload; read the value with `pageParam()`. |
 | `ExportButton` | Downloads an export (Excel or PDF) from a GET route in the reader's language, with a busy state and an inline error (the PDF service being down is said plainly). |
-| `FormDialog`, `ApiButton` | A dialog that posts a form, and a button that calls one API route. Both refresh the page and show errors in the person's language. |
-| `useConfirm` | Every "are you sure?" step (shadcn `AlertDialog`). Never use `window.confirm`: it ignores the theme and the reading direction. |
+| `FormDialog`, `ApiButton` | A dialog that posts a form, and a button that calls one API route. Both refresh the page and show errors in the person's language. A `FormDialog` opened from a row menu takes `control` instead of a `trigger` (`useDialogControl()` in `hooks/use-dialog-control.ts`: the menu holds whether it is open, and the focus goes back to the menu's button when it closes); the larger dialogs (the answer to a request, moving a department's work, an indicator and its values) take the same `control`. |
+| `RowMenu`, `useRowCall` | The menu (⋯) at the end of a dense row or a page header (`components/row-menu.tsx`): the row's rare actions, so the row shows at most one button of its own. Each item carries `allowed`, the server's own flag for that row; an item that is not allowed is not drawn. An item either runs a call (`useRowCall()`: refresh on success, a toast on failure, after its `confirm` question if it has one) or opens a dialog through `control`. The button is labelled "More for <name>" («خيارات أخرى: …»), opens with Enter, Space or the arrow keys, follows the reading direction, and gets the focus back when a dialog or confirmation from it closes. Removing or ending items come last, after a line, in the problem colour. Which button a row shows and what goes in its menu is decided in `lib/row-actions.ts` from the server's flags only (`tests/row-actions.test.ts`). |
+| `useConfirm` | Every "are you sure?" step (shadcn `AlertDialog`). Never use `window.confirm`: it ignores the theme and the reading direction. Asked from a menu item, pass the menu's button as `returnFocus`. |
 | `page-skeletons` | `HeaderSkeleton`, `StatCardsSkeleton`, `TableSkeleton`, `CardGridSkeleton`, `CardSkeleton`, `DetailSkeleton` for `loading.tsx` files. Match the real page's layout. |
 | `BrandMark`, `BrandWordmark`, `SidebarBrand`, `BrandLoader` | The logo and the branded spinner. Use `BrandLoader` inside busy buttons. |
 | `Translatable` | User-written text that may be shown in the other language on demand. |
@@ -270,6 +271,8 @@ Plain `Badge` variants are for labels that are not statuses: `outline` for kind 
 | `secondary` | Rare; toggles that read as "on". |
 
 Sizes: `sm` in page headers, cards and tables; `default` in dialogs and forms; `icon` with `size-7` for row actions. A busy button shows `BrandLoader` in place of its icon and is disabled.
+
+**Dense rows** (page audit U15). A row or a card in a list shows at most one button of its own: its main step, outline or ghost (accepting a requested file, sending one, adding a person to a department). Every other action of that row (edit, rename, return, "does not apply", send or stop an upload link, make head or lead or deputy, remove) goes in a `RowMenu` at the row's end. A row whose actions are all rare shows only the menu (an indicator value: mark checked, correct; a person in a department; a consultant on the client page). The same holds for a page header: one main button, the rest in one menu beside it (the indicator page: "Enter a value", then a menu with edit, switch off or on, mail, delete). In use on document request rows, department cards and their people, indicator value rows, and the consultants and contacts on the firm's client page.
 
 ### Forms
 

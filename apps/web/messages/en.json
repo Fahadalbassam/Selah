@@ -782,7 +782,8 @@
     },
     "searchPeople": "Type a name or email",
     "noMatch": "Nobody matches",
-    "byLine": "<who>{name}</who> {event}"
+    "byLine": "<who>{name}</who> {event}",
+    "moreFor": "More for {name}"
   },
   "pager": {
     "label": "Pages",
@@ -3615,7 +3616,8 @@
       "revoke": "Revoke",
       "revokeConfirm": "Revoke the upload link sent to {email}? It stops working at once.",
       "fromEmail": "by upload link from <a>{email}</a>",
-      "byLink": "by upload link"
+      "byLink": "by upload link",
+      "revokeFor": "Revoke the link sent to {email}"
     }
   },
   "clientProgress": {

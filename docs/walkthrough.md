@@ -183,7 +183,7 @@ About an hour for the whole thing; each part stands alone. Two browser windows h
 
 ### 5.8 Things to do live
 - Book a meeting from a project's Meetings tab and watch the invitation arrive in Mailpit with a calendar file.
-- Make a no-login upload link for one item on the Requests tab and open it in a private window.
+- Make a no-login upload link for one item on the Requests tab (the item's menu, ⋯, then «إرسال رابط رفع») and open it in a private window. Each request row shows one button (the firm's «تمت المراجعة», the client's «إرسال ملف»); the rest is in that menu.
 - Export: the client report PDF (client page), the project plan to Excel, the closure report PDF.
 - Switch to English and dark mode, and show the same screens.
 

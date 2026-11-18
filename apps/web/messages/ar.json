@@ -782,7 +782,8 @@
     },
     "searchPeople": "اكتب اسماً أو بريداً",
     "noMatch": "لا يوجد من يطابق",
-    "byLine": "{event}، بواسطة <who>{name}</who>"
+    "byLine": "{event}، بواسطة <who>{name}</who>",
+    "moreFor": "خيارات أخرى: {name}"
   },
   "pager": {
     "label": "الصفحات",
@@ -3615,7 +3616,8 @@
       "revoke": "إبطال الرابط",
       "revokeConfirm": "إبطال رابط الرفع المرسل إلى {email}؟ سيتوقف عن العمل فوراً.",
       "fromEmail": "عبر رابط رفع من <a>{email}</a>",
-      "byLink": "عبر رابط رفع"
+      "byLink": "عبر رابط رفع",
+      "revokeFor": "إبطال الرابط المرسل إلى {email}"
     }
   },
   "clientProgress": {

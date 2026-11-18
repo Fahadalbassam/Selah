@@ -23,6 +23,7 @@ import { PersonPicker } from "@/components/person-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 
 export interface Field {
   name: string;
@@ -62,10 +63,12 @@ export async function callApi(
 
 /**
  * A dialog with a small form that posts JSON to an API route. The server
- * decides whether the user may do it; this only collects the input.
+ * decides whether the user may do it; this only collects the input. It opens
+ * from its own `trigger`, or from a row menu item that holds it (`control`).
  */
 export function FormDialog(props: {
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  control?: DialogControl;
   title: string;
   description?: string;
   endpoint: string;
@@ -83,7 +86,7 @@ export function FormDialog(props: {
 }) {
   const t = useTranslations("common");
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(props.control);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
@@ -115,8 +118,8 @@ export function FormDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      {props.trigger ? <DialogTrigger asChild>{props.trigger}</DialogTrigger> : null}
+      <DialogContent className="max-h-[85vh] overflow-y-auto" {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{props.title}</DialogTitle>
