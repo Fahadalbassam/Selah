@@ -74,6 +74,7 @@ const U = {
   owner: id(25), // Acme's action owner on the project
   betaAdmin: id(31),
   hr: id(18), // on Acme's team, staffed only on the project of Acme's other engagement
+  bcons: id(19), // staffed on Beta's project; Beta has no lead or deputy
 };
 const P = { acme: id(41), closing: id(42), beta: id(43), waha: id(44), hr: id(45) };
 const G = { acme: id(51), beta: id(52), waha: id(53), hr: id(54) };
@@ -117,13 +118,13 @@ async function deliverable(engagement: string, project: string | null, title: st
   return did;
 }
 /** A deliverable file the firm uploaded, cleared by the scan. */
-async function file(org: string, project: string, title: string, opts: { visibility?: string; department?: string | null; supersedes?: string; version?: number } = {}) {
+async function file(org: string, project: string, title: string, opts: { visibility?: string; department?: string | null; supersedes?: string; version?: number; scan?: string } = {}) {
   const fid = id(n++);
   await q(
     `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id, version, supersedes_id,
        storage_key, content_type, size_bytes, sha256, scan_status)
-     VALUES ($1,$2,$3,$4,$5,'deliverable','submitted',$6,$7,$8,$9,$10,$11,'application/pdf',10,repeat('a',64),'clean')`,
-    [fid, project, org, FIRM, U.lead, title, opts.visibility ?? "shared", opts.department ?? null, opts.version ?? 1, opts.supersedes ?? null, `documents/${fid}`],
+     VALUES ($1,$2,$3,$4,$5,'deliverable','submitted',$6,$7,$8,$9,$10,$11,'application/pdf',10,repeat('a',64),$12)`,
+    [fid, project, org, FIRM, U.lead, title, opts.visibility ?? "shared", opts.department ?? null, opts.version ?? 1, opts.supersedes ?? null, `documents/${fid}`, opts.scan ?? "clean"],
   );
   return fid;
 }
@@ -200,6 +201,10 @@ beforeAll(async () => {
     U.admin,
   ]);
   await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P.hr, U.hr]);
+  // Beta: one consultant staffed on its project, no lead or deputy.
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'consultant')`, [U.bcons, FIRM]);
+  await q(`INSERT INTO client_assignments (client_org_id, user_id) VALUES ($1,$2)`, [BETA, U.bcons]);
+  await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P.beta, U.bcons]);
 });
 
 beforeEach(async () => {
@@ -543,6 +548,90 @@ describe("a comment", () => {
     // The engagement page lists both rounds under the deliverable.
     const page = await svc(U.cadmin, (tx, p) => getEngagement(tx, p, G.acme));
     expect(page.deliverables.find((d) => d.id === did)!.rounds.map((r) => r.round)).toEqual([2, 1]);
+  });
+});
+
+describe("rules the review could remove without a failing test (S5)", () => {
+  const today = async () => (await q(`SELECT app_firm_today()::text AS d`)).rows[0].d as string;
+  const remindOn = async (day: string) => (await q(`SELECT app_remind_deliverables($1::date) AS n`, [day])).rows[0].n as number;
+  const quiet = () => q(`UPDATE deliverable_handovers SET reminded_at = now() WHERE reminded_at IS NULL`);
+
+  it("1. the summary mail carries a reminder only while its round still waits and the reader still answers for it", async () => {
+    await quiet();
+    const answered = await deliverable(G.acme, P.acme, "Mail filter, answered");
+    const moved = await deliverable(G.acme, P.acme, "Mail filter, file moved");
+    const a = await file(ACME, P.acme, "Answered.pdf");
+    const m = await file(ACME, P.acme, "Moved.pdf");
+    await handOver(U.lead, answered, [a]);
+    await handOver(U.lead, moved, [m]);
+    const ten = await afterWorkingDays(await today(), DELIVERABLE_REMINDER_WORKING_DAYS);
+    expect(await remindOn(ten)).toBe(2);
+    // Before the summary goes: one round is answered, the other's file is filed under a department she is not in.
+    await svc(U.acceptor, (tx, p) => recordReceipt(tx, p, answered, { round: 1 }));
+    await q(`UPDATE documents SET department_id = $2 WHERE id = $1`, [m, FIN]);
+    await q(`SELECT app_queue_digests($1::date)`, [ten]);
+    expect((await q(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'deliverable.reminder' AND mailed_at IS NOT NULL`)).rows[0].n).toBe(0);
+    expect(await mailedTo("follow_up.digest")).not.toContain("acceptor@example.test");
+  });
+
+  it("2. the database refuses a hand-over on a closed project (see the closure report test) and 3. never reminds a firm-run client or a replaced round", async () => {
+    await quiet();
+    const firmRun = await deliverable(G.waha, P.waha, "Waha minutes");
+    await handOver(U.wlead, firmRun, [await file(WAHA, P.waha, "Minutes.pdf")]);
+    const replaced = await deliverable(G.acme, P.acme, "Replaced round");
+    const r = await file(ACME, P.acme, "Replaced.pdf");
+    await handOver(U.lead, replaced, [r]);
+    await handOver(U.lead, replaced, [r]);
+    const ten = await afterWorkingDays(await today(), DELIVERABLE_REMINDER_WORKING_DAYS);
+    // Only the replaced deliverable's latest round is reminded; the firm-run round never is.
+    expect(await remindOn(ten)).toBe(1);
+    const reminded = (await q(`SELECT deliverable_id, round FROM deliverable_handovers WHERE reminded_at IS NOT NULL AND deliverable_id = ANY ($1)`, [[firmRun, replaced]])).rows;
+    expect(reminded).toEqual([{ deliverable_id: replaced, round: 2 }]);
+  });
+
+  it("4. a comment goes to the firm's admins when the client has no lead or deputy", async () => {
+    const did = await deliverable(G.beta, P.beta, "Beta charter");
+    await handOver(U.bcons, did, [await file(BETA, P.beta, "Beta charter.pdf")]);
+    expect(await told("deliverable.handed_over", did)).toEqual([U.betaAdmin]);
+    await svc(U.betaAdmin, (tx, p) => commentOnDeliverable(tx, p, did, { round: 1, comment: "Page 4 is missing" }));
+    expect(await told("deliverable.commented", did)).toEqual([U.admin]);
+    expect(await mailedTo("deliverable.commented")).toEqual(["admin@example.test"]);
+  });
+
+  it("5. the database refuses a file the scan has not cleared", async () => {
+    const did = await deliverable(G.acme, P.acme, "Scan pending");
+    const pending = await file(ACME, P.acme, "Pending.pdf", { scan: "pending" });
+    await expect(sqlAs(U.lead, `SELECT app_hand_over_deliverable($1, ARRAY[$2]::uuid[])`, [did, pending])).rejects.toThrow(/cleared by the scan/);
+  });
+
+  it("6. only a client admin or manager answers: an acceptor made an action owner can no longer confirm", async () => {
+    const did = await deliverable(G.acme, P.acme, "Owner cannot confirm");
+    await handOver(U.lead, did, [await file(ACME, P.acme, "Owner.pdf")]);
+    await q(`UPDATE org_memberships SET role = 'action_owner' WHERE user_id = $1`, [U.acceptor]);
+    try {
+      await expect(sqlAs(U.acceptor, `SELECT app_confirm_deliverable_receipt($1, 1)`, [did])).rejects.toThrow(/acceptor, admin or sponsor/);
+      await expect(svc(U.acceptor, (tx, p) => getDeliverable(tx, p, did))).rejects.toThrow(/not found/);
+    } finally {
+      await q(`UPDATE org_memberships SET role = 'client_manager' WHERE user_id = $1`, [U.acceptor]);
+    }
+    expect((await svc(U.acceptor, (tx, p) => getDeliverable(tx, p, did))).can.confirm).toBe(true);
+  });
+
+  it("7. the reminder mark is set once, and only by the job", async () => {
+    const did = await deliverable(G.acme, P.acme, "Reminder mark");
+    await handOver(U.lead, did, [await file(ACME, P.acme, "Mark.pdf")]);
+    await q(`UPDATE deliverable_handovers SET reminded_at = now() WHERE deliverable_id = $1`, [did]);
+    await expect(q(`UPDATE deliverable_handovers SET reminded_at = now() WHERE deliverable_id = $1`, [did])).rejects.toThrow(/sent once, by the daily job/);
+    // A session with a person in it (even the schema owner's) cannot set it either.
+    const c = await owner.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('selah.user_id', $1, true)", [U.lead]);
+      await expect(c.query(`UPDATE deliverable_handovers SET reminded_at = NULL WHERE deliverable_id = $1`, [did])).rejects.toThrow(/sent once, by the daily job/);
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
   });
 });
 
