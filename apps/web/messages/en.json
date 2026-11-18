@@ -5697,7 +5697,9 @@
       "unit": "Unit",
       "holders": "Held by",
       "change": "Change",
-      "changeLabel": "Who holds {title}"
+      "changeLabel": "Who holds {title}",
+      "dropped": "Names on positions no longer in the structure",
+      "droppedHint": "A later version dropped these positions, so their holdings ended, but the names stay on record. Remove any that should not be kept (asked first; it cannot be undone)."
     },
     "card": {
       "hint": "Only the work you can open yourself is shown.",

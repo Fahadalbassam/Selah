@@ -12,7 +12,7 @@ import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
-import { editorChoices, getPublishedChart, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
+import { droppedHoldings, editorChoices, getPublishedChart, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
 import { ClientTabs } from "../client-tabs";
 
 // A client's organisation structure, firm side: the current version, the
@@ -49,6 +49,7 @@ export default async function ClientStructurePage({
       liveLineages: editing && structure.current ? (await getPublishedChart(tx, principal, id)).positions.map((p) => p.lineageId) : [],
       candidates: people && structure.can.canChangeHolders ? await holderCandidates(tx, principal, id) : [],
       vacancies: people ? await listVacancies(tx, principal, id) : [],
+      dropped: people ? await droppedHoldings(tx, principal, id) : [],
     };
   });
   if (!data) notFound();
@@ -105,7 +106,7 @@ export default async function ClientStructurePage({
         <StructureBody structure={structure} base={base} depthParam={depth} audience="firm" view={view} views={views}>
           {view === "outline" ? editor : null}
           {view === "people" ? (
-            <PeopleView units={structure.shown.units} positions={structure.shown.positions} vacancies={data.vacancies} candidates={data.candidates} side="firm" />
+            <PeopleView units={structure.shown.units} positions={structure.shown.positions} vacancies={data.vacancies} candidates={data.candidates} dropped={data.dropped} side="firm" />
           ) : null}
         </StructureBody>
       ) : (

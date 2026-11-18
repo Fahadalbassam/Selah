@@ -727,6 +727,47 @@ describe("a person's work card", () => {
   });
 });
 
+describe("names on positions a later version dropped (S1)", () => {
+  const DROP = id(14);
+  let pos: Record<string, string> = {};
+  let typo = "";
+  beforeAll(async () => {
+    // A firm-run client: the lead keeps its structure, typed names only.
+    pos = await smallClient(DROP, id(15), null, "Dropped Co", ["Chair", "Secretary"], "consultant_managed");
+    typo = (await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, pos.Secretary!, { start: { name: "Typo Secretry", from: PAST } }), true)).started!;
+    // The next version drops the secretary; publishing ends the holding.
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, DROP));
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, d.positions.find((x) => x.titleEn === "Secretary")!.id), true);
+    await publishAs(U.lead, DROP);
+  });
+
+  it("are listed for the people who change holders, and nobody else", async () => {
+    const list = await svc(U.lead, (tx, p) => OC.droppedHoldings(tx, p, DROP));
+    expect(list).toEqual([expect.objectContaining({ positionId: pos.Secretary, holderId: typo, titleEn: "Secretary", name: "Typo Secretry", typed: true, to: today() })]);
+    for (const who of [U.team, U.oadmin, U.obs]) await expect(svc(who, (tx, p) => OC.droppedHoldings(tx, p, DROP))).rejects.toThrow(REFUSED);
+    // A position still on the current version is not "dropped": its holdings are not offered here, and the
+    // older version's row of it is no way around the live structure.
+    const current = await svc(U.lead, (tx, p) => OC.getPublishedChart(tx, p, DROP));
+    const chairNow = current.positions.find((x) => x.titleEn === "Chair")!.id;
+    const chair = (await svc(U.lead, (tx, p) => OC.changeHolder(tx, p, chairNow, { start: { name: "Chair Person", from: PAST } }), true)).started!;
+    expect((await svc(U.lead, (tx, p) => OC.droppedHoldings(tx, p, DROP))).map((x) => x.titleEn)).toEqual(["Secretary"]);
+    await expect(svc(U.lead, (tx, p) => OC.removeHolder(tx, p, pos.Chair!, chair))).rejects.toThrow(/history/);
+    await svc(U.lead, (tx, p) => OC.removeHolder(tx, p, chairNow, chair), true);
+  });
+
+  it("are removed through the same path (audit without the name), so the client can then switch to minimal records", async () => {
+    const switchOn = () => svc(U.admin, (tx, p) => setEngagement(tx, p, DROP, { minimalRecords: true, displayAlias: "Family office D" }), true);
+    await expect(switchOn()).rejects.toThrow(/remove the names of people from the client's structure/);
+    // Only through the dropped position: a version that still has the position is refused.
+    await svc(U.lead, (tx, p) => OC.removeHolder(tx, p, pos.Secretary!, typo), true);
+    expect(await svc(U.lead, (tx, p) => OC.droppedHoldings(tx, p, DROP))).toEqual([]);
+    await switchOn();
+    expect((await owner.query(`SELECT minimal_records AS on FROM organizations WHERE id = $1`, [DROP])).rows[0].on).toBe(true);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'org_chart.holder_remove' AND resource_id = $1`, [pos.Secretary])).rows[0].n).toBe(1);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE audit_log::text ILIKE '%Secretry%'`)).rows[0].n).toBe(0);
+  });
+});
+
 describe("audit", () => {
   it("the new writes are in the audit log, with labels", async () => {
     const actions = (await owner.query(`SELECT DISTINCT action FROM audit_log WHERE action LIKE 'org_chart%' ORDER BY 1`)).rows.map((r) => r.action);

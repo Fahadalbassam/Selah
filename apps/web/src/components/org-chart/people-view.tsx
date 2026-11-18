@@ -1,6 +1,7 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { SectionHeader } from "@/components/section-header";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { outlineTree, type OutlineNode } from "@/lib/org-chart-outline";
 import { localText } from "@/lib/org-chart-tree";
 import type { OrgPosition, OrgUnit } from "@/services/org-chart";
-import { HoldersPanel, type HolderCandidate } from "./holders-panel";
+import { useConfirm } from "@/components/confirm-dialog";
+import { callApi } from "@/components/form-dialog";
+import { toast } from "@/components/ui/toast";
+import type { DroppedHolding } from "@/services/org-chart";
+import { HoldersPanel, useOrgChartError, type HolderCandidate } from "./holders-panel";
 
 export interface Vacancy {
   positionId: string;
@@ -29,7 +34,15 @@ export interface Vacancy {
  * mistake. The structure itself (units, positions, lines) is the firm's and
  * changes only through its draft.
  */
-export function PeopleView(props: { units: OrgUnit[]; positions: OrgPosition[]; vacancies: Vacancy[]; candidates: HolderCandidate[]; side: "firm" | "client" }) {
+export function PeopleView(props: {
+  units: OrgUnit[];
+  positions: OrgPosition[];
+  vacancies: Vacancy[];
+  candidates: HolderCandidate[];
+  side: "firm" | "client";
+  /** Names still kept on positions a later version dropped (S1): removable, asked first. */
+  dropped?: DroppedHolding[];
+}) {
   const t = useTranslations("orgChart.people");
   const tTree = useTranslations("orgChart.tree");
   const tc = useTranslations("common");
@@ -113,6 +126,7 @@ export function PeopleView(props: { units: OrgUnit[]; positions: OrgPosition[]; 
           </TableBody>
         </Table>
       </div>
+      {props.dropped?.length ? <DroppedNames items={props.dropped} /> : null}
       {position ? (
         <Sheet open onOpenChange={(o) => (o ? null : setOpen(null))}>
           <SheetContent side={lang === "ar" ? "left" : "right"} showCloseButton={false} className="w-full overflow-y-auto sm:max-w-lg">
@@ -132,5 +146,56 @@ export function PeopleView(props: { units: OrgUnit[]; positions: OrgPosition[]; 
         </Sheet>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Names on positions a later version dropped: publishing ended those
+ * holdings, but they still name someone (and keep a client from switching to
+ * minimal records). Each can be removed like a mistake: asked first, audited
+ * without the name.
+ */
+function DroppedNames({ items }: { items: DroppedHolding[] }) {
+  const t = useTranslations("orgChart.people");
+  const th = useTranslations("orgChart.holders");
+  const format = useFormatter();
+  const lang = useLocale() === "ar" ? "ar" : "en";
+  const router = useRouter();
+  const say = useOrgChartError();
+  const [confirm, confirmDialog] = useConfirm();
+  const [busy, setBusy] = useState<string | null>(null);
+  const day = (iso: string) => format.dateTime(new Date(`${iso}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
+  async function remove(h: DroppedHolding) {
+    if (!(await confirm(th("removeConfirm", { name: h.name ?? "—" })))) return;
+    setBusy(h.holderId);
+    const r = await callApi(`/api/org-chart/positions/${h.positionId}/holders/${h.holderId}`, "DELETE");
+    setBusy(null);
+    if (!r.ok) return toast.error(say(r));
+    toast.success(th("removed"));
+    router.refresh();
+  }
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-xs">
+      <h3 className="text-sm font-semibold">{t("dropped")}</h3>
+      <p className="text-xs text-muted-foreground">{t("droppedHint")}</p>
+      <ul className="mt-2 divide-y">
+        {items.map((h) => (
+          <li key={h.holderId} className="flex items-center justify-between gap-3 py-2 text-sm">
+            <span className="grid min-w-0">
+              <span className="truncate font-medium" dir="auto">
+                {h.name ?? "—"}
+              </span>
+              <span className="truncate text-xs text-muted-foreground" dir="auto">
+                {localText(h.titleAr, h.titleEn, lang)} · <bdi dir="ltr">{h.code}</bdi> · {th("range", { from: day(h.from), to: day(h.to ?? h.from) })}
+              </span>
+            </span>
+            <Button variant="ghost" size="sm" disabled={busy !== null} onClick={() => void remove(h)}>
+              {th("remove")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {confirmDialog}
+    </div>
   );
 }

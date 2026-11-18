@@ -1172,9 +1172,9 @@ export async function changeHolder(tx: Tx, principal: Principal, positionId: str
  * caller's rights, and the holders permission checked. Only a position of the
  * live structure (never the draft's, B1).
  */
-async function holderPosition(tx: Tx, principal: Principal, positionId: string) {
+async function holderPosition(tx: Tx, principal: Principal, positionId: string, opts: { dropped?: boolean } = {}) {
   const [row] = await tx
-    .select({ position: positions, state: orgChartVersions.state })
+    .select({ position: positions, state: orgChartVersions.state, chartId: orgChartVersions.chartId })
     .from(positions)
     .innerJoin(orgChartVersions, eq(orgChartVersions.id, positions.versionId))
     .where(eq(positions.id, positionId))
@@ -1182,7 +1182,8 @@ async function holderPosition(tx: Tx, principal: Principal, positionId: string) 
   if (!row) throw new NotFoundError("position");
   assertAllowed(principal, "org_chart.holders", resource(principal, row.position.orgId, row.state === "draft"));
   if (row.state === "draft") throw new BadRequestError("draft");
-  if (row.state === "superseded") throw new BadRequestError("history");
+  // A position of an earlier version: only one the current version dropped (S1), and only where that is asked for.
+  if (row.state === "superseded" && !(opts.dropped && !(await onCurrentVersion(tx, row.chartId, row.position.lineageId)))) throw new BadRequestError("history");
   const client = await clientOf(tx, row.position.orgId);
   if (client.minimalRecords) throw new BadRequestError("minimal_records");
   return { ...row, client };
@@ -1251,11 +1252,77 @@ export async function listHoldings(tx: Tx, principal: Principal, positionId: str
  * A change on the published structure tells the lead and deputy.
  */
 export async function removeHolder(tx: Tx, principal: Principal, positionId: string, holderId: string) {
-  await holderPosition(tx, principal, positionId);
+  await holderPosition(tx, principal, positionId, { dropped: true });
   if (!UUID.test(holderId)) throw new NotFoundError("holder");
   await tx.execute(sql`select app_remove_position_holder(${positionId}::uuid, ${holderId}::uuid)`);
   return { ok: true };
 }
+
+/** Whether a position (its lineage) is on the chart's current published version. */
+async function onCurrentVersion(tx: Tx, chartId: string, lineageId: string) {
+  const { rows } = await tx.execute<{ yes: boolean }>(sql`
+    select exists (
+      select 1 from positions p join org_chart_versions v on v.id = p.version_id
+      where v.chart_id = ${chartId}::uuid and v.state = 'published' and p.lineage_id = ${lineageId}::uuid
+    ) as yes`);
+  return rows[0]?.yes === true;
+}
+
+/**
+ * Names still kept on positions a later version dropped (S1 of the part 3
+ * review): publishing ended those holdings, but they still name someone, so
+ * a client that restructured could never switch to minimal records. For the
+ * people who change holders, each with the position as it last stood (its
+ * row in the latest version that had it), so the same removal (asked first,
+ * audited without the name) takes it away.
+ */
+export async function droppedHoldings(tx: Tx, principal: Principal, clientOrgId: string) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.holders", resource(principal, client.id));
+  const chart = await chartOf(tx, client.id);
+  if (!chart) return [];
+  const { rows } = await tx.execute<{
+    holder_id: string;
+    user_id: string | null;
+    typed_name: string | null;
+    user_name: string | null;
+    from_date: string;
+    to_date: string | null;
+    position_id: string;
+    code: string;
+    title_ar: string | null;
+    title_en: string | null;
+  }>(sql`
+    select h.id as holder_id, h.user_id, h.name as typed_name, u.name as user_name, h.from_date::text as from_date, h.to_date::text as to_date,
+      last.id as position_id, last.code, last.title_ar, last.title_en
+    from position_holders h
+    left join "user" u on u.id = h.user_id
+    cross join lateral (
+      select p.id, p.code, p.title_ar, p.title_en from positions p join org_chart_versions v on v.id = p.version_id
+      where p.lineage_id = h.position_lineage_id and v.chart_id = ${chart.id}::uuid and v.state = 'superseded'
+      order by v.number desc limit 1
+    ) last
+    where h.chart_id = ${chart.id}::uuid
+      and not exists (
+        select 1 from positions c join org_chart_versions cv on cv.id = c.version_id
+        where c.lineage_id = h.position_lineage_id and cv.chart_id = ${chart.id}::uuid and cv.state = 'published'
+      )
+    order by last.code, h.from_date`);
+  return rows.map((r) => ({
+    holderId: r.holder_id,
+    positionId: r.position_id,
+    code: r.code,
+    titleAr: r.title_ar,
+    titleEn: r.title_en,
+    userId: r.user_id,
+    name: r.typed_name ?? r.user_name,
+    typed: r.typed_name !== null,
+    from: r.from_date,
+    to: r.to_date,
+  }));
+}
+
+export type DroppedHolding = Awaited<ReturnType<typeof droppedHoldings>>[number];
 
 /** The client's people with an account, who can be placed in a position: for the people who change holders. */
 export async function holderCandidates(tx: Tx, principal: Principal, clientOrgId: string) {

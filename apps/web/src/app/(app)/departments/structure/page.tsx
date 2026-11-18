@@ -6,7 +6,7 @@ import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
 import { departmentTabs } from "@/lib/org-chart";
 import { withPrincipal } from "@/server/page";
-import { getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
+import { droppedHoldings, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
 import { DepartmentTabs } from "../department-tabs";
 
 // The client's own organisation structure (org chart, part 2): the current
@@ -37,6 +37,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
       view,
       candidates: people ? await holderCandidates(tx, principal, principal.orgId) : [],
       vacancies: people ? await listVacancies(tx, principal, principal.orgId) : [],
+      dropped: people ? await droppedHoldings(tx, principal, principal.orgId) : [],
     };
   });
   if (!data?.structure.shown) notFound();
@@ -59,7 +60,7 @@ export default async function StructurePage({ searchParams }: { searchParams: Pr
       </PageHeader>
       <StructureBody structure={structure} base="/departments/structure" depthParam={depth} audience="client" view={view} views={data.views}>
         {view === "people" && structure.shown ? (
-          <PeopleView units={structure.shown.units} positions={structure.shown.positions} vacancies={data.vacancies} candidates={data.candidates} side="client" />
+          <PeopleView units={structure.shown.units} positions={structure.shown.positions} vacancies={data.vacancies} candidates={data.candidates} dropped={data.dropped} side="client" />
         ) : null}
       </StructureBody>
     </>
