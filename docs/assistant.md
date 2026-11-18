@@ -138,6 +138,21 @@ Screen: the project's Documents tab has a Summary button on each file available 
 - When the model fails on a file, or gives no line that cites it, that file and language aren't sent again for 10 minutes (per server process), since failed calls don't count towards the hourly limit.
 - A file that isn't indexed yet, or has no readable text, is refused.
 
+## Drafting a structure from pasted text
+
+Org chart, part 4 ([import-export.md](import-export.md), "Importing an organisation structure"). On the structure import page the firm's editors may "Paste a list or description and let the assistant draft it": a job list, an outline, text copied from the firm's slide. `POST /api/clients/:id/structure/import/draft` (`draftFromText()` in `src/services/org-chart-import.ts`):
+
+- **Only where the assistant is on.** The way the assistant decides it: `authorize()` gives the reader `assistant.query` on at least one of the client's projects they can open (`assistantProjects()`). Otherwise (a client with no project yet, say) the paste option is hidden and the call answers Not found. Only the draft's editors reach it at all.
+- **Masked before it leaves.** The text goes through `textMasker()` with those projects, the same masking as the assistant's: every name of the client's projects written in it (the client and the firm, their people, the client's contacts and departments, people typed into its structure, other clients' names for firm staff), e-mail addresses, phone numbers and main Saudi cities become placeholders. Names Selah does not hold are sent as written, as for any assistant question.
+- **One call to `chat_json` with a strict schema** (`POST /v1/org-chart/draft` on the AI service: `ORG_DRAFT_SYSTEM` and `ORG_DRAFT_SCHEMA` in `services/ai/app/prompt.py`, every object closed with all its fields required). The prompt says to use only what the text says, copy names and titles exactly, never add a unit, position, person or specialty, and never suggest, improve or judge the structure. The service checks the reply's shape only (`check_org_draft`): fields of the right type, at most 300 units and 600 positions, 300 characters a field; a reply that is not that object is a 502, and the page says the assistant could not draft rows.
+- **Names come back only where they were.** The placeholders in the reply become the names of this text's own mapping; a placeholder the text never had stays a placeholder.
+- **It never adds.** `draftRows()` in `src/lib/org-chart-import.ts` keeps a unit or a position only when the text writes it, and each mention carries one unit or one position at most (a title written once makes one position, never two); a holder and a specialty must be in the text too. Anything else is left out and listed on the review step under "Left out: not in your text", never added. A code is kept only when the text writes it. A position whose unit is not in the text has no unit, for the person to place.
+- **The same review step.** The rows land in the review step of a file import, checked by the same code, and are saved only by "Save to draft"; nothing is published.
+- At most 20 drafts per person an hour, 20,000 characters each. Audited as `org_chart.import_draft` with the text's length and hash, how many names were masked, the rows kept and left out, and the model: never the text.
+- **Proven by** `tests/db/org-chart-import.test.ts` with a fake model: the text it receives holds no known name, e-mail or phone number; the names come back on the right rows; a position and a holder the text never had are left out and listed; the call is refused where the assistant is off. `tests/org-chart-import.test.ts` covers `draftRows()`, and `services/ai/tests/test_service.py` the endpoint's schema and checks.
+
+Reading a picture of a chart is not built: the AI service is text-only, and names inside an image cannot be masked before a hosted model sees them.
+
 ## Meeting summary sources
 
 Each line of a meeting summary can point at where it came from (`meeting_summary_sources`):

@@ -32,7 +32,8 @@ export interface PreparedUpload {
 export async function prepareUpload(
   /** Null for a file sent through an upload link (F14), with no account. */
   userId: string | null,
-  target: { type: "action" | "project" | "document" | "info_request" | "info_request_link"; id: string },
+  /** "organization": a client-level import (its organisation structure), read and never stored. */
+  target: { type: "action" | "project" | "document" | "info_request" | "info_request_link" | "organization"; id: string },
   file: File,
 ): Promise<PreparedUpload> {
   const bytes = new Uint8Array(await file.arrayBuffer());

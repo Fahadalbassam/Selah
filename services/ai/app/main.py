@@ -20,6 +20,7 @@ from .config import Settings, get_settings
 from .llm import LLM, json_object, make_llm
 from .prompt import (
     ANSWER_SCHEMA,
+    ORG_DRAFT_SCHEMA,
     SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
     Answer,
@@ -27,9 +28,11 @@ from .prompt import (
     HistoryTurn,
     Passage,
     build_messages,
+    build_org_draft_messages,
     build_summary_messages,
     build_translation_messages,
     check_answer,
+    check_org_draft,
     check_summary,
     check_translation,
 )
@@ -101,6 +104,36 @@ class SummaryPoint(BaseModel):
 
 class SummarizeResponse(BaseModel):
     points: list[SummaryPoint]
+    model: str
+
+
+class OrgDraftRequest(BaseModel):
+    # Pasted text about a client's structure, its names already masked by the web app.
+    text: str = Field(min_length=1, max_length=20000)
+
+
+class OrgDraftUnit(BaseModel):
+    ref: str
+    parent: str
+    code: str
+    name: str
+    kind: str
+
+
+class OrgDraftPosition(BaseModel):
+    ref: str
+    unit: str
+    code: str
+    title: str
+    reports_to: str
+    head: bool
+    holder: str
+    specialties: list[str]
+
+
+class OrgDraftResponse(BaseModel):
+    units: list[OrgDraftUnit]
+    positions: list[OrgDraftPosition]
     model: str
 
 
@@ -218,3 +251,23 @@ async def summarize(
     if points is None:
         raise HTTPException(status_code=502, detail="the model gave no summary")
     return SummarizeResponse(points=[SummaryPoint(text=t, pages=c) for t, c in points], model=settings.llm_model)
+
+
+@app.post("/v1/org-chart/draft", dependencies=[Depends(require_token)])
+async def org_chart_draft(
+    req: OrgDraftRequest,
+    llm: Annotated[LLM, Depends(get_llm)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> OrgDraftResponse:
+    """Units and positions arranged from pasted text, through chat_json with a
+    strict schema. Only the shape is checked here; the web app keeps only what
+    is written in the text it sent and puts every row in its review step."""
+    system, user = build_org_draft_messages(req.text)
+    draft = check_org_draft(await llm.chat_json(system, user, ORG_DRAFT_SCHEMA))
+    if draft is None:
+        raise HTTPException(status_code=502, detail="the model gave no draft")
+    return OrgDraftResponse(
+        units=[OrgDraftUnit(**u) for u in draft["units"]],
+        positions=[OrgDraftPosition(**p) for p in draft["positions"]],
+        model=settings.llm_model,
+    )

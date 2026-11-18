@@ -5,11 +5,13 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { StructureBody, shownDepth, shownParam } from "@/components/org-chart/structure-body";
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { isUuid } from "@/lib/ids";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
 import { getStructure, hasStructure } from "@/services/org-chart";
+import { canImport } from "@/services/org-chart-import";
 import { ClientTabs } from "../client-tabs";
 
 // A client's organisation structure, firm side, read only (org chart, part 2):
@@ -30,11 +32,17 @@ export default async function ClientStructurePage({
   const data = await withPrincipal(async (tx, principal) => {
     // No tab and no page until there is a structure this person may read.
     if (principal.orgKind !== "firm" || !(await hasStructure(tx, principal, id))) return null;
-    return { structure: await getStructure(tx, principal, id, version ?? null), departments: canReadDepartments(principal, id) };
+    return {
+      structure: await getStructure(tx, principal, id, version ?? null),
+      departments: canReadDepartments(principal, id),
+      // Bringing rows in from Excel, Word or pasted text (part 4): the draft's editors.
+      canImport: canImport(principal, id),
+    };
   });
   if (!data?.structure.shown) notFound();
   const { structure } = data;
   const t = await getTranslations("orgChart");
+  const tImport = await getTranslations("orgChartImport");
   const ar = (await getLocale()) === "ar";
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
   return (
@@ -45,6 +53,11 @@ export default async function ClientStructurePage({
       </Link>
       <ClientTabs clientId={id} current="structure" structure departments={data.departments} />
       <PageHeader title={t("title")} description={t("hint")}>
+        {data.canImport ? (
+          <Link href={`/clients/${id}/structure/import`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            {tImport("button")}
+          </Link>
+        ) : null}
         {structure.shown?.units.length ? (
           <StructurePdfButton
             endpoint={`/api/clients/${id}/structure/pdf`}

@@ -121,6 +121,36 @@ export function translateText(text: string, source: "ar" | "en", target: "ar" | 
   return call("/v1/translate", { text, source, target }, z.object({ text: z.string().min(1), model: z.string() }));
 }
 
+const orgDraftSchema = z.object({
+  units: z.array(z.object({ ref: z.string(), parent: z.string(), code: z.string(), name: z.string(), kind: z.string() })).max(300),
+  positions: z
+    .array(
+      z.object({
+        ref: z.string(),
+        unit: z.string(),
+        code: z.string(),
+        title: z.string(),
+        reports_to: z.string(),
+        head: z.boolean(),
+        holder: z.string(),
+        specialties: z.array(z.string()).max(30),
+      }),
+    )
+    .max(600),
+  model: z.string(),
+});
+
+export type OrgDraft = z.infer<typeof orgDraftSchema>;
+
+/**
+ * Units and positions arranged from pasted text (org chart, part 4), through
+ * the service's chat_json with a strict schema. The text must already be
+ * masked; the caller keeps only what is written in it (lib/org-chart-import.ts).
+ */
+export function draftOrgChart(text: string): Promise<OrgDraft> {
+  return call("/v1/org-chart/draft", { text }, orgDraftSchema);
+}
+
 export interface SummaryPoint {
   text: string;
   pages: number[];

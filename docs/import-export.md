@@ -67,3 +67,39 @@ PDFs are drawn by Chromium in its own container ([Gotenberg](https://gotenberg.d
 - If it is down, the PDF export answers 503 and the button says the service is unavailable. Without `PDF_SERVICE_URL` the PDF button is hidden.
 
 Tests: `tests/office.test.ts`, `tests/plan-import.test.ts`, `tests/report-html.test.ts`, and `e2e/import-export.e2e.ts` in the Docker suite.
+
+## Importing an organisation structure (org chart, part 4)
+
+The firm's Structure tab (`/clients/:id/structure`) has **Import / استيراد** for the people who edit the client's draft (the firm admin, the client's lead and deputy, consultants staffed and not observing on one of its open projects: `org_chart.edit`, `app_org_chart_editor()`). It opens `/clients/:id/structure/import`; anyone else, and another client, gets Not found. Until part 3 gives the Structure tab an empty state for a client with nothing yet, the page is reached by its address. Two steps, one main action each, and nothing is saved until the second:
+
+1. **Bring it in**, one of three ways:
+   - **Excel.** **Download the template** (`GET /api/clients/:id/structure/import/template`): one sheet with a column per field (each heading in the reader's language, then the other, on two lines) and a guide sheet (what to write in each column, an example, and the rules). With a draft, **Download your draft in this template** (`GET /api/clients/:id/structure/workbook?version=draft`) gives the same template filled in, so the draft can be changed in Excel and uploaded again. Then **Upload and check** (`POST /api/clients/:id/structure/import`).
+   - **Word.** An outline: Heading 1, 2 and 3 are units at levels 1, 2 and 3, each under the heading above it; bulleted or numbered lines under a heading are positions in that unit; other paragraphs are left out. A heading numbered like a code ("2.4 Finance") keeps the code. Same upload.
+   - **Pasted text.** "Paste a list or description and let the assistant draft it" (`POST /api/clients/:id/structure/import/draft`), shown only where the assistant is on for the reader at this client ([assistant.md](assistant.md), "Drafting a structure from pasted text").
+2. **Check the rows.** Every row, checked as it is edited by the same code the server runs again (`lib/org-chart-import.ts`, `checkOrgImport`), with a pencil to fix it in place and "Skip this row". When the draft already holds something, the page asks plainly: **Replace the draft** (it will hold only these rows; a unit or position with the same code is updated in place and keeps its people, the rest of the draft is removed) or **Add to the draft** (everything stays; a row may use a unit or position of the draft by its code). Then **Save to draft** (`POST /api/clients/:id/structure/import/confirm`), after a confirmation that says what is added and removed and that nothing is published.
+
+Uploads go through the same checks and ClamAV scan as every upload before anything reads them, and are read in memory and **not stored**. Saving rebuilds the context from the database, checks every row again, refuses the whole save if any row has an error, and writes in one transaction through the org chart's own services (`startChart`, `addUnit`, `updateUnit`, `moveUnit`, `addPosition`, `updatePosition`, `movePosition`, `setReportsTo`, `changeHolder`, `deletePosition`, `deleteUnit`), so every rule of the draft and the database applies unchanged. **Nothing is published here**: publishing is the firm's own step (part 5), and the client sees no change until then.
+
+### The columns
+
+| Column | Notes |
+|---|---|
+| Unit code, Parent unit code | A code such as 2.4 (Latin letters, digits, dots, dashes; Arabic-Indic digits are read as digits). Every row of a unit carries its code; a position row with no unit columns at all takes the unit of the row above. The parent must be a unit of these rows (adding: or of the draft). |
+| Unit name (Arabic), Unit name (English) | At least one. The first row that describes a unit defines it; a later row that says something different about the same code is a duplicate code. |
+| Unit kind | Board, committee, executive, sector, department, section, unit or office, in Arabic or English. Left empty, it is read from the unit's name ("الإدارة المالية" is a department), else "unit", and the row says so. |
+| Level | 1 to 12. A unit sits at a lower level than its parent; left empty, one below its parent (1 at the top). |
+| Advisory (dotted line) | Yes for a unit drawn beside its parent on a dotted line. |
+| Position code | Unique in the rows (adding: also not already in the draft). |
+| Position title (Arabic), Position title (English) | At least one. |
+| Reports to (position code) | A position's code, never its title, because titles repeat. No loops, even through others (the draft's own lines count when adding). |
+| Head of unit | Yes for the one position that heads its unit. |
+| Holder (e-mail or name) | The e-mail of someone at the client with a Selah account becomes that person; any other text is a typed name (2 to 200 characters), masked before a hosted model like every typed holder (migration 0091). Several are separated by `;` or `؛`, at most the planned number. An e-mail that is nobody's at this client is an error. Never stored at a client with minimal records (the row says so). People are placed, from today, only in positions the import creates; in a position kept by its code the people stay as they are. |
+| Specialties | Separated by `;` or `؛`; at most 30, each up to 100 characters. |
+| Vacant | Yes means no holder (naming one as well is an error). |
+| Planned people | 1 to 999; empty is 1. |
+
+Codes Selah gives (a row with a name but no code, a Word heading, the assistant's rows) are the next free code under the parent ("2" gives "2.1"), avoiding the draft's, and the row says so. The checks are about the data only: an unknown parent, unit or "reports to" code, a loop, a duplicate code, a missing title or name, a holder e-mail that is not a person of this client, a level that contradicts its parent, a value that cannot be read, two heads in one unit. **Selah never designs or judges a structure**: no suggestion of units, no comment on spans or layers, no "good" or "bad" (`tests/org-chart-import.test.ts` checks that a wide unit and a twelve-level chain get no note).
+
+### The same template out and back
+
+The filled template is the client's structure as the reader's Structure tab shows it (`orgChartWorkbook()`, through `getStructure()`): the draft for the firm, or a published version; names only where the database sends them; a person with an account written as their e-mail so they come back as the same person. Exported and brought back with **Replace**, the draft is the same: the same units, positions (the same rows, so holdings and history follow them) and people (`tests/org-chart-import.test.ts` and `tests/db/org-chart-import.test.ts`, "round-trips"). Audit: `org_chart.import_read` (source, hash, size, scan, rows), `org_chart.import_draft`, `org_chart.import` (source, hash, mode and counts), `org_chart.workbook`, and each service's own `org_chart.unit_*`, `org_chart.position_*` and `org_chart.holder_start` entries.
