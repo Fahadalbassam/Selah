@@ -817,7 +817,8 @@
       "chooseAction": "اختر إجراءً",
       "note": "ملاحظة",
       "closedAs": "أُغلق: {outcome}",
-      "by": "بواسطة {name}، {date}"
+      "by": "بواسطة {name}، {date}",
+      "replaces": "يحلّ محلّ"
     },
     "risk": {
       "title": "قبول المخاطر",

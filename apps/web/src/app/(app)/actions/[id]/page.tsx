@@ -149,6 +149,20 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
+          {/* What this action replaced (page audit row 4d: Trace's "replaces the action above"). */}
+          {closing.replaces.length ? (
+            <p className="text-sm text-muted-foreground">
+              {t("closure.replaces")}:{" "}
+              {closing.replaces.map((x, i) => (
+                <span key={x.id}>
+                  {i ? " · " : ""}
+                  <Link href={`/actions/${x.id}`} className="text-primary hover:underline" dir="auto">
+                    {x.title}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          ) : null}
           {closing.closure ? (
             <div className="space-y-1 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
               <p className="font-medium">

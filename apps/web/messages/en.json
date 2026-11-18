@@ -817,7 +817,8 @@
       "chooseAction": "Choose an action",
       "note": "Note",
       "closedAs": "Closed: {outcome}",
-      "by": "By {name}, {date}"
+      "by": "By {name}, {date}",
+      "replaces": "Replaces"
     },
     "risk": {
       "title": "Risk acceptance",

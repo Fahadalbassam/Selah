@@ -18,7 +18,7 @@ import { parseActionsQuery, type ActionsQuery } from "@/lib/action-filters";
 import { ACTION_RULES } from "@/lib/plan-rules";
 import { OLD_TABS, oldTabTarget, openTab } from "@/lib/project-tabs";
 import { actionBoard } from "@/services/action-board";
-import { projectProgress } from "@/services/follow-through";
+import { actionClosure, projectProgress } from "@/services/follow-through";
 import { loadPrincipal } from "@/services/principal";
 import { loadProjectPage } from "@/services/project-page";
 
@@ -53,6 +53,7 @@ const A = {
   draft: id(46), // own, the firm's draft (D6)
   churn: id(47), // own, sent back twice (Legal)
   closingOpen: id(48), // on the closing project
+  old: id(49), // own, closed: replaced by the late action (Legal)
 };
 const DOC = { review: id(51), done: id(52), finance: id(53), firmOnly: id(54) };
 const FAR = id(18); // a consultant on Acme's team, staffed on the closing project only
@@ -131,6 +132,8 @@ beforeAll(async () => {
   await act(A.draft, "Draft canary", U.own, "draft", -10, DEPT.legal);
   await act(A.churn, "Churn canary", U.own, "revision_requested", 10, DEPT.legal, R.disputed);
   await act(A.closingOpen, "Closing canary", U.own, "in_progress", 10, DEPT.legal, R.closing, P.closing);
+  await act(A.old, "Old canary", U.own, "in_progress", 10, DEPT.legal);
+  await x(`UPDATE actions SET status = 'closed', closure_outcome = 'superseded', superseded_by = $2 WHERE id = $1`, [A.old, A.late]);
   await x(`UPDATE actions SET awaiting_review_at = now() - interval '10 days' WHERE id = $1`, [A.review]);
   // Files sent: one waiting for review, one accepted, one in Finance.
   for (const [doc, aid, title] of [
@@ -353,10 +356,10 @@ describe("only what the reader may open", () => {
   it("an action owner: only their own actions, counts and files (1b)", async () => {
     const p = await page(U.own);
     const shown = p.data.recommendations.flatMap((r) => r.actions.map((a) => a.id));
-    expect(names(shown)).toEqual(["churn", "done", "late", "review"]);
+    expect(names(shown)).toEqual(["churn", "done", "late", "old", "review"]);
     expect(JSON.stringify(p)).not.toContain("Blocked canary");
     expect(names(p.attention.rules.blocked!)).toEqual([]);
-    expect(Object.keys(p.evidence).map((x) => NAME[x]).sort()).toEqual(["churn", "done", "late", "review"]);
+    expect(Object.keys(p.evidence).map((x) => NAME[x]).sort()).toEqual(["churn", "done", "late", "old", "review"]);
   });
 
   it("no client reader sees the firm's draft (D6)", async () => {
@@ -383,6 +386,14 @@ describe("only what the reader may open", () => {
       expect((await page(who)).consultants!.staffed.map((s) => s.userId), who).toEqual([U.cons]);
       expect((await page(who, P.closing)).consultants!.staffed.map((s) => s.userId), who).toEqual([FAR]);
     }
+  });
+
+  it("the replacing action says what it replaces (Trace's 'replaces the action above', now on the action page)", async () => {
+    for (const who of [U.lead, U.cadmin, U.mgr, U.own]) {
+      const c = await svc(who, (tx, p) => actionClosure(tx, p, A.late));
+      expect(c.replaces, who).toEqual([{ id: A.old, title: "Old canary" }]);
+    }
+    expect((await svc(U.lead, (tx, p) => actionClosure(tx, p, A.review))).replaces).toEqual([]);
   });
 
   it("the client admin may add a file on the project's Requests and files tab", async () => {
