@@ -582,7 +582,10 @@ describe("the closure report", () => {
     rendered.length = 0;
     await svc(U.cadmin, (tx, p) => closurePdf(tx, p, P.closing, "en"));
     const html = rendered[0]!;
-    expect(html).toContain("What was handed over");
+    expect(html).toContain("<h2>Handed over</h2>");
+    // Read by both sides: the section never talks about "the client" (review S4).
+    const section = html.slice(html.indexOf("<h2>Handed over</h2>"), html.indexOf("</section>", html.indexOf("<h2>Handed over</h2>")));
+    expect(section).not.toMatch(/\bclient\b/i);
     expect(html).toContain("Phase 2 report");
     expect(html).toMatch(/Receipt confirmed on [^<]+ by cadmin/);
     expect(html).toMatch(/Phase 2 annex<\/td>\s*<td>No answer before the project closed<\/td>/);
@@ -591,13 +594,13 @@ describe("the closure report", () => {
     // In Arabic for the firm, with the same words of receipt.
     rendered.length = 0;
     await svc(U.lead, (tx, p) => closurePdf(tx, p, P.closing, "ar"));
-    expect(rendered[0]).toContain("ما سُلِّم للعميل");
+    expect(rendered[0]).toContain("<h2>ما سُلِّم</h2>");
     expect(rendered[0]).toContain("لم يصل رد قبل إغلاق المشروع");
     // A manager on the project who answers for none of them gets the report without the section.
     await q(`INSERT INTO project_members (project_id, user_id) VALUES ($1,$2)`, [P.closing, U.mgr]);
     rendered.length = 0;
     await svc(U.mgr, (tx, p) => closurePdf(tx, p, P.closing, "en"));
-    expect(rendered[0]).not.toContain("What was handed over");
+    expect(rendered[0]).not.toContain("<h2>Handed over</h2>");
     expect(rendered[0]).not.toContain("Phase 2 report");
   });
 });
