@@ -5,7 +5,18 @@ import { createMasker } from "@/lib/masking";
 describe("keyword query", () => {
   it("keeps distinctive words in both languages, joined by OR", () => {
     expect(keywordQuery("What does Article 12 of the charter say?")).toBe("article | 12 | of | charter | say");
-    expect(keywordQuery("ما الذي بقي مفتوحاً في ميثاق المجلس؟")).toBe("بقي | مفتوحا | ميثاق | المجلس");
+    // Each Arabic word also without its prefix, as the index holds it (app_search_tsv).
+    expect(keywordQuery("ما الذي بقي مفتوحاً في ميثاق المجلس؟")).toBe("بقي | مفتوحا | ميثاق | المجلس | مجلس");
+  });
+
+  it("asks in the index's fold: hamza and alef forms, ى, ة, tatweel, Arabic-Indic digits", () => {
+    expect(keywordQuery("أعضاء لجنة المراجعة ٢٠٢٧")).toBe("اعضاء | لجنه | جنه | المراجعه | مراجعه | 2027");
+    expect(keywordQuery("المسؤول والمسئول")).toBe("المسءول | مسءول | والمسءول");
+    expect(keywordQuery("مكافـــآت الإدارة")).toBe("مكافات | الاداره | اداره");
+    // A stop word stays out folded too («إلى» is «الى»), and so does a stem that is one («وهذا»).
+    expect(keywordQuery("إلى وهذا البنك")).toBe("وهذا | البنك | بنك");
+    // Fewer than three letters left: «بنك» is not also «نك».
+    expect(keywordQuery("بنك")).toBe("بنك");
   });
 
   it("can't inject query syntax, and is null when nothing is left", () => {
@@ -91,6 +102,32 @@ describe("masking", () => {
     expect(m.mask("ريم الحربي")).toBe("[PERSON_1]");
     // Whole words only: "Alnukhbawi" is someone else.
     expect(m.mask("Alnukhbawi")).toBe("Alnukhbawi");
+  });
+
+  it("finds an Arabic name in every spelling the search fold joins (phase 3 probes)", () => {
+    const m = createMasker([
+      { kind: "PERSON", term: "أحمد العتيبي", entity: "user:2" },
+      { kind: "PERSON", term: "ريم الحربي", entity: "user:1" },
+      { kind: "ORG", term: "مؤسسة الرعاية", entity: "org:3" },
+    ]);
+    // Hamza: «احمد» for «أحمد», the first name alone too.
+    expect(m.mask("رسالة من احمد العتيبي و إلى أحمد")).toBe("رسالة من [PERSON_1] و إلى [PERSON_1]");
+    // Tatweel.
+    expect(m.mask("ريـــم الحربي (with tatweel)")).toBe("[PERSON_2] (with tatweel)");
+    expect(m.mask("الحـــربي")).toBe("[PERSON_2]");
+    expect(m.mask("ريمـ الحربيـ")).toBe("[PERSON_2]");
+    // ؤ and ئ, ة and ه.
+    expect(m.mask("مئسسة الرعايه")).toBe("[ORG_1]");
+  });
+
+  it("finds a name after ل written «لل», and writes it back so (phase 3 probe)", () => {
+    const m = createMasker([{ kind: "ORG", term: "النخبة", entity: "org:1" }, { kind: "ORG", term: "شركة النخبة القابضة", entity: "org:1" }]);
+    const masked = m.mask("درجة نضج الحوكمة للنخبة 2.1، وللنخبة رأي، ولشركة النخبة القابضة، وبالنخبة");
+    expect(masked).toBe("درجة نضج الحوكمة ل[ORG_1] 2.1، ول[ORG_1] رأي، ول[ORG_1]، وب[ORG_1]");
+    expect(m.unmask("ل[ORG_1] و[ORG_1]")).toBe("للنخبة والنخبة");
+    expect(m.unmask(m.mask("مراجعة لِلنُّخبة"))).toBe("مراجعة للنخبة");
+    // Only after ل: «النخبة» inside another word, or «لنخبة» alone, is not the name.
+    expect(m.mask("النخبةوي ونخبة لنخبة")).toBe("النخبةوي ونخبة لنخبة");
   });
 
   it("changes nothing when off", () => {

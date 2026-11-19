@@ -2327,8 +2327,9 @@ export const aiChunks = pgTable(
     lang: text("lang"),
     content: text("content").notNull(),
     embedding: vector("embedding", { dimensions: 1024 }).notNull(),
-    // Keyword search alongside vectors. 'simple' keeps Arabic tokens as-is.
-    tsv: tsvector("tsv").generatedAlwaysAs((): SQL => sql`to_tsvector('simple', ${aiChunks.content})`),
+    // Keyword search alongside vectors: every word in the Arabic search fold, and each
+    // Arabic word also without its leading prefix (app_search_tsv, migration 0112).
+    tsv: tsvector("tsv").generatedAlwaysAs((): SQL => sql`app_search_tsv(${aiChunks.content})`),
     createdAt: createdAt(),
   },
   (t) => [

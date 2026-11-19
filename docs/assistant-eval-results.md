@@ -104,3 +104,37 @@ The fix is in (`num_ctx` 16384 is sent, seen in every logged request), but this 
 5. Give the set its own database, not one shared with another builder's tests.
 
 The run's raw files (results JSON, logs, the review sheet and the request log) stayed on the machine that ran it and are not committed.
+
+## Arabic spelling fold for word search (section 7 item 4), retrieval before and after (19 Nov 2026)
+
+Migration `0112_arabic_search`: the stored `ai_chunks.tsv` is now `app_search_tsv(content)` (one Arabic spelling, and each Arabic word also without a leading «ال», «وال», «بال», «لل» or one of و ف ب ل ك), and `keywordQuery()` asks in the same fold, with the same shorter forms (`docs/assistant.md`, "By words"). The embeddings are unchanged; only the keyword half of the search changed.
+
+**Setup.** A database of its own this time, `selah_test_p` (`EVAL_DB_OK=selah_test_p`), files in their own bucket `selah-eval-s7p`, the same 164 files and 118 questions, `bge-m3` on the lead copy's Ollama (processor only), retrieval only (no chat model). Seeded and indexed once; the "before" run used `origin/main`'s `keywordQuery()` against the old column, then the column was re-made by the new functions on the same rows (no re-indexing) and the "after" run used the new code. All 46 English questions sent exactly the same passages in both runs, so the vector side did not move between them and every difference below comes from the fold.
+
+This copy's "before" is 2 below the first run's 81 of 89 (above): the scanned PDF could not be read here either (`pdftotext` on this machine, as noted above; the first run indexed that file by hand, this one did not), so N27 misses in both runs, and R06 missed here before the fold.
+
+| | Before | After |
+|---|---|---|
+| Right passage among what is sent (hit rate) | 79 of 89 (89%) | **80 of 89 (90%)** |
+| Mean recall | 0.871 | **0.882** |
+| Right passage sent first | 57 of 89 (64%) | **59 of 89 (66%)** |
+| Arabic questions | 39 of 43 (91%) | **40 of 43 (93%)** |
+| English questions | 40 of 46 (87%) | 40 of 46 (87%) (same passages) |
+| Long files | 12 of 17 | 13 of 17 |
+| Versions (Arabic / English) | 6 of 7 / 1 of 1 | 6 of 7 / 1 of 1 |
+| Cross-language | 9 of 11 | 9 of 11 |
+| A passage from a project the asker may not use | 0 | 0 |
+| A leak word in what is sent | 0 | 0 |
+| Median search time | 0.68 s | 0.75 s |
+
+What changed, question by question (only Arabic questions changed):
+
+- **Found now:** R06 «كم عدد المتطوعين وساعات التطوع في عام 2025؟» (the annual report's volunteering passage, first; before it was not among the 8).
+- **Ranked higher:** N15 and N16 (the board charter's meetings and quorum clauses, 2nd → 1st), N21 (the audit committee charter's member clause, 8th → 6th).
+- **Ranked lower:** N35 «لجنة الترشيحات والمكافآت في اجتماعها رقم 5» (meeting 5's minutes 1st → 2nd, still sent): the eight minutes of that committee all share the new shorter forms, and «5» alone is too short to be searched.
+- **Conflicting versions:** unchanged. N08, N09, N10, N13 and W05 still get both versions; N11 (English) and N12 (Arabic) still get only the version in their own language (recall 0.5 each): the 2024 matrix is English and the 2026 draft Arabic, and a spelling fold cannot join two languages. W06 (a follow-up) still finds nothing. These need the next steps above (the other version of a found file; follow-ups searched with the earlier question).
+- Still missed: N04, N14, N19 (cross-language and long files), W04, R05, R07 (long files crowding), N27 (the scan, not read here), W06 and AC08 (follow-ups).
+
+**False matches (the cautions of section 3.3).** The shorter forms that strip a real first letter exist, as expected: in the 223 indexed passages, 424 of the 889 different Arabic words get a shorter form (405 different ones, 117 of which are also words in their own right, for example «مجلس», «سياسه», «مكافات»); about 20 of them take off a letter that belongs to the word: «لجنه» → «جنه», «لجان» → «جان», «كتابه» → «تابه», «برنامج» → «رنامج», «ورشه» → «رشه», «لقاء» → «قاء», «بلاغ» → «لاغ», «فبراير» → «براير», «كلمه» → «لمه», «بينهم» → «ينهم» and the like. On the question side, 130 shorter forms were added over the Arabic questions; the wrong ones (N21 «لجنة» → «جنه» and «وجود» → «جود», N29 «ورشة» → «رشه», R18 «برنامج» → «رنامج», N30 «لقاء» → «قاء», N25 «بلاغه» → «لاغه», REF14 «كتاب» → «تاب») matched only passages that hold the same word, because none of those short forms is a word in this set; **no wrong passage was found through one**. «بنك» is never «نك» (fewer than three letters would be left; W14's «البنك» asks for «بنك» only). So the cost on this set is the small reordering of N35, not false passages; a set with «جنة» (a garden) or «تاب» as words of their own would show the caution, and keeping both forms with `ts_rank` puts the passage with the word as written first (`tests/db/arabic-search.test.ts`).
+
+The raw files (both results JSON files, the logs and the word lists) stayed on the machine that ran them.

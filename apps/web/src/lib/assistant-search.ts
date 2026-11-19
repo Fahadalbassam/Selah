@@ -1,10 +1,11 @@
-import { foldArabic } from "./arabic-fold";
+import { foldArabic, foldWords, searchStems } from "./arabic-fold";
 
 // Pure helpers for the assistant's hybrid search (docs/assistant.md): the
 // keyword query, the merge of the two ranked lists, and a chat's title.
 
-// Words too common to rank by, in both languages. The index uses the
-// 'simple' configuration, which keeps every word as written.
+// Words too common to rank by, in both languages, in the search fold (foldWords).
+// The index keeps every word as written in that fold, and each Arabic word also
+// without its leading prefix (app_search_tsv, migration 0112).
 const STOP = new Set([
   "the", "and", "for", "are", "was", "were", "what", "which", "who", "whom", "how", "why", "when", "where", "does", "did",
   "has", "have", "had", "this", "that", "these", "those", "with", "from", "into", "about", "any", "all", "can", "could",
@@ -12,22 +13,28 @@ const STOP = new Set([
   "في", "من", "على", "إلى", "الى", "عن", "مع", "هل", "ما", "ماذا", "متى", "أين", "كيف", "لماذا", "هذا", "هذه",
   "ذلك", "تلك", "التي", "الذي", "الذين", "هو", "هي", "هم", "كان", "كانت", "أو", "او", "ثم", "قد", "لم", "لا", "كل",
   "بعد", "قبل", "حتى", "عند", "أن", "ان", "إن",
-]);
+].map(foldWords));
 
 /**
- * An OR query over the question's distinctive words, for to_tsquery('simple').
- * Only letters and digits survive, so nothing the person types can change the
- * query's syntax. Null when no word is left.
+ * An OR query over the question's distinctive words, for to_tsquery('simple'),
+ * in the same fold as the index (foldWords: «أعضاء» finds «اعضاء», «٢٠٢٧» finds
+ * «2027»), each Arabic word also without its leading prefix (searchStems:
+ * «والمكافآت» also asks for «مكافات»), as the index holds it. Only letters and
+ * digits survive, so nothing the person types can change the query's syntax.
+ * Null when no word is left.
  */
 export function keywordQuery(question: string, max = 12): string | null {
-  const words = question
-    .toLowerCase()
-    // Arabic short vowels and other marks would split a word in two.
+  const words = foldWords(question)
+    // Other marks (Latin accents typed apart) would split a word in two.
     .replace(/\p{M}/gu, "")
     .split(/[^\p{L}\p{N}]+/u)
     .filter((w) => w.length >= 2 && !STOP.has(w) && !/^\p{N}$/u.test(w));
-  const unique = [...new Set(words)].slice(0, max);
-  return unique.length ? unique.join(" | ") : null;
+  const terms = new Set<string>();
+  for (const w of [...new Set(words)].slice(0, max)) {
+    terms.add(w);
+    for (const stem of searchStems(w)) if (!STOP.has(stem)) terms.add(stem);
+  }
+  return terms.size ? [...terms].join(" | ") : null;
 }
 
 /**

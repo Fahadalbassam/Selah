@@ -694,6 +694,13 @@
       "when": 1795098069808,
       "tag": "0111_owner_not_full_client_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1795109587884,
+      "tag": "0112_arabic_search",
+      "breakpoints": true
     }
   ]
 }
