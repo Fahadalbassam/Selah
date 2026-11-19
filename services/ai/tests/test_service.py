@@ -533,10 +533,11 @@ def _ollama_with(handler, **settings):
     return llm
 
 
-def _ollama_reply(content: str, prompt_eval_count: int = 100):
+def _ollama_reply(content: str, prompt_eval_count: int = 100, eval_count: int = 10):
     import httpx
 
-    return httpx.Response(200, json={"message": {"role": "assistant", "content": content}, "done": True, "prompt_eval_count": prompt_eval_count})
+    body = {"message": {"role": "assistant", "content": content}, "done": True, "prompt_eval_count": prompt_eval_count, "eval_count": eval_count}
+    return httpx.Response(200, json=body)
 
 
 def test_ollama_sends_the_context_size():
@@ -557,18 +558,54 @@ def test_ollama_context_size_comes_from_the_environment(monkeypatch):
     assert Settings(ai_service_token=TOKEN).llm_num_ctx == 8192
 
 
+@pytest.mark.parametrize("value", ["abc", "1024", "262144"])
+def test_ollama_context_size_has_bounds(monkeypatch, value):
+    from pydantic import ValidationError
+
+    monkeypatch.setenv("LLM_NUM_CTX", value)
+    with pytest.raises(ValidationError):
+        Settings(ai_service_token=TOKEN)
+
+
+def test_bad_settings_stop_the_service_at_start(monkeypatch):
+    monkeypatch.setenv("AI_SERVICE_TOKEN", TOKEN)
+    monkeypatch.setenv("LLM_NUM_CTX", "abc")
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="LLM_NUM_CTX"), TestClient(app):
+            pass
+        monkeypatch.setenv("LLM_NUM_CTX", "8192")
+        get_settings.cache_clear()
+        with TestClient(app) as client:
+            assert client.get("/health").status_code == 200
+    finally:
+        get_settings.cache_clear()
+
+
+def _warnings(caplog, prompt: int, reply: int, limit: int = 4096) -> list[str]:
+    llm = _ollama_with(lambda request: _ollama_reply('{"a": 1}', prompt_eval_count=prompt, eval_count=reply), llm_num_ctx=limit)
+    with caplog.at_level("WARNING", logger="uvicorn.error"):
+        asyncio.run(llm.chat_json("sys", "user", {}))
+    return [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+
+
 def test_ollama_warns_when_the_prompt_fills_the_context(caplog):
-    llm = _ollama_with(lambda request: _ollama_reply('{"a": 1}', prompt_eval_count=4096), llm_num_ctx=4096)
-    with caplog.at_level("WARNING", logger="uvicorn.error"):
-        asyncio.run(llm.chat_json("sys", "user", {}))
-    assert any("filled the whole context" in r.getMessage() and r.levelname == "WARNING" for r in caplog.records)
+    assert any("filled the whole context" in m for m in _warnings(caplog, prompt=4096, reply=0))
 
 
-def test_ollama_does_not_warn_below_the_context(caplog):
-    llm = _ollama_with(lambda request: _ollama_reply('{"a": 1}', prompt_eval_count=4095), llm_num_ctx=4096)
-    with caplog.at_level("WARNING", logger="uvicorn.error"):
-        asyncio.run(llm.chat_json("sys", "user", {}))
-    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+def test_ollama_warns_when_prompt_and_reply_fill_the_context(caplog):
+    # The prompt alone is under the 90% mark; with the reply it is full.
+    assert any("filled the whole context" in m for m in _warnings(caplog, prompt=3000, reply=1096))
+
+
+def test_ollama_warns_when_the_prompt_nearly_fills_the_context(caplog):
+    found = _warnings(caplog, prompt=3700, reply=10)
+    assert any("little room for the reply" in m for m in found)
+    assert not any("filled the whole context" in m for m in found)
+
+
+def test_ollama_does_not_warn_with_room_left(caplog):
+    assert _warnings(caplog, prompt=3600, reply=400) == []
 
 
 def test_ollama_stream_warns_when_the_prompt_fills_the_context(caplog):
@@ -584,6 +621,41 @@ def test_ollama_stream_warns_when_the_prompt_fills_the_context(caplog):
     with caplog.at_level("WARNING", logger="uvicorn.error"):
         assert asyncio.run(collect()) == '{"a": 1}'
     assert any("filled the whole context" in r.getMessage() for r in caplog.records)
+
+
+def test_ollama_retry_sends_back_only_the_end_of_a_long_bad_reply():
+    from app.llm import RETRY_ECHO_CHARS, RETRY_JSON
+
+    sent: list[dict] = []
+    bad = "x" * 5000 + "THE END"
+    replies = iter([bad, '{"a": 1}'])
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return _ollama_reply(next(replies))
+
+    assert asyncio.run(_ollama_with(handler).chat_json("sys", "user", {})) == '{"a": 1}'
+    echoed = sent[1]["messages"][-2]["content"]
+    assert len(echoed) <= RETRY_ECHO_CHARS + 3 and echoed.endswith("THE END")
+    assert [m["role"] for m in sent[1]["messages"]] == ["system", "user", "assistant", "user"]
+    assert sent[1]["messages"][1]["content"] == "user" and sent[1]["messages"][-1]["content"] == RETRY_JSON
+
+
+def test_hosted_retry_still_sends_back_the_whole_reply():
+    from app.llm import HostedChatLLM
+
+    llm = HostedChatLLM(Settings(ai_service_token=TOKEN, llm_provider="openai_compat", llm_api_base="https://api.example", llm_api_key="k"))
+    sent: list[list[dict[str, str]]] = []
+    bad = "y" * 5000
+    replies = iter([bad, '{"a": 1}'])
+
+    async def fake(messages, schema):
+        sent.append(messages)
+        return next(replies)
+
+    llm._complete = fake  # type: ignore[method-assign]
+    asyncio.run(llm.chat_json("sys", "user", {}))
+    assert sent[1][-2]["content"] == bad
 
 
 def test_ollama_retries_once_when_the_reply_is_not_json():
@@ -625,12 +697,3 @@ def test_ollama_gives_back_the_raw_reply_after_two_bad_tries():
 
     assert asyncio.run(_ollama_with(handler).chat_json("sys", "user", {})) == "no json here"
     assert calls == 2
-
-
-def test_both_providers_share_one_json_fallback():
-    import inspect
-
-    from app import llm
-
-    for cls in (llm.OllamaLLM, llm.HostedChatLLM):
-        assert "json_with_one_retry" in inspect.getsource(cls.chat_json)

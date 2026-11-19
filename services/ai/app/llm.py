@@ -26,6 +26,13 @@ class LLM(Protocol):
 
 log = logging.getLogger("uvicorn.error")
 
+# A prompt this full leaves little room for the reply; the warning comes early.
+CONTEXT_WARN_SHARE = 0.9
+# On the local retry only the end of the bad reply is sent back, so asking
+# again does not push the passages out of the context. Ollama drops the
+# oldest messages that do not fit, which is the one holding the passages.
+RETRY_ECHO_CHARS = 400
+
 # How long a local model stays loaded after a request. Ollama's default is five
 # minutes, after which the next question first reloads the model from disk
 # (tens of seconds on a processor).
@@ -61,12 +68,26 @@ class OllamaLLM:
         }
 
     def _check_context(self, event: dict[str, Any]) -> None:
-        read = event.get("prompt_eval_count")
-        if isinstance(read, int) and read >= self._s.llm_num_ctx:
+        """Warn when the prompt and reply filled the context (so something was
+        cut) or the prompt alone came close. Ollama does not count a prompt
+        start it reused from its cache, so the numbers can be low, not high."""
+        limit = self._s.llm_num_ctx
+        read, wrote = event.get("prompt_eval_count"), event.get("eval_count")
+        read = read if isinstance(read, int) else 0
+        wrote = wrote if isinstance(wrote, int) else 0
+        if read + wrote >= limit:
             log.warning(
-                "local model: the prompt filled the whole context (%s of %s tokens); part of it was probably cut. Raise LLM_NUM_CTX or send fewer passages.",
+                "local model: prompt (%s tokens) and reply (%s) filled the whole context of %s; the prompt or the reply was probably cut. "
+                "Raise LLM_NUM_CTX or send fewer passages.",
                 read,
-                self._s.llm_num_ctx,
+                wrote,
+                limit,
+            )
+        elif read >= CONTEXT_WARN_SHARE * limit:
+            log.warning(
+                "local model: the prompt took %s of %s context tokens, leaving little room for the reply. Raise LLM_NUM_CTX or send fewer passages.",
+                read,
+                limit,
             )
 
     async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
@@ -79,7 +100,7 @@ class OllamaLLM:
     async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
         # format is not always obeyed (an open report for qwen3.5 with thinking
         # off, which is how this calls it), so the reply is checked as well.
-        return await json_with_one_retry(_messages(system, user), schema, self._complete)
+        return await json_with_one_retry(_messages(system, user), schema, self._complete, echo_chars=RETRY_ECHO_CHARS)
 
     async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
         # No retry here: the caller checks the whole reply and asks again with chat_json.
@@ -189,14 +210,17 @@ async def json_with_one_retry(
     messages: list[dict[str, str]],
     schema: dict[str, Any],
     complete: Callable[[list[dict[str, str]], dict[str, Any]], Awaitable[str]],
+    echo_chars: int | None = None,
 ) -> str:
     """Ask the model, pull the JSON object out of its reply, and ask once more
     if there is none. Returns the raw reply if both tries fail, so the caller's
-    own check marks the answer as not grounded."""
+    own check marks the answer as not grounded. echo_chars keeps only the end
+    of the bad reply in the retry (None sends it whole)."""
     raw = await complete(messages, schema)
     found = json_object(raw)
     if found is None:
-        retry = [*messages, {"role": "assistant", "content": raw}, {"role": "user", "content": RETRY_JSON}]
+        echo = raw if echo_chars is None or len(raw) <= echo_chars else "..." + raw[-echo_chars:]
+        retry = [*messages, {"role": "assistant", "content": echo}, {"role": "user", "content": RETRY_JSON}]
         found = json_object(await complete(retry, schema))
     return found if found is not None else raw
 
