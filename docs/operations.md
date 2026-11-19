@@ -103,6 +103,8 @@ Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the m
 
 `ops/upgrade.sh --rollback` goes back: the previous commit, rebuilt, with the database restored from the backup taken before the upgrade (migrations only go forward). Work done since the upgrade is lost, so roll back soon or not at all. Upgrade outside working hours, and run `ops/readiness.sh` afterwards.
 
+**Migration 0112 (Arabic word search) rewrites the assistant's passages.** It drops the stored search column of `ai_chunks` and adds it again, computed by `app_search_tsv()` (PostgreSQL 16 cannot change a generated column's expression), then builds its GIN index again. `ALTER TABLE` holds an exclusive lock on `ai_chunks` until it is done: the assistant can neither search nor index during that time (questions wait, then fail if it lasts past their timeout; the rest of Selah works). The embeddings are not touched. Plan it in a maintenance window, as for any upgrade. Measured on the laptop (Core i7-13700H, Postgres 16 in Docker), 20,000 passages of 1,656 characters each: the column took 50 s with the new function against 7 s with the old `to_tsvector('simple', ...)`, and the index under 1 s. That is about **4 minutes per 100,000 passages** here, 2.5 ms a passage (`to_tsvector` alone: 0.34 ms; most of the rest is the Arabic fold); allow two to three times that on a slower server. Count first: `SELECT count(*) FROM ai_chunks;`. Indexing new files afterwards costs the same 2.5 ms a passage, next to seconds for the embedding.
+
 ## Before go-live
 
 Do these once, on the live database, before the firm's real clients are let in.
