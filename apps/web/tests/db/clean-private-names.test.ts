@@ -33,7 +33,7 @@ const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
 const n = async (sql: string, params: unknown[] = []) => (await q(sql, params)).rows[0].n as number;
 const snapshot = async () => ({
   audit: (await q(`SELECT id, meta, chain_seq, chain_hash FROM audit_log ORDER BY created_at, id`)).rows,
-  activity: (await q(`SELECT id, meta FROM activity_events ORDER BY created_at, id`)).rows,
+  activity: (await q(`SELECT id, visibility, meta FROM activity_events ORDER BY created_at, id`)).rows,
   head: (await q(`SELECT head_seq, head_hash FROM audit_chain`)).rows[0],
 });
 const chainOk = async () => (await q(`SELECT ok FROM app_check_audit_chain()`)).rows[0].ok as boolean;
@@ -49,6 +49,14 @@ const oldEvent = (project: string, org: string, actor: string, doc: string, titl
      VALUES ($1,$2,$3,'document',$4,'document_withdrawn',jsonb_build_object('title', $5::text, 'reason', $6::text))`,
     [project, org, actor, doc, title, reason],
   );
+const file = (docId: string, project: string, org: string, by: string, visibility: string) =>
+  q(
+    `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
+       storage_key, content_type, size_bytes, sha256, scan_status)
+     VALUES ($1,$2,$3,$3,$4,'deliverable','submitted','a file',$5,$6,'application/pdf',10,'abc','clean')`,
+    [docId, project, org, by, visibility, `k-${docId}`],
+  );
+const labelOf = async (doc: string) => (await q(`SELECT visibility FROM activity_events WHERE entity_id = $1`, [doc])).rows.map((r) => r.visibility);
 const other = (action: string, meta: object = {}) =>
   q(`INSERT INTO audit_log (actor_id, org_id, action, resource_type, outcome, meta) VALUES ($1,$2,$3,'document','allow',$4)`, [U.admin, FIRM, action, meta]);
 
@@ -69,6 +77,13 @@ beforeAll(async () => {
     `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$4,'Acme work','active',$5), ($3,'client',$6,$4,'Beta work','active',$5)`,
     [P.acme, ACME, P.beta, FIRM, U.admin, BETA],
   );
+
+  // The files: two private ones (one each side's) and a shared one.
+  await file(D.a1, P.acme, ACME, U.acmeAdmin, "client_private");
+  await file(D.firm, P.acme, ACME, U.lead, "firm_private");
+  await file(D.b1, P.beta, BETA, U.betaAdmin, "shared");
+  // Its event below, written since 0106, has a different label (as if the file was relabelled later): not an old row, left alone.
+  await file(D.late, P.acme, ACME, U.acmeAdmin, "shared");
 
   // Written the old way (before 0106), with sealed rows after them, so the
   // chain has to be re-hashed past the changed rows.
@@ -124,10 +139,16 @@ describe("pre-go-live clean-up of old private file names", () => {
     const checks = await n(`SELECT count(*)::int AS n FROM audit_chain_checks`);
     const r = await cleanPrivateNames(owner, { allowTest: true });
     expect(r.applied).toBe(false);
-    expect(r.totals).toEqual({ "audit_log document.withdraw": 5, "activity_events document_withdrawn": 3 });
+    expect(r.totals).toEqual({
+      "audit_log document.withdraw": 5,
+      "activity_events document_withdrawn": 3,
+      "activity_events document_withdrawn label": 2,
+    });
     const by = (kind: string) => Object.fromEntries(r.counts.filter((c) => c.kind === kind).map((c) => [c.orgId, c.rows]));
     expect(by("audit_log document.withdraw")).toEqual({ [ACME]: 3, [BETA]: 1, [FIRM]: 1 });
     expect(by("activity_events document_withdrawn")).toEqual({ [ACME]: 2, [BETA]: 1 });
+    // The two private files' old events were stored "shared"; the shared file's is right already.
+    expect(by("activity_events document_withdrawn label")).toEqual({ [ACME]: 2 });
     expect(r.counts.find((c) => c.orgId === FIRM)?.orgKind).toBe("firm");
     // Sealed entries 2..6 (from the first old row to the head) would be re-hashed.
     expect(r.rehashedFrom).toBe(2);
@@ -173,7 +194,11 @@ describe("pre-go-live clean-up of old private file names", () => {
     const before = await snapshot();
     const r = await cleanPrivateNames(owner, { apply: true, allowTest: true, confirm: db });
     expect(r.applied).toBe(true);
-    expect(r.totals).toEqual({ "audit_log document.withdraw": 5, "activity_events document_withdrawn": 3 });
+    expect(r.totals).toEqual({
+      "audit_log document.withdraw": 5,
+      "activity_events document_withdrawn": 3,
+      "activity_events document_withdrawn label": 2,
+    });
     expect(r.rehashed).toBe(5);
 
     // No row removed; ids, places in the chain and all other fields unchanged.
@@ -191,6 +216,11 @@ describe("pre-go-live clean-up of old private file names", () => {
     expect(stored).not.toMatch(SECRET);
     expect(await n(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'document.withdraw' AND meta = '{"redacted": true}'`)).toBe(5);
     expect(await n(`SELECT count(*)::int AS n FROM activity_events WHERE event = 'document_withdrawn' AND meta = '{"redacted": true}'`)).toBe(3);
+    // Each old event now has its file's label; the 0106-era event keeps its own.
+    expect(await labelOf(D.a1)).toEqual(["client_private"]);
+    expect(await labelOf(D.firm)).toEqual(["firm_private"]);
+    expect(await labelOf(D.b1)).toEqual(["shared"]);
+    expect(await labelOf(D.late)).toEqual(["client_private"]);
     // What was written since 0106, and other kinds of row, are untouched.
     expect((await q(`SELECT meta FROM audit_log WHERE resource_id = $1`, [D.late])).rows).toEqual([{ meta: {} }]);
     expect((await q(`SELECT meta FROM activity_events WHERE entity_id = $1`, [D.late])).rows).toEqual([{ meta: {} }]);
@@ -212,6 +242,7 @@ describe("pre-go-live clean-up of old private file names", () => {
       meta: {
         audit_rows: 5,
         activity_rows: 3,
+        activity_labels_set: 2,
         organisations: 3,
         rehashed_from: 2,
         rehashed_rows: 5,
@@ -234,7 +265,11 @@ describe("pre-go-live clean-up of old private file names", () => {
   it("a second run finds nothing and changes nothing", async () => {
     const before = await snapshot();
     const dry = await cleanPrivateNames(owner, { allowTest: true });
-    expect(dry.totals).toEqual({ "audit_log document.withdraw": 0, "activity_events document_withdrawn": 0 });
+    expect(dry.totals).toEqual({
+      "audit_log document.withdraw": 0,
+      "activity_events document_withdrawn": 0,
+      "activity_events document_withdrawn label": 0,
+    });
     const again = await cleanPrivateNames(owner, { apply: true, allowTest: true, confirm: db });
     expect(again).toMatchObject({ applied: true, counts: [], rehashed: 0, rehashedFrom: null });
     expect(await snapshot()).toEqual(before);

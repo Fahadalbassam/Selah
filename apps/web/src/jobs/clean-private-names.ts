@@ -9,7 +9,9 @@
 // read (app_audit_entries drops the title; the document_label policy hides the
 // event from the side the file's label keeps out). The stored rows still hold
 // them, so a backup, an owner query or a future read path would show them.
-// This blanks those fields and leaves a marker ("redacted": true). It never
+// This blanks those fields and leaves a marker ("redacted": true). It also
+// gives each old withdrawal event its file's own label, the rule 0106 uses
+// for new ones (they were stored "shared" whatever the file's label). It never
 // deletes a row. Rows written since 0106 carry neither field, so the rows to
 // clean are found by their content, not by a date, and a second run finds
 // nothing: it is idempotent.
@@ -33,10 +35,16 @@ const FIELDS = ["title", "reason"] as const;
 const HAS_FIELDS = `meta ?| array['title','reason']`;
 const BLANKED = `(meta - 'title' - 'reason') || '{"redacted": true}'::jsonb`;
 
-/** The row kinds #193 found carrying a private file name to the other side. */
+/** An old withdrawal event: one still holding the fields, or one this script already blanked. */
+const OLD_EVENT = `t.event = 'document_withdrawn' AND t.entity_type = 'document' AND (t.${HAS_FIELDS} OR t.meta @> '{"redacted": true}')`;
+/** An old withdrawal event whose label is not its file's (0106 writes new ones with d.visibility). */
+const WRONG_LABEL = `${OLD_EVENT} AND EXISTS (SELECT 1 FROM documents d WHERE d.id = t.entity_id AND d.visibility IS DISTINCT FROM t.visibility)`;
+
+/** The row kinds #193 found carrying a private file name (or the wrong label) to the other side. */
 export const KINDS = [
-  { kind: "audit_log document.withdraw", table: "audit_log", where: `action = 'document.withdraw'` },
-  { kind: "activity_events document_withdrawn", table: "activity_events", where: `event = 'document_withdrawn'` },
+  { kind: "audit_log document.withdraw", table: "audit_log", match: `t.action = 'document.withdraw' AND t.${HAS_FIELDS}` },
+  { kind: "activity_events document_withdrawn", table: "activity_events", match: `t.event = 'document_withdrawn' AND t.${HAS_FIELDS}` },
+  { kind: "activity_events document_withdrawn label", table: "activity_events", match: WRONG_LABEL },
 ] as const;
 export type Kind = (typeof KINDS)[number]["kind"];
 
@@ -75,7 +83,7 @@ async function counts(c: Client): Promise<CountRow[]> {
     const { rows } = await c.query<{ org_id: string | null; org_kind: string | null; n: number }>(
       `SELECT t.org_id, o.kind::text AS org_kind, count(*)::int AS n
        FROM ${k.table} t LEFT JOIN organizations o ON o.id = t.org_id
-       WHERE t.${k.where} AND t.${HAS_FIELDS}
+       WHERE ${k.match}
        GROUP BY t.org_id, o.kind ORDER BY t.org_id NULLS FIRST`,
     );
     for (const r of rows) out.push({ kind: k.kind, orgId: r.org_id, orgKind: r.org_kind, rows: r.n });
@@ -113,7 +121,7 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
       const list = await counts(c);
       const from = (
         await c.query<{ s: string | null }>(
-          `SELECT min(chain_seq)::text AS s FROM audit_log WHERE ${KINDS[0].where} AND ${HAS_FIELDS}`,
+          `SELECT min(chain_seq)::text AS s FROM audit_log t WHERE ${KINDS[0].match}`,
         )
       ).rows[0]!.s;
       const rehash = from
@@ -150,7 +158,7 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
     // the table while it is off. The TRUNCATE guard stays on throughout.
     await c.query(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_guard`);
     const changed = await c.query<{ chain_seq: string | null }>(
-      `UPDATE audit_log SET meta = ${BLANKED} WHERE ${KINDS[0].where} AND ${HAS_FIELDS} RETURNING chain_seq::text`,
+      `UPDATE audit_log t SET meta = ${BLANKED} WHERE ${KINDS[0].match} RETURNING t.chain_seq::text`,
     );
     const sealed = changed.rows.map((r) => r.chain_seq).filter((s): s is string => s !== null).map(Number);
     const from = sealed.length ? Math.min(...sealed) : null;
@@ -191,8 +199,12 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
     // lets the owner update under the selah.purge flag (the purge jobs' path),
     // so no trigger is switched off for it. The flag is local to this
     // transaction and cleared straight after.
+    // The label first (its match also knows rows already blanked), then the fields.
     await c.query(`SELECT set_config('selah.purge', 'on', true)`);
-    await c.query(`UPDATE activity_events SET meta = ${BLANKED} WHERE ${KINDS[1].where} AND ${HAS_FIELDS}`);
+    await c.query(
+      `UPDATE activity_events t SET visibility = d.visibility FROM documents d WHERE d.id = t.entity_id AND ${KINDS[2].match}`,
+    );
+    await c.query(`UPDATE activity_events t SET meta = ${BLANKED} WHERE ${KINDS[1].match}`);
     await c.query(`SELECT set_config('selah.purge', '', true)`);
 
     const after = (await c.query<{ ok: boolean; first_bad_seq: string | null }>(`SELECT ok, first_bad_seq FROM app_check_audit_chain()`)).rows[0]!;
@@ -207,6 +219,7 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
         JSON.stringify({
           audit_rows: totals["audit_log document.withdraw"],
           activity_rows: totals["activity_events document_withdrawn"],
+          activity_labels_set: totals["activity_events document_withdrawn label"],
           organisations: new Set(list.map((r) => r.orgId)).size,
           fields: FIELDS.join(","),
           rehashed_from: from,
@@ -228,11 +241,12 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
 
 /** The report as plain lines: counts per kind and per organisation, never a name. */
 export function reportLines(r: CleanReport): string[] {
-  const lines = [
-    `${r.applied ? "APPLIED" : "DRY RUN (nothing changed)"} on database ${r.database}`,
-    ...KINDS.map((k) => `  ${k.kind}: ${r.totals[k.kind]} row(s) holding a name or reason`),
-  ];
-  for (const row of r.counts) lines.push(`    org ${row.orgId ?? "(none)"} (${row.orgKind ?? "unknown"}): ${row.rows}`);
+  const lines = [`${r.applied ? "APPLIED" : "DRY RUN (nothing changed)"} on database ${r.database}`];
+  for (const k of KINDS) {
+    lines.push(`  ${k.kind}: ${r.totals[k.kind]} row(s) ${k.kind.endsWith("label") ? "labelled unlike their file" : "holding a name or reason"}`);
+    for (const row of r.counts.filter((x) => x.kind === k.kind))
+      lines.push(`    org ${row.orgId ?? "(none)"} (${row.orgKind ?? "unknown"}): ${row.rows}`);
+  }
   if (r.rehashedFrom !== null)
     lines.push(`  audit chain: ${r.rehashed} sealed entr(ies) ${r.applied ? "re-hashed" : "to re-hash"} from entry ${r.rehashedFrom}`);
   else if (r.applied && r.counts.length === 0) lines.push("  nothing to clean; nothing was changed");
