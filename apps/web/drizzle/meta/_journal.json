@@ -600,8 +600,29 @@
     {
       "idx": 98,
       "version": "7",
-      "when": 1795050656230,
-      "tag": "0240_action_owner",
+      "when": 1795041418830,
+      "tag": "0098_org_chart_planned_holders",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1795045039679,
+      "tag": "0099_org_chart_plans_follow_draft",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1795045770734,
+      "tag": "0100_org_chart_plans_on_leaving",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1795056044513,
+      "tag": "0101_action_owner",
       "breakpoints": true
     }
   ]

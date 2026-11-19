@@ -8,7 +8,7 @@
 // a typed name (a job title), never an account.
 //
 // The rules are in the database (app_can_change_owner(), check_action_transition()
-// and app_tell_owner_changed(), migration 0240) and in services/action-owner.ts.
+// and app_tell_owner_changed(), migration 0101) and in services/action-owner.ts.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
 import { drizzle } from "drizzle-orm/node-postgres";

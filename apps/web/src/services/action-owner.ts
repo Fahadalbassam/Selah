@@ -11,7 +11,7 @@ import { audit } from "./audit";
 // staff on the project (not observers) may; on the client's side the
 // company's admin and the project's coordinator and sponsor. The status does
 // not change. One rule in the database decides who may
-// (app_can_change_owner(), migration 0240), the update trigger enforces it,
+// (app_can_change_owner(), migration 0101), the update trigger enforces it,
 // and app_tell_owner_changed() tells the new owner, the old owner (on the
 // project: they no longer read the action), the client's lead and deputy and
 // the consultants staffed on the project. One audit row, with ids only (a

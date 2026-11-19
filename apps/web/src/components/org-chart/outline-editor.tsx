@@ -78,11 +78,14 @@ export function OutlineEditor(props: {
   names: boolean;
   /** Before anything exists the page has no version line: the editor says itself that this is the firm's draft. */
   banner?: boolean;
+  /** Who is planned for each position (part 4, firm only, by position id): shown as a plan, placed when the draft is published. */
+  plans?: Record<string, string[]>;
 }) {
   const t = useTranslations("orgChart.editor");
   const tChart = useTranslations("orgChart");
   const tk = useTranslations("orgChart.kinds");
   const tTree = useTranslations("orgChart.tree");
+  const tImport = useTranslations("orgChartImport");
   const locale = useLocale();
   const lang = locale === "ar" ? "ar" : "en";
   const rtl = lang === "ar";
@@ -154,6 +157,11 @@ export function OutlineEditor(props: {
   async function removePosition(p: OrgPosition) {
     if (!(await confirm(t("removePositionConfirm", { title: title(p) })))) return;
     await run(`/api/org-chart/positions/${p.id}`, "DELETE", undefined, t("removed"));
+  }
+  /** Part 4: clear who is planned for a position (a working note of the firm; nobody's holding changes). */
+  async function removePlan(p: OrgPosition) {
+    if (!(await confirm(tImport("removePlanConfirm", { title: title(p) })))) return;
+    await run(`/api/clients/${props.clientId}/structure/plans/${p.id}`, "DELETE", undefined, tImport("planRemoved"));
   }
   async function restart() {
     if (!props.draftId || !(await confirm(t("restartConfirm")))) return;
@@ -249,6 +257,11 @@ export function OutlineEditor(props: {
           <span className="truncate text-xs text-muted-foreground" dir="auto">
             {holders.length ? holders.join(rtl ? "، " : ", ") : p.vacant ? tTree("vacant") : null}
           </span>
+          {props.plans?.[p.id]?.length ? (
+            <span className="truncate text-xs text-muted-foreground" dir="auto">
+              {tImport("plannedLine", { names: props.plans[p.id]!.join(rtl ? "، " : ", ") })}
+            </span>
+          ) : null}
         </button>
         <span className="hidden shrink-0 items-center gap-1 md:flex">
           {p.isHead ? <Badge variant="outline">{t("head")}</Badge> : null}
@@ -274,6 +287,7 @@ export function OutlineEditor(props: {
             <DropdownMenuItem disabled={props.units.length < 2} onSelect={() => setMoving({ kind: "position", id: p.id })}>
               {t("moveToUnit")}
             </DropdownMenuItem>
+            {props.plans?.[p.id]?.length ? <DropdownMenuItem onSelect={() => void removePlan(p)}>{tImport("removePlan")}</DropdownMenuItem> : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => void removePosition(p)}>
               {t("remove")}

@@ -187,7 +187,7 @@ describe("the plan is the firm's", () => {
   it("clients move their actions, the client admin (and the coordinator and sponsor, D1) reassigns them, and nobody on the client side edits the plan", async () => {
     const aid = await action({ status: "assigned", due: "2026-12-01" });
     await attempt(U.cowner, `UPDATE actions SET status = 'in_progress' WHERE id = $1`, [aid]);
-    // A manager with no role on the project no longer may (D1, migration 0240; tests/db/action-owner.test.ts).
+    // A manager with no role on the project no longer may (D1, migration 0101; tests/db/action-owner.test.ts).
     await expect(attempt(U.cmgr, `UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [aid, U.cmgr])).rejects.toThrow(/only move/);
     await attempt(U.cadmin, `UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [aid, U.cmgr]);
     await expect(attempt(U.cowner, `UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [aid, U.cmgr])).rejects.toThrow(

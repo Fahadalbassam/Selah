@@ -1,6 +1,6 @@
 {
-  "id": "e4847fe7-d285-443d-9754-a10aebe4718e",
-  "prevId": "0989c277-5d3a-4d27-b6dc-98889d7c054d",
+  "id": "348e211b-5746-41a6-b1c5-33641eb71268",
+  "prevId": "b30ef851-a69f-4c5d-a1ce-b86d7ca4108e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -18281,6 +18281,184 @@
         "position_not_own_manager": {
           "name": "position_not_own_manager",
           "value": "\"positions\".\"reports_to_id\" IS DISTINCT FROM \"positions\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.org_chart_planned_holders": {
+      "name": "org_chart_planned_holders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_id": {
+          "name": "position_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "org_chart_planned_holders_position_idx": {
+          "name": "org_chart_planned_holders_position_idx",
+          "columns": [
+            {
+              "expression": "position_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "org_chart_planned_holders_org_idx": {
+          "name": "org_chart_planned_holders_org_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "org_chart_planned_holders_user_uq": {
+          "name": "org_chart_planned_holders_user_uq",
+          "columns": [
+            {
+              "expression": "position_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "org_chart_planned_holders_org_id_organizations_id_fk": {
+          "name": "org_chart_planned_holders_org_id_organizations_id_fk",
+          "tableFrom": "org_chart_planned_holders",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "tableTo": "organizations",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "org_chart_planned_holders_position_id_positions_id_fk": {
+          "name": "org_chart_planned_holders_position_id_positions_id_fk",
+          "tableFrom": "org_chart_planned_holders",
+          "columnsFrom": [
+            "position_id"
+          ],
+          "tableTo": "positions",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "org_chart_planned_holders_user_id_user_id_fk": {
+          "name": "org_chart_planned_holders_user_id_user_id_fk",
+          "tableFrom": "org_chart_planned_holders",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "org_chart_planned_holders_created_by_user_id_fk": {
+          "name": "org_chart_planned_holders_created_by_user_id_fk",
+          "tableFrom": "org_chart_planned_holders",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "org_chart_planned_holder_who": {
+          "name": "org_chart_planned_holder_who",
+          "value": "num_nonnulls(\"org_chart_planned_holders\".\"user_id\", \"org_chart_planned_holders\".\"name\") = 1"
+        },
+        "org_chart_planned_holder_name": {
+          "name": "org_chart_planned_holder_name",
+          "value": "\"org_chart_planned_holders\".\"name\" IS NULL OR char_length(btrim(\"org_chart_planned_holders\".\"name\")) BETWEEN 2 AND 200"
         }
       },
       "isRLSEnabled": false

@@ -169,9 +169,11 @@ describe("one way to send a file (U05)", () => {
       const p = join(dir, f);
       return statSync(p).isDirectory() ? files(p) : /\.tsx$/.test(f) ? [p] : [];
     });
-  // The three imports read a workbook or a transcript, not a file sent to someone (page audit: "plus 3 imports").
+  // The imports read a workbook, a document or a transcript in, not a file sent to someone (page audit: "plus 3 imports";
+  // the organisation structure's import came with org chart part 4).
   const IMPORTS = [
     "app/(app)/projects/[id]/import/import-wizard.tsx",
+    "app/(app)/clients/[id]/structure/import/import-wizard.tsx",
     "app/(app)/indicators/import/import-wizard.tsx",
     "app/(app)/meetings/[id]/transcript-panel.tsx",
   ];
