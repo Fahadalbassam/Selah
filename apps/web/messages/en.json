@@ -1487,8 +1487,8 @@
     "busy": "You already have requests being worked on. Wait for one to finish, then ask again."
   },
   "aiJob": {
-    "queued": "Your request is waiting its turn and will start shortly.",
-    "queuedBehind": "Your request is waiting: {n, plural, one {one request is} other {# requests are}} ahead of it.",
+    "queued": "Your request is waiting its turn.",
+    "queuedNext": "Your request is next.",
     "running": "The assistant is working on it…",
     "runningSlow": "Still working. Local answers can take a few minutes.",
     "done": "Done.",
@@ -1503,7 +1503,8 @@
       "unavailable": "The assistant couldn't finish this right now. Try again later.",
       "stopped": "Work on the request stopped before it finished. Ask again.",
       "expired": "The request waited too long without starting. Ask again later.",
-      "cancelled": "Request cancelled."
+      "cancelled": "Request cancelled.",
+      "taken": "These rows were already picked up. Paste the text again for a new draft."
     }
   },
   "meeting": {
@@ -4643,7 +4644,9 @@
       "action_owner_change": "Action given to a colleague",
       "ai_job_request": "Request to the assistant (summary, translation or structure draft)",
       "ai_job_cancel": "Request to the assistant cancelled",
-      "ai_job_refused": "Request to the assistant refused: access lost"
+      "ai_job_refused": "Request to the assistant refused: access lost",
+      "ai_job_failed": "Request to the assistant not finished",
+      "ai_job_expired": "Request to the assistant expired before it started"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4871,7 +4874,9 @@
       "org_chart_head_confirm": "confirmed a department's head as the organisation structure shows it",
       "ai_job_request": "asked the assistant for a summary, a translation or a structure draft",
       "ai_job_cancel": "cancelled a request to the assistant",
-      "ai_job_refused": "had a request to the assistant refused, having lost access"
+      "ai_job_refused": "had a request to the assistant refused, having lost access",
+      "ai_job_failed": "had a request to the assistant fail",
+      "ai_job_expired": "had a request to the assistant expire before it started"
     },
     "line": "<who>{name}</who> {event}.",
     "lineLabel": "<who>{name}</who>: {event}.",

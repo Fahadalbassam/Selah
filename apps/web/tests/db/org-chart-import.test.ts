@@ -732,11 +732,21 @@ describe("the assistant's draft from pasted text", () => {
       svc(
         who,
         async (tx, p) => {
-          const { sha256 } = await IM.requestOrgDraft(tx, p, SAHM, text, true);
-          return J.fileJob(tx, p, "org_draft", `org_draft:${SAHM}:${sha256}`, { clientOrgId: SAHM, text });
+          const { sha256, spend } = await IM.requestOrgDraft(tx, p, SAHM, text, true);
+          return J.fileJob(tx, p, "org_draft", `org_draft:${SAHM}:${sha256}`, { clientOrgId: SAHM, text }, spend);
         },
         true,
       );
+    // The runner checks what route() checks: the current terms accepted (two-factor sign-in is off in these tests).
+    beforeAll(async () => {
+      process.env.TWO_FACTOR_REQUIRED = "false";
+      await q(
+        `INSERT INTO consent_records (user_id, doc, version, locale)
+         SELECT u, d, app_legal_version(d), 'en' FROM unnest($1::uuid[]) u, unnest(enum_range(NULL::legal_doc)) d
+         ON CONFLICT DO NOTHING`,
+        [Object.values(U)],
+      );
+    });
     const observing = (on: boolean) => q(`UPDATE project_members SET observer = $3 WHERE project_id = $1 AND user_id = $2`, [P, U.cons, on]);
 
     it("is filed at once and drafted as the person who asked, masked; the rows go only to them, signed for the review step", async () => {
@@ -757,7 +767,7 @@ describe("the assistant's draft from pasted text", () => {
       expect(row.input).toBeNull();
       expect(JSON.stringify(row.result)).not.toMatch(/Nawaf|Reem|0551234567/);
 
-      const got = await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id));
+      const got = await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true);
       expect(got).toMatchObject({ status: "done", draft: { source: "text", fileName: null } });
       expect(got.draft!.rows.some((r) => r.values.titleEn === "Accountant" || r.values.titleAr === "Accountant")).toBe(true);
       // Signed for this person and client: the review step saves it like any import.
@@ -765,13 +775,32 @@ describe("the assistant's draft from pasted text", () => {
       expect((await svc(U.cons, (tx, p) => IM.saveImport(tx, p, SAHM, { token: got.draft!.token, rows, mode: "add" }))).counts.positionsAdded).toBe(1);
       // Nobody else sees the job, the firm admin included.
       for (const who of [U.admin, U.lead, U.cadmin]) await expect(svc(who, (tx, p) => J.getJob(tx, p, job.id)), who).rejects.toThrow(REFUSED);
-      // Once they may no longer import here, the rows are not handed over.
+      // Handed over once: the rows are gone from the job.
+      expect((await q(`SELECT result FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].result).toBeNull();
+      expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "expired", error: "taken" });
+      expect((await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).draft).toBeUndefined();
+    });
+
+    it("hands the rows over only while the person may still import there with the assistant on", async () => {
+      await q(`DELETE FROM ai_jobs`);
+      const job = await file(U.cons, `${TEXT}\nDriver`);
+      expect(await run()).toMatchObject({ id: job.id, status: "done" });
+      // An observer now: not handed over, and still there should they be staffed again within the hour.
       await observing(true);
       try {
-        expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id))).toMatchObject({ status: "refused", error: "access" });
+        expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "refused", error: "access" });
       } finally {
         await observing(false);
       }
+      // The assistant off here now (a hosted model): not handed over either.
+      process.env.LLM_PROVIDER = "openai_compat";
+      try {
+        expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "refused", error: "access" });
+      } finally {
+        process.env.LLM_PROVIDER = "ollama";
+      }
+      expect((await q(`SELECT result FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].result).not.toBeNull();
+      expect((await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).draft).toBeDefined();
     });
 
     it("is refused, and the text never sent, when the person lost the right to import before it ran", async () => {

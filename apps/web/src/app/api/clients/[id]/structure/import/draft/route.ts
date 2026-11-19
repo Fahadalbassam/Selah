@@ -9,9 +9,10 @@ import { requestOrgDraft } from "@/services/org-chart-import";
 // (the text masked before it leaves the server), which go to the same review
 // step as a file. The local model takes minutes, so it is a job (202 with the
 // job; docs/assistant.md, "Slow calls as jobs"): the page asks after it and
-// gets the rows from GET /api/ai-jobs/[id]. Nothing is stored but the job,
-// and the text only until it ends. Only where the assistant is on for the
-// reader at this client; for anyone who may not import, a 404.
+// gets the rows from GET /api/ai-jobs/[id], once. Nothing is stored but
+// the job: the text until it ends, the rows until they are fetched (an hour
+// at most). Only where the assistant is on for the reader at this client;
+// for anyone who may not import, a 404.
 export const POST = route(
   {
     params: z.object({ id: z.uuid() }),
@@ -21,7 +22,7 @@ export const POST = route(
     prepare: () => maskingOn(),
   },
   async ({ tx, principal, params, body, prepared }) => {
-    const { sha256 } = await requestOrgDraft(tx, principal, params.id, body.text, prepared);
-    return accepted(await fileJob(tx, principal, "org_draft", `org_draft:${params.id}:${sha256}`, { clientOrgId: params.id, text: body.text }));
+    const { sha256, spend } = await requestOrgDraft(tx, principal, params.id, body.text, prepared);
+    return accepted(await fileJob(tx, principal, "org_draft", `org_draft:${params.id}:${sha256}`, { clientOrgId: params.id, text: body.text }, spend));
   },
 );

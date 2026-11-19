@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { AiJobState, useAiJob } from "@/components/ai-job";
 import { openFilePage } from "@/app/(app)/projects/[id]/document-summary";
 import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
 import { FileText } from "@/components/animate-ui/icons/file-text";
@@ -38,6 +39,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
+import type { AiJob } from "@/lib/ai-jobs";
 import { addAttachment, MAX_ATTACHMENTS, mentionAt, withoutMention } from "@/lib/assistant-attach";
 import { cn } from "@/lib/utils";
 import { AttachChips, FilePicker, type AttachedFile } from "./attach";
@@ -98,19 +100,37 @@ export interface NewChatCase {
   label: string;
 }
 
-/** The answer in the interface language, from the cache or made once by the model. */
-async function fetchTranslation(
-  messageId: string,
-  to: Lang,
-): Promise<{ ok: boolean; limited?: boolean; translation?: { id: string; text: string; reviewed: boolean } }> {
+type Translation = { id: string; text: string; reviewed: boolean };
+type Fetched = { ok: boolean; limited?: boolean; busy?: boolean; job?: AiJob; translation?: Translation };
+
+/**
+ * The answer in the interface language: the kept translation (200), or a
+ * job that has the model make it once (202; docs/assistant.md, "Slow calls
+ * as jobs"), which `follow` waits out before asking again for the kept text.
+ */
+async function fetchTranslation(messageId: string, to: Lang): Promise<Fetched> {
   const res = await fetch("/api/translations", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ entityType: "ai_message", entityId: messageId, field: "content", to }),
   }).catch(() => null);
-  if (!res?.ok) return { ok: false, limited: res?.status === 429 };
+  if (!res?.ok) {
+    const body = (await res?.json().catch(() => null)) as { error?: string; message?: string } | null;
+    // 409 "already have requests": the person's jobs at once (busy); 429: the hourly limit.
+    return { ok: false, limited: res?.status === 429, busy: /already have requests/.test(body?.message ?? "") };
+  }
+  if (res.status === 202) return { ok: true, job: ((await res.json()) as { job: AiJob }).job };
   const data = (await res.json()) as { id: string | null; text: string; reviewed: boolean; original: boolean };
   return { ok: true, translation: !data.original && data.id ? { id: data.id, text: data.text, reviewed: data.reviewed } : undefined };
+}
+
+async function translationFollowing(messageId: string, to: Lang, follow: (job: AiJob) => Promise<AiJob>, clear: () => void): Promise<Fetched> {
+  const first = await fetchTranslation(messageId, to);
+  if (!first.job) return first;
+  const ended = await follow(first.job);
+  if (ended.status !== "done") return { ok: false };
+  clear();
+  return fetchTranslation(messageId, to);
 }
 
 export async function getJson<T>(url: string): Promise<T | null> {
@@ -580,6 +600,9 @@ function AnswerView({
   const [busy, setBusy] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
+  // A new translation is a job: what the page says while it waits, and why it ended if not done.
+  const aiJob = useAiJob();
+  const { follow, clear } = aiJob;
   // The latest answer translates by itself, once.
   const auto = other && latest && !message.translation;
   const [autoDone, setAutoDone] = useState(false);
@@ -587,26 +610,32 @@ function AnswerView({
   useEffect(() => {
     if (!auto) return;
     let live = true;
-    void fetchTranslation(message.id, locale).then((r) => {
-      if (!live) return;
-      setAutoDone(true);
-      if (r.ok && r.translation) setTranslation(r.translation);
-      else if (!r.ok) setUnavailable(true);
-    });
+    translationFollowing(message.id, locale, follow, clear)
+      .then((r) => {
+        if (!live) return;
+        setAutoDone(true);
+        if (r.ok && r.translation) setTranslation(r.translation);
+        else if (!r.ok) setUnavailable(true);
+      })
+      // The card moved on (another language, or closed).
+      .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [auto, message.id, locale]);
+  }, [auto, message.id, locale, follow, clear]);
 
   async function translate() {
     setBusy(true);
     setUnavailable(false);
-    const r = await fetchTranslation(message.id, locale);
+    clear();
+    const r = await translationFollowing(message.id, locale, follow, clear).catch((): Fetched | null => null);
     setBusy(false);
+    if (!r) return;
     if (r.ok && r.translation) setTranslation(r.translation);
     if (!r.ok) {
       setUnavailable(true);
-      if (r.limited) toast.error(tt("limited"));
+      if (r.busy) toast.error(tt("busy"));
+      else if (r.limited) toast.error(tt("limited"));
     }
   }
 
@@ -654,6 +683,7 @@ function AnswerView({
                     </TraceIcon>
                     <TraceTitle>{t("translating")}</TraceTitle>
                   </TraceLine>
+                  {aiJob.job ? <AiJobState job={aiJob.job} waitedMs={aiJob.waitedMs} onCancel={() => void aiJob.cancel()} className="text-xs" /> : null}
                 </Trace>
               ) : (
                 <Bubble variant="outline" className="max-w-full">
@@ -682,7 +712,8 @@ function AnswerView({
                     </>
                   ) : (
                     <>
-                      {unavailable ? <span>{tt("unavailable")}</span> : null}
+                      {/* A job that ended without a translation says why; otherwise the plain sentence. */}
+                      {unavailable ? aiJob.job ? <AiJobState job={aiJob.job} waitedMs={0} className="text-xs" /> : <span>{tt("unavailable")}</span> : null}
                       <button type="button" className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline" onClick={translate}>
                         <Languages className="size-3" />
                         {tt("show")}

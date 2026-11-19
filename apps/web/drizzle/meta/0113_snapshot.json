@@ -1,5 +1,5 @@
 {
-  "id": "b9dafd6c-7037-4a98-b888-0de29b519073",
+  "id": "4255efee-464d-409b-934b-ca1c4f9de4d9",
   "prevId": "0d5076f1-6d65-45e4-938a-a69ccdb3d10b",
   "version": "7",
   "dialect": "postgresql",
@@ -18810,6 +18810,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "masked": {
+          "name": "masked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -18882,6 +18894,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ai_jobs_org_id_organizations_id_fk": {
+          "name": "ai_jobs_org_id_organizations_id_fk",
+          "tableFrom": "ai_jobs",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
           ],
           "columnsTo": [
             "id"

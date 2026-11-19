@@ -16,9 +16,22 @@ export type AiJobStatus = (typeof AI_JOB_STATUSES)[number];
  * file changed while the model read it), local_only (an org chart draft
  * needs the local model), limit (an hourly limit), too_long, no_text,
  * unavailable (the model failed), stopped (the runner stopped mid-job),
- * expired (it waited 30 minutes), cancelled.
+ * expired (it waited 30 minutes), cancelled, taken (an org chart draft's
+ * rows were already handed over once).
  */
-export const AI_JOB_ERRORS = ["access", "changed", "local_only", "limit", "too_long", "no_text", "unavailable", "stopped", "expired", "cancelled"] as const;
+export const AI_JOB_ERRORS = [
+  "access",
+  "changed",
+  "local_only",
+  "limit",
+  "too_long",
+  "no_text",
+  "unavailable",
+  "stopped",
+  "expired",
+  "cancelled",
+  "taken",
+] as const;
 export type AiJobError = (typeof AI_JOB_ERRORS)[number];
 
 /** A job as the page sees it (GET /api/ai-jobs/[id]). */
@@ -27,8 +40,8 @@ export interface AiJob {
   kind: AiJobKind;
   status: AiJobStatus;
   error: AiJobError | null;
-  /** While queued: how many jobs, anyone's, are ahead of it. */
-  ahead: number | null;
+  /** While queued: whether it is next in line. Never a count: how busy the model is is not a client person's business. */
+  next: boolean | null;
 }
 
 export const isFinished = (s: AiJobStatus) => s !== "queued" && s !== "running";
@@ -40,22 +53,19 @@ export function pollDelay(asked: number): number {
 
 /**
  * What the page says about a job (keys under "aiJob" in messages): waiting
- * in line, with how many are ahead; being worked on, and after half a minute
+ * in line, or next; being worked on, and after half a minute
  * that local answers take a few minutes (the same moment the assistant's
  * card says it, #208); or why it ended. Only an unfinished job can be
  * cancelled.
  */
-export function aiJobView(job: Pick<AiJob, "status" | "error" | "ahead">, waitedMs: number): {
+export function aiJobView(job: Pick<AiJob, "status" | "error" | "next">, waitedMs: number): {
   key: string;
-  values?: Record<string, number>;
   tone: "working" | "done" | "error";
   cancel: boolean;
 } {
   switch (job.status) {
     case "queued":
-      return job.ahead && job.ahead > 0
-        ? { key: "queuedBehind", values: { n: job.ahead }, tone: "working", cancel: true }
-        : { key: "queued", tone: "working", cancel: true };
+      return { key: job.next ? "queuedNext" : "queued", tone: "working", cancel: true };
     case "running":
       return { key: waitedMs >= 30_000 ? "runningSlow" : "running", tone: "working", cancel: true };
     case "done":

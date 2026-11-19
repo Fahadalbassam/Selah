@@ -13,7 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { endOrphanedAiJobs, runNextAiJob, type AiJobDeps, type AiModel } from "@/jobs/ai-jobs";
+import { endJob, endOrphanedAiJobs, runNextAiJob, UnfinishedJob, type AiJobDeps, type AiModel } from "@/jobs/ai-jobs";
 import { indexDocument } from "@/jobs/index-documents";
 import { loadPrincipal } from "@/services/principal";
 
@@ -32,6 +32,9 @@ vi.mock("@/services/ai-client", () => ({
 const J = await import("@/services/ai-jobs");
 const T = await import("@/services/translations");
 const S = await import("@/services/document-summaries");
+
+// As route() does for every request, the runner refuses a person who must set up two-factor sign-in: off here, but where a test turns it on.
+process.env.TWO_FACTOR_REQUIRED = "false";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -117,6 +120,13 @@ function deps(over: Partial<AiJobDeps> = {}): AiJobDeps {
   };
 }
 
+/** Everyone has accepted the current terms (the runner refuses, as route() does, someone who has not). */
+const accepted = (users: string[]) =>
+  owner.query(
+    `INSERT INTO consent_records (user_id, doc, version, locale)
+     SELECT u, d, app_legal_version(d), 'en' FROM unnest($1::uuid[]) u, unnest(enum_range(NULL::legal_doc)) d`,
+    [users],
+  );
 const translation = (entityId = REC) => ({ entityType: "recommendation", entityId, field: "rationale", to: "en" as const });
 const fileTranslation = (userId: string, entityId = REC) =>
   svc(userId, async (tx, p) => {
@@ -155,6 +165,7 @@ beforeAll(async () => {
      VALUES ($1,$2,$3,$4,$5,'deliverable','submitted','doc','shared',true,'key-doc','text/plain',1,'sha-1','clean')`,
     [DOC, PROJ, ACME, FIRM, U.cons],
   );
+  await accepted(Object.values(U));
   const vector = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
   await indexDocument(owner, DOC, [{ n: 1, text: "The board of Acme Holding meets monthly." }, { n: 2, text: "Exits need a family vote." }], async (t) => t.map(() => vector));
 });
@@ -175,7 +186,7 @@ afterAll(async () => {
 describe("a translation as a job", () => {
   it("is filed at once and done by the runner as the person who asked, kept where translations are kept", async () => {
     const job = await fileTranslation(U.cons);
-    expect(job).toMatchObject({ kind: "translation", status: "queued", error: null, ahead: 0 });
+    expect(job).toMatchObject({ kind: "translation", status: "queued", error: null, next: true });
     expect(calls).toEqual([]);
 
     expect(await runNextAiJob(deps())).toMatchObject({ id: job.id, status: "done", error: null });
@@ -183,7 +194,7 @@ describe("a translation as a job", () => {
     expect(await kept()).toEqual([{ entity_id: REC, text: `[ar->en] ${RATIONALE}`, created_by: U.cons }]);
     // The request's text is gone once the job ends; the page then reads the kept translation.
     expect(await jobRow(job.id)).toMatchObject({ status: "done", input: null, result: null });
-    expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id))).toMatchObject({ status: "done", ahead: null });
+    expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id))).toMatchObject({ status: "done", next: null });
     expect(await svc(U.cons, (tx) => T.requestTranslation(tx, translation()))).toMatchObject({ text: `[ar->en] ${RATIONALE}`, original: false });
     // Nothing more to do.
     expect(await runNextAiJob(deps())).toBeNull();
@@ -197,6 +208,8 @@ describe("a translation as a job", () => {
     await runNextAiJob(deps({ maskingOn: async () => (order.push("masking"), true) }));
     expect(order[0]).toBe("masking");
     expect(order.filter((o) => o === "masking")).toHaveLength(1);
+    // The decision is on the job's record.
+    expect((await owner.query(`SELECT masked FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].masked).toBe(true);
     expect(calls[0]!.text).not.toContain("Acme");
     expect(calls[0]!.text).toMatch(/\[[A-Z]+_\d+\]/);
     // The answer comes back with the names put back.
@@ -215,8 +228,8 @@ describe("a translation as a job", () => {
     expect(calls).toEqual([]);
     expect(await kept()).toEqual([]);
     expect(await jobRow(job.id)).toMatchObject({ status: "refused", error: "access", input: null });
-    const audited = await owner.query(`SELECT actor_id, outcome, reason FROM audit_log WHERE action = 'ai_job.refused' AND resource_id = $1`, [job.id]);
-    expect(audited.rows).toEqual([{ actor_id: U.cons, outcome: "deny", reason: "access" }]);
+    const audited = await owner.query(`SELECT actor_id, org_id, outcome, reason FROM audit_log WHERE action = 'ai_job.refused' AND resource_id = $1`, [job.id]);
+    expect(audited.rows).toEqual([{ actor_id: U.cons, org_id: FIRM, outcome: "deny", reason: "access" }]);
   });
 
   it("keeps nothing when the person lost access while the model ran, or the text changed", async () => {
@@ -246,6 +259,8 @@ describe("a translation as a job", () => {
     };
     expect(await runNextAiJob(deps())).toMatchObject({ status: "failed", error: "unavailable" });
     expect(await jobRow(job.id)).toMatchObject({ status: "failed", error: "unavailable", input: null });
+    const audited = await owner.query(`SELECT org_id, outcome, reason FROM audit_log WHERE action = 'ai_job.failed' AND resource_id = $1`, [job.id]);
+    expect(audited.rows).toEqual([{ org_id: FIRM, outcome: "error", reason: "unavailable" }]);
     during = null;
     const again = await fileTranslation(U.cons);
     expect(again.id).not.toBe(job.id);
@@ -289,8 +304,11 @@ describe("the queue", () => {
     const taken = await Promise.all([owner.query(`SELECT id FROM app_claim_ai_job()`), owner.query(`SELECT id FROM app_claim_ai_job()`)]);
     expect(taken.flatMap((t) => t.rows.map((r) => r.id))).toEqual([a.id]);
     expect((await owner.query(`SELECT id FROM app_claim_ai_job()`)).rows).toEqual([]);
-    // b waits behind the running one, and says so.
-    expect(await svc(U.admin, (tx, p) => J.getJob(tx, p, b.id))).toMatchObject({ status: "queued", ahead: 1 });
+    // b waits behind the running one, and is next; a third, filed after it, is not.
+    expect(await svc(U.admin, (tx, p) => J.getJob(tx, p, b.id))).toMatchObject({ status: "queued", next: true });
+    const c = await fileTranslation(U.cmgr, REC3);
+    expect(await svc(U.cmgr, (tx, p) => J.getJob(tx, p, c.id))).toMatchObject({ status: "queued", next: false });
+    await owner.query(`DELETE FROM ai_jobs WHERE id = $1`, [c.id]);
     // The runner that starts again ends what was left running, and the line moves on.
     expect(await endOrphanedAiJobs(owner)).toBe(1);
     expect(await jobRow(a.id)).toMatchObject({ status: "failed", error: "stopped" });
@@ -306,12 +324,17 @@ describe("the queue", () => {
     await expect(fileTranslation(U.cmgr, REC2)).rejects.toThrow(/already have requests/);
     // The database holds the line too, whatever the app does.
     await expect(
-      sqlAs(U.cmgr, `INSERT INTO ai_jobs (kind, key, input, created_by) VALUES ('translation', 'x', '{}', $1)`, [U.cmgr]),
-    ).rejects.toThrow(/too many requests at once/);
+      sqlAs(U.cmgr, `INSERT INTO ai_jobs (kind, key, input, created_by, org_id) VALUES ('translation', 'x', '{}', $1, $2)`, [U.cmgr, ACME]),
+    ).rejects.toThrow(/already have requests/);
     // A new job always starts queued and empty, whatever is written in.
     await owner.query(`DELETE FROM ai_jobs WHERE created_by = $1`, [U.cmgr]);
-    await sqlAs(U.cmgr, `INSERT INTO ai_jobs (kind, key, status, result, created_by) VALUES ('translation', 'y', 'done', '{"x":1}', $1)`, [U.cmgr]);
-    expect((await owner.query(`SELECT status, result FROM ai_jobs WHERE created_by = $1`, [U.cmgr])).rows).toEqual([{ status: "queued", result: null }]);
+    await sqlAs(U.cmgr, `INSERT INTO ai_jobs (kind, key, status, result, masked, created_by, org_id) VALUES ('translation', 'y', 'done', '{"x":1}', false, $1, $2)`, [
+      U.cmgr,
+      FIRM,
+    ]);
+    expect((await owner.query(`SELECT status, result, masked, org_id FROM ai_jobs WHERE created_by = $1`, [U.cmgr])).rows).toEqual([
+      { status: "queued", result: null, masked: null, org_id: ACME },
+    ]);
   });
 
   it("shows each person only their own jobs, and nobody else may read, cancel or change them", async () => {
@@ -321,8 +344,10 @@ describe("the queue", () => {
       expect((await sqlAs(who, `SELECT id FROM ai_jobs`)).rows, who).toEqual([]);
       await expect(svc(who, (tx, p) => J.getJob(tx, p, job.id)), who).rejects.toThrow(/not found/);
       await expect(svc(who, (tx, p) => J.cancelJob(tx, p, job.id)), who).rejects.toThrow(/not found/);
-      expect((await sqlAs(who, `SELECT app_ai_job_ahead($1) AS n`, [job.id])).rows[0].n, who).toBeNull();
-      await expect(sqlAs(who, `INSERT INTO ai_jobs (kind, key, created_by) VALUES ('translation', 'z', $1)`, [U.cons]), who).rejects.toThrow(
+      expect((await sqlAs(who, `SELECT app_ai_job_next($1) AS n`, [job.id])).rows[0].n, who).toBeNull();
+      expect((await sqlAs(who, `SELECT app_ai_job_hold($1) AS s`, [job.id])).rows[0].s, who).toBeNull();
+      expect((await sqlAs(who, `SELECT app_cancel_ai_job($1) AS ok`, [job.id])).rows[0].ok, who).toBe(false);
+      await expect(sqlAs(who, `INSERT INTO ai_jobs (kind, key, created_by, org_id) VALUES ('translation', 'z', $1, $2)`, [U.cons, FIRM]), who).rejects.toThrow(
         /row-level security/,
       );
     }
@@ -349,6 +374,109 @@ describe("the queue", () => {
     expect(await kept()).toEqual([]);
     // Cancelling a finished job changes nothing.
     expect(await svc(U.cons, (tx, p) => J.cancelJob(tx, p, running.id))).toMatchObject({ status: "cancelled" });
+  });
+
+  it("gives back the same job for two identical requests at once, and spends only for a new job", async () => {
+    let spent = 0;
+    const spend = () => void spent++;
+    const file = () => svc(U.cons, (tx, p) => J.fileJob(tx, p, "translation", `translation:recommendation:${REC}:rationale:en`, translation(REC), spend));
+    const [a, b] = await Promise.all([file(), file()]);
+    expect(b.id).toBe(a.id);
+    expect((await file()).id).toBe(a.id);
+    expect(spent).toBe(1);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM ai_jobs`)).rows[0].n).toBe(1);
+  });
+
+  it("checks the hourly limit when asked and again before the model runs, and tells it apart from busy", async () => {
+    const fill = (n: number) =>
+      owner.query(
+        `INSERT INTO content_translations (project_id, org_id, entity_type, entity_id, field, source_lang, target_lang, source_sha256, text, model, created_by)
+         SELECT $1, $2, 'action', gen_random_uuid(), 'title', 'en', 'ar', repeat('a', 64), 't', 'm', $3 FROM generate_series(1, $4)`,
+        [PROJ, ACME, U.cons, n],
+      );
+    // Used up meanwhile: refused before the model, nothing spent.
+    const job = await fileTranslation(U.cons);
+    await fill(200);
+    expect(await runNextAiJob(deps())).toMatchObject({ id: job.id, status: "refused", error: "limit" });
+    expect(calls).toEqual([]);
+    // Used up already: refused when asked, as the hourly limit (429), not busy (409).
+    const refused = await fileTranslation(U.cons, REC2).catch((e: Error) => e.message);
+    expect(refused).toMatch(/too many translations/);
+    expect(refused).not.toMatch(/already have requests/);
+  });
+
+  it("keeps nothing when the person cancels after the model answered but before the answer is kept", async () => {
+    const job = await fileTranslation(U.cons);
+    // The cancel commits while the runner is between the model and keeping the answer (no watch tick in between).
+    during = async () => {
+      await svc(U.cons, (tx, p) => J.cancelJob(tx, p, job.id));
+    };
+    expect(await runNextAiJob(deps({ checkEveryMs: 60_000 }))).toMatchObject({ id: job.id, status: "cancelled" });
+    expect(await kept()).toEqual([]);
+  });
+
+  it("is refused for a person who must set up two-factor sign-in first or accept new terms, as route() refuses them", async () => {
+    const job = await fileTranslation(U.cons);
+    process.env.TWO_FACTOR_REQUIRED = "true";
+    try {
+      expect(await runNextAiJob(deps())).toMatchObject({ id: job.id, status: "refused", error: "access" });
+    } finally {
+      process.env.TWO_FACTOR_REQUIRED = "false";
+    }
+    expect(calls).toEqual([]);
+    // New terms the person has not accepted yet: refused the same way.
+    const terms = await fileTranslation(U.cons);
+    await owner.query(`BEGIN; ALTER TABLE consent_records DISABLE TRIGGER append_only; DELETE FROM consent_records WHERE user_id = '${U.cons}';
+      ALTER TABLE consent_records ENABLE TRIGGER append_only; COMMIT`);
+    try {
+      expect(await runNextAiJob(deps())).toMatchObject({ id: terms.id, status: "refused", error: "access" });
+    } finally {
+      await accepted([U.cons]);
+    }
+    expect(calls).toEqual([]);
+    // With two-factor on, the job runs.
+    await owner.query(`UPDATE "user" SET two_factor_enabled = true WHERE id = $1`, [U.cons]);
+    process.env.TWO_FACTOR_REQUIRED = "true";
+    try {
+      await fileTranslation(U.cons);
+      expect(await runNextAiJob(deps())).toMatchObject({ status: "done" });
+    } finally {
+      process.env.TWO_FACTOR_REQUIRED = "false";
+      await owner.query(`UPDATE "user" SET two_factor_enabled = false WHERE id = $1`, [U.cons]);
+    }
+  });
+
+  it("ends a job whose ending could not be written: tried again as it ended, or ended as stopped", async () => {
+    const job = await fileTranslation(U.cons);
+    // The database refuses the final write each time.
+    const failing = {
+      query: (text: string, params?: unknown[]) =>
+        text.startsWith("UPDATE ai_jobs SET status") ? Promise.reject(new Error("connection lost")) : owner.query(text, params),
+    } as unknown as AiJobDeps["owner"];
+    const err = await runNextAiJob(deps({ owner: failing }), 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnfinishedJob);
+    expect((await jobRow(job.id)).status).toBe("running");
+    // The answer was kept: tried again, it ends done.
+    expect(await kept()).toHaveLength(1);
+    await endJob(owner, (err as UnfinishedJob).id, (err as UnfinishedJob).outcome);
+    expect((await jobRow(job.id)).status).toBe("done");
+    // And anything still running after a failed round is ended, so the line moves on.
+    const stuck = await fileTranslation(U.admin, REC2);
+    await owner.query(`UPDATE ai_jobs SET status = 'running', started_at = now() WHERE id = $1`, [stuck.id]);
+    expect(await endOrphanedAiJobs(owner)).toBe(1);
+    expect(await jobRow(stuck.id)).toMatchObject({ status: "failed", error: "stopped" });
+  });
+
+  it("ends a stale job as soon as anyone looks, freeing the person's place, without the runner", async () => {
+    const a = await fileTranslation(U.cmgr, REC);
+    await expect(fileTranslation(U.cmgr, REC2)).rejects.toThrow(/already have requests/);
+    await owner.query(`UPDATE ai_jobs SET created_at = now() - interval '31 minutes' WHERE id = $1`, [a.id]);
+    // The page asking after it, with no runner about, sees it ended.
+    expect(await svc(U.cmgr, (tx, p) => J.getJob(tx, p, a.id))).toMatchObject({ status: "expired", error: "expired" });
+    // Its place is free again.
+    await fileTranslation(U.cmgr, REC2);
+    const audited = await owner.query(`SELECT actor_id, org_id, outcome FROM audit_log WHERE action = 'ai_job.expired' AND resource_id = $1`, [a.id]);
+    expect(audited.rows).toEqual([{ actor_id: U.cmgr, org_id: ACME, outcome: "error" }]);
   });
 
   it("ends stale jobs: waiting 30 minutes, running 15, and removes ended ones after an hour", async () => {

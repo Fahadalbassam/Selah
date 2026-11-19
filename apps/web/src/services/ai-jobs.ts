@@ -5,10 +5,10 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import { aiJobs } from "@/db/schema";
 import type { AiJob, AiJobError, AiJobKind, AiJobStatus } from "@/lib/ai-jobs";
-import { ConflictError, NotFoundError } from "@/server/errors";
+import { ConflictError, NotFoundError, RateLimitError } from "@/server/errors";
 import { ANSWERS_AT_ONCE } from "./assistant-in-flight";
 import { audit } from "./audit";
-import { fetchOrgDraft, type OrgDraftResult } from "./org-chart-import";
+import { fetchOrgDraft, type ImportedRows, type OrgDraftResult } from "./org-chart-import";
 
 // Slow AI calls as jobs (docs/assistant.md, "Slow calls as jobs"). The page
 // asks; the route checks everything it can as the person, files a job here
@@ -20,30 +20,60 @@ import { fetchOrgDraft, type OrgDraftResult } from "./org-chart-import";
 
 type Row = typeof aiJobs.$inferSelect;
 
+/** The refusal when the person has as many jobs as they may (a 409; the page says "busy", not the hourly limit). */
+export const BUSY = "you already have requests being worked on";
+
 async function view(tx: Tx, row: Row): Promise<AiJob> {
-  const ahead =
-    row.status === "queued" ? ((await tx.execute<{ n: number | null }>(sql`select app_ai_job_ahead(${row.id}) as n`)).rows[0]?.n ?? null) : null;
-  return { id: row.id, kind: row.kind as AiJobKind, status: row.status as AiJobStatus, error: (row.error as AiJobError | null) ?? null, ahead };
+  // Only "you're next" or not: never how many are ahead (the firm's load is not a client person's business).
+  const next =
+    row.status === "queued" ? ((await tx.execute<{ next: boolean | null }>(sql`select app_ai_job_next(${row.id}) as next`)).rows[0]?.next ?? null) : null;
+  return { id: row.id, kind: row.kind as AiJobKind, status: row.status as AiJobStatus, error: (row.error as AiJobError | null) ?? null, next };
+}
+
+/** Jobs gone stale end now, whoever looks (app_end_stale_ai_jobs): a runner that is down holds nobody's places for long. */
+async function endStale(tx: Tx) {
+  await tx.execute(sql`select app_end_stale_ai_jobs()`);
+}
+
+/** The hourly limits the database holds on what is kept (30 summaries, 200 translations a person), asked before the model runs. */
+export async function assertHourLeft(tx: Tx, kind: AiJobKind) {
+  if (kind === "org_draft") return;
+  const { rows } = await tx.execute<{ full: boolean }>(sql`select app_ai_hour_full(${kind}) as full`);
+  if (rows[0]?.full) throw new RateLimitError(kind === "summary" ? "too many summaries, try again later" : "too many translations, try again later");
 }
 
 /**
  * File a job for the person, or give back the one they already have waiting
- * for the same thing (`key`), so asking twice does not run the model twice.
- * The database refuses one more than they may have at once (SL429: 429).
+ * for the same thing (`key`), so asking twice does not run the model twice,
+ * also when the two requests come at once (they take turns on the person's
+ * lock). Refused: the hourly limit (429), or as many jobs as they may have
+ * at once (409 "busy"; the database checks it too, check_ai_job).
+ * `beforeNew` spends anything that only a new job should spend.
  */
-export async function fileJob(tx: Tx, principal: Principal, kind: AiJobKind, key: string, input: Record<string, unknown>): Promise<AiJob> {
+export async function fileJob(
+  tx: Tx,
+  principal: Principal,
+  kind: AiJobKind,
+  key: string,
+  input: Record<string, unknown>,
+  beforeNew?: () => void,
+): Promise<AiJob> {
+  await endStale(tx);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('ai_jobs:' || ${principal.userId}))`);
   const [waiting] = await tx
     .select()
     .from(aiJobs)
     .where(and(eq(aiJobs.createdBy, principal.userId), eq(aiJobs.key, key), inArray(aiJobs.status, ["queued", "running"])));
   if (waiting) return view(tx, waiting);
-  // As many at once as the assistant's answers (#208); the database checks it too (check_ai_job).
+  await assertHourLeft(tx, kind);
+  // As many at once as the assistant's answers (#208).
   const [{ n } = { n: 0 }] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(aiJobs)
     .where(and(eq(aiJobs.createdBy, principal.userId), inArray(aiJobs.status, ["queued", "running"])));
-  if (n >= ANSWERS_AT_ONCE[principal.orgKind]) throw new ConflictError("you already have requests being worked on");
-  const [row] = await tx.insert(aiJobs).values({ kind, key, input, createdBy: principal.userId }).returning();
+  if (n >= ANSWERS_AT_ONCE[principal.orgKind]) throw new ConflictError(BUSY);
+  beforeNew?.();
+  const [row] = await tx.insert(aiJobs).values({ kind, key, input, createdBy: principal.userId, orgId: principal.orgId }).returning();
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,
@@ -70,24 +100,29 @@ async function own(tx: Tx, id: string): Promise<Row> {
 
 /**
  * Where the person's job stands. A finished org chart draft comes with its
- * rows, signed for the review step, only while the person may still import
- * into that client's draft; a summary or translation is read where it is
- * kept, through its own route, with its own rights.
+ * rows, signed for the review step, once: only while the person may still
+ * import into that client's draft with the assistant on, and the rows are
+ * cleared as they are handed over. A summary or translation is read where
+ * it is kept, through its own route, with its own rights.
  */
-export async function getJob(tx: Tx, principal: Principal, id: string): Promise<AiJob & { draft?: Awaited<ReturnType<typeof fetchOrgDraft>> }> {
+export async function getJob(tx: Tx, principal: Principal, id: string): Promise<AiJob & { draft?: ImportedRows }> {
+  await endStale(tx);
   const row = await own(tx, id);
   const job = await view(tx, row);
-  if (row.kind === "org_draft" && row.status === "done" && row.result) {
-    const { clientOrgId, ...draft } = row.result as unknown as OrgDraftResult & { clientOrgId: string };
-    try {
-      return { ...job, draft: await fetchOrgDraft(tx, principal, clientOrgId, draft) };
-    } catch (e) {
-      // They may no longer import into that client's draft.
-      if (e instanceof NotFoundError) return { ...job, status: "refused", error: "access" };
-      throw e;
-    }
+  if (row.kind !== "org_draft" || row.status !== "done") return job;
+  // The client is in the job's key ("org_draft:<client>:<hash of the text>").
+  const clientOrgId = row.key.split(":")[1] ?? "";
+  try {
+    const draft = await fetchOrgDraft(tx, principal, clientOrgId, async () => {
+      const { rows } = await tx.execute<{ result: OrgDraftResult | null }>(sql`select app_take_ai_job_result(${row.id}) as result`);
+      return rows[0]?.result ?? null;
+    });
+    return draft ? { ...job, draft } : { ...job, status: "expired", error: "taken" };
+  } catch (e) {
+    // They may no longer import into that client's draft, or the assistant is off there now.
+    if (e instanceof NotFoundError) return { ...job, status: "refused", error: "access" };
+    throw e;
   }
-  return job;
 }
 
 /** The person stops their own job: a waiting one is not run; for a running one the runner hangs up on the model and keeps nothing. */

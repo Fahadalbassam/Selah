@@ -7,21 +7,27 @@
 //
 //   1. whether names are masked is decided first, before any transaction,
 //      and fails closed (maskingOn: masked unless the AI service says local);
+//      the decision is recorded on the job;
 //   2. a transaction as the person: their rights checked again (they may
-//      have lost them since asking), and what the model is given;
+//      have lost them since asking; what route() checks too: a membership,
+//      two-factor sign-in where required, the current terms accepted), the
+//      hourly limits, and what the model is given;
 //   3. the model, outside any transaction (minutes on a processor); if the
 //      person cancels, the runner hangs up and keeps nothing;
-//   4. a second transaction as the person: their rights checked again, then
-//      the answer kept where it always was, and audited.
+//   4. a second transaction as the person: their rights checked again, the
+//      job's row locked (a cancel that came first means nothing is kept),
+//      then the answer kept where it always was, and audited.
 //
 // A refusal ends the job "refused" with a reason the page has words for; a
 // model failure ends it "failed". The pasted text is cleared when the job ends.
 import { sql } from "drizzle-orm";
-import { ForbiddenError, type Principal } from "@/authz";
+import { ForbiddenError, mustSetUpTwoFactor, type Principal } from "@/authz";
 import type { AiJobError, AiJobKind, AiJobStatus } from "@/lib/ai-jobs";
 import { BadRequestError, ConflictError, NotFoundError, RateLimitError } from "@/server/errors";
 import type { OrgDraft, SummaryPoint } from "@/services/ai-client";
+import { assertHourLeft } from "@/services/ai-jobs";
 import { audit } from "@/services/audit";
+import { pendingConsents } from "@/services/consent";
 import { prepareSummary, storeSummary, summaryFailed, type SummaryWork } from "@/services/document-summaries";
 import { finishOrgDraft, orgDraftFailure, prepareOrgDraft, type OrgDraftWork } from "@/services/org-chart-import";
 import { loadPrincipal } from "@/services/principal";
@@ -58,6 +64,7 @@ interface ClaimedJob {
   kind: AiJobKind;
   input: Record<string, unknown> | null;
   created_by: string;
+  org_id: string;
 }
 
 type Prepared<W> = { done: true } | { work: W };
@@ -74,7 +81,9 @@ interface Kind<W> {
 const summary: Kind<SummaryWork> = {
   async prepare(tx, principal, input, masked) {
     const r = await prepareSummary(tx, principal, String(input.documentId), input.lang === "en" ? "en" : "ar", masked);
-    return "kept" in r ? { done: true } : r;
+    if ("kept" in r) return { done: true };
+    await assertHourLeft(tx, "summary");
+    return r;
   },
   ask: (model, work, stop) => model.summarize(work.pages, work.lang, stop),
   failed(work) {
@@ -90,7 +99,9 @@ const summary: Kind<SummaryWork> = {
 const translation: Kind<TranslationWork> = {
   async prepare(tx, _principal, input, masked) {
     const r = await prepareTranslation(tx, input as unknown as TranslationRequest, masked);
-    return "done" in r ? { done: true } : r;
+    if ("done" in r) return { done: true };
+    await assertHourLeft(tx, "translation");
+    return r;
   },
   ask: (model, work, stop) => model.translate(work.text, work.sourceLang, work.request.to, stop),
   failed: () => new Error("unavailable"),
@@ -149,9 +160,12 @@ interface Outcome {
 
 async function asPerson<T>(deps: AiJobDeps, job: ClaimedJob, fn: (tx: Tx, p: Principal) => Promise<T>): Promise<T> {
   return deps.asUser(job.created_by, async (tx) => {
-    // Rights as they are now: a person who left has none.
+    // Rights as they are now, with what route() checks before any request: a person who left has none.
     const principal = await loadPrincipal(tx, job.created_by);
     if (!principal) throw new NotFoundError("person");
+    const twoFactorOn = (await tx.execute<{ on: boolean }>(sql`select app_two_factor_on() as on`)).rows[0]?.on ?? false;
+    if (mustSetUpTwoFactor(principal.role, twoFactorOn, (process.env.TWO_FACTOR_REQUIRED ?? "true") === "true")) throw new NotFoundError("two-factor");
+    if ((await pendingConsents(tx)).length) throw new NotFoundError("consent");
     return fn(tx, principal);
   });
 }
@@ -164,8 +178,9 @@ async function run(deps: AiJobDeps, job: ClaimedJob): Promise<Outcome> {
     const why = refusalOf(e);
     return why ? { status: "refused", error: why } : failure;
   };
-  // 1. Masking, decided before any transaction (fails closed).
+  // 1. Masking, decided before any transaction (fails closed), and recorded on the job.
   const masked = await deps.maskingOn();
+  await deps.owner.query("UPDATE ai_jobs SET masked = $2 WHERE id = $1", [job.id, masked]);
   // 2. The person's rights, and what the model is given.
   let prepared: Prepared<unknown>;
   try {
@@ -199,11 +214,11 @@ async function run(deps: AiJobDeps, job: ClaimedJob): Promise<Outcome> {
     clearInterval(watch);
   }
 
-  // 4. The person's rights again, then the answer kept.
+  // 4. The person's rights again, then the answer kept, with the job's row
+  //    locked: a cancel waits for this transaction, or came first and nothing is kept.
   try {
     const result = await asPerson(deps, job, async (tx, p) => {
-      // Their own job, still running: not cancelled meanwhile.
-      const { rows } = await tx.execute<{ status: string }>(sql`select status from ai_jobs where id = ${job.id}`);
+      const { rows } = await tx.execute<{ status: string | null }>(sql`select app_ai_job_hold(${job.id}) as status`);
       if (rows[0]?.status !== "running") throw new Cancelled();
       return kind.finish(tx, p, work, reply, input);
     });
@@ -213,12 +228,43 @@ async function run(deps: AiJobDeps, job: ClaimedJob): Promise<Outcome> {
   }
 }
 
+/** A job whose ending could not be written (the database was away): the runner's loop tries again, then ends what is left running. */
+export class UnfinishedJob extends Error {
+  constructor(
+    readonly id: string,
+    readonly outcome: Outcome,
+    cause: unknown,
+  ) {
+    super(`ai job ${id}: its ending could not be written`, { cause });
+  }
+}
+
+/** Write how the job ended (the pasted text goes; a cancelled job keeps its own ending), trying a few times. */
+export async function endJob(owner: Queryable, id: string, out: Outcome, tries = 3, pauseMs = 1000): Promise<void> {
+  for (let i = 1; ; i++) {
+    try {
+      await owner.query(
+        `UPDATE ai_jobs SET status = $2, error = $3, result = $4, input = NULL, finished_at = now() WHERE id = $1 AND status = 'running'`,
+        [id, out.status, out.status === "done" ? null : (out.error ?? null), out.result ? JSON.stringify(out.result) : null],
+      );
+      return;
+    } catch (e) {
+      if (i >= tries) throw new UnfinishedJob(id, out, e);
+      await new Promise((r) => setTimeout(r, pauseMs));
+    }
+  }
+}
+
 /**
  * Take the oldest waiting job, if none runs, and do it. Returns what became
- * of it, or null when there was nothing to take.
+ * of it, or null when there was nothing to take. When its ending cannot be
+ * written, throws UnfinishedJob (the runner's loop tries again).
  */
-export async function runNextAiJob(deps: AiJobDeps): Promise<{ id: string; kind: AiJobKind; status: Outcome["status"]; error: AiJobError | null } | null> {
-  const { rows } = await deps.owner.query<ClaimedJob>("SELECT id, kind, input, created_by FROM app_claim_ai_job()");
+export async function runNextAiJob(
+  deps: AiJobDeps,
+  pauseMs = 1000,
+): Promise<{ id: string; kind: AiJobKind; status: Outcome["status"]; error: AiJobError | null } | null> {
+  const { rows } = await deps.owner.query<ClaimedJob>("SELECT id, kind, input, created_by, org_id FROM app_claim_ai_job()");
   const job = rows[0];
   if (!job) return null;
   let out: Outcome;
@@ -228,21 +274,18 @@ export async function runNextAiJob(deps: AiJobDeps): Promise<{ id: string; kind:
     console.error(`ai job ${job.id} (${job.kind}) failed: ${e instanceof Error ? e.message : String(e)}`);
     out = { status: "failed", error: "unavailable" };
   }
-  // The pasted text goes now; a cancelled job keeps its own ending.
-  await deps.owner.query(
-    `UPDATE ai_jobs SET status = $2, error = $3, result = $4, input = NULL, finished_at = now() WHERE id = $1 AND status = 'running'`,
-    [job.id, out.status, out.status === "done" ? null : (out.error ?? null), out.result ? JSON.stringify(out.result) : null],
-  );
-  if (out.status === "refused") {
-    // Rights lost between asking and the answer: on the record, like any denial.
+  await endJob(deps.owner, job.id, out, 3, pauseMs);
+  if (out.status === "refused" || out.status === "failed") {
+    // A refusal (rights lost between asking and the answer) or a failure: on the record, like any denial or error.
     await deps
       .asUser(job.created_by, (tx) =>
         audit(tx, {
           actorId: job.created_by,
-          action: "ai_job.refused",
+          orgId: job.org_id,
+          action: out.status === "refused" ? "ai_job.refused" : "ai_job.failed",
           resourceType: "ai_job",
           resourceId: job.id,
-          outcome: "deny",
+          outcome: out.status === "refused" ? "deny" : "error",
           reason: out.error,
           meta: { kind: job.kind },
         }),
@@ -252,7 +295,12 @@ export async function runNextAiJob(deps: AiJobDeps): Promise<{ id: string; kind:
   return { id: job.id, kind: job.kind, status: out.status, error: out.status === "done" ? null : (out.error ?? null) };
 }
 
-/** A runner that starts finds no job of its own running: one left "running" was the last runner's, stopped mid-job. */
+/**
+ * Jobs left "running" that no runner is working on, ended as stopped: on a
+ * runner's start, and when its loop failed (it holds the runner's lock and
+ * works one job at a time, so any job still "running" then is one it could
+ * not end).
+ */
 export async function endOrphanedAiJobs(owner: Queryable): Promise<number> {
   const { rows } = await owner.query(
     `UPDATE ai_jobs SET status = 'failed', error = 'stopped', input = NULL, finished_at = now() WHERE status = 'running' RETURNING id`,

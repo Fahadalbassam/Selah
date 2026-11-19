@@ -7,6 +7,8 @@ CREATE TABLE "ai_jobs" (
 	"error" text,
 	"result" jsonb,
 	"created_by" uuid NOT NULL,
+	"org_id" uuid NOT NULL,
+	"masked" boolean,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"started_at" timestamp with time zone,
 	"finished_at" timestamp with time zone,
@@ -15,6 +17,7 @@ CREATE TABLE "ai_jobs" (
 );
 --> statement-breakpoint
 ALTER TABLE "ai_jobs" ADD CONSTRAINT "ai_jobs_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_jobs" ADD CONSTRAINT "ai_jobs_org_id_organizations_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "ai_jobs_queue_idx" ON "ai_jobs" USING btree ("status","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_jobs_once" ON "ai_jobs" USING btree ("created_by","key") WHERE "ai_jobs"."status" IN ('queued', 'running');--> statement-breakpoint
 -- Hand-written from here (migration 0113: slow AI calls as jobs).
@@ -38,11 +41,13 @@ CREATE POLICY own_read ON ai_jobs FOR SELECT TO selah_app USING (created_by = ap
 --> statement-breakpoint
 CREATE POLICY own_insert ON ai_jobs FOR INSERT TO selah_app WITH CHECK (created_by = app_uid());
 --> statement-breakpoint
--- 2. A new job starts queued, empty of results. The model runs one job at a
---    time for everyone, so one person may not fill the line: as with the
---    assistant's answers (#208, ANSWERS_AT_ONCE), firm staff may have two
---    jobs waiting or running at once, a client person one. Each new job
---    wakes the runner (LISTEN ai_jobs).
+-- 2. A new job starts queued, empty of results, in the asker's organisation.
+--    The model runs one job at a time for everyone, so one person may not
+--    fill the line: as with the assistant's answers (#208, ANSWERS_AT_ONCE),
+--    firm staff may have two jobs waiting or running at once, a client person
+--    one (stale ones, which app_end_stale_ai_jobs ends, do not count). The
+--    refusal reads like the app's own ("already have requests"), a 409, never
+--    the hourly limit's 429. Each new job wakes the runner (LISTEN ai_jobs).
 CREATE FUNCTION check_ai_job() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE at_once integer := CASE WHEN app_org_kind() = 'firm' THEN 2 ELSE 1 END;
@@ -51,15 +56,19 @@ BEGIN
   IF session_user <> 'selah_app' THEN RETURN NEW; END IF;
   -- Filed for someone else: row-level security refuses it.
   IF NEW.created_by IS DISTINCT FROM app_uid() THEN RETURN NEW; END IF;
+  NEW.org_id := app_org();
   NEW.status := 'queued';
   NEW.error := NULL;
   NEW.result := NULL;
+  NEW.masked := NULL;
   NEW.created_at := now();
   NEW.started_at := NULL;
   NEW.finished_at := NULL;
   PERFORM pg_advisory_xact_lock(hashtext('ai_jobs:' || NEW.created_by::text));
-  IF (SELECT count(*) FROM ai_jobs WHERE created_by = NEW.created_by AND status IN ('queued', 'running')) >= at_once THEN
-    RAISE EXCEPTION 'too many requests at once, wait for one to finish' USING ERRCODE = 'SL429';
+  IF (SELECT count(*) FROM ai_jobs WHERE created_by = NEW.created_by
+        AND ((status = 'queued' AND created_at > now() - interval '30 minutes')
+          OR (status = 'running' AND started_at > now() - interval '15 minutes'))) >= at_once THEN
+    RAISE EXCEPTION 'you already have requests being worked on' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;
@@ -75,23 +84,22 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER notify_ai_job AFTER INSERT ON ai_jobs FOR EACH STATEMENT EXECUTE FUNCTION notify_ai_job();
 --> statement-breakpoint
--- 3. Where a job stands in the line: how many jobs, anyone's, are ahead of it
---    (running, or queued before it). Only for the person's own job; the
---    count says nothing about whose they are.
-CREATE FUNCTION app_ai_job_ahead(jid uuid) RETURNS integer
+-- 3. Whether the person's waiting job is next in line (no job queued before
+--    it). Only for their own waiting job, and never a count: how busy the
+--    firm's model is says nothing to a client person.
+CREATE FUNCTION app_ai_job_next(jid uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  SELECT (SELECT count(*) FROM ai_jobs o
-          WHERE o.status = 'running' OR (o.status = 'queued' AND (o.created_at, o.id) < (j.created_at, j.id)))::integer
+  SELECT NOT EXISTS (SELECT 1 FROM ai_jobs o WHERE o.status = 'queued' AND (o.created_at, o.id) < (j.created_at, j.id))
   FROM ai_jobs j WHERE j.id = jid AND j.created_by = app_uid() AND j.status = 'queued'
 $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app_ai_job_ahead(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_ai_job_next(uuid) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app_ai_job_ahead(uuid) TO selah_app;
+GRANT EXECUTE ON FUNCTION app_ai_job_next(uuid) TO selah_app;
 --> statement-breakpoint
--- 4. A person cancels their own job while it waits or runs: the runner drops
---    a running one's answer (it hangs up on the AI service). The pasted text
---    goes at once.
+-- 4. A person cancels their own job while it waits or runs: the runner keeps
+--    nothing of a running one (app_ai_job_hold) and hangs up on the AI
+--    service. The pasted text goes at once.
 CREATE FUNCTION app_cancel_ai_job(jid uuid) RETURNS boolean
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   WITH c AS (
@@ -105,22 +113,106 @@ REVOKE ALL ON FUNCTION app_cancel_ai_job(uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_cancel_ai_job(uuid) TO selah_app;
 --> statement-breakpoint
--- 5. The runner's side (the schema owner only). It takes the oldest waiting
+-- 5. The runner keeps an answer only while the job still runs: inside the
+--    person's storing transaction it locks the job's row, so a cancel waits
+--    for the answer to be kept, or, if it came first, nothing is kept.
+CREATE FUNCTION app_ai_job_hold(jid uuid) RETURNS text
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT status FROM ai_jobs WHERE id = jid AND created_by = app_uid() FOR UPDATE
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_ai_job_hold(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_ai_job_hold(uuid) TO selah_app;
+--> statement-breakpoint
+-- 6. A finished org chart draft's rows, handed over once: they are cleared
+--    as the person takes them (the route has checked they may still import).
+CREATE FUNCTION app_take_ai_job_result(jid uuid) RETURNS jsonb
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  WITH j AS (
+    SELECT id, result FROM ai_jobs
+    WHERE id = jid AND created_by = app_uid() AND kind = 'org_draft' AND status = 'done' AND result IS NOT NULL
+    FOR UPDATE),
+  taken AS (UPDATE ai_jobs a SET result = NULL FROM j WHERE a.id = j.id RETURNING j.result)
+  SELECT result FROM taken
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_take_ai_job_result(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_take_ai_job_result(uuid) TO selah_app;
+--> statement-breakpoint
+-- 7. Whether the person has used up an hourly limit, asked before a job is
+--    filed and again before the model runs, so no model run is spent on an
+--    answer the database would refuse to keep. The numbers are the ones
+--    check_document_summary() (30 summaries) and check_translation() (200
+--    translations) enforce on insert; counted whatever the person can read now.
+CREATE FUNCTION app_ai_hour_full(kind text) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT CASE kind
+    WHEN 'summary' THEN (SELECT count(*) FROM document_summaries
+                         WHERE created_by = app_uid() AND created_at > now() - interval '1 hour') >= 30
+    WHEN 'translation' THEN (SELECT count(*) FROM content_translations
+                             WHERE created_by = app_uid() AND created_at > now() - interval '1 hour') >= 200
+    ELSE false END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_ai_hour_full(text) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_ai_hour_full(text) TO selah_app;
+--> statement-breakpoint
+-- 8. Whether the caller has two-factor sign-in on (the app role reads no
+--    such column of "user"): the runner refuses, as route() does, a job of
+--    someone who must set it up first.
+CREATE FUNCTION app_two_factor_on() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT coalesce((SELECT two_factor_enabled FROM "user" WHERE id = app_uid()), false)
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_two_factor_on() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_two_factor_on() TO selah_app;
+--> statement-breakpoint
+-- 9. Stale jobs end, whoever looks first: the runner before it takes a job,
+--    the jobs loop every round, and a page asking after a job or filing one
+--    (so a runner that is down never holds a person's places for long). A
+--    job that waited 30 minutes expires; one that ran over 15 (the model
+--    call's own limit is 10) was left by a runner that stopped; both are
+--    audited. Jobs that ended over an hour ago go, with their results.
+CREATE FUNCTION app_end_stale_ai_jobs() RETURNS integer
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE n integer;
+BEGIN
+  WITH e AS (
+    UPDATE ai_jobs SET status = 'expired', error = 'expired', input = NULL, finished_at = now()
+    WHERE status = 'queued' AND created_at < now() - interval '30 minutes'
+    RETURNING id, kind, created_by, org_id),
+  s AS (
+    UPDATE ai_jobs SET status = 'failed', error = 'stopped', input = NULL, finished_at = now()
+    WHERE status = 'running' AND started_at < now() - interval '15 minutes'
+    RETURNING id, kind, created_by, org_id),
+  logged AS (
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, reason, meta)
+    SELECT created_by, org_id, 'ai_job.expired', 'ai_job', id, 'error'::audit_outcome, 'expired', jsonb_build_object('kind', kind) FROM e
+    UNION ALL
+    SELECT created_by, org_id, 'ai_job.failed', 'ai_job', id, 'error'::audit_outcome, 'stopped', jsonb_build_object('kind', kind) FROM s
+    RETURNING 1)
+  SELECT count(*) INTO n FROM logged;
+  DELETE FROM ai_jobs WHERE finished_at < now() - interval '1 hour';
+  RETURN n;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_end_stale_ai_jobs() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_end_stale_ai_jobs() TO selah_app;
+--> statement-breakpoint
+-- 10. The runner's side (the schema owner only). It takes the oldest waiting
 --    job only while none runs: one model run at a time, whoever asked. The
---    lock makes two runners take turns rather than both start one. Before
---    taking one it ends what is stale: a job that waited 30 minutes (the
---    runner is down; the page has long said so), one that ran over 15 (the
---    model call's own limit is 10: the runner died with it), and removes
---    jobs that ended over an hour ago, with their results.
+--    lock makes two runners take turns rather than both start one.
 CREATE FUNCTION app_claim_ai_job() RETURNS SETOF ai_jobs
 LANGUAGE plpgsql VOLATILE SET search_path = public, pg_temp AS $$
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('ai_jobs:claim'));
-  UPDATE ai_jobs SET status = 'expired', error = 'expired', input = NULL, finished_at = now()
-    WHERE status = 'queued' AND created_at < now() - interval '30 minutes';
-  UPDATE ai_jobs SET status = 'failed', error = 'stopped', input = NULL, finished_at = now()
-    WHERE status = 'running' AND started_at < now() - interval '15 minutes';
-  DELETE FROM ai_jobs WHERE finished_at < now() - interval '1 hour';
+  PERFORM app_end_stale_ai_jobs();
   IF EXISTS (SELECT 1 FROM ai_jobs WHERE status = 'running') THEN RETURN; END IF;
   RETURN QUERY
     WITH taken AS (

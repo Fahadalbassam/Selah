@@ -7,12 +7,13 @@
 //
 // A summary and a translation are kept where they always were
 // (document_summaries, content_translations); only an org chart draft, which
-// is never stored, waits here in `result` for the person to fetch it. The
-// pasted text waits in `input` until the job ends, then is cleared. Each
-// person reads only their own jobs (row-level security, migration 0113);
-// rows are removed an hour after they end.
+// is never stored, waits here in `result` until the person fetches it once
+// (then it is cleared), at most an hour. The pasted text waits in `input`
+// until the job ends, then is cleared. Each person reads only their own jobs
+// (row-level security, migration 0113); rows are removed an hour after they end.
 import { sql } from "drizzle-orm";
-import { check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { organizations } from "./app";
 import { user } from "./auth";
 
 export const aiJobs = pgTable(
@@ -30,6 +31,12 @@ export const aiJobs = pgTable(
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // The asker's organisation, for the audit log (set by the database).
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Whether names were masked for this job, as the runner decided before its first transaction.
+    masked: boolean("masked"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),

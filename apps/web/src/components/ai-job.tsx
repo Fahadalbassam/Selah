@@ -76,7 +76,7 @@ export function AiJobState({ job, waitedMs, onCancel, className }: { job: AiJob;
       className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-sm", v.tone === "error" ? "text-destructive" : "text-muted-foreground", className)}
     >
       {v.tone === "working" ? <BrandLoader tone="current" className="size-4" /> : null}
-      <span>{t(v.key, v.values)}</span>
+      <span>{t(v.key)}</span>
       {v.cancel && onCancel ? (
         <button type="button" className="text-xs underline-offset-4 hover:text-foreground hover:underline" onClick={onCancel}>
           {t("cancel")}

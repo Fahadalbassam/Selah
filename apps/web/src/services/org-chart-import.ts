@@ -353,7 +353,7 @@ export async function parseImportFile(tx: Tx, principal: Principal, clientOrgId:
  * the rows up. draftFromText does it all in one transaction, for the tests.
  */
 export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn?: boolean): Promise<ImportedRows> {
-  await requestOrgDraft(tx, principal, clientOrgId, text, maskOn);
+  (await requestOrgDraft(tx, principal, clientOrgId, text, maskOn)).spend();
   const { work } = await prepareOrgDraft(tx, principal, clientOrgId, text, maskOn ?? (await maskingOn()));
   let reply: OrgDraft;
   try {
@@ -383,13 +383,19 @@ async function draftable(tx: Tx, principal: Principal, clientOrgId: string, text
 
 /**
  * Asking for a draft on the page (POST): every check the job makes again,
- * so a refusal shows at once, and the hourly limit. The text's hash names
- * the job (services/ai-jobs.ts). `maskOn` is maskingOn(), decided before the transaction.
+ * so a refusal shows at once. The text's hash names the job
+ * (services/ai-jobs.ts); `spend` takes one of the hourly drafts, called only
+ * when a new job is filed (asking again for the same text spends none).
+ * `maskOn` is maskingOn(), decided before the transaction.
  */
 export async function requestOrgDraft(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn?: boolean) {
   const { body } = await draftable(tx, principal, clientOrgId, text, maskOn);
-  if (draftsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many drafts");
-  return { sha256: createHash("sha256").update(body).digest("hex") };
+  return {
+    sha256: createHash("sha256").update(body).digest("hex"),
+    spend: () => {
+      if (draftsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many drafts");
+    },
+  };
 }
 
 export interface OrgDraftWork {
@@ -470,12 +476,21 @@ function deliverOrgDraft(principal: Principal, clientOrgId: string, d: OrgDraftR
 }
 
 /**
- * A finished draft fetched from its job (services/ai-jobs.ts): only while
- * the person may still import into this client's draft.
+ * A finished draft fetched from its job (services/ai-jobs.ts), once: only
+ * while the person may still import into this client's draft and the
+ * assistant is still on for them there (local model included). `take`
+ * hands over the rows and clears them; null when they were taken before.
  */
-export async function fetchOrgDraft(tx: Tx, principal: Principal, clientOrgId: string, d: OrgDraftResult): Promise<ImportedRows> {
+export async function fetchOrgDraft(
+  tx: Tx,
+  principal: Principal,
+  clientOrgId: string,
+  take: () => Promise<OrgDraftResult | null>,
+): Promise<ImportedRows | null> {
   if (!(await importContext(tx, principal, clientOrgId))) throw new NotFoundError("org chart");
-  return deliverOrgDraft(principal, clientOrgId, d);
+  if (!(await assistantProjects(tx, principal, clientOrgId)).length) throw new NotFoundError("assistant");
+  const d = await take();
+  return d ? deliverOrgDraft(principal, clientOrgId, d) : null;
 }
 
 export interface SaveInput {

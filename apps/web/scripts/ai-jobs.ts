@@ -3,8 +3,9 @@
 // time, each as the person who asked (src/jobs/ai-jobs.ts). Run either once
 // (does what waits, then stops) or, as the jobs runner does (scripts/jobs.sh),
 // with --watch: it then wakes on every new job (LISTEN ai_jobs) and looks
-// every 30 seconds anyway.
-// Usage: npm run job:ai [-- --watch]
+// every 30 seconds anyway. With --clean it only ends stale jobs (the jobs
+// loop's round, so they end even while no runner works).
+// Usage: npm run job:ai [-- --watch | --clean]
 //
 // Only one runner works at a time (a lock held while it runs); a second one
 // waits. On start it ends any job left "running" by a runner that stopped.
@@ -17,7 +18,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import type { Tx } from "../src/db/client";
 import * as schema from "../src/db/schema";
-import { endOrphanedAiJobs, runNextAiJob, type AiJobDeps } from "../src/jobs/ai-jobs";
+import { endJob, endOrphanedAiJobs, runNextAiJob, UnfinishedJob, type AiJobDeps } from "../src/jobs/ai-jobs";
 import { draftOrgChart, summarizePages, translateText } from "../src/services/ai-client";
 import { maskingOn } from "../src/services/masking";
 
@@ -59,7 +60,14 @@ const lock = new Client({ connectionString: ownerUrl });
 await lock.connect();
 const LOCK = "SELECT pg_advisory_lock(hashtext('ai_jobs:runner'))";
 
-if (!process.argv.includes("--watch")) {
+if (process.argv.includes("--clean")) {
+  // The jobs loop's round (scripts/jobs.sh): end stale jobs and remove old ones, whether or not a runner works.
+  const { rows } = await owner.query<{ n: number }>("SELECT app_end_stale_ai_jobs() AS n");
+  if (rows[0]?.n) console.log(`ai jobs: ${rows[0].n} stale, ended`);
+  await lock.end();
+  await owner.end();
+  await app.$client.end();
+} else if (!process.argv.includes("--watch")) {
   const { rows } = await lock.query<{ ok: boolean }>("SELECT pg_try_advisory_lock(hashtext('ai_jobs:runner')) AS ok");
   if (rows[0]?.ok) {
     const orphans = await endOrphanedAiJobs(owner);
@@ -95,6 +103,11 @@ if (!process.argv.includes("--watch")) {
       await drain();
     } catch (err) {
       console.error("ai jobs:", err instanceof Error ? err.message : err);
+      // A job whose ending could not be written: once more, as it ended (a kept answer ends "done"). Then
+      // whatever is still "running" is a job this runner could not end (it holds the lock and runs one at
+      // a time), so it is ended as stopped rather than holding the line for 15 minutes.
+      if (err instanceof UnfinishedJob) await endJob(owner, err.id, err.outcome, 5, 5000).catch(() => undefined);
+      await endOrphanedAiJobs(owner).catch(() => undefined);
     }
     if (filed) continue;
     await new Promise<void>((resolve) => {
