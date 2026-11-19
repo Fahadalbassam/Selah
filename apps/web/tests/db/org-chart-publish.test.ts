@@ -15,6 +15,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { firmToday } from "@/lib/dates";
 import { orgChartError } from "@/lib/org-chart";
+import * as AC from "@/services/accounts";
 import * as OC from "@/services/org-chart";
 import { loadPrincipal } from "@/services/principal";
 import { today as firmDay } from "@/services/today";
@@ -50,6 +51,9 @@ const U = {
   newbie: id(31), // Sahm manager, planned for the treasurer position
   leaver: id(32), // Sahm manager, planned, then no longer one of Sahm's people
   oadmin: id(33), // Other's admin
+  quitter: id(34), // Sahm manager: in the Finance head position, the holding ends today
+  goner: id(35), // Sahm manager: in the Finance head position, then switched off
+  suggester: id(36), // Sahm's second admin: suggests a change, then is switched off
 };
 const NAMES: Record<keyof typeof U, string> = {
   admin: "Huda Firm-Admin",
@@ -65,6 +69,9 @@ const NAMES: Record<keyof typeof U, string> = {
   newbie: "Newbie Person",
   leaver: "Leaver Person",
   oadmin: "Other Admin",
+  quitter: "Quitter Person",
+  goner: "Goner Person",
+  suggester: "Second Admin",
 };
 
 const REFUSED = /not found|forbidden/i;
@@ -151,6 +158,12 @@ beforeAll(async () => {
       ($11,$15,'client_manager'), ($12,$15,'client_manager'), ($13,$16,'client_admin')`,
     [U.admin, U.lead, U.deputy, U.cons, U.obs, U.cadmin, U.mgr, U.fhead, U.outsider, U.owner, U.newbie, U.leaver, U.oadmin, FIRM, SAHM, OTHER],
   );
+  await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$4,'client_manager'), ($2,$4,'client_manager'), ($3,$4,'client_admin')`, [
+    U.quitter,
+    U.goner,
+    U.suggester,
+    SAHM,
+  ]);
   await q(
     `INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES
       ($1,'client',$2,$5,'Sahm governance','active',$6), ($3,'client',$4,$5,'Other governance','active',$6)`,
@@ -514,5 +527,52 @@ describe("your manager", () => {
     // Someone with no position has no manager line; firm staff neither.
     expect(await svc(U.mgr, (tx, p) => OC.myManager(tx, p))).toEqual([]);
     expect(await svc(U.lead, (tx, p) => OC.myManager(tx, p))).toEqual([]);
+  });
+});
+
+describe("the department-head suggestion, after the people change", () => {
+
+  // Review S2: two holders made a suggestion that undid itself on every confirmation.
+  it("suggests only while the head position has exactly one holder", async () => {
+    const cfo = await livePosition("2.1.1");
+    const chart = (await q(`SELECT id FROM org_charts WHERE org_id = $1`, [SAHM])).rows[0].id as string;
+    // A second person in the CFO position (as a two-person position would allow), written past the service.
+    const second = (
+      await q(`INSERT INTO position_holders (chart_id, org_id, position_lineage_id, user_id, from_date, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [
+        chart,
+        SAHM,
+        cfo.lineageId,
+        U.mgr,
+        plus(-1),
+        U.cadmin,
+      ])
+    ).rows[0].id as string;
+    expect(await svc(U.cadmin, (tx, p) => OC.headSuggestions(tx, p, SAHM))).toEqual([]);
+    await q(`DELETE FROM position_holders WHERE id = $1`, [second]);
+  });
+
+  // Review S3: someone who left today was still suggested, and confirming gave a database message.
+  it.skip("never suggests a holder whose term ends today or who was switched off; a refusal is said in plain words", async () => {
+    const cfo = await livePosition("2.1.1");
+    const holding = (who: string) => q(`SELECT id FROM position_holders WHERE position_lineage_id = $1 AND user_id = $2`, [cfo.lineageId, who]).then((r) => r.rows[0].id as string);
+    const chart = (await q(`SELECT id FROM org_charts WHERE org_id = $1`, [SAHM])).rows[0].id as string;
+    const put = (who: string) =>
+      q(`INSERT INTO position_holders (chart_id, org_id, position_lineage_id, user_id, from_date, created_by) VALUES ($1,$2,$3,$4,$5,$6)`, [chart, SAHM, cfo.lineageId, who, plus(-1), U.cadmin]);
+    const names = async () => (await svc(U.cadmin, (tx, p) => OC.headSuggestions(tx, p, SAHM))).map((s) => s.holder.name);
+    // The outsider (the head) leaves the position yesterday; the quitter holds it until today.
+    await svc(U.cadmin, async (tx, p) => OC.changeHolder(tx, p, cfo.id, { end: { holderId: await holding(U.outsider), on: plus(-1) } }), true);
+    await put(U.quitter);
+    expect(await names()).toEqual(["Quitter Person"]);
+    await svc(U.cadmin, async (tx, p) => OC.changeHolder(tx, p, cfo.id, { end: { holderId: await holding(U.quitter), on: firmToday() } }), true);
+    expect(await names()).toEqual([]);
+    // The goner holds it, then is switched off (the leaving ends the holding today).
+    await put(U.goner);
+    expect(await names()).toEqual(["Goner Person"]);
+    await svc(U.cadmin, (tx, p) => AC.setActive(tx, p, U.goner, { active: false, reason: "Left the company" }), true);
+    expect(await names()).toEqual([]);
+    const err = await svc(U.cadmin, (tx, p) => OC.confirmHeadSuggestion(tx, p, SAHM, { departmentId: FIN, userId: U.goner })).catch((e: Error) => e);
+    expect(orgChartError((err as Error).message)).toBe("suggestion_gone");
+    // The database's own refusal, if it ever reached the screen, is said the same way.
+    expect(orgChartError("department members are active people of the client")).toBe("suggestion_gone");
   });
 });

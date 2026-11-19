@@ -1863,7 +1863,9 @@ export async function headSuggestions(tx: Tx, principal: Principal, clientOrgId:
   for (const d of active) {
     for (const u of linked.filter((x) => x.departmentId === d.id)) {
       const head = chart.positions.find((p) => p.unitId === u.id && p.isHead);
-      if (!head) continue;
+      // Only while the head position has exactly one holder (review S2): with several, which one heads the
+      // department is the people's own choice, and confirming one would undo the other.
+      if (!head || head.holders.length !== 1) continue;
       const theirs = heads.filter((h) => h.departmentId === d.id);
       for (const h of head.holders) {
         if (!h.named || !h.userId || !h.name) continue;
