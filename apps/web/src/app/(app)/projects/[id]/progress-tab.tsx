@@ -2,7 +2,7 @@ import { FilePlus2 } from "lucide-react";
 import { SlidingCount } from "@/components/sliding-count";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import Link from "next/link";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
 import { LateAgainstOriginal } from "@/components/late-against-original";
 import { MetricHistory, type HistoryPoint } from "@/components/metric-history";
@@ -73,11 +73,12 @@ export async function ProgressTab({
   /** "Use as draft" from the assistant: the New report dialog opens with it as the note. Nothing is saved until Create report. */
   draft?: { messageId: string; note: string } | null;
 }) {
-  const [t, tPack, tSend, format] = await Promise.all([
+  const [t, tPack, tSend, format, locale] = await Promise.all([
     getTranslations("metrics"),
     getTranslations("statusPack"),
     getTranslations("reportSend"),
     getFormatter(),
+    getLocale(),
   ]);
   const month = (d: string) => format.dateTime(new Date(`${d}T00:00:00`), { month: "long", year: "numeric" });
   const { live, progress } = data;
@@ -153,7 +154,15 @@ export async function ProgressTab({
               { name: "title", label: t("reportTitle"), required: true, maxLength: 300 },
               { name: "periodStart", label: t("periodStart"), type: "date", required: true },
               { name: "periodEnd", label: t("periodEnd"), type: "date", required: true, defaultValue: firmToday() },
-              { name: "bodyMd", label: t("notes"), type: "textarea", maxLength: 100_000, defaultValue: draft?.note },
+              {
+                name: "bodyMd",
+                label: t("notes"),
+                type: "textarea",
+                maxLength: 100_000,
+                defaultValue: draft?.note,
+                // The outline takes its dates from the two fields above. No numbers: the report freezes its own when saved.
+                template: { lang: locale === "ar" ? "ar" : "en", periodFields: ["periodStart", "periodEnd"] },
+              },
             ]}
             submitLabel={t("create")}
             redirectTo="/reports/:id"

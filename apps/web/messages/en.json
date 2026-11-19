@@ -6920,6 +6920,14 @@
       "askAbout": "Opens the assistant in a chat about this item."
     }
   },
+  "reportTemplates": {
+    "label": "Start from an outline",
+    "none": "None",
+    "monthly": "Monthly progress",
+    "steering": "Steering summary",
+    "closing": "Closing summary",
+    "replace": "The note already has text. Replace it with this outline?"
+  },
   "reportSend": {
     "send": "Send to the client",
     "sendTitle": "Send this report to the client?",
