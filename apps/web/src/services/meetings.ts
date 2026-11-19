@@ -91,6 +91,8 @@ export async function listMeetings(tx: Tx, principal: Principal, projectId: stri
       provider: meetings.provider,
       status: meetings.status,
       visibility: meetings.visibility,
+      // The reader's own invitation, not yet answered: the list reads "Waiting for you" (D3, docs/placement.md).
+      unanswered: sql<boolean>`exists (select 1 from meeting_attendees a where a.meeting_id = ${meetings.id} and a.user_id = ${principal.userId} and a.role <> 'organizer' and a.response = 'needs_action')`,
     })
     .from(meetings)
     .where(eq(meetings.projectId, projectId))

@@ -6,15 +6,14 @@ import type { ReactNode } from "react";
 import { RequestRow } from "@/components/request-row";
 import { RowMenu, useRowCall } from "@/components/row-menu";
 import { SendFileButton } from "@/components/send-file-dialog";
-import type { Tone } from "@/components/tone-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { panelVoice } from "@/lib/engagement";
+import { evidenceItemPlacement, labelKey, placementTone } from "@/lib/status-words";
 import { json, ReasonDialog, RunButton, send } from "./action-panel";
 import { DownloadButton } from "./download-button";
 import { AddItem, type EvidenceItem } from "./follow-through-panels";
 import { ActionSendFile } from "./send-file";
 
-const TONES: Record<EvidenceItem["status"], Tone> = { open: "open", submitted: "active", accepted: "verified", rejected: "problem", waived: "neutral" };
 const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
 
 /**
@@ -43,6 +42,7 @@ export function WhatToSend(props: {
   const t = useTranslations("action.items");
   const ta = useTranslations("action");
   const tc = useTranslations("common");
+  const tw = useTranslations("statusWords");
   const format = useFormatter();
   const router = useRouter();
   const call = useRowCall();
@@ -84,7 +84,7 @@ export function WhatToSend(props: {
                   key={i.id}
                   title={i.title}
                   description={i.description}
-                  state={{ label: t(`status.${i.status}`), tone: TONES[i.status] }}
+                  state={{ label: tw(labelKey(evidenceItemPlacement(i.status), props.firmView ? "firm" : "client")), tone: placementTone(evidenceItemPlacement(i.status)) }}
                   facts={i.dueDate ? [t("due", { date: format.dateTime(new Date(i.dueDate), { dateStyle: "medium" }) })] : []}
                   note={
                     i.decisionNote && (i.status === "rejected" || i.status === "waived")

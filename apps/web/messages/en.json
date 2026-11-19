@@ -1161,7 +1161,8 @@
     "andOthers": "{n, plural, one {and # other} other {and # others}}",
     "consultantsCount": "{n, plural, one {# consultant} other {# consultants}}",
     "pitches": "Pitches",
-    "pitchesHint": "Organisations the firm started a pitch for that are not clients yet."
+    "pitchesHint": "Organisations the firm started a pitch for that are not clients yet.",
+    "suggested": "Suggested"
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -6263,5 +6264,38 @@
       "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text.",
       "generic": "The file couldn't be sent. Try again."
     }
+  },
+  "statusWords": {
+    "notStarted": "Not started",
+    "inProgress": "In progress",
+    "waitingFirm": "Waiting for the firm",
+    "waitingClient": "Waiting for the client",
+    "waitingYou": "Waiting for you",
+    "needsAttention": "Needs attention",
+    "verified": "Verified",
+    "closed": "Closed",
+    "items": {
+      "accepted": "Accepted",
+      "notNeeded": "Not needed",
+      "notApplicable": "Not applicable",
+      "held": "Held",
+      "cancelled": "Cancelled",
+      "pitch": "Pitch",
+      "draft": "Draft"
+    },
+    "exactLabel": "Exact state",
+    "closedAs": "Closed: {outcome}"
+  },
+  "clientPage": {
+    "tabs": {
+      "label": "Client page sections",
+      "overview": "Overview",
+      "people": "People",
+      "setup": "Setup"
+    },
+    "joinWaiting": "{n, plural, one {One join request waits for your decision.} other {# join requests wait for your decision.}}",
+    "joinWaitingOpen": "See the requests",
+    "departments": "Departments",
+    "departmentsHint": "Optional. When on, work filed under a department is seen only by its people, the client's admins, the firm and the action's owner."
   }
 }

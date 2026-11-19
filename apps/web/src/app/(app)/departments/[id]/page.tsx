@@ -15,6 +15,7 @@ import { withPrincipal } from "@/server/page";
 import { departmentOverview } from "@/services/client-overview";
 import { IndicatorsCard } from "@/components/indicators/indicators-card";
 import { listIndicators } from "@/services/indicators";
+import { clientTabHref } from "@/lib/client-tabs";
 
 // One department's page (F31): its numbers across the client's projects,
 // who is in it, and its open actions. The scope is the department, and the
@@ -39,7 +40,7 @@ export default async function DepartmentPage({ params }: { params: Promise<{ id:
   const ar = (await getLocale()) === "ar";
   const dept = overview.department;
   const other = ar ? dept.nameEn : dept.nameEn ? dept.nameAr : null;
-  const back = firm ? `/clients/${overview.client.id}/departments` : "/departments";
+  const back = firm ? clientTabHref(overview.client.id, "people", "departments") : "/departments";
 
   return (
     <>
@@ -87,7 +88,7 @@ export default async function DepartmentPage({ params }: { params: Promise<{ id:
       ) : null}
       <section className="space-y-3">
         <SectionHeader title={t("openTitle")} description={t("openHint")} />
-        <ActionsTable rows={overview.open} empty={t("openEmpty")} />
+        <ActionsTable rows={overview.open} empty={t("openEmpty")} reader={firm ? "firm" : "client"} />
       </section>
     </>
   );

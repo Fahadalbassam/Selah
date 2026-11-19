@@ -32,6 +32,8 @@ import { localLabel, localName } from "@/lib/names";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { parsePlanRule, PLAN_RULES, type PlanRule } from "@/lib/plan-rules";
 import { isOldTab, oldTabTarget, openTab, projectTabHref } from "@/lib/project-tabs";
+import { meetingPlacement } from "@/lib/status-words";
+import { WordBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { isOverdue } from "@/services/queries";
@@ -280,7 +282,7 @@ export default async function ProjectPage({
         </p>
       ) : null}
 
-      {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
+      {visit ? <SinceLastVisit projectId={project.id} {...visit} reader={firmStaff ? "firm" : "client"} /> : null}
 
       <Tabs defaultValue={current} className="gap-4">
         <TabsList className="max-w-full justify-start overflow-x-auto">
@@ -579,7 +581,7 @@ export default async function ProjectPage({
         <TabsContent value="files" className="space-y-6">
           {/* Requests first, with their open count on the tab; an internal project has none (files only). */}
           {requests ? (
-            <InfoRequestsTab projectId={project.id} list={requests} />
+            <InfoRequestsTab projectId={project.id} list={requests} reader={firmStaff ? "firm" : "client"} />
           ) : project.kind === "internal" ? (
             <p className="text-sm text-muted-foreground">{tp("files.internal")}</p>
           ) : null}
@@ -670,9 +672,11 @@ export default async function ProjectPage({
                     </Link>
                     <span className="text-xs text-muted-foreground tabular-nums">{format.dateTime(m.startsAt, { dateStyle: "medium", timeStyle: "short" })}</span>
                     {m.limited ? <AudienceMarker kind="meeting" className="ms-auto" /> : null}
-                    <Badge variant="outline" className={m.limited ? undefined : "ms-auto"}>
-                      {tMeeting(`status.${m.status}`)}
-                    </Badge>
+                    <WordBadge
+                      placement={meetingPlacement(m.status, m.status === "scheduled" && m.unanswered)}
+                      reader={firmStaff ? "firm" : "client"}
+                      className={m.limited ? undefined : "ms-auto"}
+                    />
                   </li>
                 ))}
               </ul>

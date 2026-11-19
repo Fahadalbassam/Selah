@@ -84,7 +84,7 @@ function Row({
             {r.dueDate ? day(r.dueDate) : "—"}
             {r.overdue ? <span className="ms-1">({t("overdue")})</span> : null}
           </span>
-          <StatusBadge status={r.status} />
+          <StatusBadge status={r.status} reader={client ? "client" : "firm"} />
         </div>
         {r.reasons?.length ? (
           <p className="ms-9 mt-1 text-xs text-muted-foreground">

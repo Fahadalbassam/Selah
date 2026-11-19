@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
+import type { Reader } from "@/lib/status-words";
 
 /**
  * What moved since this person last opened the project: one line above the
@@ -19,6 +20,7 @@ export function SinceLastVisit(props: {
   since: string | Date;
   firstVisit: boolean;
   changes: { actionId: string; title: string; status: string; changedAt: string | Date }[];
+  reader: Reader;
 }) {
   const t = useTranslations("insight");
   const format = useFormatter();
@@ -47,7 +49,7 @@ export function SinceLastVisit(props: {
               <Link href={`/actions/${c.actionId}`} className="min-w-0 flex-1 truncate hover:underline" dir="auto">
                 {c.title}
               </Link>
-              <StatusBadge status={c.status as ActionStatus} />
+              <StatusBadge status={c.status as ActionStatus} reader={props.reader} />
               {/* Server and browser clocks can straddle a minute: let the browser's text win. */}
               <span className="w-28 shrink-0 text-end text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
                 {format.relativeTime(new Date(c.changedAt), new Date())}

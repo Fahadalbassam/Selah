@@ -10,6 +10,7 @@ import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";
 import { ToneBadge } from "@/components/tone-badge";
+import { clientTabHref } from "@/lib/client-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -116,7 +117,7 @@ export function EngagementCard({ data }: { data: EngagementSummary }) {
             <p className="text-muted-foreground">{t("departments.count", { n: data.departmentCount })}</p>
           </div>
           <Button asChild size="sm" variant="outline">
-            <Link href={`/clients/${data.id}/departments`}>
+            <Link href={clientTabHref(data.id, "people", "departments")}>
               <Network />
               {t("departments.open")}
             </Link>
@@ -218,7 +219,7 @@ function ModeDialog({
             <p className="text-xs text-muted-foreground">
               {t.rich("blockers.where", {
                 link: (chunks) => (
-                  <Link href={`/clients/${data.id}/people`} className="text-foreground underline underline-offset-4">
+                  <Link href={clientTabHref(data.id, "people", "accounts")} className="text-foreground underline underline-offset-4">
                     {chunks}
                   </Link>
                 ),

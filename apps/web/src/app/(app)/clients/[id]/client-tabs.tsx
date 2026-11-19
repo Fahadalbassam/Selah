@@ -1,30 +1,29 @@
 import { getTranslations } from "next-intl/server";
 import { LinkTabs } from "@/components/link-tabs";
+import { CLIENT_TABS, clientTabHref, type ClientTab } from "@/lib/client-tabs";
 
 /**
- * The client page's tabs, firm side, above the page header: the page itself,
- * its Departments (for whoever may open them) and its Structure (once there
- * is a structure the reader may read: the firm admin, the client's lead and
- * deputy, consultants staffed on its projects). Each is its own address;
- * nothing is added to the sidebar; a single tab draws no tab row.
+ * The firm's client page tabs (page audit 4.4, batch 5): Overview · People ·
+ * Setup (lib/client-tabs.ts), then Structure, its own address, once there is
+ * a structure the reader may read (the firm admin, the client's lead and
+ * deputy, consultants staffed on its projects). The departments are a
+ * section of People; `departments` is kept for the Structure page's call and
+ * no longer draws a tab. Nothing is added to the sidebar.
  */
 export async function ClientTabs({
   clientId,
   current,
   structure,
-  departments,
 }: {
   clientId: string;
-  current: "overview" | "departments" | "structure";
+  current: ClientTab | "structure";
   structure: boolean;
-  departments: boolean;
+  departments?: boolean;
 }) {
-  const t = await getTranslations("orgChart.tabs");
+  const [t, tOrg] = await Promise.all([getTranslations("clientPage.tabs"), getTranslations("orgChart.tabs")]);
   const tabs = [
-    { key: "overview", href: `/clients/${clientId}`, label: t("overview") },
-    ...(departments ? [{ key: "departments", href: `/clients/${clientId}/departments`, label: t("departments") }] : []),
-    ...(structure ? [{ key: "structure", href: `/clients/${clientId}/structure`, label: t("structure") }] : []),
+    ...CLIENT_TABS.map((k) => ({ key: k as string, href: clientTabHref(clientId, k), label: t(k) })),
+    ...(structure ? [{ key: "structure", href: `/clients/${clientId}/structure`, label: tOrg("structure") }] : []),
   ];
-  if (tabs.length < 2) return null;
   return <LinkTabs label={t("label")} tabs={tabs} current={tabs.find((x) => x.key === current)?.href ?? ""} />;
 }

@@ -1,35 +1,12 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { notFound, redirect } from "next/navigation";
 import { isUuid } from "@/lib/ids";
-import { localName } from "@/lib/names";
-import { withPrincipal } from "@/server/page";
-import { listPeople } from "@/services/accounts";
-import { listVacancies } from "@/services/org-chart";
-import { PeopleAdmin } from "../../../team/people-admin";
+import { oldClientPageTarget } from "@/lib/client-tabs";
 
-// The firm admin manages a client's accounts.
+// The client's accounts are the People tab of the client page now (page
+// audit 4.4, batch 5). The old address goes on there; the page itself
+// decides who may read them.
 export default async function ClientPeoplePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) => {
-    if (principal.role !== "firm_admin") return null;
-    const people = await listPeople(tx, principal, id);
-    // The invite form offers the vacant positions of the client's structure (org chart, part 3).
-    const vacancies = people.organization.kind === "client" ? await listVacancies(tx, principal, id) : [];
-    return { people, vacancies, me: principal.userId, role: principal.role };
-  });
-  if (!data || data.people.organization.kind !== "client") notFound();
-  const ar = (await getLocale()) === "ar";
-  const org = data.people.organization;
-  return (
-    <>
-      <Link href={`/clients/${id}`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4 rtl:-scale-x-100" />
-        {localName(org, ar)}
-      </Link>
-      <PeopleAdmin data={data.people} me={data.me} myRole={data.role} reviewDays={null} asPage vacancies={data.vacancies} />
-    </>
-  );
+  redirect(oldClientPageTarget(id, "people"));
 }

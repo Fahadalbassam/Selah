@@ -1161,7 +1161,8 @@
     "andOthers": "{n, plural, one {وشخص آخر} two {وشخصان آخران} few {و# آخرون} many {و# آخرون} other {و# آخرون}}",
     "consultantsCount": "{n, plural, one {مستشار واحد} two {مستشاران} few {# مستشارين} many {# مستشارًا} other {# مستشار}}",
     "pitches": "العروض",
-    "pitchesHint": "جهات بدأ المكتب عرضًا لها ولم تصبح عملاء بعد."
+    "pitchesHint": "جهات بدأ المكتب عرضًا لها ولم تصبح عملاء بعد.",
+    "suggested": "مقترح"
   },
   "inquiry": {
     "metaTitle": "تواصل معنا",
@@ -6263,5 +6264,38 @@
       "type": "هذا النوع من الملفات غير مقبول. استخدم PDF أو Word أو Excel أو PowerPoint أو صورة أو نصًا.",
       "generic": "تعذّر إرسال الملف. حاول مرة أخرى."
     }
+  },
+  "statusWords": {
+    "notStarted": "لم يبدأ",
+    "inProgress": "قيد التنفيذ",
+    "waitingFirm": "بانتظار المكتب",
+    "waitingClient": "بانتظار العميل",
+    "waitingYou": "بانتظاركم",
+    "needsAttention": "يحتاج متابعة",
+    "verified": "تم التحقق",
+    "closed": "مغلق",
+    "items": {
+      "accepted": "مقبول",
+      "notNeeded": "غير مطلوب",
+      "notApplicable": "لا ينطبق",
+      "held": "انعقد",
+      "cancelled": "أُلغي",
+      "pitch": "عرض",
+      "draft": "مسودة"
+    },
+    "exactLabel": "الحالة بالتحديد",
+    "closedAs": "مغلق: {outcome}"
+  },
+  "clientPage": {
+    "tabs": {
+      "label": "أقسام صفحة العميل",
+      "overview": "نظرة عامة",
+      "people": "الأشخاص",
+      "setup": "الإعداد"
+    },
+    "joinWaiting": "{n, plural, one {طلب انضمام واحد ينتظر قرارك.} two {طلبا انضمام ينتظران قرارك.} few {# طلبات انضمام تنتظر قرارك.} many {# طلب انضمام ينتظر قرارك.} other {# طلب انضمام ينتظر قرارك.}}",
+    "joinWaitingOpen": "عرض الطلبات",
+    "departments": "الإدارات",
+    "departmentsHint": "اختيارية. عند تفعيلها لا يرى العمل المسجّل تحت إدارة إلا أفرادها ومديرو العميل والمكتب ومالك الإجراء."
   }
 }

@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
+import type { Reader } from "@/lib/status-words";
 import { EmptyState } from "@/components/empty-state";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 
@@ -20,7 +21,18 @@ export interface ActionItem {
   overdue: boolean;
 }
 
-export function ActionsTable({ rows, empty, showProject = true }: { rows: ActionItem[]; empty: string; showProject?: boolean }) {
+export function ActionsTable({
+  rows,
+  empty,
+  reader,
+  showProject = true,
+}: {
+  rows: ActionItem[];
+  empty: string;
+  /** The side reading it, for the status word (lib/status-words.ts). */
+  reader: Reader;
+  showProject?: boolean;
+}) {
   const t = useTranslations("table");
   const format = useFormatter();
   if (rows.length === 0) {
@@ -67,7 +79,7 @@ export function ActionsTable({ rows, empty, showProject = true }: { rows: Action
                 {r.overdue ? <span className="ms-1 text-xs">({t("overdue")})</span> : null}
               </TableCell>
               <TableCell>
-                <StatusBadge status={r.status} />
+                <StatusBadge status={r.status} reader={reader} />
               </TableCell>
             </TableRow>
           ))}
