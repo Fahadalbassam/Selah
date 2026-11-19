@@ -6,7 +6,7 @@ firm approves."""
 import json
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
@@ -26,6 +26,13 @@ class LLM(Protocol):
 
 log = logging.getLogger("uvicorn.error")
 
+# A prompt this full leaves little room for the reply; the warning comes early.
+CONTEXT_WARN_SHARE = 0.9
+# On the local retry only the end of the bad reply is sent back, so asking
+# again does not push the passages out of the context. Ollama drops the
+# oldest messages that do not fit, which is the one holding the passages.
+RETRY_ECHO_CHARS = 400
+
 # How long a local model stays loaded after a request. Ollama's default is five
 # minutes, after which the next question first reloads the model from disk
 # (tens of seconds on a processor).
@@ -44,7 +51,7 @@ class OllamaLLM:
         res.raise_for_status()
         return res.json()["embeddings"]
 
-    def _chat(self, system: str, user: str, schema: dict[str, Any], stream: bool) -> dict[str, Any]:
+    def _chat(self, messages: list[dict[str, str]], schema: dict[str, Any], stream: bool) -> dict[str, Any]:
         return {
             "model": self._s.llm_model,
             "stream": stream,
@@ -53,17 +60,51 @@ class OllamaLLM:
             # which on a processor takes minutes. The passages carry the facts.
             "think": False,
             "keep_alive": KEEP_ALIVE,
-            "options": {"temperature": 0},
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            # Without num_ctx Ollama picks the context size from the graphics
+            # memory (about 4,000 tokens on small cards) and silently drops the
+            # start of a long prompt: the rules or the first passages.
+            "options": {"temperature": 0, "num_ctx": self._s.llm_num_ctx},
+            "messages": messages,
         }
 
-    async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
-        res = await self._client.post("/api/chat", json=self._chat(system, user, schema, stream=False))
+    def _check_context(self, event: dict[str, Any]) -> None:
+        """Warn when the prompt and reply filled the context (so something was
+        cut) or the prompt alone came close. Ollama does not count a prompt
+        start it reused from its cache, so the numbers can be low, not high."""
+        limit = self._s.llm_num_ctx
+        read, wrote = event.get("prompt_eval_count"), event.get("eval_count")
+        read = read if isinstance(read, int) else 0
+        wrote = wrote if isinstance(wrote, int) else 0
+        if read + wrote >= limit:
+            log.warning(
+                "local model: prompt (%s tokens) and reply (%s) filled the whole context of %s; the prompt or the reply was probably cut. "
+                "Raise LLM_NUM_CTX or send fewer passages.",
+                read,
+                wrote,
+                limit,
+            )
+        elif read >= CONTEXT_WARN_SHARE * limit:
+            log.warning(
+                "local model: the prompt took %s of %s context tokens, leaving little room for the reply. Raise LLM_NUM_CTX or send fewer passages.",
+                read,
+                limit,
+            )
+
+    async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
+        res = await self._client.post("/api/chat", json=self._chat(messages, schema, stream=False))
         res.raise_for_status()
-        return res.json()["message"]["content"]
+        body = res.json()
+        self._check_context(body)
+        return body["message"]["content"] or ""
+
+    async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
+        # format is not always obeyed (an open report for qwen3.5 with thinking
+        # off, which is how this calls it), so the reply is checked as well.
+        return await json_with_one_retry(_messages(system, user), schema, self._complete, echo_chars=RETRY_ECHO_CHARS)
 
     async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
-        async with self._client.stream("POST", "/api/chat", json=self._chat(system, user, schema, stream=True)) as res:
+        # No retry here: the caller checks the whole reply and asks again with chat_json.
+        async with self._client.stream("POST", "/api/chat", json=self._chat(_messages(system, user), schema, stream=True)) as res:
             res.raise_for_status()
             async for line in res.aiter_lines():
                 if not line.strip():
@@ -73,6 +114,7 @@ class OllamaLLM:
                 if piece:
                     yield piece
                 if event.get("done"):
+                    self._check_context(event)
                     # Where a slow answer's time went: reading the passages, or writing.
                     log.info(
                         "local model: read %s tokens in %.1f s, wrote %s tokens in %.1f s (load %.1f s)",
@@ -105,19 +147,12 @@ class HostedChatLLM:
     async def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
         # Some providers accept response_format but ignore it (Ollama's cloud
         # does, tested 2026-10-22), so the prompt also asks for JSON and the
-        # reply is checked here: one retry if it still isn't a JSON object.
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        raw = await self._complete(messages, schema)
-        found = json_object(raw)
-        if found is None:
-            retry = [*messages, {"role": "assistant", "content": raw}, {"role": "user", "content": RETRY_JSON}]
-            found = json_object(await self._complete(retry, schema))
-        return found if found is not None else raw
+        # reply is checked: one retry if it still isn't a JSON object.
+        return await json_with_one_retry(_messages(system, user), schema, self._complete)
 
     async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
         # No retry here: the caller checks the whole reply and asks again with chat_json.
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        async with self._client.stream("POST", "/chat/completions", json=self._body(messages, schema, stream=True)) as res:
+        async with self._client.stream("POST", "/chat/completions", json=self._body(_messages(system, user), schema, stream=True)) as res:
             res.raise_for_status()
             async for line in res.aiter_lines():
                 if not line.startswith("data:"):
@@ -165,6 +200,29 @@ def json_object(raw: str) -> str | None:
         return candidate if isinstance(json.loads(candidate), dict) else None
     except json.JSONDecodeError:
         return None
+
+
+def _messages(system: str, user: str) -> list[dict[str, str]]:
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+async def json_with_one_retry(
+    messages: list[dict[str, str]],
+    schema: dict[str, Any],
+    complete: Callable[[list[dict[str, str]], dict[str, Any]], Awaitable[str]],
+    echo_chars: int | None = None,
+) -> str:
+    """Ask the model, pull the JSON object out of its reply, and ask once more
+    if there is none. Returns the raw reply if both tries fail, so the caller's
+    own check marks the answer as not grounded. echo_chars keeps only the end
+    of the bad reply in the retry (None sends it whole)."""
+    raw = await complete(messages, schema)
+    found = json_object(raw)
+    if found is None:
+        echo = raw if echo_chars is None or len(raw) <= echo_chars else "..." + raw[-echo_chars:]
+        retry = [*messages, {"role": "assistant", "content": echo}, {"role": "user", "content": RETRY_JSON}]
+        found = json_object(await complete(retry, schema))
+    return found if found is not None else raw
 
 
 def make_llm(settings: Settings) -> LLM:

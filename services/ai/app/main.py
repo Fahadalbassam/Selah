@@ -10,11 +10,12 @@ import hmac
 import json
 import time
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from .config import Settings, get_settings
 from .llm import LLM, json_object, make_llm
@@ -37,7 +38,21 @@ from .prompt import (
     check_translation,
 )
 
-app = FastAPI(title="Selah AI service", docs_url=None, redoc_url=None, openapi_url=None)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Read the settings once at start, so a bad value (LLM_NUM_CTX=abc, or out
+    # of range) stops the service with a clear message instead of every
+    # request failing later with a 500.
+    try:
+        app.dependency_overrides.get(get_settings, get_settings)()
+    except ValidationError as err:
+        problems = "; ".join(f"{'.'.join(str(p) for p in e['loc']).upper()}: {e['msg']}" for e in err.errors())
+        raise RuntimeError(f"AI service settings are not valid: {problems}") from None
+    yield
+
+
+app = FastAPI(title="Selah AI service", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
 _llm: LLM | None = None
 
@@ -207,7 +222,10 @@ async def answer_stream(
                     yield _line({"type": "text", "text": text})
             found = json_object(raw)
             if found is None:
-                # Not JSON: asked again whole, which for a hosted model includes its own retry.
+                # Not JSON: asked again whole with chat_json, which has its own
+                # retry for both providers. Worst case on the local model is
+                # three runs (stream, ask again, retry); on a processor that can
+                # take several minutes, still inside the web's stream limit.
                 again = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
                 while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
                     yield _line({"type": "wait"})

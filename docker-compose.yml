@@ -112,6 +112,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
       LLM_API_BASE: ${LLM_API_BASE:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-16384}
     depends_on: [ollama]
     ports: ["127.0.0.1:8000:8000"]
 
