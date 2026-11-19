@@ -89,6 +89,8 @@ export interface DecisionItem extends Omit<Item, "projectId" | "projectTitle"> {
   kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment" | "org_chart_request" | "disputed" | "ready_to_close";
   projectId: string | null;
   projectTitle: string | null;
+  /** A request-list item's starting-list key, so its title can be shown in the reader's language. */
+  templateKey?: string | null;
   /** Who asked (join, deadline and closure requests). */
   who: string | null;
   /** The proposed due date of a deadline change. */
@@ -544,6 +546,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
         .select({
           id: infoRequests.id,
           title: infoRequests.title,
+          templateKey: infoRequests.templateKey,
           projectId: infoRequests.projectId,
           orgId: infoRequests.orgId,
           ownerUserId: infoRequests.ownerUserId,
@@ -567,6 +570,7 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
       id: r.id,
       ...at(r.projectId),
       title: r.title,
+      templateKey: r.templateKey,
       href: `/projects/${r.projectId}?tab=files`,
       who: null,
       proposed: null,

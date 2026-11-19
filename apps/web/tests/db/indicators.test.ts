@@ -335,7 +335,7 @@ describe("the series and the summary", () => {
     await value(U.cmgr, K.company, "2026-02-01", 45);
     await svc(U.cons, (tx, p) => I.linkRecommendation(tx, p, K.company, R.shared));
     const list = await svc(U.cadmin, (tx, p) => I.listIndicators(tx, p, ACME));
-    expect(list.counts).toMatchObject({ total: 2, worse: 1, better: 0, noValue: 1 });
+    expect(list.counts).toMatchObject({ total: 2, above: 1, below: 0, noValue: 1 });
     const linked = await svc(U.cons, (tx) => I.indicatorSnapshot(tx, { clientOrgId: ACME, projectId: P1, linkedOnly: true }, firmToday()));
     expect(linked.map((s) => [s.id, s.latest?.value, s.recommendations])).toEqual([[K.company, 45, ["Set up a complaints desk"]]]);
     // The reports hold every active indicator of the client, each naming the project's recommendations linked to it.
@@ -395,7 +395,7 @@ describe("the assistant", () => {
     expect(await read(U.owner1)).toEqual([]);
     expect(await read(U.bAdmin)).toEqual([]);
     const [company, finance] = await read(U.cons);
-    expect(finance!.text).toMatch(/Latest value 14 .* better than the baseline/);
+    expect(finance!.text).toMatch(/Latest value 14 .* below the baseline/);
     expect(finance!.text).toMatch(/Finance department/);
     expect(finance!.text).toMatch(/not verified impact/);
     // The firm's own recommendation is never named, not even to the firm: the passage can reach a client.

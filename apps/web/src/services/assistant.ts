@@ -13,6 +13,7 @@ import type { Masker } from "@/lib/masking";
 import { answer, answerStream, embed, modelIsLocal, type Answer, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
+import { side } from "@/lib/indicators";
 import { indicatorSnapshot } from "./indicators";
 import { textMasker } from "./masking";
 import { listProjects } from "./queries";
@@ -866,7 +867,7 @@ export async function indicatorRecords(tx: Tx, clientOrgId: string, projectId?: 
       ` for ${k.departmentId ? `the ${clip(k.departmentEn ?? k.departmentAr, 80)} department` : "the whole company"}, in ${clip(k.unit, 40)},`,
       ` ${k.direction === "higher_better" ? "higher is better" : "lower is better"}, reported ${k.frequency}.`,
       ` Baseline ${k.baseline} (${k.baselinePeriod.slice(0, 7)}).`,
-      k.latest ? ` Latest value ${k.latest.value} for the period starting ${k.latest.period}, ${k.movement} than the baseline.` : " No value reported yet.",
+      k.latest ? ` Latest value ${k.latest.value} for the period starting ${k.latest.period}, ${{ above: "above the baseline", below: "below the baseline", same: "the same as the baseline" }[side(k.latest.value - k.baseline) ?? "same"]}.` : " No value reported yet.",
       k.target !== null ? ` Target ${k.target} by ${k.targetDate}${k.towardTarget !== null ? ` (${Math.round(k.towardTarget)}% of the way)` : ""}.` : " No target set.",
       k.missing ? ` ${k.missing} period(s) missing a value.` : "",
       k.recommendations.length ? ` Linked to recommendation(s) ${k.recommendations.map((r) => `"${clip(r, 120)}"`).join(", ")}.` : "",

@@ -69,7 +69,7 @@ Which firm staff (decision D4): the firm admin, and a consultant who is the clie
 
 Where they show: the client's overview (firm client page and the client admin's or manager's home) beside implementation progress, each department's page, the indicator's own page (`/indicators/:id`: trend line with the target, values with who entered them, corrections, linked recommendations), a recommendation's "Linked indicators" card, the monthly status pack (frozen when issued), the closure report (as of the closing day) and the client report PDF. The assistant answers questions about indicators from these records, under the asker's own rights.
 
-Roll-ups count indicators (how many are up to date, better or worse than their baseline); they never average values or percentages across indicators.
+Roll-ups count indicators (how many are up to date, above or below their baseline); they never average values or percentages across indicators.
 
 API: `GET/POST /api/clients/:id/indicators`, `GET/PATCH/DELETE /api/indicators/:id`, `POST /api/indicators/:id/values`, `POST /api/indicators/:id/links`, `DELETE /api/indicators/:id/links/:recommendationId`, `POST /api/indicator-values/:id/check`.
 

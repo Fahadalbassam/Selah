@@ -6,6 +6,7 @@ import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import type { ActionStatus } from "@/authz";
 import { REVIEW_WAIT_DAYS } from "@/lib/health";
+import { requestTitle } from "@/lib/info-requests";
 import { ACTIONS_FILTERS, type HomeCounter, type HomeSection as SectionKey } from "@/lib/home";
 import { cn } from "@/lib/utils";
 import type { FirmHome } from "@/services/home";
@@ -85,7 +86,7 @@ export async function FirmHomeLists({ data, open }: { data: FirmHome; open: Sect
           <HomeRow
             key={`${r.kind}-${r.id}`}
             href={r.href}
-            title={r.kind === "join_request" ? t("decisions.joinTitle", { who: r.who ?? "—" }) : r.title}
+            title={r.kind === "join_request" ? t("decisions.joinTitle", { who: r.who ?? "—" }) : r.kind === "info_request" ? requestTitle({ templateKey: r.templateKey ?? null, title: r.title }, ar) : r.title}
             sub={where(r.projectTitle ?? client(r.group), r.projectTitle ? client(r.group) : null)}
             meta={
               <>

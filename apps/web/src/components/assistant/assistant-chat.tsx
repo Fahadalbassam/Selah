@@ -420,7 +420,7 @@ export function Thread({
   failed: false | "error" | "limit";
   /** Under the empty chat's hint: what the assistant does not do. */
   note?: string;
-  /** The model runs on this computer's processor: answers can take a minute. */
+  /** The model runs on the firm's own server: answers can take a minute. */
   slow?: boolean;
 }) {
   const t = useTranslations("assistant");
@@ -436,6 +436,12 @@ export function Thread({
           {loading ? null : <EmptyDescription>{t("emptyThread")}</EmptyDescription>}
           {loading || !note ? null : <EmptyDescription className="text-xs">{note}</EmptyDescription>}
           {loading || !slow ? null : <SlowNotice />}
+          {/* A first question that failed leaves the chat empty: say so here, not only in a thread. */}
+          {failed ? (
+            <Bubble variant="destructive">
+              <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
+            </Bubble>
+          ) : null}
         </EmptyHeader>
       </Empty>
     );
@@ -506,7 +512,7 @@ export function Thread({
   );
 }
 
-/** The model runs on this computer's processor, not a hosted service: answers take longer. */
+/** The model runs on the firm's own server, not a hosted service: answers take longer. */
 function SlowNotice() {
   const t = useTranslations("assistant");
   return (

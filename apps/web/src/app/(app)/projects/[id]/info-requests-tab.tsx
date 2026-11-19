@@ -44,6 +44,7 @@ type Item = InfoRequestList["items"][number];
  */
 export function InfoRequestsTab({ projectId, list, reader }: { projectId: string; list: InfoRequestList; reader: Reader }) {
   const t = useTranslations("infoRequests");
+  const tw = useTranslations("statusWords");
   const ar = useLocale() === "ar";
   const { items, can, owners } = list;
   const counts = Object.fromEntries(
@@ -56,7 +57,8 @@ export function InfoRequestsTab({ projectId, list, reader }: { projectId: string
     t("total", { n: items.length }),
     ...(["requested", "received", "reviewed", "not_applicable"] as const)
       .filter((st) => counts[st])
-      .map((st) => `${counts[st]} ${t(`counted.${st}`)}`),
+      // The same words each item carries (page audit: "3 received" beside items that read "Waiting for the firm").
+      .map((st) => `${counts[st]} ${tw(labelKey(infoRequestPlacement(st), reader)).toLowerCase()}`),
     ...(overdue ? [t("overdueCount", { n: overdue })] : []),
   ].join(" · ");
   const ownerOptions = [{ value: NO_OWNER, label: t("noOwner") }, ...owners.map((o) => ({ value: o.id, label: o.name }))];

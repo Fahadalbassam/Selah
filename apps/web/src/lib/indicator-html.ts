@@ -5,7 +5,7 @@
  * "indicators.report" in the reader's language. Every table carries the
  * note that these are the client's own figures, not verified impact.
  */
-import { formatChange, formatValue, periodLabel, type IndicatorDirection, type IndicatorFrequency } from "./indicators";
+import { formatChange, formatValue, periodLabel, side, type IndicatorDirection, type IndicatorFrequency } from "./indicators";
 import { escapeHtml } from "./report-html";
 
 /** What a report needs of one indicator (IndicatorSnapshot satisfies it). */
@@ -51,7 +51,7 @@ export function indicatorTable(list: IndicatorReportRow[], locale: "ar" | "en", 
       v(k.baseline, k.unit),
       k.latest ? `${v(k.latest.value, k.unit)} (${periodLabel(k.latest.period, k.frequency, locale)})` : t("noValue"),
       k.latest
-        ? `${formatChange(k.latest.value - k.baseline, locale)} · ${t(`movement.${k.movement ?? "same"}`)}${k.missing ? ` · ${t("missing", { n: k.missing })}` : ""}`
+        ? `${formatChange(k.latest.value - k.baseline, locale)} · ${t(`movement.${side(k.latest.value - k.baseline) ?? "same"}`)}${k.missing ? ` · ${t("missing", { n: k.missing })}` : ""}`
         : "—",
       k.target === null ? "—" : v(k.target, k.unit),
       ...(withRecommendations ? [k.recommendations.join(ar ? "، " : ", ") || "—"] : []),

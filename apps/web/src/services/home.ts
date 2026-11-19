@@ -52,6 +52,8 @@ export interface HomeItem {
 }
 
 export interface HomeDocument extends HomeItem {
+  /** The starting list's key, so the reader sees the title in their own language. */
+  templateKey: string | null;
   dueDate: string | null;
   overdue: boolean;
 }
@@ -171,7 +173,7 @@ async function documentsAskedOfMe(tx: Tx, principal: Principal, projects: Map<st
   const ids = [...projects.values()].filter((p) => p.kind === "client" && p.state !== "closed").map((p) => p.id);
   if (!ids.length) return [];
   const rows = await tx
-    .select({ id: infoRequests.id, title: infoRequests.title, projectId: infoRequests.projectId, orgId: infoRequests.orgId, dueDate: infoRequests.dueDate })
+    .select({ id: infoRequests.id, title: infoRequests.title, templateKey: infoRequests.templateKey, projectId: infoRequests.projectId, orgId: infoRequests.orgId, dueDate: infoRequests.dueDate })
     .from(infoRequests)
     .where(and(eq(infoRequests.ownerUserId, principal.userId), eq(infoRequests.status, "requested"), inArray(infoRequests.projectId, ids)))
     .orderBy(sql`${infoRequests.dueDate} asc nulls last`, asc(infoRequests.createdAt));
@@ -191,6 +193,7 @@ async function documentsAskedOfMe(tx: Tx, principal: Principal, projects: Map<st
       return {
         id: r.id,
         title: r.title,
+        templateKey: r.templateKey,
         projectId: r.projectId,
         projectTitle: projects.get(r.projectId)!.title,
         href: `/projects/${r.projectId}?tab=files`,

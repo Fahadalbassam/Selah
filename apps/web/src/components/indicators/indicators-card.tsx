@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatChange, formatValue, periodLabel, type IndicatorSummary } from "@/lib/indicators";
+import { formatChange, formatValue, periodLabel, side, type IndicatorSummary } from "@/lib/indicators";
 import type { Indicator, IndicatorList } from "@/services/indicators";
 import { IndicatorDialog } from "./indicator-dialogs";
 import { Sparkline } from "./sparkline";
@@ -17,15 +17,16 @@ export function indicatorName(k: { nameAr: string | null; nameEn: string | null 
   return (ar ? (k.nameAr ?? k.nameEn) : (k.nameEn ?? k.nameAr)) ?? "";
 }
 
-/** Which way it moved since the baseline, in words: colour only for the way that needs attention. */
+/** Which side of the baseline the latest value sits on, in plain words and one neutral colour. */
 export async function MovementBadge({ summary }: { summary: IndicatorSummary }) {
   const t = await getTranslations("indicators");
-  if (!summary.movement) return <ToneBadge tone="neutral">{t("movement.none")}</ToneBadge>;
-  const Icon = summary.movement === "better" ? ArrowUpRight : summary.movement === "worse" ? ArrowDownRight : ArrowRight;
+  const where = summary.latest ? side(summary.change) : null;
+  if (!where) return <ToneBadge tone="neutral">{t("movement.none")}</ToneBadge>;
+  const Icon = where === "above" ? ArrowUpRight : where === "below" ? ArrowDownRight : ArrowRight;
   return (
-    <ToneBadge tone={summary.movement === "worse" ? "problem" : summary.movement === "better" ? "active" : "neutral"} className="gap-1">
+    <ToneBadge tone="neutral" className="gap-1">
       <Icon className="size-3 rtl:-scale-x-100" />
-      {t(`movement.${summary.movement}`)}
+      {t(`movement.${where}`)}
     </ToneBadge>
   );
 }
@@ -147,8 +148,8 @@ export async function IndicatorsCard({
               [
                 ["total", counts.total],
                 ["upToDate", counts.upToDate],
-                ["better", counts.better],
-                ["worse", counts.worse],
+                ["above", counts.above],
+                ["below", counts.below],
               ] as const
             ).map(([k, n]) => (
               <div key={k} className="space-y-1 rounded-xl border bg-surface px-4 py-3 text-surface-foreground">
