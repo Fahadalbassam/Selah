@@ -12,6 +12,7 @@ Selah links what a consulting firm delivers to its client (recommendations, poli
 | [Client guide](client/en.md) | Client admin, client manager, action owner | Short tasks, each with when you need it, the steps, and what happens next |
 | [What Selah will not do](limits/en.md) | The firm first, then anyone who shows Selah to a client | One page that stops promises Selah cannot keep |
 | [Technical pack](technical/en.md) | The firm's IT person | The containers, the request and security layers, running it, backups, and how to extend it |
+| [Later improvements](later/en.md) | The team that builds Selah next | Ideas not built yet (indicator help, assessment help, stuck or overloaded lanes, a few others) and the reference library plan, with the rules each must follow and the data to keep now |
 
 <a id="engagement"></a>
 
