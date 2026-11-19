@@ -11,6 +11,7 @@
 // and app_tell_owner_changed(), migration 0101) and in services/action-owner.ts.
 //
 // Run: TEST_DATABASE_OWNER_URL=... TEST_DATABASE_APP_URL=... npm run test:db
+import { sql as sqlTag } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -21,7 +22,7 @@ import { handOver } from "@/services/accounts";
 import { changeActionOwner, ownerControl, reassignList } from "@/services/action-owner";
 import { transitionAction } from "@/services/actions";
 import { listNotifications } from "@/services/notifications";
-import { updateAction } from "@/services/plan";
+import { createAction, updateAction } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 import { getActionDetail } from "@/services/queries";
 import { truncateAuditLog } from "./audit-reset";
@@ -548,10 +549,12 @@ describe("a full client's admin is never given an action", () => {
     await q(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P, U.cadmin]);
   });
 
-  it("the service refuses it, for the client's side and the firm's, and nothing changes", async () => {
+  it("the service refuses it with its reason, for the client's side and the firm's, and nothing changes", async () => {
     for (const who of [U.coord, U.cadmin, U.staff, U.lead, U.fadmin]) {
-      await expect(svc(who, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.cadmin })), who).rejects.toThrow(NOT_FOUND);
+      await expect(svc(who, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.cadmin })), who).rejects.toThrow(FULL_ADMIN);
     }
+    // Someone who may not change the owner at all still gets the plain 404, not the reason.
+    await expect(svc(U.mgr, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.cadmin }))).rejects.toThrow(NOT_FOUND);
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
     expect((await q(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'action.owner_change'`)).rows[0].n).toBe(0);
   });
@@ -560,9 +563,22 @@ describe("a full client's admin is never given an action", () => {
     for (const who of [U.coord, U.cadmin, U.sponsor, U.staff, U.lead]) {
       await expect(as(who, (c) => c.query(set, [A.open, U.cadmin])), who).rejects.toThrow(FULL_ADMIN);
     }
-    // The firm's edit dialog goes the same way.
-    await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+  });
+
+  it("editing an existing action's owner through the plan (updateAction) is refused with the reason; creating one may still name them", async () => {
+    await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
+    await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.draft, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+    // Unchanged for creating (the firm names the admin for what it asks of them; the walkthrough seed does).
+    // An edit that keeps the admin as owner, and changes only the title, is not refused. (One transaction, rolled back.)
+    const owned = await svc(U.lead, async (tx, p) => {
+      const created = await createAction(tx, p, REC.p, { title: "Sign the charter", ownerUserId: U.cadmin, dueDate: "2099-01-31", release: false });
+      await updateAction(tx, p, created.id, { title: "Sign the charter now" });
+      const { rows } = await tx.execute<{ owner_user_id: string }>(sqlTag`select owner_user_id from actions where id = ${created.id}`);
+      return rows[0]!.owner_user_id;
+    });
+    expect(owned).toBe(U.cadmin);
   });
 
   it("other client people are still given it, by the client and by the firm", async () => {

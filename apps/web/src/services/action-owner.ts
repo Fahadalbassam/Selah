@@ -36,10 +36,18 @@ export async function canChangeOwner(tx: Tx, actionId: string) {
   return rows[0]?.ok === true;
 }
 
-/** The database's rule (app_full_client_admin): an active client admin of a full client (mode 'full' or not set). */
-async function isFullClientAdmin(tx: Tx, userId: string, orgId: string) {
+/** The words of the refusal below; the owner screens turn them into a message ("fullAdminOwner"). */
+export const FULL_ADMIN_OWNER = "a full client's admin does not own actions";
+
+/**
+ * A full client's admin does not do actions, so is never given one: refused
+ * with a plain reason (they are on the project and in the reader's list
+ * anyway, so it tells nothing new). The database holds the same
+ * (app_full_client_admin(), check_owner_not_full_client_admin(), migration 0111).
+ */
+export async function assertNotFullClientAdmin(tx: Tx, userId: string, orgId: string) {
   const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_full_client_admin(${userId}::uuid, ${orgId}::uuid) as ok`);
-  return rows[0]?.ok === true;
+  if (rows[0]?.ok === true) throw new BadRequestError(`${FULL_ADMIN_OWNER}: give it to a colleague who does the work`);
 }
 
 async function load(tx: Tx, principal: Principal, actionId: string) {
@@ -122,12 +130,8 @@ export async function changeActionOwner(tx: Tx, principal: Principal, actionId: 
       .where(and(eq(projectMembers.projectId, action.projectId), eq(projectMembers.userId, ownerUserId), eq(projectMembers.observer, false)))
       .limit(1);
     if (!m) throw new BadRequestError("the owner must be on the project team");
-    // A full client's admin does not do actions, so is never offered (ownerControl) and never
-    // given one; refused like any owner change this reader may not make. The database holds the
-    // same (check_owner_not_full_client_admin(), migration 0111).
-    if (await isFullClientAdmin(tx, ownerUserId, action.orgId)) {
-      throw new ForbiddenError("action.assign_owner", resource, "owner:full-client-admin");
-    }
+    // Never offered (ownerControl), and never given one.
+    await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
   }
   // The status is the one read above: the owner changes, nothing else does.
   const updated = await tx

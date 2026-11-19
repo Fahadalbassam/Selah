@@ -17,7 +17,7 @@ import {
 import { assertAllowed, authorize, ForbiddenError, type Principal, type Visibility } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
-import { canChangeOwner, recordOwnerChange } from "./action-owner";
+import { assertNotFullClientAdmin, canChangeOwner, recordOwnerChange } from "./action-owner";
 import { audit } from "./audit";
 import { loadProject } from "./staffing";
 
@@ -350,6 +350,8 @@ export async function updateAction(
   // A new owner follows decision D1 wherever it is set: the same rule, notices and record as the owner control.
   const ownerChanged = (ownerUserId ?? null) !== (action.ownerUserId ?? null) || (ownerName ?? null) !== (action.ownerName ?? null);
   if (ownerChanged && !(await canChangeOwner(tx, id))) throw new ForbiddenError("action.assign_owner", resource, "owner:not-allowed");
+  // Changing the owner of an existing action, never to a full client's admin (creating one may name them).
+  if (ownerUserId && ownerUserId !== action.ownerUserId) await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
 
   await tx.update(actions).set(patch).where(eq(actions.id, id));
   await tx.insert(activityEvents).values({

@@ -725,6 +725,7 @@
       "narrowed": "A file with a limited audience can't be used as evidence. Send a new file instead.",
       "notEvidence": "This file can't be used as evidence.",
       "chooseItem": "Choose which item this file is for, or \"Not an item on the list\".",
+      "fullAdminOwner": "The company's account admin is not given actions on this kind of account. Choose a colleague who does the work.",
       "sameOwner": "This person already owns the action.",
       "minimalOwner": "This client keeps minimal records: give the owner's job title instead."
     },
