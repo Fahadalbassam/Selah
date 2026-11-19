@@ -14,7 +14,7 @@ export const CLIENT_TABS = ["overview", "people", "setup"] as const;
 export type ClientTab = (typeof CLIENT_TABS)[number];
 
 /** Sections of the People tab that old addresses and notices point at. */
-export type PeopleSection = "accounts" | "departments" | "join-requests";
+export type PeopleSection = "accounts" | "departments" | "join-requests" | "handover";
 
 /** The tab to open for `?tab=…`; anything else is Overview. */
 export function clientTab(tab: string | undefined): ClientTab {

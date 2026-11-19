@@ -7,6 +7,12 @@ const optionalText = (max: number) =>
   z.preprocess((v) => (typeof v === "string" ? v.trim() || null : v), z.string().max(max).nullable().optional());
 const optionalDate = z.preprocess((v) => (v === "" ? null : v), z.iso.date().nullable().optional());
 
+/**
+ * Days before an engagement's end date that its client's lead, deputy and the
+ * firm admins are told once (app_engagement_reminder_days(), migration 0109).
+ */
+export const ENGAGEMENT_END_REMINDER_DAYS = 30;
+
 /** What a form's engagement select sends for "not covered yet": the project stays a draft. */
 export const NOT_COVERED = "none";
 

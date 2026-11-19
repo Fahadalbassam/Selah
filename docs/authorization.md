@@ -30,6 +30,7 @@ A project has a `kind`. An **internal** project belongs to the firm (`org_id = f
 Decided with the product owner on 2026-10-20:
 
 - Only the **firm admin** adds clients and names one **lead consultant** per client (`client_assignments.is_lead`).
+- **A change of lead** (Gate B, item 6.2, migration `0109_lead_change_end_reminder`) is recorded in `client_lead_changes` with an optional **handover note** for the new lead. The note is firm only: the firm admin, the old and the new lead and the client's current lead and deputy read it; the client, other consultants on the team and other firms never do (policy `lead_change_read`). The client's admins read only the new lead's name, through their own notice (`app_lead_change_notices()`), and the old lead is told the client was handed over. Tests: `tests/db/lead-change-end-reminder.test.ts`.
 - The **lead** adds or removes other consultants on that client (`client_assignment.manage`, scope `lead`). Only the admin changes or removes the lead.
 - Consultants see a **directory of client names only** (`app_client_directory()`, no projects, people or files) and can **ask to join** with a reason (`join_requests`). The admin or that client's lead approves or declines; a decision is final and audited.
 - Being on a client's team makes a consultant **eligible**; the client's lead (or the admin) **staffs them on each project**, and they see only those projects (decided 2026-10-20). Leaving the client team takes them off its projects.

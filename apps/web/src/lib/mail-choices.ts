@@ -53,6 +53,9 @@ export const WORK_MAIL_KINDS = [
   // The client's organisation structure (migration 0091): to the client's lead and deputy.
   "org_chart.holder_changed",
   "org_chart.change_requested",
+  // A change of the client's lead consultant (migration 0109): to the client's admins and the old lead.
+  "client.lead_changed",
+  "client.handed_over",
 ] as const;
 
 /** The weekly summary goes out on this day (0 = Sunday, the first day of the Saudi week). */

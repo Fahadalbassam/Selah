@@ -278,6 +278,35 @@ export const clientAssignments = pgTable(
   ],
 );
 
+// Each change of a client's lead consultant (Gate B, item 6.2): who led
+// before (none for a client's first lead), who leads now, who made the
+// change, and the short handover note they may write for the new lead.
+// Firm only: the firm admin, the old and the new lead and the client's
+// current lead and deputy read it; the client never does (RLS, migration
+// 0109). Written by setLead() and by the departure handover; its trigger tells
+// the client's admins who their new lead is and the old lead who took over.
+export const clientLeadChanges = pgTable(
+  "client_lead_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientOrgId: uuid("client_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    firmOrgId: uuid("firm_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    fromUserId: uuid("from_user_id").references(() => user.id, { onDelete: "set null" }),
+    toUserId: uuid("to_user_id").references(() => user.id, { onDelete: "set null" }),
+    changedBy: uuid("changed_by").references(() => user.id, { onDelete: "set null" }),
+    handoverNote: text("handover_note"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("client_lead_changes_client_idx").on(t.clientOrgId, t.createdAt),
+    check("client_lead_change_note", sql`${t.handoverNote} IS NULL OR char_length(${t.handoverNote}) BETWEEN 1 AND 4000`),
+  ],
+);
+
 export const joinRequestStatus = pgEnum("join_request_status", ["pending", "approved", "declined", "withdrawn"]);
 
 // A consultant asking to be assigned to a client. Decided by the firm admin
@@ -1969,6 +1998,27 @@ export const engagements = pgTable(
   (t) => [
     index("engagements_client_idx").on(t.clientOrgId),
     check("engagement_period", sql`${t.endsOn} IS NULL OR ${t.startsOn} IS NULL OR ${t.endsOn} >= ${t.startsOn}`),
+  ],
+);
+
+// The end-of-engagement reminders sent (Gate B, item 6.1): one row per
+// engagement, kind ("ending" before the end date, "ended" after it) and end
+// date, so the daily job sends each once and a new end date re-arms them.
+// Only the job reads or writes it (migration 0109).
+export const engagementReminders = pgTable(
+  "engagement_reminders",
+  {
+    engagementId: uuid("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    endsOn: date("ends_on").notNull(),
+    recipients: uuid("recipients").array().notNull(),
+    sentAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.engagementId, t.kind, t.endsOn] }),
+    check("engagement_reminder_kind", sql`${t.kind} IN ('ending', 'ended')`),
   ],
 );
 

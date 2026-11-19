@@ -33,6 +33,8 @@ export const MAIL_KINDS = [
   "deliverable.commented",
   "org_chart.holder_changed",
   "org_chart.change_requested",
+  "client.lead_changed",
+  "client.handed_over",
 ] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 
@@ -254,7 +256,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     ar: {
       subject: "ملخص جديد في صلة",
       lines: [
-        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو المؤشرات أو الملفات المسلَّمة إليك.",
+        "لديك تذكيرات أو تحديثات جديدة عن إجراءاتك أو المستندات المطلوبة أو المؤشرات أو الملفات المسلَّمة إليك، أو عن تعاقد يقترب من نهايته، أو عن تغيير المستشار الرئيسي.",
         "سجّل الدخول لتراها. يمكنك تغيير عدد هذه الرسائل وتوقيتها من صفحة الإشعارات.",
       ],
       action: "فتح الإشعارات",
@@ -262,7 +264,7 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
     en: {
       subject: "Your Selah summary",
       lines: [
-        "You have new reminders or updates about your actions, requested documents or indicators, or files handed over to you.",
+        "You have new reminders or updates about your actions, requested documents or indicators, files handed over to you, an engagement near its end, or a change of lead consultant.",
         "Sign in to see them. You can change how often and when this mail comes on the notifications page.",
       ],
       action: "Open notifications",
@@ -426,6 +428,33 @@ const COPY: Record<MailKind, { ar: Copy; en: Copy }> = {
         "Read the suggestion in Selah; if you agree, make the change in the draft and publish a new version.",
       ],
       action: "Read the suggestion",
+    },
+  },
+  // A change of the client's lead consultant (Gate B, item 6.2, migration 0109). To the
+  // client's admins: who the new lead is is read in Selah (Help), not in the mail.
+  "client.lead_changed": {
+    ar: {
+      subject: "لشركتكم مستشار رئيسي جديد",
+      lines: ["عيّن المكتب مستشارًا رئيسيًا جديدًا لشركتكم.", "سجّل الدخول لتعرف من هو وكيف تتواصل معه."],
+      action: "فتح صفحة المساعدة",
+    },
+    en: {
+      subject: "Your company has a new lead consultant",
+      lines: ["The firm named a new lead consultant for your company.", "Sign in to see who it is and how to reach them."],
+      action: "Open Help",
+    },
+  },
+  // To the person who led the client before: the client was handed to a colleague. No reason, nothing more.
+  "client.handed_over": {
+    ar: {
+      subject: "انتقلت قيادة أحد عملائك إلى زميل",
+      lines: ["أصبح زميل لك المستشار الرئيسي لأحد العملاء الذين كنت تقودهم.", "سجّل الدخول لترى العميل ومن يقوده الآن."],
+      action: "فتح صفحة العميل",
+    },
+    en: {
+      subject: "A client you led was handed to a colleague",
+      lines: ["A colleague is now the lead consultant for a client you led.", "Sign in to see the client and who leads it now."],
+      action: "Open the client page",
     },
   },
 };

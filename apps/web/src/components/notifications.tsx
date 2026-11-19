@@ -23,6 +23,10 @@ export interface NotificationRow {
   href: string | null;
   /** indicator.moved_away: the figures its line states. */
   facts?: MovedAwayFacts | null;
+  /** A change of lead consultant: the new lead's name. */
+  name?: string | null;
+  /** An engagement near or past its end: its end date. */
+  date?: string | null;
   readAt: string | Date | null;
   createdAt: string | Date;
 }
@@ -31,6 +35,7 @@ export interface NotificationRow {
 function useText() {
   const t = useTranslations("notifications");
   const ar = useLocale() === "ar";
+  const format = useFormatter();
   return (n: NotificationRow) => {
     const title = (ar ? n.titleAr : null) ?? n.title;
     if (!title) return t("gone");
@@ -48,7 +53,9 @@ function useText() {
             ? "follow_up_escalated"
             : "follow_up_overdue"
         : n.kind.replace(/\./g, "_");
-    return t.has(`kinds.${key}`) ? t(`kinds.${key}`, { title, level }) : t("kinds.other", { title });
+    const name = n.name ?? "";
+    const date = n.date ? format.dateTime(new Date(`${n.date}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" }) : "";
+    return t.has(`kinds.${key}`) ? t(`kinds.${key}`, { title, level, name, date }) : t("kinds.other", { title });
   };
 }
 
