@@ -2,13 +2,15 @@ import { Building2, FilePenLine } from "lucide-react";
 import { Tilt, TiltContent } from "@animate-ui/react/primitives/effects/tilt";
 import { MorphTitle } from "@/components/morph";
 import { Lock } from "@/components/animate-ui/icons/lock";
-import { Plus } from "@/components/animate-ui/icons/plus";
 import Link from "next/link";
-import { getLocale, getTranslations } from "next-intl/server";
-import { FormDialog } from "@/components/form-dialog";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { authorize } from "@/authz";
+import { firmToday } from "@/lib/dates";
+import { cn } from "@/lib/utils";
+import { listClients } from "@/services/queries";
+import { NewProjectDialog } from "./new-project";
 import { LinkTabs } from "@/components/link-tabs";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -28,38 +30,41 @@ const KINDS = [
 
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string; view?: string }> }) {
   const { kind, view } = await searchParams;
-  const { projects, firm, table } = await withPrincipal(async (tx, principal) => {
+  const ar = (await getLocale()) === "ar";
+  const { projects, firm, table, newFor, canInternal } = await withPrincipal(async (tx, principal) => {
     // The firm's table view (page audit 4.6): Oversight's columns per project, as counts (D5).
     const table = principal.orgKind === "firm" && view === "table" ? await projectsTable(tx, principal) : null;
-    return { projects: table ? [] : await listProjects(tx, principal), firm: principal.orgKind === "firm", table };
+    const firm = principal.orgKind === "firm";
+    // The clients this person may start a project for (the firm admin: any active one; a lead: theirs).
+    const clients = firm ? await listClients(tx, principal) : [];
+    const newFor = clients
+      .filter(
+        (c) =>
+          c.status === "active" &&
+          !c.prospect &&
+          authorize(principal, "project.create", {
+            type: "project",
+            orgId: c.id,
+            firmOrgId: principal.orgId,
+            projectId: null,
+            projectKind: "client",
+            clientOrgId: c.id,
+          }).allowed,
+      )
+      .map((c) => ({ id: c.id, name: (ar ? c.nameAr : null) ?? c.name }));
+    const canInternal = firm && authorize(principal, "project.create_internal", { type: "project", orgId: principal.orgId, firmOrgId: principal.orgId, projectId: null, projectKind: "internal" }).allowed;
+    return { projects: table ? [] : await listProjects(tx, principal), firm, table, newFor, canInternal };
   });
   const ofKind = <T extends { kind: string }>(list: T[]) => (kind === "internal" || kind === "client" ? list.filter((p) => p.kind === kind) : list);
   const shown = ofKind(projects);
-  const [t, tKind, tS, tNav] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("staffing"), getTranslations("nav")]);
-  const ar = (await getLocale()) === "ar";
+  const [t, tKind, tNav, format] = await Promise.all([getTranslations("projects"), getTranslations("kind"), getTranslations("nav"), getFormatter()]);
+  const today = firmToday();
 
   return (
     <>
       <PageHeader title={t("title")} description={t("subtitle")}>
-        {firm ? (
-          <FormDialog
-            trigger={
-              <Button variant={kind === "internal" ? "default" : "outline"}>
-                <Plus />
-                {tS("newInternal")}
-              </Button>
-            }
-            title={tS("newInternal")}
-            description={tS("newInternalHint")}
-            endpoint="/api/projects/internal"
-            fields={[
-              { name: "title", label: tS("title"), required: true },
-              { name: "description", label: tS("description"), type: "textarea" },
-            ]}
-            submitLabel={tS("create")}
-            redirectTo="/projects/:id"
-          />
-        ) : null}
+        {/* One "New project" (October review, item 3); its first field is the kind. */}
+        {firm ? <NewProjectDialog clients={newFor} internal={canInternal} /> : null}
       </PageHeader>
       {firm ? (
         <LinkTabs
@@ -110,6 +115,14 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                           <span>{t("verified", { n: p.verifiedCount })}</span>
                           <span>{t("awaitingReview", { n: p.awaitingReviewCount })}</span>
                         </div>
+                        {/* The next due date of an open action this reader may read (October review, item 3). */}
+                        {p.state === "closed" ? null : (
+                          <p className={cn("text-xs tabular-nums", p.nextDue && p.nextDue < today ? "font-medium text-destructive" : "text-muted-foreground")}>
+                            {p.nextDue
+                              ? t(p.nextDue < today ? "nextDueLate" : "nextDue", { date: format.dateTime(new Date(`${p.nextDue}T12:00:00Z`), { dateStyle: "medium" }) })
+                              : t("nothingDue")}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   </TiltContent>

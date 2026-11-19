@@ -11,6 +11,7 @@ import { localName } from "@/lib/names";
 import type { listPeople } from "@/services/accounts";
 import type { listVacancies } from "@/services/org-chart";
 import { AccessReview, DomainsDialog, PersonMenu } from "./people-panels";
+import { AccessSection } from "./access-section";
 
 type People = Awaited<ReturnType<typeof listPeople>>;
 type Vacancy = Awaited<ReturnType<typeof listVacancies>>[number];
@@ -168,7 +169,15 @@ export async function PeopleAdmin({
         </Table>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Invitations, mail domains and the access review behind one "Access" line (October review, item 7). */}
+      <AccessSection
+        title={t("access.title")}
+        summary={[
+          t("access.invitations", { n: data.invitations.length }),
+          org.allowedEmailDomains?.length ? t("access.domains", { n: org.allowedEmailDomains.length }) : t("domainsAny"),
+          data.lastAccessReview ? t("reviewLast", { date: day(data.lastAccessReview) }) : t("reviewNever"),
+        ].join(" · ")}
+      >
         <Card className="gap-3 py-5 shadow-xs">
           <CardHeader className="px-5">
             <CardTitle className="text-base">{t("invitations")}</CardTitle>
@@ -234,7 +243,7 @@ export async function PeopleAdmin({
             ) : null}
           </CardContent>
         </Card>
-      </div>
+      </AccessSection>
     </section>
   );
 }

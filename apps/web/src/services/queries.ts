@@ -93,6 +93,12 @@ export async function listProjects(tx: Tx, principal: Principal) {
     actionCount: count(p.id),
     verifiedCount: count(p.id, "verified_complete"),
     awaitingReviewCount: count(p.id, "awaiting_review"),
+    // The next date an open action the reader may read is due (October review, item 3); late ones count.
+    nextDue:
+      counts
+        .filter((c) => c.projectId === p.id && c.nextDue && (OPEN_STATUSES as readonly string[]).includes(c.status))
+        .map((c) => c.nextDue!)
+        .sort()[0] ?? null,
   }));
 }
 
@@ -200,6 +206,8 @@ export async function actionCounts(tx: Tx, principal: Principal, filter: ActionF
       status: actions.status,
       n: sql<number>`count(*)::int`,
       overdue: sql<number>`(count(*) FILTER (WHERE ${actions.dueDate} < ${today}::date AND ${projectNotClosed}))::int`,
+      // The earliest due date in the group (the Projects cards' next due date, October review item 3).
+      nextDue: sql<string | null>`min(${actions.dueDate})::text`,
     })
     .from(actions)
     .where(actionConditions(principal, filter))

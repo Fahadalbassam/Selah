@@ -1,6 +1,5 @@
 import { CalendarDays, CalendarPlus, ClipboardList, ClipboardPen, FilePenLine, UserCheck, UserPlus } from "lucide-react";
 import { MorphTitle } from "@/components/morph";
-import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
 import { FileText } from "@/components/animate-ui/icons/file-text";
@@ -612,16 +611,10 @@ export default async function ProjectPage({
                     <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className={d.limited ? undefined : "ms-auto"}>
                       {tVis(d.visibility)}
                     </Badge>
-                    {d.aiIndexable && data.assistantReads ? (
-                      <Badge variant="outline" className="gap-1">
-                        <Bot className="size-3" />
-                        {t("aiIndexed")}
-                      </Badge>
-                    ) : null}
                     {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                     {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                     {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
-                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} />
+                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} assistantReads={d.aiIndexable && !!data.assistantReads} />
                   </li>
                 ))}
               </ul>

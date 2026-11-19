@@ -253,7 +253,25 @@
     "actions": "{n, plural, one {# action} other {# actions}}",
     "verified": "{n} verified",
     "awaitingReview": "{n} awaiting review",
-    "client": "Client"
+    "client": "Client",
+    "nextDue": "Next due {date}",
+    "nextDueLate": "Late since {date}",
+    "nothingDue": "Nothing due",
+    "new": {
+      "button": "New project",
+      "kind": "Kind of project",
+      "kinds": {
+        "client": "A project for a client",
+        "internal": "An internal project of the firm"
+      },
+      "client": "Client",
+      "pickClient": "Choose the client",
+      "title": "Title",
+      "description": "Description",
+      "create": "Create the project",
+      "clientHint": "It starts as a draft at the client until a signed engagement covers it; finish setting it up on its page.",
+      "internalHint": "The firm's own project, seen by no client; you lead it."
+    }
   },
   "project": {
     "recommendations": "Recommendations",
@@ -2454,7 +2472,12 @@
     },
     "position": "Position in the structure (optional)",
     "positionPlaceholder": "Choose a vacant position",
-    "positionHint": "When the invitation is accepted, the person holds this position from that day if it is still vacant then; if not, you are told, so you can place them."
+    "positionHint": "When the invitation is accepted, the person holds this position from that day if it is still vacant then; if not, you are told, so you can place them.",
+    "access": {
+      "title": "Access",
+      "invitations": "{n, plural, =0 {No open invitations} one {One open invitation} other {# open invitations}}",
+      "domains": "{n, plural, one {One allowed mail domain} other {# allowed mail domains}}"
+    }
   },
   "settings": {
     "title": "Firm settings",
@@ -3704,7 +3727,8 @@
     "withdraw": "Withdraw this file",
     "withdrawHint": "Use this when {title} was the wrong file. It leaves every list and the assistant, stops answering any request it was sent for, and stays on record with your reason. You can then upload the right one.",
     "withdrawReason": "Why is it withdrawn?",
-    "withdrawn": "File withdrawn"
+    "withdrawn": "File withdrawn",
+    "assistantReads": "Available to the assistant"
   },
   "engagements": {
     "title": "Signed engagements",

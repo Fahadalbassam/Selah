@@ -69,27 +69,29 @@ test("the firm admin triages it, books discovery, records the outcome and makes 
   const page = await open(browser, "sara", "en");
   await page.goto("/inquiries");
   await page.getByRole("link", { name: org }).click();
-  await page.getByRole("button", { name: "Mark as triaged" }).click();
-  await expect(page.getByText("Triaged").first()).toBeVisible();
-  await page.getByRole("button", { name: "Assign an owner" }).click();
+  // The steps (batch 5, U16): one current step, one button. A new inquiry first gets an owner, then is marked read.
+  const current = page.locator('[aria-current="step"]');
+  await current.getByRole("button", { name: "Assign an owner" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Assign an owner" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Run the conflict search" }).click();
-  await expect(page.getByRole("button", { name: "Search again" })).toBeVisible();
-  await page.getByRole("button", { name: "Record the check" }).click();
+  await current.getByRole("button", { name: "Mark as triaged" }).click();
+  await expect(page.getByText("Triaged").first()).toBeVisible();
+  await current.getByRole("button", { name: "Run the conflict search" }).click();
+  await current.getByRole("button", { name: "Record the check" }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("Checked against clients and owners");
   await page.getByRole("dialog").getByRole("button", { name: "Record the check" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Book a discovery session" }).click();
+  await current.getByRole("button", { name: "Book a discovery session" }).click();
   const d = page.getByRole("dialog");
   await pickNextMonth(page, d.getByRole("button", { name: "Date", exact: true }));
   await d.getByRole("button", { name: "Book a discovery session" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Record the outcome" }).click();
+  await current.getByRole("button", { name: "Record the outcome" }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("Good fit");
   await page.getByRole("dialog").getByRole("button", { name: "Record the outcome" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Make it a client" }).click();
+  // After the session the proposal is the current step; making it a client is its quiet second way.
+  await current.getByRole("button", { name: "Make it a client" }).click();
   const c = page.getByRole("dialog");
   await c.getByRole("combobox", { name: "Lead consultant (optional)" }).click();
   await page.getByRole("option", { name: /نورة/ }).click();
@@ -120,7 +122,8 @@ test("a consultant asks to join the new client; the lead approves (Arabic)", asy
   expect([403, 404]).toContain(before.status());
 
   const noura = await open(browser, "noura", "ar");
-  await noura.goto(`/clients/${one(`select id from organizations where name='${org}'`)}`);
+  // Join requests are on the client page's People tab (batch 5, page audit 4.4).
+  await noura.goto(`/clients/${one(`select id from organizations where name='${org}'`)}?tab=people`);
   await noura.getByRole("button", { name: t("staffing.approve") }).click();
   await expect(noura.getByText(t("staffing.noRequests"))).toBeVisible();
   // The lead staffs Khalid on the project.

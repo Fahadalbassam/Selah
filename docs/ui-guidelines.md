@@ -250,6 +250,10 @@ Every coloured badge goes through `ToneBadge` (`components/tone-badge.tsx`), so 
 
 Green never means "the client said it's done". A completion claim is `active` or `waiting` until a consultant verifies it.
 
+### 5.4 The six status words (decision D3, batch 5)
+
+Lists, homes, cards and badges show one of six words, never a stored state's own label: **Not started** «لم يبدأ» · **In progress** «قيد التنفيذ» · **Waiting for the firm** «بانتظار المكتب» / **Waiting for the client** «بانتظار العميل» (the firm reads it) or **Waiting for you** «بانتظاركم» (the reader's own side) · **Needs attention** «يحتاج متابعة» · **Verified** «تم التحقق» · **Closed** «مغلق». Which state falls under which word is [the placement table](placement.md), in code `lib/status-words.ts` (tested in `tests/status-words.test.ts`): draw it with `StatusBadge` (an action) or `WordBadge` (anything else), both in `components/status-badge.tsx`, always passing `reader` ("firm" or "client"). The detail page shows the exact state beside the word when the word does not already say it ("Waiting for you · Revision requested"), and a closed action says how it ended ("Closed: risk accepted"). A part at its own level keeps its own label inside a word: an evidence item or a document request is **Accepted** «مقبول» (never "Verified"), **Not needed** or **Not applicable**; a meeting **Held** or **Cancelled**; a pitch **Pitch**. Tones follow the word: Not started `open`, In progress `active`, Waiting `waiting`, Needs attention `problem`, Verified `verified` (an action only: the only green), Closed and a part's settled label `neutral`. Histories and the audit log keep the exact state: they are records.
+
 Plain `Badge` variants are for labels that are not statuses: `outline` for kind and category labels (meeting kind, legal form, priority), `secondary` for "shared" or "settled" facts (shared report, 2FA on), `default` for the one selected item in a set (current template version). Don't use the solid `destructive` badge variant; it is louder than the monochrome UI allows.
 
 ---
@@ -386,6 +390,22 @@ Who: firm admin, consultants (and the lead consultant per client).
 - **Decisions are explicit:** review actions (accept, request revision, waive) are buttons with a clear outcome, behind a dialog when they need a reason. Nothing changes status silently.
 - **People data:** workload is "sorted by name, for allocation, not a rating". Never rank people or colour them by performance.
 - **Consultant-managed clients:** screens that record work on the client's behalf say so (the record source is shown).
+- **The client page** (page audit 4.4, batch 5, `lib/client-tabs.ts`, `tests/client-page.test.ts`): three tabs, **Overview** (the projects with the tab's one solid **New project**, progress across projects, business indicators, and a notice when a join request waits that links to it) · **People** (the firm's team on the client with **Add a consultant**, whose list puts the suggested consultants first with why; the client's accounts, firm admin only; contacts without accounts; join requests; departments) · **Setup** (how the client takes part, legal profile, short names, second sign-off, the client assistant, signed engagements, archive and retention, the conflict check for a pitch), then **Structure**, its own address, once there is one. `?tab=people` and `?tab=setup` are the addresses; `/clients/:id/people` and `/clients/:id/departments` redirect to People (`#accounts`, `#departments`). Watch and delete are in the header's **⋯** (`ClientPageMenu`). Each tab loads only what it draws.
+- **The inquiry page** (U16, batch 5, `lib/inquiry-steps.ts`, `tests/inquiry-steps.test.ts`): one card of five numbered steps, in the order the Inquiries list names them: read it and give it an owner · check for conflicts · hold the discovery session · send the proposal · make it a client. The current step (the first not done, `aria-current="step"`) is the only one with a button, and its one solid button is chosen from the reader's own permissions; when the step is someone else's, one line says whose. A flagged conflict check is drawn as a problem. Closing, reopening and the decline mail are quiet buttons under the steps. Owner, conflict check, rating and NDA stay on the side as facts with their edit (the edit steps back while that step is the current one).
+- **The audit log** (batch 5, `auditLine()` in `lib/audit.ts`, `tests/audit-sentences.test.ts`): each entry is one sentence, Arabic «<ما حدث>، بواسطة <الاسم>» (a verbal noun, so no verb guesses the person's gender), English "<Name> <did what>."; a refused or failed attempt says so ("رُفضت محاولة من …: …"). The person's address and organisation under it; the code name, the record, the network address and the raw details behind **Details** (`EntryDetails`). Every action the app writes has its sentence in `audit.sentences`, both languages.
+
+### Pages kept (October review, item 14)
+
+The October review would fold these into other pages; they stay, each for one reason:
+
+- `/inquiries`: the firm admin's inbox of requests from the public form, worked one by one; no other page lists them.
+- `/templates`: the authors' tool for assessment templates and their versions; a working tool, not a view of a project.
+- `/audit`: a record of its own (who did what, sealed and kept for the retention period); it must not be filtered by another page's rules.
+- `/engagements/:id`: the signed scope and its deliverables, which several projects share; it belongs to no single project.
+- `/assistant`: only the consent and the assistant's own conversation; the assistant is reached from everywhere else by "Ask about".
+- `/projects/:id/import`: a three-step wizard (upload, match, confirm) that cannot fit in a dialog.
+
+(`/group` is not kept: it is a section of the client home, item 8.)
 
 ---
 
