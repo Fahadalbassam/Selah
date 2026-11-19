@@ -2,8 +2,15 @@
 // 160+ synthetic files over three projects, one of them a PDF whose second
 // page is a scan, and a few actions with due dates around today so "due this
 // week" has a right answer. Prints the ids testset-run.ts needs. Then run
-// `npm run job:index-documents` until it indexes nothing more (100 files a round).
-// Synthetic data only; refuses to run in production.
+// `npm run job:index-documents` with S3_BUCKET set to the same eval bucket,
+// until it indexes nothing more (100 files a round).
+//
+// Synthetic data only; refuses to run in production. Two guards, because it
+// writes 160+ rows and files: EVAL_DB_OK must name the database it connects to
+// (`EVAL_DB_OK=selah_test_s`), and the files go to a bucket of their own,
+// EVAL_S3_BUCKET (default `selah-eval`), never the app's `selah-evidence`.
+// The rows go in one transaction: a failure leaves the database as it was (files
+// already put in the eval bucket stay there, unreferenced).
 import { createHash } from "node:crypto";
 import { CreateBucketCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Pool } from "pg";
@@ -11,12 +18,19 @@ import { CORPUS, fileText, type CorpusFile } from "./testset/corpus";
 
 if (process.env.NODE_ENV === "production") throw new Error("refuses to run in production");
 const pool = new Pool({ connectionString: process.env.DATABASE_OWNER_URL, max: 1 });
+const db = await pool.connect();
 const s3 = new S3Client({ endpoint: process.env.S3_ENDPOINT, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId: process.env.S3_ACCESS_KEY!, secretAccessKey: process.env.S3_SECRET_KEY! } });
-const one = async <T,>(q: string, p: unknown[] = []) => (await pool.query(q, p)).rows[0] as T;
+const one = async <T,>(q: string, p: unknown[] = []) => (await db.query(q, p)).rows[0] as T;
+
+const { current_database: dbName } = await one<{ current_database: string }>(`SELECT current_database()`);
+if (process.env.EVAL_DB_OK !== dbName) {
+  throw new Error(`this writes the test set into the database "${dbName}": set EVAL_DB_OK=${dbName} to confirm it is a disposable test database`);
+}
+const bucket = process.env.EVAL_S3_BUCKET || "selah-eval";
+if (bucket === "selah-evidence") throw new Error("the test set's files go to a bucket of their own, never the app's selah-evidence: set EVAL_S3_BUCKET");
 const uid = (email: string) => one<{ id: string }>(`SELECT id FROM "user" WHERE email = $1`, [email]).then((r) => r.id);
 const proj = (title: string) => one<{ id: string; org_id: string; firm_org_id: string }>(`SELECT id, org_id, firm_org_id FROM projects WHERE title = $1`, [title]);
 
-const bucket = process.env.S3_BUCKET!;
 try {
   await s3.send(new HeadBucketCommand({ Bucket: bucket }));
 } catch {
@@ -27,8 +41,9 @@ const U = { khalid: await uid("khalid@mizan.example"), noura: await uid("noura@m
 const P = { board: await proj("حوكمة مجلس الإدارة"), rawdah: await proj("الخطة الاستراتيجية ٢٠٢٧"), waha: await proj("حوكمة الشركة العائلية") };
 if (await one<{ n: number } | undefined>(`SELECT 1 AS n FROM documents WHERE title = $1`, [CORPUS[0]!.title])) throw new Error("the test set is already seeded here");
 
+await db.query("BEGIN");
 // The consultants are staffed on their clients' projects (Khalid is already on Al-Waha's).
-await pool.query(`INSERT INTO project_members (project_id, user_id, is_lead, added_by) VALUES ($1,$2,true,$5),($3,$4,true,$5) ON CONFLICT DO NOTHING`, [P.board.id, U.khalid, P.rawdah.id, U.noura, U.sara]);
+await db.query(`INSERT INTO project_members (project_id, user_id, is_lead, added_by) VALUES ($1,$2,true,$5),($3,$4,true,$5) ON CONFLICT DO NOTHING`, [P.board.id, U.khalid, P.rawdah.id, U.noura, U.sara]);
 
 /** A two-page PDF: page 1 has a text layer (the cover letter), page 2 is only an image, as a scanner makes it. */
 function scannedPdf(coverText: string): Buffer {
@@ -91,7 +106,7 @@ const rem = await one<{ id: string }>(
 );
 const wahaRec = await one<{ id: string }>(`SELECT id FROM recommendations WHERE project_id = $1 AND title = 'ميثاق العائلة'`, [P.waha.id]);
 const act = (p: { id: string; org_id: string }, rec: string, title: string, status: string, days: number, owner: { user?: string; name?: string }) =>
-  pool.query(
+  db.query(
     `INSERT INTO actions (project_id, org_id, recommendation_id, title, status, due_date, owner_user_id, owner_name, created_by)
      VALUES ($1,$2,$3,$4,$5, app_firm_today() + $6::int, $7, $8, $9)`,
     [p.id, p.org_id, rec, title, status, days, owner.user ?? null, owner.name ?? null, U.khalid],
@@ -104,9 +119,11 @@ await act(P.waha, wahaRec.id, "مراجعة سجل المساهمين", "in_prog
 
 // People are registered in Arabic and the files spell them in English; companies go by short names (as seed.ts).
 const alt: [string, string][] = [["reem@nukhba.example", "Reem Al-Harbi"], ["fahd@nukhba.example", "Fahd Al-Dosari"], ["abdullah@nukhba.example", "Abdullah Al-Mutairi"], ["khalid@mizan.example", "Khalid Al-Shammari"], ["hind@rawdah.example", "Hind Al-Zahrani"]];
-for (const [email, name] of alt) await pool.query(`UPDATE "user" SET name_alt = $2 WHERE email = $1`, [email, name]);
+for (const [email, name] of alt) await db.query(`UPDATE "user" SET name_alt = $2 WHERE email = $1`, [email, name]);
 const short: [string, string[]][] = [["Al-Nukhba Holding", ["Al-Nukhba", "النخبة"]], ["Rawdah Foundation", ["Rawdah", "الروضة"]], ["Al-Waha Family Office", ["Al-Waha", "الواحة"]]];
-for (const [name, names] of short) await pool.query(`UPDATE organizations SET short_names = $2 WHERE name = $1`, [name, names]);
+for (const [name, names] of short) await db.query(`UPDATE organizations SET short_names = $2 WHERE name = $1`, [name, names]);
 
-console.log(JSON.stringify({ ids, board: P.board.id, rawdah: P.rawdah.id, waha: P.waha.id }));
+await db.query("COMMIT");
+console.log(JSON.stringify({ ids, board: P.board.id, rawdah: P.rawdah.id, waha: P.waha.id, bucket }));
+db.release();
 await pool.end();

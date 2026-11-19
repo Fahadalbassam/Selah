@@ -66,6 +66,8 @@ The assistant needs two models: a small search model that always runs on your ma
 
 **B. Everything on your machine (no key).** Leave `LLM_PROVIDER=ollama`. The walkthrough then downloads qwen3.5:4b (about 3.3 GB) and answers on the processor: on a 4-core test machine 7 seconds for a short answer and one to two minutes for a long one across all clients (it writes 2 to 6 words a second), plus half a minute for the first one while the model loads. (Those times were measured with the earlier qwen3:4b. With qwen3.5:4b on a laptop processor, a full answer over eight passages took about two minutes: `docs/assistant-eval-results.md`.) The answer appears as it is written, and the assistant card says it is running on this computer. When the walkthrough starts with the local model it prints the four lines above to switch. An NVIDIA card helps if it has room for the model: uncomment the `deploy:` line under `ollama` in `docker-compose.yml`. A 2 GB card such as a GTX 1050 is too small, and Pascal cards (GTX 10 series) need Ollama's CUDA 12 build.
 
+If you ran the walkthrough before the default changed to qwen3.5:4b: the next start downloads it (about 3.3 GB) once. The old model stays in the ollama volume until you remove it: `docker compose exec ollama ollama rm qwen3:4b` (about 2.5 GB freed).
+
 Either way, the assistant reads the sample files and records about a minute after the app starts (it prints "the assistant has read the sample files and records"). Files you add during the walkthrough become searchable within a minute too, once their owner switches on "available to the assistant" on the file.
 
 ## 3. The accounts

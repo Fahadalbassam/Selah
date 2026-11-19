@@ -14,13 +14,21 @@
 //                   model is asked afterwards, so a long run on a slow model
 //                   never holds the database.
 //
-// The model must be local (LLM_PROVIDER=ollama in the AI service): the script
-// refuses to run in full mode when the AI service says it is not.
+// The model must be local. A full run refuses unless AI_SERVICE_URL is on this
+// machine (localhost, 127.0.0.1, ::1) or the compose service "ai", and the AI
+// service reports a local model; it asks again before every answer, so a
+// service switched to a hosted model mid-run stops the run. Masking is off in
+// these runs, which is only safe with a local model.
+//
+// A retrieval run sends only the questions' text to the AI service (to embed
+// them); no file content leaves the database.
 //
 // Env: the web app's settings, plus CONTENT (the JSON testset-seed.ts printed),
 // OUT (results JSON), optionally PAYLOAD_LOG (JSONL from a logging proxy in
 // front of Ollama, for prompt sizes), SHEET (review sheet, Markdown), ONLY=N01,N02.
 import { readFileSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { Pool } from "pg";
 import { asUser } from "@/db/client";
 import { detectLang } from "@/lib/translations";
@@ -38,7 +46,43 @@ const only = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : MODE === 
 const owner = new Pool({ connectionString: process.env.DATABASE_OWNER_URL, max: 2 });
 const q1 = async <T,>(sql: string, p: unknown[] = []) => (await owner.query(sql, p)).rows[0] as T;
 
-if (MODE === "full" && !(await modelIsLocal())) throw new Error("the AI service does not report a local model: full runs use the local model only");
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1", "ai"]);
+async function assertLocalModel() {
+  const host = new URL(process.env.AI_SERVICE_URL ?? "http://unset.invalid").hostname;
+  if (!LOCAL_HOSTS.has(host)) throw new Error(`AI_SERVICE_URL is not on this machine (${host}): full runs use the local model only`);
+  if (!(await modelIsLocal())) throw new Error("the AI service does not report a local model: full runs use the local model only");
+}
+if (MODE === "full") await assertLocalModel();
+
+/**
+ * One POST that waits as long as the model needs. Node's fetch gives up after 300 s without the
+ * reply's first line (its headers timeout), whatever abort signal it is given; a processor-only
+ * model took 350 s on one answer of the first run. node:http has no such limit: only this one.
+ */
+function postJson(url: URL, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown }> {
+  return new Promise((resolve, reject) => {
+    const data = Buffer.from(JSON.stringify(body));
+    const req = (url.protocol === "https:" ? httpsRequest : httpRequest)(
+      url,
+      { method: "POST", headers: { "content-type": "application/json", "content-length": data.length, authorization: `Bearer ${process.env.AI_SERVICE_TOKEN}` } },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, json: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+          } catch (e) {
+            reject(e);
+          }
+        });
+        res.on("error", reject);
+      },
+    );
+    req.setTimeout(timeoutMs, () => req.destroy(new Error("timed out")));
+    req.on("error", reject);
+    req.end(data);
+  });
+}
 
 const U = {
   khalid: (await q1<{ id: string }>(`SELECT id FROM "user" WHERE email = 'khalid@mizan.example'`)).id,
@@ -177,16 +221,17 @@ const answers = new Map<string, { q: string; answer: string }>();
 async function answerOne({ qn, r, prepared: p }: (typeof pending)[number]) {
   const parent = qn.follow ? answers.get(qn.follow) : undefined;
   const history = parent ? [{ role: "user" as const, content: parent.q }, { role: "assistant" as const, content: parent.answer }] : [];
+  // Asked again before every answer: the passages are about to be sent unmasked.
+  await assertLocalModel();
   const before = logLines().length;
   const t1 = performance.now();
-  const res = await fetch(new URL("/v1/answer", process.env.AI_SERVICE_URL), {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${process.env.AI_SERVICE_TOKEN}` },
-    body: JSON.stringify({ question: p.maskedQuestion, passages: p.passages, language: A.answerLanguage(p), history, audience: "staff", progress_draft: p.progressDraft }),
-    signal: AbortSignal.timeout(1_800_000),
-  }).catch(() => null);
+  const res = await postJson(
+    new URL("/v1/answer", process.env.AI_SERVICE_URL),
+    { question: p.maskedQuestion, passages: p.passages, language: A.answerLanguage(p), history, audience: "staff", progress_draft: p.progressDraft },
+    1_800_000,
+  ).catch(() => null);
   r.answerMs = performance.now() - t1;
-  const out = res?.ok ? ((await res.json()) as { answer: string; cited_ids: string[]; grounded: boolean }) : null;
+  const out = res && res.status === 200 ? (res.json as { answer: string; cited_ids: string[]; grounded: boolean }) : null;
   r.promptTokens = logLines()
     .slice(before)
     .map((l) => (JSON.parse(l) as { prompt_eval_count?: number | null }).prompt_eval_count ?? null);

@@ -249,13 +249,16 @@ Run the staff run before `client-seed.ts`, or on a fresh seed: the canary files 
 Scoring needs no model for retrieval: `prepareAsk()` gives exactly what would go to the model, and a passage counts as found when a sent search result contains its text (hit rate, recall, rank of the first right passage). A full run reads the database first (search and passages for every question), then asks the AI service's answer call (the card's prompt and answer check) with no database open, and scores citation support by the same ids; faithfulness is scored by a person on the review sheet it writes. No model judges anything, and a full run refuses unless the AI service reports a local model.
 
 ```sh
-npm run db:seed && npx tsx scripts/assistant-eval/testset-seed.ts > /tmp/testset-ids.json
-npm run job:index-documents && npm run job:index-documents   # 100 files a round
+# A disposable test database only: the seed refuses unless EVAL_DB_OK names the database it is connected to.
+npm run db:seed
+EVAL_DB_OK=selah_test_s EVAL_S3_BUCKET=selah-eval npx tsx scripts/assistant-eval/testset-seed.ts > /tmp/testset-ids.json
+# The files are in their own bucket (never the app's selah-evidence): the index job reads that one.
+S3_BUCKET=selah-eval npm run job:index-documents && S3_BUCKET=selah-eval npm run job:index-documents   # 100 files a round
 CONTENT=/tmp/testset-ids.json MODE=retrieval OUT=/tmp/ts-retrieval.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/testset-run.ts
 CONTENT=/tmp/testset-ids.json MODE=full OUT=/tmp/ts-full.json SHEET=/tmp/ts-review.md PAYLOAD_LOG=… TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/testset-run.ts
 ```
 
-Full runs answer the 20 questions in `FULL_SAMPLE` unless `SAMPLE` or `ONLY` names others. Results: `docs/assistant-eval-results.md`.
+`EVAL_DB_OK` must equal the seed's `current_database()`, and `EVAL_S3_BUCKET` (default `selah-eval`) may not be `selah-evidence`; the seed's rows go in one transaction. A retrieval run sends only the questions' text to the AI service, to embed it. A full run refuses unless `AI_SERVICE_URL` is on this machine (`localhost`, `127.0.0.1`, `::1`) or the compose service `ai` and the AI service reports a local model, and checks again before every answer: it sends passages unmasked. Full runs answer the 20 questions in `FULL_SAMPLE` unless `SAMPLE` or `ONLY` names others. Results: `docs/assistant-eval-results.md`.
 
 ## Not done yet
 

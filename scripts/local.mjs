@@ -401,7 +401,8 @@ function indexLoop(env) {
       child.on("error", () => done({ status: 1 }));
     });
   (async () => {
-    // The embedding model downloads once (about 1.2 GB) into the ollama volume.
+    // The models download once into the ollama volume: bge-m3 (about 1.2 GB), and with the local
+    // chat model also qwen3.5:4b (about 3.3 GB). Indexing waits for that download to finish.
     while (!stopped) {
       const r = docker(["inspect", "-f", "{{.State.Status}} {{.State.ExitCode}}", `${PROJECT}-ollama-pull-1`], { allowFail: true, quiet: true });
       const state = r.stdout?.trim();

@@ -5,8 +5,8 @@ The set is section 7 item 7: `apps/web/scripts/assistant-eval/testset/` (how to 
 ## The machine and the setup
 
 - Laptop: Intel Core i7-13700H, 32 GB RAM, Windows 11. It has an RTX 4060 (8 GB), but the Ollama used here is the lead copy's container (`selah-lead-ollama-1`, Ollama 0.40.6, port 11444), which has **no graphics card attached**: the model ran on the processor (20 threads in Docker Desktop, 16 GB given to Docker). That is closer to today's GTX 1050 server (which also runs the 4B on the processor) than to a 12 GB card, but this processor is faster than the server's.
-- Chat model `qwen3.5:4b` (3.3 GB), `think: false`, `num_ctx` 16384 sent on every call (seen in the request log). Search model `bge-m3`, same Ollama. Masking off (local model).
-- Our own AI service from this branch (port 8951) behind a logging proxy; database `selah_test_s` (`db:seed`, then `testset-seed.ts`, then `job:index-documents` twice); files in a bucket of their own, `selah-eval-s7`.
+- Chat model `qwen3.5:4b` (3.3 GB as Ollama lists it, 3,324,173,934 bytes; section 7's "about 3.4 GB" is the same download), `think: false`, `num_ctx` 16384 sent on every call. Search model `bge-m3`, same Ollama. Masking off (local model).
+- Our own AI service from this branch (port 8951) behind a small logging proxy of my own in front of Ollama (not committed; it wrote each request and Ollama's `prompt_eval_count` to a file). Every `num_ctx` and prompt-size figure below comes from that log; database `selah_test_s` (`db:seed`, then `testset-seed.ts`, then `job:index-documents` twice); files in a bucket of their own, `selah-eval-s7`.
 - 164 files (Al-Nukhba 58, Al-Waha 53, Rawdah 53; 71 Arabic, 69 English, 24 both), 243 marked passages, 18 records from the base seed plus 5 actions with due dates around today. The scanned PDF was indexed with page 1 searchable and page 2 listed for text recognition (`ocr_pages = [2]`). On this machine `pdftotext` (Git for Windows' xpdf 4.00) cannot read from standard input as the jobs image's poppler does, so the job marked the PDF "not searchable"; I indexed that one file with the same code (`pdfPages`, `indexDocument`) from a temporary file. The other 163 went through the job unchanged.
 
 ## Retrieval: all 118 questions, no model
@@ -19,8 +19,8 @@ What `prepareAsk()` would send to the model, scored by the marked passage ids. 8
 | Mean share of the marked passages sent (recall) | 0.89 |
 | Right passage sent first | 59 of 89 (66%) |
 | Arabic questions / English questions | 40 of 43 (93%) / 41 of 46 (89%) |
-| A passage of another project sent | **0** (in 118 questions) |
-| A leak word of another client in what is sent | **0** |
+| A passage sent from a project the asker may not use (one project: that project; "All my clients": the projects the consultant is staffed on) | **0** (in 118 questions) |
+| A leak word in what is sent (checked only for the 8 questions with a `never` list: AC01 to AC03, AC06 and the 4 leak probes) | **0** |
 | Median search time (embedding the question and both searches) | 0.74 s |
 
 By group: facts in English 10/10, facts in Arabic 12/12, similar files (12 monthly reports, 10 contracts, 8 committee minutes and the like, told apart by month or name) 15/15, status 3/3, due this week 3/3, across clients 4/4, exact terms 2/2, scanned 1/1, versions 7/8, cross-language 9/11, long files 13/17, follow-ups across clients 0/1 (plus one more scored only in the full run).
@@ -51,11 +51,11 @@ Final run, 16:12 to 16:55 UTC:
 | Share of each answer's citations that hold a marked passage | 0.87 |
 | Faithful (no claim beyond the cited passages), my review | **16 of 19** |
 | Answer in the question's language | 19 of 20 |
-| Another client's word in an answer | 0 |
+| A leak word in an answer (checked only for the 2 sample questions with a `never` list, AC01 and AC03) | 0 |
 | Median time for one answer | **117 s** (fastest 12 s, slowest 350 s) |
 | Largest prompt | **2,738 tokens**; none above 4,096 |
 
-AC08 (a follow-up across clients) is not scored: the model took 350 s (the request log shows its reply), and the script's request gave up at 300 s, Node's default wait for a reply's first line. That limit is in the script, not the product; next time the script should set a longer one.
+AC08 (a follow-up across clients) is not scored: the model took 350 s (the request log shows its reply), and the script's request gave up at 300 s, Node's fetch limit for a reply's first line, which its longer abort signal did not change. That limit was in the script, not the product; the script now sends this call with `node:http` and a 30-minute limit.
 
 ### The hand review (faithfulness)
 
@@ -103,4 +103,4 @@ The fix is in (`num_ctx` 16384 is sent, seen in every logged request), but this 
 4. Run the same sample on `qwen3.5:9b` and Gemma 4 12B on the laptop's 8 GB card (a separate Ollama with the card attached) to compare on the same 20, and give the script a longer reply wait.
 5. Give the set its own database, not one shared with another builder's tests.
 
-Files of this run (scratch, not committed): `C:\Users\fbass\AppData\Local\Temp\claude\6bb85cd5cd69e2b5\37295649-c1c7-442b-b445-0b309152e6bb\scratchpad\s7\` — `retrieval.json` and `retrieval.log` (all 118), `full-b.json`, `full-b.log` and `review-b.md` (the 20), `full.log` (the stream run that hit the 120 s limit), `payload.jsonl` (every request to the model with its prompt size).
+The run's raw files (results JSON, logs, the review sheet and the request log) stayed on the machine that ran it and are not committed.
