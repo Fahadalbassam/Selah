@@ -50,9 +50,9 @@ function useCall() {
   return { busy, run };
 }
 
-function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
+function Submit({ busy, disabled = false, children }: { busy: boolean; disabled?: boolean; children: ReactNode }) {
   return (
-    <Button type="submit" size="sm" disabled={busy}>
+    <Button type="submit" size="sm" disabled={busy || disabled}>
       {busy ? <BrandLoader tone="current" className="size-4" /> : null}
       {children}
     </Button>
@@ -135,7 +135,7 @@ export function MeetingMenu({ meetingId }: { meetingId: string }) {
 /** Add someone who can open the project, or one of the client's contacts (firm only). */
 export function AddAttendee(props: {
   meetingId: string;
-  /** `leftOut`: this person could not open the meeting (a whole-project meeting, a manager not in every department), with her departments. */
+  /** `leftOut`: this person could not open the meeting (a whole-project meeting, a manager not in every department), with her departments: refused. */
   options: { value: string; label: string; leftOut?: boolean; departmentIds?: string[] }[];
 }) {
   const t = useTranslations("meeting.form");
@@ -169,10 +169,12 @@ export function AddAttendee(props: {
       }}
     >
       <PersonPicker onValueChange={setPick} options={props.options.map(({ value, label }) => ({ value, label }))} placeholder={t("addAttendee")} />
-      {/* Said before saving (decision 1a); adding them anyway is allowed, and the server decides. */}
+      {/* Said before saving (decision 1a); adding them is refused (Gate B, D3), here and on the server. */}
       <LeftOutWarning people={chosen?.leftOut ? [{ name: chosen.label, departmentIds: chosen.departmentIds ?? [] }] : []} booked />
       <div className="flex gap-2">
-        <Submit busy={busy}>{t("add")}</Submit>
+        <Submit busy={busy} disabled={!!chosen?.leftOut}>
+          {t("add")}
+        </Submit>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
           {t("close")}
         </Button>

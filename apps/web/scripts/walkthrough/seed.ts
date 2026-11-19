@@ -564,9 +564,16 @@ const steering = await as(U.lead, (tx, p) =>
     location: "in_person",
     locationText: "مقر الشركة، الرياض — قاعة المجلس",
     spokenLang: "ar",
-    attendees: [{ userId: C.nSponsor }, { userId: C.nManager }, { userId: C.nOwner2 }, { userId: U.consultant }],
+    attendees: [{ userId: C.nSponsor }, { userId: C.nOwner2 }, { userId: U.consultant }],
   }),
 );
+// manager@nukhba.test is limited to the board secretariat, so she can no longer be invited to a meeting
+// of the whole project (Gate B, D3). Both steering meetings keep her as an invitation made before that
+// rule, written directly: the meeting page reads "Can't open this meeting" for her, and no invitation is
+// mailed to her.
+const invitedBefore = (meetingId: string) =>
+  sql(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [meetingId, C.nManager]);
+await invitedBefore(steering.id);
 await as(U.lead, (tx, p) => updateMeeting(tx, p, steering.id, { status: "held" }));
 const decision = await as(U.lead, (tx, p) =>
   recordDecision(tx, p, steering.id, { text: "اعتماد خفض حد الرئيس التنفيذي إلى 750 ألف ريال، وإعادة دراسة حد المدير المالي.", lang: "ar" }),
@@ -590,9 +597,10 @@ const next = await as(U.lead, (tx, p) =>
     location: "online",
     joinUrl: "https://meet.google.com/abc-defg-hij",
     spokenLang: "ar",
-    attendees: [{ userId: C.nSponsor }, { userId: C.nManager }, { userId: C.nAdmin }, { userId: U.consultant }, { userId: U.deputy, optional: true }],
+    attendees: [{ userId: C.nSponsor }, { userId: C.nAdmin }, { userId: U.consultant }, { userId: U.deputy, optional: true }],
   }),
 );
+await invitedBefore(next.id);
 await as(U.lead, (tx, p) => sendInvites(tx, p, next.id));
 await as(U.lead, (tx, p) =>
   bookMeeting(tx, p, board.id, {

@@ -282,7 +282,7 @@ export function ActionPanel(p: Props) {
                 <ReasonDialog
                   key={l}
                   title={tn("stuck")}
-                  hint={t("blockHint")}
+                  hint={p.firmView ? t("blockHintFirm") : t("blockHint")}
                   run={(reason) => transition("blocked", { reason })}
                   onDone={done}
                   trigger={

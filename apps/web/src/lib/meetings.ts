@@ -76,6 +76,7 @@ export function meetingError(message: string | undefined): string | null {
   if (/cannot be moved/.test(message)) return "cannotMove";
   if (/another meeting/.test(message)) return "otherMeeting";
   if (/one of your departments/.test(message)) return "wholeProject";
+  if (/invite them to a department's meeting/.test(message)) return "invitedLimited";
   return null;
 }
 

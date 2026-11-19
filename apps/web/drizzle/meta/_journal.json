@@ -666,6 +666,13 @@
       "when": 1795081064373,
       "tag": "0107_restricted_admin_work",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1795081124373,
+      "tag": "0108_privacy_batch",
+      "breakpoints": true
     }
   ]
 }

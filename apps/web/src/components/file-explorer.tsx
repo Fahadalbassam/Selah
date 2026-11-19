@@ -21,7 +21,7 @@ import { X } from "@/components/animate-ui/icons/x";
 import { AudienceEditor, AudienceField, LimitedMarker, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
-import { FileActions } from "@/components/file-actions";
+import { AssistantWho, FileActions } from "@/components/file-actions";
 import { SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { Badge } from "@/components/ui/badge";
 import { VisibilityBadge } from "@/components/visibility-badge";
@@ -559,7 +559,15 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
         </div>
         <FileVisibility visibility={file.visibility} />
         {pick ? null : (
-          <FileActions id={file.id} title={file.title} visibility={file.visibility} aiIndexable={file.aiIndexable} can={file.can} onChanged={onChanged} />
+          <FileActions
+            id={file.id}
+            title={file.title}
+            visibility={file.visibility}
+            aiIndexable={file.aiIndexable}
+            can={file.can}
+            uploaderName={file.uploaderName}
+            onChanged={onChanged}
+          />
         )}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
@@ -577,13 +585,18 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
             <dd>{department}</dd>
           </>
         ) : null}
-        {file.can.assistant || file.aiIndexable ? (
+        {file.can.assistant || file.can.assistantLocked || file.aiIndexable ? (
           <>
             <dt className="text-muted-foreground">{t("assistant")}</dt>
             <dd>
               <Hint tip={tTip(file.aiIndexable ? "assistant.on" : "assistant.off")}>{file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}</Hint>
               {file.aiIndexable && file.textStatus === "searchable" && file.ocrPages.length ? (
                 <span className="block text-xs text-muted-foreground">{t("ocrPages", { pages: format.list(file.ocrPages.map(String), { type: "unit" }) })}</span>
+              ) : null}
+              {file.can.assistantLocked ? (
+                <span className="block text-xs text-muted-foreground">
+                  <AssistantWho side={file.can.assistantLocked} uploaderName={file.uploadedByMe ? null : file.uploaderName} />
+                </span>
               ) : null}
             </dd>
           </>

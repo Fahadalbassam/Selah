@@ -239,6 +239,10 @@ export const POLICY = {
     client_admin: "owner_org",
     client_manager: "owner_org",
   }, // visibility label, AI flag, shares
+  // The assistant switch on a file (Gate B, D1): on top of document.manage,
+  // only the person who uploaded it or the owning side's admin. The database
+  // agrees (check_document_assistant, 0108).
+  "document.assistant": { firm_admin: "owner_org", consultant: "own", client_admin: "owner_org", client_manager: "own" },
   // Share a client-private file with the firm (one-way). The client admin only.
   "document.share": { client_admin: "owner_org" },
   // Who sees a file (decision of 17 Nov 2026, feature A): it only takes

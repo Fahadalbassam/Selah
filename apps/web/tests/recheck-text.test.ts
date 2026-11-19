@@ -95,7 +95,7 @@ describe("the Progress tab's note says what is true since departments limit read
 });
 
 describe("the invite warnings on the meeting form and the add-attendee form", () => {
-  const keys = ["leftOut", "leftOutNoOffer", "leftOutNoDepartment", "leftOutKeepsDepartment", "departmentOnlyHint"];
+  const keys = ["leftOut", "leftOutOffer", "leftOutNoOffer", "leftOutNoDepartment", "leftOutKeepsDepartment", "departmentOnlyHint"];
 
   it("use no verb or pronoun that fits only a man for the person named (Reem, Sara)", () => {
     for (const key of keys) {
@@ -104,16 +104,18 @@ describe("the invite warnings on the meeting form and the add-attendee form", ()
       expect(a, key).not.toMatch(/يتمكن|لن يتمكنوا|لإشراكه|لإشراكهم|إضافته|إضافتهم|لكنه|استبعده|استبعدهم|يشمله|يشملهم|لإدارته|لإدارتهم|ينتمي|ينتمون|تحجز /);
     }
     const out = tr("ar", "meeting.form")("leftOut", { names: "ريم الحربي", n: 1 });
-    expect(out).toContain("لا يُفتح هذا الاجتماع لـريم الحربي");
+    expect(out).toContain("لا يمكن دعوة ريم الحربي");
   });
 
-  it("say plainly that the calendar invitation still goes out to the person, without the agenda", () => {
+  it("say plainly that the person cannot be invited, and offer a department's meeting instead (Gate B, D3)", () => {
     const a = tr("ar", "meeting.form")("leftOut", { names: "ريم الحربي", n: 1 });
-    expect(a).toContain("تصل دعوة التقويم إلى ريم الحربي");
-    expect(a).toContain("دون جدول الأعمال");
+    expect(a).toContain("لا يمكن دعوة ريم الحربي إلى اجتماع المشروع كاملًا");
+    expect(tr("ar", "meeting.form")("leftOutOffer", { n: 1 })).toContain("اجتماعًا للإدارة المعنية");
     const e = tr("en", "meeting.form")("leftOut", { names: "Reem", n: 1 });
-    expect(e).toMatch(/still get the calendar invitation/);
-    expect(e).toMatch(/not the agenda/);
+    expect(e).toMatch(/can't be invited to a meeting of the whole project/);
+    expect(tr("en", "meeting.form")("leftOutOffer", { n: 1 })).toMatch(/meeting of their department instead/);
+    // Saving is no longer offered anyway.
+    for (const lang of ["ar", "en"] as const) expect(tr(lang, "meeting.form")("leftOut", { names: "x", n: 1 })).not.toMatch(/You can still save|يمكنك الحفظ/);
   });
 });
 

@@ -417,7 +417,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                     {a.role === "optional" ? <span className="text-xs text-muted-foreground"> · {t("optional")}</span> : null}
                   </span>
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                    {a.role === "organizer" ? t("organizer") : t(`response.${a.response}`)}
+                    {a.role === "organizer" ? t("organizer") : a.cannotOpen ? t("response.cannotOpen") : t(`response.${a.response}`)}
                     {canRun && a.role !== "organizer" && meeting.status !== "cancelled" ? (
                       <RemoveAttendee meetingId={meeting.id} attendeeId={a.id} name={a.name ?? "—"} />
                     ) : null}

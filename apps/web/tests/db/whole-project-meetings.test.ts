@@ -175,12 +175,14 @@ beforeAll(async () => {
 
   // Booked the way the screen books them, by the lead.
   M = {
-    // The whole project, inviting a manager with department limits (saved anyway) and an action owner.
-    steer: (await book(U.lead, PN, { title: "Steering committee", attendees: [{ userId: U.nmgr }, { userId: U.owner }, { userId: U.nsponsor }] })).id,
+    // The whole project, with an action owner and a manager no limit stops. The manager with
+    // department limits is added below, as an invitation from before Gate B's D3 (it is refused now).
+    steer: (await book(U.lead, PN, { title: "Steering committee", attendees: [{ userId: U.owner }, { userId: U.nsponsor }] })).id,
     finance: (await book(U.lead, PN, { title: "Finance workshop", departmentId: DEPT.fin, attendees: [{ userId: U.fin }, { userId: U.nmgr }] })).id,
     rawdah: (await book(U.lead, PR, { title: "Rawdah steering", attendees: [{ userId: U.rowner }] })).id,
     rawdahUninvited: (await book(U.lead, PR, { title: "Rawdah board prep" })).id,
   };
+  await q(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [M.steer, U.nmgr]);
   // What came out of the steering meeting.
   await q(`UPDATE meetings SET status = 'held', transcript_consent = true, consent_noted_by = $2 WHERE id = $1`, [M.steer, U.lead]);
   await q(`INSERT INTO meeting_decisions (project_id, org_id, meeting_id, text, visibility, created_by) VALUES ($1,$2,$3,'Decision canary','shared',$4)`, [
@@ -499,10 +501,15 @@ describe("booking a meeting of the whole project", () => {
     await owner.query(`DELETE FROM meetings WHERE id = $1`, [all.id]);
   });
 
-  it("the invitation e-mail and calendar file the limited manager was sent carry no agenda", async () => {
+  it("refuses to invite the limited manager (Gate B, D3), and an invitation from before carries no agenda", async () => {
+    await expect(book(U.lead, PN, { title: "Steering next round", attendees: [{ userId: U.nmgr }] })).rejects.toThrow(/invite them to a department's meeting/);
     await owner.query(`DELETE FROM outbound_emails`);
-    const sent = await book(U.lead, PN, { title: "Steering next round", attendees: [{ userId: U.nmgr }], sendInvites: true });
-    expect(sent.queued).toBe(1);
+    // An invitation made before the rule: no new invitation reaches her (privacy-batch.test.ts), but the
+    // meeting's cancellation does, and it carries no agenda either.
+    const sent = await book(U.lead, PN, { title: "Steering next round" });
+    await owner.query(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [sent.id, U.nmgr]);
+    await owner.query(`UPDATE meetings SET status = 'cancelled' WHERE id = $1`, [sent.id]);
+    await owner.query(`INSERT INTO outbound_emails (to_email, kind, meeting_id) VALUES ('nmgr@example.test','meeting.cancel',$1)`, [sent.id]);
     const mails: OutgoingMail[] = [];
     await runMail(owner, async (m) => void mails.push(m), "https://selah.example");
     const toHer = mails.filter((m) => m.to === "nmgr@example.test");

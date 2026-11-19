@@ -289,6 +289,13 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     });
   }
 
+  // "I am stuck" tells the firm (Gate B, item 1): the client's lead consultant and deputy and the
+  // consultants staffed on the project, each only if the action's label lets them read it. The
+  // owner was told above when someone else marked it. The database decides who (app_tell_firm_stuck).
+  if (input.to === "blocked") {
+    await tx.execute(sql`select app_tell_firm_stuck(${id}::uuid)`);
+  }
+
   // Work waiting for review goes to the project's firm-side audience: the
   // client's lead and the staff on the project (an internal project's leads),
   // plus admins watching it (baseline: Staffed visibility).

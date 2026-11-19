@@ -154,8 +154,10 @@ beforeAll(async () => {
   // The whole project, as "Hand-over of the quarterly reviews" in the walkthrough.
   MEETING = (await book(PR, "Hand-over", [U.radmin, U.rowner])).id;
   OTHER_MEETING = (await book(PO, "Other check-in", [U.oadmin, U.oowner])).id;
-  // The whole project, inviting the limited manager anyway (as on the steering meetings in the walkthrough).
-  STEERING = (await book(PN, "Steering committee", [U.nadmin, U.nmgr])).id;
+  // The whole project, with the limited manager on it as an invitation from before Gate B's D3 (inviting
+  // her is refused now; the steering meetings in the walkthrough keep her the same way).
+  STEERING = (await book(PN, "Steering committee", [U.nadmin])).id;
+  await q(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [STEERING, U.nmgr]);
 });
 
 afterAll(async () => {

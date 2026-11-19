@@ -85,7 +85,8 @@ export interface ControlledFile {
  * controls, 0005).
  *   shareWithClient - firm staff share a firm-only file of a client project (one-way)
  *   shareWithFirm   - a client's admin shares its private file (one-way)
- *   assistant       - the owning side switches "available to the assistant"
+ *   assistant       - switch "available to the assistant": the person who uploaded the file, or the owning side's admin (D1)
+ *   assistantLocked - the owning side sees the switch but it is someone else's (the screen says whose)
  *   newVersion      - the owning side uploads the next version
  *   withdraw        - the uploader takes back a wrong first version nobody relied on yet, on an open project (N8)
  *   audience        - the owning side's firm staff, or the client's admin, choose who sees it (feature A)
@@ -96,11 +97,15 @@ export function fileControls(principal: Principal, loaded: ControlledFile) {
   const manage = authorize(principal, "document.manage", resource).allowed;
   const evidence = doc.purpose === "evidence";
   const live = doc.state !== "archived" && context.latest;
+  const assistantSwitch = manage && live && !evidence && !context.minimal && doc.visibility !== "user_private";
   return {
     shareWithClient:
       manage && live && !evidence && principal.orgKind === "firm" && context.projectKind === "client" && doc.visibility === "firm_private",
     shareWithFirm: live && doc.visibility === "client_private" && authorize(principal, "document.share", resource).allowed,
-    assistant: manage && live && !evidence && !context.minimal && doc.visibility !== "user_private",
+    assistant: assistantSwitch && authorize(principal, "document.assistant", resource).allowed,
+    // The switch exists but is someone else's (D1): the screen says who may change it.
+    // Says which side's admin, since only the owning side gets this far.
+    assistantLocked: assistantSwitch && !authorize(principal, "document.assistant", resource).allowed ? principal.orgKind : null,
     newVersion: manage && live && !evidence && !context.projectClosed,
     withdraw: live && !evidence && !context.projectClosed && resource.createdBy === principal.userId && context.firstVersion && !context.settled,
     audience: live && !evidence && authorize(principal, "document.audience", resource).allowed,
@@ -196,6 +201,8 @@ export async function setAssistantFlag(tx: Tx, principal: Principal, id: string,
   const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.manage", loaded.resource);
+  // Only the person who uploaded it, or the owning side's admin (D1).
+  assertAllowed(principal, "document.assistant", loaded.resource);
   if (!fileControls(principal, loaded).assistant) throw new BadRequestError("this file's assistant flag cannot be changed");
   await tx.update(documents).set({ aiIndexable: on }).where(eq(documents.id, id));
   await audit(tx, {
