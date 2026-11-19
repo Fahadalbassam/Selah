@@ -17,6 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { handOver } from "@/services/accounts";
 import { changeActionOwner, ownerControl, reassignList } from "@/services/action-owner";
 import { transitionAction } from "@/services/actions";
 import { listNotifications } from "@/services/notifications";
@@ -527,5 +528,100 @@ describe("October item 12: verify accepts the files still to check", () => {
     const aid = await waiting(["submitted"]);
     await expect(svc(U.coord, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete", acceptItems: true }))).rejects.toThrow(NOT_FOUND);
     expect(await items(aid)).toEqual(["submitted"]);
+  });
+});
+
+// Follow-up to PR #202: a full client's admin does not do actions, so nobody gives one to them. The
+// list already left them out; the service and the database refuse it too
+// (check_owner_not_full_client_admin(), migration 0111). A restricted client's admin may still be
+// given one (PR #197); the leaver hand-over and reassigning to other client people are unchanged.
+describe("a full client's admin is never given an action", () => {
+  const set = `UPDATE actions SET owner_user_id = $2 WHERE id = $1`;
+  const FULL_ADMIN = /does not own actions/;
+  beforeAll(async () => {
+    // On the project, so only the new rule stands between them and the action.
+    await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P, U.cadmin]);
+  });
+  afterAll(async () => {
+    await q(`UPDATE organizations SET engagement_mode = 'full' WHERE id = $1`, [ACME]);
+    await q(`UPDATE org_memberships SET active = true WHERE org_id = $1`, [ACME]);
+    await q(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P, U.cadmin]);
+  });
+
+  it("the service refuses it, for the client's side and the firm's, and nothing changes", async () => {
+    for (const who of [U.coord, U.cadmin, U.staff, U.lead, U.fadmin]) {
+      await expect(svc(who, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.cadmin })), who).rejects.toThrow(NOT_FOUND);
+    }
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+    expect((await q(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'action.owner_change'`)).rows[0].n).toBe(0);
+  });
+
+  it("the database refuses it in SQL as the app role, from the client's side and the firm's", async () => {
+    for (const who of [U.coord, U.cadmin, U.sponsor, U.staff, U.lead]) {
+      await expect(as(who, (c) => c.query(set, [A.open, U.cadmin])), who).rejects.toThrow(FULL_ADMIN);
+    }
+    // The firm's edit dialog goes the same way.
+    await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+  });
+
+  it("other client people are still given it, by the client and by the firm", async () => {
+    await svc(U.coord, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.mgr }), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.mgr);
+    await as(U.staff, (c) => c.query(set, [A.open, U.owner2]), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner2);
+    await svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.sponsor }), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.sponsor);
+  });
+
+  it("\"Reassign their actions first\" offers the colleagues, not the admin, and the change goes through", async () => {
+    const list = await svc(U.cadmin, (tx, p) => reassignList(tx, p, P, U.owner1));
+    expect(list.length).toBeGreaterThan(0);
+    for (const x of list) {
+      expect(x.control.people.map((y) => y.id)).not.toContain(U.cadmin);
+      expect(x.control.people.map((y) => y.id)).toContain(U.owner2);
+    }
+    await svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, list[0]!.id, { ownerUserId: U.owner2 }), true);
+    expect((await ownerOf(list[0]!.id)).owner_user_id).toBe(U.owner2);
+  });
+
+  it("the leaver hand-over still works, to a colleague and to the admin, who then gives each action on", async () => {
+    await svc(U.cadmin, (tx, p) => handOver(tx, p, U.owner1, { to: U.owner2, kinds: ["action"] }), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner2);
+    // Handing a leaver's work to the admin is the admin's choice there (the leaver's open actions block the switch-off).
+    await svc(U.cadmin, (tx, p) => handOver(tx, p, U.owner2, { to: U.cadmin, kinds: ["action"] }), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.cadmin);
+    await svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.mgr }), true);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.mgr);
+  });
+
+  it("on a restricted client the admin may still be given one (PR #197), in the service and in SQL", async () => {
+    await q(`UPDATE org_memberships SET active = false WHERE org_id = $1 AND role <> 'client_admin'`, [ACME]);
+    await q(`UPDATE organizations SET engagement_mode = 'restricted' WHERE id = $1`, [ACME]);
+    try {
+      await svc(U.lead, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.cadmin }), true);
+      expect((await ownerOf(A.open)).owner_user_id).toBe(U.cadmin);
+      await as(U.staff, (c) => c.query(set, [A.awaiting, U.cadmin]), true);
+      expect((await ownerOf(A.awaiting)).owner_user_id).toBe(U.cadmin);
+    } finally {
+      await q(`UPDATE organizations SET engagement_mode = 'full' WHERE id = $1`, [ACME]);
+      await q(`UPDATE org_memberships SET active = true WHERE org_id = $1`, [ACME]);
+    }
+  });
+
+  it("the rule is about a full client's own active admin only: not a restricted client's, not another client's, not a manager", async () => {
+    const full = async (uid: string, org: string) => (await as(U.staff, (c) => c.query(`SELECT app_full_client_admin($1, $2) AS ok`, [uid, org]))).rows[0].ok;
+    expect(await full(U.cadmin, ACME)).toBe(true);
+    expect(await full(U.coord, ACME)).toBe(false);
+    expect(await full(U.cadmin, OTHER)).toBe(false);
+    try {
+      await q(`UPDATE org_memberships SET active = false WHERE org_id = $1 AND role <> 'client_admin'`, [ACME]);
+      // (A client the firm runs has no active accounts at all, which the database holds, so nothing changes there.)
+      await q(`UPDATE organizations SET engagement_mode = 'restricted' WHERE id = $1`, [ACME]);
+      expect(await full(U.cadmin, ACME)).toBe(false);
+    } finally {
+      await q(`UPDATE organizations SET engagement_mode = 'full' WHERE id = $1`, [ACME]);
+      await q(`UPDATE org_memberships SET active = true WHERE org_id = $1`, [ACME]);
+    }
   });
 });

@@ -36,6 +36,12 @@ export async function canChangeOwner(tx: Tx, actionId: string) {
   return rows[0]?.ok === true;
 }
 
+/** The database's rule (app_full_client_admin): an active client admin of a full client (mode 'full' or not set). */
+async function isFullClientAdmin(tx: Tx, userId: string, orgId: string) {
+  const { rows } = await tx.execute<{ ok: boolean }>(sql`select app_full_client_admin(${userId}::uuid, ${orgId}::uuid) as ok`);
+  return rows[0]?.ok === true;
+}
+
 async function load(tx: Tx, principal: Principal, actionId: string) {
   const loaded = await loadAction(tx, actionId);
   if (!loaded) throw new NotFoundError("action");
@@ -116,6 +122,12 @@ export async function changeActionOwner(tx: Tx, principal: Principal, actionId: 
       .where(and(eq(projectMembers.projectId, action.projectId), eq(projectMembers.userId, ownerUserId), eq(projectMembers.observer, false)))
       .limit(1);
     if (!m) throw new BadRequestError("the owner must be on the project team");
+    // A full client's admin does not do actions, so is never offered (ownerControl) and never
+    // given one; refused like any owner change this reader may not make. The database holds the
+    // same (check_owner_not_full_client_admin(), migration 0111).
+    if (await isFullClientAdmin(tx, ownerUserId, action.orgId)) {
+      throw new ForbiddenError("action.assign_owner", resource, "owner:full-client-admin");
+    }
   }
   // The status is the one read above: the owner changes, nothing else does.
   const updated = await tx
