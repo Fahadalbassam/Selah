@@ -89,6 +89,8 @@ export async function summarizeDocument(
   documentId: string,
   lang: "ar" | "en",
   summarizer: Summarizer = summarizePages,
+  /** maskingOn(), worked out before the transaction by the route; left out, it is asked here. */
+  masked?: boolean,
 ) {
   const doc = await loadForSummary(tx, principal, documentId);
   if (!doc.aiIndexable) throw new ConflictError("this file is not available to the assistant");
@@ -114,7 +116,7 @@ export async function summarizeDocument(
     throw new UnavailableError("this file could not be summarised, try again later");
   let made: Awaited<ReturnType<Summarizer>>;
   // A hosted model gets placeholders for known names (docs/assistant.md).
-  const masker = await projectMasker(tx, doc.projectId);
+  const masker = await projectMasker(tx, doc.projectId, masked);
   try {
     made = await summarizer(
       pages.map((p) => ({ ...p, text: masker.mask(p.text) })),

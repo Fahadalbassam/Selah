@@ -84,6 +84,7 @@ export type Inline = { kind: "text" | "strong" | "code"; text: string } | { kind
 
 export type Block =
   | { kind: "anchor"; id: string }
+  // id is "" when the page already has it (a section id written above, or an earlier heading of the same words).
   | { kind: "heading"; level: 1 | 2 | 3 | 4; text: Inline[]; id: string }
   | { kind: "paragraph"; text: Inline[] }
   | { kind: "quote"; text: Inline[] }
@@ -140,6 +141,8 @@ const cells = (line: string) =>
 export function parseGuide(md: string): Block[] {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const blocks: Block[] = [];
+  // Every id on the page once: a section id written in the file wins over a heading's own ("### Firm admin" under <a id="firm-admin">).
+  const used = new Set([...md.matchAll(/^\s*<a\s+id="([A-Za-z0-9_-]+)"\s*><\/a>\s*$/gm)].map((m) => m[1]!));
   let para: string[] = [];
   const flush = () => {
     if (para.length) blocks.push({ kind: "paragraph", text: parseInline(para.join(" ")) });
@@ -185,7 +188,9 @@ export function parseGuide(md: string): Block[] {
     if (h) {
       flush();
       const text = parseInline(h[2]!.replace(/\s+#+$/, ""));
-      blocks.push({ kind: "heading", level: h[1]!.length as 1 | 2 | 3 | 4, text, id: slug(plain(text)) });
+      const id = slug(plain(text));
+      blocks.push({ kind: "heading", level: h[1]!.length as 1 | 2 | 3 | 4, text, id: used.has(id) ? "" : id });
+      used.add(id);
       continue;
     }
     if (/^(-{3,}|\*{3,})$/.test(t)) {

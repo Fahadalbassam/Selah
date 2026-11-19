@@ -12,6 +12,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -21,6 +22,7 @@ from .config import Settings, get_settings
 from .llm import LLM, json_object, make_llm
 from .prompt import (
     ANSWER_SCHEMA,
+    ASK_WHOLE_ANSWER,
     ORG_DRAFT_SCHEMA,
     SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
@@ -36,6 +38,7 @@ from .prompt import (
     check_org_draft,
     check_summary,
     check_translation,
+    unfinished_reply,
 )
 
 
@@ -156,6 +159,21 @@ async def health() -> dict[str, bool]:
     return {"ok": True}
 
 
+class ModelResponse(BaseModel):
+    # True only when this service runs the local model by its own explicit setting (draft_locally).
+    local: bool
+    model: str
+
+
+@app.get("/v1/model", dependencies=[Depends(require_token)])
+async def model(settings: Annotated[Settings, Depends(get_settings)]) -> ModelResponse:
+    """Where the chat model runs, by this service's own setting, so the web
+    app masks names unless the service itself says the model is local
+    (fail closed: a hosted provider or no setting at all is not local, and the
+    web app masks when it cannot ask)."""
+    return ModelResponse(local=draft_locally(settings), model=settings.llm_model)
+
+
 @app.post("/v1/embed", dependencies=[Depends(require_token)])
 async def embed(req: EmbedRequest, llm: Annotated[LLM, Depends(get_llm)]) -> EmbedResponse:
     return EmbedResponse(vectors=await llm.embed(req.texts))
@@ -181,6 +199,8 @@ async def answer(
 
     system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
+    if unfinished_reply(raw, req.passages):
+        raw = await llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
 
 
@@ -220,17 +240,26 @@ async def answer_stream(
                 if now - last >= TEXT_EVERY_S and (text := partial.text()) != shown:
                     shown, last = text, now
                     yield _line({"type": "text", "text": text})
+            # At most three model runs, on a processor several minutes, still
+            # inside the web's stream limit: the stream, then one chat_json
+            # (which has its own one retry for both providers) either because
+            # the reply was not JSON or because it was only a heading, never both.
             found = json_object(raw)
-            if found is None:
-                # Not JSON: asked again whole with chat_json, which has its own
-                # retry for both providers. Worst case on the local model is
-                # three runs (stream, ask again, retry); on a processor that can
-                # take several minutes, still inside the web's stream limit.
+            asked_again = found is None
+            if asked_again:
+                # Not JSON: asked again whole with chat_json.
                 again = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
                 while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
                     yield _line({"type": "wait"})
                 found = json_object(again.result())
-            yield _line({"type": "done", "answer": check_answer(found or raw, req.passages).model_dump()})
+            reply = found or raw
+            if not asked_again and unfinished_reply(reply, req.passages):
+                # Only a heading, marked grounded: asked once more, whole (check_answer rejects it if it is still a heading).
+                again = asyncio.ensure_future(llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA))
+                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
+                    yield _line({"type": "wait"})
+                reply = json_object(again.result()) or again.result()
+            yield _line({"type": "done", "answer": check_answer(reply, req.passages).model_dump()})
         except Exception:  # noqa: BLE001 - the caller only needs to know it failed
             yield _line({"type": "error"})
 
@@ -271,12 +300,28 @@ async def summarize(
 
 
 def draft_locally(settings: Settings) -> bool:
-    """Whether this service runs the local model by its own setting, given
-    explicitly (LLM_PROVIDER=ollama). A pasted chart is mostly names masking
-    cannot catch, so the org draft never goes to a hosted model: a hosted
-    provider, or no setting at all, refuses (closed by default, whatever the
-    web app believes)."""
-    return "llm_provider" in settings.model_fields_set and settings.llm_provider == "ollama"
+    """Whether this service runs the local model by its own settings: the
+    provider given explicitly as LLM_PROVIDER=ollama, a model that is not one
+    of Ollama's cloud models (a name ending in "-cloud" or ":cloud", which the
+    daemon forwards to ollama.com), and an OLLAMA_URL on this machine or the
+    compose service "ollama". Anything else is not local (closed by default,
+    whatever the web app believes). It decides two things: the org draft runs
+    only when it is true (a pasted chart is mostly names masking cannot
+    catch), and /v1/model tells the web app to mask names unless it is true."""
+    if "llm_provider" not in settings.model_fields_set or settings.llm_provider != "ollama":
+        return False
+    model = settings.llm_model.strip().lower()
+    if model.endswith(("-cloud", ":cloud")):
+        return False
+    try:
+        host = urlsplit(settings.ollama_url.strip()).hostname
+    except ValueError:
+        return False
+    return host in LOCAL_OLLAMA_HOSTS
+
+
+# Where a local Ollama may run: this machine, or the compose service (docker-compose.yml, OLLAMA_URL).
+LOCAL_OLLAMA_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "ollama"})
 
 
 @app.post("/v1/org-chart/draft", dependencies=[Depends(require_token)])

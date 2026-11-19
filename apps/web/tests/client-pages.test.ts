@@ -262,7 +262,6 @@ const CLIENT_KEYS = [
   "action.noMoves",
   "action.move.in_progress",
   "action.move.awaiting_review",
-  "action.move.blocked",
   "action.resume",
   "action.uploadOnly",
   "action.evidenceTitle",

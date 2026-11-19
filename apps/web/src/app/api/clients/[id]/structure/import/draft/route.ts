@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ORG_DRAFT_BODY } from "@/lib/org-chart-import";
 import { route } from "@/server/http";
+import { maskingOn } from "@/services/masking";
 import { draftFromText } from "@/services/org-chart-import";
 
 // Org chart, part 4, step one from pasted text: the assistant drafts rows
@@ -12,6 +13,8 @@ export const POST = route(
     params: z.object({ id: z.uuid() }),
     // Well over the limit, so the service can say in words how much shorter the text must be.
     body: ORG_DRAFT_BODY,
+    // Whether names are masked is asked of the AI service before the transaction opens.
+    prepare: () => maskingOn(),
   },
-  ({ tx, principal, params, body }) => draftFromText(tx, principal, params.id, body.text),
+  ({ tx, principal, params, body, prepared }) => draftFromText(tx, principal, params.id, body.text, prepared),
 );

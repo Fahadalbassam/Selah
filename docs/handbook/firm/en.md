@@ -1,6 +1,6 @@
 # Firm guide
 
-For the firm admin, the lead consultant and deputy, consultants and observers. It starts with what each role does, then the working day, then the tasks one by one. Button and page names are as they appear on screen in English; the Arabic guide is [ar.md](ar.md).
+For the firm admin, the lead consultant and deputy, consultants and observers. It starts with what each role does, then the working day, then the tasks one by one. Button and page names are as they appear on screen in English. [The Arabic guide](ar.md) has the same tasks with the Arabic screen names; in Selah, press **عربي** at the top of the page to open it.
 
 [Handbook front page](../en.md) · [What Selah will not do](../limits/en.md) · [Client guide](../client/en.md)
 

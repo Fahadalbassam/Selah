@@ -137,4 +137,29 @@ describe("reading a guide's Markdown", () => {
     }
     expect(parseInline("[Help](/help)")).toEqual([{ kind: "link", text: "Help", href: "/help" }]);
   });
+
+  it("gives each id once: a written section id wins over its heading's own", () => {
+    const blocks = parseGuide(['<a id="firm-admin"></a>', "### Firm admin", "## Notes", "## Notes"].join("\n"));
+    expect(blocks).toMatchObject([
+      { kind: "anchor", id: "firm-admin" },
+      { kind: "heading", id: "" },
+      { kind: "heading", id: "notes" },
+      { kind: "heading", id: "" },
+    ]);
+  });
+
+  // Phase 3 leftovers, item 11: the English firm guide drew firm-admin, deputy, consultant and observer twice,
+  // and "the Arabic guide is ar.md" printed the bare file name, since a link to another file is drawn as its text.
+  it("has no id twice and no bare file name in the real guides", () => {
+    const content = collectHandbook();
+    for (const [part, texts] of Object.entries(content)) {
+      for (const [l, text] of Object.entries(texts ?? {})) {
+        if (!text) continue;
+        const blocks = parseGuide(text);
+        const ids = blocks.flatMap((b) => (b.kind === "anchor" || b.kind === "heading" ? [b.id] : [])).filter(Boolean);
+        expect(ids.length, `${part} ${l}`).toBe(new Set(ids).size);
+        expect(JSON.stringify(blocks), `${part} ${l}`).not.toMatch(/\b(ar|en)\.md\b/);
+      }
+    }
+  });
 });

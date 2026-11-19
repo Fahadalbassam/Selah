@@ -29,6 +29,8 @@ import { truncateAuditLog } from "./audit-reset";
 const sent = vi.hoisted(() => [] as string[]);
 const answer = vi.hoisted(() => ({ fn: (masked: string) => ({ units: [], positions: [], seen: masked.length }) as { units: unknown[]; positions: unknown[] } }));
 vi.mock("@/services/ai-client", () => ({
+  // The AI service says its model is local (masking.ts asks it): names go out unmasked unless a test sets AI_MASKING=on.
+  modelIsLocal: async () => true,
   draftOrgChart: async (text: string) => {
     sent.push(text);
     return { ...answer.fn(text), model: "fake" };

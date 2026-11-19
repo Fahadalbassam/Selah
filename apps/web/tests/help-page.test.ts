@@ -48,8 +48,8 @@ describe("the page itself", () => {
   it("has no first steps and no second list of the person's actions in its texts", () => {
     for (const m of [ar, en]) {
       expect(Object.keys(m.help)).not.toContain("steps");
-      // Only the action page's "Ask your consultant" button is left of that card.
-      expect(Object.keys(m.help.ask)).toEqual(["button"]);
+      // Nothing is left of the old "Ask your consultant" card: the action page asks through action.next.ask.
+      expect(Object.keys(m.help)).not.toContain("ask");
     }
   });
 });

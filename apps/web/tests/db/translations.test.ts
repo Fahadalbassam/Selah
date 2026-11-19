@@ -16,6 +16,8 @@ import { loadPrincipal } from "@/services/principal";
 
 const fake = vi.hoisted(() => ({ calls: 0, fail: false, echo: false, sent: "" }));
 vi.mock("@/services/ai-client", () => ({
+  // The AI service says its model is local (masking.ts asks it): names go out unmasked unless a test sets AI_MASKING=on.
+  modelIsLocal: async () => true,
   translateText: async (text: string, source: string, target: string) => {
     if (fake.fail) throw new Error("down");
     fake.calls++;
