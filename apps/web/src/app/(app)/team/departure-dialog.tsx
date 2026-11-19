@@ -94,6 +94,8 @@ export function DepartureDialog(props: {
   const day = (iso: string) => (iso ? format.dateTime(new Date(`${iso}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" }) : "");
   const [items, setItems] = useState<Holding[] | null>(null);
   const [positions, setPositions] = useState<HeldPosition[]>([]);
+  // Positions of the firm's draft that plan this person (part 4): leaving removes them. The firm's editors only ever see a number.
+  const [plans, setPlans] = useState(0);
   // Per position: left out, it stays vacant; otherwise who takes it over tomorrow.
   const [replacements, setReplacements] = useState<Record<string, Replacement>>({});
   const [to, setTo] = useState<string>("");
@@ -124,10 +126,11 @@ export function DepartureDialog(props: {
     let live = true;
     fetch(`${base}/holdings`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { items: Holding[]; positions?: HeldPosition[] }) => {
+      .then((d: { items: Holding[]; positions?: HeldPosition[]; plans?: number }) => {
         if (!live) return;
         setItems(d.items);
         setPositions(d.positions ?? []);
+        setPlans(d.plans ?? 0);
       })
       .catch(() => live && setError(tc("errors.generic")));
     return () => {
@@ -262,6 +265,8 @@ export function DepartureDialog(props: {
             {items.some((i) => i.kind === "department_head") ? <p className="text-sm text-muted-foreground">{t("departments")}</p> : null}
           </div>
         ) : null}
+
+        {plans ? <p className="text-sm text-muted-foreground">{t("plans", { n: plans })}</p> : null}
 
         {positions.length ? (
           <div className="rounded-lg border">

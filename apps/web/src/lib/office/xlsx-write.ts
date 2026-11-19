@@ -12,11 +12,12 @@ export interface SheetSpec {
   name: string;
   /** Right-to-left sheet (Arabic). */
   rtl: boolean;
-  columns: { header: string; width?: number }[];
+  /** `text`: the column is formatted as Text, so what someone types there later stays as typed (a code such as 2.10 never becomes the number 2.1). */
+  columns: { header: string; width?: number; text?: boolean }[];
   rows: CellValue[][];
 }
 
-const STYLE = { text: 0, header: 1, date: 2, wrap: 3 } as const;
+const STYLE = { text: 0, header: 1, date: 2, wrap: 3, textFormat: 4 } as const;
 
 function columnLetters(i: number): string {
   let s = "";
@@ -38,7 +39,7 @@ export function sheetName(name: string): string {
 
 function sheetXml(sheet: SheetSpec): string {
   const cols = sheet.columns
-    .map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width ?? 18}" customWidth="1"/>`)
+    .map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width ?? 18}" customWidth="1"${c.text ? ` style="${STYLE.textFormat}"` : ""}/>`)
     .join("");
   const cell = (v: CellValue, r: number, c: number, header: boolean): string => {
     const ref = `${columnLetters(c)}${r}`;
@@ -48,7 +49,7 @@ function sheetXml(sheet: SheetSpec): string {
       const serial = isoToSerial(v.date);
       return serial === null ? "" : `<c r="${ref}" s="${STYLE.date}"><v>${serial}</v></c>`;
     }
-    const style = header ? STYLE.header : v.length > 60 || v.includes("\n") ? STYLE.wrap : STYLE.text;
+    const style = header ? STYLE.header : sheet.columns[c]?.text ? STYLE.textFormat : v.length > 60 || v.includes("\n") ? STYLE.wrap : STYLE.text;
     // Excel's limit for one cell.
     const text = xmlEscape(v.slice(0, 32_000));
     return `<c r="${ref}" t="inlineStr"${style ? ` s="${style}"` : ""}><is><t xml:space="preserve">${text}</t></is></c>`;
@@ -78,11 +79,13 @@ const STYLES =
   `<fill><patternFill patternType="solid"><fgColor rgb="FFEDEDED"/><bgColor indexed="64"/></patternFill></fill></fills>` +
   `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-  `<cellXfs count="4">` +
+  `<cellXfs count="5">` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="top"/></xf>` +
   `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment vertical="top" wrapText="1"/></xf>` +
   `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment vertical="top" horizontal="left"/></xf>` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
+  // Text (number format 49): what is typed into such a cell is kept as typed.
+  `<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment vertical="top"/></xf>` +
   `</cellXfs>` +
   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
   `</styleSheet>`;

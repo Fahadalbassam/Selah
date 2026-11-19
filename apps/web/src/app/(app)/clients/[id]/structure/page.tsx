@@ -14,6 +14,7 @@ import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
 import { droppedHoldings, editorChoices, getPublishedChart, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
+import { canImport, plannedNames } from "@/services/org-chart-import";
 import { ClientTabs } from "../client-tabs";
 
 // A client's organisation structure, firm side: the current version, the
@@ -45,7 +46,11 @@ export default async function ClientStructurePage({
       views,
       view,
       departments: canReadDepartments(principal, id),
+      // Bringing a structure in from Excel, Word or pasted text (part 4): the draft's editors, also before anything exists.
+      canImport: canImport(principal, id),
       choices: editing ? await editorChoices(tx, principal, id) : null,
+      // Who is planned for the draft's positions (part 4): firm only, shown as plans, never as holders.
+      plans: editing && structure.shown?.version.state === "draft" ? await plannedNames(tx, structure.shown.positions.map((p) => p.id)) : {},
       // The positions of the live structure: in the draft editor their holders show, read only (B1).
       liveLineages: editing && structure.current ? (await getPublishedChart(tx, principal, id)).positions.map((p) => p.lineageId) : [],
       candidates: people && structure.can.canChangeHolders ? await holderCandidates(tx, principal, id) : [],
@@ -58,6 +63,7 @@ export default async function ClientStructurePage({
   // Nothing at all yet: only an editor gets here, to start the structure.
   if (!structure.shown && !data.choices) notFound();
   const t = await getTranslations("orgChart");
+  const tImport = await getTranslations("orgChartImport");
   const ar = (await getLocale()) === "ar";
   const { levels, depth: shownLevels } = shownDepth(structure, depth);
   const base = `/clients/${id}/structure`;
@@ -73,6 +79,7 @@ export default async function ClientStructurePage({
       peopleHref={structure.current && structure.can.canChangeHolders ? viewHref(base, null, "people") : null}
       names={!structure.client.minimalRecords}
       banner={!structure.shown}
+      plans={data.plans}
     />
   ) : null;
   // The editors' way to the draft from the current version: a quiet link, never the page's main action.
@@ -92,6 +99,11 @@ export default async function ClientStructurePage({
       <PageHeader title={t("title")} description={t(structureHint({ hasUnits: !!structure.shown?.units.length }))}>
         <div className="flex flex-wrap items-center gap-2">
           {editLink}
+          {data.canImport ? (
+            <Link href={`${base}/import`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              {tImport("button")}
+            </Link>
+          ) : null}
           {structure.shown?.units.length && view === "drawing" ? (
             <StructurePdfButton
               endpoint={`/api/clients/${id}/structure/pdf`}

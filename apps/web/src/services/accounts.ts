@@ -9,6 +9,7 @@ import { isPersonalEmail } from "@/lib/email";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
 import { changeHolder, dayAfter, positionsHeldBy, successorScheduled, vacancyLineage } from "./org-chart";
+import { plansNaming } from "./org-chart-import";
 
 // Accounts (baseline: Accounts): who belongs to an
 // organisation, how they are invited, switched off, re-addressed and
@@ -284,7 +285,9 @@ export async function personHoldings(tx: Tx, principal: Principal, userId: strin
   }));
   // Positions in the client's structure: they never block; each ends on the leaving day unless someone takes it over.
   const positions = m.active ? await positionsHeldBy(tx, principal, m.orgId, userId) : [];
-  return { items, blocking: items.filter((i) => i.blocking).length, positions };
+  // Plans of the firm's draft naming them: leaving removes them. Counted only for the draft's editors (part 4).
+  const plans = m.active ? await plansNaming(tx, m.orgId, userId) : 0;
+  return { items, blocking: items.filter((i) => i.blocking).length, positions, plans };
 }
 
 /**
