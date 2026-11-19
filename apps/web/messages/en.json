@@ -627,7 +627,8 @@
       "allClientHint": "Every project of your company that you can open. Pick one to narrow the answer."
     },
     "writing": "Writing the answer…",
-    "localModel": "The assistant runs on the firm's own server, so answers may take a minute."
+    "localModel": "The assistant runs on the firm's own server, so answers may take a few minutes.",
+    "stillWorking": "Still working. Local answers can take a few minutes."
   },
   "signIn": {
     "title": "Sign in",

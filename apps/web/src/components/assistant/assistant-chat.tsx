@@ -422,7 +422,7 @@ export function Thread({
   chat: Chat | null;
   loading: boolean;
   /** A question on its way, with the answer written so far. */
-  pending: { question: string; writing: boolean; answer: string } | null;
+  pending: { question: string; writing: boolean; answer: string; waiting?: boolean } | null;
   failed: false | "error" | "limit";
   /** Under the empty chat's hint: what the assistant does not do. */
   note?: string;
@@ -498,11 +498,11 @@ export function Thread({
                             <TraceIcon>
                               {pending.writing ? <Sparkles animate loop className="size-4" /> : <Search animate loop className="size-4" />}
                             </TraceIcon>
-                            <TraceTitle>{t(pending.writing ? "writing" : "searching")}</TraceTitle>
+                            <TraceTitle>{t(pending.waiting ? "stillWorking" : pending.writing ? "writing" : "searching")}</TraceTitle>
                           </TraceLine>
                         </Trace>
                       )}
-                      {slow && !pending.answer ? <SlowNotice /> : null}
+                      {pending.waiting && pending.answer ? <StillWorking /> : slow && !pending.answer ? <SlowNotice /> : null}
                     </MessageContent>
                   </Message>
                 </motion.div>
@@ -530,6 +530,19 @@ function SlowNotice() {
         <Hourglass className="size-3.5" />
       </MarkerIcon>
       <MarkerContent>{t("localModel")}</MarkerContent>
+    </Marker>
+  );
+}
+
+/** The model is still working on an answer it has begun showing (asked again, or writing what the screen doesn't show). */
+function StillWorking() {
+  const t = useTranslations("assistant");
+  return (
+    <Marker className="text-xs text-muted-foreground" role="status">
+      <MarkerIcon>
+        <Hourglass className="size-3.5" />
+      </MarkerIcon>
+      <MarkerContent>{t("stillWorking")}</MarkerContent>
     </Marker>
   );
 }

@@ -375,7 +375,10 @@ export function shownSoFar(masker: Masker, text: string) {
  * "Streaming"): {"type": "writing"}, then {"type": "text"} with the answer so
  * far (firm staff only: a client person's answer is shown only after the
  * client filter), then {"type": "done"} with the saved answer, or
- * {"type": "error"}. The answer is saved in a new transaction as the same
+ * {"type": "error"}. {"type": "wait"} at least every 10 seconds while the model
+ * works with nothing to show (on a processor it reads the prompt for minutes
+ * before its first word): the card says it is still working, and the line
+ * keeps any proxy between here and the browser from closing a quiet stream. The answer is saved in a new transaction as the same
  * person, since the one that prepared the question ends when the stream starts.
  */
 export function streamAnswer(principal: Principal, prepared: PreparedAsk): ReadableStream<Uint8Array> {
@@ -397,7 +400,7 @@ export function streamAnswer(principal: Principal, prepared: PreparedAsk): Reada
               prepared.history,
               prepared.client ? "client" : "staff",
               prepared.client ? () => {} : (text) => send({ type: "text", text: shownSoFar(prepared.masker, text) }),
-              { progressDraft: prepared.progressDraft },
+              { progressDraft: prepared.progressDraft, onWait: () => send({ type: "wait" }) },
             )
           : null;
         send({ type: "done", ...(await asUser(principal.userId, (tx) => finishAsk(tx, principal, prepared, result))) });

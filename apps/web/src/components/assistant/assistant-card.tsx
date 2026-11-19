@@ -49,6 +49,8 @@ export interface Pending {
   /** The search is done and the model is writing. */
   writing: boolean;
   answer: string;
+  /** The model is still working with nothing new to show (a slow local model reading the passages). */
+  waiting?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ async function askStreaming(
   body: unknown,
   onWriting: () => void,
   onAnswer: (text: string) => void,
+  onWait: () => void,
 ): Promise<{ conversationId: string; attachments: { id: string; status: AttachStatus }[] } | "limit" | "error"> {
   const res = await fetch("/api/assistant/query", {
     method: "POST",
@@ -79,6 +82,7 @@ async function askStreaming(
       const event = JSON.parse(line) as { type: string; text?: string; conversationId?: string; attachments?: { id: string; status: AttachStatus }[] };
       if (event.type === "writing") onWriting();
       else if (event.type === "text" && event.text !== undefined) onAnswer(event.text);
+      else if (event.type === "wait") onWait();
       else if (event.type === "done" && event.conversationId) return { conversationId: event.conversationId, attachments: event.attachments ?? [] };
       else if (event.type === "error") return "error";
     }
@@ -239,6 +243,8 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
       withFiles,
       () => setPending({ question, writing: true, answer: "" }),
       (answer) => setPending({ question, writing: true, answer }),
+      // Still working, not failed: said from a wait until more of the answer comes.
+      () => setPending((p) => (p && !p.waiting ? { ...p, writing: true, waiting: true } : p)),
     );
     setPending(null);
     if (typeof r === "string") {
