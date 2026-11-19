@@ -886,6 +886,24 @@ def test_chat_calls_wait_minutes_for_the_model_and_embeddings_do_not():
     assert timeouts["/api/embed"]["read"] == 120.0
 
 
+def test_hosted_chat_keeps_the_short_timeout():
+    import httpx
+
+    from app.llm import HostedChatLLM
+
+    seen: list[dict] = []
+
+    def handler(request):
+        seen.append(request.extensions["timeout"])
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"translation": "x"}'}}]})
+
+    llm = HostedChatLLM(Settings(ai_service_token=TOKEN, llm_provider="openai_compat", llm_api_base="https://api.example", llm_api_key="k"))
+    llm._client = httpx.AsyncClient(base_url="https://api.example", transport=httpx.MockTransport(handler), timeout=120.0)
+    asyncio.run(llm.chat_json("sys", "user", {}))
+    # LLM_TIMEOUT_S is for a model on this server's processor only.
+    assert seen[0]["read"] == 120.0
+
+
 def test_ollama_sends_the_context_size():
     sent: list[dict] = []
 

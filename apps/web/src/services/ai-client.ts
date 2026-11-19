@@ -1,4 +1,5 @@
 import "server-only";
+import { Agent } from "undici";
 import { z } from "zod";
 import { env } from "@/env";
 
@@ -16,14 +17,41 @@ const TRANSLATE_TIMEOUT_MS = 300_000;
 /** A file's pages read in, or a pasted org chart written out as rows, or a whole answer (up to three model runs): as long as a streamed answer. */
 const LONG_MODEL_TIMEOUT_MS = 600_000;
 
+const patientAgents = new Map<number, Agent>();
+
+/**
+ * Node's fetch stops waiting for a response's headers after 300 s, and for
+ * the next piece of its body after another 300 s, whatever the call's own
+ * limit says: a 10-minute model call would fail at 5 minutes. A call that
+ * asks the model goes through an agent that waits as long as the call may
+ * take (one agent per limit, kept for its connections). Exported for the tests.
+ */
+export function patientDispatcher(timeoutMs: number): Agent {
+  let agent = patientAgents.get(timeoutMs);
+  if (!agent) {
+    agent = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
+    patientAgents.set(timeoutMs, agent);
+  }
+  return agent;
+}
+
+/** fetch's init with the patient agent (Node's fetch takes an undici dispatcher; the DOM type doesn't know it). */
+const patiently = (init: RequestInit, timeoutMs: number): RequestInit => ({ ...init, dispatcher: patientDispatcher(timeoutMs) }) as RequestInit;
+
 async function call<T>(path: string, body: unknown, schema: z.ZodType<T>, timeoutMs: number): Promise<T> {
   const e = env();
-  const res = await fetch(new URL(path, e.AI_SERVICE_URL), {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const res = await fetch(
+    new URL(path, e.AI_SERVICE_URL),
+    patiently(
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      },
+      timeoutMs,
+    ),
+  );
   if (!res.ok) throw new Error(`ai service ${path} failed: ${res.status}`);
   return schema.parse(await res.json());
 }
@@ -119,12 +147,19 @@ export async function answerStream(
   const total = setTimeout(() => stop.abort(new Error(`ai service: the answer took over ${STREAM_TOTAL_MS / 60_000} minutes`)), STREAM_TOTAL_MS);
   let timer = setTimeout(quiet, STREAM_IDLE_MS);
   try {
-    const res = await fetch(new URL("/v1/answer/stream", e.AI_SERVICE_URL), {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
-      body: JSON.stringify({ question, passages, language, history, audience, progress_draft: opts.progressDraft === true }),
-      signal: stop.signal,
-    });
+    // The service sends its headers at once and a line every 10 s, but the stream's own limits are the ones that should end it.
+    const res = await fetch(
+      new URL("/v1/answer/stream", e.AI_SERVICE_URL),
+      patiently(
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
+          body: JSON.stringify({ question, passages, language, history, audience, progress_draft: opts.progressDraft === true }),
+          signal: stop.signal,
+        },
+        STREAM_TOTAL_MS,
+      ),
+    );
     if (!res.ok || !res.body) throw new Error(`ai service /v1/answer/stream failed: ${res.status}`);
     const decoder = new TextDecoder();
     let buffer = "";

@@ -410,6 +410,8 @@ export function ChatHeader({
 
 // ------------------------------------------------------------- messages
 
+const FAILED_TEXT = { error: "error", limit: "dailyLimit", busy: "busy" } as const;
+
 export function Thread({
   chat,
   loading,
@@ -423,7 +425,7 @@ export function Thread({
   loading: boolean;
   /** A question on its way, with the answer written so far. */
   pending: { question: string; writing: boolean; answer: string; waiting?: boolean } | null;
-  failed: false | "error" | "limit";
+  failed: false | "error" | "limit" | "busy";
   /** Under the empty chat's hint: what the assistant does not do. */
   note?: string;
   /** The model runs on the firm's own server: answers can take a minute. */
@@ -447,7 +449,7 @@ export function Thread({
           {/* A first question that failed leaves the chat empty: say so here, not only in a thread. */}
           {failed ? (
             <Bubble variant="destructive">
-              <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
+              <BubbleContent role="alert">{t(FAILED_TEXT[failed])}</BubbleContent>
             </Bubble>
           ) : null}
         </EmptyHeader>
@@ -502,7 +504,8 @@ export function Thread({
                           </TraceLine>
                         </Trace>
                       )}
-                      {pending.waiting && pending.answer ? <StillWorking /> : slow && !pending.answer ? <SlowNotice /> : null}
+                      {/* Once it says it is still working, that line says it all. */}
+                      {slow && !pending.answer && !pending.waiting ? <SlowNotice /> : null}
                     </MessageContent>
                   </Message>
                 </motion.div>
@@ -510,7 +513,7 @@ export function Thread({
             ) : null}
             {failed ? (
               <Bubble variant="destructive">
-                <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
+                <BubbleContent role="alert">{t(FAILED_TEXT[failed])}</BubbleContent>
               </Bubble>
             ) : null}
           </MessageScrollerContent>
@@ -530,19 +533,6 @@ function SlowNotice() {
         <Hourglass className="size-3.5" />
       </MarkerIcon>
       <MarkerContent>{t("localModel")}</MarkerContent>
-    </Marker>
-  );
-}
-
-/** The model is still working on an answer it has begun showing (asked again, or writing what the screen doesn't show). */
-function StillWorking() {
-  const t = useTranslations("assistant");
-  return (
-    <Marker className="text-xs text-muted-foreground" role="status">
-      <MarkerIcon>
-        <Hourglass className="size-3.5" />
-      </MarkerIcon>
-      <MarkerContent>{t("stillWorking")}</MarkerContent>
     </Marker>
   );
 }

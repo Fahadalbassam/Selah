@@ -1,9 +1,14 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { MAX_ATTACHMENTS } from "@/lib/assistant-attach";
+import { ConflictError } from "@/server/errors";
 import { route } from "@/server/http";
 import { ask, prepareAsk, streamAnswer } from "@/services/assistant";
+import { takeAnswerSlot } from "@/services/assistant-in-flight";
 import { maskingOn } from "@/services/masking";
+
+/** The 409's message when the person already has as many answers on their way as they may; the card says so. */
+const ANSWER_IN_PROGRESS = "answer in progress";
 
 const caseType = z.enum(["recommendation", "action", "finding", "meeting", "document"]);
 const body = z
@@ -28,12 +33,25 @@ const body = z
  * first, here, so their refusals are ordinary error responses. Whether names
  * are masked is asked of the AI service before the transaction opens
  * (prepare), so that call never holds the question counter's lock.
+ * One person may have only so many answers on their way at once
+ * (assistant-in-flight.ts): another is refused with 409 "answer in progress"
+ * before anything is searched or counted.
  */
 export const POST = route({ body, prepare: () => maskingOn() }, async ({ tx, principal, prepared: masked, body: { caseType, caseId, ...rest } }) => {
   const input = { ...rest, case: caseType && caseId ? { type: caseType, id: caseId } : undefined };
-  if (!(await headers()).get("accept")?.includes("application/x-ndjson")) return ask(tx, principal, input, masked);
-  const prepared = await prepareAsk(tx, principal, input, masked);
-  return new Response(streamAnswer(principal, prepared), {
-    headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
-  });
+  const release = takeAnswerSlot(principal.userId, principal.orgKind);
+  if (!release) throw new ConflictError(ANSWER_IN_PROGRESS);
+  let streaming = false;
+  try {
+    if (!(await headers()).get("accept")?.includes("application/x-ndjson")) return await ask(tx, principal, input, masked);
+    const prepared = await prepareAsk(tx, principal, input, masked);
+    const stream = streamAnswer(principal, prepared, release);
+    streaming = true;
+    return new Response(stream, {
+      headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
+    });
+  } finally {
+    // A streamed answer gives its slot back once it is saved (or failed).
+    if (!streaming) release();
+  }
 });

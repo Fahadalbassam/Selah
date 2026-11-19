@@ -31,10 +31,11 @@ class Settings(BaseSettings):
     llm_num_ctx: int = Field(default=16384, ge=2048, le=131072)
     llm_api_base: str = ""
     llm_api_key: str = ""
-    # Connecting to the model server, sending, and embeddings.
+    # Connecting to the model server, sending, embeddings, and every call to
+    # a hosted API (which answers in seconds).
     request_timeout_s: float = 120.0
-    # How long a chat model may take before its reply (or, streamed, before
-    # its next piece). On a processor a model reads a long prompt for minutes
+    # How long the local chat model (Ollama) may take before its reply (or,
+    # streamed, before its next piece). On a processor a model reads a long prompt for minutes
     # before its first word (section 7 test run: up to about 6 minutes for a
     # whole answer), so this matches the web's 10-minute stream limit.
     llm_timeout_s: float = Field(default=600.0, gt=0)

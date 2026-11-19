@@ -305,8 +305,12 @@ async def answer_stream(
             # than leave it holding the model for someone who isn't there.
             if task is not None and not task.done():
                 task.cancel()
+                # asyncio.wait, not await task: the server may cancel this
+                # generator again while it cleans up, and a cancel passed on
+                # into the task would cut httpx's own cleanup short and leave
+                # the connection to Ollama open (and the model running).
                 with suppress(BaseException):
-                    await task
+                    await asyncio.wait({task})
             with suppress(BaseException):
                 await pieces.aclose()  # type: ignore[attr-defined]
 

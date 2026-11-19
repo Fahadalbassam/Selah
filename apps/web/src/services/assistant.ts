@@ -381,7 +381,7 @@ export function shownSoFar(masker: Masker, text: string) {
  * keeps any proxy between here and the browser from closing a quiet stream. The answer is saved in a new transaction as the same
  * person, since the one that prepared the question ends when the stream starts.
  */
-export function streamAnswer(principal: Principal, prepared: PreparedAsk): ReadableStream<Uint8Array> {
+export function streamAnswer(principal: Principal, prepared: PreparedAsk, onEnd: () => void = () => {}): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   // Closed by the person (the card closed, the page left): the answer is still written and saved, for the chat list.
   let gone = false;
@@ -412,6 +412,8 @@ export function streamAnswer(principal: Principal, prepared: PreparedAsk): Reada
           console.error("assistant: could not give the question back", err),
         );
         send({ type: "error" });
+      } finally {
+        onEnd();
       }
       if (!gone) controller.close();
     },

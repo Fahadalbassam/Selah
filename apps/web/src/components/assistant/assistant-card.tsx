@@ -43,6 +43,12 @@ interface Context {
   model: "local" | "hosted";
 }
 
+/** How long a question goes with no answer showing before the card says it is still working (the AI service says so every 10 s). */
+const STILL_WORKING_AFTER_MS = 30_000;
+
+/** Why a question got no answer. */
+export type Failed = "error" | "limit" | "busy";
+
 /** A question on its way: what it is, and the answer written so far. */
 export interface Pending {
   question: string;
@@ -55,19 +61,24 @@ export interface Pending {
 
 /**
  * Asks with the answer streaming in. Gives the saved answer's chat, or why it failed:
- * "limit" (the client's daily limit) or "error".
+ * "limit" (the client's daily limit), "busy" (another answer of theirs is
+ * still on its way) or "error".
  */
 async function askStreaming(
   body: unknown,
   onWriting: () => void,
   onAnswer: (text: string) => void,
   onWait: () => void,
-): Promise<{ conversationId: string; attachments: { id: string; status: AttachStatus }[] } | "limit" | "error"> {
+): Promise<{ conversationId: string; attachments: { id: string; status: AttachStatus }[] } | Failed> {
   const res = await fetch("/api/assistant/query", {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/x-ndjson" },
     body: JSON.stringify(body),
   }).catch(() => null);
+  if (res?.status === 409) {
+    const why = (await res.json().catch(() => null)) as { message?: string } | null;
+    if (why?.message === "answer in progress") return "busy";
+  }
   if (!res?.ok || !res.body) return res?.status === 429 ? "limit" : "error";
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -139,7 +150,8 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
   const [draft, setDraft] = useState<{ projectId: string | null; case: NewChatCase | null }>({ projectId: null, case: null });
   const [pending, setPending] = useState<Pending | null>(null);
   // "limit": the person asked their questions for today (the client assistant's daily limit).
-  const [failed, setFailed] = useState<false | "error" | "limit">(false);
+  // "busy": an answer of theirs is still being written (only so many at once).
+  const [failed, setFailed] = useState<false | Failed>(false);
 
   // Loaded again when the interface language changes, to pick up kept translations.
   const chatKey = chatId ? `${chatId}:${locale}:${chatVersion}` : null;
@@ -239,12 +251,16 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
         };
     // Only the ids: the server checks each file again as this person.
     const withFiles = files.length ? { ...body, attachments: files.map((f) => f.id) } : body;
+    const asked = Date.now();
     const r = await askStreaming(
       withFiles,
       () => setPending({ question, writing: true, answer: "" }),
       (answer) => setPending({ question, writing: true, answer }),
-      // Still working, not failed: said from a wait until more of the answer comes.
-      () => setPending((p) => (p && !p.waiting ? { ...p, writing: true, waiting: true } : p)),
+      // Still working, not failed: said once nothing has shown for a while, and only before any of the answer shows.
+      () =>
+        setPending((p) =>
+          p && !p.waiting && !p.answer && Date.now() - asked >= STILL_WORKING_AFTER_MS ? { ...p, writing: true, waiting: true } : p,
+        ),
     );
     setPending(null);
     if (typeof r === "string") {

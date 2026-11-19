@@ -9,7 +9,9 @@ vi.mock("@/env", () => ({
   env: () => ({ AI_SERVICE_URL: "http://ai.test:8000", AI_SERVICE_TOKEN: "t".repeat(40) }),
 }));
 
-const { answerStream, STREAM_IDLE_MS, STREAM_TOTAL_MS } = await import("@/services/ai-client");
+const { answerStream, patientDispatcher, STREAM_IDLE_MS, STREAM_TOTAL_MS, summarizePages, translateText, draftOrgChart } = await import(
+  "@/services/ai-client"
+);
 
 const WAIT = '{"type":"wait"}\n';
 const DONE = `${JSON.stringify({ type: "done", answer: { answer: "Quarterly.", cited_ids: ["P1"], grounded: true } })}\n`;
@@ -67,6 +69,9 @@ describe("answerStream on a slow model", () => {
     await expect(answer).resolves.toEqual({ answer: "Quarterly.", cited_ids: ["P1"], grounded: true });
     // Each wait reaches the caller, which tells the person it is still working.
     expect(onWait.mock.calls.length).toBeGreaterThanOrEqual(35);
+    // Not Node's 5-minute default for headers and body: the stream's own limits end it.
+    const init = (vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit & { dispatcher?: unknown }])[1];
+    expect(init.dispatcher).toBe(patientDispatcher(STREAM_TOTAL_MS));
   });
 
   it("ends a stream that goes quiet with no waits after the idle limit", async () => {
@@ -100,5 +105,19 @@ describe("answerStream on a slow model", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     await expect(answer).rejects.toThrow(/took over 10 minutes/);
     vi.clearAllTimers();
+  });
+});
+
+describe("calls that are not streamed", () => {
+  it.each([
+    ["a translation", () => translateText("x", "en", "ar"), { text: "س", model: "m" }, 300_000],
+    ["a summary", () => summarizePages([{ n: 1, text: "x" }], "en"), { points: [], model: "m" }, 600_000],
+    ["an org chart draft", () => draftOrgChart("x"), { units: [], positions: [], model: "m" }, 600_000],
+  ])("give %s Node's fetch an agent that waits as long as the call may take", async (_name, run, reply, ms) => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify(reply), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+    await run();
+    const init = (fetch.mock.calls[0] as unknown as [URL, RequestInit & { dispatcher?: unknown }])[1];
+    expect(init.dispatcher).toBe(patientDispatcher(ms));
   });
 });

@@ -87,6 +87,10 @@ services:
     image: ollama/ollama:0.40.6
     volumes: [ollama-models:/root/.ollama]
     ports: ["127.0.0.1:11434:11434"]
+    # One model run at a time: on a processor two answers side by side each
+    # take twice as long, and every waiting answer is held in one queue
+    # (docs/assistant.md, "Streaming").
+    environment: { OLLAMA_NUM_PARALLEL: "1" }
     # For an NVIDIA GPU, uncomment. Pascal cards (GTX 10 series) need Ollama's
     # CUDA 12 build; a 2 GB card such as a GTX 1050 cannot hold qwen3.5:4b.
     # deploy: { resources: { reservations: { devices: [{ driver: nvidia, count: all, capabilities: [gpu] }] } } }
@@ -114,6 +118,8 @@ services:
       LLM_API_BASE: ${LLM_API_BASE:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-16384}
+      # How long the local model may take before its reply or its next piece (seconds).
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-600}
     depends_on: [ollama]
     ports: ["127.0.0.1:8000:8000"]
 
