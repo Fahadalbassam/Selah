@@ -139,7 +139,7 @@ export function ActionBoardTable({ rows, filter, firm, empty }: { rows: BoardRow
                 </TableCell>
                 {review ? null : (
                   <TableCell>
-                    <StatusBadge status={r.status} />
+                    <StatusBadge status={r.status} reader={firm ? "firm" : "client"} />
                   </TableCell>
                 )}
                 {menus ? (

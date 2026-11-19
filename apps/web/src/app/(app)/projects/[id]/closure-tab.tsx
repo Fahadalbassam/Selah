@@ -186,7 +186,7 @@ export async function ClosureTab({
                         </p>
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={i.status} />
+                        <StatusBadge status={i.status} reader={firm ? "firm" : "client"} />
                       </TableCell>
                       <TableCell className="max-w-72 space-y-1 whitespace-normal">
                         {i.disposition ? (

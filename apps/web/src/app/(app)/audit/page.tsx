@@ -8,10 +8,11 @@ import { PageHeader } from "@/components/page-header";
 import { StatTile } from "@/components/stat-tile";
 import { ToneBadge } from "@/components/tone-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { auditActionKey, auditAreaOf, auditFiltersFrom } from "@/lib/audit";
+import { auditActionKey, auditAreaOf, auditFiltersFrom, auditLine } from "@/lib/audit";
 import { withPrincipal } from "@/server/page";
 import { auditChainStatus, listAuditEntries } from "@/services/audit-log";
 import { AuditFilters } from "./filters";
+import { EntryDetails } from "./entry-details";
 
 type Search = Record<string, string | undefined>;
 
@@ -24,7 +25,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     return { log: await listAuditEntries(tx, principal, filters, page), chain: await auditChainStatus(tx, principal) };
   });
   if (!data) notFound();
-  const [t, format, locale] = await Promise.all([getTranslations("audit"), getFormatter(), getLocale()]);
+  const [t, tStatus, format, locale] = await Promise.all([getTranslations("audit"), getTranslations("status"), getFormatter(), getLocale()]);
   const ar = locale === "ar";
   const { log, chain } = data;
   const label = (action: string) => {
@@ -101,57 +102,73 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead>{t("columns.time")}</TableHead>
-                <TableHead>{t("columns.person")}</TableHead>
-                <TableHead>{t("columns.action")}</TableHead>
+                <TableHead>{t("columns.entry")}</TableHead>
                 <TableHead>{t("columns.outcome")}</TableHead>
-                <TableHead>{t("columns.details")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {log.entries.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="text-sm tabular-nums whitespace-nowrap text-muted-foreground">
-                    {format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "medium" })}
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-medium">{e.actorName ?? (e.actorId ? t("unknownPerson") : t("system"))}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {e.actorEmail ? <bdi dir="ltr">{e.actorEmail}</bdi> : null}
-                      {e.actorEmail && e.actorOrg ? " · " : null}
-                      {(ar ? e.actorOrgAr : null) ?? e.actorOrg}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm">{label(e.action)}</p>
-                    <p dir="ltr" className="text-start font-mono text-xs text-muted-foreground">
-                      {e.action}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <ToneBadge tone={tone(e.outcome)}>{t(`outcomes.${e.outcome}`)}</ToneBadge>
-                  </TableCell>
-                  <TableCell className="max-w-80 text-xs whitespace-normal text-muted-foreground">
-                    {e.resourceType ? (
-                      <p>
-                        {t("record")}: <span dir="ltr" className="font-mono">{e.resourceType}{e.resourceId ? ` ${e.resourceId.slice(0, 8)}` : ""}</span>
-                      </p>
-                    ) : null}
-                    {e.reason ? <p>{t("reason")}: <bdi>{e.reason}</bdi></p> : null}
-                    {e.ip ? (
-                      <p>
-                        {t("ip")}: <span dir="ltr" className="font-mono">{e.ip}</span>
-                      </p>
-                    ) : null}
-                    {Object.keys(e.meta).length ? (
-                      <p dir="ltr" className="text-start font-mono break-all">
-                        {Object.entries(e.meta)
-                          .map(([k, v]) => `${k}=${String(v)}`)
-                          .join(" ")}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {log.entries.map((e) => {
+                // One sentence a client admin understands (batch 5); the code name and the raw details behind "Details".
+                const l = auditLine(e, (k) => t.has(`sentences.${k}`));
+                const event =
+                  l.event.kind === "sentence"
+                    ? l.event.from && l.event.to
+                      ? t(`sentences.${l.event.key}` as "sentences.action_transition", { from: tStatus(l.event.from as never), to: tStatus(l.event.to as never) })
+                      : t(`sentences.${l.event.key}` as "sentences.auth_sign_in")
+                    : label(e.action);
+                const name = e.actorName ?? (e.actorId ? t("unknownPerson") : t("system"));
+                return (
+                  <TableRow key={e.id}>
+                    <TableCell className="align-top text-sm tabular-nums whitespace-nowrap text-muted-foreground">
+                      {format.dateTime(e.createdAt, { dateStyle: "medium", timeStyle: "medium" })}
+                    </TableCell>
+                    <TableCell className="max-w-xl space-y-1 align-top whitespace-normal">
+                      <p className="text-sm">{t.rich(l.line, { name, event, who: (c) => <span className="font-medium">{c}</span> })}</p>
+                      {e.actorEmail || e.actorOrg ? (
+                        <p className="text-xs text-muted-foreground">
+                          {e.actorEmail ? <bdi dir="ltr">{e.actorEmail}</bdi> : null}
+                          {e.actorEmail && e.actorOrg ? " · " : null}
+                          {(ar ? e.actorOrgAr : null) ?? e.actorOrg}
+                        </p>
+                      ) : null}
+                      {e.reason ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t("reason")}: <bdi>{e.reason}</bdi>
+                        </p>
+                      ) : null}
+                      <EntryDetails label={t("showDetails")}>
+                        <p dir="ltr" className="text-start font-mono">
+                          {e.action}
+                        </p>
+                        {e.resourceType ? (
+                          <p>
+                            {t("record")}:{" "}
+                            <span dir="ltr" className="font-mono">
+                              {e.resourceType}
+                              {e.resourceId ? ` ${e.resourceId.slice(0, 8)}` : ""}
+                            </span>
+                          </p>
+                        ) : null}
+                        {e.ip ? (
+                          <p>
+                            {t("ip")}: <span dir="ltr" className="font-mono">{e.ip}</span>
+                          </p>
+                        ) : null}
+                        {Object.keys(e.meta).length ? (
+                          <p dir="ltr" className="text-start font-mono break-all">
+                            {Object.entries(e.meta)
+                              .map(([k, v]) => `${k}=${String(v)}`)
+                              .join(" ")}
+                          </p>
+                        ) : null}
+                      </EntryDetails>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <ToneBadge tone={tone(e.outcome)}>{t(`outcomes.${e.outcome}`)}</ToneBadge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

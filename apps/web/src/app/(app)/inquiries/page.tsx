@@ -11,6 +11,8 @@ import { intakeOptions } from "@/services/intake";
 import { clientDirectory } from "@/services/staffing";
 import { EnterInquiryDialog } from "./enter-inquiry";
 import { ToneBadge } from "@/components/tone-badge";
+import { WordBadge } from "@/components/status-badge";
+import { inquiryPlacement } from "@/lib/status-words";
 
 const CLOSED = new Set(["lost", "declined", "spam", "withdrawn"]);
 const VIEWS = ["open", "won", "closed"] as const;
@@ -104,7 +106,7 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
                   </TableCell>
                   <TableCell className="text-sm">{r.urgency ? ti(`urgency.${r.urgency}`) : "—"}</TableCell>
                   <TableCell>
-                    <ToneBadge tone={r.status === "new" ? "new" : "open"}>{t(`statuses.${r.status}`)}</ToneBadge>
+                    <WordBadge placement={inquiryPlacement(r.status)} reader="firm" />
                   </TableCell>
                   <TableCell className="text-sm">
                     {r.ownerName ?? <span className="text-muted-foreground">{t("unassigned")}</span>}

@@ -4,7 +4,7 @@ October review, item 1 (page audit section 7), written in batch 4 before the sha
 
 ## The rules behind the table
 
-- **Six visible words** (decision D3): **Not started** («لم يبدأ») · **In progress** («قيد التنفيذ») · **Waiting for the firm** («بانتظار المكتب») / **Waiting for you** («بانتظاركم»; the firm reads "Waiting for the client») · **Needs attention** («يحتاج متابعة») · **Verified** («تم التحقق») · **Closed** («مغلق»). Lists and homes show the word; the detail page shows the exact state beside it. Batch 5 replaces the badges' words; until then the badges keep today's exact labels, and the column "word" below says which of the six each one becomes.
+- **Six visible words** (decision D3): **Not started** («لم يبدأ») · **In progress** («قيد التنفيذ») · **Waiting for the firm** («بانتظار المكتب») / **Waiting for you** («بانتظاركم»; the firm reads "Waiting for the client») · **Needs attention** («يحتاج متابعة») · **Verified** («تم التحقق») · **Closed** («مغلق»). Lists and homes show the word; the detail page shows the exact state beside it. Since batch 5 the lists and badges of actions, evidence items, document requests, meetings, inquiries and projects draw the word from this table (the date requests on the firm's side of an action page, and requests to close, still print their exact state; their rows are in the code, not yet drawn), in code `lib/status-words.ts` (`StatusBadge` and `WordBadge` in `components/status-badge.tsx`; `tests/status-words.test.ts` checks that every stored state has exactly one of the six). A part's own label (Accepted, Not needed, Not applicable, Held, Cancelled, Pitch) is drawn in place of the word at its level, in grey: only a verified action is green. A request to close (`closure_requests`) waits for the firm while `pending` and is Closed once accepted or declined. Histories and the audit log keep the exact state.
 - **One "yes" verb per level.** **Accept** («قبول») for the parts: an evidence item, a document request, a date change. **Verify** («اعتماد») for the action only, the consultant's check that the work is done. Nothing else is called "verify", and nothing else turns green.
 - **"Waiting for" names who must move next**, never who is late. The reader's own side is "you" or "your company", never "the client".
 - **A closed action says how it ended**: "Closed: risk accepted" («مغلق: قُبلت المخاطر»), "Closed: not applicable", "Closed: partly done", "Closed: replaced by …". Closed is never green.
@@ -79,7 +79,8 @@ The stored word for the firm's yes on a request is `reviewed`; on screen it is *
 |---|---|---|
 | `new` | Waiting for the firm | Assign an owner |
 | `triaged`, `discovery_scheduled` | In progress | Book or hold the discovery session |
-| `discovery_done`, `proposal_sent` | Waiting for the client (the prospect) | Record the answer |
+| `discovery_done` | In progress (the firm sends the proposal next) | Proposal sent |
+| `proposal_sent` | Waiting for the client (the prospect) | Make it a client, or close it with the answer |
 | `won` | Closed: won (the client is created) | none |
 | `lost`, `declined`, `withdrawn`, `spam` | Closed: *the reason* | none |
 

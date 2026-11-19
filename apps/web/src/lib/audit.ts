@@ -90,6 +90,41 @@ export function auditAreaOf(action: string): AuditArea | null {
 /** The message key under audit.actions (message keys can't hold dots). */
 export const auditActionKey = (action: string) => action.replaceAll(".", "_");
 
+/** The action states the status-change sentence may name (the exact stored state: the log is a record). */
+const ACTION_STATES = new Set(["draft", "assigned", "in_progress", "blocked", "awaiting_review", "revision_requested", "verified_complete", "closed"]);
+
+export interface AuditLine {
+  /** The sentence's frame under `audit`: done, refused, failed, or a label with no sentence of its own. */
+  line: "line" | "lineLabel" | "lineRefused" | "lineFailed";
+  /** What happened: a sentence under `audit.sentences`, or a label under `audit.actions`. */
+  event: { kind: "sentence"; key: string; from?: string; to?: string } | { kind: "label"; key: string };
+}
+
+/**
+ * One audit entry as a plain sentence (batch 5): Arabic "<what>، بواسطة
+ * <who>" (no verb that guesses the person's gender), English "<who> <did
+ * what>.". A refused or failed attempt names what was tried by its label.
+ * Which sentences exist is the message file's business (`hasSentence`); the
+ * code name never reaches the sentence.
+ */
+export function auditLine(
+  e: { action: string; outcome: string; meta: Record<string, unknown> },
+  hasSentence: (key: string) => boolean = () => true,
+): AuditLine {
+  const key = auditActionKey(e.action);
+  if (e.outcome === "deny") return { line: "lineRefused", event: { kind: "label", key } };
+  if (e.outcome === "error") return { line: "lineFailed", event: { kind: "label", key } };
+  if (e.action === "action.transition") {
+    const from = String(e.meta.from ?? "");
+    const to = String(e.meta.to ?? "");
+    return ACTION_STATES.has(from) && ACTION_STATES.has(to)
+      ? { line: "line", event: { kind: "sentence", key, from, to } }
+      : { line: "lineLabel", event: { kind: "label", key } };
+  }
+  if (!hasSentence(key)) return { line: "lineLabel", event: { kind: "label", key } };
+  return { line: "line", event: { kind: "sentence", key } };
+}
+
 /** One CSV cell: quoted, and text a spreadsheet would run as a formula starts with an apostrophe. */
 export function csvCell(value: string | number | null | undefined): string {
   let s = value == null ? "" : String(value);

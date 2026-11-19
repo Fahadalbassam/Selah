@@ -18,7 +18,7 @@ import { RequestRow } from "@/components/request-row";
 import { RowMenu, useRowCall } from "@/components/row-menu";
 import { SendFileButton, SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { SectionHeader } from "@/components/section-header";
-import { ToneBadge, type Tone } from "@/components/tone-badge";
+import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -28,12 +28,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { DialogControl } from "@/hooks/use-dialog-control";
 import { INFO_REQUEST_AREAS, INFO_REQUEST_TEMPLATES, NO_OWNER, requestTitle } from "@/lib/info-requests";
 import { requestRowPlan } from "@/lib/row-actions";
+import { infoRequestPlacement, labelKey, placementTone, type Reader } from "@/lib/status-words";
 import { UPLOAD_LINK_DAY_CHOICES, UPLOAD_LINK_DAYS } from "@/lib/upload-links";
 import type { InfoRequestList } from "@/services/info-requests";
 
 type Item = InfoRequestList["items"][number];
 
-const TONES: Record<Item["status"], Tone> = { requested: "open", received: "active", reviewed: "verified", not_applicable: "neutral" };
 
 /**
  * The project's information request list (wave 1, item 9): what the firm
@@ -41,7 +41,7 @@ const TONES: Record<Item["status"], Tone> = { requested: "open", received: "acti
  * file (or says it does not apply); the firm reviews it or returns it with a
  * reason. The server decides every step again.
  */
-export function InfoRequestsTab({ projectId, list }: { projectId: string; list: InfoRequestList }) {
+export function InfoRequestsTab({ projectId, list, reader }: { projectId: string; list: InfoRequestList; reader: Reader }) {
   const t = useTranslations("infoRequests");
   const ar = useLocale() === "ar";
   const { items, can, owners } = list;
@@ -92,7 +92,7 @@ export function InfoRequestsTab({ projectId, list }: { projectId: string; list: 
               {items
                 .filter((i) => i.area === area)
                 .map((i) => (
-                  <ItemRow key={i.id} item={i} ar={ar} files={list.files} ownerOptions={ownerOptions} projectId={projectId} />
+                  <ItemRow key={i.id} item={i} ar={ar} files={list.files} ownerOptions={ownerOptions} projectId={projectId} reader={reader} />
                 ))}
             </ul>
           </section>
@@ -140,14 +140,17 @@ function ItemRow({
   files,
   ownerOptions,
   projectId,
+  reader,
 }: {
   item: Item;
   ar: boolean;
   files: InfoRequestList["files"];
   ownerOptions: { value: string; label: string }[];
   projectId: string;
+  reader: Reader;
 }) {
   const t = useTranslations("infoRequests");
+  const tw = useTranslations("statusWords");
   const tc = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
@@ -184,7 +187,7 @@ function ItemRow({
       <RequestRow
         title={title}
         description={i.description}
-        state={{ label: t(`status.${i.status}`), tone: TONES[i.status] }}
+        state={{ label: tw(labelKey(infoRequestPlacement(i.status), reader)), tone: placementTone(infoRequestPlacement(i.status)) }}
         badges={
           <>
             {i.sensitivity === "confidential" ? (

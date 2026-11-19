@@ -209,7 +209,7 @@ export async function FirmHomeLists({ data, open }: { data: FirmHome; open: Sect
                   {day(r.dueDate)}
                   {r.overdue ? <span className="ms-1">({tTable("overdue")})</span> : null}
                 </span>
-                <StatusBadge status={r.status as ActionStatus} />
+                <StatusBadge status={r.status as ActionStatus} reader="firm" />
               </>
             }
             step={tSteps("open")}

@@ -12,7 +12,8 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Bot } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -25,6 +26,8 @@ export interface FileActionsProps {
   can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean; withdraw: boolean; audience?: boolean };
   /** After a change; refreshes the page when not given. */
   onChanged?: () => void;
+  /** The assistant may read this file here: said as the menu's first line, not a badge on the row (October review, item 7). */
+  assistantReads?: boolean;
 }
 
 /**
@@ -33,7 +36,7 @@ export interface FileActionsProps {
  * new version. Used wherever files are listed, so every screen offers the
  * same choices. Renders nothing when there is nothing to offer.
  */
-export function FileActions({ id, title, visibility, aiIndexable, can, onChanged }: FileActionsProps) {
+export function FileActions({ id, title, visibility, aiIndexable, can, onChanged, assistantReads = false }: FileActionsProps) {
   const t = useTranslations("fileActions");
   const tc = useTranslations("common");
   const ta = useTranslations("audience");
@@ -50,7 +53,7 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
   const [error, setError] = useState<string | null>(null);
   const done = () => (onChanged ? onChanged() : router.refresh());
 
-  if (!can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw && !can.audience) return null;
+  if (!assistantReads && !can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw && !can.audience) return null;
 
   async function share(message: string) {
     if (!(await confirm(message))) return;
@@ -125,6 +128,15 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {assistantReads ? (
+            <>
+              <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                <Bot className="size-3.5" />
+                {t("assistantReads")}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {can.shareWithClient ? (
             <DropdownMenuItem onSelect={() => (setAudience({ value: null, dirty: false }), setError(null), setShareOpen(true))}>
               {t("shareWithClient")}

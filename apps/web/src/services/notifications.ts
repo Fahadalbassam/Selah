@@ -17,6 +17,7 @@ import {
   supportRequests,
 } from "@/db/schema";
 import type { Principal } from "@/authz";
+import { clientTabHref } from "@/lib/client-tabs";
 import { firmToday } from "@/lib/dates";
 import type { MovedAwayFacts } from "@/lib/indicator-notice";
 import type { IndicatorDirection, IndicatorFrequency } from "@/lib/indicators";
@@ -227,13 +228,13 @@ function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Pr
   // Reported problems: the firm admin reads them on the home (page audit 4.2), the reporter on the help page.
   if (kind === "support.requested") return "/#problems";
   if (kind === "support.handled") return "/help";
-  // The client assistant (F39): the client's admin reads the notice; the firm sees the client page's card.
+  // The client assistant (F39): the client's admin reads the notice; the firm sees the card on the client page's Setup tab.
   if (kind === "client_ai.offered") return "/assistant";
-  if (kind.startsWith("client_ai.")) return `/clients/${entityId}`;
+  if (kind.startsWith("client_ai.")) return clientTabHref(entityId, "setup");
   // The closing pulse is answered, and read, on the project's closing tab.
   if (kind.startsWith("pulse.") || kind.startsWith("case_study.")) return `/projects/${entityId}?tab=closing`;
-  // A client confirmed receiving its export pack: the firm admin sees it on the client page.
-  if (kind === "client.pack_received") return `/clients/${entityId}`;
+  // A client confirmed receiving its export pack: the firm admin sees it on the client page's Setup tab.
+  if (kind === "client.pack_received") return clientTabHref(entityId, "setup");
   // Archiving and restoring reach the client's admins, who have no client page.
   if (kind.startsWith("client.")) return "/";
   // Indicators waiting for this period's values are listed on the client's overview.

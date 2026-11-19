@@ -2,11 +2,12 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
 import { Meter, StatTile } from "@/components/stat-tile";
-import { ToneBadge } from "@/components/tone-badge";
+import { WordBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { env } from "@/env";
 import { localLabel } from "@/lib/names";
+import { projectPlacement } from "@/lib/status-words";
 import type { ClientNumbers, ClientOverview } from "@/services/client-overview";
 
 /**
@@ -107,9 +108,8 @@ export async function ClientProgress({
                       <Link href={`/projects/${p.id}`} className="font-medium hover:underline" dir="auto">
                         {p.sequence ? tPh("numbered", { n: p.sequence, title: p.title }) : p.title}
                       </Link>
-                      {p.state === "active" ? null : (
-                        <ToneBadge tone={p.state === "closed" ? "neutral" : "open"}>{tPh(`states.${p.state}`)}</ToneBadge>
-                      )}
+                      {/* One of the six words (D3); a project's word never waits on a side. */}
+                      {p.state === "active" ? null : <WordBadge placement={projectPlacement(p.state)} reader="firm" />}
                     </span>
                   </TableCell>
                   {columns(p.numbers)}

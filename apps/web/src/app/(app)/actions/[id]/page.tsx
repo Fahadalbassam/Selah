@@ -203,7 +203,12 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         meta={
           <>
             <VerifiedBurst actionId={action.id} verified={action.status === "verified_complete"}>
-              <StatusBadge status={action.status} />
+              <StatusBadge
+                status={action.status}
+                reader={firmView ? "firm" : "client"}
+                exact
+                outcome={closing.closure?.outcome ? t(`closure.outcomes.${closing.closure.outcome}`) : null}
+              />
             </VerifiedBurst>
             {action.dueDate && !finished ? (
               <span className={cn("text-sm tabular-nums", action.overdue ? "font-medium text-destructive" : "text-muted-foreground")}>

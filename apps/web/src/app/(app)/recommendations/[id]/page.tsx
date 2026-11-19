@@ -232,7 +232,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
                         {a.title}
                       </MorphTitle>
                     </Link>
-                    <StatusBadge status={a.status} />
+                    <StatusBadge status={a.status} reader={data.firmStaff ? "firm" : "client"} />
                     <span className="w-28 text-xs text-muted-foreground tabular-nums">{a.dueDate ? day(a.dueDate) : "—"}</span>
                     <span className="w-36 truncate text-xs text-muted-foreground">{a.ownerName ?? "—"}</span>
                   </li>

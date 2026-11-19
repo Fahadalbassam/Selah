@@ -1,41 +1,12 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getLocale, getTranslations } from "next-intl/server";
-import { DepartmentsManager } from "@/components/departments-manager";
-import { PageHeader } from "@/components/page-header";
+import { notFound, redirect } from "next/navigation";
 import { isUuid } from "@/lib/ids";
-import { localName } from "@/lib/names";
-import { withPrincipal } from "@/server/page";
-import { listPeople } from "@/services/accounts";
-import { canReadDepartments, getEngagement } from "@/services/engagement";
-import { hasStructure } from "@/services/org-chart";
-import { ClientTabs } from "../client-tabs";
+import { oldClientPageTarget } from "@/lib/client-tabs";
 
-// A client's departments, from the firm side. The firm admin manages them.
-// A firm person outside the client's team gets Not found, never an error.
+// The client's departments are a section of the client page's People tab now
+// (page audit 4.4, batch 5). The old address goes on there; the page itself
+// decides who may read them.
 export default async function ClientDepartmentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const data = await withPrincipal(async (tx, principal) => {
-    if (principal.orgKind !== "firm" || !canReadDepartments(principal, id)) return null;
-    const engagement = await getEngagement(tx, principal, id);
-    const people = engagement.canManageDepartments ? (await listPeople(tx, principal, id)).people.filter((p) => p.active) : [];
-    return { engagement, people, structure: await hasStructure(tx, principal, id) };
-  });
-  if (!data) notFound();
-  const t = await getTranslations("engagement.departments");
-  const ar = (await getLocale()) === "ar";
-  const org = data.engagement;
-  return (
-    <>
-      <Link href={`/clients/${id}`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4 rtl:-scale-x-100" />
-        {localName(org, ar)}
-      </Link>
-      <ClientTabs clientId={id} current="departments" structure={data.structure} departments />
-      <PageHeader title={t("title")} description={t("hint")} />
-      <DepartmentsManager data={org} people={data.people.map((p) => ({ userId: p.userId, name: p.name }))} />
-    </>
-  );
+  redirect(oldClientPageTarget(id, "departments"));
 }

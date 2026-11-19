@@ -1,6 +1,5 @@
 import { CalendarDays, CalendarPlus, ClipboardList, ClipboardPen, FilePenLine, UserCheck, UserPlus } from "lucide-react";
 import { MorphTitle } from "@/components/morph";
-import { Bot } from "@/components/animate-ui/icons/bot";
 import { Crown } from "@/components/animate-ui/icons/crown";
 import { Eye } from "@/components/animate-ui/icons/eye";
 import { FileText } from "@/components/animate-ui/icons/file-text";
@@ -32,6 +31,8 @@ import { localLabel, localName } from "@/lib/names";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { parsePlanRule, PLAN_RULES, type PlanRule } from "@/lib/plan-rules";
 import { isOldTab, oldTabTarget, openTab, projectTabHref } from "@/lib/project-tabs";
+import { meetingPlacement } from "@/lib/status-words";
+import { WordBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { isOverdue } from "@/services/queries";
@@ -280,7 +281,7 @@ export default async function ProjectPage({
         </p>
       ) : null}
 
-      {visit ? <SinceLastVisit projectId={project.id} {...visit} /> : null}
+      {visit ? <SinceLastVisit projectId={project.id} {...visit} reader={firmStaff ? "firm" : "client"} /> : null}
 
       <Tabs defaultValue={current} className="gap-4">
         <TabsList className="max-w-full justify-start overflow-x-auto">
@@ -579,7 +580,7 @@ export default async function ProjectPage({
         <TabsContent value="files" className="space-y-6">
           {/* Requests first, with their open count on the tab; an internal project has none (files only). */}
           {requests ? (
-            <InfoRequestsTab projectId={project.id} list={requests} />
+            <InfoRequestsTab projectId={project.id} list={requests} reader={firmStaff ? "firm" : "client"} />
           ) : project.kind === "internal" ? (
             <p className="text-sm text-muted-foreground">{tp("files.internal")}</p>
           ) : null}
@@ -610,16 +611,10 @@ export default async function ProjectPage({
                     <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className={d.limited ? undefined : "ms-auto"}>
                       {tVis(d.visibility)}
                     </Badge>
-                    {d.aiIndexable && data.assistantReads ? (
-                      <Badge variant="outline" className="gap-1">
-                        <Bot className="size-3" />
-                        {t("aiIndexed")}
-                      </Badge>
-                    ) : null}
                     {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                     {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                     {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
-                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} />
+                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} assistantReads={d.aiIndexable && !!data.assistantReads} />
                   </li>
                 ))}
               </ul>
@@ -670,9 +665,11 @@ export default async function ProjectPage({
                     </Link>
                     <span className="text-xs text-muted-foreground tabular-nums">{format.dateTime(m.startsAt, { dateStyle: "medium", timeStyle: "short" })}</span>
                     {m.limited ? <AudienceMarker kind="meeting" className="ms-auto" /> : null}
-                    <Badge variant="outline" className={m.limited ? undefined : "ms-auto"}>
-                      {tMeeting(`status.${m.status}`)}
-                    </Badge>
+                    <WordBadge
+                      placement={meetingPlacement(m.status, m.status === "scheduled" && m.unanswered)}
+                      reader={firmStaff ? "firm" : "client"}
+                      className={m.limited ? undefined : "ms-auto"}
+                    />
                   </li>
                 ))}
               </ul>

@@ -24,6 +24,7 @@ import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 import { audiencesForMe } from "./audience";
 import { openRequestsToDecide } from "./org-chart";
+import { clientTabHref } from "@/lib/client-tabs";
 
 // A firm person's day across every client (Wave 3, research section 7), read
 // by the firm home (page audit 4.2; "Today" became the home, decision D2):
@@ -462,7 +463,8 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
       projectId: null,
       projectTitle: null,
       title: j.orgName,
-      href: `/clients/${j.clientOrgId}`,
+      // The join requests are on the client page's People tab (batch 5, review S4).
+      href: clientTabHref(j.clientOrgId, "people", "join-requests"),
       who: j.who,
       proposed: null,
       at: j.createdAt,
