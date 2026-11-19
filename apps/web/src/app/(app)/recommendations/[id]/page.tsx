@@ -18,14 +18,22 @@ import { withPrincipal } from "@/server/page";
 import { getRecommendation } from "@/services/responses";
 import { LinkedIndicatorsCard } from "@/components/indicators/linked-indicators-card";
 import { recommendationIndicators } from "@/services/indicators";
+import { planOptions } from "@/services/plan";
+import { ActionDialog } from "../../projects/[id]/plan-dialogs";
+import { Plus } from "@/components/animate-ui/icons/plus";
 import { AnswerDialog, ConfirmResponse, RespondDialog } from "./response-panel";
 
 export default async function RecommendationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, indicators } = await withPrincipal(async (tx, principal) => {
+  const { data, indicators, plan } = await withPrincipal(async (tx, principal) => {
     const data = await getRecommendation(tx, principal, id);
-    return { data, indicators: await recommendationIndicators(tx, principal, id) };
+    return {
+      data,
+      indicators: await recommendationIndicators(tx, principal, id),
+      // Who may add an action here, with the owners and departments to choose from (the firm; null for clients).
+      plan: await planOptions(tx, principal, data.recommendation.projectId),
+    };
   });
   const [t, tr, tPlan, tPrio, tVis, format] = await Promise.all([
     getTranslations("recommendationPage"),
@@ -58,7 +66,7 @@ export default async function RecommendationPage({ params }: { params: Promise<{
 
   return (
     <>
-      <Link href={`/projects/${r.projectId}?tab=recs`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link href={`/projects/${r.projectId}`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {t("back")}
       </Link>
@@ -183,9 +191,33 @@ export default async function RecommendationPage({ params }: { params: Promise<{
           {indicators ? <LinkedIndicatorsCard recommendationId={r.id} data={indicators} /> : null}
 
           <Card className="gap-4 py-5 shadow-xs">
-            <CardHeader className="px-5">
-              <CardTitle className="text-base">{t("actions")}</CardTitle>
-              <CardDescription>{t("actionsHint")}</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">{t("actions")}</CardTitle>
+                <CardDescription>{t("actionsHint")}</CardDescription>
+              </div>
+              {/* Add an action where the recommendation is read (page audit row 6, batch 3); the page's one solid button
+                  unless the company's answer can be recorded here. */}
+              {plan?.can.action && !r.withdrawnAt ? (
+                <ActionDialog
+                  recommendationId={r.id}
+                  recommendationTitle={r.title}
+                  options={{
+                    owners: plan.owners,
+                    ownerByName: plan.ownerByName,
+                    minimalRecords: plan.minimalRecords,
+                    departments: plan.departments,
+                    canRelease: plan.can.release,
+                  }}
+                  recommendationDepartmentId={r.departmentId}
+                  trigger={
+                    <Button size="sm" variant={data.can.respond ? "outline" : "default"}>
+                      <Plus />
+                      {tPlan("action.add")}
+                    </Button>
+                  }
+                />
+              ) : null}
             </CardHeader>
             <CardContent className="px-5">
               {/* The firm sees every action; a client reader may have none she can open (a draft, a colleague's): "none for you". */}

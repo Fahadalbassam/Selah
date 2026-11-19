@@ -2,6 +2,7 @@
 
 import { FileArchive, FileImage, FileSpreadsheet, FileText, FileType, GripVertical, Lock, Search, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
   useCallback,
@@ -124,7 +125,8 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
             {orgKind === "firm" ? t("descriptionFirm") : t("descriptionClient")}
           </p>
         </div>
-        <UploadDialog onDone={() => setReload((n) => n + 1)} />
+        {/* Adding a file stays here for the firm; a client adds one on the project's Requests and files tab (October review, item 13). */}
+        {orgKind === "firm" ? <UploadDialog onDone={() => setReload((n) => n + 1)} /> : null}
         <Button type="button" variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label={t("close")} title={t("close")}>
           <X />
         </Button>
@@ -139,12 +141,22 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
 
 type UploadTargets = Awaited<ReturnType<typeof uploadTargets>>;
 
-/** "Add a file": pick a project, the file, who can see it and, at a client with departments, the team. */
-function UploadDialog({ onDone }: { onDone: () => void }) {
+/** "Add a file" on a project's Requests and files tab: the same dialog with the project fixed. */
+export function AddFileDialog({ target, primary = false }: { target: UploadTargets["projects"][number]; primary?: boolean }) {
+  const router = useRouter();
+  return <UploadDialog onDone={() => router.refresh()} fixed={target} primary={primary} />;
+}
+
+/**
+ * "Add a file": pick a project, the file, who can see it and, at a client
+ * with departments, the team. From a project's page the project is `fixed`
+ * (the server already said this person may add to it) and is not asked.
+ */
+function UploadDialog({ onDone, fixed, primary = false }: { onDone: () => void; fixed?: UploadTargets["projects"][number]; primary?: boolean }) {
   const t = useTranslations("files");
   const refusal = useAudienceRefusal();
   const rtl = useLocale() === "ar";
-  const [targets, setTargets] = useState<UploadTargets | null>(null);
+  const [targets, setTargets] = useState<UploadTargets | null>(fixed ? { projects: [fixed] } : null);
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [visibility, setVisibility] = useState("");
@@ -155,6 +167,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (fixed) return;
     let live = true;
     fetch("/api/files/targets")
       .then(async (res) => (res.ok ? ((await res.json()) as UploadTargets) : null))
@@ -167,7 +180,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [fixed]);
 
   if (!targets?.projects.length) return null;
   const project = targets.projects.find((p) => p.id === projectId) ?? targets.projects[0]!;
@@ -219,10 +232,17 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setAudience({ value: null, dirty: false }))}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-7">
-          <Upload className="size-3.5" />
-          {t("upload")}
-        </Button>
+        {fixed ? (
+          <Button type="button" variant={primary ? "default" : "outline"} size="sm">
+            <Upload />
+            {t("upload")}
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" className="h-7">
+            <Upload className="size-3.5" />
+            {t("upload")}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={submit} className="grid gap-4">
@@ -230,7 +250,7 @@ function UploadDialog({ onDone }: { onDone: () => void }) {
             <DialogTitle>{t("uploadTitle")}</DialogTitle>
             <DialogDescription>{t("uploadHint")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
+          <div className="grid gap-2" hidden={!!fixed}>
             <Label htmlFor="upload-project">{t("project")}</Label>
             <NativeSelect
               id="upload-project"

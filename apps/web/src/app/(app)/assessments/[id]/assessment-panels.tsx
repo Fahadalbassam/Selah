@@ -334,7 +334,7 @@ export function ComparePicker(props: { assessmentId: string; others: { id: strin
 }
 
 /** Start an assessment of a client project on a published template. */
-export function StartAssessment(props: { projectId: string; templates: { id: string; label: string }[] }) {
+export function StartAssessment(props: { projectId: string; templates: { id: string; label: string }[]; variant?: "default" | "outline" }) {
   const t = useTranslations("assessment.run");
   const te = useTranslations("assessment.errors");
   const tc = useTranslations("common");
@@ -361,7 +361,7 @@ export function StartAssessment(props: { projectId: string; templates: { id: str
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" variant={props.variant ?? "default"}>
           <FileSearch />
           {t("start")}
         </Button>

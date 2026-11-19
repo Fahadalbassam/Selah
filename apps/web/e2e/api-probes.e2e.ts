@@ -31,7 +31,7 @@ test.describe("permission probes", () => {
 
   test("another client's manager can't read, write or download Al-Nukhba's records", async () => {
     const r = await as("hind");
-    for (const p of [`/api/projects/${board}/progress`, `/api/projects/${board}/trace`, `/api/actions/${act}`, `/api/documents/${sharedDoc}/download`, `/api/projects/${board}/metrics`]) {
+    for (const p of [`/api/projects/${board}/progress`, `/api/actions/${act}`, `/api/documents/${sharedDoc}/download`, `/api/projects/${board}/metrics`]) {
       const res = await r.get(p);
       expect(denied(res.status()), `${p} -> ${res.status()}`).toBe(true);
     }

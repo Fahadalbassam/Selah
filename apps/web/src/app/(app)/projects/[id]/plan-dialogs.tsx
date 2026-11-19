@@ -25,6 +25,10 @@ import { PersonPicker } from "@/components/person-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { recMoreOpen } from "@/lib/plan-fields";
+import { cn } from "@/lib/utils";
 
 // The firm's plan for a project, written from the project page: a
 // recommendation (optionally answering a finding), and the actions that carry
@@ -137,6 +141,7 @@ export function RecommendationDialog(props: {
   const editing = props.edit?.values;
   const [source, setSource] = useState("consultant");
   const [decidedOn, setDecidedOn] = useState<string | undefined>();
+  const [more, setMore] = useState(() => recMoreOpen({ defaultFindingId: props.defaultFindingId, values: editing }));
   const { busy, error, setError, send } = useSubmit(() => {
     setOpen(false);
     toast.success(tc("saved"));
@@ -201,46 +206,12 @@ export function RecommendationDialog(props: {
             <DialogTitle>{editing ? t("edit") : t("add")}</DialogTitle>
             <DialogDescription>{editing ? t("editHint") : t("addHint")}</DialogDescription>
           </DialogHeader>
+          {/* Five fields first (October review, item 5): title, priority, accountable, due date, rationale. */}
           <div className="grid gap-2">
             <Label htmlFor="r-title">{t("title")}</Label>
             <Input id="r-title" name="title" required maxLength={300} dir="auto" defaultValue={editing?.title} />
           </div>
-          {props.findings.length ? (
-            <div className="grid gap-2">
-              <Label htmlFor="r-finding">{t("finding")}</Label>
-              <Select name="findingId" defaultValue={editing ? (editing.findingId ?? NONE) : (props.defaultFindingId ?? NONE)}>
-                <SelectTrigger id="r-finding" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>{t("noFinding")}</SelectItem>
-                  {props.findings.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            {editing ? null : (
-              <div className="grid gap-2">
-                <Label htmlFor="r-source">{t("source")}</Label>
-                <Select value={source} onValueChange={setSource}>
-                  <SelectTrigger id="r-source" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["consultant", "board_decision", "compliance"] as const).map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {t(`sources.${s}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="grid gap-2">
               <Label htmlFor="r-priority">{t("priority")}</Label>
               <Select name="priority" defaultValue={editing?.priority ?? "medium"}>
@@ -256,22 +227,92 @@ export function RecommendationDialog(props: {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          {!editing && source === "board_decision" ? (
             <div className="grid gap-2">
-              <Label htmlFor="r-decided">{t("decidedOn")}</Label>
-              <DatePicker
-                id="r-decided"
-                value={decidedOn}
-                onChange={setDecidedOn}
-                placeholder={t("decidedOn")}
-                required
-                disabled={{ after: new Date() }}
+              <Label htmlFor="r-due">{t("dueDate")}</Label>
+              <DatePicker id="r-due" name="dueDate" placeholder={t("dueDate")} clearLabel={tc("clear")} defaultValue={editing?.dueDate ?? undefined} />
+            </div>
+          </div>
+          {props.scope.accountables.length ? (
+            <div className="grid gap-2">
+              <Label htmlFor="r-accountable">{t("accountable")}</Label>
+              {/* Left empty, nobody is accountable. */}
+              <PersonPicker
+                id="r-accountable"
+                name="accountableUserId"
+                clearable
+                defaultValue={editing?.accountableUserId ?? undefined}
+                placeholder={t("noAccountable")}
+                options={props.scope.accountables.map((p) => ({ value: p.userId, label: p.name }))}
               />
+              <p className="text-xs text-muted-foreground">{t("accountableHint")}</p>
             </div>
           ) : null}
-          {props.scope.departments.length || props.scope.accountables.length ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="r-rationale">{t("rationale")}</Label>
+            <Textarea id="r-rationale" name="rationale" rows={3} maxLength={8000} dir="auto" defaultValue={editing?.rationale ?? undefined} />
+          </div>
+          {/* The rest behind "More": still in the form when folded, so a correction keeps what it holds. */}
+          <Collapsible open={more} onOpenChange={setMore} className="grid gap-4">
+            <div className="grid gap-1">
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="w-fit gap-1 px-2" aria-describedby="r-more-hint">
+                  <ChevronDown className={cn("size-4 transition-transform", more && "rotate-180")} aria-hidden />
+                  {t("more")}
+                </Button>
+              </CollapsibleTrigger>
+              <p id="r-more-hint" className="px-2 text-xs text-muted-foreground">
+                {t("moreHint")}
+              </p>
+            </div>
+            <CollapsibleContent forceMount className="grid gap-4" data-more>
+              {props.findings.length ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="r-finding">{t("finding")}</Label>
+                  <Select name="findingId" defaultValue={editing ? (editing.findingId ?? NONE) : (props.defaultFindingId ?? NONE)}>
+                    <SelectTrigger id="r-finding" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>{t("noFinding")}</SelectItem>
+                      {props.findings.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              {editing ? null : (
+                <div className="grid gap-2">
+                  <Label htmlFor="r-source">{t("source")}</Label>
+                  <Select value={source} onValueChange={setSource}>
+                    <SelectTrigger id="r-source" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["consultant", "board_decision", "compliance"] as const).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {t(`sources.${s}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {!editing && source === "board_decision" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="r-decided">{t("decidedOn")}</Label>
+                  <DatePicker
+                    id="r-decided"
+                    value={decidedOn}
+                    onChange={setDecidedOn}
+                    placeholder={t("decidedOn")}
+                    required
+                    disabled={{ after: new Date() }}
+                  />
+                </div>
+              ) : null}
               {props.scope.departments.length ? (
                 <div className="grid gap-2">
                   <Label htmlFor="r-dept">{t("department")}</Label>
@@ -291,55 +332,30 @@ export function RecommendationDialog(props: {
                   <p className="text-xs text-muted-foreground">{t("departmentHint")}</p>
                 </div>
               ) : null}
-              {props.scope.accountables.length ? (
+              <div className="grid gap-2">
+                <Label htmlFor="r-outcome">{t("targetOutcome")}</Label>
+                <Textarea id="r-outcome" name="targetOutcome" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.targetOutcome ?? undefined} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="r-evidence">{t("requiredEvidence")}</Label>
+                <Textarea id="r-evidence" name="requiredEvidence" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.requiredEvidence ?? undefined} />
+              </div>
+              {props.client && !editing ? (
                 <div className="grid gap-2">
-                  <Label htmlFor="r-accountable">{t("accountable")}</Label>
-                  {/* Left empty, nobody is accountable. */}
-                  <PersonPicker
-                    id="r-accountable"
-                    name="accountableUserId"
-                    clearable
-                    defaultValue={editing?.accountableUserId ?? undefined}
-                    placeholder={t("noAccountable")}
-                    options={props.scope.accountables.map((p) => ({ value: p.userId, label: p.name }))}
-                  />
-                  <p className="text-xs text-muted-foreground">{t("accountableHint")}</p>
+                  <Label htmlFor="r-visibility">{t("visibility")}</Label>
+                  <Select name="visibility" defaultValue="shared">
+                    <SelectTrigger id="r-visibility" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shared">{tVis("shared")}</SelectItem>
+                      <SelectItem value="firm_private">{tVis("firm_private")}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : null}
-            </div>
-          ) : null}
-          <div className="grid gap-2">
-            <Label htmlFor="r-rationale">{t("rationale")}</Label>
-            <Textarea id="r-rationale" name="rationale" rows={3} maxLength={8000} dir="auto" defaultValue={editing?.rationale ?? undefined} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="r-outcome">{t("targetOutcome")}</Label>
-            <Textarea id="r-outcome" name="targetOutcome" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.targetOutcome ?? undefined} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="r-evidence">{t("requiredEvidence")}</Label>
-            <Textarea id="r-evidence" name="requiredEvidence" rows={2} maxLength={4000} dir="auto" defaultValue={editing?.requiredEvidence ?? undefined} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="r-due">{t("dueDate")}</Label>
-              <DatePicker id="r-due" name="dueDate" placeholder={t("dueDate")} clearLabel={tc("clear")} defaultValue={editing?.dueDate ?? undefined} />
-            </div>
-            {props.client && !editing ? (
-              <div className="grid gap-2">
-                <Label htmlFor="r-visibility">{t("visibility")}</Label>
-                <Select name="visibility" defaultValue="shared">
-                  <SelectTrigger id="r-visibility" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="shared">{tVis("shared")}</SelectItem>
-                    <SelectItem value="firm_private">{tVis("firm_private")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
           <Footer busy={busy} error={error} label={editing ? tc("save") : t("save")} onCancel={() => setOpen(false)} />
         </form>
       </DialogContent>

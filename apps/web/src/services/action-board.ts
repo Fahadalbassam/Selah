@@ -3,7 +3,9 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import { actionReminders } from "@/db/schema";
 import { assertAllowed, authorize, OPEN_STATUSES, type ActionStatus, type Principal, type Resource } from "@/authz";
+import { planRulesFor, type PlanRule } from "@/lib/plan-rules";
 import {
+  actionsHref,
   DEVIATION_RULE,
   filtersFor,
   isRuleFilter,
@@ -68,9 +70,11 @@ const DAY = 86_400_000;
  * rules (v_deviations, read with the caller's rights) are read only for the
  * firm and only when asked.
  */
-async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: boolean }): Promise<Loaded[]> {
+async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: boolean; projectId?: string }): Promise<Loaded[]> {
   const today = firmToday();
   const ownerOnly = principal.role === "action_owner" ? sql`and a.owner_user_id = ${principal.userId}::uuid` : sql``;
+  // One project only, when asked (the project page): filtered in SQL, not after reading the whole board.
+  const onProject = opts.projectId ? sql`and a.project_id = ${opts.projectId}::uuid` : sql``;
   const { rows } = await tx.execute<{
     id: string;
     title: string;
@@ -107,13 +111,13 @@ async function loadReadable(tx: Tx, principal: Principal, opts: { deviations: bo
     left join "user" u on u.id = a.owner_user_id
     left join departments d on d.id = a.department_id
     left join organizations o on o.id = a.org_id
-    where true ${ownerOnly}
+    where true ${ownerOnly} ${onProject}
     order by a.due_date asc nulls last, a.id`);
   const deviations = new Map<string, Loaded["deviations"]>();
   if (opts.deviations && principal.orgKind === "firm" && rows.length) {
     const { rows: dev } = await tx.execute<{ entity_id: string; rule: "stale" | "slipped" | "churn" | "orphaned"; detail: Record<string, number | null> }>(sql`
       select d.entity_id, d.rule, d.detail from v_deviations d
-      where d.entity_type = 'action' and d.rule in ('stale', 'slipped', 'churn', 'orphaned')`);
+      where d.entity_type = 'action' and d.rule in ('stale', 'slipped', 'churn', 'orphaned') ${opts.projectId ? sql`and d.project_id = ${opts.projectId}::uuid` : sql``}`);
     for (const d of dev) {
       const m = deviations.get(d.entity_id) ?? new Map();
       m.set(d.rule, d.detail.days ?? d.detail.count ?? null);
@@ -392,6 +396,83 @@ export async function attentionCounts(tx: Tx, principal: Principal) {
   return {
     late: { n: rows.filter((r) => r.late).length, href: LATE_HREF },
     reviewsWaitingLong: { n: rows.filter((r) => r.live && r.status === "awaiting_review" && waitedLong(r)).length, href: REVIEWS_WAITING_LONG_HREF },
+  };
+}
+
+export interface ProjectAttention {
+  /**
+   * One status line under the project's title (October review, item 4; D5:
+   * counts, never a health word): how much of the plan is verified, how much
+   * is late and how much waits for review, each count with the address of the
+   * Actions list it equals.
+   */
+  status: {
+    verified: number;
+    /** Released actions that count toward the share (not "not applicable" or "replaced"). */
+    of: number;
+    pct: number | null;
+    late: { n: number; href: string };
+    waiting: { n: number; href: string };
+  };
+  /** The rule chips on Plan: the actions (or, for "disputed", the recommendations) each rule holds. Only the reader's rules. */
+  rules: Partial<Record<PlanRule, string[]>>;
+  /** Why each action is on a chip ("12 days late"), as the Actions list says it. */
+  reasons: Record<string, { rule: Rule; n: number | null }[]>;
+}
+
+/**
+ * The status line and the rule chips of one project, for this reader, from
+ * the rows the Actions list reads (loadReadable: row-level security, then
+ * authorize()), so "3 late" here opens /actions?filter=late&project=… with
+ * the same three. A recommendation in dispute is the firm's deviation rule
+ * (v_deviations, read with the caller's rights). Nothing here reads for
+ * anyone else.
+ */
+export async function projectAttention(tx: Tx, principal: Principal, projectId: string): Promise<ProjectAttention> {
+  const firm = principal.orgKind === "firm";
+  const project = { type: "action" as const, orgId: principal.orgId, firmOrgId: principal.orgId, projectId };
+  const firmRules = firm && authorize(principal, "deviation.read", project).allowed;
+  const mine = await loadReadable(tx, principal, { deviations: firmRules, projectId });
+  const { rows: outcomes } = mine.length
+    ? await tx.execute<{ id: string; outcome: string | null }>(
+        sql`select id, closure_outcome::text as outcome from actions where id = any(${`{${mine.map((r) => r.id).join(",")}}`}::uuid[])`,
+      )
+    : { rows: [] };
+  const outcome = new Map(outcomes.map((o) => [o.id, o.outcome]));
+  // As app_project_progress(): released actions; "not applicable" and "replaced" do not count toward the share.
+  const released = mine.filter((r) => r.status !== "draft");
+  const counted = released.filter((r) => !["not_applicable", "superseded"].includes(outcome.get(r.id) ?? ""));
+  const verified = released.filter((r) => r.status === "verified_complete").length;
+
+  const rules: ProjectAttention["rules"] = {};
+  const offered = planRulesFor(firmRules);
+  const ids = (f: (r: Loaded) => boolean) => mine.filter(f).map((r) => r.id);
+  for (const rule of offered) {
+    if (rule === "disputed") continue;
+    rules[rule] =
+      rule === "waiting-long"
+        ? ids((r) => matches(r, "awaiting-review", principal) && waitedLong(r))
+        : ids((r) => matches(r, rule, principal));
+  }
+  if (offered.includes("disputed")) {
+    const { rows } = await tx.execute<{ entity_id: string }>(
+      sql`select d.entity_id from v_deviations d where d.project_id = ${projectId}::uuid and d.entity_type = 'recommendation' and d.rule = 'disputed'`,
+    );
+    rules.disputed = rows.map((r) => r.entity_id);
+  }
+  return {
+    status: {
+      verified,
+      of: counted.length,
+      pct: counted.length ? Math.round((1000 * verified) / counted.length) / 10 : null,
+      late: { n: mine.filter((r) => matches(r, "late", principal)).length, href: actionsHref({ filter: "late", project: projectId }) },
+      waiting: {
+        n: mine.filter((r) => matches(r, "awaiting-review", principal)).length,
+        href: actionsHref({ filter: "awaiting-review", project: projectId }),
+      },
+    },
+    rules,
+    reasons: Object.fromEntries(mine.map((r) => [r.id, reasons(r)]).filter(([, x]) => (x as unknown[]).length)),
   };
 }
 

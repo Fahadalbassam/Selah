@@ -193,7 +193,7 @@ async function documentsAskedOfMe(tx: Tx, principal: Principal, projects: Map<st
         title: r.title,
         projectId: r.projectId,
         projectTitle: projects.get(r.projectId)!.title,
-        href: `/projects/${r.projectId}?tab=requests`,
+        href: `/projects/${r.projectId}?tab=files`,
         dueDate,
         overdue: dueDate !== null && dueDate < day,
       };

@@ -4,6 +4,8 @@ import type { Tx } from "@/db/client";
 import {
   actions,
   activityEvents,
+  assessmentAnswers,
+  assessments,
   clientAssignments,
   departments,
   documents,
@@ -13,6 +15,7 @@ import {
   orgMemberships,
   organizations,
   progressUpdates,
+  projectClosureRequests,
   projectMembers,
   projects,
   recommendations,
@@ -308,11 +311,17 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       orgId: findings.orgId,
       projectId: findings.projectId,
       fromAssessment: sql<boolean>`${findings.assessmentAnswerId} is not null`,
+      // The assessment it came from, as the reader may open it (row 4d: Trace's "came from this assessment"
+      // is on the finding line now). Row-level security leaves it null where the reader may not.
+      assessmentId: assessments.id,
+      assessmentTitle: assessments.title,
       releasedAt: findings.releasedAt,
       withdrawnAt: findings.withdrawnAt,
       withdrawnReason: findings.withdrawnReason,
     })
     .from(findings)
+    .leftJoin(assessmentAnswers, eq(assessmentAnswers.id, findings.assessmentAnswerId))
+    .leftJoin(assessments, eq(assessments.id, assessmentAnswers.assessmentId))
     .where(eq(findings.projectId, id))
     .orderBy(asc(findings.createdAt));
 
@@ -349,6 +358,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       state: documents.state,
       createdAt: documents.createdAt,
       uploadedBy: documents.uploadedBy,
+      // Who added it, by name where the reader may read that person (the user-row rule); otherwise left out.
+      uploaderName: user.name,
       ownerOrgId: documents.ownerOrgId,
       departmentId: documents.departmentId,
       orgId: documents.orgId,
@@ -357,6 +368,7 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       settled: sql<boolean>`app_document_settled(${documents.id})`,
     })
     .from(documents)
+    .leftJoin(user, eq(user.id, documents.uploadedBy))
     .where(
       and(
         eq(documents.projectId, id),
@@ -392,22 +404,57 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
   // The activity record is for the firm and the client's admin (decision D8):
   // it names who did what across the whole project. Nobody else gets it, or
   // the tab; the database's row policy says the same (migration 0071).
-  const activity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed
+  const readsActivity = authorize(principal, "activity.read", { ...projectResource, type: "activity" }).allowed;
+  const events = readsActivity
+    ? (
+        await tx
+          .select({
+            id: activityEvents.id,
+            entityType: activityEvents.entityType,
+            event: activityEvents.event,
+            fromState: activityEvents.fromState,
+            toState: activityEvents.toState,
+            createdAt: activityEvents.createdAt,
+            actorName: user.name,
+          })
+          .from(activityEvents)
+          .leftJoin(user, eq(user.id, activityEvents.actorId))
+          .where(eq(activityEvents.projectId, id))
+          .orderBy(desc(activityEvents.createdAt))
+          .limit(20)
+      ).map((e) => ({ ...e, detail: null as string | null }))
+    : null;
+  // An answered request to close stays in the record (the lead's decision, 19 Nov 2026: Closing is a
+  // tab only while one waits): who asked and their note, then the firm's answer and its reply.
+  const answered = readsActivity
     ? await tx
         .select({
-          id: activityEvents.id,
-          entityType: activityEvents.entityType,
-          event: activityEvents.event,
-          fromState: activityEvents.fromState,
-          toState: activityEvents.toState,
-          createdAt: activityEvents.createdAt,
-          actorName: user.name,
+          id: projectClosureRequests.id,
+          status: projectClosureRequests.status,
+          note: projectClosureRequests.note,
+          reply: projectClosureRequests.reply,
+          createdAt: projectClosureRequests.createdAt,
+          decidedAt: projectClosureRequests.decidedAt,
+          requestedBy: projectClosureRequests.requestedBy,
+          decidedBy: projectClosureRequests.decidedBy,
         })
-        .from(activityEvents)
-        .leftJoin(user, eq(user.id, activityEvents.actorId))
-        .where(eq(activityEvents.projectId, id))
-        .orderBy(desc(activityEvents.createdAt))
-        .limit(20)
+        .from(projectClosureRequests)
+        .where(and(eq(projectClosureRequests.projectId, id), ne(projectClosureRequests.status, "pending")))
+    : [];
+  const who = new Map(
+    (await (answered.length
+      ? tx
+          .select({ id: user.id, name: user.name })
+          .from(user)
+          .where(inArray(user.id, answered.flatMap((r) => [r.requestedBy, r.decidedBy].filter((x): x is string => !!x))))
+      : Promise.resolve([] as { id: string; name: string }[]))).map((u) => [u.id, u.name]),
+  );
+  const closureEvents = answered.flatMap((r) => [
+    { id: `${r.id}:asked`, entityType: "closure_request", event: "requested", fromState: null, toState: null, createdAt: r.createdAt, actorName: r.requestedBy ? (who.get(r.requestedBy) ?? null) : null, detail: r.note },
+    { id: `${r.id}:answer`, entityType: "closure_request", event: r.status, fromState: null, toState: null, createdAt: r.decidedAt ?? r.createdAt, actorName: r.decidedBy ? (who.get(r.decidedBy) ?? null) : null, detail: r.reply },
+  ]);
+  const activity = events
+    ? [...events, ...closureEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 20)
     : null;
 
   // Where each released recommendation stands with the client (F10).
@@ -458,6 +505,47 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
     })),
     activity,
   };
+}
+
+export interface PlanEvidence {
+  /** The files sent for each action, oldest first, as the reader may open them. */
+  evidence: { id: string; documentId: string; title: string; recordedByFirm: boolean; at: Date }[];
+  /** The last review decision, if any: accepted, sent back, or not accepted. Never the reviewer's reason. */
+  review: { outcome: "accept" | "revise" | "reject"; at: Date } | null;
+}
+
+/**
+ * What an opened action row on Plan shows (page audit row 4d: Trace's
+ * evidence and review result): the files sent and the last decision, for the
+ * actions the reader already opened on the page (`actionIds`, from
+ * getProject, so already authorized). Read with the reader's rights: a file
+ * they may not open is not listed.
+ */
+export async function planEvidence(tx: Tx, actionIds: string[]): Promise<Record<string, PlanEvidence>> {
+  const out: Record<string, PlanEvidence> = Object.fromEntries(actionIds.map((id) => [id, { evidence: [], review: null }]));
+  if (!actionIds.length) return out;
+  const sent = await tx
+    .select({
+      id: evidenceSubmissions.id,
+      actionId: evidenceSubmissions.actionId,
+      documentId: documents.id,
+      title: documents.title,
+      source: evidenceSubmissions.source,
+      at: evidenceSubmissions.submittedAt,
+    })
+    .from(evidenceSubmissions)
+    .innerJoin(documents, eq(documents.id, evidenceSubmissions.documentId))
+    .where(inArray(evidenceSubmissions.actionId, actionIds))
+    .orderBy(asc(evidenceSubmissions.submittedAt));
+  for (const e of sent)
+    out[e.actionId]?.evidence.push({ id: e.id, documentId: e.documentId, title: e.title, recordedByFirm: e.source === "consultant_recorded", at: e.at });
+  const decided = await tx
+    .select({ actionId: reviews.actionId, outcome: reviews.outcome, at: reviews.createdAt })
+    .from(reviews)
+    .where(inArray(reviews.actionId, actionIds))
+    .orderBy(asc(reviews.createdAt));
+  for (const r of decided) if (out[r.actionId]) out[r.actionId]!.review = { outcome: r.outcome as "accept" | "revise" | "reject", at: r.at };
+  return out;
 }
 
 /** Firm side: the clients this user may see, with the consultants assigned to each. */
