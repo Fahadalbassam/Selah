@@ -309,7 +309,7 @@
       "department_moved": "moved a department's unfinished work to another department",
       "created": "added an action",
       "updated": "updated an action",
-      "evidence_submitted": "sent a file",
+      "evidence_submitted": "added a file",
       "document_shared": "shared a file",
       "assessment_started": "started an assessment",
       "assessment_finalised": "finalised an assessment",
@@ -528,7 +528,7 @@
     "asking": "Searching…",
     "sources": "Sources",
     "disclaimer": "The assistant suggests; it does not decide. It never approves evidence or rules on compliance. Consultants decide.",
-    "error": "Couldn't reach the AI service. Make sure it is running.",
+    "error": "The assistant could not answer just now, and your question was not counted. Try again in a moment, or ask your consultant.",
     "noProjects": "No projects are available to the assistant.",
     "you": "You",
     "assistantName": "Assistant",
@@ -608,7 +608,7 @@
       "allClientHint": "Every project of your company that you can open. Pick one to narrow the answer."
     },
     "writing": "Writing the answer…",
-    "localModel": "The assistant runs on this computer, so answers may take a minute."
+    "localModel": "The assistant runs on the firm's own server, so answers may take a minute."
   },
   "signIn": {
     "title": "Sign in",
@@ -730,7 +730,7 @@
     },
     "entry": {
       "update": "posted an update",
-      "evidence": "sent a file",
+      "evidence": "added a file",
       "accept": "accepted the evidence",
       "revise": "requested a revision",
       "reject": "rejected the evidence",
@@ -1457,6 +1457,13 @@
     "calendar": "Add to calendar",
     "markHeld": "Mark as held",
     "agenda": "Agenda",
+    "agendaHeadings": {
+      "overdue": "Overdue",
+      "awaiting": "Awaiting review",
+      "blocked": "Blocked",
+      "changed": "Changed since the last meeting",
+      "due": "due"
+    },
     "agendaReadable": "Only the work you can open on this meeting's agenda.",
     "agendaReadableNone": "Nothing you can open is on this meeting's agenda.",
     "agendaOwn": "Only your own actions on this meeting's agenda.",
@@ -1960,6 +1967,7 @@
     "reports": "Reports",
     "reportsHint": "A report freezes the numbers for a period. It stays with the firm until you share it.",
     "reportsHintClient": "Reports the firm has shared with you.",
+    "clientCountNote": "A shared report counts all of the project's shared work. Your own figures count only the work you may see, so the two can differ.",
     "noReports": "No reports yet.",
     "newReport": "New report",
     "newReportHint": "Freezes this project's numbers as of the period's last day. The report can't be edited afterwards; a correction is a new report.",
@@ -4170,12 +4178,6 @@
     "remove": "Remove",
     "removeConfirm": "Remove “{title}” from the list? Only items nobody has answered can be removed.",
     "total": "{n, plural, one {# item} other {# items}}",
-    "counted": {
-      "requested": "waiting",
-      "received": "received",
-      "reviewed": "reviewed",
-      "not_applicable": "not applicable"
-    },
     "link": {
       "send": "Send upload link",
       "sendSubmit": "Send the link",
@@ -5645,8 +5647,8 @@
     "counts": {
       "total": "Indicators",
       "upToDate": "Up to date",
-      "better": "Better than baseline",
-      "worse": "Worse than baseline"
+      "above": "Above baseline",
+      "below": "Below baseline"
     },
     "emptyManage": "No indicators yet. Add the measures the client already tracks, such as monthly sales or customer complaints, with a starting value.",
     "empty": "No indicators yet. The business figures the company tracks appear here once they are added.",
@@ -5655,8 +5657,8 @@
     "claimNoteClient": "Your company's reported figures, not verified impact. A change in an indicator is not proof that a recommendation caused it.",
     "movement": {
       "none": "No value yet",
-      "better": "Better than baseline",
-      "worse": "Worse than baseline",
+      "above": "Above baseline",
+      "below": "Below baseline",
       "same": "Same as baseline"
     },
     "baselineShort": "Baseline {value} {unit}",
@@ -5690,7 +5692,7 @@
     "replaced": "{n, plural, one {# replaced value} other {# replaced values}}",
     "latest": "Latest value",
     "sinceBaseline": "Change since baseline",
-    "towardTarget": "Toward target",
+    "towardTarget": "Share of the gap to target reached",
     "noTarget": "No target",
     "targetBy": "Target {value} {unit} by {date}",
     "directionHint": {
@@ -5806,9 +5808,9 @@
       "company": "Whole company",
       "noValue": "No value yet",
       "movement": {
-        "better": "better",
-        "worse": "worse",
-        "same": "same"
+        "above": "above baseline",
+        "below": "below baseline",
+        "same": "same as baseline"
       },
       "missing": "{n, plural, one {# period missing} other {# periods missing}}"
     },
@@ -6658,7 +6660,7 @@
     "title": "Send a file",
     "button": "Send a file",
     "file": "File",
-    "rules": "PDF, Word, Excel, PowerPoint, images or text ({types}), up to {mb} MB. Every file is checked for viruses.",
+    "rules": "PDF, Word, Excel, PowerPoint, images or text (<types></types>), up to {mb} MB. Every file is checked for viruses.",
     "uploadNew": "Upload a new file",
     "pickExisting": "Choose from Selah files",
     "sending": "Sending…",
@@ -6717,6 +6719,9 @@
     "departmentsHint": "Optional. When on, work filed under a department is seen only by its people, the client's admins, the firm and the action's owner."
   },
   "tips": {
+    "people": {
+      "reassignFirst": "This person still has open actions on this project; they must be reassigned before the person can be taken off it."
+    },
     "status": {
       "action": {
         "draft": {

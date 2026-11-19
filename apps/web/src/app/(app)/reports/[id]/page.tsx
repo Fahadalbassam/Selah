@@ -95,6 +95,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         ) : null}
       </PageHeader>
       <p className="-mt-3 text-sm text-muted-foreground">{t("by", { who: report.author ?? "—", date: day(report.createdAt) })}</p>
+      {!firm && m ? <p className="text-sm text-muted-foreground">{t("clientCountNote")}</p> : null}
       {pack?.draft ? (
         <Card className="gap-1 border-dashed py-4 shadow-none">
           <CardHeader className="px-5">

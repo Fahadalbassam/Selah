@@ -2,6 +2,7 @@ import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
+import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { OwnerControl } from "@/services/action-owner";
@@ -35,7 +36,7 @@ export async function ProjectPeople({
   reassign?: Record<string, { id: string; title: string; control: OwnerControl }[]>;
 }) {
   // A client reader's own roles in their own words ("Admin", not "Client admin").
-  const [t, tRole] = await Promise.all([getTranslations("projectPeople"), getTranslations(firm ? "role" : "roleClient")]);
+  const [t, tRole, tTip] = await Promise.all([getTranslations("projectPeople"), getTranslations(firm ? "role" : "roleClient"), getTranslations("tips")]);
   const managed = data.mode === "consultant_managed";
   // The client's admin reads about "your people", never "the client's people" (page audit 4.7).
   const own = firm ? "" : "Client";
@@ -103,7 +104,9 @@ export async function ProjectPeople({
                 reassign[m.userId]?.length ? (
                   <ReassignActions name={m.name} actions={reassign[m.userId]!} firm={firm} />
                 ) : (
-                  <span className="text-xs text-muted-foreground">{t("reassignFirst")}</span>
+                  <Hint tip={tTip("people.reassignFirst")} className="text-xs text-muted-foreground">
+                    {t("reassignFirst")}
+                  </Hint>
                 )
               ) : (
                 <RemoveFromProject name={m.name} endpoint={`/api/projects/${projectId}/people/${m.userId}`} confirm={t(`removeConfirm${own}`, { name: m.name })} />

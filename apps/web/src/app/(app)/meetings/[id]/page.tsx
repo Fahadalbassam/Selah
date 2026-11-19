@@ -2,8 +2,7 @@ import { ArrowLeft, CalendarPlus, Pencil, Video } from "lucide-react";
 import { Send } from "@/components/animate-ui/icons/send";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createTranslator } from "next-intl";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton } from "@/components/form-dialog";
 import { MeetingForm } from "@/components/meeting-form";
 import { AskAbout } from "@/components/ask-about";
@@ -16,7 +15,6 @@ import { VisibilityBadge } from "@/components/visibility-badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { messagesFor } from "@/i18n/messages";
 import { agendaLines } from "@/lib/agenda";
 import { isUuid } from "@/lib/ids";
 import { leftOutOfMeeting, meetingSections } from "@/lib/meetings";
@@ -50,11 +48,13 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
       started: data.meeting.startsAt < new Date(),
     };
   });
-  const [t, tr, tVis, format] = await Promise.all([
+  const [t, tr, tVis, format, locale, tStatus] = await Promise.all([
     getTranslations("meeting"),
     getTranslations("meeting.record"),
     getTranslations("visibility"),
     getFormatter(),
+    getLocale(),
+    getTranslations("status"),
   ]);
   const { meeting, agendaScope, attendees, decisions, followUps, summary, sources, sourceFiles, transcript, canRun, canFollowUp, canRespond, me, limited, canAudience } =
     data;
@@ -65,14 +65,19 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
   // Before the meeting: what a person needs to attend. The record appears once it is held (page audit U14).
   const show = meetingSections(meeting.status, followUps.length);
   const lang: "ar" | "en" = meeting.spokenLang === "en" ? "en" : "ar";
-  // The agenda is one stored text in the meeting's language, whatever language
-  // the page is in. Agendas stored before migration 0072 carry status keys and
-  // plain dates; they are drawn in words, in that same language (lib/agenda.ts).
+  // The agenda is one stored text in the meeting's language. Its headings, its
+  // "due" word, its dates and its status words are drawn in the reader's
+  // language (page audit D2); the action titles and reasons stay as written.
+  // Agendas stored before migration 0072 carry status keys and plain dates,
+  // drawn in words the same way (lib/agenda.ts).
   const agenda = meeting.agendaMd
-    ? await (async () => {
-        const status = createTranslator({ locale: lang, messages: await messagesFor(lang), namespace: "status" });
-        const dayIn = new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeZone: "UTC" });
-        return agendaLines(meeting.agendaMd!, { status: (key) => status(key), date: (iso) => dayIn.format(new Date(`${iso}T00:00:00Z`)) });
+    ? (() => {
+        const dayIn = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
+        return agendaLines(meeting.agendaMd!, {
+          status: (key) => tStatus(key),
+          date: (iso) => dayIn.format(new Date(`${iso}T00:00:00Z`)),
+          reader: { heading: (k) => t(`agendaHeadings.${k}`), due: t("agendaHeadings.due") },
+        });
       })()
     : null;
   const mine = attendees.find((a) => a.userId === me && a.role !== "organizer");

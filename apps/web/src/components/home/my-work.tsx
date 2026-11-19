@@ -1,5 +1,6 @@
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ToneBadge } from "@/components/tone-badge";
+import { requestTitle } from "@/lib/info-requests";
 import { ownerNextStep, type HomeSection as SectionKey } from "@/lib/home";
 import { cn } from "@/lib/utils";
 import type { HomeActionRow, HomeDocument, HomeFollowUp, HomeMeeting } from "@/services/home";
@@ -42,7 +43,7 @@ export async function actionRows(rows: HomeActionRow[]) {
  * their reply and their next meeting, then their follow-ups.
  */
 export async function DocumentsSection({ rows, open }: { rows: HomeDocument[]; open: SectionKey | null }) {
-  const [{ t, due }, tSteps] = await Promise.all([dates(), getTranslations("home.steps")]);
+  const [{ t, due }, tSteps, locale] = await Promise.all([dates(), getTranslations("home.steps"), getLocale()]);
   return (
     <HomeSection
       id="documents"
@@ -50,7 +51,7 @@ export async function DocumentsSection({ rows, open }: { rows: HomeDocument[]; o
       description={t("documents.description")}
       open={open === "documents"}
       rows={rows.map((r) => (
-        <HomeRow key={r.id} href={r.href} title={r.title} sub={r.projectTitle} meta={due(r.dueDate, r.overdue)} step={tSteps("sendFile")} />
+        <HomeRow key={r.id} href={r.href} title={requestTitle(r, locale === "ar")} sub={r.projectTitle} meta={due(r.dueDate, r.overdue)} step={tSteps("sendFile")} />
       ))}
     />
   );

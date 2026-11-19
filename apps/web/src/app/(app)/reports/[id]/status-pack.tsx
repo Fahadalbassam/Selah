@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Sparkline } from "@/components/indicators/sparkline";
-import { formatChange, formatValue, periodLabel } from "@/lib/indicators";
+import { formatChange, formatValue, periodLabel, side } from "@/lib/indicators";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PACK_LISTS, StatusPack } from "@/services/status-pack";
@@ -200,7 +200,7 @@ export function StatusPackLists({ pack, links, firm }: { pack: StatusPack; links
                           )}
                         </TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">
-                          {k.latest ? `${formatChange(k.latest.value - k.baseline, locale)} · ${tK(`report.movement.${k.movement ?? "same"}`)}` : "—"}
+                          {k.latest ? `${formatChange(k.latest.value - k.baseline, locale)} · ${tK(`report.movement.${side(k.latest.value - k.baseline) ?? "same"}`)}` : "—"}
                         </TableCell>
                         <TableCell>
                           <Sparkline points={k.points} target={k.target} label={tK("trendLabel", { name })} />

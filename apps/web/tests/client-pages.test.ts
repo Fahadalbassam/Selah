@@ -372,12 +372,12 @@ describe("client wording (page audit 4.7)", () => {
     expect(ar.status.blocked).toBe("متعثر");
   });
 
-  it("calls an action's owner «المكلَّف», and keeps «مسؤول» for administrators", () => {
+  it("calls an action's owner «المكلَّف», and the company's admin one name: «مدير حساب العميل» for the firm, «مدير حساب شركتكم» for the client", () => {
     for (const key of ["action.owner", "table.owner", "plan.action.owner", "meeting.record.assignee", "action.ladder.audience.owner", "reportPdf.colOwner", "statusPack.owner"])
       expect(get(ar, key), key).toBe("المكلَّف");
     expect(ar.role.action_owner).toBe("مكلَّف بالتنفيذ");
     expect(ar.action.move.assigned).toBe("إسناد إلى المكلَّف");
-    expect(ar.action.plain.who.admins).toMatch(/مسؤولو النظام/);
+    expect(ar.action.plain.who.admins).toMatch(/مديرو حساب شركتكم/);
   });
 
   it("names sending a file two ways only: «إرسال ملف» and «إرسال للمراجعة»", () => {

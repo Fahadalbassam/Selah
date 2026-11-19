@@ -192,6 +192,7 @@ A project page has five tabs: **Plan** · **Requests and files** · **Meetings**
 4. Per client: client page → **Overview**: progress across projects and departments, and **Download the client-wide report as PDF**.
 5. Across the firm: **Projects** → **Table**: per project, open, late and blocked work and the oldest waiting review, as counts with no judging word.
 6. **Business indicators** on the client page: the client's own figures (complaints, staff turnover…) with a baseline and a target. They always carry: "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it." Only the firm links an indicator to a recommendation. When a figure moves away from its baseline, the lead, the deputy and the client's admins get a notice with the figures only.
+7. The free-text note on a report or a status pack is read by every client reader of it, whatever their department. Do not name another department's work in it.
 
 **Screens:** project page → Progress, a report (`/reports/<id>`), Projects → Table, an indicator (`/indicators/<id>`).
 

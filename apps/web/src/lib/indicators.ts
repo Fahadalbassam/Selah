@@ -48,6 +48,12 @@ export function movement(direction: IndicatorDirection, from: number, to: number
   return (to > from) === (direction === "higher_better") ? "better" : "worse";
 }
 
+/** Which side of the baseline a change sits on: a plain fact, never a verdict (the direction is the client's own). */
+export function side(change: number | null): "above" | "below" | "same" | null {
+  if (change === null) return null;
+  return change > 0 ? "above" : change < 0 ? "below" : "same";
+}
+
 export function summarize(basis: IndicatorBasis, series: SeriesPoint[]): IndicatorSummary {
   const reported = series.filter((p): p is SeriesPoint & { value: number } => p.status === "reported" && p.value !== null);
   const latest = reported.at(-1) ?? null;
@@ -72,8 +78,9 @@ export interface IndicatorCounts {
   upToDate: number;
   /** At least one period past its grace days has no value. */
   missing: number;
-  better: number;
-  worse: number;
+  /** Latest value above / below the baseline: where it sits, not whether that is good. */
+  above: number;
+  below: number;
   /** No value yet. */
   noValue: number;
 }
@@ -84,8 +91,8 @@ export function countIndicators(list: IndicatorSummary[]): IndicatorCounts {
     total: list.length,
     upToDate: list.filter((s) => s.current !== "missing").length,
     missing: list.filter((s) => s.missing > 0).length,
-    better: list.filter((s) => s.movement === "better").length,
-    worse: list.filter((s) => s.movement === "worse").length,
+    above: list.filter((s) => (s.change ?? 0) > 0).length,
+    below: list.filter((s) => (s.change ?? 0) < 0).length,
     noValue: list.filter((s) => s.latest === null).length,
   };
 }

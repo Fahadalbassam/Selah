@@ -128,7 +128,7 @@ export async function ProgressTab({
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
         <div className="space-y-1.5">
           <CardTitle className="text-base">{t("reports")}</CardTitle>
-          <CardDescription>{firm ? t("reportsHint") : t("reportsHintClient")}</CardDescription>
+          <CardDescription>{firm ? t("reportsHint") : `${t("reportsHintClient")} ${t("clientCountNote")}`}</CardDescription>
         </div>
         {reports.can.write ? (
           <FormDialog
