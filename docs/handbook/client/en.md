@@ -44,11 +44,12 @@ Selah is where your company and your consulting firm follow what was agreed: eac
 
 **When:** an invitation reaches you by email.
 
-1. Open the link in the email (it works for 7 days). Type your name and a password, then **Create my account**.
-2. **Before you start** shows the terms, the privacy notice and the assistant notice. Read them, then **Accept and continue**.
-3. A client admin sets up two-factor sign-in (an authenticator app) at the first sign-in.
+1. Open the link in the email (it works for 7 days). Type your name and a password, type the password again in **Type it again**, then press **Create my account**.
+2. You come back to the sign-in page, which says "Your account is ready. Sign in with your new password." Type your email and the new password, then **Sign in**.
+3. **Before you start** shows the terms of use, the privacy notice and "How Selah uses AI". Read them and tick the three boxes: "I accept the terms of use.", "I have read the privacy notice." and "I have read how Selah uses AI." **Accept and continue** stays greyed out until all three are ticked; then press it.
+4. A client admin sets up two-factor sign-in (an authenticator app) at the first sign-in.
 
-**What happens next:** your home page opens, with a short welcome for your first two weeks. Next time, a manager or an action owner can press **Email me a sign-in link** on the sign-in page instead of typing a password. If the invitation has expired, ask whoever invited you for a new one.
+**What happens next:** your home page opens, with a short welcome for your first two weeks. Next time, a manager or an action owner can press **Email me a sign-in link** on the sign-in page instead of typing a password. The link works once and for a short time; open it, then press **Sign in**. If the invitation has expired, ask whoever invited you for a new one.
 
 <a id="home"></a>
 
@@ -56,10 +57,10 @@ Selah is where your company and your consulting firm follow what was agreed: eac
 
 **When:** every time you sign in.
 
-- **Client admin and manager:** what waits for you first, each row with its step: **Recommendations waiting for your company's answer** (**Answer**), **Files sent back to you**, **Your actions that are late or stopped**, **Documents asked of you** (**Send a file**), **Meetings waiting for your reply** (**Reply**), **Your follow-ups**, and **Waiting for your choice**. Then how your company's work is going on each project and department, and the business indicators.
-- **Action owner:** **My actions** in three groups: **Waiting for you**, **With your consultant**, and **Finished** (folded). Then the documents asked of you, your meetings and your follow-ups.
+- **Client admin and manager:** what waits for you first, each row with its step: **Recommendations waiting for your company's answer** (**Answer**), **Files sent back to you**, **Your actions that are late or stopped**, **Answers to the dates you proposed**, **Indicators waiting for a value** (**Enter the value**), **Files waiting for your confirmation of receipt**, **Documents asked of you** (**Send a file**), **Meetings waiting for your reply** (**Reply**), **Your follow-ups**, and **Waiting for your choice**. Only the rows with something waiting show. Then how your company's work is going on each project and department, and the business indicators. If your company is part of a group of companies, a block named after the group comes last: its companies counted together, with each company beside the total.
+- **Action owner:** your **Home** page (**My actions** in the sidebar opens the same page) shows your actions in three groups: **Waiting for you**, **With your consultant**, and **Finished** (folded). A group with nothing in it is hidden. Then the documents asked of you, your meetings and your follow-ups.
 
-The **EN / عربي** button in the top bar switches the language; the icon beside it switches dark mode.
+The language button in the top bar switches the language: it reads **عربي** on the English screen and **EN** on the Arabic one. The icon beside it switches dark mode.
 
 **Screen:** Home (`/`).
 
@@ -72,8 +73,8 @@ The **EN / عربي** button in the top bar switches the language; the icon besi
 1. Press **Answer** on your home, or open the recommendation from the project's **Plan** tab.
 2. On the **Your company's answer** card, press **Respond**.
 3. Choose:
-   - **Agree**: you accept it and will carry it out. Write **What will be done** and **By when**, and who answers for it if you like.
-   - **Partly agree**: say which part you accept and why not the rest, with what will be done and by when.
+   - **Agree**: you accept it and will carry it out. Write **What will be done** and **By when**, and if you like **Who answers for it (optional)** and a **Comment (optional)**.
+   - **Partly agree**: write **What will be done** and **By when**, and in **Reason** say which part you accept and why not the rest.
    - **Disagree**: say why. The recommendation is marked disputed.
 4. **Record the response**.
 
@@ -87,7 +88,7 @@ The **EN / عربي** button in the top bar switches the language; the icon besi
 
 **When:** an action is given to you (you get a notification, and it shows under **Waiting for you**). **Who:** its owner, and a manager who can see it.
 
-1. Open the action. The **Next step** card has two plain lines: what is expected and by when, and who is told if it is still open after that.
+1. Open the action. The **Next step** card gives its due date and when a reminder goes out, for example "Due …. A reminder goes out on …." If the firm has set who is told when an action stays open, the card says that too.
 2. Press **Start work**.
 
 **What happens next:** it reads **In progress**, and its main button becomes **Send for review**. **What to send** lists the files your consultant asked for on this action.
@@ -101,21 +102,23 @@ The **EN / عربي** button in the top bar switches the language; the icon besi
 **When:** the work is done, or the file for one item is ready. **Who:** the owner, and a manager. (A client admin does not do actions; they send what the firm asks of them under [Send a document the firm asked for](#documents).)
 
 1. On the action page press **Send for review**, or **Send a file** beside an item under **What to send**.
-2. In the **Send a file** window:
-   - If the action has a list: choose the item the file answers, or **Not an item on the list**.
+2. A window opens, named after the button you pressed: **Send for review** or **Send a file**. In it:
+   - If you opened it from **Send for review** and the action has a list: under "Answers which item on the evidence list?", choose the item, or **Not an item on the list**. You must choose, even when the list has one item; the send button stays greyed out until you do.
    - **Upload a new file**, or **Choose from Selah files** if it is already there. Accepted: PDF, Word, Excel, PowerPoint, images or text, up to 20 MB. Every file is checked for viruses.
    - A **Note for the reviewer (optional)**.
-   - Under **Then**: **Send for review now** (your consultant is told it is ready to check), or **Save without sending** (the file stays on the action; send it for review once everything is there).
+   - Under **Then**: **Send for review now** (your consultant is told it is ready to check), or **Save without sending** (the file stays on the action, and the button at the foot of the window reads **Save without sending**).
 3. Press the button at the foot of the window.
 
-**What happens next:** the action reads **Waiting for the firm**, and the card says "With the consultant since …". Nothing more is needed from you. Your consultant decides:
+**To send a file you saved without sending:** press **Send for review** again, choose the item if asked, leave **File** empty, and press **Send for review** at the foot of the window. What you saved earlier goes for review; you do not upload it again.
+
+**What happens next:** the action reads **Waiting for the firm**, and the card says "With the consultant since …". It may also say "A second consultant checks it too.": two consultants review it. Nothing more is needed from you. Your consultant decides:
 
 - **Verify**: the action becomes **Verified**, and you are told.
-- **Request revision**: you are told why, and the action shows under **Files sent back to you**. Read the reason, then press **Send the revised file for review** and attach the new file. One step.
+- **Request revision**: you are told why, and the action comes back to you: for an action owner it shows on your home under **Waiting for you**, for a manager under **Files sent back to you**. Open the action and read the reason, then press **Send the revised file for review**, choose the item if asked, and attach the new file. One step: you do not need to press **Resume work** first.
 
 What your company sends is a claim that the work is done until a consultant reviews it. Only **Verified** means a consultant accepted the evidence.
 
-**Screen:** an action, and the **Send a file** window.
+**Screen:** an action, and the **Send for review** or **Send a file** window.
 
 <a id="documents"></a>
 
@@ -123,8 +126,9 @@ What your company sends is a claim that the work is done until a consultant revi
 
 **When:** the firm asks for a document to understand your company (a policy, minutes, a structure). It shows on your home under **Documents asked of you** if you were asked by name. **Who:** the client admin, a manager, and an action owner when asked.
 
-1. Press **Send a file** on your home, or open the project → **Requests and files** → **Send a file** beside the item.
-2. Upload the file or choose it, then send it.
+1. Press **Send a file** on your home; it opens the project's **Requests and files** tab. Or open the project → **Requests and files**.
+2. Press **Send a file** beside the item. The **Send a file** window opens, with "For:" and the item's name.
+3. Upload the file or choose it, then send it.
 
 **What happens next:** the item reads **Waiting for the firm**. The consultant accepts it, or returns it with a reason and it comes back to you. The firm may also send you a no-login upload link for one item; it works for a limited time and for that item only.
 
@@ -140,7 +144,7 @@ What your company sends is a claim that the work is done until a consultant revi
 2. Pick the **New due date** and write the **Reason**.
 3. **Send request**.
 
-**What happens next:** the consultants on the project are told. The action reads: "The new date you proposed, …, is waiting for your consultant's answer." The date does not change until they agree. Their answer shows on your home under **Answers to the dates you proposed**. A third move later is decided by the lead consultant or the firm admin. You cannot propose another date while one is waiting.
+**What happens next:** the consultants on the project are told. The action reads: "The new date you proposed, …, is waiting for your consultant's answer." The date does not change until they agree. Their answer shows on the action itself, for example "New date …, agreed by … on …." The client admin and managers also see it on their home under **Answers to the dates you proposed**. A third move later is decided by the lead consultant or the firm admin. You cannot propose another date while one is waiting.
 
 <a id="stuck"></a>
 
@@ -160,8 +164,8 @@ What your company sends is a claim that the work is done until a consultant revi
 
 **When:** you have a question about one action.
 
-1. On the action page press **Ask the consultant**, or scroll to **Discussion**.
-2. Write your comment. To alert someone, use **Mention**; only people who can see the action are listed.
+1. On the action page press **Ask the consultant**, or scroll to **Discussion**. **Ask the consultant** puts the cursor in the comment box and already mentions the lead consultant.
+2. Write your comment. To alert someone else, use **Mention**; only people who can see the action are listed. If your comment reports progress, tick **This is an update on the work**: it is kept as a progress note on the action, so it counts as activity.
 3. **Post**.
 
 **What happens next:** everyone who can see the action reads the discussion: the consultants on the project and the people at your company who can open it. The answer stays with the work. For anything else, write to your consultants from the [Help page](#help).
@@ -200,9 +204,10 @@ What your company sends is a claim that the work is done until a consultant revi
 **When:** the firm hands over the files of one of the engagement's deliverables. They show on your home under **Files waiting for your confirmation of receipt**. **Who:** the project's acceptor; failing that the client admin; failing that the sponsor.
 
 1. Download the files and look at them.
-2. **Confirm receipt**, or **Comment** if something is missing or needs changing (the comment needs text).
+2. Press **Confirm receipt**. A second window, "Confirm your company received these files", opens; press **Confirm receipt** in it again.
+   Or press **Comment** if something is missing or needs changing, and write in **Your comment** (it cannot be sent empty).
 
-**What happens next:** confirming receipt only means the files reached your company; it never means you accepted the work. The firm reads a comment and may hand over a new version. Everything the firm handed over to your company is on **All files handed over to your company**.
+**What happens next:** confirming receipt only means the files reached your company; it never means you accepted the work. The firm reads a comment and may hand over a new version. While something waits for your confirmation, its card on your home has the link **All files handed over to your company**, which opens **Files handed over to your company**: everything handed over, earlier hand-overs included. Once nothing waits, the card and its link go away; the page stays at `/deliverables`, and a hand-over notification opens it too.
 
 **Screens:** Home, and `/deliverables`.
 
@@ -214,11 +219,11 @@ The assistant stays off until the firm offers it to your company and your client
 
 **Agreeing (the client admin, once):**
 
-1. On your home, under **Waiting for your choice**: "Your consultants' firm offered your company the assistant" → **Choose**. Or **Assistant** in the sidebar.
+1. On your home, under **Waiting for your choice**: "Your consultants' firm offered your company the assistant" → **Read and decide**. Or **Assistant** in the sidebar.
 2. Read the notice: what it reads, what it never reads, that it gives no rulings, how chats are kept, and who can use it.
 3. Tick "I have read this and agree for my company.", then **Agree and switch on**.
 
-To switch it off at any time: the menu under your name → **Assistant consent** → **Switch off the assistant**.
+To switch it off at any time: the menu under your name → **Assistant consent** → **Switch off the assistant**. An "Are you sure?" window asks; press **Continue**.
 
 **Using it (the client admin and managers, as the firm offered it):**
 
@@ -236,5 +241,6 @@ To switch it off at any time: the menu under your name → **Assistant consent**
 - **Your consultants**: the lead consultant, the deputy and the others, with their projects and work email.
 - **Write to the firm's management**: when something in Selah is broken, or something about the work worries you and you would rather not raise it with your consultant. Only the firm's management reads it, not your consultants.
 - **Questions people ask**.
+- **Open your guide**: opens the part of this guide for your role.
 
 **Screen:** Help (`/help`).

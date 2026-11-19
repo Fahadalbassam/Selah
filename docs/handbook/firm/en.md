@@ -78,7 +78,7 @@ A consultant staffed on a project as "Observer: reads and comments, changes noth
 3. On **Actions**, the lists are across the top: All, Assigned to me, Awaiting review, Late, Blocked, No activity, Date moved twice or more, Sent back twice or more, No active owner. Under them you narrow by client, project, owner and department. On a rule list each row's **⋯** holds **Remind the owner** (once a day).
 4. The bell holds notifications. Mail choices are in the menu under your name at the foot of the sidebar: **Mail options**.
 
-The language (EN / عربي) and dark mode are in the top bar.
+The language button (it reads **عربي** on the English screen and **EN** on the Arabic one) and dark mode are in the top bar.
 
 **Screens:** Home (`/`), Actions (`/actions`).
 
