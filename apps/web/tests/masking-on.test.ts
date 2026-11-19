@@ -1,5 +1,7 @@
 // Phase 3, R1: names are masked unless the AI service itself says its model is local.
 // Closed by default: if the service cannot be asked, or answers anything else, the text is masked.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/env", () => ({
@@ -83,5 +85,26 @@ describe("maskingOn", () => {
   it("keeps the forced settings", async () => {
     expect(await maskingOn({ AI_MASKING: "on", LLM_PROVIDER: "ollama" }, async () => true)).toBe(true);
     expect(await maskingOn({ AI_MASKING: "off", LLM_PROVIDER: "openai_compat" }, async () => false)).toBe(false);
+  });
+});
+
+describe("where the masking decision and the 'local' wording come from", () => {
+  const src = (p: string) => readFileSync(join(__dirname, "../src", p), "utf8");
+
+  it("is worked out before the transaction opens, on every route that sends text to the model", () => {
+    for (const p of [
+      "app/api/assistant/query/route.ts",
+      "app/api/translations/route.ts",
+      "app/api/documents/[id]/summary/route.ts",
+      "app/api/clients/[id]/structure/import/draft/route.ts",
+    ]) {
+      expect(src(p), p).toMatch(/prepare: \(\) => maskingOn\(\)/);
+      expect(src(p), p).toMatch(/prepared/);
+    }
+  });
+
+  it("says 'local' only when the AI service says so, never from this app's setting alone", () => {
+    expect(src("app/(public)/legal/[doc]/page.tsx")).toMatch(/LLM_PROVIDER !== "ollama" \|\| !\(await modelIsLocal\(\)\)/);
+    expect(src("services/assistant.ts")).toMatch(/LLM_PROVIDER === "ollama" && \(await modelIsLocal\(\)\) \? \("local" as const\)/);
   });
 });

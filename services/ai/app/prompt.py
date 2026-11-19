@@ -130,22 +130,27 @@ def unfinished_reply(raw: str, passages: list[Passage]) -> bool:
 # heading ("The following actions are overdue across the clients:") or in the
 # middle of its first item ("... (Action"), and still marks it grounded with
 # citations. The person would see a heading, sources and nothing else.
-_END_OF_SENTENCE = (".", "!", "?", "؟", "。", ")", "]", "»", '"')
-FEW_WORDS = 2
+#
+# Short answers are whole answers: "نعم", "12", "2026-03-01", "SAR 250,000",
+# "خالد" or "**Quarterly**" are kept, however they end. Only these count:
+# nothing said, a heading with nothing after its colon, or a bracket left open.
+
+# Left out when looking at how an answer ends: spaces, Markdown marks, quotes
+# and the marks that set text direction (LRM, RLM, ALM, embeddings, isolates).
+_TRAILING = " \t\r\n*_`#~>\"'“”‘’«»‎‏؜‪‫‬‭‮⁦⁧⁨⁩"
 
 
 def unfinished(text: str) -> bool:
-    """An answer that stops before it says anything: empty, a heading ending
-    with a colon, a bracket opened and never closed, or only a word or two
-    with no end to the sentence ("Quarterly." is a whole answer, "The steps" is not)."""
-    t = text.strip()
-    if not t:
+    """An answer that stops before it says anything: nothing but passage
+    markers, formatting or punctuation; a heading whose colon has nothing
+    after it ("The following actions are overdue:"); or a "(" or "[" never
+    closed ("... (Action")."""
+    t = strip_markers(text)
+    if not re.search(r"[^\W_]", t):
         return True
-    if t.endswith((":", "：")):  # a heading (also the full-width colon)
+    if t.rstrip(_TRAILING).endswith((":", "：")):  # also the full-width colon
         return True
-    if t.count("(") > t.count(")"):
-        return True
-    return len(t.split()) <= FEW_WORDS and not t.endswith(_END_OF_SENTENCE)
+    return t.count("(") > t.count(")") or t.count("[") > t.count("]")
 
 
 # Added to the question when the first reply was only a heading (unfinished): asked once more.

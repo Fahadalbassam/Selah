@@ -346,7 +346,7 @@ export async function parseImportFile(tx: Tx, principal: Principal, clientOrgId:
  * is left out and listed, never added. The rows go to the same review step
  * as a file. Only where the assistant is on for this reader at this client.
  */
-export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: string, text: string): Promise<ImportedRows> {
+export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn?: boolean): Promise<ImportedRows> {
   const view = await importContext(tx, principal, clientOrgId);
   if (!view) throw new NotFoundError("org chart");
   const projectIds = await assistantProjects(tx, principal, clientOrgId);
@@ -355,7 +355,7 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
   if (!body) throw new BadRequestError("no text");
   // "text too long: N": by how many characters it must be shorter.
   if (body.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError(`text too long: ${body.length - ORG_IMPORT_LIMITS.text}`);
-  const masker = await textMasker(tx, projectIds, body);
+  const masker = await textMasker(tx, projectIds, body, maskOn);
   const masked = masker.mask(body);
   // The AI service takes as much after masking, and a placeholder can be longer than the name it hides ("جدة" is "[PLACE_1]").
   if (masked.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError(`text too long: ${masked.length - ORG_IMPORT_LIMITS.text}`);

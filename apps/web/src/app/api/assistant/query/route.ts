@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { route } from "@/server/http";
 import { ask, prepareAsk, streamAnswer } from "@/services/assistant";
+import { maskingOn } from "@/services/masking";
 
 const caseType = z.enum(["recommendation", "action", "finding", "meeting", "document"]);
 const body = z
@@ -21,12 +22,14 @@ const body = z
 /**
  * Asks the assistant. With `Accept: application/x-ndjson` the answer streams
  * as it is written (streamAnswer). Checks, the daily limit and the search run
- * first, here, so their refusals are ordinary error responses.
+ * first, here, so their refusals are ordinary error responses. Whether names
+ * are masked is asked of the AI service before the transaction opens
+ * (prepare), so that call never holds the question counter's lock.
  */
-export const POST = route({ body }, async ({ tx, principal, body: { caseType, caseId, ...rest } }) => {
+export const POST = route({ body, prepare: () => maskingOn() }, async ({ tx, principal, prepared: masked, body: { caseType, caseId, ...rest } }) => {
   const input = { ...rest, case: caseType && caseId ? { type: caseType, id: caseId } : undefined };
-  if (!(await headers()).get("accept")?.includes("application/x-ndjson")) return ask(tx, principal, input);
-  const prepared = await prepareAsk(tx, principal, input);
+  if (!(await headers()).get("accept")?.includes("application/x-ndjson")) return ask(tx, principal, input, masked);
+  const prepared = await prepareAsk(tx, principal, input, masked);
   return new Response(streamAnswer(principal, prepared), {
     headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
   });

@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { ToneBadge } from "@/components/tone-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { env } from "@/env";
+import { modelIsLocal } from "@/services/ai-client";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -61,7 +62,9 @@ export default async function LegalPage({ params }: Props) {
   // goes and where the model runs. Every "in use" badge is read from its setting.
   const e = env();
   const edge = edgeMode(e.SELAH_EDGE);
-  const hosted = e.LLM_PROVIDER !== "ollama";
+  // Local only when the AI service itself says so (modelIsLocal: its own setting, asked now); this app's
+  // setting can disagree with the service's, and a service that cannot be asked counts as hosted.
+  const hosted = doc === "security" && (e.LLM_PROVIDER !== "ollama" || !(await modelIsLocal()));
   const inUse = subprocessorsInUse(e);
   const facts =
     doc === "security"

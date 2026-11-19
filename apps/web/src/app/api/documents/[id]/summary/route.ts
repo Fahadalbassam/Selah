@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { route } from "@/server/http";
 import { getDocumentSummary, summarizeDocument } from "@/services/document-summaries";
+import { maskingOn } from "@/services/masking";
 
 const lang = z.enum(["ar", "en"]);
 
@@ -10,6 +11,8 @@ export const GET = route({ params: z.object({ id: z.uuid() }), query: z.object({
 );
 
 // Made once per file version and language, then kept; each line cites its pages.
-export const POST = route({ params: z.object({ id: z.uuid() }), body: z.object({ lang }) }, ({ tx, principal, params, body }) =>
-  summarizeDocument(tx, principal, params.id, body.lang),
+// Whether names are masked is asked of the AI service before the transaction opens (prepare).
+export const POST = route(
+  { params: z.object({ id: z.uuid() }), body: z.object({ lang }), prepare: () => maskingOn() },
+  ({ tx, principal, params, body, prepared }) => summarizeDocument(tx, principal, params.id, body.lang, undefined, prepared),
 );

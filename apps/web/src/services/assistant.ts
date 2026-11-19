@@ -10,7 +10,7 @@ import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import type { Masker } from "@/lib/masking";
-import { answer, answerStream, embed, type Answer, type HistoryTurn, type Passage } from "./ai-client";
+import { answer, answerStream, embed, modelIsLocal, type Answer, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
 import { indicatorSnapshot } from "./indicators";
@@ -124,8 +124,8 @@ export interface PreparedAsk {
  *   5. Cited ids are checked against the ids we supplied.
  *   6. No passages, or no valid citations: say so instead of guessing.
  */
-export async function ask(tx: Tx, principal: Principal, input: AskInput) {
-  const prepared = await prepareAsk(tx, principal, input);
+export async function ask(tx: Tx, principal: Principal, input: AskInput, masked?: boolean) {
+  const prepared = await prepareAsk(tx, principal, input, masked);
   const result = prepared.passages.length
     ? await answer(prepared.maskedQuestion, prepared.passages, answerLanguage(prepared), prepared.history, prepared.client ? "client" : "staff")
     : null;
@@ -137,7 +137,12 @@ export const answerLanguage = (p: Pick<PreparedAsk, "language" | "question">) =>
   p.language === "auto" ? detectLang(p.question) : p.language;
 
 /** Steps 1 to 4: checks, search and the passages for the model. Counts the question. */
-export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput): Promise<PreparedAsk> {
+/**
+ * `masked`: whether names are masked (maskingOn()), worked out by the route
+ * before its transaction opens, so the question to the AI service never holds
+ * the question counter's lock; left out (tests, jobs), it is asked here.
+ */
+export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, masked?: boolean): Promise<PreparedAsk> {
   // A chat keeps the scope it was started with.
   const chat = input.conversationId ? await ownConversation(tx, principal, input.conversationId) : null;
   // A chat named under another scope than its own is not found, as before chats across projects.
@@ -234,7 +239,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput):
   const history = chat ? await recentTurns(tx, chat.id) : [];
   const question = input.question;
   const outgoing = [question, ...sources.flatMap((s) => [s.text, s.source]), ...history.map((h) => h.content)].join("\n");
-  const masker = await textMasker(tx, ids, outgoing);
+  const masker = await textMasker(tx, ids, outgoing, masked);
   const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
   const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
   // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
@@ -1195,6 +1200,7 @@ export async function assistantContext(tx: Tx, principal: Principal, input: { lo
     // The client's people (F39): null for firm staff.
     usage: clientAi ? { used: clientAi.usedToday, limit: clientAi.dailyLimit } : null,
     // "local": answers come from a model on this machine's processor, which can take a minute (docs/walkthrough.md).
-    model: env().LLM_PROVIDER === "ollama" ? ("local" as const) : ("hosted" as const),
+    // The AI service says so itself (modelIsLocal); this app's own setting can disagree, and unknown is "hosted".
+    model: env().LLM_PROVIDER === "ollama" && (await modelIsLocal()) ? ("local" as const) : ("hosted" as const),
   };
 }

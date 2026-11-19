@@ -136,20 +136,50 @@ def test_check_answer_dedupes_and_filters():
 
 # Phase 3 runs B and C (AC1, AC2, U5, AP2): "grounded" answers that were only a heading.
 HEADINGS = [
+    # The four real ones: run B AC1 and AC2, run C U5 and AP2.
     "The following actions are overdue across the clients:",
+    "الإجراءات المتأخرة لدى عملاءكم هي:\n\n1. تشكيل لجنة المراجعة (Action",
+    "The evidence required for this recommendation is:",
+    "في مشروع حوكمة مجلس الإدارة، هناك إجراءين متأخرين: إعداد لائحة عمل اللجنة ( Recommendation",
+    # The same shapes, written a little differently.
     "The evidence required for this recommendation is: [P1]",
     "الإجراءات المتأخرة لدى عملائكم هي:",
-    "الإجراءات المتأخرة لدى عملاءكم هي:\n\n1. تشكيل لجنة المراجعة (Action",
-    "في مشروع حوكمة مجلس الإدارة، هناك إجراءين متأخرين: إعداد لائحة عمل اللجنة ( Recommendation",
-    "The steps",
+    "**The overdue actions are:**",
+    "The overdue actions are: ‏",
+    "«الإجراءات المتأخرة هي:»",
+    "The overdue actions are：",
+    "The steps are [1. Charter",
+    # Nothing said at all.
+    "",
     "  ",
+    "[P1]",
+    "** **",
+    "…",
 ]
+# Short answers are whole answers, however they end (the review of PR #192).
 WHOLE = [
     "Quarterly.",
     "Quarterly [P1].",
+    "Quarterly [P1]",
     "نعم، كل ثلاثة أشهر [P1].",
     "Two actions are overdue: the audit charter (due 1 March) and the board calendar [P1].",
     "The board meets quarterly, per the charter (section 4) [P1]",
+    "نعم",
+    "Yes",
+    "12",
+    "2026-03-01",
+    "75%",
+    "SAR 250,000",
+    "15 مارس",
+    "خالد",
+    "Khalid",
+    "الحالة: متأخرة",
+    "Owner: Reem",
+    "**Quarterly**",
+    "“Quarterly”",
+    "Four…",
+    "Quarterly.‏",
+    "Quarterly‏",
 ]
 
 
@@ -489,6 +519,21 @@ def test_stream_asks_once_more_when_the_reply_is_only_a_heading(streaming_client
     assert events[-1] == {"type": "done", "answer": {"answer": "The signed charter.", "cited_ids": ["P1"], "grounded": True}}
 
 
+def test_stream_asks_once_at_most_after_the_stream(streaming_client):
+    # Not JSON, then only a heading: no third request (at most three model runs, with chat_json's own retry).
+    client, fake = streaming_client("Sure! Here you go")
+    asked: list[str] = []
+
+    async def again(system: str, user: str, schema: dict) -> str:
+        asked.append(user)
+        return json.dumps({"answer": "The evidence required is:", "cited_ids": ["P1"], "grounded": True})
+
+    fake.chat_json = again  # type: ignore[method-assign]
+    _, events = ask_stream(client)
+    assert len(asked) == 1 and "<note>" not in asked[0]
+    assert events[-1] == {"type": "done", "answer": {"answer": "", "cited_ids": [], "grounded": False}}
+
+
 def test_stream_gives_no_heading_as_an_answer(streaming_client):
     heading = json.dumps({"answer": "The evidence required is:", "cited_ids": ["P1"], "grounded": True})
     client, fake = streaming_client(heading)
@@ -538,6 +583,63 @@ def test_model_says_local_only_by_the_services_own_explicit_setting(monkeypatch)
             app.dependency_overrides.clear()
         assert res.status_code == 200
         assert res.json() == {"local": local, "model": settings.llm_model}
+
+
+def _ollama(**kw) -> Settings:
+    return Settings(ai_service_token=TOKEN, llm_provider="ollama", **kw)
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        _ollama(),
+        _ollama(ollama_url="http://ollama:11434"),
+        _ollama(ollama_url="http://127.0.0.1:11434"),
+        _ollama(ollama_url="http://[::1]:11434/"),
+        _ollama(ollama_url="http://LOCALHOST:11434"),
+        _ollama(llm_model="qwen2.5:7b"),
+    ],
+)
+def test_local_is_the_ollama_on_this_machine_with_a_model_it_runs(settings):
+    from app.main import draft_locally
+
+    assert draft_locally(settings) is True
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        # Ollama's cloud models: the daemon forwards them to ollama.com.
+        _ollama(llm_model="gpt-oss:120b-cloud"),
+        _ollama(llm_model="deepseek-v3.1:671b-cloud"),
+        _ollama(llm_model="gpt-oss:cloud"),
+        _ollama(llm_model="GPT-OSS:120B-CLOUD "),
+        # An Ollama somewhere else.
+        _ollama(ollama_url="https://ollama.com"),
+        _ollama(ollama_url="http://10.0.0.5:11434"),
+        _ollama(ollama_url="http://ollama.example.com:11434"),
+        _ollama(ollama_url="http://localhost.example.com:11434"),
+        _ollama(ollama_url="http://ollama@evil.example:11434"),
+        _ollama(ollama_url="not a url"),
+        _ollama(ollama_url="http://[::1"),
+    ],
+)
+def test_not_local_with_a_cloud_model_or_another_host(settings):
+    from app.main import draft_locally
+
+    assert draft_locally(settings) is False
+    # The web app is told to mask, and the org draft refuses before the model is asked.
+    fake = FakeLLM(json.dumps({"units": [], "positions": []}))
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_llm] = lambda: fake
+    try:
+        client = TestClient(app)
+        auth = {"authorization": f"Bearer {TOKEN}"}
+        assert client.get("/v1/model", headers=auth).json()["local"] is False
+        res = client.post("/v1/org-chart/draft", headers=auth, json={"text": "Driver"})
+    finally:
+        app.dependency_overrides.clear()
+    assert res.status_code == 409 and fake.calls == []
 
 
 # Org chart, part 4: the assistant's draft from pasted text.

@@ -56,7 +56,8 @@ async function kept(tx: Tx, r: TranslationRequest, hash: string) {
   return rows[0];
 }
 
-export async function translate(tx: Tx, principal: Principal, r: TranslationRequest): Promise<TranslationResult> {
+/** `masked`: maskingOn(), worked out before the transaction by the route; left out, it is asked here. */
+export async function translate(tx: Tx, principal: Principal, r: TranslationRequest, masked?: boolean): Promise<TranslationResult> {
   const src = await source(tx, r);
   const sourceLang = detectLang(src.body);
   if (sourceLang === r.to) return { id: null, text: src.body, sourceLang, original: true, reviewed: false };
@@ -69,7 +70,7 @@ export async function translate(tx: Tx, principal: Principal, r: TranslationRequ
   let made: { text: string; model: string };
   try {
     // A hosted model gets placeholders for the known names written in the text (docs/translations.md).
-    const masker = await textMasker(tx, src.projectIds, src.body);
+    const masker = await textMasker(tx, src.projectIds, src.body, masked);
     made = await translateText(masker.mask(src.body), sourceLang, r.to);
     made = { ...made, text: masker.unmask(made.text) };
   } catch {
