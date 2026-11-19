@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 
 // Read-only lookups for test ids, straight from the database container.
 export function sql<T = Record<string, string>>(query: string): T[] {
-  const out = execFileSync("docker", ["exec", "-i", "selah-db-1", "psql", "-U", "postgres", "-d", "selah", "-tA", "-F", "\t", "-c", query], { encoding: "utf8" });
+  const out = execFileSync("docker", ["exec", "-i", process.env.E2E_DB_CONTAINER ?? "selah-db-1", "psql", "-U", "postgres", "-d", "selah", "-tA", "-F", "\t", "-c", query], { encoding: "utf8" });
   const lines = out.trim().split("\n").filter(Boolean);
   return lines.map((l) => l.split("\t")) as unknown as T[];
 }

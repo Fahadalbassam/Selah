@@ -1,5 +1,5 @@
 import { expect, request, test } from "@playwright/test";
-import { ids, one } from "./support/db";
+import { ids, one, sql } from "./support/db";
 import { EICAR, pdf } from "./support/files";
 import { L } from "./support/msg";
 import { hydrated } from "./support/session";
@@ -84,6 +84,9 @@ test("owner sees it, starts work, posts a note and is refused an infected file (
 
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
   await page.locator("#send-file").setInputFiles({ name: "eicar.txt", mimeType: "text/plain", buffer: EICAR });
+  // The dialog now asks which evidence-list item the file answers before it will send.
+  await page.locator("#send-item").click();
+  await page.getByRole("option").first().click();
   // The page's button and the dialog's say the same words ("send for review"): press the dialog's.
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await expect(page.getByRole("alert").filter({ hasText: t("action.errors.infected") })).toBeVisible();
@@ -97,6 +100,8 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   await page.goto(`/actions/${actionId}`);
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
   await page.locator("#send-file").setInputFiles({ name: "minutes.pdf", mimeType: "application/pdf", buffer: pdf() });
+  await page.locator("#send-item").click();
+  await page.getByRole("option").first().click();
   await page.locator("#send-note").fill("المحضر مرفق");
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await toastSaved(page);
@@ -143,6 +148,8 @@ test("owner is notified, asks for a later date and resubmits (Arabic)", async ({
   await expect(page.getByRole("button", { name: t("sendFile.button") })).toHaveCount(0);
   await page.getByRole("button", { name: t("action.next.resend") }).click();
   await page.locator("#send-file").setInputFiles({ name: "minutes-signed.pdf", mimeType: "application/pdf", buffer: pdf("signed") });
+  await page.locator("#send-item").click();
+  await page.getByRole("option").first().click();
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await expect(page.getByText(t("status.awaiting_review")).first()).toBeVisible();
   await page.context().close();
@@ -191,6 +198,9 @@ test("the owner gets a mail when the action is released, sent back and verified"
   await expect
     .poll(
       async () => {
+        // Work mail waits for the person's mail hours (quiet hours 20:00-07:00, never Friday; wave 1 item 12).
+        // This test is about what the mail says, so release the hold on this action's mail, whatever time it runs.
+        sql(`update outbound_emails set next_attempt_at = now() where kind like 'action.%' and link = '/actions/${actionId}' and sent_at is null and next_attempt_at > now()`);
         const r = await api.get("http://localhost:8025/api/v1/search?query=" + encodeURIComponent(`to:"abdullah@nukhba.example" actions/${actionId}`));
         mine = ((await r.json()) as { messages?: Msg[] }).messages ?? [];
         return mine.map((m) => m.Subject).sort();

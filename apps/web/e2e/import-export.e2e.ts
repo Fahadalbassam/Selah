@@ -220,7 +220,7 @@ test("a report downloads as PDF in Arabic, for those who can read it", async ({ 
   const bytes = readFileSync(file);
   expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
   // The text is real, searchable Arabic (shaped and extractable), and nothing written in it ran as HTML.
-  const text = execFileSync("pdftotext", ["-layout", file, "-"], { encoding: "utf8" }).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
+  const text = execFileSync("pdftotext", ["-enc", "UTF-8", "-layout", file, "-"], { encoding: "utf8" }).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
   expect(text).toContain(stamp);
   expect(text).toContain("حوكمة مجلس");
   expect(text).toContain("<b>bold");

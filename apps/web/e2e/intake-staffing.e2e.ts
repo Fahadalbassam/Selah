@@ -78,7 +78,11 @@ test("the firm admin triages it, books discovery, records the outcome and makes 
   await expect(page.getByText("Triaged").first()).toBeVisible();
   // The conflict check is a fact on the side with its own buttons, not a step (the lead's decision on review S3).
   await page.getByRole("button", { name: "Run the conflict search" }).click();
+  // Wait for the search result: only then does the dialog offer "Clear". A rerun on the same data may list the earlier inquiry as a possible match; that is still clearable.
+  await expect(page.getByText(/^Searched /)).toBeVisible();
   await page.getByRole("button", { name: "Record the check" }).click();
+  await page.getByRole("dialog").getByRole("combobox").click();
+  await page.getByRole("option", { name: "Clear", exact: true }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("Checked against clients and owners");
   await page.getByRole("dialog").getByRole("button", { name: "Record the check" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -131,6 +135,9 @@ test("a consultant asks to join the new client; the lead approves (Arabic)", asy
   await noura.goto(`/projects/${projectId}`);
   await noura.getByRole("tab", { name: t("projectPage.tabs.people") }).click();
   await noura.getByRole("button", { name: t("staffing.staff") }).click();
+  // The dialog now asks which consultant (a search by name or email); it no longer has a default.
+  await noura.getByRole("dialog").getByRole("combobox").first().click();
+  await noura.getByRole("option", { name: /khalid@mizan\.example/ }).click();
   await noura.getByRole("dialog").locator('button[type="submit"]').click();
   await expect(noura.getByRole("dialog")).toHaveCount(0);
   await expect(noura.getByRole("tabpanel").getByText("khalid@mizan.example")).toBeVisible();
