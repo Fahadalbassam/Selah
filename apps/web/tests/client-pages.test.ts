@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 import { ActionPanel } from "@/app/(app)/actions/[id]/action-panel";
 import { PlainDateLines } from "@/app/(app)/actions/[id]/client-view";
+import { SecondReviewStatus } from "@/app/(app)/actions/[id]/second-review";
+import { nextStep } from "@/lib/action-next";
 import { RespondButtons } from "@/app/(app)/meetings/[id]/record-panels";
 import { actionPageCards, plainDateLines, type LadderStepLike } from "@/lib/action-plain";
 import { meetingSections } from "@/lib/meetings";
@@ -48,15 +50,17 @@ describe("a client reader's action page (page audit 4.5)", () => {
 
   it("the page follows that rule for every card, and leaves the first sign-off out of a client's history", () => {
     const page = source("app/(app)/actions/[id]/page.tsx");
-    expect(page).toMatch(/cards\.ladder \? <ReminderLadder/);
+    expect(page).toMatch(/cards\.ladder && !recordedForClient \? <ReminderLadder/);
     expect(page).toMatch(/cards\.dateHistory \? \(\s*<DeadlineRequests/);
     expect(page).toMatch(/cards\.signOffs \? <SecondReviewCard/);
-    expect(page).toMatch(/second=\{cards\.signOffs \? second : undefined\}/);
-    expect(page).toMatch(/cards\.muteButton \? <MuteButton/);
-    expect(page).toMatch(/data\.timeline\.filter\(\(e\) => e\.kind !== "signoff"\)/);
+    expect(page).toMatch(/action\.status === "awaiting_review" && second && firmView \? <SecondReviewStatus/);
+    // Mail about it is in the one page menu, for every reader (batch 4).
+    expect(page).toMatch(/canMute: true/);
+    expect(page).toMatch(/cards\.signOffs \|\| e\.kind !== "signoff"/);
     // Risk acceptance and a new date stay reachable: the menu and the quiet link, where the role may use them.
-    expect(page).toMatch(/<ActionMenu actionId=\{action\.id\} muted=\{muted\} canSign=\{closing\.can\.sign\} \/>/);
-    expect(page).toMatch(/follow\.can\.requestDeadline \? \{ actionId: action\.id/);
+    expect(page).toMatch(/<ActionPageMenu/);
+    expect(page).toMatch(/canSignRisk: closing\.can\.sign/);
+    expect(page).toMatch(/canRequestDate: follow\.can\.requestDeadline/);
     // The risk card is a record only: drawn once something is signed, never as a standing button.
     expect(source("app/(app)/actions/[id]/closure-panels.tsx")).toMatch(/if \(!items\.length\) return null;/);
   });
@@ -72,15 +76,42 @@ describe("a client reader's action page (page audit 4.5)", () => {
       candidates: [{ id: "u2", name: "Noura", fallback: false }],
       can: { signOff: false, verify: false, flag: false },
     };
-    const props = { actionId: "a1", status: "awaiting_review" as const, moves: [], can: { addUpdate: false, submitEvidence: false }, second };
+    const plan = nextStep({
+      status: "awaiting_review",
+      moves: [],
+      canSubmitEvidence: false,
+      canRequestDate: false,
+      canAsk: false,
+      canSignRisk: false,
+      canMute: false,
+      second: { required: true, signed: true, canSignOff: false, canVerify: false },
+      dateToDecide: false,
+      items: { open: 0, submitted: 0 },
+    });
+    const props = {
+      actionId: "a1",
+      status: "awaiting_review" as const,
+      plan,
+      waitingItems: [],
+      judged: [],
+      toAccept: 0,
+      recordFor: false,
+      ownerGone: false,
+      blockedReason: null,
+      awaitingSince: null,
+      reviewers: null,
+      date: null,
+      dueDate: null,
+    };
     for (const locale of ["ar", "en"] as const) {
       const m = locale === "ar" ? ar : en;
       const client = text(html(locale, createElement(ActionPanel, { ...props, firmView: false })));
-      expect(client).toContain(m.action.awaitingNote);
+      expect(client).toContain(m.action.next.withConsultant);
+      expect(client).toContain(m.action.next.secondChecks);
       expect(client).not.toContain(m.action.secondReview.halfDone);
       expect(client).not.toContain(m.action.secondReview.signedClient);
       expect(client).not.toMatch(locale === "ar" ? MACHINERY_AR : MACHINERY_EN);
-      const firm = text(html(locale, createElement(ActionPanel, { ...props, firmView: true })));
+      const firm = text(html(locale, createElement(SecondReviewStatus, { view: second, firmView: true })));
       expect(firm).toContain(m.action.secondReview.halfDone);
     }
   });
@@ -143,17 +174,14 @@ describe("a client reader's action page (page audit 4.5)", () => {
   it("puts both lines in words the client reads, Arabic first, with no ladder words and no 'the client'", () => {
     const next = { kind: "late" as const, due: "2026-12-05", tellOn: "2026-12-12", who: ["managers" as const, "sponsor" as const] };
     const last = { kind: "moved" as const, date: "2026-12-05", by: "خالد الشمري", agreed: true, at: new Date("2026-11-16T09:00:00Z") };
-    const ask = { actionId: "a1", dueDate: "2026-12-05" };
-    const arOut = text(html("ar", createElement(PlainDateLines, { next, last, ask })));
+    const arOut = text(html("ar", createElement(PlainDateLines, { next, last })));
     expect(arOut).toContain("مديرو شركتكم وراعي المشروع");
     expect(arOut).toContain("بموافقة خالد الشمري");
-    expect(arOut).toContain(ar.action.plain.ask);
     expect(arOut).not.toMatch(MACHINERY_AR);
     expect(arOut).not.toMatch(/العميل/);
-    const enOut = text(html("en", createElement(PlainDateLines, { next, last, ask })));
+    const enOut = text(html("en", createElement(PlainDateLines, { next, last })));
     expect(enOut).toContain("your company's managers and the project's sponsor will be told too");
     expect(enOut).toContain("New date Dec 5, 2026, agreed by خالد الشمري");
-    expect(enOut).toContain("I need more time");
     expect(enOut).not.toMatch(MACHINERY_EN);
     expect(enOut).not.toMatch(/\bthe client\b/i);
   });

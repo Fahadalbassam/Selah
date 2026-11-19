@@ -776,6 +776,21 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     to: deptNames.get((m.meta as Moved).to) ?? null,
   }));
 
+  // Who the action was given to (decision D1), read under the reader's own rules on the activity record.
+  const ownerRows = await tx
+    .select({ at: activityEvents.createdAt, who: user.name, meta: activityEvents.meta })
+    .from(activityEvents)
+    .leftJoin(user, eq(user.id, activityEvents.actorId))
+    .where(and(eq(activityEvents.entityType, "action"), eq(activityEvents.entityId, id), eq(activityEvents.event, "owner_changed")));
+  const ownerIds = [...new Set(ownerRows.map((r) => (r.meta as { to?: string } | null)?.to).filter((x): x is string => !!x && x !== "typed"))];
+  const ownerNames = new Map(
+    ownerIds.length ? (await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ownerIds))).map((u) => [u.id, u.name]) : [],
+  );
+  const handovers = ownerRows.map((r) => {
+    const m = (r.meta ?? {}) as { to?: string | null; toName?: string };
+    return { at: r.at, who: r.who, to: m.toName ?? (m.to ? (ownerNames.get(m.to) ?? null) : null) };
+  });
+
   // source tells "submitted by the client" from "recorded by a consultant"
   // (with how and when the client told them); the two are never mixed.
   type Recorded = Pick<(typeof updates)[number], "source" | "receivedVia" | "receivedOn">;
@@ -784,7 +799,8 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     | { kind: "evidence"; at: Date; who: string | null; evidence: (typeof evidence)[number] }
     | { kind: "review"; at: Date; who: string | null; outcome: "accept" | "revise" | "reject"; reason: string | null }
     | { kind: "signoff"; at: Date; who: string | null; note: string | null }
-    | ({ kind: "moved" } & (typeof refilings)[number]);
+    | ({ kind: "moved" } & (typeof refilings)[number])
+    | ({ kind: "owner" } & (typeof handovers)[number]);
   const timeline: Entry[] = [
     ...updates.map((u) => ({
       kind: "update" as const,
@@ -800,6 +816,7 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     ...reviewRows.map((r) => ({ kind: "review" as const, at: r.createdAt, who: r.reviewerName, outcome: r.outcome, reason: r.reason })),
     ...signoffRows.map((r) => ({ kind: "signoff" as const, at: r.at, who: r.who, note: r.note })),
     ...refilings.map((m) => ({ kind: "moved" as const, ...m })),
+    ...handovers.map((h) => ({ kind: "owner" as const, ...h })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const from = action.status as ActionStatus;
@@ -827,6 +844,28 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     .filter((to) => canTransition(principal, resource, from, to, submitters).allowed)
     .filter((to) => !(to === "verified_complete" && second?.required && (!second.signoff || second.signoff.userId === principal.userId)));
 
+  // Who reviews (N25), for the firm: the consultants on the project (not observers) and the client's
+  // lead and deputy, active, other than the owner and whoever sent this round. The page names them,
+  // so a consultant working alone on a client the firm runs reads that someone else must review it.
+  const reviewers =
+    principal.orgKind === "firm" && from !== "verified_complete" && from !== "closed"
+      ? (
+          await tx.execute<{ id: string; name: string }>(sql`
+            select distinct u.id, u.name from (
+              select pm.user_id from project_members pm where pm.project_id = ${action.projectId}::uuid and not pm.observer
+              union
+              select ca.user_id from client_assignments ca join projects p on p.id = ${action.projectId}::uuid
+                where ca.client_org_id = p.org_id and p.kind = 'client' and (ca.is_lead or ca.is_deputy)
+            ) x
+            join org_memberships m on m.user_id = x.user_id and m.org_id = ${resource.firmOrgId ?? null}::uuid and m.active
+            join "user" u on u.id = x.user_id
+            where x.user_id is distinct from ${action.ownerUserId}::uuid
+            order by u.name`)
+        ).rows.filter((r) => !submitters.includes(r.id))
+      : [];
+  // The consultant's reason for sending it back, for "what happened last" (page audit 4.5, block 2).
+  const lastReview = [...reviewRows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
   return {
     action: {
       id: action.id,
@@ -844,7 +883,15 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
       // (baseline: Insight); null until verified.
       verifiedBasis: from === "verified_complete" ? (verifiedBasis ?? null) : null,
       overdue: isOverdue({ status: from, dueDate: action.dueDate }),
+      // Since when it waits for the consultant ("With the consultant since …").
+      awaitingSince: from === "awaiting_review" ? action.awaitingReviewAt : null,
+      // The reason it was sent back, while it is.
+      sentBack:
+        from === "revision_requested" && lastReview?.outcome === "revise"
+          ? { reason: lastReview.reason, by: lastReview.reviewerName, at: lastReview.createdAt }
+          : null,
     },
+    reviewers,
     context: context!,
     timeline,
     moves,

@@ -18,6 +18,7 @@ import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { changeActionOwner, ownerControl } from "@/services/action-owner";
+import { transitionAction } from "@/services/actions";
 import { listNotifications } from "@/services/notifications";
 import { updateAction } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
@@ -313,5 +314,53 @@ describe("D1 on a minimal-records client: the owner is a typed name", () => {
   it("a typed name is refused for a client with accounts, and from the client side", async () => {
     await expect(svc(U.lead, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow(/firm manages/);
     await expect(svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow();
+  });
+});
+
+// October review, item 12: may accepting the last evidence item and verifying be one step?
+// Yes, for the reviewer who may verify alone; never with two sign-offs or with an item still unsent.
+describe("October item 12: verify accepts the files still to check", () => {
+  let n = 100;
+  async function waiting(items: ("open" | "submitted")[]) {
+    const aid = id(++n);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Waiting one',$5,'awaiting_review',app_firm_today() + 30,$6)`,
+      [aid, P, ACME, REC.p, U.owner1, U.lead],
+    );
+    for (const s of items) {
+      const { rows } = await q(`INSERT INTO evidence_requests (project_id, org_id, action_id, title, created_by) VALUES ($1,$2,$3,'Item',$4) RETURNING id`, [P, ACME, aid, U.lead]);
+      if (s === "submitted") await q(`UPDATE evidence_requests SET status = 'submitted' WHERE id = $1`, [rows[0].id]);
+    }
+    return aid;
+  }
+  const items = async (aid: string) => (await q(`SELECT status::text FROM evidence_requests WHERE action_id = $1`, [aid])).rows.map((r) => r.status);
+
+  it("one step: the item is accepted and the action verified, by the same reviewer", async () => {
+    const aid = await waiting(["submitted"]);
+    await svc(U.staff, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete", acceptItems: true }), true);
+    expect((await ownerOf(aid)).status).toBe("verified_complete");
+    expect(await items(aid)).toEqual(["accepted"]);
+    const { rows } = await q(`SELECT decided_by FROM evidence_requests WHERE action_id = $1`, [aid]);
+    expect(rows[0].decided_by).toBe(U.staff);
+  });
+
+  it("without it, verifying still waits for the items, as before", async () => {
+    const aid = await waiting(["submitted"]);
+    await expect(svc(U.staff, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete" }))).rejects.toThrow(/every evidence request/);
+  });
+
+  it("not while an item has nothing sent", async () => {
+    const aid = await waiting(["submitted", "open"]);
+    await expect(svc(U.staff, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete", acceptItems: true }))).rejects.toThrow(
+      /every evidence request/,
+    );
+    expect((await items(aid)).sort()).toEqual(["open", "submitted"]);
+  });
+
+  it("not by someone who may not verify: the owner's side", async () => {
+    const aid = await waiting(["submitted"]);
+    await expect(svc(U.coord, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete", acceptItems: true }))).rejects.toThrow(NOT_FOUND);
+    expect(await items(aid)).toEqual(["submitted"]);
   });
 });

@@ -640,7 +640,6 @@
   },
   "action": {
     "back": "Back to actions",
-    "owner": "Owner",
     "due": "Due date",
     "recommendation": "Recommendation",
     "requiredEvidence": "What shows it is done",
@@ -704,7 +703,10 @@
       "ownerGone": "The person named on this action no longer has an account on the project. Name someone else before releasing.",
       "replacementDraft": "The replacement is still a draft the client can't see. Release it first.",
       "narrowed": "A file with a limited audience can't be used as evidence. Send a new file instead.",
-      "notEvidence": "This file can't be used as evidence."
+      "notEvidence": "This file can't be used as evidence.",
+      "chooseItem": "Choose which item this file is for, or \"Not an item on the list\".",
+      "sameOwner": "This person already owns the action.",
+      "minimalOwner": "This client keeps minimal records: give the owner's job title instead."
     },
     "entry": {
       "update": "posted an update",
@@ -713,7 +715,8 @@
       "revise": "requested a revision",
       "reject": "rejected the evidence",
       "moved": "moved this from {from} to {to}",
-      "signoff": "signed off (first of two)"
+      "signoff": "signed off (first of two)",
+      "owner": "gave it to {to}"
     },
     "download": "Download",
     "revisionNote": "Resume work, make the changes, then send it for review again.",
@@ -901,8 +904,14 @@
         "mentions": "You can mention only people who can see this action.",
         "empty": "Write something first.",
         "removed": "This comment was already removed.",
-        "cannot": "This comment couldn't be saved. The project may be closed, or you may only be observing it."
-      }
+        "cannot": "This comment couldn't be saved. The project may be closed, or you may only be observing it.",
+        "received": "Say how and when the client told you."
+      },
+      "progressNote": "Progress note",
+      "asNote": "This is an update on the work",
+      "asNoteHint": "Kept as a progress note on the action, so it counts as activity.",
+      "asRecorded": "This is what the client told you",
+      "asRecordedHint": "Recorded as the client's progress, with how and when they told you."
     },
     "secondReview": {
       "title": "Second sign-off",
@@ -991,7 +1000,51 @@
     "menu": {
       "label": "More options",
       "acceptRisk": "Accept the risk of not finishing it"
-    }
+    },
+    "dueOn": "Due {date}",
+    "dueLate": "Late: it was due {date}",
+    "next": {
+      "resend": "Send the revised file for review",
+      "alsoAccepts": "{n, plural, one {This also accepts the file still waiting to be checked.} other {This also accepts the # files still waiting to be checked.}}",
+      "withConsultantSince": "With the consultant since {date}.",
+      "withConsultant": "With the consultant.",
+      "withClient": "With the client.",
+      "withOwner": "With the person it is given to.",
+      "otherReviewer": "Another consultant reviews this: {names}.",
+      "noReviewer": "Nobody else on this project can review it, and nobody reviews work they sent. Ask the firm's admin to add a consultant to the project.",
+      "reviewedBy": "Once it is sent, {names} reviews it: nobody reviews work they sent.",
+      "secondChecks": "A second consultant checks it too.",
+      "dateAsked": "{who} asks to move the due date to {date}.",
+      "stuck": "I am stuck",
+      "moreTime": "I need more time",
+      "ask": "Ask the consultant",
+      "askClient": "Write in the discussion"
+    },
+    "last": {
+      "sentBack": "Sent back for changes.",
+      "sentBackBy": "Sent back for changes by {who} on {date}.",
+      "givenToYouBy": "{who} gave this action to you on {date}.",
+      "givenToYou": "This action was given to you on {date}."
+    },
+    "ownerChange": {
+      "change": "Give to a colleague",
+      "title": "Give this action to a colleague",
+      "hintFirm": "Its status stays as it is. The new owner, the previous owner, the client's lead and deputy and the consultants on the project are told.",
+      "hintClient": "Its status stays as it is. Your colleague, the previous owner and the firm's consultants on this project are told.",
+      "to": "Colleague",
+      "toPlaceholder": "Type part of a name",
+      "nobody": "Nobody else on this project can take it yet.",
+      "notListed": "Not listed?",
+      "addToProject": "Add them to the project first.",
+      "onlyProject": "Only people already on this project are listed.",
+      "name": "Who answers for it",
+      "nameHint": "This client has no account in Selah: type who answers for the action.",
+      "jobTitle": "Their job title",
+      "jobTitleHint": "This client keeps minimal records: a job title, never a person's name.",
+      "told": "This is recorded in the action's history and the audit log.",
+      "give": "Give it"
+    },
+    "owner": "Owner"
   },
   "common": {
     "cancel": "Cancel",
@@ -2221,7 +2274,9 @@
       "deliverable_handed_over": "The firm handed over {title}: confirm you received it, or comment",
       "deliverable_reminder": "{title} was handed over ten working days ago and still waits for your confirmation of receipt",
       "deliverable_commented": "The client commented on {title} instead of confirming receipt",
-      "org_chart_invite_not_placed": "Your invitation to {title} was accepted, but the position you chose was no longer vacant or no longer in the structure, so nobody was placed in it. Place them under People in positions."
+      "org_chart_invite_not_placed": "Your invitation to {title} was accepted, but the position you chose was no longer vacant or no longer in the structure, so nobody was placed in it. Place them under People in positions.",
+      "action_owner_moved": "An action you had on {title} was given to a colleague",
+      "action_owner_changed": "{title} was given to someone else"
     },
     "mail": {
       "sectionHint": "In-app notifications always arrive. These choices only change what reaches your inbox, and when.",
@@ -3839,7 +3894,8 @@
       "fromEmail": "by upload link from <a>{email}</a>",
       "byLink": "by upload link",
       "revokeFor": "Revoke the link sent to {email}"
-    }
+    },
+    "accept": "Accept"
   },
   "clientProgress": {
     "title": "Progress across projects",
@@ -4205,7 +4261,8 @@
       "deliverable_comment": "Comment on a deliverable handed over",
       "org_chart_holder_remove": "Removed a holding entered by mistake from a position of the organisation structure",
       "org_chart_draft_reset": "Started the organisation structure's draft again from the current version",
-      "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left"
+      "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left",
+      "action_owner_change": "Action given to a colleague"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -5934,6 +5991,35 @@
     "activity": {
       "title": "Activity",
       "hint": "Who did what on the project: the last twenty events."
+    }
+  },
+  "sendFile": {
+    "title": "Send a file",
+    "button": "Send a file",
+    "file": "File",
+    "rules": "PDF, Word, Excel, PowerPoint, images or text ({types}), up to {mb} MB. Every file is checked for viruses.",
+    "uploadNew": "Upload a new file",
+    "pickExisting": "Choose from Selah files",
+    "sending": "Sending…",
+    "save": "Save without sending",
+    "after": "Then",
+    "afterChoice": {
+      "review": "Send for review now",
+      "save": "Save without sending"
+    },
+    "afterHint": {
+      "review": "Your consultant is told it is ready to check.",
+      "save": "The file stays on the action. Send it for review once everything is there.",
+      "reviewFirmRun": "The project's other consultants are told it is ready to check."
+    },
+    "forItem": "For: {item}",
+    "forAction": "The file that shows this action is done.",
+    "errors": {
+      "scanner": "The virus scanner isn't available right now. Try again in a minute.",
+      "infected": "This file was refused: the virus scan found a problem.",
+      "tooLarge": "This file is larger than 20 MB.",
+      "type": "This type of file isn't accepted. Use PDF, Word, Excel, PowerPoint, an image or text.",
+      "generic": "The file couldn't be sent. Try again."
     }
   }
 }

@@ -7,9 +7,12 @@ import { NextIntlClientProvider } from "next-intl";
 import { createElement, type ComponentProps, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 import ar from "../messages/ar.json";
 import en from "../messages/en.json";
-import { send, UpdateForm } from "@/app/(app)/actions/[id]/action-panel";
+import { ReceivedFields, send, useReceived } from "@/app/(app)/actions/[id]/action-panel";
+import { CommentThread } from "@/app/(app)/actions/[id]/comment-thread";
 import { firmToday } from "@/lib/dates";
 import { receivedPayload } from "@/lib/engagement";
 
@@ -20,18 +23,29 @@ const html = (locale: "ar" | "en", node: ReactNode) => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("the progress-note form on a client the firm runs", () => {
+// Batch 4: the progress note is part of the one conversation box; recording for the client is its
+// checkbox "This is what the client told you", which shows these two fields (the file dialog uses them too).
+function Recorded() {
+  const received = useReceived(true);
+  return createElement(ReceivedFields, { idPrefix: "up", ...received });
+}
+const thread = (progress: { recordFor: boolean } | null) =>
+  createElement(CommentThread, { actionId: "a", comments: [], people: [], canWrite: true, firmView: true, firmRun: true, progress });
+
+describe("recording a note on a client the firm runs", () => {
   it("asks how and when the client sent it, the day defaulting to the firm's today", () => {
-    const out = html("ar", createElement(UpdateForm, { actionId: "a", onDone: () => undefined, recordFor: true }));
+    const out = html("ar", createElement(Recorded));
     expect(out).toContain(ar.action.recordFor.via);
     expect(out).toContain(ar.action.recordFor.on);
     expect(out).toMatch(new RegExp(`name="receivedOn"[^>]*value="${firmToday()}"|value="${firmToday()}"[^>]*name="receivedOn"`));
   });
 
-  it("asks nothing of the kind anywhere else", () => {
-    const out = html("ar", createElement(UpdateForm, { actionId: "a", onDone: () => undefined }));
-    expect(out).not.toContain(ar.action.recordFor.via);
-    expect(out).not.toContain('name="receivedOn"');
+  it("the conversation box offers it as a choice, and asks nothing of the kind anywhere else", () => {
+    expect(html("ar", thread({ recordFor: true }))).toContain(ar.action.thread.asRecorded);
+    const elsewhere = html("ar", thread(null));
+    expect(elsewhere).not.toContain(ar.action.thread.asRecorded);
+    expect(elsewhere).not.toContain(ar.action.recordFor.via);
+    expect(elsewhere).not.toContain('name="receivedOn"');
   });
 });
 

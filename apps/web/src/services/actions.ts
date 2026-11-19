@@ -106,6 +106,8 @@ export interface TransitionInput {
   reason?: string;
   /** Required when closing. */
   closure?: { outcome: ClosureOutcome; note: string; supersededBy?: string };
+  /** Verifying: also accept the evidence items whose files wait to be checked (October review, item 12). */
+  acceptItems?: boolean;
 }
 
 /**
@@ -186,6 +188,20 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     if (state?.required && !state.signed_by) throw new BadRequestError("this work needs two sign-offs; sign off first");
     if (state?.required && state.signed_by === principal.userId) {
       throw new ForbiddenError("action.review", resource, "workflow:second-reviewer");
+    }
+    // October review, item 12: verifying may also accept the files still to be checked, in one step,
+    // by the same reviewer. Never with two sign-offs (the first reviewer judges the items), and never
+    // while an item has nothing sent yet: the items are accepted one by one as before
+    // (decideEvidenceRequest, with its own checks and notices), then the action is verified.
+    if (input.acceptItems) {
+      if (state?.required) throw new BadRequestError("this work needs two sign-offs; accept each item first");
+      const left = await tx
+        .select({ id: evidenceRequests.id, status: evidenceRequests.status })
+        .from(evidenceRequests)
+        .where(and(eq(evidenceRequests.actionId, id), sql`${evidenceRequests.status} not in ('accepted', 'waived')`));
+      if (left.some((i) => i.status !== "submitted")) throw new BadRequestError("every evidence request must be accepted or waived first");
+      const { decideEvidenceRequest } = await import("./follow-through");
+      for (const item of left) await decideEvidenceRequest(tx, principal, item.id, { status: "accepted" });
     }
   }
 

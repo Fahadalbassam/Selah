@@ -1,15 +1,13 @@
 "use client";
 
 import { CalendarClock } from "lucide-react";
-import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Plus } from "@/components/animate-ui/icons/plus";
-import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { BrandLoader } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,10 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { firmToday } from "@/lib/dates";
-import { panelVoice } from "@/lib/engagement";
 import type { AgingBucket } from "@/lib/slips";
-import { DownloadButton } from "./download-button";
-import { ErrorText, EvidenceDialog, json, ReasonDialog, RunButton, send, useRun } from "./action-panel";
+import { ErrorText, json, send, useRun } from "./action-panel";
 
 type ItemStatus = "open" | "submitted" | "accepted" | "rejected" | "waived";
 
@@ -63,7 +59,6 @@ export interface Slip {
   canExtend: boolean;
 }
 
-const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
 
 /** A YYYY-MM-DD day as local midnight, for the calendar's disabled range. */
 function localDate(day: string) {
@@ -71,131 +66,8 @@ function localDate(day: string) {
   return new Date(y!, m! - 1, d!);
 }
 
-/**
- * The evidence the firm asked for on this action, item by item. The owner
- * answers an open or rejected item with a file; firm staff add items and
- * accept, reject or waive what was sent.
- */
-export function EvidenceList(props: {
-  actionId: string;
-  items: EvidenceItem[];
-  canManage: boolean;
-  /** The viewer is firm staff: picks the hint, which shouldn't follow canManage (off once verified). */
-  firmView: boolean;
-  /** A client the firm runs (no accounts): the firm records what the client sends (N24). */
-  firmRun?: boolean;
-  /** The user may attach evidence now (the action is open for it). */
-  canSubmit: boolean;
-}) {
-  const t = useTranslations("action.items");
-  const ta = useTranslations("action");
-  const format = useFormatter();
-  const router = useRouter();
-  const done = () => router.refresh();
-  const voice = panelVoice(props.firmView, props.firmRun ?? false);
-  // On a client the firm runs nobody at the client reads Selah: no "the client sees this".
-  const run = voice === "FirmRun" ? "FirmRun" : "";
-  if (!props.items.length && !props.canManage) return null;
-
-  return (
-    <Card className="gap-4 py-5 shadow-xs">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 px-5">
-        <div className="space-y-1.5">
-          <CardTitle className="text-base">{voice === "Client" ? t("titleClient") : t("title")}</CardTitle>
-          <CardDescription>{t(`hint${voice}`)}</CardDescription>
-        </div>
-        {props.canManage ? <AddItem actionId={props.actionId} onDone={done} hint={t(`addHint${run}`)} /> : null}
-      </CardHeader>
-      <CardContent className="px-5">
-        {props.items.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
-        <ul className="divide-y">
-          {props.items.map((i) => (
-            <li key={i.id} className="grid gap-2 py-3 first:pt-0 last:pb-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{i.title}</span>
-                <Badge variant={i.status === "accepted" ? "secondary" : "outline"}>{t(`status.${i.status}`)}</Badge>
-                {i.dueDate ? (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {t("due", { date: format.dateTime(new Date(i.dueDate), { dateStyle: "medium" }) })}
-                  </span>
-                ) : null}
-              </div>
-              {i.description ? <p className="text-sm whitespace-pre-wrap text-muted-foreground">{i.description}</p> : null}
-              {i.decisionNote && (i.status === "rejected" || i.status === "waived") ? (
-                <p className="text-sm">
-                  {t(i.status === "rejected" ? "rejectedBecause" : "waivedBecause", { note: i.decisionNote })}
-                </p>
-              ) : null}
-              {i.files.length ? (
-                <ul className="flex flex-wrap gap-2">
-                  {i.files.map((f) => (
-                    <li key={f.documentId} className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1 text-sm">
-                      <FileText className="size-3.5 text-muted-foreground" />
-                      <span className="max-w-60 truncate">{f.title}</span>
-                      <DownloadButton documentId={f.documentId} label={ta("download")} unavailable={ta("errors.unavailable")} />
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                {props.canSubmit && (i.status === "open" || i.status === "rejected") ? (
-                  <EvidenceDialog
-                    actionId={props.actionId}
-                    submit={false}
-                    evidenceRequestId={i.id}
-                    recordFor={voice === "FirmRun"}
-                    title={t("answerTitle", { item: i.title })}
-                    onDone={done}
-                    trigger={
-                      // Outline: the page's one solid button is the next step's (page audit 4.5).
-                      <Button size="sm" variant="outline">
-                        {t("answer")}
-                      </Button>
-                    }
-                  />
-                ) : null}
-                {props.canManage && i.status === "submitted" ? (
-                  <>
-                    <RunButton
-                      label={t("accept")}
-                      run={() => send(`/api/evidence-requests/${i.id}`, patch({ status: "accepted" }))}
-                      onDone={done}
-                    />
-                    <ReasonDialog
-                      title={t("reject")}
-                      hint={t(`rejectHint${run}`)}
-                      run={(note) => send(`/api/evidence-requests/${i.id}`, patch({ status: "rejected", note }))}
-                      onDone={done}
-                      trigger={<Button variant="outline">{t("reject")}</Button>}
-                    />
-                  </>
-                ) : null}
-                {props.canManage && (i.status === "open" || i.status === "submitted" || i.status === "rejected") ? (
-                  <ReasonDialog
-                    title={t("waive")}
-                    hint={t(`waiveHint${run}`)}
-                    run={(note) => send(`/api/evidence-requests/${i.id}`, patch({ status: "waived", note }))}
-                    onDone={done}
-                    trigger={<Button variant="outline">{t("waive")}</Button>}
-                  />
-                ) : null}
-                {props.canManage && i.status === "rejected" ? (
-                  <RunButton
-                    label={t("reopen")}
-                    run={() => send(`/api/evidence-requests/${i.id}`, patch({ status: "open" }))}
-                    onDone={done}
-                  />
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AddItem({ actionId, onDone, hint }: { actionId: string; onDone: () => void; hint: string }) {
+/** Add an item to the evidence list (firm staff), from "What to send". */
+export function AddItem({ actionId, onDone, hint }: { actionId: string; onDone: () => void; hint: string }) {
   const t = useTranslations("action.items");
   const ta = useTranslations("action");
   const [open, setOpen] = useState(false);
@@ -276,13 +148,10 @@ export function DeadlineRequests(props: {
   const t = useTranslations("action.deadline");
   const tm = useTranslations("metrics.aging");
   const format = useFormatter();
-  const router = useRouter();
-  const done = () => router.refresh();
   const { slip } = props;
-  if (!props.requests.length && !props.canRequest && !slip.history.length) return null;
+  // Proposing and deciding a date are steps of the next-step card (page audit 4.5); this card is the record.
+  if (!props.requests.length && !slip.history.length) return null;
   const day = (d: string) => format.dateTime(new Date(d), { dateStyle: "medium" });
-  // Approving this would move the date later once too often for this person (app_can_extend).
-  const needsLead = (r: DeadlineRequest) => !slip.canExtend && (!props.dueDate || r.proposedDueDate > props.dueDate);
 
   return (
     <Card className="gap-3 py-5 shadow-xs">
@@ -308,7 +177,6 @@ export function DeadlineRequests(props: {
           </div>
         ) : null}
         {props.requests.length === 0 ? <p className="text-muted-foreground">{t("none")}</p> : null}
-        {props.canRequest ? <AskForDate actionId={props.actionId} dueDate={props.dueDate} onDone={done} /> : null}
         {props.requests.map((r) => (
           <div key={r.id} className="grid gap-1.5 border-t pt-3 first:border-t-0 first:pt-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -324,25 +192,6 @@ export function DeadlineRequests(props: {
               </span>
             </div>
             <p className="whitespace-pre-wrap text-muted-foreground">{r.reason}</p>
-            {props.canDecide && r.status === "pending" && needsLead(r) ? (
-              <p className="text-xs text-muted-foreground">{t("needsLead")}</p>
-            ) : null}
-            {props.canDecide && r.status === "pending" ? (
-              <div className="flex flex-wrap gap-2">
-                {needsLead(r) ? null : (
-                  <RunButton
-                    label={t("approve")}
-                    run={() => send(`/api/deadline-requests/${r.id}`, patch({ approve: true }))}
-                    onDone={done}
-                  />
-                )}
-                <RunButton
-                  label={t("reject")}
-                  run={() => send(`/api/deadline-requests/${r.id}`, patch({ approve: false }))}
-                  onDone={done}
-                />
-              </div>
-            ) : null}
           </div>
         ))}
         {slip.history.length ? (

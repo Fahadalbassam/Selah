@@ -58,6 +58,9 @@ export async function loadProjectPage(tx: Tx, principal: Principal, id: string) 
     // The firm's consultants on the project, for a client reader (until batch 3 only Help named them).
     consultants: client ? await projectConsultants(tx, principal, id) : null,
     firmStaff,
+    // Who may hand a person's work over on Team (app_can_manage_person): the firm admin, on the client's
+    // People page; the client's admin, on its own. "Reassign their actions first" links there.
+    handOverAt: principal.role === "firm_admin" ? ("firm" as const) : principal.role === "client_admin" ? ("client" as const) : null,
     // Roles that can't read meetings simply get no tab.
     meetings: await listMeetings(tx, principal, id).catch(() => null),
     // Who may book: the list of people to invite, or null.

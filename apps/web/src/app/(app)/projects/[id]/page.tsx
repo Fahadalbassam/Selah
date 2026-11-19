@@ -77,7 +77,7 @@ export default async function ProjectPage({
     if (moved) redirect(projectTabHref(id, moved));
   }
   const page = await withPrincipal((tx, principal) => loadProjectPage(tx, principal, id));
-  const { data, plan, team, people, roles, consultants, firmStaff, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, handover } =
+  const { data, plan, team, people, roles, consultants, firmStaff, handOverAt, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, handover } =
     page;
   const { requests, closure, pulse, caseStudy, attention, evidence, upload, tabs } = page;
   const current = openTab(tab, tabs);
@@ -862,7 +862,7 @@ export default async function ProjectPage({
                 </CardContent>
               </Card>
             ) : null}
-            {people ? <ProjectPeople projectId={project.id} clientId={project.orgId} firm={firmStaff} data={people} primary={!team} /> : null}
+            {people ? <ProjectPeople projectId={project.id} clientId={project.orgId} firm={firmStaff} data={people} primary={!team} handOverAt={handOverAt} /> : null}
             {roles ? <ClientRolesCard projectId={project.id} data={roles} firm={firmStaff} /> : null}
           </TabsContent>
         ) : null}

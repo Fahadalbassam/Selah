@@ -298,12 +298,13 @@ Firm = admin and consultants; Client = client admin and managers (owners where n
 | Findings, recommendations, actions, evidence lists | Firm writes; client reads | Project → التوصيات |
 | Import a plan from Excel | Firm | Project → Recommendations → import |
 | Client answers to recommendations | Client admin and sponsor | Recommendation page |
-| Action states, blocking, evidence upload, send for review | Owners and managers (firm for firm-run clients) | Action page |
-| Review: accept, ask for a revision, evidence items | Firm (never their own work) | الإجراءات → بانتظار المراجعة; action page |
+| Action states, blocking, evidence upload, send for review | Owners and managers (firm for firm-run clients) | Action page: one solid button in **الخطوة التالية** (بدء العمل · إرسال للمراجعة · إرسال النسخة المعدّلة للمراجعة · استئناف العمل); **عندي عائق** under it; every file through the one **إرسال ملف** dialog, whose last choice is **إرسال للمراجعة الآن / حفظ دون إرسال**; each evidence item in **المطلوب إرساله** has its own outline **إرسال ملف** |
+| Give one action to a colleague (D1) | The firm's staff on the project; the client admin; the project's coordinator and sponsor | Action page → side panel → **إسناده إلى زميل** beside the owner. The status stays; the new and old owner, the lead and deputy and the staffed consultants are told. On Al-Waha (firm-run) the owner is typed. Project → الأشخاص → **أعد إسناد إجراءاته أولًا** opens the hand-over on Team for an admin |
+| Review: accept, ask for a revision, evidence items | Firm (never their own work) | الإجراءات → بانتظار المراجعة; action page: **قبول واعتماد** (it also accepts the item files still to check when every item has its file and one sign-off is enough) and **طلب تعديل** as an outline, the files in the same card; on Al-Waha the card names who reviews |
 | Second sign-off rule | Admin sets per client; consultants sign | Client page; action page |
-| Date change requests | Client proposes; firm decides | Action page (the client: **أحتاج وقتًا أطول** under the next step) |
-| Risk acceptance and closing an action | Client signs; firm closes | Action page (the client: the **⋯** menu) |
-| Comments with mentions; firm-only notes | Both sides; notes firm only | Action page |
+| Date change requests | Client proposes; firm decides | Action page (the client: **أحتاج وقتًا أطول** under the next step; the firm decides in the next-step card) |
+| Risk acceptance, closing, reopening, mail about an action | Client signs; firm closes and reopens | Action page → the **⋯** menu beside the title, for every reader |
+| Comments with mentions, progress notes; firm-only notes | Both sides; notes firm only | Action page → **النقاش**: one box; «هذا تحديث عن سير العمل» keeps it as a progress note; on Al-Waha «هذا ما أبلغك به العميل» records the client's progress with how and when |
 | Reminders and escalation ladder | Automatic | Action page → التذكيرات (firm; the client reads one plain line under the next step); Mailpit |
 | Meetings, agenda, invites, decisions, follow-ups, summaries, transcripts | Firm runs; client attends | Project → الاجتماعات; meeting page (the record once it is held) |
 | Requests for documents, no-login upload links | Firm asks; client answers | Project → الطلبات والملفات |

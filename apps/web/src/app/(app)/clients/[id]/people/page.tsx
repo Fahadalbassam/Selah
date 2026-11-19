@@ -10,8 +10,10 @@ import { listVacancies } from "@/services/org-chart";
 import { PeopleAdmin } from "../../../team/people-admin";
 
 // The firm admin manages a client's accounts.
-export default async function ClientPeoplePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientPeoplePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ handover?: string }> }) {
   const { id } = await params;
+  // From a project's People tab, "Reassign their actions first": the hand-over opens for that person.
+  const { handover } = await searchParams;
   if (!isUuid(id)) notFound();
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.role !== "firm_admin") return null;
@@ -29,7 +31,7 @@ export default async function ClientPeoplePage({ params }: { params: Promise<{ i
         <ArrowLeft className="size-4 rtl:-scale-x-100" />
         {localName(org, ar)}
       </Link>
-      <PeopleAdmin data={data.people} me={data.me} myRole={data.role} reviewDays={null} asPage vacancies={data.vacancies} />
+      <PeopleAdmin data={data.people} me={data.me} myRole={data.role} reviewDays={null} asPage vacancies={data.vacancies} handover={isUuid(handover ?? "") ? handover : undefined} />
     </>
   );
 }

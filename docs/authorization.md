@@ -222,7 +222,27 @@ A denial returns **404**, the same as a missing record, so ids cannot be probed,
 
 The database trigger `check_action_transition` holds the same list and also requires an `accept` review before Verified Complete. Only firm staff can insert reviews (RLS). So a client claim can never become "verified".
 
-Nobody reviews or closes an action they own or submitted evidence for. The trigger (Follow-through section of the baseline) also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Client managers and admins may change the owner. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
+Nobody reviews or closes an action they own or submitted evidence for. The trigger (Follow-through section of the baseline) also refuses, for client users: releasing, reviewing, closing and reopening, and any change to the plan columns (title, description, due date, closure fields). Who may change the owner is decision D1, below. Writes to findings, recommendations, meeting notes, follow-ups and reports are firm-only in RLS. See [data-model.md](data-model.md) for closure outcomes, evidence lists, deadline requests and reminders.
+
+### Giving one action to a colleague (decision D1, batch 4)
+
+Decision D1 (product owner, 17 Nov 2026): one open action may be given to a colleague in the action's own organisation.
+
+| Who | May | Notes |
+|---|---|---|
+| The firm's staff on the project (the firm admin, a consultant staffed on it, the client's lead or deputy) | Yes, on any open action, a draft included | Not an observer. On a client the firm runs, the owner is a typed name; on a minimal-records client a job title, never an account. |
+| The client's admin | Yes, on any released open action of the company | May add a colleague to the project first (People tab). |
+| A client manager who is the project's **coordinator** or **sponsor** | Yes, on a released open action she can open | Only colleagues already on the project. |
+| Any other client manager, an action owner (her own action too), an observer | No (404) | Before batch 4 the database let any client manager change an owner; D1 narrowed it. |
+
+- Not on a verified or closed action, and never on another organisation's: the new owner is an active member of the action's organisation and on the project, not observing (`check_action_owner()`).
+- The status does not change: the client's side can never change the owner and the status in the same step (`check_action_transition()`), and the service writes only the owner.
+- Told: the new owner (`action.assigned`, on the action); the old owner (`action.owner_moved`, a notice **on the project**, because a former owner no longer reads the action and an action notice to her would be hidden: "Action owners see only their own actions" above); the client's lead and deputy and the consultants staffed on the project, not observers (`action.owner_changed`). Nobody is told about a draft. The one who made the change is not told.
+- Recorded: one audit row `action.owner_change` with the user ids, or `typed` for a typed name (never the name), and a line in the action's history ("gave it to …").
+- One rule decides it everywhere: `app_can_change_owner(action)` (migration `0240_action_owner`), read by the update trigger, by `app_tell_owner_changed()` (refused to anyone else, so it cannot send notices) and by `ownerControl()` / `changeActionOwner()` in `src/services/action-owner.ts` (`POST /api/actions/:id/owner`). The firm's edit dialog (`updateAction()`) goes through the same rule, notices and record. `authorize()` grants `action.assign_owner` to firm staff, the client admin and client managers; the database narrows managers to the coordinator and sponsor.
+- Handing over everything a leaver holds (Team, `app_hand_over()`) stays the firm admin's and the client admin's, as before. A project's People tab links "Reassign their actions first" there for them (`?handover=<person>` opens the hand-over), and for anyone else to that person's actions on the project, where each action has its own control.
+
+Tests: `tests/db/action-owner.test.ts` (who may and may not, own organisation only, status unchanged, who is told, the audit row, minimal records), `tests/db/follow-through.test.ts`.
 
 ### Second sign-off (F22)
 
