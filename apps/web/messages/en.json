@@ -1065,7 +1065,8 @@
       "give": "Give it"
     },
     "owner": "Owner",
-    "blockHintFirm": "Say what is in the way. The client's lead consultant, their deputy and the consultants on this project are told, and the reason shows on the action page."
+    "blockHintFirm": "Say what is in the way. The client's lead consultant, their deputy and the consultants on this project are told, and the reason shows on the action page.",
+    "blockHintInternal": "Say what is in the way. The consultants on this project are told, and the reason shows on the action page."
   },
   "common": {
     "cancel": "Cancel",
@@ -3740,10 +3741,10 @@
     "withdrawn": "File withdrawn",
     "assistantReads": "Available to the assistant",
     "assistantWho": {
-      "client": "Only the person who uploaded it ({name}) or your company's admin can change whether the assistant reads it.",
-      "clientUnnamed": "Only the person who uploaded it or your company's admin can change whether the assistant reads it.",
-      "firm": "Only the person who uploaded it ({name}) or the firm admin can change whether the assistant reads it.",
-      "firmUnnamed": "Only the person who uploaded it or the firm admin can change whether the assistant reads it."
+      "client": "Only the person who uploaded it ({name}) or your company's admin can make it available to the assistant.",
+      "clientUnnamed": "Only the person who uploaded it or your company's admin can make it available to the assistant.",
+      "firm": "Only the person who uploaded it ({name}) or the firm admin can make it available to the assistant.",
+      "firmUnnamed": "Only the person who uploaded it or the firm admin can make it available to the assistant."
     }
   },
   "engagements": {

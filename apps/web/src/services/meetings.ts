@@ -324,14 +324,20 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .orderBy(asc(meetingAttendees.createdAt));
   const { rows: names } = await tx.execute<{ user_id: string; name: string }>(sql`select user_id, name from app_meeting_attendee_names(${id})`);
   const nameOf = new Map(names.map((n) => [n.user_id, n.name]));
-  // Invited before the rule of D3, and unable to open it: said as such, never as "No answer yet".
+  // Invited before the rule of D3, and unable to open it. Firm staff and the organiser read "Can't open this
+  // meeting"; everyone else just does not see her as missing an answer (no response shown; review N4).
   const { rows: shut } = await tx.execute<{ user_id: string }>(sql`select app_meeting_shut_out(${id}::uuid) as user_id`);
   const shutOut = new Set(shut.map((r) => r.user_id));
-  const attendees = rows.map(({ contactName, ...a }) => ({
-    ...a,
-    name: (a.userId ? nameOf.get(a.userId) : contactName) ?? null,
-    cannotOpen: a.userId ? shutOut.has(a.userId) : false,
-  }));
+  const told = principal.orgKind === "firm" || principal.userId === meeting.organizerId;
+  const attendees = rows.map(({ contactName, ...a }) => {
+    const out = !!a.userId && shutOut.has(a.userId);
+    return {
+      ...a,
+      response: out && !told ? null : a.response,
+      name: (a.userId ? nameOf.get(a.userId) : contactName) ?? null,
+      cannotOpen: out && told,
+    };
+  });
   const decisions = await tx
     .select()
     .from(meetingDecisions)

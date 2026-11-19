@@ -319,7 +319,9 @@ describe("a meeting of the whole project opens only for people who see all of th
       expect(m.summary?.mainPointsMd).toBe("Summary canary");
       expect(m.notes.map((n) => n.title)).toEqual(["Note canary"]);
       expect(m.attendees.map((a) => a.userId)).toEqual(expect.arrayContaining([U.lead, U.nmgr, U.owner, U.nsponsor]));
-      expect(m.attendees.every((a) => a.response)).toBe(true);
+      // Everyone's answer, except the manager who cannot open it: she is not shown as missing one (review N4).
+      expect(m.attendees.filter((a) => a.userId !== U.nmgr).every((a) => a.response)).toBe(true);
+      expect(m.attendees.find((a) => a.userId === U.nmgr)).toMatchObject({ response: null, cannotOpen: false });
       expect(m.followUps.map((f) => f.title)).toEqual(["Owner follow-up"]);
       expect(JSON.stringify(m)).not.toMatch(/Steering follow-up canary|Assigned to the manager|Finance canary|Board canary/);
       expect((await rowsAs(U.owner, `SELECT title FROM follow_ups`)).map((r) => r.title)).toEqual(["Owner follow-up"]);
@@ -505,9 +507,11 @@ describe("booking a meeting of the whole project", () => {
     await expect(book(U.lead, PN, { title: "Steering next round", attendees: [{ userId: U.nmgr }] })).rejects.toThrow(/invite them to a department's meeting/);
     await owner.query(`DELETE FROM outbound_emails`);
     // An invitation made before the rule: no new invitation reaches her (privacy-batch.test.ts), but the
-    // meeting's cancellation does, and it carries no agenda either.
+    // cancellation of a meeting whose invitation reached her does, and it carries no agenda either.
     const sent = await book(U.lead, PN, { title: "Steering next round" });
     await owner.query(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [sent.id, U.nmgr]);
+    // Its invitation reached her before the rule (a cancellation goes only then: review S2).
+    await owner.query(`INSERT INTO outbound_emails (to_email, kind, meeting_id, sent_at) VALUES ('nmgr@example.test','meeting.invite',$1, now())`, [sent.id]);
     await owner.query(`UPDATE meetings SET status = 'cancelled' WHERE id = $1`, [sent.id]);
     await owner.query(`INSERT INTO outbound_emails (to_email, kind, meeting_id) VALUES ('nmgr@example.test','meeting.cancel',$1)`, [sent.id]);
     const mails: OutgoingMail[] = [];

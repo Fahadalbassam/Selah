@@ -4,17 +4,21 @@
 -- 1. A file's assistant switch (D1; phase 3, C2). The row rule on documents
 --    (check_document_manage, 0005) let anyone on the owning side switch
 --    "available to the assistant" on or off: any client manager for any
---    client file she could see, any consultant for any firm file. Now only
---    the person who uploaded that version, or an admin of the side that owns
---    it (the client's admin, the firm admin). The owning-side rule of 0005
---    still applies on top. The database's own functions (a new version
---    retiring the old one, 0005; withdrawing a file, 0018) and jobs are not
---    stopped: they run as the owner, not as the app.
+--    client file she could see, any consultant for any firm file. Now
+--    switching it ON is for the person who uploaded that version, or an
+--    admin of the side that owns it (the client's admin, the firm admin).
+--    Switching it OFF stays open to the owning side (the lead's ruling on the
+--    review, S1: the direction that reduces exposure, and the step a
+--    confidential request asks of whoever answers it). The owning-side rule
+--    of 0005 still applies on top. The database's own functions and jobs are
+--    not stopped: they run as the owner, not as the app. Uploading a new
+--    version makes its uploader the uploader of that version (by design;
+--    docs/rules.md says so).
 CREATE FUNCTION check_document_assistant() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF current_user = 'selah_app' AND app_uid() IS NOT NULL
-     AND NEW.ai_indexable IS DISTINCT FROM OLD.ai_indexable
+     AND NEW.ai_indexable AND NOT OLD.ai_indexable
      AND NOT (OLD.uploaded_by = app_uid()
               OR (app_org() = OLD.owner_org_id AND app_role() IN ('firm_admin', 'client_admin'))) THEN
     RAISE EXCEPTION 'only the person who uploaded a file, or an admin of its side, lets the assistant read it'
@@ -79,9 +83,21 @@ REVOKE ALL ON FUNCTION app_meeting_shut_out(uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_meeting_shut_out(uuid) TO selah_app;
 --> statement-breakpoint
+-- Whether a meeting invitation was actually mailed to this address: the
+-- one case where someone who cannot open the meeting is sent its
+-- cancellation (review S2; the same test meeting.removed uses, 0095).
+CREATE FUNCTION app_meeting_invite_sent(mid uuid, addr text) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM outbound_emails i
+    WHERE i.meeting_id = mid AND lower(i.to_email) = lower(addr) AND i.kind = 'meeting.invite' AND i.sent_at IS NOT NULL)
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_meeting_invite_sent(uuid, text) FROM PUBLIC;
+--> statement-breakpoint
 -- The calendar invite (latest: 0095): never queued for an attendee left
--- out of the meeting, nor (unless it is the cancellation) for one who
--- cannot open it.
+-- out of the meeting, nor for one who cannot open it, except the
+-- cancellation of a meeting whose invitation reached her.
 CREATE OR REPLACE FUNCTION app_send_meeting_invites(mid uuid) RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE m meetings%ROWTYPE; n integer;
@@ -94,15 +110,17 @@ BEGIN
     SELECT DISTINCT addr, CASE m.status WHEN 'cancelled' THEN 'meeting.cancel' ELSE 'meeting.invite' END, mid
     FROM (SELECT u.email AS addr FROM meeting_attendees a JOIN "user" u ON u.id = a.user_id
           WHERE a.meeting_id = mid AND a.user_id <> app_uid() AND app_audience_ok('meeting', mid, a.user_id)
-            AND (m.status = 'cancelled' OR NOT app_user_shut_out_of_meeting(a.user_id, mid))
+            AND (NOT app_user_shut_out_of_meeting(a.user_id, mid)
+                 OR (m.status = 'cancelled' AND app_meeting_invite_sent(mid, u.email)))
           UNION SELECT c.email FROM meeting_attendees a JOIN client_contacts c ON c.id = a.contact_id
           WHERE a.meeting_id = mid AND c.email IS NOT NULL) x;
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;
 END $$;
 --> statement-breakpoint
--- The sender's last look (latest: 0095): an invitation already queued for
--- someone who cannot open the meeting is not sent either.
+-- The sender's last look (latest: 0095): nothing already queued for
+-- someone who cannot open the meeting is sent, except the cancellation of a
+-- meeting whose invitation reached her.
 CREATE OR REPLACE FUNCTION app_meeting_mail_ok(mid uuid, addr text, mail_kind text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT CASE
@@ -115,7 +133,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
       OR EXISTS (
         SELECT 1 FROM meeting_attendees a JOIN "user" u ON u.id = a.user_id
         WHERE a.meeting_id = mid AND lower(u.email) = lower(addr) AND app_audience_ok('meeting', mid, u.id)
-          AND (mail_kind <> 'meeting.invite' OR NOT app_user_shut_out_of_meeting(u.id, mid)))
+          AND (NOT app_user_shut_out_of_meeting(u.id, mid)
+               OR (mail_kind = 'meeting.cancel' AND app_meeting_invite_sent(mid, addr))))
   END
 $$;
 --> statement-breakpoint
@@ -125,46 +144,33 @@ $$;
 --    deputy, and the consultants staffed on the project (not observers),
 --    are told, each only if the action's label lets them read it (a
 --    recommendation only its author sees stays theirs). Firm staff have no
---    department limits. Only of a move the caller has just made, as the
---    service recorded it in the same transaction (the status_changed event
---    to blocked, by this caller, now), so it cannot be called to send
---    notices about anything else.
-CREATE FUNCTION app_tell_firm_stuck(act uuid) RETURNS integer
+--    department limits. Written by the move itself (review N1): a trigger on
+--    the status column, once per move into blocked, so nothing else (an
+--    activity row, a call) can send it. Not the one who made the move, and
+--    not the owner, whom the service tells when someone else marks it.
+CREATE FUNCTION tell_firm_stuck() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
-  a actions;
   p projects;
   vis text;
   author uuid;
-  n integer;
 BEGIN
-  SELECT * INTO a FROM actions WHERE id = act;
-  IF a.id IS NULL OR NOT app_can_see_project(a.project_id) OR NOT app_can_see_action(act) THEN
-    RAISE EXCEPTION 'action not visible' USING ERRCODE = 'insufficient_privilege';
-  END IF;
-  IF a.status <> 'blocked' OR NOT EXISTS (
-    SELECT 1 FROM activity_events e
-    WHERE e.entity_type = 'action' AND e.entity_id = act AND e.event = 'status_changed'
-      AND e.to_state = 'blocked' AND e.actor_id = app_uid() AND e.created_at = now()
-  ) THEN
-    RAISE EXCEPTION 'no stuck action to tell of' USING ERRCODE = 'check_violation';
-  END IF;
-  SELECT * INTO p FROM projects WHERE id = a.project_id;
-  SELECT r.visibility::text, r.created_by INTO vis, author FROM recommendations r WHERE r.id = a.recommendation_id;
+  SELECT * INTO p FROM projects WHERE id = NEW.project_id;
+  SELECT r.visibility::text, r.created_by INTO vis, author FROM recommendations r WHERE r.id = NEW.recommendation_id;
   INSERT INTO notifications (user_id, kind, entity_type, entity_id)
-    SELECT DISTINCT x.user_id, 'action.blocked', 'action', act
+    SELECT DISTINCT x.user_id, 'action.blocked', 'action', NEW.id
     FROM (
-      SELECT ca.user_id FROM client_assignments ca WHERE ca.client_org_id = a.org_id AND (ca.is_lead OR ca.is_deputy) AND p.kind = 'client'
+      SELECT ca.user_id FROM client_assignments ca WHERE ca.client_org_id = NEW.org_id AND (ca.is_lead OR ca.is_deputy) AND p.kind = 'client'
       UNION
-      SELECT pm.user_id FROM project_members pm WHERE pm.project_id = a.project_id AND NOT pm.observer
+      SELECT pm.user_id FROM project_members pm WHERE pm.project_id = NEW.project_id AND NOT pm.observer
     ) x
     JOIN org_memberships m ON m.user_id = x.user_id AND m.org_id = p.firm_org_id AND m.active AND m.role IN ('firm_admin', 'consultant')
-    WHERE x.user_id <> app_uid() AND x.user_id IS DISTINCT FROM a.owner_user_id
+    WHERE x.user_id IS DISTINCT FROM app_uid() AND x.user_id IS DISTINCT FROM NEW.owner_user_id
       AND (coalesce(vis, 'shared') IN ('shared', 'firm_private') OR (vis = 'user_private' AND author = x.user_id));
-  GET DIAGNOSTICS n = ROW_COUNT;
-  RETURN n;
+  RETURN NULL;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app_tell_firm_stuck(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION tell_firm_stuck() FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app_tell_firm_stuck(uuid) TO selah_app;
+CREATE TRIGGER action_stuck AFTER UPDATE OF status ON actions
+  FOR EACH ROW WHEN (NEW.status = 'blocked' AND OLD.status IS DISTINCT FROM 'blocked') EXECUTE FUNCTION tell_firm_stuck();

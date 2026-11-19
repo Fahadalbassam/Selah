@@ -291,6 +291,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             judged={judged}
             toAccept={submittedItems.length}
             firmView={firmView}
+            internal={context.projectKind === "internal"}
             recordFor={firmView && recordedForClient}
             ownerGone={data.ownerGone}
             blockedReason={action.blockedReason}

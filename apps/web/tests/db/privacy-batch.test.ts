@@ -172,28 +172,39 @@ describe("a file's assistant switch (D1)", () => {
       return c ? { assistant: c.assistant, locked: c.assistantLocked } : null;
     });
 
-  it("is offered to the uploader and the client's admin; another manager sees whose it is", async () => {
-    expect(await controls(U.mgrA, D.byAdmin)).toEqual({ assistant: false, locked: "client" });
+  // D.byAdmin starts with the assistant on; the other three start off.
+  it("switching on is offered to the uploader and the client's admin; another manager sees who may", async () => {
     expect(await controls(U.mgrA, D.byMgrB)).toEqual({ assistant: false, locked: "client" });
     expect(await controls(U.mgrB, D.byMgrB)).toEqual({ assistant: true, locked: null });
     expect(await controls(U.cadmin, D.byMgrB)).toEqual({ assistant: true, locked: null });
-    expect(await controls(U.cadmin, D.byAdmin)).toEqual({ assistant: true, locked: null });
+    // Switching off is open to the owning side (review S1): a file that is on offers it to any manager.
+    expect(await controls(U.mgrA, D.byAdmin)).toEqual({ assistant: true, locked: null });
     // The other side is offered neither the switch nor the line.
     expect(await controls(U.lead, D.byMgrB)).toEqual({ assistant: false, locked: null });
   });
 
-  it("a manager who did not upload it cannot switch it: Not found from the service, refused by the database", async () => {
-    await expect(svc(U.mgrA, (tx, p) => setAssistantFlag(tx, p, D.byAdmin, false))).rejects.toThrow(NOT_FOUND);
+  it("a manager who did not upload it cannot switch it on: Not found from the service, refused by the database", async () => {
     await expect(svc(U.mgrA, (tx, p) => setAssistantFlag(tx, p, D.byMgrB, true))).rejects.toThrow(NOT_FOUND);
     await expect(sqlAs(U.mgrA, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byMgrB])).rejects.toThrow(/only the person who uploaded/);
-    await expect(sqlAs(U.mgrA, `UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.byAdmin])).rejects.toThrow(/only the person who uploaded/);
   });
 
-  it("the uploader and the client's admin can, in the service and in the database", async () => {
+  it("any manager on the owning side may switch it off, in the service and in the database (review S1)", async () => {
+    expect(await svc(U.mgrA, (tx, p) => setAssistantFlag(tx, p, D.byAdmin, false))).toEqual({ id: D.byAdmin, aiIndexable: false });
+    expect((await sqlAs(U.mgrA, `UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.byAdmin])).rowCount).toBe(1);
+    // ...and then it is the uploader's or the admin's to switch on again.
+    await expect(
+      as(U.mgrA, async (c) => {
+        await c.query(`UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.byAdmin]);
+        await c.query(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byAdmin]);
+      }),
+    ).rejects.toThrow(/only the person who uploaded/);
+  });
+
+  it("the uploader and the client's admin can switch it on, in the service and in the database", async () => {
     expect(await svc(U.mgrB, (tx, p) => setAssistantFlag(tx, p, D.byMgrB, true))).toEqual({ id: D.byMgrB, aiIndexable: true });
     expect(await svc(U.cadmin, (tx, p) => setAssistantFlag(tx, p, D.byMgrB, true))).toEqual({ id: D.byMgrB, aiIndexable: true });
     expect((await sqlAs(U.mgrB, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byMgrB])).rowCount).toBe(1);
-    expect((await sqlAs(U.cadmin, `UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.byAdmin])).rowCount).toBe(1);
+    expect((await sqlAs(U.cadmin, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byMgrB])).rowCount).toBe(1);
   });
 
   it("other edits to a file by a manager are not stopped by the rule", async () => {
@@ -204,7 +215,7 @@ describe("a file's assistant switch (D1)", () => {
     expect(v2.version).toBe(2);
   });
 
-  it("the firm side follows the same rule: the uploader and the firm admin", async () => {
+  it("the firm side follows the same rule: the uploader and the firm admin switch on, any consultant switches off", async () => {
     expect(await controls(U.staff, D.byFadmin)).toEqual({ assistant: false, locked: "firm" });
     expect(await controls(U.lead, D.byStaff)).toEqual({ assistant: false, locked: "firm" });
     expect(await controls(U.staff, D.byStaff)).toEqual({ assistant: true, locked: null });
@@ -213,11 +224,19 @@ describe("a file's assistant switch (D1)", () => {
     await expect(sqlAs(U.lead, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byFadmin])).rejects.toThrow(/only the person who uploaded/);
     expect(await svc(U.staff, (tx, p) => setAssistantFlag(tx, p, D.byStaff, true))).toEqual({ id: D.byStaff, aiIndexable: true });
     expect(await svc(U.fadmin, (tx, p) => setAssistantFlag(tx, p, D.byStaff, true))).toEqual({ id: D.byStaff, aiIndexable: true });
+    await q(`UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byFadmin]);
+    try {
+      expect(await controls(U.staff, D.byFadmin)).toEqual({ assistant: true, locked: null });
+      expect(await svc(U.staff, (tx, p) => setAssistantFlag(tx, p, D.byFadmin, false))).toEqual({ id: D.byFadmin, aiIndexable: false });
+    } finally {
+      await q(`UPDATE documents SET ai_indexable = false WHERE id = $1`, [D.byFadmin]);
+    }
   });
 
   it("the client's admin still cannot switch the firm's file, nor the firm the client's", async () => {
     await expect(svc(U.cadmin, (tx, p) => setAssistantFlag(tx, p, D.byFadmin, true))).rejects.toThrow(NOT_FOUND);
     await expect(svc(U.fadmin, (tx, p) => setAssistantFlag(tx, p, D.byMgrB, true))).rejects.toThrow(NOT_FOUND);
+    await expect(svc(U.lead, (tx, p) => setAssistantFlag(tx, p, D.byAdmin, false))).rejects.toThrow(NOT_FOUND);
     await expect(sqlAs(U.fadmin, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.byMgrB])).rejects.toThrow(/side that owns/);
   });
 });
@@ -266,26 +285,41 @@ describe("inviting a manager with department limits (D3)", () => {
     }
   });
 
-  it("an invitation from before the rule stays, reads 'cannot open' and is not sent to her again", async () => {
-    const m = await book(U.lead, { title: "Old steering", attendees: [{ userId: U.mgrAll }] }, true);
+  it("an invitation from before the rule stays, is not sent to her again, and only the firm and the organiser read 'cannot open'", async () => {
+    // Organised by the client's admin, so the organiser, the firm and another reader can be compared.
+    const m = await book(U.cadmin, { title: "Old steering", attendees: [{ userId: U.mgrAll }] }, true);
     try {
       // Made before 0108 (the owner writes as a migration would have left it).
       await q(`INSERT INTO meeting_attendees (meeting_id, user_id, role) VALUES ($1,$2,'required')`, [m.id, U.mgrA]);
-      const seen = await svc(U.lead, (tx, p) => getMeeting(tx, p, m.id));
-      const row = (uid: string) => seen.attendees.find((a) => a.userId === uid)!;
-      expect(row(U.mgrA)).toMatchObject({ response: "needs_action", cannotOpen: true });
-      expect(row(U.mgrAll).cannotOpen).toBe(false);
+      const rowFor = async (reader: string, who: string) =>
+        (await svc(reader, (tx, p) => getMeeting(tx, p, m.id))).attendees.find((a) => a.userId === who)!;
+      for (const reader of [U.lead, U.cadmin]) expect(await rowFor(reader, U.mgrA), reader).toMatchObject({ response: "needs_action", cannotOpen: true });
+      // Another reader (review N4): no "cannot open", and not shown as missing an answer either.
+      expect(await rowFor(U.mgrAll, U.mgrA)).toMatchObject({ response: null, cannotOpen: false });
+      expect(await rowFor(U.mgrAll, U.mgrAll)).toMatchObject({ response: "needs_action", cannotOpen: false });
       // She still cannot open it.
       await expect(svc(U.mgrA, (tx, p) => getMeeting(tx, p, m.id))).rejects.toThrow(NOT_FOUND);
 
       await q(`DELETE FROM outbound_emails`);
-      expect(await svc(U.lead, (tx, p) => sendInvites(tx, p, m.id), true)).toEqual({ queued: 1 });
-      const to = (await q(`SELECT to_email FROM outbound_emails WHERE meeting_id = $1`, [m.id])).rows.map((r) => r.to_email);
-      expect(to).toEqual(["mgrAll@example.test"]);
-      // One queued for her before the rule is not sent either; its cancellation is.
+      expect(await svc(U.cadmin, (tx, p) => sendInvites(tx, p, m.id), true)).toEqual({ queued: 1 });
+      const to = async () =>
+        (await q(`SELECT to_email, kind FROM outbound_emails WHERE meeting_id = $1 ORDER BY to_email, kind`, [m.id])).rows.map((r) => `${r.to_email} ${r.kind}`);
+      expect(await to()).toEqual(["mgrAll@example.test meeting.invite"]);
       const ok = async (kind: string) => (await q(`SELECT app_meeting_mail_ok($1, 'mgrA@example.test', $2) AS ok`, [m.id, kind])).rows[0].ok;
+      // One queued for her before the rule is not sent, nor the cancellation of a meeting she was never told of (review S2).
       expect(await ok("meeting.invite")).toBe(false);
+      expect(await ok("meeting.cancel")).toBe(false);
+      await q(`UPDATE meetings SET status = 'cancelled' WHERE id = $1`, [m.id]);
+      await q(`DELETE FROM outbound_emails`);
+      await svc(U.cadmin, (tx, p) => sendInvites(tx, p, m.id), true);
+      expect(await to()).toEqual(["mgrAll@example.test meeting.cancel"]);
+      // Once an invitation really reached her, its cancellation does too.
+      await q(`INSERT INTO outbound_emails (to_email, kind, meeting_id, sent_at) VALUES ('mgrA@example.test', 'meeting.invite', $1, now())`, [m.id]);
       expect(await ok("meeting.cancel")).toBe(true);
+      expect(await ok("meeting.invite")).toBe(false);
+      await q(`DELETE FROM outbound_emails WHERE kind = 'meeting.cancel'`);
+      await svc(U.cadmin, (tx, p) => sendInvites(tx, p, m.id), true);
+      expect((await to()).filter((r) => r.endsWith("meeting.cancel"))).toEqual(["mgrA@example.test meeting.cancel", "mgrAll@example.test meeting.cancel"]);
     } finally {
       await q(`DELETE FROM outbound_emails`);
       await q(`DELETE FROM meetings WHERE id = $1`, [m.id]);
@@ -335,13 +369,24 @@ describe("'I am stuck' tells the firm (B1)", () => {
     }
   });
 
-  it("tells only of a move the caller has just made", async () => {
-    await expect(sqlAs(U.owner1, `SELECT app_tell_firm_stuck($1)`, [A.fin])).rejects.toThrow(/no stuck action/);
-    await q(`UPDATE actions SET status = 'blocked', blocked_reason = 'x' WHERE id = $1`, [A.fin]);
+  it("is written by the move itself, once: a forged activity row sends nothing (review N1)", async () => {
     try {
-      await expect(sqlAs(U.owner1, `SELECT app_tell_firm_stuck($1)`, [A.fin])).rejects.toThrow(/no stuck action/);
-      // And nothing about an action the caller cannot read.
-      await expect(sqlAs(U.mgrAll, `SELECT app_tell_firm_stuck($1)`, [A.hidden])).rejects.toThrow(/not visible|permission/);
+      // Once per move.
+      await svc(U.owner1, (tx, p) => transitionAction(tx, p, A.fin, { to: "blocked", reason: "Waiting" }), true);
+      expect(await stuckNotices(A.fin)).toEqual([U.lead, U.deputy, U.staff].sort());
+      await q(`DELETE FROM notifications WHERE entity_id = $1`, [A.fin]);
+      // A reader inserts a "marked stuck" event on the action already blocked: no notice.
+      await sqlAs(
+        U.owner1,
+        `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, from_state, to_state)
+         VALUES ($1,$2,$3,'action',$4,'status_changed','in_progress','blocked')`,
+        [P, ACME, U.owner1, A.fin],
+      );
+      // Saving the same status again is no move either.
+      await q(`UPDATE actions SET status = 'blocked' WHERE id = $1`, [A.fin]);
+      expect(await stuckNotices(A.fin)).toEqual([]);
+      // And the old callable form is gone.
+      await expect(sqlAs(U.owner1, `SELECT app_tell_firm_stuck($1)`, [A.fin])).rejects.toThrow(/does not exist/);
     } finally {
       await reset(A.fin);
     }

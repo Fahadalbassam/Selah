@@ -80,7 +80,9 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
         });
       })()
     : null;
-  const mine = attendees.find((a) => a.userId === me && a.role !== "organizer");
+  // The reader's own row always carries an answer: someone who cannot open the meeting never reads this page.
+  const mineRow = attendees.find((a) => a.userId === me && a.role !== "organizer");
+  const mine = mineRow ? { ...mineRow, response: mineRow.response ?? "needs_action" } : undefined;
   const replaced = new Set(decisions.map((d) => d.supersedesId).filter(Boolean));
   const decisionNo = new Map(decisions.map((d, i) => [d.id, i + 1]));
   const pickable = decisions.filter((d) => !replaced.has(d.id)).map((d) => ({ id: d.id, text: d.text }));
@@ -417,7 +419,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
                     {a.role === "optional" ? <span className="text-xs text-muted-foreground"> · {t("optional")}</span> : null}
                   </span>
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                    {a.role === "organizer" ? t("organizer") : a.cannotOpen ? t("response.cannotOpen") : t(`response.${a.response}`)}
+                    {a.role === "organizer" ? t("organizer") : a.cannotOpen ? t("response.cannotOpen") : a.response ? t(`response.${a.response}`) : null}
                     {canRun && a.role !== "organizer" && meeting.status !== "cancelled" ? (
                       <RemoveAttendee meetingId={meeting.id} attendeeId={a.id} name={a.name ?? "—"} />
                     ) : null}

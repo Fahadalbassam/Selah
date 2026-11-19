@@ -239,8 +239,9 @@ export const POLICY = {
     client_admin: "owner_org",
     client_manager: "owner_org",
   }, // visibility label, AI flag, shares
-  // The assistant switch on a file (Gate B, D1): on top of document.manage,
-  // only the person who uploaded it or the owning side's admin. The database
+  // Switching the assistant ON for a file (Gate B, D1; review S1): on top of
+  // document.manage, only the person who uploaded that version or the owning
+  // side's admin. Switching it off needs document.manage only. The database
   // agrees (check_document_assistant, 0108).
   "document.assistant": { firm_admin: "owner_org", consultant: "own", client_admin: "owner_org", client_manager: "own" },
   // Share a client-private file with the firm (one-way). The client admin only.
