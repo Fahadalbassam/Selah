@@ -5843,7 +5843,7 @@
       "draftOnlyHeld": "A position only the draft has holds someone, and nobody is placed in the draft. Reload the page.",
       "archived": "This client is archived: its structure is read only.",
       "successor": "Someone is already scheduled to take this position over. Leave it vacant, or change that first under People in positions.",
-      "effective_before": "A new version takes effect on or after the day the current one did.",
+      "effective_before": "A new version takes effect today or later, and not before the day the current one did.",
       "noUnits": "The draft has no units yet.",
       "resolution": "Choose one of the client's files that the client can see, or leave the board resolution empty.",
       "suggestion_gone": "The structure or the department changed since this suggestion was shown. Reload the page.",
@@ -5967,7 +5967,7 @@
         "hint": "The day it takes effect, and the board resolution if there is one."
       },
       "effective": "Takes effect on",
-      "effectiveHint": "The client sees the new structure from this day.",
+      "effectiveHint": "Today or later: a version is never back-dated. The client sees the new structure from this day.",
       "effectiveHintAfter": "From {date} on: not before the day the current version took effect.",
       "resolution": "Board resolution (optional)",
       "noResolution": "No resolution attached",

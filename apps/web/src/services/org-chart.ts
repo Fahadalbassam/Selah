@@ -1034,6 +1034,11 @@ async function planOutcomes(tx: Tx, draftId: string, effectiveOn: string): Promi
   return rows.map((r) => ({ positionId: r.position_id, code: r.code, userId: r.user_id, name: r.name, outcome: r.outcome }));
 }
 
+/** The first day a new version may take effect: today, or the current version's day when that is later (never back-dated). */
+export function earliestEffective(currentEffectiveOn: string | null, today: string): string {
+  return currentEffectiveOn && currentEffectiveOn > today ? currentEffectiveOn : today;
+}
+
 /** A version's unit id as the draft copied from it holds it (app_org_chart_copy: md5 of the draft's id and the unit's). */
 function copiedId(draftId: string, unitId: string): string {
   const h = createHash("md5").update(`${draftId}${unitId}`).digest("hex");
@@ -1076,10 +1081,13 @@ export async function publishPreview(tx: Tx, principal: Principal, clientOrgId: 
   const after = await structureOf(tx, draft);
   const before = current ? await structureOf(tx, current) : { units: [], positions: [] };
   const changes = structureChanges(before, after, (draftUnitId) => before.units.find((u) => copiedId(draft.id, u.id) === draftUnitId)?.id ?? null);
-  // The day the new version takes effect: the one asked, else today, never before the current version's.
-  const earliest = current?.effectiveOn ?? null;
-  const on = effectiveOn ?? (earliest && earliest > today ? earliest : today);
+  // The day the new version takes effect: the one asked, else the earliest allowed, which is today or
+  // the current version's day if later (never back-dated: review B1).
+  const earliest = earliestEffective(current?.effectiveOn ?? null, today);
+  const on = effectiveOn && effectiveOn >= earliest ? effectiveOn : earliest;
   const lastDay = dayBefore(on);
+  // Part 3's rule as publishing applies it (close_dropped_holdings): started by today ends, never deleted.
+  const startedBy = lastDay > today ? lastDay : today;
   const dropped = new Set(changes.positions.removed.map((p) => p.lineageId));
   const leaving = dropped.size
     ? await tx
@@ -1109,7 +1117,8 @@ export async function publishPreview(tx: Tx, principal: Principal, clientOrgId: 
     /** People on positions the new version drops: their holding ends the day before it takes effect, or, not started yet, is cancelled. */
     dropped: leaving.map((h) => {
       const p = removedBy.get(h.lineage)!;
-      return { code: p.code, titleAr: p.titleAr, titleEn: p.titleEn, name: h.typed ?? h.userName, endsOn: h.from > lastDay ? null : lastDay, cancelled: h.from > lastDay };
+      const cancelled = h.from > startedBy;
+      return { code: p.code, titleAr: p.titleAr, titleEn: p.titleEn, name: h.typed ?? h.userName, endsOn: cancelled ? null : h.from > lastDay ? h.from : lastDay, cancelled };
     }),
     plans: client.minimalRecords ? [] : await planOutcomes(tx, draft.id, on),
     resolutions: await resolutionChoices(tx, client.id),
@@ -1149,7 +1158,7 @@ export async function publish(
   const chart = await chartOf(tx, client.id);
   if (!chart) throw new NotFoundError("draft");
   const current = await versionIn(tx, chart.id, "published");
-  if (current?.effectiveOn && input.effectiveOn < current.effectiveOn) throw new BadRequestError("effective_before");
+  if (input.effectiveOn < earliestEffective(current?.effectiveOn ?? null, firmToday())) throw new BadRequestError("effective_before");
   const resolution = input.resolutionDocumentId ?? null;
   if (resolution && (!UUID.test(resolution) || !(await resolutionChoices(tx, client.id)).some((d) => d.id === resolution))) throw new BadRequestError("resolution");
   // Who is planned, as the database will treat them (it checks each one again itself).

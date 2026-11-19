@@ -33,10 +33,8 @@ export default async function PublishStructurePage({ params, searchParams }: { p
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm") return null;
     try {
-      const preview = await publishPreview(tx, principal, id, on && DAY.test(on) ? on : null);
-      // A day before the current version's is not offered: the page falls back to the first day allowed.
-      if (preview.earliest && preview.effectiveOn < preview.earliest) return await publishPreview(tx, principal, id, preview.earliest);
-      return preview;
+      // A day before the earliest allowed (today, or the current version's day) falls back to that day.
+      return await publishPreview(tx, principal, id, on && DAY.test(on) ? on : null);
     } catch (e) {
       // Not a publisher of this client, or no draft: the same 404 as a missing page.
       if (e instanceof ForbiddenError || e instanceof NotFoundError || e instanceof BadRequestError) return null;
@@ -168,6 +166,7 @@ export default async function PublishStructurePage({ params, searchParams }: { p
             number={data.nextNumber}
             effectiveOn={data.effectiveOn}
             earliest={data.earliest}
+            today={data.today}
             resolutions={data.resolutions.map((d) => ({ id: d.id, title: d.title }))}
             base={base}
             disabled={!data.hasUnits}

@@ -25,7 +25,9 @@ export function PublishForm(props: {
   draftId: string;
   number: number;
   effectiveOn: string;
-  earliest: string | null;
+  /** The first day allowed: today, or the current version's day when later (never back-dated). */
+  earliest: string;
+  today: string;
   resolutions: { id: string; title: string }[];
   base: string;
   disabled: boolean;
@@ -72,10 +74,12 @@ export function PublishForm(props: {
           onChange={pickDay}
           placeholder={t("effective")}
           required
-          disabled={props.earliest ? { before: new Date(`${props.earliest}T00:00:00Z`) } : undefined}
+          disabled={{ before: new Date(`${props.earliest}T00:00:00Z`) }}
           className="w-fit"
         />
-        <p className="text-xs text-muted-foreground">{props.earliest ? t("effectiveHintAfter", { date: day(props.earliest) }) : t("effectiveHint")}</p>
+        <p className="text-xs text-muted-foreground">
+          {props.earliest > props.today ? t("effectiveHintAfter", { date: day(props.earliest) }) : t("effectiveHint")}
+        </p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="publish-resolution">{t("resolution")}</Label>

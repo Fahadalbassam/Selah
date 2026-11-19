@@ -86,8 +86,9 @@ BEGIN
     RAISE EXCEPTION 'the resolution must be a file of this client that the client can see' USING ERRCODE = 'check_violation';
   END IF;
   SELECT v.show_names, v.effective_on INTO prev_names, prev_effective FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'published';
-  IF prev_effective IS NOT NULL AND p_effective < prev_effective THEN
-    RAISE EXCEPTION 'a new version takes effect on or after the day the current one did' USING ERRCODE = 'check_violation';
+  -- Never back-dated (review B1): today or later, and on or after the day the current version took effect.
+  IF p_effective < greatest(coalesce(prev_effective, app_firm_today()), app_firm_today()) THEN
+    RAISE EXCEPTION 'a new version takes effect today or later, and on or after the day the current one did' USING ERRCODE = 'check_violation';
   END IF;
   -- The plans, while the version is still the draft (the list reads drafts only).
   SELECT coalesce(jsonb_agg(to_jsonb(o)), '[]'::jsonb) INTO plans FROM app_org_chart_plan_outcomes(d.id, p_effective) o;
@@ -117,6 +118,54 @@ BEGIN
     VALUES (cid, c.org_id, 'draft', d.id, app_uid()) RETURNING id INTO fresh;
   PERFORM app_org_chart_copy(d.id, fresh);
   RETURN d.id;
+END $$;
+--> statement-breakpoint
+-- 2b. The positions a new version drops (latest definition:
+--     0097_org_chart_editor). Defence in depth beside the rule above (the
+--     lead's decision on review B1): publishing never deletes a holding that
+--     has started. One that started by the day before the new version takes
+--     effect ends that day, as before; one that started after it but by
+--     today (only possible when the version takes effect today) ends on the
+--     day it started; only a holding that has not started yet, after both,
+--     is removed (it never took effect), counted without names.
+CREATE OR REPLACE FUNCTION close_dropped_holdings() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  h record;
+  n integer;
+  e date := NEW.effective_on - 1;
+  started date := greatest(NEW.effective_on - 1, app_firm_today());
+  changed boolean := false;
+BEGIN
+  PERFORM set_config('selah.publishing', NEW.chart_id::text, true);
+  FOR h IN
+    UPDATE position_holders x SET to_date = greatest(x.from_date, e)
+    WHERE x.chart_id = NEW.chart_id AND x.from_date <= started AND (x.to_date IS NULL OR x.to_date > greatest(x.from_date, e))
+      AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.version_id = NEW.id AND p.lineage_id = x.position_lineage_id)
+    RETURNING x.id, x.org_id, x.position_lineage_id, x.to_date
+  LOOP
+    changed := true;
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+      VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_end', 'org_chart', h.position_lineage_id, 'allow',
+        jsonb_build_object('client', h.org_id, 'holder', h.id, 'on', h.to_date, 'version', NEW.id));
+  END LOOP;
+  PERFORM set_config('selah.publishing', '', true);
+  WITH gone AS (
+    DELETE FROM position_holders x
+    WHERE x.chart_id = NEW.chart_id AND x.from_date > started
+      AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.version_id = NEW.id AND p.lineage_id = x.position_lineage_id)
+    RETURNING 1
+  ) SELECT count(*) INTO n FROM gone;
+  IF n > 0 THEN
+    changed := true;
+    INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+      VALUES (app_uid(), coalesce(app_org(), NEW.org_id), 'org_chart.holder_cancel', 'org_chart', NEW.org_id, 'allow',
+        jsonb_build_object('client', NEW.org_id, 'count', n, 'version', NEW.id));
+  END IF;
+  IF changed THEN
+    PERFORM app_org_chart_tell_lead(NEW.org_id, app_uid());
+  END IF;
+  RETURN NULL;
 END $$;
 --> statement-breakpoint
 -- 3. A suggestion the firm answers (done or declined) tells the client's

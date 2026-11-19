@@ -299,6 +299,38 @@ describe("the day a new version takes effect", () => {
     // The same day is fine (rolled back).
     await as(U.lead, (c) => c.query(`SELECT app_publish_org_chart($1, $2, $3::date, NULL)`, [chart, draft, plus(3)]));
   });
+
+  // Review B1 (19 Nov): a back-dated version deleted holdings of the positions it dropped, current and past.
+  it("is never in the past, even for a first version; and publishing never deletes a holding that has started, it only ends it", async () => {
+    const otherDraft = async () => (await svc(U.lead, (tx, p) => OC.getDraft(tx, p, OTHER))).draft!.id;
+    const board = (await svc(U.lead, (tx, p) => OC.addUnit(tx, p, OTHER, { kind: "board", code: "1", nameEn: "Board" }), true)).id;
+    await svc(U.lead, (tx, p) => OC.addPosition(tx, p, board, { code: "1.1", titleEn: "Chair", isHead: true }), true);
+    await svc(U.lead, (tx, p) => OC.addPosition(tx, p, board, { code: "1.2", titleEn: "Clerk" }), true);
+    const err = await svc(U.lead, async (tx, p) => OC.publish(tx, p, OTHER, { draftId: await otherDraft(), effectiveOn: plus(-1) })).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/effective_before/);
+    const chart = (await q(`SELECT id FROM org_charts WHERE org_id = $1`, [OTHER])).rows[0].id as string;
+    const first = await otherDraft();
+    await expect(as(U.lead, (c) => c.query(`SELECT app_publish_org_chart($1, $2, $3::date, NULL)`, [chart, first, plus(-1)]))).rejects.toThrow(/today or later/);
+    // The earliest day offered is today for a first version.
+    expect((await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, OTHER, plus(-5)))).earliest).toBe(firmToday());
+    await svc(U.lead, (tx, p) => OC.publish(tx, p, OTHER, { draftId: first, effectiveOn: firmToday() }), true);
+
+    // Other's admin places a clerk from today (in post) and another from tomorrow (not started).
+    const clerk = (await svc(U.oadmin, (tx, p) => OC.getPublishedChart(tx, p, OTHER))).positions.find((x) => x.code === "1.2")!;
+    await svc(U.oadmin, (tx, p) => OC.changeHolder(tx, p, clerk.id, { start: { name: "Clerk Today", from: firmToday() } }), true);
+    await svc(U.oadmin, (tx, p) => OC.changeHolder(tx, p, clerk.id, { start: { name: "Clerk Tomorrow", from: plus(1) } }), true);
+    // The firm drops the clerk and publishes version 2, in effect today.
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, OTHER));
+    await svc(U.lead, (tx, p) => OC.deletePosition(tx, p, d.positions.find((x) => x.code === "1.2")!.id), true);
+    const preview = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, OTHER, firmToday()));
+    expect(preview.dropped.map((h) => [h.name, h.endsOn, h.cancelled])).toEqual([
+      ["Clerk Today", firmToday(), false],
+      ["Clerk Tomorrow", null, true],
+    ]);
+    await svc(U.lead, async (tx, p) => OC.publish(tx, p, OTHER, { draftId: await otherDraft(), effectiveOn: firmToday() }), true);
+    // The one in post is kept, ended today; only the one who had not started is cancelled.
+    expect(await holdingsOf(clerk.lineageId)).toEqual([{ user_id: null, name: "Clerk Today", from_date: firmToday(), to_date: firmToday() }]);
+  });
 });
 
 describe("people on positions the new version drops", () => {

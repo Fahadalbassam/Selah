@@ -107,7 +107,7 @@ export function orgChartError(message: string | undefined): string | null {
   if ((ORG_CHART_ERROR_KEYS as readonly string[]).includes(message)) return message;
   const rules: [RegExp, string][] = [
     [/this draft is no longer the current one/, "draftChanged"],
-    [/takes effect on or after the day the current one did/, "effective_before"],
+    [/takes effect (today or later, and )?on or after the day the current one did/, "effective_before"],
     [/the draft has no units yet/, "noUnits"],
     [/the resolution must be a file of this client/, "resolution"],
     [/already holds the position on some of those days/, "alreadyHolds"],
