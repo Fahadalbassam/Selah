@@ -65,8 +65,8 @@ const other = (action: string, meta: object = {}) =>
 
 beforeAll(async () => {
   db = (await q(`SELECT current_database() AS d`)).rows[0].d;
-  // This suite rewrites rows; it runs only on the agreed test copy.
-  expect(db).toBe("selah_test_t");
+  // This suite rewrites rows; it runs only on a test database (selah_test in CI, selah_test_* locally).
+  expect(looksLikeTestDatabase(db)).toBe(true);
   await q(`TRUNCATE "user", organizations CASCADE`);
   await truncateAuditLog(owner);
   await q(`INSERT INTO organizations (id, kind, name) VALUES ($1,'firm','firm'), ($2,'client','Acme'), ($3,'client','Beta')`, [FIRM, ACME, BETA]);
@@ -364,7 +364,7 @@ describe("pre-go-live clean-up of old private file names", () => {
 
     const dry = run(["--allow-test"]);
     expect(dry.status).toBe(0);
-    expect(dry.stdout).toMatch(/DRY RUN \(nothing changed\) on database selah_test_t/);
+    expect(dry.stdout).toContain(`DRY RUN (nothing changed) on database ${db}`);
     expect(dry.stdout).toMatch(/Run again with --apply/);
     expect(dry.stdout + dry.stderr).not.toMatch(SECRET);
   });
