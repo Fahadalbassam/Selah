@@ -56,7 +56,7 @@ import { addValue, createIndicator, linkRecommendation } from "@/services/indica
 import { addTemplateItems, answerWithUpload, createInfoRequest } from "@/services/info-requests";
 import { submitInquiry } from "@/services/intake";
 import { addFollowUp, bookMeeting, recordDecision, saveSummary, sendInvites, updateFollowUp, updateMeeting } from "@/services/meetings";
-import { addPosition, addUnit, changeHolder, getDraft, publish, setShowNames, startChart } from "@/services/org-chart";
+import { addPosition, addUnit, changeHolder, getDraft, publish, setShowNames, startChart, suggestChange } from "@/services/org-chart";
 import { createAction, createFinding, createRecommendation } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 import { addProgressUpdate } from "@/services/progress";
@@ -727,7 +727,7 @@ await as(C.nAdmin, (tx, p) => consentClientAi(tx, p, { version: CLIENT_AI_VERSIO
 await as(C.nOwner, (tx, p) => reportProblem(tx, p, { body: "لا أستطيع رفع ملف أكبر من 20 ميجابايت، والمحضر الممسوح ضوئياً حجمه 35 ميجابايت." }));
 
 // Al-Nukhba's organisation structure (org chart): Khalid builds it in the
-// draft and publishes it, effective 45 days ago; Fahd, the client admin,
+// draft and publishes it, effective the day it is seeded (a version is never back-dated: review B1 of part 5); Fahd, the client admin,
 // puts the people in and shows names to the managers. The board, the chief
 // executive with internal audit beside him on a dotted line, and the three
 // departments, each linked to the department of the same name (a label, never
@@ -767,7 +767,7 @@ for (const [key, unitKey, reportsTo, input] of [
   op[key] = (await as(U.lead, (tx, p) => addPosition(tx, p, ou[unitKey]!, { ...input, reportsToId: reportsTo ? op[reportsTo] : null }))).id;
 }
 const draftId = (await as(U.lead, (tx, p) => getDraft(tx, p, nukhba.id))).draft!.id;
-const structure = await as(U.lead, (tx, p) => publish(tx, p, nukhba.id, { draftId, effectiveOn: day(-45) }));
+const structure = await as(U.lead, (tx, p) => publish(tx, p, nukhba.id, { draftId, effectiveOn: day(0) }));
 for (const [key, holder] of [
   ["chair", { name: "سعود الراشد" }],
   ["ceo", { userId: C.nSponsor }],
@@ -784,6 +784,15 @@ for (const [key, holder] of [
   await as(C.nAdmin, (tx, p) => changeHolder(tx, p, op[key]!, { start: { ...holder, from: day(-400) } }));
 }
 await as(C.nAdmin, (tx, p) => setShowNames(tx, p, structure.versionId, true));
+// Fahd suggests a change (org chart, part 5): it waits on Khalid's home as a
+// decision, and both Structure tabs list it until the firm answers.
+await as(C.nAdmin, (tx, p) =>
+  suggestChange(tx, p, nukhba.id, {
+    what: "قسم للمشتريات في الإدارة المالية",
+    where: "الإدارة المالية",
+    why: "زادت مشتريات الشركة، ونحتاج إلى من يتابعها ويعتمدها.",
+  }),
+);
 
 // ---------------------------------------------------------------- case 2: Rawdah, closing
 

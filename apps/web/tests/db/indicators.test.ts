@@ -74,7 +74,7 @@ const indicator = (by: string, kid: string, org: string, dept: string | null = n
   sqlAs(
     by,
     `INSERT INTO client_kpis (id, org_id, department_id, name_en, name_ar, unit, direction, frequency, baseline, baseline_period, target, target_date, created_by)
-     VALUES ($1,$2,$3,'Customer complaints','شكاوى العملاء','complaints','lower_better','monthly',40,'2026-01-01',20,'2026-12-01',$4) ${extra}`,
+     VALUES ($1,$2,$3,'Customer complaints','شكاوى العملاء','complaints','lower_better','monthly',40,'2026-01-01',20,'2099-12-01',$4) ${extra}`,
     [kid, org, dept, by],
   );
 const value = (by: string, kid: string, period: string, v: number, supersedes: string | null = null) =>
@@ -96,7 +96,7 @@ async function reset() {
   await owner.query(`DELETE FROM notifications`);
   await owner.query(
     `INSERT INTO client_kpis (id, org_id, department_id, name_en, name_ar, unit, direction, frequency, baseline, baseline_period, target, target_date, created_by) VALUES
-      ($1,$4,NULL,'Customer complaints','شكاوى العملاء','complaints','lower_better','monthly',40,'2026-01-01',20,'2026-12-01',$6),
+      ($1,$4,NULL,'Customer complaints','شكاوى العملاء','complaints','lower_better','monthly',40,'2026-01-01',20,'2099-12-01',$6),
       ($2,$4,$7,'Days to close the books','أيام إقفال الدفاتر','days','lower_better','monthly',15,'2026-01-01',NULL,NULL,$6),
       ($3,$5,NULL,'Beta revenue','إيرادات بيتا','SAR','higher_better','quarterly',100,'2026-01-01',NULL,NULL,$6)`,
     [K.company, K.finance, K.beta, ACME, BETA, U.admin, DEPT_FIN],
@@ -134,7 +134,7 @@ beforeAll(async () => {
   );
   await q(
     `INSERT INTO actions (project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by) VALUES
-      ($1,$2,$3,'Open the desk',$4,'verified_complete','2026-06-01',$5), ($1,$2,$3,'Train the staff',$4,'in_progress','2026-12-01',$5)`,
+      ($1,$2,$3,'Open the desk',$4,'verified_complete','2026-06-01',$5), ($1,$2,$3,'Train the staff',$4,'in_progress','2099-12-01',$5)`,
     [P1, ACME, R.shared, U.owner1, U.cons],
   );
 });

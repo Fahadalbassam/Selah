@@ -40,6 +40,7 @@ export async function FirmHomeLists({ data, open }: { data: FirmHome; open: Sect
     closure_request: tSteps("decide"),
     info_request: tSteps("look"),
     deliverable_comment: tSteps("read"),
+    org_chart_request: tSteps("decide"),
     disputed: tSteps("answer"),
     ready_to_close: tSteps("close"),
   };
@@ -48,7 +49,7 @@ export async function FirmHomeLists({ data, open }: { data: FirmHome; open: Sect
       ? t("decisions.proposed", { date: day(r.proposed), who: r.who ?? "—" })
       : r.kind === "closure_request" && r.who
         ? t("decisions.askedBy", { who: r.who, date: day(r.at) })
-        : r.kind === "deliverable_comment" && r.who
+        : (r.kind === "deliverable_comment" || r.kind === "org_chart_request") && r.who
           ? t("decisions.commentedBy", { who: r.who, date: day(r.at) })
           : r.kind === "disputed"
             ? t("decisions.disputedSince", { date: day(r.at) })

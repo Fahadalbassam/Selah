@@ -2,7 +2,9 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
+import { HeadSuggestions } from "@/components/org-chart/head-suggestions";
 import { OutlineEditor } from "@/components/org-chart/outline-editor";
+import { StructureRequests } from "@/components/org-chart/structure-requests";
 import { PeopleView } from "@/components/org-chart/people-view";
 import { StructureBody, shownDepth, shownParam, structureViews, viewHref } from "@/components/org-chart/structure-body";
 import { StructurePdfButton } from "@/components/org-chart/structure-pdf";
@@ -13,7 +15,18 @@ import { structureHint } from "@/lib/org-chart";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
 import { canReadDepartments } from "@/services/engagement";
-import { droppedHoldings, editorChoices, getPublishedChart, getStructure, hasStructure, holderCandidates, listVacancies } from "@/services/org-chart";
+import {
+  canReadRequests,
+  droppedHoldings,
+  editorChoices,
+  getPublishedChart,
+  getStructure,
+  hasStructure,
+  headSuggestions,
+  holderCandidates,
+  listChangeRequests,
+  listVacancies,
+} from "@/services/org-chart";
 import { canImport, plannedNames } from "@/services/org-chart-import";
 import { ClientTabs } from "../client-tabs";
 
@@ -30,11 +43,11 @@ export default async function ClientStructurePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ version?: string; depth?: string; view?: string }>;
+  searchParams: Promise<{ version?: string; depth?: string; view?: string; focus?: string }>;
 }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { version, depth, view: viewParam } = await searchParams;
+  const { version, depth, view: viewParam, focus } = await searchParams;
   const data = await withPrincipal(async (tx, principal) => {
     if (principal.orgKind !== "firm" || !(await hasStructure(tx, principal, id))) return null;
     const structure = await getStructure(tx, principal, id, version ?? null);
@@ -56,6 +69,10 @@ export default async function ClientStructurePage({
       candidates: people && structure.can.canChangeHolders ? await holderCandidates(tx, principal, id) : [],
       vacancies: people ? await listVacancies(tx, principal, id) : [],
       dropped: people ? await droppedHoldings(tx, principal, id) : [],
+      // The client's suggested changes (part 5), answered here by the firm's editors.
+      requests: canReadRequests(principal, id) ? await listChangeRequests(tx, principal, id) : null,
+      // Where a linked unit's head is not the department's head: for the firm admin, who manages departments.
+      heads: await headSuggestions(tx, principal, id),
     };
   });
   if (!data) notFound();
@@ -89,6 +106,14 @@ export default async function ClientStructurePage({
         {t("editDraft")}
       </Link>
     ) : null;
+  // Publishing (part 5): the page's main action while the draft is shown, for the firm admin, the lead and the deputy.
+  const publishLink =
+    structure.can.canPublish && structure.shown?.version.state === "draft" && structure.shown.units.length ? (
+      <Link href={`${base}/publish`} className={buttonVariants({ size: "sm" })}>
+        {t("publish.open")}
+      </Link>
+    ) : null;
+  const requests = data.requests;
   return (
     <>
       <Link href={`/clients/${id}`} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -98,6 +123,7 @@ export default async function ClientStructurePage({
       <ClientTabs clientId={id} current="structure" structure departments={data.departments} />
       <PageHeader title={t("title")} description={t(structureHint({ hasUnits: !!structure.shown?.units.length }))}>
         <div className="flex flex-wrap items-center gap-2">
+          {publishLink}
           {editLink}
           {data.canImport ? (
             <Link href={`${base}/import`} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -116,7 +142,7 @@ export default async function ClientStructurePage({
         </div>
       </PageHeader>
       {structure.shown ? (
-        <StructureBody structure={structure} base={base} depthParam={depth} audience="firm" view={view} views={views}>
+        <StructureBody structure={structure} base={base} depthParam={depth} focusParam={focus} audience="firm" view={view} views={views}>
           {view === "outline" ? editor : null}
           {view === "people" ? (
             <PeopleView units={structure.shown.units} positions={structure.shown.positions} vacancies={data.vacancies} candidates={data.candidates} dropped={data.dropped} side="firm" />
@@ -125,6 +151,17 @@ export default async function ClientStructurePage({
       ) : (
         editor
       )}
+      <HeadSuggestions clientId={id} items={data.heads} />
+      {requests && requests.items.length ? (
+        <StructureRequests
+          clientId={id}
+          side="firm"
+          // The draft's editors answer; nobody does on an archived client, whose structure is read only.
+          canClose={requests.canClose && structure.can.canEditDraft}
+          canSuggest={false}
+          items={requests.items.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), closedAt: r.closedAt?.toISOString() ?? null }))}
+        />
+      ) : null}
     </>
   );
 }

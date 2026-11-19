@@ -7,6 +7,7 @@
 // token is defined, the same rules fall back to print greys.
 import type { VersionStatus } from "./org-chart";
 import { escapeHtml, reportFontFaces } from "./report-html";
+import { collapsible } from "./org-chart-reading";
 import { overview, pageUnits, treeWidth, wraps, type TreePosition, type TreeUnit } from "./org-chart-tree";
 
 export interface TreeLabels {
@@ -24,6 +25,11 @@ export interface TreeLabels {
   label: string;
   /** "See {name}'s work": a person's button on screen, which opens their work card. */
   person: (name: string) => string;
+  /** On screen, a unit's fold button: "Collapse {name}" and "Expand {name}". */
+  collapse: (name: string) => string;
+  expand: (name: string) => string;
+  /** On screen, in a collapsed unit's card: what is folded away. */
+  folded: string;
 }
 
 /** The drawing's words from the messages under "orgChart.tree", in the reader's language. */
@@ -36,6 +42,9 @@ export function treeLabels(t: (key: string, values?: Record<string, string>) => 
     advisory: t("tree.advisory"),
     label: t("tree.label"),
     person: (name) => t("tree.person", { name }),
+    collapse: (name) => t("tree.collapse", { name }),
+    expand: (name) => t("tree.expand", { name }),
+    folded: t("tree.folded"),
   };
 }
 
@@ -121,6 +130,21 @@ export const ORG_CHART_CSS = `
 .oc-person:focus-visible{outline:2px solid var(--ring,#595959);outline-offset:2px;}
 `;
 
+/**
+ * The screen's reading tools on the drawing (org chart, part 5): a unit's
+ * fold button and what folding hides. Screen only: the PDF never has the
+ * markup these rules apply to.
+ */
+export const ORG_CHART_TOOLS_CSS = `
+.oc-toggle{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;inline-size:1.25rem;block-size:1.25rem;margin:0;padding:0;border:1px solid var(--oc-border);border-radius:0.25rem;background:var(--oc-card);font:inherit;font-size:0.875rem;line-height:1;color:var(--oc-muted);cursor:pointer;}
+.oc-toggle:hover{color:var(--oc-ink);}
+.oc-toggle:focus-visible{outline:2px solid var(--ring,#595959);outline-offset:2px;}
+.oc-head-start{display:flex;align-items:baseline;gap:0.375rem;min-inline-size:0;}
+.oc-folded{display:none;}
+li.oc-shut>.oc-row,li.oc-shut>.oc-stack,li.oc-shut>.oc-beside,li.oc-shut>.oc-unit tr.oc-sub,li.oc-shut>.oc-unit tr.oc-more-row{display:none;}
+li.oc-shut>.oc-unit tr.oc-folded{display:table-row;}
+`;
+
 const e = escapeHtml;
 
 interface Draw {
@@ -130,6 +154,8 @@ interface Draw {
   people?: boolean;
   /** In print: at most this many units to a row, the rest on further rows. */
   wrap?: number;
+  /** On screen: each unit that has something to fold gets a fold button (never in the PDF). */
+  tools?: boolean;
 }
 
 /** A card holding this many rows or fewer stays whole on one printed page; a longer one runs on, its heading repeated. */
@@ -159,14 +185,24 @@ function positionHtml(p: TreePosition, d: Draw): string {
  */
 function cardHtml(u: TreeUnit, d: Draw): string {
   const cols = Math.max(1, u.columns ?? 1);
-  const head = `<div class="oc-head"><p class="oc-name">${e(u.name)}${u.advisory ? `<span class="oc-sr"> (${e(d.labels.advisory)})</span>` : ""}</p><p class="oc-code" dir="ltr">${e(u.code)}</p></div>`;
+  const fold = !!d.tools && collapsible(u);
+  const name = `<p class="oc-name">${e(u.name)}${u.advisory ? `<span class="oc-sr"> (${e(d.labels.advisory)})</span>` : ""}</p>`;
+  // The fold button says what pressing it does; the page swaps its words (and its sign) as it folds and unfolds.
+  const toggle = fold
+    ? `<button type="button" class="oc-toggle" data-toggle="${e(u.id)}" aria-expanded="true" aria-label="${e(d.labels.collapse(u.name))}" title="${e(d.labels.collapse(u.name))}" data-collapse="${e(d.labels.collapse(u.name))}" data-expand="${e(d.labels.expand(u.name))}">−</button>`
+    : "";
+  const head = `<div class="oc-head">${fold ? `<div class="oc-head-start">${toggle}${name}</div>` : name}<p class="oc-code" dir="ltr">${e(u.code)}</p></div>`;
   const rows: string[] = [];
   for (let i = 0; i < u.positions.length; i += cols) {
-    const cells = u.positions.slice(i, i + cols).map((p) => positionHtml(p, d));
+    const slice = u.positions.slice(i, i + cols);
+    const cells = slice.map((p) => positionHtml(p, d));
     while (cells.length < cols) cells.push(`<td class="oc-pos"></td>`);
-    rows.push(`<tr class="oc-row-pos">${cells.join("")}</tr>`);
+    // Folded, a unit keeps its head position in view; every other row folds away.
+    const sub = fold && !slice.some((p) => p.head) ? " oc-sub" : "";
+    rows.push(`<tr class="oc-row-pos${sub}">${cells.join("")}</tr>`);
   }
-  if (u.more) rows.push(`<tr><td class="oc-more" colspan="${cols}">${e(u.more === "page" ? d.labels.ownPage : d.labels.moreLevels)}</td></tr>`);
+  if (u.more) rows.push(`<tr${fold ? ` class="oc-more-row"` : ""}><td class="oc-more" colspan="${cols}">${e(u.more === "page" ? d.labels.ownPage : d.labels.moreLevels)}</td></tr>`);
+  if (fold) rows.push(`<tr class="oc-folded"><td class="oc-more" colspan="${cols}">${e(d.labels.folded)}</td></tr>`);
   const keep = rows.length <= KEEP_ROWS ? " oc-keep" : "";
   const width = cols > 1 ? ` style="inline-size:calc(var(--oc-box) * ${cols})"` : "";
   return `<div class="oc-unit${keep}"${width}><table class="oc-card" role="presentation"><thead><tr><th colspan="${cols}">${head}</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
@@ -189,7 +225,7 @@ function unitHtml(u: TreeUnit, d: Draw): string {
 }
 
 function nodeHtml(u: TreeUnit, d: Draw): string {
-  return `<li${u.advisory ? ` class="oc-adv"` : ""}>${unitHtml(u, d)}</li>`;
+  return `<li${u.advisory ? ` class="oc-adv"` : ""}${d.tools ? ` data-unit="${e(u.id)}"` : ""}>${unitHtml(u, d)}</li>`;
 }
 
 /**
@@ -197,10 +233,16 @@ function nodeHtml(u: TreeUnit, d: Draw): string {
  * connector lines in CSS. `wrap` (print only) breaks a row of more units
  * than a page holds into several rows. `people` (screen only) makes each
  * holder with an account a button that opens their work card; a typed name
- * stays text, and the PDF never has a button.
+ * stays text, and the PDF never has a button. `tools` (screen only) gives
+ * each unit with something to fold a fold button (lib/org-chart-reading.ts).
  */
-export function orgTreeHtml(roots: readonly TreeUnit[], labels: TreeLabels, locale: "ar" | "en", opts: { wrap?: number; people?: boolean } = {}): string {
-  const d: Draw = { labels, sep: locale === "ar" ? "، " : ", ", wrap: opts.wrap, people: opts.people };
+export function orgTreeHtml(
+  roots: readonly TreeUnit[],
+  labels: TreeLabels,
+  locale: "ar" | "en",
+  opts: { wrap?: number; people?: boolean; tools?: boolean } = {},
+): string {
+  const d: Draw = { labels, sep: locale === "ar" ? "، " : ", ", wrap: opts.wrap, people: opts.people, tools: opts.tools };
   return `<div class="oc" dir="${locale === "ar" ? "rtl" : "ltr"}" lang="${locale}" role="group" aria-label="${e(labels.label)}"><ul class="oc-row oc-root">${roots
     .map((r) => nodeHtml(r, d))
     .join("")}</ul></div>`;

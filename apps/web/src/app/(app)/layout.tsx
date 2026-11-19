@@ -13,16 +13,18 @@ import { ThemeSwitch } from "@/components/theme-switch";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { clientAssistant, hasHelp, sidebarFor, userMenuFor, type MenuKey } from "@/lib/nav";
+import { yourManagers } from "@/lib/org-chart";
 import { withPrincipal } from "@/server/page";
 import { myGroups } from "@/services/client-groups";
 import { myClientAi } from "@/services/client-ai";
 import { consultantNavFacts } from "@/services/nav";
 import { unreadCount } from "@/services/notifications";
 import { myOffboarding } from "@/services/offboarding";
+import { myManager } from "@/services/org-chart";
 import { getViewer } from "@/services/queries";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { viewer, unread, leaving, groups, clientAi, firmFacts } = await withPrincipal(async (tx, principal) => ({
+  const { viewer, unread, leaving, groups, clientAi, firmFacts, managers } = await withPrincipal(async (tx, principal) => ({
     viewer: await getViewer(tx, principal),
     unread: await unreadCount(tx, principal),
     // The people of an archived client read until their grace period ends (F27).
@@ -31,14 +33,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     clientAi: await myClientAi(tx, principal),
     // A consultant's rows that show only when they apply (page audit 4.1).
     firmFacts: await consultantNavFacts(tx, principal),
+    // "Your manager" from the client's structure (org chart, part 5): anyone whose position is on it.
+    managers: await myManager(tx, principal),
   }));
   const locale = await getLocale();
-  const [tNav, tRole, tHeader, tApp, tOff, format] = await Promise.all([
+  const [tNav, tRole, tHeader, tApp, tOff, tOrg, format] = await Promise.all([
     getTranslations("nav"),
     getTranslations("role"),
     getTranslations("header"),
     getTranslations("app"),
     getTranslations("offboarding"),
+    getTranslations("orgChart"),
     getFormatter(),
   ]);
   const rtl = locale === "ar";
@@ -52,6 +57,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     items: section.rows.map((row) => ({ ...row, title: navLabel(row.key) })),
   }));
   const menu = userMenuFor(viewer.role, { assistantConsent: assistant.consentView }).map((i) => ({ ...i, label: navLabel(i.key as MenuKey) }));
+  // The person's own profile, at the top of their menu: who they report to on the company's structure.
+  const manager = yourManagers(managers, rtl ? "ar" : "en").map((m) =>
+    m.names.length
+      ? tOrg("yourManager.named", { title: m.title, name: m.names.join(rtl ? "، " : ", ") })
+      : m.vacant
+        ? tOrg("yourManager.vacant", { title: m.title })
+        : tOrg("yourManager.title", { title: m.title }),
+  );
 
   return (
     <NextIntlClientProvider>
@@ -67,7 +80,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           // Help for the client's people (F13), always at the foot above Files; firm staff have no help page.
           help={hasHelp(viewer.role) ? { title: tNav("help"), href: "/help" } : undefined}
           // Language and theme are in the top bar only (October review item 6).
-          user={{ name: viewer.name, email: viewer.email, items: menu, signOut: tHeader("signOut") }}
+          user={{ name: viewer.name, email: viewer.email, items: menu, signOut: tHeader("signOut"), manager }}
         />
         {/* The assistant's floating card: stays open while the person moves between pages. */}
         {firmStaff || assistant.row === "card" ? <AssistantHost side={rtl ? "right" : "left"} client={!firmStaff} /> : null}

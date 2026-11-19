@@ -140,6 +140,7 @@
           "closure_request": "Closure request",
           "info_request": "Request item answered",
           "deliverable_comment": "Comment on a deliverable",
+          "org_chart_request": "Suggested change to the structure",
           "disputed": "Recommendation in dispute",
           "ready_to_close": "Ready for the final close"
         }
@@ -2331,6 +2332,8 @@
       "deliverable_reminder": "{title} was handed over ten working days ago and still waits for your confirmation of receipt",
       "deliverable_commented": "The client commented on {title} instead of confirming receipt",
       "org_chart_invite_not_placed": "Your invitation to {title} was accepted, but the position you chose was no longer vacant or no longer in the structure, so nobody was placed in it. Place them under People in positions.",
+      "org_chart_request_done": "Your consultants made the change you suggested to your company's structure",
+      "org_chart_request_declined": "Your consultants declined the change you suggested to your company's structure",
       "action_owner_moved": "An action you had on {title} was given to a colleague",
       "action_owner_changed": "{title} was given to someone else"
     },
@@ -4566,6 +4569,7 @@
       "org_chart_holder_remove": "Removed a holding entered by mistake from a position of the organisation structure",
       "org_chart_draft_reset": "Started the organisation structure's draft again from the current version",
       "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left",
+      "org_chart_head_confirm": "Confirmed a department's head as the organisation structure has it",
       "action_owner_change": "Action given to a colleague"
     },
     "csv": {
@@ -4788,7 +4792,8 @@
       "org_chart_holder_remove": "removed a position holder entered by mistake",
       "org_chart_draft_reset": "restarted the organisation structure draft from the current version",
       "org_chart_holder_cancel": "cancelled appointments not yet started after someone left",
-      "action_owner_change": "gave an action to a colleague"
+      "action_owner_change": "gave an action to a colleague",
+      "org_chart_head_confirm": "confirmed a department's head as the organisation structure shows it"
     },
     "line": "<who>{name}</who> {event}.",
     "lineLabel": "<who>{name}</who>: {event}.",
@@ -6170,7 +6175,15 @@
       "draft": "People are placed on the published structure, under People in positions, never in the draft.",
       "draftOnlyHeld": "A position only the draft has holds someone, and nobody is placed in the draft. Reload the page.",
       "archived": "This client is archived: its structure is read only.",
-      "successor": "Someone is already scheduled to take this position over. Leave it vacant, or change that first under People in positions."
+      "successor": "Someone is already scheduled to take this position over. Leave it vacant, or change that first under People in positions.",
+      "effective_before": "A new version takes effect today or later, and not before the day the current one did.",
+      "noUnits": "The draft has no units yet.",
+      "draftEdited": "The draft changed since this page showed it. Reload the page and check it again.",
+      "resolution": "Choose one of the client's files that the client can see, or leave the board resolution empty.",
+      "suggestion_gone": "This suggestion no longer stands: the structure or the department changed, or the person is no longer one of your people. Reload the page.",
+      "what": "Write the change you suggest in at least three characters.",
+      "text_length": "The text is longer than allowed.",
+      "answered": "This suggestion has already been answered."
     },
     "tabs": {
       "label": "Client pages",
@@ -6202,7 +6215,8 @@
       "replaced": "Replaced on {date} by version {by}",
       "replacedSoon": "Version {by} takes effect on {date}",
       "asOf": "Who held each position on {date}",
-      "others": "Other versions:"
+      "others": "Other versions:",
+      "resolution": "Board resolution:"
     },
     "depth": {
       "label": "Levels",
@@ -6224,7 +6238,130 @@
       "moreLevels": "Lower levels not shown",
       "ownPage": "Details on its own page",
       "advisory": "advisory unit",
-      "person": "See {name}'s work"
+      "person": "See {name}'s work",
+      "collapse": "Collapse what is under {name}",
+      "expand": "Show what is under {name}",
+      "folded": "Collapsed: open it to see what is under it"
+    },
+    "reading": {
+      "label": "Tools for reading the drawing",
+      "focus": "Focus on",
+      "whole": "The whole structure",
+      "show": "Show",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "zoomReset": "Actual size",
+      "percent": "{n}%",
+      "drawing": "Drawing of the organisation structure",
+      "keys": "Drag the drawing to move it. Once you click it, the arrow keys move it, + and − zoom, and 0 brings it back to its size. Collapsing and zooming are on screen only; the PDF does not change."
+    },
+    "yourManager": {
+      "named": "Your manager: {title}, {name}",
+      "vacant": "Your manager: {title} (vacant)",
+      "title": "Your manager: {title}"
+    },
+    "publish": {
+      "open": "Review and publish",
+      "back": "{client}'s structure",
+      "title": "Publish version {n}",
+      "hint": "Check what changes against the version in effect, choose the day it takes effect, then publish. The client sees the new version from that day, and a published version is never taken back.",
+      "top": "the top level",
+      "changes": {
+        "title": "What changes",
+        "against": "Compared with version {n}, in effect from {date}.",
+        "first": "The client's first version: everything in the draft is new.",
+        "none": "No change in units or positions.",
+        "unitsAdded": "Units added",
+        "unitsMoved": "Units moved",
+        "unitsRenamed": "Units renamed",
+        "unitsRemoved": "Units removed",
+        "positionsAdded": "Positions added",
+        "positionsMoved": "Positions moved",
+        "positionsRenamed": "Positions renamed",
+        "positionsRemoved": "Positions removed",
+        "movedLine": "{what}: from {from} to {to}",
+        "renamedLine": "{before} → {after}"
+      },
+      "dropped": {
+        "title": "People on positions that are removed",
+        "hint": "Their history is kept. A holding that has started ends the day before the new version takes effect; one that has not started yet is cancelled.",
+        "ends": "Their holding ends on {date}",
+        "cancelled": "Cancelled (not started yet)"
+      },
+      "plans": {
+        "title": "People planned in the draft",
+        "hint": "They are placed in their positions from {date}, each checked again first, and the plans are then cleared. The lead consultant and the deputy are told.",
+        "place": "Placed from {date}",
+        "left": "Not placed: no longer one of the client's people",
+        "holds": "Not placed: already holds the position",
+        "filled": "Not placed: a one-person position someone is already due to take on that day or later",
+        "takesOver": "Takes over from {names}, whose holding ends on {date}"
+      },
+      "form": {
+        "title": "Publish",
+        "hint": "The day it takes effect, and the board resolution if there is one."
+      },
+      "effective": "Takes effect on",
+      "effectiveHint": "Today or later: a version is never back-dated. The client sees the new structure from this day.",
+      "effectiveHintAfter": "From {date} on: not before the day the current version took effect.",
+      "resolution": "Board resolution (optional)",
+      "noResolution": "No resolution attached",
+      "resolutionHint": "One of the client's files that the client can see; its link shows with this version.",
+      "resolutionNone": "No file is shared with the client yet. To attach the resolution, upload it to the project's files and share it first.",
+      "button": "Publish version {n}",
+      "confirm": "Publish version {n}, taking effect on {date}? A published version is never taken back; a newer one can be published later.",
+      "done": "Version {n} is published.",
+      "doneWithPlans": "Version {n} is published. {placed, plural, one {# planned person placed} other {# planned people placed}}{skipped, plural, =0 {} one {, # not placed} other {, # not placed}}.",
+      "emptyDraft": "The draft has no units yet."
+    },
+    "requests": {
+      "title": "Suggestions from the client",
+      "hint": "Changes the client's admin suggests to its structure. Make the change in the draft and publish it, then mark the suggestion done, or decline it. The person who suggested it is told.",
+      "titleClient": "Your suggestions for the structure",
+      "hintClient": "Your consultants keep the structure. Tell them what you would like changed; their answer comes back here.",
+      "suggest": "Suggest a change",
+      "suggestTitle": "Suggest a change to the structure",
+      "suggestHint": "In a few words: what, where and why. It reaches your lead consultant.",
+      "what": "What",
+      "whatPlaceholder": "Such as: a new procurement section",
+      "where": "Where (optional)",
+      "wherePlaceholder": "Such as: Finance",
+      "why": "Why (optional)",
+      "send": "Send the suggestion",
+      "whereLine": "Where:",
+      "status": {
+        "open": "Waiting for an answer",
+        "done": "Done",
+        "declined": "Declined"
+      },
+      "by": "From {name}, {date}",
+      "answered": "Answered by {name}, {date}",
+      "menu": "Actions for the suggestion",
+      "markDone": "Mark as done",
+      "markDoneConfirm": "Mark this suggestion as done? The person who made it is told, and the answer cannot be changed.",
+      "decline": "Decline",
+      "declineConfirm": "Decline this suggestion? The person who made it is told, and the answer cannot be changed.",
+      "marked": "The answer was sent.",
+      "none": "No suggestions yet."
+    },
+    "headSuggestion": {
+      "title": "Department heads in Selah",
+      "hint": "The head position of a unit linked to a department is held by someone who is not that department's head in Selah. Nothing changes on its own, and the structure never gives or takes away anyone's access.",
+      "line": "{name} holds “{position}” in the structure, and does not head the {department} department in Selah.",
+      "now": "Its head in Selah now: {names}",
+      "nobody": "It has no head in Selah now.",
+      "confirm": "Make department head",
+      "confirmAsk": "Make {name} the head of the {department} department in Selah? They are added to the department if they are not in it, so they see its work and receive its escalations.",
+      "confirmReplace": "Make {name} the head of the {department} department in Selah instead of {names}? They are added to the department if they are not in it, so they see its work and receive its escalations; {names} stays in the department, no longer as its head."
+    },
+    "showNames": {
+      "label": "Show names to department managers",
+      "hintOn": "Department managers see the names of the people in positions in their own department and above it, and everyone sees their own manager's name.",
+      "hintOff": "Department managers see the positions only, without names, and everyone sees their manager's position without the name.",
+      "turnedOn": "Department managers now see names.",
+      "turnedOff": "Department managers no longer see names."
     },
     "pdf": {
       "button": "Download PDF",
