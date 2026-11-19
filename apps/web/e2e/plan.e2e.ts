@@ -23,7 +23,9 @@ test("a firm-only finding never reaches the client; a shared one does (Arabic)",
     [shared, t("visibility.shared")],
     [internal, t("visibility.firm_private")],
   ] as const) {
-    await page.getByRole("button", { name: t("plan.findings.add") }).click();
+    // Batch 3: "Add a finding" is in the menu beside "Add a recommendation".
+    await page.getByRole("button", { name: t("projectPage.menu.planLabel") }).click();
+    await page.getByRole("menuitem", { name: t("plan.findings.add") }).click();
     const d = page.getByRole("dialog");
     await d.locator("#f-title").fill(title);
     await d.locator("#f-visibility").click();
@@ -42,6 +44,7 @@ test("a firm-only finding never reaches the client; a shared one does (Arabic)",
     await expect(client.getByText(internal)).toHaveCount(0);
     // No way to add to the firm's plan.
     await expect(client.getByRole("button", { name: t("plan.findings.add") })).toHaveCount(0);
+    await expect(client.getByRole("menuitem", { name: t("plan.findings.add") })).toHaveCount(0);
     await expect(client.getByRole("button", { name: t("plan.rec.add") })).toHaveCount(0);
     await client.context().close();
   }

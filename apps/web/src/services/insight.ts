@@ -4,45 +4,9 @@ import type { Tx } from "@/db/client";
 import { assertAllowed, type Principal } from "@/authz";
 import { loadProject } from "./staffing";
 
-// Read-only views over a project (baseline: Insight). Both run
-// with the caller's rights, so what they cannot see is simply not there.
-
-export interface TraceRow {
-  nodeType: "kpi" | "assessment" | "finding" | "recommendation" | "action" | "evidence" | "review";
-  nodeId: string;
-  parentType: TraceRow["nodeType"] | null;
-  parentId: string | null;
-  label: string | null;
-  state: string | null;
-}
-
-/**
- * The project as one tree: finding <- recommendation <- action <- evidence |
- * review, the client's indicator <- recommendation (meant to move it),
- * and action <- action (the node supersedes its parent). One row per edge.
- */
-export async function projectTrace(tx: Tx, principal: Principal, projectId: string) {
-  const { resource } = await loadProject(tx, principal, projectId);
-  assertAllowed(principal, "recommendation.read", { ...resource, type: "recommendation" });
-  const { rows } = await tx.execute<{
-    node_type: TraceRow["nodeType"];
-    node_id: string;
-    parent_type: TraceRow["nodeType"] | null;
-    parent_id: string | null;
-    label: string | null;
-    state: string | null;
-  }>(sql`select * from app_trace(${projectId}::uuid)`);
-  return rows.map(
-    (r): TraceRow => ({
-      nodeType: r.node_type,
-      nodeId: r.node_id,
-      parentType: r.parent_type,
-      parentId: r.parent_id,
-      label: r.label,
-      state: r.state,
-    }),
-  );
-}
+// Read-only views over a project (baseline: Insight). They run with the
+// caller's rights, so what they cannot see is simply not there. The Trace
+// tree went in batch 3 (decision D2); its parts are on Plan (page audit row 4d).
 
 /**
  * Actions that moved since this person last opened the project (a status

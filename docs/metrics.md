@@ -98,9 +98,9 @@ A verification is only as strong as what it rests on, so verified actions are co
 - `v_project_metrics` adds `verified_client_evidence`, `verified_consultant_recorded` and `verified_mixed`, and monthly snapshots keep them.
 - The action detail returns `verifiedBasis` for the badge.
 
-## The trace and "since your last visit"
+## "Since your last visit" (the trace went in batch 3)
 
-- `GET /api/projects/:id/trace` returns the project as edges (`nodeType`, `nodeId`, `parentType`, `parentId`, `label`, `state`): assessment ← finding (a confirmed gap, docs/assessments.md), finding ← recommendation ← action ← evidence or review, indicator ← recommendation (linked as meant to move it), and action ← action (the node supersedes its parent). It runs with the caller's rights, so a firm-private finding or another department's action, and every link to it, are simply absent. Plain Postgres, no graph database.
+- The Trace tab and `GET /api/projects/:id/trace` were removed in batch 3 (decision D2, page audit row 4d). Each of its parts has another place: the files sent and the last review decision on an opened action row on Plan, "from the assessment …" on the finding line, "replaced by" on the action page, indicator links on the recommendation and indicator pages. The database function `app_trace()` is left in place and no longer called.
 - `GET /api/projects/:id/since-last-visit` lists the actions that moved (status or plan, progress, evidence, review) since the person last opened the project, using the same function as a meeting agenda's "changed since the last meeting". The first visit looks back 7 days. `PUT` on the same path marks the project as seen. No AI.
 
 ## The home page, one per role

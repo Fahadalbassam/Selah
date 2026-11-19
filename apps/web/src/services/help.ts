@@ -90,6 +90,31 @@ export async function getHelp(tx: Tx, principal: Principal) {
   };
 }
 
+/**
+ * The firm's consultants on one project, for a client reader's People tab
+ * (page audit row 4j: until batch 3 only Help named them): the client's lead
+ * and deputy, then the consultants staffed on this project (not observers).
+ * The database decides who they are (app_my_consultants, the same rows as
+ * Help), and answers only for a project the reader can see. Null for firm staff.
+ */
+export async function projectConsultants(tx: Tx, principal: Principal, projectId: string) {
+  if (principal.orgKind !== "client") return null;
+  const { rows } = await tx.execute<{ project_id: string | null; user_id: string; name: string; email: string; is_lead: boolean; is_deputy: boolean }>(
+    sql`select * from app_my_consultants() where project_id is null or project_id = ${projectId}::uuid order by is_lead desc, is_deputy desc, name`,
+  );
+  const person = (r: (typeof rows)[number]): Consultant => ({ userId: r.user_id, name: r.name, email: r.email, isLead: r.is_lead, isDeputy: r.is_deputy });
+  const lead = rows.find((r) => r.project_id === null && r.is_lead);
+  const deputy = rows.find((r) => r.project_id === null && r.is_deputy);
+  const named = new Set([lead?.user_id, deputy?.user_id]);
+  const staffed = rows.filter((r) => r.project_id === projectId && !named.has(r.user_id));
+  return {
+    lead: lead ? person(lead) : null,
+    deputy: deputy ? person(deputy) : null,
+    // A person staffed twice over (a lead also on the project) is listed once.
+    staffed: staffed.filter((r, i) => staffed.findIndex((x) => x.user_id === r.user_id) === i).map(person),
+  };
+}
+
 /** Whom "Ask your consultant" may mention on a client's action page: the client's lead, then the deputy. Null for firm staff. */
 export async function askMentionFor(tx: Tx, principal: Principal) {
   if (principal.orgKind !== "client" || !authorize(principal, "help.read", helpOf(principal)).allowed) return null;

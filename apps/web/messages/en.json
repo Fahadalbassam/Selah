@@ -317,7 +317,10 @@
       "recommendation_response_confirmed": "confirmed a recorded response",
       "recommendation_response_answered": "answered a response to a recommendation",
       "other": "made a change",
-      "second_review_requested": "signed off and asked for a second sign-off"
+      "second_review_requested": "signed off and asked for a second sign-off",
+      "closure_request_requested": "asked the firm to close the project",
+      "closure_request_declined": "declined the request to close",
+      "closure_request_accepted": "started closing, as asked"
     },
     "eventsClient": {
       "assessment_shared": "shared an assessment with your company",
@@ -814,7 +817,8 @@
       "chooseAction": "Choose an action",
       "note": "Note",
       "closedAs": "Closed: {outcome}",
-      "by": "By {name}, {date}"
+      "by": "By {name}, {date}",
+      "replaces": "Replaces"
     },
     "risk": {
       "title": "Risk acceptance",
@@ -2443,13 +2447,6 @@
       "fewer": "Show fewer"
     },
     "deviations": {
-      "tab": "Needs attention",
-      "hint": "Open actions and disputed recommendations that break one of the fixed deviation rules. The rules decide what counts; nothing here is a judgement of a person.",
-      "none": "Nothing breaks a deviation rule right now.",
-      "item": "Item",
-      "rule": "Rule",
-      "detailHead": "Detail",
-      "owner": "Owner",
       "rules": {
         "overdue": {
           "name": "Overdue",
@@ -2475,40 +2472,7 @@
           "name": "Disputed",
           "hint": "The client's latest response disagrees with the recommendation."
         }
-      },
-      "detail": {
-        "overdue": "{n, plural, one {# day} other {# days}} overdue",
-        "stale": "No change for {n, plural, one {# day} other {# days}}",
-        "slipped": "Due date moved {n} times",
-        "churn": "Sent back {n} times",
-        "orphaned": "The owner has left",
-        "disputed": "Disputed since {date}"
       }
-    },
-    "trace": {
-      "tab": "Trace",
-      "hint": "How each piece of work connects: from what was found to the actions, the evidence and the reviews, and from the client's business indicators to the recommendations meant to move them.",
-      "empty": "Nothing to trace yet.",
-      "work": "From findings to verified work",
-      "workHint": "Finding, recommendation, action, then the evidence sent and each review.",
-      "goals": "Business indicators",
-      "goalsHint": "The client's own indicators, and the recommendations of this project meant to move them. A link states an intent, not an effect.",
-      "types": {
-        "assessment": "Assessment",
-        "kpi": "Indicator",
-        "finding": "Finding",
-        "recommendation": "Recommendation",
-        "action": "Action",
-        "evidence": "Evidence"
-      },
-      "review": {
-        "accept": "Accepted",
-        "revise": "Sent back",
-        "reject": "Rejected"
-      },
-      "replaces": "Replaces the action above",
-      "recorded": "recorded by a consultant",
-      "seeBelow": "(see under its finding)"
     }
   },
   "handover": {
@@ -3022,7 +2986,10 @@
       "accountableHint": "One person who answers for the whole recommendation, even when several departments carry it out.",
       "accountableLine": "Accountable: <who>{name}</who>",
       "edit": "Correct the recommendation",
-      "editHint": "Fix its wording, priority, date, evidence, department or accountable person. Moving it to another department moves its actions too. The change is kept in the project's history."
+      "editHint": "Fix its wording, priority, date, evidence, department or accountable person. Moving it to another department moves its actions too. The change is kept in the project's history.",
+      "more": "More fields",
+      "moreHint": "The finding it answers, the source, the department, the target outcome, the evidence, and who sees it.",
+      "addForFinding": "Add a recommendation for it"
     },
     "action": {
       "add": "Add an action",
@@ -6099,5 +6066,114 @@
     "client_admin": "Admin",
     "client_manager": "Manager",
     "action_owner": "Action owner"
+  },
+  "projectPage": {
+    "tabs": {
+      "plan": "Plan",
+      "files": "Requests and files",
+      "meetings": "Meetings",
+      "progress": "Progress",
+      "people": "People"
+    },
+    "openRequests": "{n, plural, one {# open request} other {# open requests}}",
+    "status": {
+      "label": "The project in numbers",
+      "verified": "{verified} of {of} verified by the consultant ({pct})",
+      "verifiedNone": "No actions released yet",
+      "late": "{n, plural, =0 {Nothing late} one {# action late} other {# actions late}}",
+      "waiting": "{n, plural, =0 {Nothing waiting for review} other {# waiting for review}}",
+      "verifiedNoneClient": "Your company has no actions on this project yet"
+    },
+    "menu": {
+      "label": "More for this project",
+      "planLabel": "Other ways to add to the plan"
+    },
+    "rules": {
+      "label": "Filter the plan",
+      "all": "The whole plan",
+      "late": "Late",
+      "blocked": "Blocked",
+      "no-activity": "No activity for a while",
+      "date-moved": "Date moved twice or more",
+      "sent-back": "Sent back twice or more",
+      "no-owner": "No active owner",
+      "waiting-long": "Waiting for review over 7 days",
+      "disputed": "Recommendations the company disagrees with",
+      "hint": {
+        "late": "The current due date has passed and the action is not done.",
+        "blocked": "The owner stopped the work and gave the reason.",
+        "no-activity": "No change, progress note or evidence for longer than the firm's set period.",
+        "date-moved": "The due date moved later two or more times since the action was released.",
+        "sent-back": "The evidence was sent back for changes two or more times.",
+        "no-owner": "The owner is no longer an active member of the client.",
+        "waiting-long": "Sent for review more than 7 days ago and not decided.",
+        "disputed": "The client's latest answer disagrees with the recommendation."
+      },
+      "none": "Nothing in the plan matches this right now.",
+      "openInActions": "Open this list on the Actions page",
+      "why": {
+        "late": "{n, plural, one {# day} other {# days}} late",
+        "blocked": "Blocked",
+        "stale": "No change for {n, plural, one {# day} other {# days}}",
+        "slipped": "Date moved {n, plural, one {# time} other {# times}}",
+        "churn": "Sent back {n, plural, one {# time} other {# times}}",
+        "orphaned": "The owner has left"
+      }
+    },
+    "sources": {
+      "title": "Sources",
+      "hint": "The assessments run on this project. Compare two of them from an assessment's page.",
+      "none": "No assessments yet."
+    },
+    "finding": {
+      "line": "Answers what the consultants found: {finding}",
+      "lineFirm": "Answers the finding: {finding}",
+      "fromAssessment": "from the assessment “{title}”",
+      "menu": "More for the finding {title}"
+    },
+    "unanswered": {
+      "title": "Findings with no recommendation yet",
+      "titleClient": "What the consultants found, with no recommendation yet",
+      "hint": "What the consultants found that no recommendation answers yet, and the findings withdrawn.",
+      "hintClient": "What the consultants found at your company that no recommendation you can see answers yet."
+    },
+    "evidence": {
+      "show": "Show the evidence and decision: {title}",
+      "none": "No file sent yet.",
+      "sent": "Sent on {date}",
+      "recorded": "Recorded by the firm for the client",
+      "recordedClient": "Recorded by the firm for you",
+      "review": {
+        "accept": "Accepted on {date}",
+        "revise": "Sent back for changes on {date}",
+        "reject": "Not accepted on {date}"
+      },
+      "noReview": "No decision yet."
+    },
+    "files": {
+      "title": "Files",
+      "hint": "The project's files you can open, with who added each and when.",
+      "add": "Add a file",
+      "addedBy": "Added by {name} on {date}",
+      "addedOn": "Added on {date}",
+      "shared": "Assessments the firm shared with you",
+      "sharedHint": "Compare two of them from an assessment's page.",
+      "internal": "An internal project has no requests: its files are here."
+    },
+    "consultants": {
+      "title": "The firm's consultants on this project",
+      "hint": "For a question about one action, write it in that action's discussion. For anything else, write to their work address.",
+      "lead": "Lead consultant",
+      "deputy": "Deputy",
+      "none": "No consultant is on this project yet."
+    },
+    "row": {
+      "more": "More for {name}",
+      "remove": "Remove from the project"
+    },
+    "activity": {
+      "title": "Activity",
+      "hint": "Who did what on the project: the last twenty events."
+    }
   }
 }

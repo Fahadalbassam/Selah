@@ -37,6 +37,29 @@ function Preparing() {
 }
 
 /**
+ * Fetch an export in the reader's language and save it. Answers null when it
+ * worked, or the "exports" message key that says why not. Also used by menu
+ * items (the plan's Excel export sits in the Plan's add menu).
+ */
+export async function downloadExport(endpoint: string, locale: string): Promise<"unavailable" | "tooMany" | "failed" | null> {
+  try {
+    const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}lang=${locale}`);
+    if (!res.ok) return res.status === 503 ? "unavailable" : res.status === 429 ? "tooMany" : "failed";
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName(res.headers.get("content-disposition"), "selah-export");
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return null;
+  } catch {
+    return "failed";
+  }
+}
+
+/**
  * Downloads an export (Excel or PDF) from one of our GET routes, in the
  * reader's language. The server decides what the file holds; this only
  * fetches it, saves it, and says so inline when it could not be made.
@@ -60,22 +83,9 @@ export function ExportButton({
   async function run() {
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}lang=${locale}`);
-      if (!res.ok) return setError(res.status === 503 ? t("unavailable") : res.status === 429 ? t("tooMany") : t("failed"));
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName(res.headers.get("content-disposition"), "selah-export");
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch {
-      setError(t("failed"));
-    } finally {
-      setBusy(false);
-    }
+    const failed = await downloadExport(endpoint, locale);
+    if (failed) setError(t(failed));
+    setBusy(false);
   }
   return (
     <span className="inline-flex flex-col items-start gap-1">

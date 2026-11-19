@@ -4,7 +4,7 @@ Consultants often already have their findings, recommendations and actions in a 
 
 ## Import (firm staff who can write the plan)
 
-The project's Recommendations tab has **Import**, which opens `/projects/:id/import`. Three steps on one page, and nothing is created until the last one:
+The project's Plan has **Import** in the menu beside **Add a recommendation**, which opens `/projects/:id/import`. Three steps on one page, and nothing is created until the last one:
 
 1. **File.** An Excel (`.xlsx`) or Word (`.docx`) file, up to 20 MB. It goes through the same checks as every upload (`lib/upload-rules.ts`: extension, declared type and magic bytes agree) and the ClamAV scan before anything reads it (`POST /api/projects/:id/import`). The file is read in memory and **not stored**.
 2. **Columns.** Selah picks the source (a worksheet, a Word table, or the Word headings) that looks most like a plan, finds the heading row (a title row above it is skipped), and matches the headings to fields in Arabic or English (`suggestMapping`). The person can change the source, the heading row and any column, or choose "Don't import".
@@ -48,7 +48,7 @@ A finding or recommendation whose title (folded for Arabic spelling variants) is
 
 | Where | What | Who |
 |---|---|---|
-| Recommendations tab, **Excel** | The plan, one row per action (or per recommendation or finding with none), in the same columns as the import, plus status. Firm staff also get a "who sees it" column. | Anyone who reads the project |
+| Plan, **Download as Excel** (the menu beside Add a recommendation) | The plan, one row per action (or per recommendation or finding with none), in the same columns as the import, plus status. Firm staff also get a "who sees it" column. | Anyone who reads the project |
 | Import page, **Excel template** | The empty plan, with a guide sheet that explains each column | Those who can import |
 | Actions page, **Excel** | The actions list as on the page (an action owner gets their own) | Everyone |
 | Report page, **PDF** | The frozen numbers and notes, then the actions as they stand on the export day (labelled as such) | Anyone who can read the report |

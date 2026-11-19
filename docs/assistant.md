@@ -129,7 +129,7 @@ Limits, to state plainly in the report:
 
 `POST /api/documents/:id/summary` with `lang`. Firm staff only, like the assistant. `GET /api/documents/:id/summary?lang=` returns the kept summary, if any, and the file's text status, without calling the model.
 
-Screen: the project's Documents tab has a Summary button on each file available to the assistant (firm staff). It shows the kept summary in either language, each line with page links that open the file at that page; when there is none, a Summarise button makes it. A file whose text can't be read is marked "Text not readable".
+Screen: the files on the project's Requests and files tab have a Summary button on each file available to the assistant (firm staff). It shows the kept summary in either language, each line with page links that open the file at that page; when there is none, a Summarise button makes it. A file whose text can't be read is marked "Text not readable".
 
 - Made once per file version (its SHA-256) and language, from the file's indexed pages, then kept for everyone who can open the file.
 - Every line cites the pages it rests on. Lines citing pages the file doesn't have are dropped; a summary with no line left is refused.

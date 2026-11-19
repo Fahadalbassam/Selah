@@ -79,7 +79,9 @@ test("consultant imports an Arabic Excel plan: map, fix, release, confirm", asyn
   const board = ids.board();
   const page = await open(browser, "khalid", "ar");
   await page.goto(`/projects/${board}`);
-  await page.getByRole("link", { name: t("planImport.button") }).click();
+  // Batch 3: Import is in the menu beside "Add a recommendation".
+  await page.getByRole("button", { name: t("projectPage.menu.planLabel") }).click();
+  await page.getByRole("menuitem", { name: t("planImport.button") }).click();
   await page.waitForURL(`**/projects/${board}/import`);
   await shot(page, "import-ar-1-file");
 
@@ -167,7 +169,9 @@ test("the plan exports to Excel with what each person may see", async ({ browser
   const board = ids.board();
   const page = await open(browser, "khalid", "ar");
   await page.goto(`/projects/${board}`);
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: t("exports.excel") }).first().click()]);
+  // Batch 3: the Excel export is in the menu beside "Add a recommendation".
+  await page.getByRole("button", { name: t("projectPage.menu.planLabel") }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: t("exports.downloadExcel") }).click()]);
   const file = `${dir}/export-khalid.xlsx`;
   await download.saveAs(file);
   expect(download.suggestedFilename()).toMatch(/^selah-plan-\d{4}-\d{2}-\d{2}\.xlsx$/);

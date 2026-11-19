@@ -195,6 +195,13 @@ export async function actionClosure(tx: Tx, principal: Principal, actionId: stri
   const [successor] = action.supersededBy
     ? await tx.select({ id: actions.id, title: actions.title }).from(actions).where(eq(actions.id, action.supersededBy))
     : [];
+  // The actions this one replaced, as the reader may open them (row-level security): Trace's
+  // "replaces the action above" (page audit row 4d), said on the replacing action itself.
+  const replaces = await tx
+    .select({ id: actions.id, title: actions.title })
+    .from(actions)
+    .where(eq(actions.supersededBy, actionId))
+    .orderBy(asc(actions.title));
   const canClose = !FINISHED.has(action.status) && authorize(principal, "action.close", { ...resource, type: "action" }).allowed;
   const replacements = canClose
     ? await tx
@@ -215,6 +222,7 @@ export async function actionClosure(tx: Tx, principal: Principal, actionId: stri
             supersededBy: successor ?? null,
           }
         : null,
+    replaces,
     acceptances: acceptances.map((a) => ({ ...a, current: !reopened || a.at >= reopened })),
     signed,
     replacements,
