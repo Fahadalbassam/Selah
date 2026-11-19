@@ -3,7 +3,7 @@
 import { AutoHeight } from "@animate-ui/react/primitives/effects/auto-height";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { Hint } from "@/components/hint";
@@ -24,6 +24,7 @@ import { PersonPicker } from "@/components/person-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/confirm-dialog";
+import { noteAfterChoosing, reportTemplate, REPORT_TEMPLATES, templateFill, type ReportLang, type ReportTemplateId, type TemplateCounts } from "@/lib/report-templates";
 import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 
 export interface Field {
@@ -43,6 +44,21 @@ export interface Field {
   hint?: string;
   /** An optional "person" field: offer a clear button. */
   clearable?: boolean;
+  /**
+   * A textarea that can start from a report template (None / Monthly progress /
+   * Steering summary / Closing summary). The outline fills the note; the person
+   * edits freely, and a note that already has text is replaced only after a yes.
+   * The period comes from the form's own date fields (`periodFields`) or is fixed;
+   * counts are used only when the period ends on `countsAsOf` (the day they are as of).
+   */
+  template?: {
+    lang: ReportLang;
+    periodFields?: [string, string];
+    start?: string;
+    end?: string;
+    counts?: TemplateCounts;
+    countsAsOf?: string;
+  };
 }
 
 /** Calls one of our JSON API routes and maps its error to a message key. */
@@ -99,6 +115,26 @@ export function FormDialog(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [tpl, setTpl] = useState<string>("none");
+  const tT = useTranslations("reportTemplates");
+  const [confirm, confirmDialog] = useConfirm();
+
+  async function chooseTemplate(f: Field, id: string) {
+    const form = formRef.current;
+    const area = form?.elements.namedItem(f.name) as HTMLTextAreaElement | null;
+    const cfg = f.template;
+    if (!form || !area || !cfg || id === "none") return setTpl("none");
+    const value = (name: string | undefined) => (name ? String((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "") : "");
+    const start = cfg.periodFields ? value(cfg.periodFields[0]) : cfg.start;
+    const end = cfg.periodFields ? value(cfg.periodFields[1]) : cfg.end;
+    const counts = cfg.counts && (!cfg.countsAsOf || end === cfg.countsAsOf) ? cfg.counts : null;
+    const outline = reportTemplate(id as ReportTemplateId, cfg.lang, { start, end, counts });
+    const replace = templateFill(area.value) === "fill" ? true : await confirm(tT("replace"));
+    area.value = noteAfterChoosing(area.value, outline, replace).slice(0, f.maxLength ?? 2000);
+    setTpl(replace ? id : "none");
+    if (replace) area.focus();
+  }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -129,7 +165,7 @@ export function FormDialog(props: {
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       {props.trigger ? <DialogTrigger asChild>{props.trigger}</DialogTrigger> : null}
       <DialogContent className="max-h-[85vh] overflow-y-auto" {...contentProps}>
-        <form onSubmit={submit} className="grid gap-4">
+        <form ref={formRef} onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{props.title}</DialogTitle>
             {props.description ? <DialogDescription>{props.description}</DialogDescription> : null}
@@ -138,6 +174,26 @@ export function FormDialog(props: {
           {props.fields.map((f) => (
             <div key={f.name} className="grid gap-2">
               <Label htmlFor={`f-${f.name}`}>{f.label}</Label>
+              {f.type === "textarea" && f.template ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor={`f-${f.name}-template`} className="text-xs font-normal text-muted-foreground">
+                    {tT("label")}
+                  </Label>
+                  <Select value={tpl} onValueChange={(v) => void chooseTemplate(f, v)}>
+                    <SelectTrigger id={`f-${f.name}-template`} size="sm" className="w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{tT("none")}</SelectItem>
+                      {REPORT_TEMPLATES.map((id) => (
+                        <SelectItem key={id} value={id}>
+                          {tT(id)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               {f.type === "textarea" ? (
                 <Textarea
                   id={`f-${f.name}`}
@@ -214,6 +270,7 @@ export function FormDialog(props: {
             </Button>
           </DialogFooter>
         </form>
+        {confirmDialog}
       </DialogContent>
     </Dialog>
   );

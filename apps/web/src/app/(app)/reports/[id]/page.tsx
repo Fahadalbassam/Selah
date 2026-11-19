@@ -1,7 +1,7 @@
 import { ArrowLeft, BadgeCheck, Send } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { LateAgainstOriginal } from "@/components/late-against-original";
@@ -39,12 +39,13 @@ export default async function ReportPage({
     const d = r.can.issue && draftId && isUuid(draftId) ? await draftForReport(tx, principal, draftId) : null;
     return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm", pack, draft: d?.projectId === r.report.projectId ? d : null };
   });
-  const [t, tPack, tExport, tSend, format] = await Promise.all([
+  const [t, tPack, tExport, tSend, format, locale] = await Promise.all([
     getTranslations("metrics"),
     getTranslations("statusPack"),
     getTranslations("exports"),
     getTranslations("reportSend"),
     getFormatter(),
+    getLocale(),
   ]);
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
   // A draft pack shows the numbers as they stand; issuing freezes them.
@@ -102,6 +103,13 @@ export default async function ReportPage({
                 maxLength: 8000,
                 placeholder: tPack("notePlaceholder"),
                 defaultValue: draft?.note.slice(0, 8000),
+                // The pack's own client-side numbers, as they stand now (issuing freezes these).
+                template: {
+                  lang: locale === "ar" ? "ar" : "en",
+                  start: report.periodStart ?? undefined,
+                  end: report.periodEnd ?? undefined,
+                  counts: pack?.live ? { ...pack.live, decisions: pack.pack.decisions.length } : undefined,
+                },
               },
             ]}
             submitLabel={tPack("issue")}
