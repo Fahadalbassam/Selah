@@ -776,20 +776,12 @@ export async function getActionDetail(tx: Tx, principal: Principal, id: string) 
     to: deptNames.get((m.meta as Moved).to) ?? null,
   }));
 
-  // Who the action was given to (decision D1), read under the reader's own rules on the activity record.
-  const ownerRows = await tx
-    .select({ at: activityEvents.createdAt, who: user.name, meta: activityEvents.meta })
-    .from(activityEvents)
-    .leftJoin(user, eq(user.id, activityEvents.actorId))
-    .where(and(eq(activityEvents.entityType, "action"), eq(activityEvents.entityId, id), eq(activityEvents.event, "owner_changed")));
-  const ownerIds = [...new Set(ownerRows.map((r) => (r.meta as { to?: string } | null)?.to).filter((x): x is string => !!x && x !== "typed"))];
-  const ownerNames = new Map(
-    ownerIds.length ? (await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ownerIds))).map((u) => [u.id, u.name]) : [],
+  // Who the action was given to (decision D1), for everyone who may open it (review S1): a reader
+  // for this action only (migration 0102); the activity record's own rules are not widened.
+  const { rows: ownerRows } = await tx.execute<{ at: string; actor_name: string | null; to_user: string | null; to_name: string | null }>(
+    sql`select * from app_action_owner_changes(${id}::uuid)`,
   );
-  const handovers = ownerRows.map((r) => {
-    const m = (r.meta ?? {}) as { to?: string | null; toName?: string };
-    return { at: r.at, who: r.who, to: m.toName ?? (m.to ? (ownerNames.get(m.to) ?? null) : null) };
-  });
+  const handovers = ownerRows.map((r) => ({ at: new Date(r.at), who: r.actor_name, to: r.to_name, toUserId: r.to_user }));
 
   // source tells "submitted by the client" from "recorded by a consultant"
   // (with how and when the client told them); the two are never mixed.

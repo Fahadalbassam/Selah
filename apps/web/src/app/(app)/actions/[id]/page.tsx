@@ -169,7 +169,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
   const timeline = data.timeline.filter((e) => e.kind !== "update" && (cards.signOffs || e.kind !== "signoff"));
   // Given to the reader (decision D1): said once, as what happened last.
   const latestHandover = data.timeline.find((e) => e.kind === "owner");
-  const givenToMe = latestHandover?.kind === "owner" && action.ownerUserId === me && !finished ? latestHandover : null;
+  const givenToMe = latestHandover?.kind === "owner" && latestHandover.toUserId === me && action.ownerUserId === me && !finished ? latestHandover : null;
 
   const last: { key: string; node: ReactNode }[] = [];
   if (action.sentBack) {

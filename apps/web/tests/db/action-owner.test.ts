@@ -22,6 +22,7 @@ import { transitionAction } from "@/services/actions";
 import { listNotifications } from "@/services/notifications";
 import { updateAction } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
+import { getActionDetail } from "@/services/queries";
 import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -283,6 +284,23 @@ describe("D1: the record", () => {
     await svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.owner2 }), true);
     expect((await notices(A.open)).map((t) => t.kind)).toContain("action.owner_moved");
     expect((await q(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'action.owner_change'`)).rows[0].n).toBe(1);
+  });
+
+  // Review S1 (the coordinator's decision): everyone who may open the action reads its owner changes,
+  // through a reader for this action only; the activity record's own rules are not widened.
+  it("everyone who may open the action reads who gave it to whom, and the new owner reads it was given to them", async () => {
+    await svc(U.coord, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.owner2 }), true);
+    for (const reader of [U.owner2, U.coord, U.mgr, U.sponsor, U.cadmin, U.staff]) {
+      const detail = await svc(reader, (tx, p) => getActionDetail(tx, p, A.open));
+      // The newest first; the activity record is append-only, so earlier tests in this file left theirs.
+      expect(detail.timeline.find((e) => e.kind === "owner"), reader).toMatchObject({ kind: "owner", who: "coord", to: "owner2", toUserId: U.owner2 });
+    }
+    // The former owner no longer opens the action at all.
+    await expect(svc(U.owner1, (tx, p) => getActionDetail(tx, p, A.open))).rejects.toThrow(NOT_FOUND);
+    // The activity record itself is not widened: an owner still reads none of it.
+    expect(await as(U.owner2, async (c) => (await c.query(`SELECT count(*)::int AS n FROM activity_events WHERE entity_id = $1`, [A.open])).rows[0].n)).toBe(0);
+    // The reader answers nothing for an action the caller cannot open.
+    expect(await as(U.owner1, async (c) => (await c.query(`SELECT count(*)::int AS n FROM app_action_owner_changes($1)`, [A.open])).rows[0].n)).toBe(0);
   });
 
   it("giving it to the person who already owns it is refused", async () => {
