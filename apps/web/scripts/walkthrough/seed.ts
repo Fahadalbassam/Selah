@@ -56,7 +56,7 @@ import { addValue, createIndicator, linkRecommendation } from "@/services/indica
 import { addTemplateItems, answerWithUpload, createInfoRequest } from "@/services/info-requests";
 import { submitInquiry } from "@/services/intake";
 import { addFollowUp, bookMeeting, recordDecision, saveSummary, sendInvites, updateFollowUp, updateMeeting } from "@/services/meetings";
-import { addPosition, addUnit, changeHolder, getDraft, publish, setShowNames, startChart } from "@/services/org-chart";
+import { addPosition, addUnit, changeHolder, getDraft, publish, setShowNames, startChart, suggestChange } from "@/services/org-chart";
 import { createAction, createFinding, createRecommendation } from "@/services/plan";
 import { loadPrincipal } from "@/services/principal";
 import { addProgressUpdate } from "@/services/progress";
@@ -784,6 +784,15 @@ for (const [key, holder] of [
   await as(C.nAdmin, (tx, p) => changeHolder(tx, p, op[key]!, { start: { ...holder, from: day(-400) } }));
 }
 await as(C.nAdmin, (tx, p) => setShowNames(tx, p, structure.versionId, true));
+// Fahd suggests a change (org chart, part 5): it waits on Khalid's home as a
+// decision, and both Structure tabs list it until the firm answers.
+await as(C.nAdmin, (tx, p) =>
+  suggestChange(tx, p, nukhba.id, {
+    what: "قسم للمشتريات في الإدارة المالية",
+    where: "الإدارة المالية",
+    why: "زادت مشتريات الشركة، ونحتاج إلى من يتابعها ويعتمدها.",
+  }),
+);
 
 // ---------------------------------------------------------------- case 2: Rawdah, closing
 

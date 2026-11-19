@@ -37,10 +37,15 @@ export interface NavUserProps {
   /** The person's own pages, from userMenuFor() in lib/nav.ts. Language and theme stay in the top bar. */
   items: { key: MenuKey; label: string; href: string }[];
   signOut: string;
+  /**
+   * "Your manager: …" for someone whose position is on the company's structure (org chart, part 5),
+   * as the server worded it: the name only where the database gave one.
+   */
+  manager?: string[];
 }
 
 /** The menu under the person's name at the foot of the sidebar (page audit 4.1). */
-export function NavUser({ name, email, items, signOut }: NavUserProps) {
+export function NavUser({ name, email, items, signOut, manager = [] }: NavUserProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
 
@@ -69,6 +74,11 @@ export function NavUser({ name, email, items, signOut }: NavUserProps) {
                 <span className="truncate text-xs text-muted-foreground" dir="ltr">
                   {email}
                 </span>
+                {manager.map((line) => (
+                  <span key={line} className="mt-1 text-xs text-muted-foreground" dir="auto">
+                    {line}
+                  </span>
+                ))}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

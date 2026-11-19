@@ -617,6 +617,13 @@
       "when": 1795045770734,
       "tag": "0100_org_chart_plans_on_leaving",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1795052007688,
+      "tag": "0250_org_chart_publish",
+      "breakpoints": true
     }
   ]
 }

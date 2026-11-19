@@ -3,17 +3,19 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { ORG_CHART_CSS, orgTreeHtml, treeLabels, versionWords } from "@/lib/org-chart-html";
+import { ORG_CHART_CSS, ORG_CHART_TOOLS_CSS, orgTreeHtml, treeLabels, versionWords } from "@/lib/org-chart-html";
+import { collapsibleIds, focusChoices, focusTree } from "@/lib/org-chart-reading";
 import { buildTree, chartLevels, parseDepth } from "@/lib/org-chart-tree";
 import { cn } from "@/lib/utils";
 import type { Structure } from "@/services/org-chart";
 import { OrgTreeView } from "./org-tree-view";
 
-/** The address of a version on the tab (the current one has none), with the depth when one is chosen. */
-function href(base: string, version: string | null, depth?: number | null) {
+/** The address of a version on the tab (the current one has none), with the depth when one is chosen and the unit focused on. */
+function href(base: string, version: string | null, depth?: number | null, focus?: string | null) {
   const q = new URLSearchParams();
   if (version) q.set("version", version);
   if (depth) q.set("depth", String(depth));
+  if (focus) q.set("focus", focus);
   return q.size ? `${base}?${q}` : base;
 }
 
@@ -72,6 +74,7 @@ export async function StructureBody({
   structure,
   base,
   depthParam,
+  focusParam,
   audience,
   view = "drawing",
   views = ["drawing"],
@@ -80,6 +83,8 @@ export async function StructureBody({
   structure: Structure;
   base: string;
   depthParam?: string;
+  /** The department the drawing is focused on (a unit id in the address), or nothing for the whole structure. */
+  focusParam?: string;
   audience: "firm" | "client";
   view?: StructureView;
   views?: StructureView[];
@@ -94,7 +99,11 @@ export async function StructureBody({
   const v = shown.version;
   const draft = v.state === "draft";
   const { levels, depth } = shownDepth(structure, depthParam);
-  const roots = buildTree(shown.units, shown.positions, { locale: lang, depth, names: true });
+  const whole = buildTree(shown.units, shown.positions, { locale: lang, depth, names: true });
+  // Focus on one department (part 5): only that unit is drawn; an id that is not one of the choices draws everything.
+  const focused = focusTree(whole, focusParam);
+  const roots = focused ?? whole;
+  const focus = focused ? focusParam! : null;
   const tr = (k: string, values?: Record<string, string | number>) => t(k as "title", values as never);
   // A link to another version: "Draft", "Version 2, current", "Version 1 (in effect from …)", "Version 3 (takes effect on …)".
   const label = (x: Structure["versions"][number]) =>
@@ -106,6 +115,8 @@ export async function StructureBody({
     ...versionWords(v, shown.status, shown.names !== "none" ? shown.asOf : null, tr, day),
     !draft && v.publishedAt ? t("version.published", { date: format.dateTime(v.publishedAt, { dateStyle: "medium" }), name: v.publishedByName ?? "—" }) : null,
   ];
+  // The board resolution of this version, when the reader may open its file.
+  const resolution = !draft && structure.resolution && structure.resolution.id === v.resolutionDocumentId ? structure.resolution : null;
   const others = structure.versions.filter((x) => x.id !== v.id);
   const param = shownParam(structure);
   // What the reader should know about the names, said once: never a name the page decides to hide.
@@ -134,6 +145,14 @@ export async function StructureBody({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1 text-sm">
           <p className="font-medium">{meta.filter(Boolean).join(" · ")}</p>
+          {resolution ? (
+            <p className="text-muted-foreground">
+              {t("version.resolution")}{" "}
+              <a href={`/api/documents/${resolution.id}/download`} className="text-foreground hover:underline" dir="auto">
+                {resolution.title}
+              </a>
+            </p>
+          ) : null}
           {others.length ? (
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
               <span>{t("version.others")}</span>
@@ -167,7 +186,7 @@ export async function StructureBody({
             {[...levels.slice(0, -1), null].map((n) => (
               <Link
                 key={n ?? "all"}
-                href={href(base, param, n)}
+                href={href(base, param, n, focus)}
                 aria-current={n === depth ? "true" : undefined}
                 title={n === null ? undefined : t("depth.upTo", { n })}
                 className={cn(buttonVariants({ variant: n === depth ? "secondary" : "ghost", size: "sm" }), "tabular-nums")}
@@ -182,12 +201,20 @@ export async function StructureBody({
         children
       ) : roots.length ? (
         <>
-          <style dangerouslySetInnerHTML={{ __html: ORG_CHART_CSS }} />
-          {/* Escaped in orgTreeHtml: the same drawing the PDF prints, with a button on each name that has a work card. */}
+          <style dangerouslySetInnerHTML={{ __html: ORG_CHART_CSS + ORG_CHART_TOOLS_CSS }} />
+          {/* Escaped in orgTreeHtml: the same drawing the PDF prints, with a button on each name that has a work card and a fold button on each unit. */}
           <OrgTreeView
-            html={orgTreeHtml(roots, treeLabels((k, values) => t(k as "title", values as never)), lang, { people: shown.names !== "none" })}
+            html={orgTreeHtml(roots, treeLabels((k, values) => t(k as "title", values as never)), lang, { people: shown.names !== "none", tools: true })}
             clientId={structure.client.id}
             version={param}
+            tools={{
+              units: collapsibleIds(roots),
+              focus: {
+                current: focus,
+                whole: href(base, param, depth),
+                choices: focusChoices(whole).map((c) => ({ id: c.id, label: c.name, href: href(base, param, depth, c.id) })),
+              },
+            }}
           />
         </>
       ) : (

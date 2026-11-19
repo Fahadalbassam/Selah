@@ -107,6 +107,9 @@ export function orgChartError(message: string | undefined): string | null {
   if ((ORG_CHART_ERROR_KEYS as readonly string[]).includes(message)) return message;
   const rules: [RegExp, string][] = [
     [/this draft is no longer the current one/, "draftChanged"],
+    [/takes effect on or after the day the current one did/, "effective_before"],
+    [/the draft has no units yet/, "noUnits"],
+    [/the resolution must be a file of this client/, "resolution"],
     [/already holds the position on some of those days/, "alreadyHolds"],
     [/a holder is one of the client's own active people/, "ownPeople"],
     [/a holding ends on or after the day it started/, "endBefore"],
@@ -146,7 +149,37 @@ export const ORG_CHART_ERROR_KEYS = [
   "position",
   "replacement",
   "successor",
+  "effective_before",
+  "resolution",
+  "suggestion_gone",
+  "what",
+  "text_length",
+  "answered",
 ] as const;
+
+/**
+ * "Your manager" as a person's own menu shows it (org chart, part 5): one
+ * line per position theirs reports to, in the reader's language, with the
+ * names of whoever holds it today when the database gave any (it gives them
+ * only while the current version shows names, or to the client's admin), or
+ * that it is vacant. Rows come from app_my_manager(), one per holder.
+ */
+export function yourManagers(
+  rows: readonly { positionId: string; titleAr: string | null; titleEn: string | null; name: string | null; vacant: boolean }[],
+  locale: "ar" | "en",
+): { positionId: string; title: string; names: string[]; vacant: boolean }[] {
+  const out: { positionId: string; title: string; names: string[]; vacant: boolean }[] = [];
+  for (const r of rows) {
+    let line = out.find((x) => x.positionId === r.positionId);
+    if (!line) {
+      line = { positionId: r.positionId, title: (locale === "ar" ? (r.titleAr ?? r.titleEn) : (r.titleEn ?? r.titleAr)) ?? "", names: [], vacant: r.vacant };
+      out.push(line);
+    }
+    if (r.name && !line.names.includes(r.name)) line.names.push(r.name);
+    line.vacant = line.vacant && r.vacant;
+  }
+  return out;
+}
 
 /** Specialties as the database keeps them: trimmed, without blanks or repeats, in the order given. */
 export function cleanSpecialties(list: readonly string[]): string[] {

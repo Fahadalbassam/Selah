@@ -422,28 +422,26 @@ describe("saving into the draft", () => {
     });
   });
 
-  it("publishing carries the plans to the new draft, never leaves them on the published version, and no client reader ever sees one", async () => {
+  // Part 5 (migration 0250) made publishing place the plans: until then this test recorded that publishing left them on the next draft.
+  it("publishing places the planned people from the day it takes effect and leaves no plan anywhere; no client reader ever reads a plan", async () => {
     const plans = await plansOf(SAHM);
+    expect(Object.keys(plans).sort()).toEqual(["1.1", "2.1"]);
     const draftId = (await svc(U.lead, (tx, p) => OC.getDraft(tx, p, SAHM))).draft!.id;
-    await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId, effectiveOn: firmToday() }), true);
-    expect(await holdingsOf(SAHM)).toBe(0);
-    // The same plans, on the new draft's positions of the same lineage; none on the published version.
-    expect(await plansOf(SAHM)).toEqual(plans);
-    const onPublished = await q(`SELECT count(*)::int AS n FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id JOIN org_chart_versions v ON v.id = p.version_id WHERE h.org_id = $1 AND v.state <> 'draft'`, [SAHM]);
+    const done = await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId, effectiveOn: firmToday() }), true);
+    expect(done.placed.map((x) => x.code).sort()).toEqual(["1.1", "2.1"]);
+    expect(await holdingsOf(SAHM)).toBe(2);
+    // No plan on the published version, none carried to the new draft.
+    expect(await plansOf(SAHM)).toEqual({});
+    const onPublished = await q(`SELECT count(*)::int AS n FROM org_chart_planned_holders h WHERE h.org_id = $1`, [SAHM]);
     expect(onPublished.rows[0].n).toBe(0);
-    const lineage = await q(`SELECT DISTINCT p.lineage_id = l.lineage_id AS same FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id JOIN positions l ON l.version_id = $2 AND l.code = p.code WHERE h.org_id = $1`, [SAHM, draftId]);
-    expect(lineage.rows).toEqual([{ same: true }]);
     for (const who of [U.cadmin, U.mgr]) {
-      const seen = await svc(who, (tx, p) => OC.getStructure(tx, p, SAHM));
-      expect(seen.shown!.positions.every((p) => p.holders.length === 0)).toBe(true);
-      expect(JSON.stringify(seen)).not.toMatch(/Reem|mgr@example/);
       expect(await plansSeenBy(who)).toBe(0);
-      // The whole masking list names no plan for them (the firm's editors' list does); a text that names one is still masked.
-      const list = await svc(who, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms(${P}::uuid)`)).rows.map((r) => r.term));
-      expect(list).not.toContain("Reem Al-Harbi");
       const inText = await svc(who, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms_in(${P}::uuid, 'The Chair is Reem Al-Harbi')`)).rows.map((r) => r.term));
       expect(inText).toContain("Reem Al-Harbi");
     }
+    // The client's admin reads the people placed, as holders of the live structure.
+    const seen = await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM));
+    expect(seen.positions.find((p) => p.code === "1.1")!.holders.map((h) => h.name)).toEqual(["Reem Al-Harbi"]);
     const firm = await svc(U.lead, async (tx) => (await tx.execute<{ term: string }>(sql`SELECT term FROM app_mask_terms(${P}::uuid)`)).rows.map((r) => r.term));
     expect(firm).toContain("Reem Al-Harbi");
     // The snapshot the client reads has no names either.
