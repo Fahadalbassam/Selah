@@ -110,55 +110,88 @@ def _parse_answer(raw: str, passages: list[Passage]) -> Answer:
     return Answer(answer=strip_markers(parsed.answer), cited_ids=cited, grounded=parsed.grounded and bool(cited))
 
 
-def check_answer(raw: str, passages: list[Passage], audience: Literal["staff", "client"] = "staff") -> Answer:
+def check_answer(
+    raw: str,
+    passages: list[Passage],
+    audience: Literal["staff", "client"] = "staff",
+    progress_draft: bool = False,
+) -> Answer:
     """Parse the model's reply and keep only citations we actually supplied.
     Anything malformed, grounded without a valid citation, or "grounded" but
-    only a heading (unfinished), is ungrounded. For a client person, every
-    sentence that rates the work is taken out (without_ratings); nothing left
-    but the draft mark, or nothing at all, is ungrounded."""
+    only a heading (unfinished), is ungrounded. A client person's
+    progress-update draft (progress_draft) loses every sentence that rates the
+    work (without_ratings) and gets its mark in the one canonical form; a
+    draft left with nothing but the mark is ungrounded. Other answers are not
+    changed by this check (review S1: "outstanding" and quoted policy text are facts)."""
     parsed = _parse_answer(raw, passages)
-    if parsed.grounded and audience == "client":
-        kept = without_ratings(parsed.answer)
-        if kept != parsed.answer:
-            body = "\n".join(line for line in kept.splitlines() if not DRAFT_MARK.fullmatch(line.strip(_TRAILING)))
-            if not re.search(r"[^\W_]", strip_markers(body)):
-                return Answer(answer="", cited_ids=[], grounded=False)
-            parsed = Answer(answer=kept, cited_ids=parsed.cited_ids, grounded=True)
+    if parsed.grounded and audience == "client" and progress_draft:
+        mark, body = split_draft_mark(parsed.answer)
+        kept = without_ratings(body)
+        if not re.search(r"[^\W_]", strip_markers(kept)):
+            return Answer(answer="", cited_ids=[], grounded=False)
+        parsed = Answer(answer=f"{mark}\n\n{kept}" if mark else kept, cited_ids=parsed.cited_ids, grounded=True)
     if parsed.grounded and unfinished(parsed.answer):
         return Answer(answer="", cited_ids=[], grounded=False)
     return parsed
 
 
+def fold_arabic(text: str) -> str:
+    """One spelling for Arabic before matching (the web app's foldArabic): no
+    marks, nunation, shadda or tatweel; one alef; ى → ي; ة → ه."""
+    text = re.sub(r"[ً-ٰٟـ]", "", text)
+    return re.sub(r"[أإآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
+
+
 # Selah never judges the work (standing rule 2), and a client's progress-update
 # draft is facts only (Gate B, 19 Nov 2026): words that rate the work, in both
-# languages. "Late" and "overdue" are facts (a date has passed) and stay.
+# languages, matched against fold_arabic(text) (the Arabic is in the folded
+# spelling). Facts stay: "late", "overdue", "outstanding" (still open),
+# "satisfactory evidence" and "on schedule for 3 May" as a policy or a date says them.
 RATING_WORDS = re.compile(
-    r"\b(?:(?:very |really )?(?:good|great|strong|solid|excellent|remarkable|significant|steady|poor|slow|weak|limited) progress"
-    r"|on[- ]track|off[- ]track|on schedule|ahead of schedule|behind schedule|well done|good job|great job"
-    r"|excellent(?:ly)?|outstanding|impressive(?:ly)?|commendable|exemplary|satisfactor(?:y|ily)|unsatisfactory"
-    r"|encouraging|disappointing|(?:doing|going|performing|progressing) (?:very )?(?:well|badly|poorly)"
-    r"|(?:good|strong|poor|weak) performance)\b"
-    r"|(?:ال)?تقدما? (?:ال)?(?:جيد|ممتاز|ملحوظ|ملموس|كبير|ضعيف|بطيء|مرض)"
-    r"|على (?:ال)?مسار (?:ال)?صحيح|في (?:ال)?مسار (?:ال)?صحيح|خارج (?:ال)?مسار"
-    r"|ممتاز(?:ة)?|رائع(?:ة)?|مرضٍ|مرضية|غير مرض(?:ية|ٍ)?|جيد(?:ة)? جد(?:ًا|اً|ا)|أداء (?:جيد|ممتاز|ضعيف|متميز)|متميز(?:ة)?|مشجع(?:ة)?|مخيب(?:ة)? للآمال"
-    r"|أحسنتم|عمل رائع|بشكل جيد|بصورة جيدة",
+    r"\b(?:(?:very |really )?(?:good|great|strong|solid|excellent|remarkable|significant|steady|tremendous|poor|slow|weak|limited) progress"
+    r"|on[- ]track|off[- ]track|on target|on course|well ahead|ahead of schedule|behind schedule"
+    r"|well done|good job|great job|(?:great|good|nice|solid|excellent|fine) work"
+    r"|excellent(?:ly)?|impressive(?:ly)?|commendable|exemplary|unsatisfactory|disappointing"
+    r"|(?:doing|going|performing|progressing|proceeding|moving|coming along) (?:very |really |so )?(?:well|badly|poorly|nicely|smoothly|great|as planned|according to plan)"
+    r"|did (?:very |really |so )?well|(?:good|strong|poor|weak) performance|strong momentum)\b"
+    r"|تقدما? (?:ال)?(?:جيد|ممتاز|ملحوظ|ملموس|كبير|ضعيف|بطيء|بطي|مرض)"
+    r"|(?:العمل|التقدم|الاداء|الوضع|المستوي|النتائج|الانجاز|تقدم العمل)\s+(?:\S+\s+)?(?:جيد|ممتاز|رائع|ضعيف|متميز|مرض|مرضيه|مشجع)"
+    r"|علي (?:ال)?مسار (?:ال)?صحيح|في (?:ال)?مسار (?:ال)?صحيح|خارج (?:ال)?مسار"
+    r"|ممتاز|رائع|جيد(?:ه|ا)? جدا|اداء (?:جيد|ممتاز|ضعيف|متميز)|وفق الخطه|حسب الخطه|كما هو مخطط"
+    r"|انجاز (?:كبير|ملحوظ|رائع)|متقدم علي الجدول|احسنتم|عمل رائع|يسير (?:العمل )?(?:بشكل )?جيد|مخيب للامال",
     re.IGNORECASE,
 )
 
-# The first line of a client's progress-update draft (CLIENT_RULES).
-DRAFT_MARK = re.compile(r"(?:draft\s*[:\-–—]\s*check (?:it )?before sending\.?|مسودة\s*[:\-–—]\s*راجعها قبل الإرسال\.?)", re.IGNORECASE)
+# The draft mark in every form a model writes it, in either language, with
+# Markdown or a dash; the web app reads the same forms (withDraftMark in
+# apps/web/src/lib/client-ai.ts) and the draft carries the canonical one.
+DRAFT_MARK = re.compile(
+    r"^[\s*_#>`~-]*(?:(?P<en>draft\s*[:\-–—]\s*check (?:it )?before sending)|(?P<ar>مسودة\s*[:\-–—]\s*راجعها قبل الإرسال))\.?[\s*_`~]*(?:\n|$)",
+    re.IGNORECASE,
+)
+DRAFT_MARK_TEXT = {"en": "Draft: check before sending", "ar": "مسودة: راجعها قبل الإرسال"}
 
-# Short vowels, tanwin and the tatweel, left out before matching Arabic words.
-_ARABIC_MARKS = re.compile(r"[\u064b-\u0652\u0670\u0640]")
+# Text in quotation marks: what a policy or a record says, never rated (review S1).
+_QUOTED = re.compile(r'"[^"\n]*"|“[^”\n]*”|«[^»\n]*»')
 
 _SENTENCE = re.compile(r"(?<=[.!?؟؛;])\s+")
 
 
+def split_draft_mark(text: str) -> tuple[str, str]:
+    """The canonical draft mark (or "" when the model wrote none) and the text after every mark it wrote."""
+    body, mark = text.strip(), ""
+    while m := DRAFT_MARK.match(body):
+        mark = mark or DRAFT_MARK_TEXT["ar" if m.group("ar") else "en"]
+        body = body[m.end() :].lstrip()
+    return mark, body
+
+
 def without_ratings(text: str) -> str:
-    """The text without any sentence (or list line) that rates the work."""
+    """The text without any sentence (or list line) that rates the work.
+    Quoted words are not read: a policy may say "excellent"."""
     out: list[str] = []
     for line in text.splitlines():
-        parts = [s for s in _SENTENCE.split(line) if not RATING_WORDS.search(_ARABIC_MARKS.sub("", s))]
+        parts = [s for s in _SENTENCE.split(line) if not RATING_WORDS.search(fold_arabic(_QUOTED.sub(" ", s)))]
         if not parts and line.strip():
             continue  # the whole line rated the work
         out.append(" ".join(parts))

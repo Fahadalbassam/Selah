@@ -12,11 +12,12 @@ import {
   keywordQuery,
   mineIntent,
   myDeadlinesIntent,
+  otherDraftIntent,
   progressDraftIntent,
   statusIntent,
   type StatusKind,
 } from "@/lib/assistant-search";
-import { CLIENT_REFUSAL, DRAFT_MARK, LEGAL_NOTE, clientAnswerProblem, withoutRulings, type FilterReason } from "@/lib/client-ai";
+import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
@@ -103,6 +104,8 @@ export interface PreparedAsk {
   client: boolean;
   /** A client person asked for a draft of their progress update: the answer starts with DRAFT_MARK. */
   progressDraft: boolean;
+  /** A client person asked for any other draft: refused without asking the model (review S3). */
+  refusedDraft: boolean;
   /** Null for a chat across projects. */
   projectId: string | null;
   chatId: string | null;
@@ -142,7 +145,7 @@ export interface PreparedAsk {
 export async function ask(tx: Tx, principal: Principal, input: AskInput, masked?: boolean) {
   const prepared = await prepareAsk(tx, principal, input, masked);
   const result = prepared.passages.length
-    ? await answer(prepared.maskedQuestion, prepared.passages, answerLanguage(prepared), prepared.history, prepared.client ? "client" : "staff")
+    ? await answer(prepared.maskedQuestion, prepared.passages, answerLanguage(prepared), prepared.history, prepared.client ? "client" : "staff", { progressDraft: prepared.progressDraft })
     : null;
   return finishAsk(tx, principal, prepared, result);
 }
@@ -188,13 +191,17 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // A client person's progress-update draft: built from the records they can read, done ones included.
   const progressDraft = client && progressDraftIntent(input.question);
   // "My deadlines": only the person's own actions. It only narrows what they can read (statusRecords).
-  const mine = !progressDraft && mineIntent(input.question) && (kinds.size > 0 || myDeadlinesIntent(input.question));
+  // Any other draft (an e-mail, a letter, a decision) is refused here, not left to the prompt (review S3).
+  const refusedDraft = client && !progressDraft && otherDraftIntent(input.question);
+  // A client item (Gate B): firm staff keep the project's status for "my ..." (review S5).
+  const mine = client && !progressDraft && mineIntent(input.question) && (kinds.size > 0 || myDeadlinesIntent(input.question));
   if (mine && !kinds.size) kinds.add("open");
   const ids = scopes.map((sc) => sc.projectId);
   const clientOrgs = [...new Set(targets.filter((p) => p.kind === "client").map((p) => p.orgId))];
-  const status = [
-    // "Who is my consultant?": the firm's people on each project, as Help and People show them.
-    ...(client && consultantIntent(input.question) ? await consultantRecords(tx, principal, targets, across ? whereOf : undefined) : []),
+  // "Who is my consultant?": the firm's people on each project, as Help and People show them.
+  // They go first but leave the file passages as they were (review S6).
+  const team = client && consultantIntent(input.question) ? await consultantRecords(tx, principal, targets, across ? whereOf : undefined) : [];
+  const counts = [
     ...(progressDraft
       ? await progressRecords(tx, ids, across ? whereOf : undefined)
       : kinds.size
@@ -209,6 +216,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
         )
       : []),
   ];
+  const status = [...team, ...counts];
   const found = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
@@ -216,7 +224,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // Status lives in records, not files: a status question keeps fewer file passages (at least 2, at most
   // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
   const statusRoom = MAX_PASSAGES - 1 - status.length;
-  const chunks = found.slice(0, status.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : TOP_K);
+  const chunks = found.slice(0, counts.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : Math.min(TOP_K, MAX_PASSAGES - team.length));
   // "My deadlines": the search's records (a recommendation lists all its actions) would put others' work beside
   // "your actions"; only the chat's own record is kept.
   const linked = (await linkedRecords(tx, caseRef, chunks, hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
@@ -278,10 +286,12 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
     language: input.language,
     client,
     progressDraft,
+    refusedDraft,
     projectId,
     chatId: chat?.id ?? null,
     case: input.case ?? null,
-    passages,
+    // Another draft is refused without the model: nothing is sent (review S3).
+    passages: refusedDraft ? [] : passages,
     maskedQuestion,
     history: history.map((h) => ({ ...h, content: masker.mask(h.content) })),
     byPassageId,
@@ -295,6 +305,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
       ...(kinds.size ? { status: [...kinds].join(",") } : {}),
       ...(mine ? { mine: true } : {}),
       ...(progressDraft ? { draft: "progress" } : {}),
+      ...(refusedDraft ? { draft: "refused" } : {}),
       turns: history.length / 2,
       // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
       ...(client ? { sent: chunks.map((c) => c.id).join(",") } : {}),
@@ -343,6 +354,7 @@ export function streamAnswer(principal: Principal, prepared: PreparedAsk): Reada
               prepared.history,
               prepared.client ? "client" : "staff",
               prepared.client ? () => {} : (text) => send({ type: "text", text: shownSoFar(prepared.masker, text) }),
+              { progressDraft: prepared.progressDraft },
             )
           : null;
         send({ type: "done", ...(await asUser(principal.userId, (tx) => finishAsk(tx, principal, prepared, result))) });
@@ -375,6 +387,8 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     grounded = result.grounded && citations.length > 0;
     text = grounded ? said : cannotConfirm(language, question);
     if (!grounded) citations = [];
+  } else if (prepared.refusedDraft) {
+    text = DRAFT_REFUSAL[language === "auto" ? detectLang(question) : language];
   } else {
     text = cannotConfirm(language, question);
   }
@@ -397,11 +411,9 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
       citations = [];
       grounded = false;
     }
-    // A progress-update draft always says it is one, first, whatever the model wrote.
-    if (prepared.progressDraft && grounded && !text.trimStart().startsWith(DRAFT_MARK[lang])) {
-      const other = DRAFT_MARK[lang === "ar" ? "en" : "ar"];
-      text = `${DRAFT_MARK[lang]}\n\n${text.trimStart().startsWith(other) ? text.trimStart().slice(other.length).trimStart() : text}`;
-    }
+    // A progress-update draft always says it is one, first, once, whatever the model wrote. Not on an answer
+    // the client filter changed: that is no longer the draft (review N1).
+    if (prepared.progressDraft && grounded && !filtered) text = withDraftMark(text, lang);
   }
 
   const conversationId = prepared.chatId ?? (await newConversation(tx, principal, prepared.projectId, question, prepared.case ?? undefined));
@@ -939,6 +951,14 @@ export async function consultantRecords(
   return out;
 }
 
+// How a closed action ended (closure_outcome): never "done" in a progress update (review S4).
+const CLOSED_AS: Record<string, string> = {
+  partially_implemented: "partly implemented",
+  risk_accepted: "risk accepted",
+  not_applicable: "not applicable",
+  superseded: "superseded by another action",
+};
+
 // Actions in one progress-update draft (the most the AI service takes, less the summary).
 const MAX_PROGRESS_ACTIONS = 9;
 
@@ -962,11 +982,15 @@ export async function progressRecords(tx: Tx, projectIds: string[], where?: Map<
       due_date: string | null;
       late: number | null;
       done_on: string | null;
+      closed_on: string | null;
+      outcome: string | null;
     }>(sql`
       SELECT a.id, a.project_id, a.title, a.status, a.due_date,
         CASE WHEN a.status IN ${OPEN} THEN ${today} - a.due_date END AS late,
-        CASE WHEN a.status IN ('verified_complete', 'closed') THEN coalesce(a.closed_at,
-          (SELECT max(v.created_at) FROM reviews v WHERE v.action_id = a.id)) END AS done_on
+        CASE WHEN a.status = 'verified_complete' THEN coalesce(a.closed_at,
+          (SELECT max(v.created_at) FROM reviews v WHERE v.action_id = a.id)) END AS done_on,
+        CASE WHEN a.status = 'closed' THEN a.closed_at END AS closed_on,
+        CASE WHEN a.status = 'closed' THEN a.closure_outcome::text END AS outcome
       FROM actions a WHERE ${inScope}
       ORDER BY (a.status IN ${OPEN} AND a.due_date < ${today}) DESC,
         array_position(ARRAY['awaiting_review','revision_requested','blocked','in_progress','assigned','verified_complete','closed']::text[], a.status::text),
@@ -992,7 +1016,8 @@ export async function progressRecords(tx: Tx, projectIds: string[], where?: Map<
       ...(where ? { projectIds: [...new Set(rows.map((r) => r.project_id))] } : { projectId: projectIds[0] }),
       text:
         `For a progress-update draft, the actions the person can see as of ${firmToday()} (from the action records): ` +
-        `${count((r) => r.status === "verified_complete" || r.status === "closed")} done (verified or closed), ` +
+        `${count((r) => r.status === "verified_complete")} done (verified), ` +
+        `${count((r) => r.status === "closed")} closed without full verification (not done: partly implemented, risk accepted, not applicable or superseded), ` +
         `${count((r) => r.status === "in_progress" || r.status === "assigned")} in progress or not started, ` +
         `${count((r) => r.status === "awaiting_review")} waiting for the firm's review, ` +
         `${count((r) => r.status === "revision_requested" || r.status === "blocked")} waiting on the company (sent back or blocked), ` +
@@ -1003,8 +1028,15 @@ export async function progressRecords(tx: Tx, projectIds: string[], where?: Map<
       id: a.id,
       projectId: a.project_id,
       text:
-        `Action "${clip(a.title, 200)}"${at(a.project_id)}: ${words[a.status] ?? a.status}` +
-        (a.done_on ? `, done ${day(a.done_on)}` : a.due_date ? `, due ${day(a.due_date)}${a.late && a.late > 0 ? ` (${a.late} days late)` : ""}` : ", no due date") +
+        `Action "${clip(a.title, 200)}"${at(a.project_id)}: ` +
+        (a.status === "closed" ? `closed, not done (${CLOSED_AS[a.outcome ?? ""] ?? "no reason recorded"})` : (words[a.status] ?? a.status)) +
+        (a.status === "closed"
+          ? a.closed_on
+            ? `, closed ${day(a.closed_on)}`
+            : ""
+          : a.done_on
+            ? `, done ${day(a.done_on)}`
+            : a.due_date ? `, due ${day(a.due_date)}${a.late && a.late > 0 ? ` (${a.late} days late)` : ""}` : ", no due date") +
         ".",
     })),
   ];

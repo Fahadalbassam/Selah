@@ -74,8 +74,10 @@ export function answer(
   history: HistoryTurn[] = [],
   /** "client": the client rules are added to the prompt (wave 3, F39). */
   audience: "staff" | "client" = "staff",
+  /** A client person's progress-update draft: the AI service writes its mark and takes out rating words. */
+  opts: { progressDraft?: boolean } = {},
 ): Promise<Answer> {
-  return call("/v1/answer", { question, passages, language, history, audience }, answerSchema);
+  return call("/v1/answer", { question, passages, language, history, audience, progress_draft: opts.progressDraft === true }, answerSchema);
 }
 
 // While an answer streams: the longest wait for the next line, and for the whole answer.
@@ -95,6 +97,7 @@ export async function answerStream(
   history: HistoryTurn[],
   audience: "staff" | "client",
   onText: (text: string) => void,
+  opts: { progressDraft?: boolean } = {},
 ): Promise<Answer> {
   const e = env();
   const idle = new AbortController();
@@ -103,7 +106,7 @@ export async function answerStream(
     const res = await fetch(new URL("/v1/answer/stream", e.AI_SERVICE_URL), {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
-      body: JSON.stringify({ question, passages, language, history, audience }),
+      body: JSON.stringify({ question, passages, language, history, audience, progress_draft: opts.progressDraft === true }),
       signal: AbortSignal.any([idle.signal, AbortSignal.timeout(STREAM_TOTAL_MS)]),
     });
     if (!res.ok || !res.body) throw new Error(`ai service /v1/answer/stream failed: ${res.status}`);

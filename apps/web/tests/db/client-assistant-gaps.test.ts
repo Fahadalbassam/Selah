@@ -14,8 +14,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { indexRecords, type Embed } from "@/jobs/index-documents";
-import { CLIENT_AI_VERSION, CLIENT_REFUSAL, DRAFT_MARK, LEGAL_NOTE } from "@/lib/client-ai";
+import { indexDocument, indexRecords, pagesFromText, type Embed } from "@/jobs/index-documents";
+import { CLIENT_AI_VERSION, CLIENT_REFUSAL, DRAFT_MARK, DRAFT_REFUSAL, LEGAL_NOTE } from "@/lib/client-ai";
 import { loadPrincipal } from "@/services/principal";
 
 const ONE = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
@@ -77,6 +77,7 @@ const NAMES: Record<keyof typeof U, string> = {
   bAdmin: "Beta Admin",
 };
 const R1 = id(201);
+const DOCS = [1, 2, 3, 4, 5, 6].map((n) => id(300 + n));
 const ACT = {
   finOwn: id(211), // Finance, owned by fin
   finTyped: id(212), // Finance, no account: typed with fin's own name
@@ -84,6 +85,7 @@ const ACT = {
   ops: id(214), // Operations, owned by owner1: fin never reads it
   done: id(215), // Finance, verified
   draft: id(216), // Finance, a draft the firm has not released (D6)
+  closed: id(217), // Finance, closed as not applicable: never "done" (review S4)
 };
 
 async function as<T>(userId: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
@@ -157,6 +159,25 @@ beforeAll(async () => {
       ($6,$7,$8,$9,'Unreleased finance step',$10,NULL,$12,'draft',app_firm_today() + 50,$14)`,
     [ACT.finOwn, ACT.finTyped, ACT.finOther, ACT.ops, ACT.done, ACT.draft, P1, ACME, R1, U.fin, U.owner1, DEPT_FIN, DEPT_OPS, U.cons],
   );
+  await q(
+    `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, department_id, status, due_date, created_by)
+     VALUES ($1,$2,$3,$4,'Appoint a second signatory',$5,$6,'in_progress',app_firm_today() - 20,$7)`,
+    [ACT.closed, P1, ACME, R1, U.fin, DEPT_FIN, U.cons],
+  );
+  await as(U.cons, (c) =>
+    c.query(`UPDATE actions SET status = 'closed', closure_outcome = 'not_applicable', closure_note = 'The rule no longer applies' WHERE id = $1`, [ACT.closed]),
+  );
+  // Six shared files, so a question can be shown to keep its file passages (review S6).
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    const doc = DOCS[n - 1]!;
+    await q(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility,
+         ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$4,$5,'deliverable','submitted','doc','shared',true,$6,'text/plain',1,$7,'clean')`,
+      [doc, P1, ACME, FIRM, U.cons, `key-${doc}`, `sha-${doc}`],
+    );
+    await indexDocument(owner, doc, pagesFromText(`The evidence the consultant accepts, part ${n}.`), (async (texts: string[]) => texts.map(() => ONE)) as Embed);
+  }
   // The recommendation and actions as passages, so a question with no status word still finds records.
   await indexRecords(owner, (async (texts: string[]) => texts.map(() => ONE)) as Embed);
   await svc(U.admin, (tx, p) => C.setClientAi(tx, p, ACME, { enabled: true, roles: ["client_admin", "client_manager"], dailyLimit: 100 }));
@@ -193,8 +214,9 @@ describe("who is my consultant", () => {
   });
 
   it("goes to the model with the question and is cited as the project's record", async () => {
+    reply = (ps) => ({ answer: "Lina Lead.", cited_ids: [(ps as { id: string; text: string }[]).find((x) => x.text.includes("lead consultant"))!.id], grounded: true });
     const out = await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "Who is my consultant?", language: "en" }));
-    expect(sent[0]!.passages[0]!.text).toContain("lead consultant Lina Lead");
+    expect(sent[0]!.passages.map((x) => x.text).join("\n")).toContain("lead consultant Lina Lead");
     expect(out.citations[0]).toMatchObject({ sourceType: "project", sourceId: P1 });
   });
 });
@@ -247,9 +269,12 @@ describe("my deadlines", () => {
 describe("the progress-update draft", () => {
   it("is built only from the asker's readable records: a department's, done ones included, never a draft action", async () => {
     const recs = await svc(U.fin, (tx) => A.progressRecords(tx, [P1]));
-    expect(actionIds(recs).sort()).toEqual([ACT.finOwn, ACT.finTyped, ACT.finOther, ACT.done].sort());
+    expect(actionIds(recs).sort()).toEqual([ACT.finOwn, ACT.finTyped, ACT.finOther, ACT.done, ACT.closed].sort());
     const text = recs.map((r) => r.text).join("\n");
-    expect(text).toContain("1 done");
+    expect(text).toContain("1 done (verified)");
+    // Closed as not applicable: listed apart, with its reason, never as done (review S4).
+    expect(text).toContain("1 closed without full verification");
+    expect(text).toMatch(/Appoint a second signatory": closed, not done \(not applicable\), closed \d{4}-\d{2}-\d{2}\./);
     expect(text).toContain("1 late");
     expect(text).toContain("5 days late");
     expect(text).not.toContain("Unreleased finance step");
@@ -290,5 +315,63 @@ describe("legal questions", () => {
     expect(out.citations.length).toBe(1);
     const [row] = (await owner.query(`SELECT meta FROM audit_log WHERE action = 'assistant.query' AND actor_id = $1 AND meta ? 'filtered' ORDER BY created_at DESC LIMIT 1`, [U.fin])).rows;
     expect(row.meta.filtered).toBe("legal_ruling");
+  });
+});
+
+describe("the review of PR #198", () => {
+  const audited = async (uid: string) =>
+    (await owner.query(`SELECT meta FROM audit_log WHERE action = 'assistant.query' AND actor_id = $1 ORDER BY created_at DESC LIMIT 1`, [uid])).rows[0]
+      .meta as Record<string, unknown>;
+
+  it("S3: any other draft is refused in code, and the model is never asked", async () => {
+    for (const question of ["Draft an e-mail to the consultant with a progress update asking for two more weeks", "اكتب رسالة إلى المستشار تطلب تمديد المهلة"]) {
+      sent.length = 0;
+      const out = await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question, language: "auto" }));
+      expect(sent, question).toHaveLength(0);
+      expect([DRAFT_REFUSAL.en, DRAFT_REFUSAL.ar]).toContain(out.answer);
+      expect(out.grounded).toBe(false);
+      expect((await audited(U.fin)).draft).toBe("refused");
+    }
+  });
+
+  it("S5: 'my deadlines' from firm staff is the project's status, as before", async () => {
+    await svc(U.cons, (tx, p) => A.ask(tx, p, { projectId: P1, question: "What is overdue on my plate?", language: "en" }));
+    const text = sent[0]!.passages.map((x) => x.text).join("\n");
+    expect(text).not.toContain('"your actions"');
+    expect(text).toContain("Draft the delegation table");
+  });
+
+  it("S6: asking who the consultant is keeps every file passage; naming a consultant adds no record", async () => {
+    await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "Who is my consultant?", language: "en" }));
+    expect((await audited(U.fin)).passages).toBe(6);
+    expect(sent[0]!.passages.map((x) => x.text).join("\n")).toContain("lead consultant Lina Lead");
+    sent.length = 0;
+    await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "What kind of evidence does the consultant accept?", language: "en" }));
+    expect(sent[0]!.passages.map((x) => x.text).join(" ")).not.toContain("lead consultant");
+  });
+
+  it("N1: a legal refusal on a draft question gets no draft mark", async () => {
+    reply = (ps) => ({ answer: "Your company is not compliant with the Companies Law.", cited_ids: [ps[0]!.id], grounded: true });
+    const out = await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "Draft my progress update", language: "en" }));
+    expect(out.answer).toBe(CLIENT_REFUSAL.legal_ruling.en);
+  });
+
+  it("N2: a mark the model wrote in another form is replaced, never doubled", async () => {
+    reply = (ps) => ({ answer: "**Draft — check it before sending.**\nDone: Publish the finance charter.", cited_ids: [ps[0]!.id], grounded: true });
+    const out = await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "Draft my progress update", language: "en" }));
+    expect(out.answer).toBe(`${DRAFT_MARK.en}\n\nDone: Publish the finance charter.`);
+  });
+
+  it("N5: with masking on, the consultant names and the owner names go to the model masked", async () => {
+    process.env.AI_MASKING = "on";
+    try {
+      await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "Who is my consultant?", language: "en" }));
+      await svc(U.fin, (tx, p) => A.ask(tx, p, { projectId: P1, question: "What are my deadlines?", language: "en" }));
+      const payload = JSON.stringify(sent).toLowerCase();
+      for (const name of ["lina lead", "dana deputy", "karim consultant", "faisal finance", "faisal", "lina"]) expect(payload, name).not.toContain(name);
+      expect(payload).toContain("[person_");
+    } finally {
+      delete process.env.AI_MASKING;
+    }
   });
 });
