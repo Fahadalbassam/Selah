@@ -76,8 +76,9 @@ test("the firm admin triages it, books discovery, records the outcome and makes 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await current.getByRole("button", { name: "Mark as triaged" }).click();
   await expect(page.getByText("Triaged").first()).toBeVisible();
-  await current.getByRole("button", { name: "Run the conflict search" }).click();
-  await current.getByRole("button", { name: "Record the check" }).click();
+  // The conflict check is a fact on the side with its own buttons, not a step (the lead's decision on review S3).
+  await page.getByRole("button", { name: "Run the conflict search" }).click();
+  await page.getByRole("button", { name: "Record the check" }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("Checked against clients and owners");
   await page.getByRole("dialog").getByRole("button", { name: "Record the check" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);

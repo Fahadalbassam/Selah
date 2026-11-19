@@ -24,7 +24,8 @@ import { intakeOptions } from "@/services/intake";
 import { listClients, listTeam } from "@/services/queries";
 import { BookDiscovery, ConvertDialog } from "./inquiry-panels";
 import { WordBadge } from "@/components/status-badge";
-import { inquirySteps } from "@/lib/inquiry-steps";
+import { inquirySteps, type StepMove } from "@/lib/inquiry-steps";
+import { Fragment } from "react";
 import { inquiryPlacement } from "@/lib/status-words";
 import { cn } from "@/lib/utils";
 
@@ -180,12 +181,36 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
   const view = inquirySteps({
     status: q.status,
     hasOwner: !!q.ownerUserId,
-    conflictStatus: q.conflictStatus,
-    searched: !!data.conflictSearch,
     sessionBooked: !!pendingSession,
     converted: !!q.clientOrgId,
     can,
   });
+  // One move of the steps, solid when it is the current step's own (lib/inquiry-steps.ts).
+  const move = (m: StepMove, primary: boolean) => {
+    switch (m) {
+      case "assign":
+        return <Fragment key={m}>{assignDialog(primary)}</Fragment>;
+      case "triage":
+      case "proposalSent":
+        return (
+          <ApiButton
+            key={m}
+            endpoint={`/api/intake/inquiries/${q.id}`}
+            method="PATCH"
+            body={{ status: can.forward }}
+            label={t(`forward.${can.forward as "triaged" | "proposal_sent"}`)}
+            variant={primary ? "default" : "outline"}
+            size={primary ? "default" : "sm"}
+          />
+        );
+      case "bookDiscovery":
+        return <BookDiscovery key={m} inquiryId={q.id} secondary={!primary} />;
+      case "recordDiscovery":
+        return pendingSession ? <Fragment key={m}>{recordDialog(pendingSession, primary)}</Fragment> : null;
+      case "convert":
+        return <Fragment key={m}>{convertDialog(primary)}</Fragment>;
+    }
+  };
   const assignDialog = (primary: boolean) => (
     <FormDialog
       trigger={
@@ -332,13 +357,12 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                           "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums",
                           st.state === "done" && "border-transparent bg-muted text-muted-foreground",
                           isCurrent && "border-foreground text-foreground",
-                          st.state === "problem" && "border-destructive text-destructive",
                         )}
                       >
                         {st.state === "done" ? <CircleCheck className="size-3.5" /> : format.number(i + 1)}
                       </span>
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className={cn("font-medium", isCurrent || st.state === "problem" ? "text-foreground" : undefined)}>
+                        <p className={cn("font-medium", isCurrent ? "text-foreground" : undefined)}>
                           {t(`steps.${st.key}.title`)}
                           <span className="ms-2 text-xs font-normal text-muted-foreground">{t(`stepState.${st.state}`)}</span>
                         </p>
@@ -347,26 +371,15 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                             <p className="text-muted-foreground">
                               {st.key === "discovery" && pendingSession ? t("discoveryBooked", { date: when(pendingSession.scheduledAt) }) : t(`steps.${st.key}.hint`)}
                             </p>
-                            {view.main === null ? <p className="text-xs text-muted-foreground">{t(`steps.${st.key}.notYours`)}</p> : null}
+                            {view.main === null ? (
+                              <p className="text-xs text-muted-foreground">
+                                {/* Making it a client waits for a clear or waived conflict check, the server's own rule. */}
+                                {st.key === "decide" && can.decide ? t("convertBlocked") : t(`steps.${st.key}.notYours`)}
+                              </p>
+                            ) : null}
+                            {/* The step's one solid button, then any other move the server allows now, in outline. */}
                             <div className="flex flex-wrap items-center gap-2 pt-1">
-                              {view.main === "assign" ? assignDialog(true) : null}
-                              {view.main === "triage" || view.main === "proposalSent" ? (
-                                <ApiButton
-                                  endpoint={`/api/intake/inquiries/${q.id}`}
-                                  method="PATCH"
-                                  body={{ status: can.forward }}
-                                  label={t(`forward.${can.forward as "triaged" | "proposal_sent"}`)}
-                                  variant="default"
-                                  size="default"
-                                />
-                              ) : null}
-                              {view.main === "runSearch" ? (
-                                <ApiButton endpoint={`/api/intake/inquiries/${q.id}/conflict-search`} label={t("runSearch")} icon={<Search />} variant="default" size="default" />
-                              ) : null}
-                              {view.main === "recordConflict" ? conflictDialog(true) : null}
-                              {view.main === "bookDiscovery" ? <BookDiscovery inquiryId={q.id} /> : null}
-                              {view.main === "recordDiscovery" && pendingSession ? recordDialog(pendingSession, true) : null}
-                              {view.main === "convert" || view.alsoConvert ? convertDialog(view.main === "convert") : null}
+                              {[...(view.main ? [view.main] : []), ...view.also].map((m) => move(m, m === view.main))}
                             </div>
                           </>
                         ) : null}
@@ -584,7 +597,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : null}
               {/* Facts with their edits; while the check is the current step, the step holds the button. */}
-              {can.decide && !q.clientOrgId && view.main !== "runSearch" && view.main !== "recordConflict" ? (
+              {can.decide && !q.clientOrgId ? (
                 <div className="flex flex-wrap gap-2">
                   <ApiButton
                     endpoint={`/api/intake/inquiries/${q.id}/conflict-search`}

@@ -2211,24 +2211,18 @@
     "withdrawMarketingConfirm": "Record that the requester no longer wants news from the firm? This can't be undone here; only the requester can agree again, through a new inquiry.",
     "discoveryBooked": "A discovery session is booked for {date}. Once it's held, record how it went under Discovery.",
     "stepsTitle": "Steps",
-    "stepsHint": "Five steps, in order. Only the current step has a button.",
+    "stepsHint": "Four steps, in order. The conflict check is on the side; it must be clear before the inquiry becomes a client.",
     "stepsClosed": "This inquiry is closed: {status}.",
     "stepState": {
       "done": "Done",
       "current": "Current step",
-      "todo": "Later",
-      "problem": "Needs attention"
+      "todo": "Later"
     },
     "steps": {
       "triage": {
         "title": "Read it and give it an owner",
-        "hint": "The firm admin chooses who follows it up; that person then marks it read.",
+        "hint": "The firm admin chooses who follows it up; that person then marks it read. The discovery session can be booked from now.",
         "notYours": "The firm admin gives it an owner; the owner then marks it read."
-      },
-      "conflict": {
-        "title": "Check for conflicts of interest",
-        "hint": "Search the firm's clients and inquiries for the organisation's name and mail domain, then record the result.",
-        "notYours": "The firm admin checks for conflicts and records the result."
       },
       "discovery": {
         "title": "Hold the discovery session",
