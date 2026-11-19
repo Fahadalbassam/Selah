@@ -654,7 +654,7 @@
       "in_progress": "Start work",
       "blocked": "Mark as blocked",
       "awaiting_review": "Send for review",
-      "verified_complete": "Accept and verify",
+      "verified_complete": "Verify",
       "revision_requested": "Request revision",
       "closed": "Close action"
     },
@@ -6252,7 +6252,7 @@
     "afterHint": {
       "review": "Your consultant is told it is ready to check.",
       "save": "The file stays on the action. Send it for review once everything is there.",
-      "reviewFirmRun": "The project's other consultants are told it is ready to check."
+      "reviewFirm": "The project's other consultants are told it is ready to check."
     },
     "forItem": "For: {item}",
     "forAction": "The file that shows this action is done.",

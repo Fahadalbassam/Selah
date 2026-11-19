@@ -144,6 +144,7 @@ export function ActionPanel(p: Props) {
           canReview
           defaultAfter="review"
           recordFor={p.recordFor}
+          firm={p.firmView}
           title={plan.main === "resend" ? tn("resend") : t("move.awaiting_review")}
           trigger={<Button>{plan.main === "resend" ? tn("resend") : t("move.awaiting_review")}</Button>}
         />

@@ -215,7 +215,7 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
         .where(and(eq(evidenceRequests.actionId, id), sql`${evidenceRequests.status} not in ('accepted', 'waived')`));
       if (left.some((i) => i.status !== "submitted")) throw new BadRequestError("every evidence request must be accepted or waived first");
       const { decideEvidenceRequest } = await import("./follow-through");
-      for (const item of left) await decideEvidenceRequest(tx, principal, item.id, { status: "accepted" });
+      for (const item of left) await decideEvidenceRequest(tx, principal, item.id, { status: "accepted" }, { quiet: true });
     }
   }
 

@@ -36,6 +36,8 @@ export function ActionSendFile(props: {
   defaultAfter: AfterSend;
   /** Firm staff recording for a client the firm runs: how and when the client sent the file. */
   recordFor: boolean;
+  /** A firm reader sends it: the dialog speaks of the firm's reviewers, not "your consultant". */
+  firm: boolean;
   title: string;
   trigger?: ReactNode;
   control?: DialogControl;
@@ -143,7 +145,7 @@ export function ActionSendFile(props: {
             <Label htmlFor="send-note">{t("note")}</Label>
             <Textarea id="send-note" maxLength={4000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} dir="auto" />
           </div>
-          {props.canReview ? <AfterSendChoice value={after} onChange={setAfter} idPrefix="after" recordFor={props.recordFor} /> : null}
+          {props.canReview ? <AfterSendChoice value={after} onChange={setAfter} idPrefix="after" firm={props.firm} /> : null}
         </>
       }
     />

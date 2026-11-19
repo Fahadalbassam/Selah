@@ -265,6 +265,19 @@ describe("D1: who is told", () => {
     for (const u of [U.owner1, U.owner2, U.cadmin]) expect(told).not.toContain(u);
   });
 
+  // Review N1: the notice function tells only of a change the caller has just made, as recorded.
+  it("the notices cannot be sent without a change, or naming someone else as the old owner", async () => {
+    await expect(as(U.cadmin, (c) => c.query(`SELECT app_tell_owner_changed($1, $2)`, [A.open, U.mgr]))).rejects.toThrow(/no change|privilege/i);
+    await expect(
+      as(U.cadmin, async (c) => {
+        const tx = drizzle(c, { schema }) as unknown as Tx;
+        const p = await loadPrincipal(tx, U.cadmin);
+        await changeActionOwner(tx, p!, A.open, { ownerUserId: U.owner2 });
+        await c.query(`SELECT app_tell_owner_changed($1, $2)`, [A.open, U.mgr]);
+      }),
+    ).rejects.toThrow(/no change|privilege/i);
+  });
+
   it("the notices cannot be sent by someone who may not reassign", async () => {
     await expect(as(U.mgr, (c) => c.query(`SELECT app_tell_owner_changed($1, $2)`, [A.open, U.owner1]))).rejects.toThrow(/insufficient|not allowed|privilege/i);
   });
@@ -468,6 +481,15 @@ describe("October item 12: verify accepts the files still to check", () => {
     expect(await items(aid)).toEqual(["accepted"]);
     const { rows } = await q(`SELECT decided_by FROM evidence_requests WHERE action_id = $1`, [aid]);
     expect(rows[0].decided_by).toBe(U.staff);
+  });
+
+  // Review N3: one notice to the owner, the verification, not one more per item accepted with it.
+  it("tells the owner once", async () => {
+    const aid = await waiting(["submitted", "submitted"]);
+    await svc(U.staff, (tx, p) => transitionAction(tx, p, aid, { to: "verified_complete", acceptItems: true }), true);
+    const { rows } = await q(`SELECT kind FROM notifications WHERE user_id = $1 AND entity_id = $2`, [U.owner1, aid]);
+    expect(rows.map((r) => r.kind)).toEqual(["action.verified_complete"]);
+    expect(await items(aid)).toEqual(["accepted", "accepted"]);
   });
 
   it("without it, verifying still waits for the items, as before", async () => {

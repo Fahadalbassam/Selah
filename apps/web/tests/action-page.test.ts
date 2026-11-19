@@ -217,6 +217,22 @@ describe("the activity line for an owner change", () => {
   });
 });
 
+// Review notes: one verb for the action (Verify, never "Accept and verify"; docs/placement.md), and the
+// file dialog's hint is the client's words only for a client reader (not on an internal project).
+describe("words on the action page", () => {
+  it("the verify button says Verify", async () => {
+    const ar = (await import("../messages/ar.json")).default as { action: { move: Record<string, string> } };
+    const en = (await import("../messages/en.json")).default as { action: { move: Record<string, string> } };
+    expect(en.action.move.verified_complete).toBe("Verify");
+    expect(ar.action.move.verified_complete).toBe("اعتماد");
+  });
+  it("the firm reads its own hint in the file dialog", () => {
+    const src = join(__dirname, "..", "src");
+    const panel = readFileSync(join(src, "app/(app)/actions/[id]/send-file.tsx"), "utf8");
+    expect(panel).toMatch(/<AfterSendChoice[^>]*firm=\{props\.firm\}/);
+  });
+});
+
 // Review S3: "Reassign their actions first" opens the person's actions on this project, each with its owner
 // control; it never sends anyone to the switch-off dialog.
 describe("Reassign their actions first", () => {

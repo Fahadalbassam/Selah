@@ -50,8 +50,8 @@ export function uploadErrorKey(status: number, message: string | undefined): "sc
 /** "Send for review now" or "Save without sending": the dialog's last choice on an action. */
 export type AfterSend = "review" | "save";
 
-/** `recordFor`: the firm sending it for a client it runs, so the hint names the firm's reviewers, not "your consultant" (N24). */
-export function AfterSendChoice({ value, onChange, idPrefix, recordFor = false }: { value: AfterSend; onChange: (v: AfterSend) => void; idPrefix: string; recordFor?: boolean }) {
+/** `firm`: a firm reader sends it (for a client the firm runs, or on an internal project), so the hint names the firm's reviewers, not "your consultant" (N24, review N7). */
+export function AfterSendChoice({ value, onChange, idPrefix, firm = false }: { value: AfterSend; onChange: (v: AfterSend) => void; idPrefix: string; firm?: boolean }) {
   const t = useTranslations("sendFile");
   return (
     <fieldset className="grid gap-2 border-t pt-4">
@@ -62,7 +62,7 @@ export function AfterSendChoice({ value, onChange, idPrefix, recordFor = false }
             <RadioGroupItem id={`${idPrefix}-${v}`} value={v} className="mt-0.5" />
             <span className="space-y-0.5">
               <span className="block">{t(`afterChoice.${v}`)}</span>
-              <span className="block text-xs text-muted-foreground">{t(`afterHint.${v}${recordFor && v === "review" ? "FirmRun" : ""}`)}</span>
+              <span className="block text-xs text-muted-foreground">{t(`afterHint.${v}${firm && v === "review" ? "Firm" : ""}`)}</span>
             </span>
           </label>
         ))}

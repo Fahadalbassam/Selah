@@ -154,11 +154,26 @@ test("consultant approves the date and verifies the action (English)", async ({ 
   await page.goto(`/actions/${actionId}`);
   await page.getByRole("button", { name: t("action.deadline.approve") }).click();
   await toastSaved(page);
-  // October review, item 12: the only item has its file, so verifying accepts it in the same step.
+  // Bug #11 (restored, review N6): with an item that has nothing sent, verifying says so, not
+  // "someone else changed this action". The consultant asks for one more item, tries, then waives it.
+  await page.getByRole("button", { name: t("action.items.add") }).click();
+  await page.locator("#item-title").fill("Attendance sheet");
+  await page.getByRole("dialog").getByRole("button", { name: t("action.items.add") }).click();
+  await toastSaved(page);
+  await page.getByRole("button", { name: t("action.move.verified_complete") }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
+  await expect(page.getByRole("dialog").getByRole("alert").filter({ hasText: t("action.errors.openEvidence") })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: t("action.cancel") }).click();
+  await page.getByRole("button", { name: t("common.moreFor", { name: "Attendance sheet" }) }).click();
+  await page.getByRole("menuitem", { name: t("action.items.waive") }).click();
+  await page.locator("#reason").fill("The minutes list who attended.");
+  await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
+  await toastSaved(page);
+  // October review, item 12: the only item left has its file, so verifying accepts it in the same step.
   await page.getByRole("button", { name: t("action.move.verified_complete") }).click();
   await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
   await expect(page.getByText(t("status.verified_complete")).first()).toBeVisible();
-  expect(one(`select status from evidence_requests where action_id='${actionId}'`)).toBe("accepted");
+  expect(one(`select count(*) from evidence_requests where action_id='${actionId}' and status = 'accepted'`)).toBe("1");
   // Reopening is a rare step: in the page menu, not a button.
   await expect(page.getByRole("button", { name: t("action.reopen") })).toHaveCount(0);
   await page.getByRole("button", { name: t("action.menu.label") }).click();

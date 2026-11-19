@@ -109,6 +109,7 @@ export function WhatToSend(props: {
                         canReview={props.canReview}
                         defaultAfter={last ? "review" : "save"}
                         recordFor={voice === "FirmRun"}
+                        firm={props.firmView}
                         title={t("answerTitle", { item: i.title })}
                         trigger={<SendFileButton />}
                       />
