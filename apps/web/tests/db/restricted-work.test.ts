@@ -280,8 +280,15 @@ describe("a restricted client's admin, on an action they do not own", () => {
         U.radmin,
       ]),
     ).rejects.toThrow(/row-level security/);
+    // Nor rewrite the "I am stuck" reason of a colleague's stuck action (review S1).
+    const stuck = await action(P.restr, { owner: U.radmin2, status: "blocked" });
+    await owner.query(`UPDATE actions SET blocked_reason = 'Waiting for the board' WHERE id = $1`, [stuck]);
+    await expect(attempt(U.radmin, `UPDATE actions SET blocked_reason = 'Something else' WHERE id = $1`, [stuck])).rejects.toThrow(
+      /moves only the actions they own/,
+    );
     // The owner's own work passes the same rule.
     await attempt(U.radmin2, `UPDATE actions SET status = 'blocked', blocked_reason = 'x' WHERE id = $1`, [aid]);
+    await attempt(U.radmin2, `UPDATE actions SET blocked_reason = 'The board meets next month' WHERE id = $1`, [stuck]);
   });
 
   it("and the firm still records nothing for a restricted client", async () => {

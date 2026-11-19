@@ -181,7 +181,7 @@ What your company sends is a claim that the work is done until a consultant revi
 3. **Invite someone**.
 4. Then add them to the project: open the project → **People** → **Your people on this project** → **Add a person**.
 
-**What happens next:** they get an email with a link that works for 7 days. Managers and owners see only the projects they are added to, and only people on a project can own its actions. Open invitations are under **Access** on the same page, where you can revoke them. At a company whose participation is "Restricted", only client admins have accounts, and the admin who owns an action starts it, writes its progress and sends its files for review.
+**What happens next:** they get an email with a link that works for 7 days. Managers and owners see only the projects they are added to, and only people on a project can own its actions. Open invitations are under **Access** on the same page, where you can revoke them. At a company whose participation is "Restricted", only client admins have accounts, and the admin who owns an action starts it, writes its progress and sends its files for review. If one admin's account is switched off, give their open actions to yourself or a colleague before working on them: nobody can work an action given to a switched-off account.
 
 **Screens:** People (`/team`), project page → People.
 

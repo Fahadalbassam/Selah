@@ -41,16 +41,18 @@ CREATE POLICY restricted_admin ON evidence_submissions AS RESTRICTIVE FOR INSERT
 CREATE POLICY restricted_admin ON deadline_change_requests AS RESTRICTIVE FOR INSERT TO selah_app
   WITH CHECK (app_restricted_admin_works(action_id));
 --> statement-breakpoint
--- 3. Moving the action itself (start, stuck, resume, send for review). Only a
---    change of status is checked; check_action_transition() keeps every other rule.
+-- 3. Moving the action itself (start, stuck, resume, send for review) and the
+--    "I am stuck" reason: the owner's work columns a client may change
+--    (check_action_transition(), client_cols), apart from the owner (D1).
+--    check_action_transition() keeps every other rule.
 CREATE FUNCTION check_restricted_admin_move() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
-  IF NEW.status IS DISTINCT FROM OLD.status AND app_uid() IS NOT NULL AND NOT app_restricted_admin_works(OLD.id) THEN
+  IF (NEW.status, NEW.blocked_reason) IS DISTINCT FROM (OLD.status, OLD.blocked_reason) AND app_uid() IS NOT NULL AND NOT app_restricted_admin_works(OLD.id) THEN
     RAISE EXCEPTION 'on a restricted client, an admin moves only the actions they own' USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN NEW;
 END $$;
 --> statement-breakpoint
-CREATE TRIGGER restricted_admin_move BEFORE UPDATE OF status ON actions
+CREATE TRIGGER restricted_admin_move BEFORE UPDATE OF status, blocked_reason ON actions
   FOR EACH ROW EXECUTE FUNCTION check_restricted_admin_move();
