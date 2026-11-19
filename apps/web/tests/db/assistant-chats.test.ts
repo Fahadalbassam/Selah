@@ -548,7 +548,7 @@ describe("retention", () => {
   const purge = async (today = "now") =>
     (
       await owner.query(
-        `SELECT archived, deleted FROM app_purge_chats(${today === "now" ? "(now() AT TIME ZONE 'Asia/Riyadh')::date" : `'${today}'::date`})`,
+        `SELECT archived, deleted FROM app_purge_chats(${today === "now" ? "app_firm_today()" : `'${today}'::date`})`,
       )
     ).rows[0];
   const exists = async (chat: string) =>
@@ -584,19 +584,23 @@ describe("retention", () => {
     // Closing itself is tested in tests/db/closure.test.ts; here the project is simply closed.
     await owner.query(`UPDATE projects SET state = 'closed' WHERE id = $1`, [P1]);
     try {
-      const closed = (await owner.query(`SELECT closed_at FROM projects WHERE id = $1`, [P1])).rows[0].closed_at;
-      expect(closed).not.toBeNull();
+      // The day is worked out in the database and read as text: a date read
+      // into a JS Date lands on the test machine's midnight, a day early east of UTC.
+      const { day, before } = (
+        await owner.query(
+          `SELECT ((closed_at AT TIME ZONE 'Asia/Riyadh')::date + 90)::text AS day,
+                  ((closed_at AT TIME ZONE 'Asia/Riyadh')::date + 89)::text AS before
+           FROM projects WHERE id = $1 AND closed_at IS NOT NULL`,
+          [P1],
+        )
+      ).rows[0];
+      expect(day).toBeDefined();
       const due = (
-        await sqlAs(U.cons, `SELECT app_chat_delete_on(last_message_at, project_id) AS d FROM ai_conversations WHERE id = $1`, [
+        await sqlAs(U.cons, `SELECT app_chat_delete_on(last_message_at, project_id)::text AS d FROM ai_conversations WHERE id = $1`, [
           r.conversationId,
         ])
       ).rows[0].d;
-      const expected = new Date(closed);
-      const riyadh = new Date(expected.getTime() + 3 * 3600_000);
-      riyadh.setUTCDate(riyadh.getUTCDate() + 90);
-      expect(new Date(due).toISOString().slice(0, 10)).toBe(riyadh.toISOString().slice(0, 10));
-      const day = riyadh.toISOString().slice(0, 10);
-      const before = new Date(riyadh.getTime() - 86400_000).toISOString().slice(0, 10);
+      expect(due).toBe(day);
       expect((await purge(before)).deleted).toBe(0);
       expect((await purge(day)).deleted).toBe(1);
       // Only a firm admin reopens a project.
@@ -761,7 +765,7 @@ describe("chats across projects (All my clients)", () => {
       ])
     ).rows[0].d;
     expect(due).not.toBeNull();
-    const today = `(now() AT TIME ZONE 'Asia/Riyadh')::date`;
+    const today = `app_firm_today()`;
     expect((await owner.query(`SELECT deleted FROM app_purge_chats(${today})`)).rows[0].deleted).toBe(1);
     const log = await owner.query(`SELECT org_id, reason FROM audit_log WHERE resource_id = $1`, [idle.conversationId]);
     expect(log.rows).toEqual([{ org_id: FIRM, reason: "retention" }]);
