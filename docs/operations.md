@@ -101,6 +101,19 @@ Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the m
 
 `ops/upgrade.sh --rollback` goes back: the previous commit, rebuilt, with the database restored from the backup taken before the upgrade (migrations only go forward). Work done since the upgrade is lost, so roll back soon or not at all. Upgrade outside working hours, and run `ops/readiness.sh` afterwards.
 
+**Before the upgrade that brings migration 0109 (engagement end reminders).** The first daily run after it tells the firm about every open engagement of an active client that ends within the next 30 days or ended in the last 30. Size it on the live database first (read only):
+
+```sql
+SELECT count(*) AS engagements,
+       sum(cardinality(ARRAY(SELECT app_engagement_reminder_audience(g.id)))) AS notices
+FROM engagements g JOIN organizations o ON o.id = g.client_org_id AND o.status = 'active'
+WHERE g.ends_on IS NOT NULL
+  AND app_firm_today() BETWEEN g.ends_on - app_engagement_reminder_days() AND g.ends_on + app_engagement_reminder_days()
+  AND app_engagement_open(g.id);
+```
+
+The notices go into each person's summary mail, so mails are at most one per person that day. Run it after the migration (the functions come with it) and before the next daily job, or with the functions' bodies inlined before.
+
 ## When something goes wrong
 
 ### A personal-data breach

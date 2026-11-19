@@ -10,6 +10,10 @@
 // ("info_request.overdue"), however many items. A deliverable handed over
 // and still waiting after ten working days reminds its receivers once
 // ("deliverable.reminder"); the count of those rounds is added to `sent`.
+// An open engagement 30 days or less from its end date tells the client's
+// lead and deputy and the firm's admins once ("engagement.ending"), and once
+// more after the date if it is still open ("engagement.ended"), never anyone
+// at the client (app_remind_engagements, migration 0109).
 //
 // Then app_queue_digests() (migration 0019) queues the summary mail, which
 // only says there is something new and links to the notifications page:
@@ -56,6 +60,10 @@ export async function runFollowUps(db: Queryable, today: string): Promise<{ sent
   // A deliverable handed over and still waiting after ten Saudi working days
   // reminds its receivers once (F21, app_remind_deliverables), in the same summary.
   const deliverables = await db.query(`SELECT app_remind_deliverables($1::date) AS n`, [today]);
+  const engagements = await db.query(`SELECT app_remind_engagements($1::date) AS n`, [today]);
   const mailed = await db.query(`SELECT app_queue_digests($1::date) AS mailed`, [today]);
-  return { sent: Number(rows[0]!.sent) + Number(deliverables.rows[0]!.n), mailed: Number(mailed.rows[0]!.mailed) };
+  return {
+    sent: Number(rows[0]!.sent) + Number(deliverables.rows[0]!.n) + Number(engagements.rows[0]!.n),
+    mailed: Number(mailed.rows[0]!.mailed),
+  };
 }

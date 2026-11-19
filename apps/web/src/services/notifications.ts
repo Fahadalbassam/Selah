@@ -6,6 +6,7 @@ import {
   clientKpis,
   clientKpiValues,
   engagementDeliverables,
+  engagements,
   inquiries,
   mailKpiMutes,
   mailMutes,
@@ -38,6 +39,10 @@ export interface NotificationItem {
   href: string | null;
   /** An indicator that moved away (indicator.moved_away): the figures its line states. */
   facts: MovedAwayFacts | null;
+  /** A change of lead consultant: the new lead's name. */
+  name: string | null;
+  /** An engagement near or past its end: its end date (yyyy-mm-dd). */
+  date: string | null;
   readAt: Date | null;
   createdAt: Date;
 }
@@ -192,6 +197,41 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
     for (const s of found) titles.set(s.id, { title: s.name, titleAr: s.nameAr });
   }
 
+  // A change of the client's lead consultant (migration 0109): the client and the new lead's
+  // name, read through a function that answers only for the reader's own notices (the
+  // record itself, with its handover note, is firm only). The client's admins open Help
+  // ("Your consultants"); the person who led before opens the client page, or their home once off its team.
+  const names = new Map<string, string | null>();
+  const changeLinks = new Map<string, string>();
+  const changeIds = ids(rows, "lead_change");
+  if (changeIds.length) {
+    const { rows: found } = await tx.execute<{ id: string; client_org_id: string; client_name: string; client_name_ar: string | null; lead_name: string | null }>(
+      sql`select * from app_lead_change_notices(${`{${changeIds.join(",")}}`}::uuid[])`,
+    );
+    for (const c of found) {
+      // A new lead whose account is gone since: the line reads as about something no longer there.
+      if (!c.lead_name) continue;
+      titles.set(c.id, { title: c.client_name, titleAr: c.client_name_ar });
+      names.set(c.id, c.lead_name);
+      // The old lead opens the client while they still may; otherwise their home.
+      const mayOpen = principal.role === "firm_admin" || principal.assignedClientIds.has(c.client_org_id);
+      changeLinks.set(c.id, principal.orgKind === "client" ? "/help" : mayOpen ? `/clients/${c.client_org_id}` : "/");
+    }
+  }
+
+  // An engagement near or past its end (migration 0109): titled, with its end date, under the reader's rights.
+  const dates = new Map<string, string | null>();
+  const engagementIds = ids(rows, "engagement");
+  if (engagementIds.length) {
+    for (const g of await tx
+      .select({ id: engagements.id, title: engagements.title, endsOn: engagements.endsOn })
+      .from(engagements)
+      .where(inArray(engagements.id, engagementIds))) {
+      titles.set(g.id, { title: g.title, titleAr: null });
+      dates.set(g.id, g.endsOn);
+    }
+  }
+
   const items: NotificationItem[] = rows.map((r) => {
     const t = titles.get(r.entityId);
     const found = r.entityType === "kpi_value" ? facts.get(r.entityId) : undefined;
@@ -206,8 +246,12 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
           ? `/indicators/${f.kpiId}`
           : r.entityType === "deliverable"
             ? (deliverableLinks.get(r.entityId) ?? null)
-            : hrefFor(r.kind, r.entityType, r.entityId, principal.orgKind),
+            : r.entityType === "lead_change"
+              ? (changeLinks.get(r.entityId) ?? null)
+              : hrefFor(r.kind, r.entityType, r.entityId, principal.orgKind),
       facts: f,
+      name: names.get(r.entityId) ?? null,
+      date: dates.get(r.entityId) ?? null,
     };
   });
   return { items, unread: await unreadCount(tx, principal) };
@@ -235,6 +279,8 @@ function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Pr
   if (kind.startsWith("pulse.") || kind.startsWith("case_study.")) return `/projects/${entityId}?tab=closing`;
   // A client confirmed receiving its export pack: the firm admin sees it on the client page's Setup tab.
   if (kind === "client.pack_received") return clientTabHref(entityId, "setup");
+  // The new lead reads the handover note on the client's People tab.
+  if (kind === "client.lead") return clientTabHref(entityId, "people", "handover");
   // Archiving and restoring reach the client's admins, who have no client page.
   if (kind.startsWith("client.")) return "/";
   // Indicators waiting for this period's values are listed on the client's overview.
@@ -254,6 +300,8 @@ function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Pr
       return `/inquiries/${entityId}`;
     case "kpi":
       return `/indicators/${entityId}`;
+    case "engagement":
+      return `/engagements/${entityId}`;
     default:
       return null;
   }

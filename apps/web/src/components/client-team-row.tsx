@@ -36,7 +36,19 @@ export function ClientTeamMenu(props: {
           key: "makeLead",
           label: t("makeLead"),
           allowed: inMenu.has("makeLead"),
-          onSelect: () => void call({ endpoint: `${base}/lead`, method: "PUT", body: { userId: m.userId } }),
+          // With an optional handover note for the new lead (firm only, Gate B 6.2).
+          dialog: (control) => (
+            <FormDialog
+              control={control}
+              title={t("makeLeadTitle", { name: m.name })}
+              description={t("makeLeadHint")}
+              endpoint={`${base}/lead`}
+              method="PUT"
+              extra={{ userId: m.userId }}
+              fields={[{ name: "handoverNote", label: t("handoverNote"), type: "textarea", maxLength: 4000, hint: t("handoverNoteHint") }]}
+              submitLabel={t("makeLead")}
+            />
+          ),
         },
         {
           key: "makeDeputy",

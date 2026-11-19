@@ -396,6 +396,31 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             </CardContent>
           </Card>
 
+          {/* The note written for the new lead at the last change of lead (Gate B 6.2): firm only, never the client. */}
+          {data.handover ? (
+            <Card id="handover" className="scroll-mt-20 gap-3 py-5 shadow-xs">
+              <CardHeader className="px-5">
+                <CardTitle className="text-base">{t("handoverTitle")}</CardTitle>
+                <CardDescription>
+                  {data.handover.fromName
+                    ? t("handoverByFrom", {
+                        author: data.handover.author ?? "",
+                        date: format.dateTime(data.handover.at, { dateStyle: "medium" }),
+                        from: data.handover.fromName,
+                      })
+                    : t("handoverBy", { author: data.handover.author ?? "", date: format.dateTime(data.handover.at, { dateStyle: "medium" }) })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 px-5">
+                <p dir="auto" className="whitespace-pre-line text-sm">
+                  {data.handover.note}
+                </p>
+                {data.handover.earlier ? <p className="text-xs text-muted-foreground">{t("handoverEarlier")}</p> : null}
+                <p className="text-xs text-muted-foreground">{t("handoverPrivate")}</p>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* The client's own accounts (was /clients/:id/people). */}
           {data.admin ? (
             <div id="accounts" className="scroll-mt-20">

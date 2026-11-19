@@ -1184,7 +1184,16 @@
     "consultantsCount": "{n, plural, one {# consultant} other {# consultants}}",
     "pitches": "Pitches",
     "pitchesHint": "Organisations the firm started a pitch for that are not clients yet.",
-    "suggested": "Suggested"
+    "suggested": "Suggested",
+    "makeLeadTitle": "Make {name} the lead consultant",
+    "makeLeadHint": "The client's admins are told who their new lead consultant is, and the lead before is told the client was handed over.",
+    "handoverNote": "Handover note (optional)",
+    "handoverNoteHint": "A few lines for the new lead: open promises, people worth knowing. Only the firm's people on this client read it; the client never does.",
+    "handoverTitle": "Handover note",
+    "handoverBy": "Written by {author} on {date}",
+    "handoverByFrom": "Written by {author} on {date}, when the client moved from {from}",
+    "handoverPrivate": "For the firm's people on this client only; the client never sees it.",
+    "handoverEarlier": "This note was written at an earlier change of lead, not the latest one."
   },
   "inquiry": {
     "metaTitle": "Work with us",
@@ -2344,16 +2353,20 @@
       "org_chart_request_declined": "Your consultants declined the change you suggested to your company's structure",
       "action_owner_moved": "An action you had on {title} was given to a colleague",
       "action_owner_changed": "{title} was given to someone else",
-      "action_owner_left": "{title} has no active owner: the person who held it left. Give it to someone from their leaving report"
+      "action_owner_left": "{title} has no active owner: the person who held it left. Give it to someone from their leaving report",
+      "client_lead_changed": "Your company's lead consultant at the firm is now {name}",
+      "client_handed_over": "{title} was handed to {name}, its lead consultant now",
+      "engagement_ending": "The engagement {title} ends on {date}",
+      "engagement_ended": "The engagement {title} ended on {date} and is still open"
     },
     "mail": {
       "sectionHint": "In-app notifications always arrive. These choices only change what reaches your inbox, and when.",
       "title": "When mail reaches you",
       "hint": "Every mail is a short line and a link: titles and details stay in Selah.",
       "updates": "Updates on your actions",
-      "updatesHint": "When an action is given to you, sent back, accepted, or needs evidence, and when someone comments on an action you follow or mentions you.",
+      "updatesHint": "When an action is given to you, sent back, accepted, or needs evidence, when someone comments on an action you follow or mentions you, and when a client's or your company's lead consultant changes.",
       "reminders": "Reminders and escalations",
-      "remindersHint": "Due-soon and overdue reminders, requested documents, an indicator's latest figure compared with its baseline or target, and files handed over to you still waiting for your confirmation of receipt, gathered into one summary.",
+      "remindersHint": "Due-soon and overdue reminders, requested documents, an indicator's latest figure compared with its baseline or target, files handed over to you still waiting for your confirmation of receipt, and engagements near their end, gathered into one summary.",
       "cadence": {
         "instant": "Right away",
         "daily": "Daily summary",
