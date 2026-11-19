@@ -335,6 +335,56 @@ describe("D1 on a minimal-records client: the owner is a typed name", () => {
   });
 });
 
+// Review S5: the database holds the rule for the firm's side too, not only the service: a closed
+// project's actions keep their owner, and an observer changes nothing.
+describe("the firm's side in the database", () => {
+  const CLOSED = id(300);
+  const AC = id(301);
+  beforeAll(async () => {
+    await q(`INSERT INTO projects (id, kind, org_id, firm_org_id, title, state, created_by) VALUES ($1,'client',$2,$3,'Closed one','active',$4)`, [CLOSED, ACME, FIRM, U.fadmin]);
+    await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false), ($1,$3,false), ($1,$4,false)`, [CLOSED, U.staff, U.owner1, U.owner2]);
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Closed rec','shared',$4)`, [id(302), CLOSED, ACME, U.staff]);
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by) VALUES ($1,$2,$3,$4,'Left open at closing',$5,'in_progress',app_firm_today() + 30,$6)`,
+      [AC, CLOSED, ACME, id(302), U.owner1, U.staff],
+    );
+    await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [CLOSED]).catch(async () => {
+      await q(`ALTER TABLE projects DISABLE TRIGGER USER`);
+      await q(`UPDATE projects SET state = 'closed' WHERE id = $1`, [CLOSED]);
+      await q(`ALTER TABLE projects ENABLE TRIGGER USER`);
+    });
+  });
+  const set = `UPDATE actions SET owner_user_id = $2 WHERE id = $1`;
+
+  it("refuses a staffed consultant on a closed project, in SQL", async () => {
+    await expect(as(U.staff, (c) => c.query(set, [AC, U.owner2]))).rejects.toThrow(/who owns|closed/);
+  });
+
+  it("refuses an observer, in SQL", async () => {
+    await expect(as(U.observer, (c) => c.query(set, [A.open, U.owner2]))).rejects.toThrow(/who owns|observe/);
+  });
+
+  // The rule itself (other guards refuse these updates too, so the rule is asked directly):
+  // each case fails if its clause is taken out of app_can_change_owner().
+  const may = async (who: string, aid: string) => (await as(who, (c) => c.query(`SELECT app_can_change_owner($1) AS ok`, [aid]))).rows[0].ok;
+  it("the rule answers no on a closed project", async () => {
+    expect(await may(U.staff, AC)).toBe(false);
+    expect(await may(U.fadmin, AC)).toBe(false);
+  });
+  it("the rule answers no to an observer, and yes to the staffed consultant beside her", async () => {
+    expect(await may(U.observer, A.open)).toBe(false);
+    expect(await may(U.staff, A.open)).toBe(true);
+  });
+  it("the update trigger asks the rule for the firm too", async () => {
+    const trigger = (await q(`SELECT prosrc FROM pg_proc WHERE proname = 'check_action_transition'`)).rows[0].prosrc as string;
+    expect(trigger).toMatch(/owner_user_id IS DISTINCT FROM OLD\.owner_user_id[\s\S]*app_uid\(\) IS NOT NULL[\s\S]*app_can_change_owner/);
+  });
+
+  it("still lets a staffed consultant, in SQL", async () => {
+    await as(U.staff, (c) => c.query(set, [A.open, U.owner2]));
+  });
+});
+
 // Review S3 (the coordinator's decision): "Reassign their actions first" on a project's People tab
 // opens that person's open actions on this project, each with its own owner control, for everyone
 // who may reassign; never the switch-off dialog.

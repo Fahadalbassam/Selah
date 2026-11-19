@@ -631,6 +631,13 @@
       "when": 1795056354499,
       "tag": "0102_action_owner_history",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1795057329961,
+      "tag": "0103_action_owner_firm",
+      "breakpoints": true
     }
   ]
 }
