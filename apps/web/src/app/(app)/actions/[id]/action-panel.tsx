@@ -27,6 +27,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
 import type { NextPlan } from "@/lib/action-next";
 import { firmToday } from "@/lib/dates";
+import { reviewNote } from "@/lib/review-note";
 import { RECEIVED_VIA, receivedPayload, type ReceivedVia } from "@/lib/engagement";
 import { ASK_EVENT } from "@/lib/help";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,8 @@ interface Props {
   awaitingSince: string | Date | null;
   /** The firm's reviewers for this round, by name (N25), or null for a client reader. */
   reviewers: string[] | null;
+  /** The reader is the firm's admin: nobody is left to review once they have recorded the round. */
+  readerIsFirmAdmin?: boolean;
   /** A proposed date this reader may decide. */
   date: { id: string; proposedDueDate: string; reason: string; requestedBy: string | null; needsLead: boolean } | null;
   dueDate: string | null;
@@ -221,7 +224,7 @@ export function ActionPanel(p: Props) {
       : plan.waiting === "otherReviewer"
         ? p.reviewers?.length
           ? tn("otherReviewer", { names: names(p.reviewers) })
-          : tn("noReviewer")
+          : tn(reviewNote([], !!p.readerIsFirmAdmin) === "firmAdmin" ? "firmAdminReviews" : "noReviewer")
         : plan.waiting
           ? tn(plan.waiting)
           : null;
@@ -272,7 +275,12 @@ export function ActionPanel(p: Props) {
         {plan.secondChecks && !p.firmView ? <p className="text-sm text-muted-foreground">{tn("secondChecks")}</p> : null}
         {/* Who reviews (N25): on a client the firm runs the consultant recording it reads that someone else checks it. */}
         {p.recordFor && (plan.main === "send" || plan.main === "resend") && p.reviewers ? (
-          <p className="text-xs text-muted-foreground">{p.reviewers.length ? tn("reviewedBy", { names: names(p.reviewers) }) : tn("noReviewer")}</p>
+          <p className="text-xs text-muted-foreground">
+            {(() => {
+              const note = reviewNote(p.reviewers, !!p.readerIsFirmAdmin);
+              return note === "names" ? tn("reviewedBy", { names: names(p.reviewers) }) : tn(note === "firmAdmin" ? "firmAdminReviews" : "noReviewer");
+            })()}
+          </p>
         ) : null}
         {p.after}
         {plan.links.length ? (

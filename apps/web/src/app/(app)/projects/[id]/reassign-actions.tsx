@@ -69,7 +69,7 @@ function ReassignRow({ action }: { action: { id: string; title: string; control:
       {typed ? (
         <Input aria-label={action.control.minimal ? t("jobTitle") : t("name")} value={value} onChange={(e) => setValue(e.target.value)} maxLength={200} dir="auto" />
       ) : action.control.people.length ? (
-        <PersonPicker options={action.control.people.map((p) => ({ value: p.id, label: p.name }))} onValueChange={setValue} placeholder={t("toPlaceholder")} />
+        <PersonPicker options={action.control.people.map((p) => ({ value: p.id, label: p.name, alt: p.nameAlt ? [p.nameAlt] : undefined }))} onValueChange={setValue} placeholder={t("toPlaceholder")} />
       ) : (
         <span className="text-xs text-muted-foreground">{t("nobody")}</span>
       )}

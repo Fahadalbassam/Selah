@@ -58,11 +58,12 @@ function fileSize(bytes: number) {
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads, second, me, owner } = await withPrincipal(
+  const { data, follow, closing, depts, firmView, notes, ladder, muted, failing, thread, slip, leads, second, me, owner, isFirmAdmin } = await withPrincipal(
     async (tx, principal) => {
       const data = await getActionDetail(tx, principal, id);
       return {
         me: principal.userId,
+        isFirmAdmin: principal.role === "firm_admin",
         ladder: await actionLadder(tx, principal, id),
         muted: await isActionMuted(tx, principal, id),
         // Firm staff see when mail to the owner isn't getting through.
@@ -295,6 +296,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
             ownerGone={data.ownerGone}
             blockedReason={action.blockedReason}
             awaitingSince={action.awaitingSince}
+            readerIsFirmAdmin={isFirmAdmin}
             reviewers={firmView ? data.reviewers.filter((r) => r.id !== me).map((r) => r.name) : null}
             date={
               pending && follow.can.decideDeadline

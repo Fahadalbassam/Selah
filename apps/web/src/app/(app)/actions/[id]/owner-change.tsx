@@ -59,7 +59,7 @@ export function OwnerChange({ actionId, projectId, control, firmView }: { action
             <div className="grid gap-2">
               <Label htmlFor="owner-to">{t("to")}</Label>
               {control.people.length ? (
-                <PersonPicker id="owner-to" options={control.people.map((p) => ({ value: p.id, label: p.name }))} onValueChange={setTo} placeholder={t("toPlaceholder")} />
+                <PersonPicker id="owner-to" options={control.people.map((p) => ({ value: p.id, label: p.name, alt: p.nameAlt ? [p.nameAlt] : undefined }))} onValueChange={setTo} placeholder={t("toPlaceholder")} />
               ) : (
                 <p className="text-sm text-muted-foreground">{t("nobody")}</p>
               )}

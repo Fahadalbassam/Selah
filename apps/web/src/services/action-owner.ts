@@ -21,8 +21,8 @@ import { audit } from "./audit";
 export interface OwnerControl {
   /** A person on the project, or (a client the firm runs) a typed name or job title. */
   mode: "person" | "typed";
-  /** Colleagues on the project, of the action's own organisation, active, not observing; never the current owner. */
-  people: { id: string; name: string }[];
+  /** Colleagues on the project, of the action's own organisation, active, not observing; never the current owner, and not the client admin unless the client is restricted. */
+  people: { id: string; name: string; nameAlt: string | null }[];
   /** A minimal-records client: the name is a job title, never a person's name. */
   minimal: boolean;
   /** The client's admin may first add a colleague to the project on its People tab. */
@@ -44,12 +44,12 @@ async function load(tx: Tx, principal: Principal, actionId: string) {
     .select({ mode: organizations.engagementMode, minimal: organizations.minimalRecords })
     .from(organizations)
     .where(eq(organizations.id, loaded.action.orgId));
-  return { ...loaded, typed: org?.mode === "consultant_managed", minimal: org?.minimal ?? false };
+  return { ...loaded, typed: org?.mode === "consultant_managed", minimal: org?.minimal ?? false, restricted: org?.mode === "restricted" };
 }
 
 /** The control on the action page, built only for someone the database lets change the owner. */
 export async function ownerControl(tx: Tx, principal: Principal, actionId: string): Promise<OwnerControl | null> {
-  const { action, resource, typed, minimal } = await load(tx, principal, actionId);
+  const { action, resource, typed, minimal, restricted } = await load(tx, principal, actionId);
   if (!authorize(principal, "action.assign_owner", resource).allowed) return null;
   if (!(await canChangeOwner(tx, actionId))) return null;
   // A typed name is the firm's to write (it edits the plan); the client has accounts.
@@ -57,7 +57,7 @@ export async function ownerControl(tx: Tx, principal: Principal, actionId: strin
   const people = minimal
     ? []
     : await tx
-        .select({ id: user.id, name: user.name })
+        .select({ id: user.id, name: user.name, nameAlt: user.nameAlt })
         .from(projectMembers)
         .innerJoin(user, eq(user.id, projectMembers.userId))
         .innerJoin(
@@ -68,6 +68,8 @@ export async function ownerControl(tx: Tx, principal: Principal, actionId: strin
           and(
             eq(projectMembers.projectId, action.projectId),
             eq(projectMembers.observer, false),
+            // A full client's admin does not do actions; a restricted client has admins only (PR #197).
+            restricted ? undefined : ne(orgMemberships.role, "client_admin"),
             action.ownerUserId ? ne(projectMembers.userId, action.ownerUserId) : undefined,
           ),
         )
