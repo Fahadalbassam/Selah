@@ -22,6 +22,7 @@ import { indexDocument, pagesFromText, type Embed } from "@/jobs/index-documents
 import { setAssistantFlag, withdrawDocument } from "@/services/documents";
 import { reportPdf } from "@/services/exports";
 import { getReport, projectMetrics, projectProgress, shareReport, snapshotReport } from "@/services/follow-through";
+import { approveReport } from "@/services/report-send";
 import { loadPrincipal } from "@/services/principal";
 import { issueStatusPack } from "@/services/status-pack";
 import { truncateAuditLog } from "./audit-reset";
@@ -191,7 +192,8 @@ describe("L4: numbers frozen on a shared report count only what the client may s
     const live = await svc(U.cadmin, (tx, p) => projectProgress(tx, p, P));
     expect(live.total).toBe(2);
     const { id: rid } = await svc(U.lead, (tx, p) => snapshotReport(tx, p, P, { title: "Monthly", periodStart: "2026-11-01", periodEnd: today() }), true);
-    await svc(U.lead, (tx, p) => shareReport(tx, p, rid), true);
+    await svc(U.admin, (tx, p) => approveReport(tx, p, rid), true);
+    await svc(U.lead, (tx, p) => shareReport(tx, p, rid, { confirmed: true }), true);
     const seen = await svc(U.cadmin, (tx, p) => getReport(tx, p, rid));
     const m = seen.report.metrics as { total: number; open: number; overdue: number };
     expect({ total: m.total, open: m.open, overdue: m.overdue }).toEqual({ total: live.total, open: live.open, overdue: live.overdue });
@@ -398,7 +400,8 @@ describe("review S1: what was written before the fix", () => {
 describe("review S2: the report PDF is the client's copy", () => {
   it("lists no firm-only action, for the firm reader and for the client", async () => {
     const { id: rid } = await svc(U.lead, (tx, p) => snapshotReport(tx, p, P, { title: "For the PDF", periodStart: "2026-11-01", periodEnd: today() }), true);
-    await svc(U.lead, (tx, p) => shareReport(tx, p, rid), true);
+    await svc(U.admin, (tx, p) => approveReport(tx, p, rid), true);
+    await svc(U.lead, (tx, p) => shareReport(tx, p, rid, { confirmed: true }), true);
     for (const who of [U.lead, U.cadmin]) {
       rendered.length = 0;
       await svc(who, (tx, p) => reportPdf(tx, p, rid, "en"));

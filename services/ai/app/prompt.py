@@ -42,6 +42,21 @@ You are answering a person at the CLIENT organisation, not a consultant. Extra r
 - Never rate or judge the work, in an answer or a draft: no words such as "good progress", "on track", "excellent", "behind schedule", "well done", "satisfactory", «تقدم جيد», «على المسار الصحيح», «ممتاز». State the facts and dates only.
 - Keep the tone factual and neutral; do not criticise the client's staff or the firm."""
 
+# Added for firm staff who ask for a progress-update draft (migration 0110):
+# the same facts-only draft a client person gets, for the free-text note of
+# the firm's report to the client. The web app sends only the work the client
+# may be shown and refuses every other draft before the model is asked; a
+# person edits the note, a colleague approves the report and someone presses
+# Send. Selah never sends it.
+STAFF_DRAFT_RULES = """
+
+The consultant asks for a draft of the client's progress update, for the note of the firm's report to the client. Extra rules:
+- Write it only from the passages: what is done, in progress, waiting (for the firm's review or for the client) and late, each with its date and citation.
+- Begin it with the line "Draft: check before sending" in English or «مسودة: راجعها قبل الإرسال» in Arabic.
+- Never rate or judge the work: no words such as "good progress", "on track", "excellent", "behind schedule", "well done", "satisfactory", «تقدم جيد», «على المسار الصحيح», «ممتاز». State the facts and dates only.
+- Never say what the firm or its consultants intend, think or will do, and never mention internal firm material (notes, scores, assessments).
+- Write to the client's people ("your company"), in a factual and neutral tone."""
+
 ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -84,6 +99,7 @@ def build_messages(
     language: Literal["ar", "en", "auto"],
     history: list[HistoryTurn] | None = None,
     audience: Literal["staff", "client"] = "staff",
+    progress_draft: bool = False,
 ) -> tuple[str, str]:
     body = "\n".join(
         f'<passage id="{_escape(p.id)}" source="{_escape(p.source)}">\n{_escape(p.text)}\n</passage>' for p in passages
@@ -93,10 +109,11 @@ def build_messages(
         turns = "\n".join(f'<turn role="{t.role}">\n{_escape(t.content)}\n</turn>' for t in history)
         user = f"<history>\n{turns}\n</history>\n\n{user}"
     system = SYSTEM.format(language=LANGUAGE[language])
-    if audience == "client":
-        # Before the JSON instruction, so the reply format stays the last thing the model reads.
+    # Before the JSON instruction, so the reply format stays the last thing the model reads.
+    extra = CLIENT_RULES if audience == "client" else STAFF_DRAFT_RULES if progress_draft else ""
+    if extra:
         head, sep, tail = system.rpartition("\nReply as JSON:")
-        system = f"{head}{CLIENT_RULES}{sep}{tail}"
+        system = f"{head}{extra}{sep}{tail}"
     return system, user
 
 
@@ -118,13 +135,14 @@ def check_answer(
 ) -> Answer:
     """Parse the model's reply and keep only citations we actually supplied.
     Anything malformed, grounded without a valid citation, or "grounded" but
-    only a heading (unfinished), is ungrounded. A client person's
-    progress-update draft (progress_draft) loses every sentence that rates the
+    only a heading (unfinished), is ungrounded. A progress-update draft
+    (progress_draft: a client person's, or firm staff's for the firm's report,
+    migration 0110) loses every sentence that rates the
     work (without_ratings) and gets its mark in the one canonical form; a
     draft left with nothing but the mark is ungrounded. Other answers are not
     changed by this check (review S1: "outstanding" and quoted policy text are facts)."""
     parsed = _parse_answer(raw, passages)
-    if parsed.grounded and audience == "client" and progress_draft:
+    if parsed.grounded and progress_draft:
         mark, body = split_draft_mark(parsed.answer)
         kept = without_ratings(body)
         if not re.search(r"[^\W_]", strip_markers(kept)):

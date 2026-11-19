@@ -442,6 +442,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
                     failed={failed}
                     note={client ? t("clientDisclaimer") : t("disclaimer")}
                     slow={ctx.model === "local"}
+                    firm={!client}
                   />
                   <Composer onAsk={ask} busy={pending !== null} disabled={false} usage={ctx.usage} />
                 </section>

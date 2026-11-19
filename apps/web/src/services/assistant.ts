@@ -17,7 +17,7 @@ import {
   statusIntent,
   type StatusKind,
 } from "@/lib/assistant-search";
-import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
+import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, STAFF_DRAFT_REFUSAL, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
@@ -102,9 +102,9 @@ export interface PreparedAsk {
   language: AskInput["language"];
   /** The model's audience: a client person gets the client rules and the client filter. */
   client: boolean;
-  /** A client person asked for a draft of their progress update: the answer starts with DRAFT_MARK. */
+  /** A draft of the progress update (a client person, or firm staff for the firm's report): the answer starts with DRAFT_MARK. */
   progressDraft: boolean;
-  /** A client person asked for any other draft: refused without asking the model (review S3). */
+  /** Any other draft, from anyone: refused without asking the model (review S3; staff since migration 0110). */
   refusedDraft: boolean;
   /** Null for a chat across projects. */
   projectId: string | null;
@@ -188,11 +188,12 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
-  // A client person's progress-update draft: built from the records they can read, done ones included.
-  const progressDraft = client && progressDraftIntent(input.question);
+  // A progress-update draft, built from the records the person can read, done ones included: a client
+  // person's own, or firm staff's for the note of the firm's report (Fahad, 19 Nov: the same draft, reused).
+  const progressDraft = progressDraftIntent(input.question);
   // "My deadlines": only the person's own actions. It only narrows what they can read (statusRecords).
-  // Any other draft (an e-mail, a letter, a decision) is refused here, not left to the prompt (review S3).
-  const refusedDraft = client && !progressDraft && otherDraftIntent(input.question);
+  // Any other draft (an e-mail, a letter, a decision) is refused here, not left to the prompt (review S3), for staff too.
+  const refusedDraft = !progressDraft && otherDraftIntent(input.question);
   // A client item (Gate B): firm staff keep the project's status for "my ..." (review S5).
   const mine = client && !progressDraft && mineIntent(input.question) && (kinds.size > 0 || myDeadlinesIntent(input.question));
   if (mine && !kinds.size) kinds.add("open");
@@ -203,7 +204,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const team = client && consultantIntent(input.question) ? await consultantRecords(tx, principal, targets, across ? whereOf : undefined) : [];
   const counts = [
     ...(progressDraft
-      ? await progressRecords(tx, ids, across ? whereOf : undefined)
+      ? await progressRecords(tx, ids, across ? whereOf : undefined, { clientSide: !client })
       : kinds.size
         ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined, mine ? { mine: principal.userId } : {})
         : []),
@@ -388,7 +389,7 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     text = grounded ? said : cannotConfirm(language, question);
     if (!grounded) citations = [];
   } else if (prepared.refusedDraft) {
-    text = DRAFT_REFUSAL[language === "auto" ? detectLang(question) : language];
+    text = (prepared.client ? DRAFT_REFUSAL : STAFF_DRAFT_REFUSAL)[language === "auto" ? detectLang(question) : language];
   } else {
     text = cannotConfirm(language, question);
   }
@@ -414,7 +415,13 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     // A progress-update draft always says it is one, first, once, whatever the model wrote. Not on an answer
     // the client filter changed: that is no longer the draft (review N1).
     if (prepared.progressDraft && grounded && !filtered) text = withDraftMark(text, lang);
+  } else if (prepared.progressDraft && grounded) {
+    // Firm staff's draft says it is one the same way; it goes no further than the chat until someone
+    // uses it on the report page ("Use as draft"), and a colleague approves the report before it is sent.
+    text = withDraftMark(text, language === "auto" ? detectLang(question) : language);
   }
+  // Kept with the answer, so the chat can offer "Use as draft" under it (migration 0110).
+  const isProgressDraft = prepared.progressDraft && grounded && !filtered;
 
   const conversationId = prepared.chatId ?? (await newConversation(tx, principal, prepared.projectId, question, prepared.case ?? undefined));
   // Each message is stored once, in its own language; the other comes from the translation cache.
@@ -424,7 +431,7 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     .insert(aiMessages)
     .values([
       { conversationId, userId: principal.userId, role: "user", content: question, lang: detectLang(question), projectIds },
-      { conversationId, userId: principal.userId, role: "assistant", content: text, lang: answerLang, citations, projectIds },
+      { conversationId, userId: principal.userId, role: "assistant", content: text, lang: answerLang, citations, projectIds, progressDraft: isProgressDraft },
     ])
     .returning({ id: aiMessages.id, role: aiMessages.role });
 
@@ -440,7 +447,7 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
 
   // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").
   const messageId = saved.find((m) => m.role === "assistant")!.id;
-  return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations };
+  return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations, progressDraft: isProgressDraft };
 }
 
 /**
@@ -968,11 +975,23 @@ const MAX_PROGRESS_ACTIONS = 9;
  * manager: their departments'; never a draft action, D6). A count by state,
  * then the actions: late first, then waiting, in progress, not started and
  * done, each with its date. Facts only: the model writes the draft from these.
+ * Firm staff get the same draft for the note of the firm's report (migration
+ * 0110), with `clientSide`: only the work the client may be shown.
  */
-export async function progressRecords(tx: Tx, projectIds: string[], where?: Map<string, string>): Promise<RecordPassage[]> {
+export async function progressRecords(
+  tx: Tx,
+  projectIds: string[],
+  where?: Map<string, string>,
+  opts: { clientSide?: boolean } = {},
+): Promise<RecordPassage[]> {
   if (!projectIds.length) return [];
   const today = sql`${firmToday()}::date`;
-  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) AND a.status <> 'draft'`;
+  // Firm staff's draft is for a report the client will read: only the work the client may be shown
+  // (released actions under shared recommendations), as app_project_progress(client_side) counts it (L4).
+  const shown = opts.clientSide
+    ? sql` AND (a.recommendation_id IS NULL OR EXISTS (SELECT 1 FROM recommendations r WHERE r.id = a.recommendation_id AND r.visibility = 'shared'))`
+    : sql``;
+  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) AND a.status <> 'draft'${shown}`;
   const rows = (
     await tx.execute<{
       id: string;
@@ -1218,6 +1237,7 @@ export async function getConversation(tx: Tx, principal: Principal, id: string, 
       content: aiMessages.content,
       lang: aiMessages.lang,
       citations: aiMessages.citations,
+      progressDraft: aiMessages.progressDraft,
       createdAt: aiMessages.createdAt,
     })
     .from(aiMessages)
@@ -1248,6 +1268,7 @@ export async function getConversation(tx: Tx, principal: Principal, id: string, 
       role: m.role,
       content: m.content,
       lang: m.lang as "ar" | "en",
+      progressDraft: m.progressDraft,
       createdAt: m.createdAt,
       translation: kept.get(m.id) ?? null,
       citations: ((m.citations ?? []) as Citation[]).map((c): ShownCitation => {

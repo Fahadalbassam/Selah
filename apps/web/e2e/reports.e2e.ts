@@ -3,8 +3,9 @@ import { ids, one } from "./support/db";
 import { L } from "./support/msg";
 import { open } from "./support/ui";
 
-// A frozen progress report: created by the consultant, firm-only until
-// shared, then readable by the client's manager and nobody else.
+// A frozen progress report: created by the consultant, firm-only until a
+// colleague approves it and it is sent from the confirmation dialog, then
+// readable by the client's manager and nobody else.
 const stamp = Date.now().toString(36);
 const title = `October report ${stamp}`;
 test.describe.configure({ mode: "serial" });
@@ -33,12 +34,21 @@ test("the client can't read it until it's shared, then can (Arabic)", async ({ b
   await reem.goto(`/reports/${reportId}`);
   await expect(reem.getByText(t("notFound.body"))).toBeVisible();
 
+  // Khalid wrote it, so the firm admin approves it first (migration 0110), then he sends it from the confirmation dialog.
+  const admin = await open(browser, "sara", "en");
+  await admin.goto(`/reports/${reportId}`);
+  await admin.getByRole("button", { name: "Approve" }).click();
+  await admin.getByRole("alertdialog").or(admin.getByRole("dialog")).getByRole("button").filter({ hasText: /approve|continue|confirm/i }).last().click();
+  await expect.poll(() => one(`select approved_at is not null from reports where id='${reportId}'`)).toBe("t");
+
   const page = await open(browser, "khalid", "en");
   await page.goto(`/reports/${reportId}`);
-  const share = page.getByRole("button", { name: /share/i }).first();
-  await share.click();
-  const dlg = page.getByRole("dialog").or(page.getByRole("alertdialog"));
-  if (await dlg.count()) await dlg.getByRole("button").filter({ hasText: /share|continue|confirm/i }).last().click();
+  await page.getByRole("button", { name: "Send to the client" }).click();
+  const dlg = page.getByRole("dialog");
+  await expect(dlg.getByText(/will see it under Reports/)).toBeVisible();
+  // Opening the dialog sent nothing.
+  expect(await one(`select shared_at is null from reports where id='${reportId}'`)).toBe("t");
+  await dlg.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => one(`select shared_at is not null from reports where id='${reportId}'`)).toBe("t");
 
   await reem.goto(`/reports/${reportId}`);

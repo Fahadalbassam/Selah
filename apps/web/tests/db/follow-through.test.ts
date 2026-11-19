@@ -13,6 +13,7 @@ import { runFollowUps } from "@/jobs/follow-ups";
 import { transitionAction } from "@/services/actions";
 import { itemAnswered } from "@/services/evidence";
 import * as F from "@/services/follow-through";
+import { approveReport } from "@/services/report-send";
 import * as N from "@/services/notifications";
 import * as Q from "@/services/queries";
 import { loadPrincipal } from "@/services/principal";
@@ -868,6 +869,11 @@ describe("implementation progress", () => {
       /cannot change/,
     );
     await expect(attempt(U.cons, `DELETE FROM reports WHERE id = $1`, [rid])).rejects.toThrow(/cannot change/);
+    // Sent only once someone other than its writer approved it (migration 0110).
+    await expect(attempt(U.cons, `UPDATE reports SET visibility = 'shared', shared_at = now() WHERE id = $1`, [rid])).rejects.toThrow(
+      /only once approved/,
+    );
+    await run(U.lead, `UPDATE reports SET approved_by = $2 WHERE id = $1`, [rid, U.lead]);
     await attempt(U.cons, `UPDATE reports SET visibility = 'shared', shared_at = now() WHERE id = $1`, [rid]);
   });
 
@@ -879,12 +885,15 @@ describe("implementation progress", () => {
     expect(await titles(U.cons)).toContain(rid);
     expect(await titles(U.cmgr)).not.toContain(rid);
     await expect(svc(U.cmgr, (tx, p) => F.getReport(tx, p, rid))).rejects.toThrow(/not found/i);
-    await expect(svc(U.cmgr, (tx, p) => F.shareReport(tx, p, rid))).rejects.toThrow(/not found/i);
+    await expect(svc(U.cmgr, (tx, p) => F.shareReport(tx, p, rid, { confirmed: true }))).rejects.toThrow(/not found/i);
     expect((await svc(U.cmgr, (tx, p) => F.listReports(tx, p, PROJ))).can.write).toBe(false);
 
+    // Approved first by someone other than its writer (the client's lead), then sent (migration 0110).
+    expect((await svc(U.cons, (tx, p) => F.getReport(tx, p, rid))).can.share).toBe(false);
+    await svc(U.lead, (tx, p) => approveReport(tx, p, rid));
     expect((await svc(U.cons, (tx, p) => F.getReport(tx, p, rid))).can.share).toBe(true);
-    await svc(U.cons, (tx, p) => F.shareReport(tx, p, rid));
-    await expect(svc(U.cons, (tx, p) => F.shareReport(tx, p, rid))).rejects.toThrow(/already shared/);
+    await svc(U.cons, (tx, p) => F.shareReport(tx, p, rid, { confirmed: true }));
+    await expect(svc(U.cons, (tx, p) => F.shareReport(tx, p, rid, { confirmed: true }))).rejects.toThrow(/already shared/);
     const seen = await svc(U.cmgr, (tx, p) => F.getReport(tx, p, rid));
     expect(seen.report.visibility).toBe("shared");
     expect(seen.can.share).toBe(false);

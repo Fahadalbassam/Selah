@@ -88,10 +88,14 @@ export function FormDialog(props: {
   sendEmptyAsNull?: boolean;
   /** A plain sentence for a refusal the server names (its own words, in English), or null for the usual message. */
   explain?: (message: string | undefined) => string | null;
+  /** Open when the page loads (a page opened to fill it in, such as "Use as draft"). Nothing is sent until submitted. */
+  defaultOpen?: boolean;
+  /** A line above the fields, such as where a pre-filled value came from. */
+  notice?: string;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
-  const { open, setOpen, contentProps } = useDialogControl(props.control);
+  const { open, setOpen, contentProps } = useDialogControl(props.control, props.defaultOpen);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
@@ -130,6 +134,7 @@ export function FormDialog(props: {
             <DialogTitle>{props.title}</DialogTitle>
             {props.description ? <DialogDescription>{props.description}</DialogDescription> : null}
           </DialogHeader>
+          {props.notice ? <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">{props.notice}</p> : null}
           {props.fields.map((f) => (
             <div key={f.name} className="grid gap-2">
               <Label htmlFor={`f-${f.name}`}>{f.label}</Label>

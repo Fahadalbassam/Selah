@@ -1045,3 +1045,45 @@ def test_the_service_strips_ratings_only_for_a_progress_draft(client_with):
 
     assert post(progress_draft=True) == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}
     assert post()["answer"] == "Quarterly. Excellent governance."
+
+
+# --- firm staff get the same facts-only progress draft, for the firm's report (migration 0110)
+
+
+def test_staff_rules_add_the_progress_draft_only_when_asked_for_one():
+    system, _ = build_messages("Draft a progress update", PASSAGES, "en", progress_draft=True)
+    assert "note of the firm's report" in system
+    assert "Draft: check before sending" in system and "مسودة: راجعها قبل الإرسال" in system
+    assert "Never rate or judge the work" in system
+    # The staff rules, never the client's, and the reply format still comes last.
+    assert "CLIENT organisation" not in system
+    assert system.rstrip().endswith('"grounded": boolean}}.') or system.rstrip().endswith('"grounded": boolean}.')
+    plain, _ = build_messages("Draft a progress update", PASSAGES, "en")
+    assert "note of the firm's report" not in plain
+    # A client person's draft keeps the client rules only.
+    client, _ = build_messages("Draft my progress update", PASSAGES, "en", audience="client", progress_draft=True)
+    assert "CLIENT organisation" in client and "note of the firm's report" not in client
+
+
+@pytest.mark.parametrize("rating", RATINGS)
+def test_rating_sentences_are_taken_out_of_a_staff_progress_draft(rating):
+    facts = "Action A was verified on 2026-10-02 [P1]."
+    raw = json.dumps({"answer": f"**Draft: check before sending**\n{facts} {rating}", "cited_ids": ["P1"], "grounded": True})
+    got = check_answer(raw, PASSAGES, "staff", progress_draft=True)
+    assert got.grounded and got.answer == "Draft: check before sending\n\nAction A was verified on 2026-10-02."
+
+
+def test_a_staff_draft_that_is_only_ratings_is_ungrounded():
+    raw = json.dumps({"answer": "Draft: check before sending\nExcellent work, on track [P1].", "cited_ids": ["P1"], "grounded": True})
+    assert check_answer(raw, PASSAGES, "staff", progress_draft=True) == Answer(answer="", cited_ids=[], grounded=False)
+
+
+def test_the_service_strips_ratings_from_a_staff_progress_draft_streamed_or_not(streaming_client):
+    reply = json.dumps({"answer": "Draft: check before sending\nQuarterly [P1]. Good progress overall.", "cited_ids": ["P1"], "grounded": True})
+    client, fake = streaming_client(reply)
+    body = {"question": "Draft a progress update", "passages": [p.model_dump() for p in PASSAGES], "progress_draft": True}
+    got = client.post("/v1/answer", headers={"authorization": f"Bearer {TOKEN}"}, json=body).json()
+    assert got == {"answer": "Draft: check before sending\n\nQuarterly.", "cited_ids": ["P1"], "grounded": True}
+    assert "note of the firm's report" in fake.calls[0][0]
+    lines = [json.loads(x) for x in client.post("/v1/answer/stream", headers={"authorization": f"Bearer {TOKEN}"}, json=body).text.splitlines() if x]
+    assert lines[-1]["type"] == "done" and lines[-1]["answer"]["answer"] == "Draft: check before sending\n\nQuarterly."

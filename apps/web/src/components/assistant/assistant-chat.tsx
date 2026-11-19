@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Languages, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, FilePen, Languages, Pencil, Pin, PinOff, Send as SendIcon, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
@@ -16,6 +16,7 @@ import { Send } from "@/components/animate-ui/icons/send";
 import { BrandLoader, BrandMark } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Hint } from "@/components/hint";
+import { ReportSendDialog } from "@/components/reports/report-send-dialog";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -78,6 +79,8 @@ interface ChatMessage {
   lang: Lang;
   translation: { id: string; text: string; reviewed: boolean } | null;
   citations: Citation[];
+  /** A facts-only progress-update draft (migration 0110): firm staff may use it on the report page. */
+  progressDraft?: boolean;
 }
 
 export interface Chat extends ChatRow {
@@ -412,6 +415,7 @@ export function Thread({
   failed,
   note,
   slow,
+  firm = false,
 }: {
   chat: Chat | null;
   loading: boolean;
@@ -422,6 +426,8 @@ export function Thread({
   note?: string;
   /** The model runs on the firm's own server: answers can take a minute. */
   slow?: boolean;
+  /** Firm staff: a progress draft on one client project gets "Use as draft" and "Send to the client". */
+  firm?: boolean;
 }) {
   const t = useTranslations("assistant");
   const locale = useLocale();
@@ -463,6 +469,7 @@ export function Thread({
                     message={m}
                     projectId={chat!.projectId}
                     latest={m.id === lastAnswer}
+                    reportActions={firm && chat!.projectId !== null && m.progressDraft === true}
                   />
                 )}
               </MessageScrollerItem>
@@ -547,7 +554,18 @@ function Question({ text }: { text: string }) {
  * language: a kept translation is shown at once; the latest answer is
  * translated by itself; older ones stay folded until clicked.
  */
-function AnswerView({ message, projectId, latest }: { message: ChatMessage; projectId: string | null; latest: boolean }) {
+function AnswerView({
+  message,
+  projectId,
+  latest,
+  reportActions = false,
+}: {
+  message: ChatMessage;
+  projectId: string | null;
+  latest: boolean;
+  /** Under a firm person's progress draft: "Use as draft" and "Send to the client" (which only opens the Send dialog). */
+  reportActions?: boolean;
+}) {
   const t = useTranslations("assistant");
   const tt = useTranslations("translation");
   const locale = useLocale() as Lang;
@@ -679,9 +697,42 @@ function AnswerView({ message, projectId, latest }: { message: ChatMessage; proj
             </Marker>
           ) : null}
           {message.citations.length && !folded ? <Sources citations={message.citations} projectId={projectId} /> : null}
+          {reportActions && !folded ? <DraftActions messageId={message.id} /> : null}
         </MessageContent>
       </Message>
     </motion.div>
+  );
+}
+
+/**
+ * Under a firm person's progress draft (migration 0110). "Use as draft" opens
+ * the firm's report page with the draft as the note; nothing is saved until
+ * they save there, and the chat keeps only its answer. "Send to the client"
+ * opens the same Send dialog as the report page, for the report made from
+ * this draft: it never sends by itself and never skips the approval.
+ */
+export function DraftActions({ messageId }: { messageId: string }) {
+  const t = useTranslations("reportSend");
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Hint asChild tip={t("useDraftHint")}>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/assistant/draft/${messageId}`}>
+            <FilePen />
+            {t("useDraft")}
+          </Link>
+        </Button>
+      </Hint>
+      <ReportSendDialog
+        source={{ messageId }}
+        trigger={
+          <Button variant="ghost" size="sm" title={t("sendHint")}>
+            <SendIcon />
+            {t("send")}
+          </Button>
+        }
+      />
+    </div>
   );
 }
 

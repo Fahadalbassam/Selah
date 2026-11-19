@@ -131,6 +131,19 @@ export function withDraftMark(text: string, lang: "ar" | "en"): string {
   return `${DRAFT_MARK[lang]}\n\n${body}`;
 }
 
+/** The draft without its mark: the note a firm report starts from ("Use as draft", migration 0110). */
+export function withoutDraftMark(text: string): string {
+  let body = text.trimStart();
+  while (ANY_DRAFT_MARK.test(body)) body = body.replace(ANY_DRAFT_MARK, "").trimStart();
+  return body.trim();
+}
+
+/** Any draft but the progress update, asked by firm staff: refused the same way, before the model is asked. */
+export const STAFF_DRAFT_REFUSAL = {
+  ar: "لا أكتب الرسائل أو الخطابات أو القرارات أو المحاضر. أستطيع أن أكتب مسودة تحديث عن تقدّم عمل العميل من السجلات، لتستعملها ملاحظةً في تقرير المكتب على صفحة التقرير، أو أن أجيب عن سؤالك من المصادر.",
+  en: "I don't write messages, letters, decisions or minutes. I can write a draft progress update from the records, to use as the note of the firm's report on the report page, or answer your question from the sources.",
+};
+
 /** Any draft but the progress update: refused before the model is asked (review S3). */
 export const DRAFT_REFUSAL = {
   ar: "لا أكتب الرسائل أو الخطابات أو القرارات أو المحاضر. أستطيع أن أكتب لك مسودة تحديث عن تقدّم عملكم من سجلاتك، لتراجعها وترسلها بنفسك، أو أن أجيب عن سؤالك من المصادر المتاحة لك.",

@@ -289,8 +289,10 @@ Rules for every item here:
 - [ ] **LI04** "What changed since my last visit" and a meeting brief in the staff assistant: cited, marked draft, from the readers the screens already use — size: S–M · after: the value test (tasks 3 and 6)
 - [ ] **LI05** Text recognition for scanned pages, on the pages marked scanned only, in the shared queue, indexed once — size: M · model: none (text recognition on the processor)
 - [ ] **LI06** Save an assistant answer with its citations as a firm-only project note, by the asker; never shared with the client automatically — size: S
+- [ ] **LI07** User-made report templates and a richer formatted editor for a report's note — research first: an editor that works well in Arabic right to left, storing formatted text safely (no user HTML shown as is), how it prints in the PDF and translates, and whether the fixed templates are enough; anything sent to the client keeps the approval and the confirmed send — size: M · model: none · keep now: each report's note, its writer, the draft it started from (`reports.draft_message_id`), its approver and when (migration 0110)
+- [ ] **LI08** A client page to keep and edit their own report: the client's progress-update draft saved as their company's own report and edited there; the firm sees it only if the client shares it; Selah never sends it — size: S–M · model: none · keep now: the draft stays an answer in the person's chat (`ai_messages.progress_draft`)
 
-Decided, not an idea: the client's progress-update draft is approved as facts only, marked draft, never sent by Selah (Gate B).
+Decided, not an idea: the client's progress-update draft is approved as facts only, marked draft, never sent by Selah (Gate B). Built (19 Nov, migration 0110): the same facts-only draft in the consultants' assistant, "Use as draft" on the firm's report page, and sending a report only after a colleague other than its writer approves it and a person confirms (Fahad: firm's report only).
 
 ## Reference library (plan, not built)
 

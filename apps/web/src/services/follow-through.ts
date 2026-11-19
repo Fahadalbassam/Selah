@@ -449,7 +449,7 @@ export async function snapshotReport(
   tx: Tx,
   principal: Principal,
   projectId: string,
-  input: { title: string; periodStart: string; periodEnd: string; bodyMd?: string },
+  input: { title: string; periodStart: string; periodEnd: string; bodyMd?: string; draftMessageId?: string },
 ) {
   const { project, resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "report.write", { ...resource, type: "report" });
@@ -467,6 +467,8 @@ export async function snapshotReport(
       periodStart: input.periodStart,
       periodEnd: input.periodEnd,
       metrics,
+      // "Use as draft": the assistant answer the note started from (the database checks it is the writer's own).
+      draftMessageId: input.draftMessageId ?? null,
     })
     .returning({ id: reports.id });
   await audit(tx, {
@@ -515,6 +517,7 @@ export async function listReports(tx: Tx, principal: Principal, projectId: strin
 
 /** One report with its frozen numbers. */
 export async function getReport(tx: Tx, principal: Principal, id: string) {
+  const approver = alias(user, "approver");
   const [row] = await tx
     .select({
       id: reports.id,
@@ -530,31 +533,58 @@ export async function getReport(tx: Tx, principal: Principal, id: string) {
       author: user.name,
       metrics: reports.metrics,
       kind: reports.kind,
+      approvedAt: reports.approvedAt,
+      approvedBy: approver.name,
+      canApprove: sql<boolean>`app_can_approve_report(${reports.id})`,
     })
     .from(reports)
     .leftJoin(user, eq(user.id, reports.generatedBy))
+    .leftJoin(approver, eq(approver.id, reports.approvedBy))
     .where(eq(reports.id, id))
     .limit(1);
   if (!row) throw new NotFoundError("report");
   const { resource } = await loadProject(tx, principal, row.projectId);
   const rr = reportResource(resource, row);
   if (!authorize(principal, "report.read", rr).allowed) throw new NotFoundError("report");
-  const { generatedBy, metrics, ...report } = row;
+  const { generatedBy, metrics, approvedAt, approvedBy, canApprove, ...report } = row;
   void generatedBy;
+  const firm = principal.orgKind === "firm";
   return {
-    report: { ...report, metrics: metrics as Progress | null },
+    report: {
+      ...report,
+      metrics: metrics as Progress | null,
+      // The firm's own steps (migration 0110). A client reader reads only that it was shared.
+      approval: firm ? { at: approvedAt, by: approvedBy } : null,
+    },
     can: {
-      // A status pack is shared only once issued (F19).
-      share: row.visibility !== "shared" && (row.kind !== "status_pack" || metrics !== null) && authorize(principal, "report.share", rr).allowed,
+      // Sent only once issued (F19) and approved by someone other than its writer (0110); the Send dialog asks first.
+      share:
+        row.visibility !== "shared" && metrics !== null && approvedAt !== null && authorize(principal, "report.share", rr).allowed,
+      approve: firm && canApprove === true && authorize(principal, "report.approve", rr).allowed,
       issue: row.kind === "status_pack" && metrics === null && authorize(principal, "report.write", { ...resource, type: "report" }).allowed,
     },
   };
 }
 
-/** Share a firm-private report with the client. One way: a shared report stays shared. */
-export async function shareReport(tx: Tx, principal: Principal, id: string) {
+/**
+ * Send a firm-private report to the client (it becomes shared). One way: a
+ * shared report stays shared. Only a person does this, after pressing Send
+ * in the confirmation dialog (`confirmed`, ReportSendDialog), and only once
+ * a firm person other than its writer approved it (migration 0110; the
+ * database refuses anything else). No job and no model call sends a report.
+ */
+export async function shareReport(tx: Tx, principal: Principal, id: string, input: { confirmed: boolean }) {
+  if (input?.confirmed !== true) throw new BadRequestError("confirm before sending the report");
   const [row] = await tx
-    .select({ id: reports.id, projectId: reports.projectId, visibility: reports.visibility, generatedBy: reports.generatedBy, kind: reports.kind, metrics: reports.metrics })
+    .select({
+      id: reports.id,
+      projectId: reports.projectId,
+      visibility: reports.visibility,
+      generatedBy: reports.generatedBy,
+      kind: reports.kind,
+      metrics: reports.metrics,
+      approvedAt: reports.approvedAt,
+    })
     .from(reports)
     .where(eq(reports.id, id))
     .limit(1);
@@ -565,6 +595,7 @@ export async function shareReport(tx: Tx, principal: Principal, id: string) {
   assertAllowed(principal, "report.share", rr);
   if (row.visibility === "shared") throw new ConflictError("the report is already shared");
   if (row.kind === "status_pack" && row.metrics === null) throw new ConflictError("issue the status pack before sharing it");
+  if (row.approvedAt === null) throw new ConflictError("the report needs the firm's approval before it is sent");
   await tx.update(reports).set({ visibility: "shared", sharedAt: new Date() }).where(eq(reports.id, id));
   await audit(tx, {
     actorId: principal.userId,

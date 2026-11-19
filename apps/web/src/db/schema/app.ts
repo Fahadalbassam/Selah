@@ -1316,10 +1316,22 @@ export const reports = pgTable(
     // and the lists (pack). Never shared before it is issued.
     kind: text("kind").notNull().default("report"),
     pack: jsonb("pack"),
+    // Sending to the client (migration 0110): who wrote the report (its maker;
+    // for a status pack, whoever issued it), set by the database, never the app.
+    // A firm person other than the writer approves it (approved_by, approved_at,
+    // set once, check_report_approval), and only then may it be shared. A report
+    // shared before approval existed has approved_at (its shared_at) and no approver.
+    draftedBy: uuid("drafted_by").references(() => user.id),
+    approvedBy: uuid("approved_by").references(() => user.id),
+    approvedAt: ts("approved_at"),
+    // The assistant answer ("Use as draft") whose text the note started from: the writer's own message only.
+    draftMessageId: uuid("draft_message_id"),
     createdAt: createdAt(),
   },
   (t) => [
     scopedFk("reports", t),
+    check("reports_approver_stamped", sql`${t.approvedBy} IS NULL OR ${t.approvedAt} IS NOT NULL`),
+    check("reports_shared_only_approved", sql`${t.visibility} <> 'shared' OR ${t.approvedAt} IS NOT NULL`),
     check("reports_kind", sql`${t.kind} IN ('report', 'status_pack')`),
     check("reports_pack_issued_before_shared", sql`${t.kind} <> 'status_pack' OR ${t.visibility} = 'firm_private' OR ${t.metrics} IS NOT NULL`),
     uniqueIndex("reports_status_pack_once").on(t.projectId, t.periodStart).where(sql`${t.kind} = 'status_pack'`),
@@ -2385,6 +2397,9 @@ export const aiMessages = pgTable(
     // from. The question and its answer are readable only while the person
     // can still see every one of them (row-level security).
     projectIds: uuid("project_ids").array(),
+    // A facts-only progress-update draft (the answer starts with the draft mark):
+    // firm staff may use it as a report's note ("Use as draft", migration 0110).
+    progressDraft: boolean("progress_draft").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [index("ai_messages_conversation_idx").on(t.conversationId)],

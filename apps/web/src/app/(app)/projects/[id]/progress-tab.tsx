@@ -64,13 +64,21 @@ export async function ProgressTab({
   data,
   reports,
   firm,
+  draft = null,
 }: {
   projectId: string;
   data: ProgressData;
   reports: ReportList | null;
   firm: boolean;
+  /** "Use as draft" from the assistant: the New report dialog opens with it as the note. Nothing is saved until Create report. */
+  draft?: { messageId: string; note: string } | null;
 }) {
-  const [t, tPack, format] = await Promise.all([getTranslations("metrics"), getTranslations("statusPack"), getFormatter()]);
+  const [t, tPack, tSend, format] = await Promise.all([
+    getTranslations("metrics"),
+    getTranslations("statusPack"),
+    getTranslations("reportSend"),
+    getFormatter(),
+  ]);
   const month = (d: string) => format.dateTime(new Date(`${d}T00:00:00`), { month: "long", year: "numeric" });
   const { live, progress } = data;
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
@@ -145,10 +153,13 @@ export async function ProgressTab({
               { name: "title", label: t("reportTitle"), required: true, maxLength: 300 },
               { name: "periodStart", label: t("periodStart"), type: "date", required: true },
               { name: "periodEnd", label: t("periodEnd"), type: "date", required: true, defaultValue: firmToday() },
-              { name: "bodyMd", label: t("notes"), type: "textarea", maxLength: 100_000 },
+              { name: "bodyMd", label: t("notes"), type: "textarea", maxLength: 100_000, defaultValue: draft?.note },
             ]}
             submitLabel={t("create")}
             redirectTo="/reports/:id"
+            defaultOpen={draft !== null}
+            notice={draft ? tSend("prefilled") : undefined}
+            extra={draft ? { draftMessageId: draft.messageId } : undefined}
           />
         ) : null}
       </CardHeader>
