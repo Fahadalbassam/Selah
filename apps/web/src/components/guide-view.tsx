@@ -44,11 +44,11 @@ export function GuideView({ blocks, dir }: { blocks: Block[]; dir: "rtl" | "ltr"
           case "heading": {
             const cls = b.level <= 2 ? "pt-4 text-lg font-semibold tracking-tight" : "pt-2 text-base font-semibold";
             return b.level <= 2 ? (
-              <h2 key={i} id={b.id} className={cls}>
+              <h2 key={i} id={b.id || undefined} className={cls}>
                 {inline(b.text)}
               </h2>
             ) : (
-              <h3 key={i} id={b.id} className={cls}>
+              <h3 key={i} id={b.id || undefined} className={cls}>
                 {inline(b.text)}
               </h3>
             );

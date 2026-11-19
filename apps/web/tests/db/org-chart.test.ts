@@ -24,6 +24,8 @@ import { truncateAuditLog } from "./audit-reset";
 // plus a placeholder of a name nobody wrote.
 const toModel = vi.hoisted(() => [] as { question: string; passages: { text: string; source: string }[]; history: { content: string }[] }[]);
 vi.mock("@/services/ai-client", () => ({
+  // The AI service says its model is local (masking.ts asks it): names go out unmasked unless a test sets AI_MASKING=on.
+  modelIsLocal: async () => true,
   embed: async (texts: string[]) => texts.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0))),
   answer: async (question: string, passages: { id: string; text: string; source: string }[], _lang: string, history: { content: string }[]) => {
     toModel.push({ question, passages, history });

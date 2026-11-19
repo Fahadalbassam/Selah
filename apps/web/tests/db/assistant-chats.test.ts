@@ -22,7 +22,10 @@ let reply: (passages: { id: string; text: string; source: string }[]) => { answe
 });
 const translated: string[] = [];
 const ONE = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
+// What the AI service says about its own model (masking.ts asks it each time): local, unless a test changes it.
+let serviceLocal: () => Promise<boolean> = async () => true;
 vi.mock("@/services/ai-client", () => ({
+  modelIsLocal: () => serviceLocal(),
   embed: async (texts: string[]) => texts.map(() => ONE),
   answer: async (question: string, passages: { id: string; text: string; source: string }[], _l: string, history: unknown[]) => {
     sent.push({ question, passages, history });
@@ -151,6 +154,7 @@ beforeEach(async () => {
   sent.length = 0;
   translated.length = 0;
   delete process.env.AI_MASKING;
+  serviceLocal = async () => true;
   await owner.query(`DELETE FROM ai_conversations`);
 });
 
@@ -459,6 +463,34 @@ describe("masking names before the model", () => {
     delete process.env.AI_MASKING;
     process.env.LLM_PROVIDER = "ollama";
     try {
+      await ask(U.cons, { question: "What does Reem do?" });
+      expect(sent.at(-1)!.question).toBe("What does Reem do?");
+    } finally {
+      delete process.env.LLM_PROVIDER;
+    }
+  });
+
+  it("masks unless the AI service itself says its model is local (fails closed)", async () => {
+    // This app believes the model is local; the service runs a hosted one: masked.
+    process.env.LLM_PROVIDER = "ollama";
+    try {
+      serviceLocal = async () => false;
+      await ask(U.cons, { question: "What does Reem do?" });
+      expect(sent.at(-1)!.question).toBe("What does [PERSON_1] do?");
+      // The service cannot be asked: masked.
+      serviceLocal = async () => {
+        throw new Error("ai service unreachable");
+      };
+      await ask(U.cons, { question: "What does Reem do?" });
+      expect(sent.at(-1)!.question).toBe("What does [PERSON_1] do?");
+      // Translation is masked the same way.
+      reply = (p) => ({ answer: "تقود ريم الحربي العمل في شركة النخبة القابضة.", cited_ids: [p[0]!.id], grounded: true });
+      const r = await ask(U.cons, { question: "من يقود؟", language: "ar" });
+      translated.length = 0;
+      await svc(U.cons, (tx, p) => T.translate(tx, p, { entityType: "ai_message", entityId: r.messageId, field: "content", to: "en" }));
+      expect(translated[0]).not.toContain("النخبة");
+      // The service says local: left alone.
+      serviceLocal = async () => true;
       await ask(U.cons, { question: "What does Reem do?" });
       expect(sent.at(-1)!.question).toBe("What does Reem do?");
     } finally {

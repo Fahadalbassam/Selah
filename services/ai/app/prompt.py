@@ -99,9 +99,7 @@ def build_messages(
     return system, user
 
 
-def check_answer(raw: str, passages: list[Passage]) -> Answer:
-    """Parse the model's reply and keep only citations we actually supplied.
-    Anything malformed, or grounded without a valid citation, is ungrounded."""
+def _parse_answer(raw: str, passages: list[Passage]) -> Answer:
     try:
         parsed = Answer.model_validate(json.loads(raw))
     except (json.JSONDecodeError, ValidationError):
@@ -109,6 +107,53 @@ def check_answer(raw: str, passages: list[Passage]) -> Answer:
     supplied = {p.id for p in passages}
     cited = [cid for cid in dict.fromkeys(parsed.cited_ids) if cid in supplied]
     return Answer(answer=strip_markers(parsed.answer), cited_ids=cited, grounded=parsed.grounded and bool(cited))
+
+
+def check_answer(raw: str, passages: list[Passage]) -> Answer:
+    """Parse the model's reply and keep only citations we actually supplied.
+    Anything malformed, grounded without a valid citation, or "grounded" but
+    only a heading (unfinished), is ungrounded."""
+    parsed = _parse_answer(raw, passages)
+    if parsed.grounded and unfinished(parsed.answer):
+        return Answer(answer="", cited_ids=[], grounded=False)
+    return parsed
+
+
+def unfinished_reply(raw: str, passages: list[Passage]) -> bool:
+    """Whether the model said it answered, with a valid citation, but wrote
+    only a heading: the reply to ask for once more (ASK_WHOLE_ANSWER)."""
+    parsed = _parse_answer(raw, passages)
+    return parsed.grounded and unfinished(parsed.answer)
+
+
+# Phase 3 runs B and C: a small model sometimes closes the answer after its
+# heading ("The following actions are overdue across the clients:") or in the
+# middle of its first item ("... (Action"), and still marks it grounded with
+# citations. The person would see a heading, sources and nothing else.
+_END_OF_SENTENCE = (".", "!", "?", "؟", "。", ")", "]", "»", '"')
+FEW_WORDS = 2
+
+
+def unfinished(text: str) -> bool:
+    """An answer that stops before it says anything: empty, a heading ending
+    with a colon, a bracket opened and never closed, or only a word or two
+    with no end to the sentence ("Quarterly." is a whole answer, "The steps" is not)."""
+    t = text.strip()
+    if not t:
+        return True
+    if t.endswith((":", "：")):  # a heading (also the full-width colon)
+        return True
+    if t.count("(") > t.count(")"):
+        return True
+    return len(t.split()) <= FEW_WORDS and not t.endswith(_END_OF_SENTENCE)
+
+
+# Added to the question when the first reply was only a heading (unfinished): asked once more.
+ASK_WHOLE_ANSWER = """
+
+<note>
+Your reply must contain the whole answer: not only an opening line or a heading that ends with a colon, but every point itself, each with its citation.
+</note>"""
 
 
 # "[P2]" or "(P2, P7)" in the text: the screen lists the sources under the answer, so the ids mean nothing to a reader.

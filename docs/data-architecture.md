@@ -143,10 +143,10 @@ None of these change who can see what. They change how the same rules are stored
 | **Data residency (PDPL)** | Files stay wherever the machine is, in Saudi Arabia. | No Saudi location. Enforced jurisdictions are the EU and FedRAMP; other regions only get best-effort hints. Real client documents leaving the Kingdom need a lawful transfer basis under the PDPL's transfer rules, which the firm should confirm. |
 | **Durability** | One disk. A dead disk or a stolen laptop loses everything that isn't backed up. | Replicated by Cloudflare. |
 | **Backups** | We must copy files and database dumps off the machine every night. | Files are already off the server. We still back up the database, and a second R2 bucket can hold the encrypted dumps. |
-| **Cost** | Free; uses the disk. | Free tier of 10 GB, then about $0.015 per GB a month, with no download fees. A GP's test data fits in the free tier. |
+| **Cost** | Free; uses the disk. | Free tier of 10 GB, then about $0.015 per GB a month, with no download fees. Sample data fits in the free tier. |
 | **Availability** | Only while the machine is on and online. A laptop that sleeps, travels or changes networks is a poor server. | Always on. |
 
-**Is R2 secure enough?** Yes. The open question about R2 was never its security. It is where real client data is allowed to live. For the graduation project, with synthetic data, R2 is a good choice and saves us from building disk encryption and file backups ourselves. Before the firm puts real client files in, it should confirm that storing them outside the Kingdom is acceptable, or keep production on a server in Saudi Arabia. The code doesn't care which.
+**Is R2 secure enough?** Yes. The open question about R2 was never its security. It is where real client data is allowed to live. With synthetic data, R2 is a good choice and saves us from building disk encryption and file backups ourselves. Before the firm puts real client files in, it should confirm that storing them outside the Kingdom is acceptable, or keep production on a server in Saudi Arabia. The code doesn't care which.
 
 **A laptop as the server** works if it's set up as one: never sleeps on lid close or idle, stays on a wired connection, sits on a UPS or at least a surge protector, and has full-disk encryption (LUKS) so a stolen laptop exposes nothing. Its battery covers short power cuts.
 
@@ -208,14 +208,14 @@ Legion (server)                                 Lenovo (backup), LAN cable only
 
 **Retention (run on the Lenovo, weekly):** `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`, then `restic check`.
 
-**Restore test (once a month, and before any demo or hand-in; a recorded restore test is the GP's evidence that backups work):**
+**Restore test (once a month, and before any demo or hand-over; a recorded restore test is the evidence that backups work):**
 
 1. Restore the latest snapshot to a scratch folder.
 2. `pg_restore` it into a throwaway database and compare row counts with the live one.
 3. Pick ten random `documents` rows and check that each restored file's SHA-256 matches `documents.sha256`.
 4. Write down the date, the time it took and any problem. An untested backup doesn't count.
 
-**Off-site copy (for a real deployment; documented, not needed for the GP).** Both laptops sit in the same room, so a fire, theft, flood or power surge can take both. Once a week, copy the restic repository to an encrypted external drive and keep it somewhere else. Restic's `copy` command keeps it encrypted. An encrypted copy to a cloud bucket would also work, since the provider only sees ciphertext. Still, check with the firm before real client data leaves the Kingdom, even encrypted.
+**Off-site copy (for a real deployment; documented, not needed while the data is synthetic).** Both laptops sit in the same room, so a fire, theft, flood or power surge can take both. Once a week, copy the restic repository to an encrypted external drive and keep it somewhere else. Restic's `copy` command keeps it encrypted. An encrypted copy to a cloud bucket would also work, since the provider only sees ciphertext. Still, check with the firm before real client data leaves the Kingdom, even encrypted.
 
 **What is not backed up:** the Ollama models (downloaded again), ClamAV signatures (downloaded again) and Docker images (rebuilt). The `.env` file and the restic password are kept separately from the backups, because they unlock them.
 

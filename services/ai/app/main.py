@@ -21,6 +21,7 @@ from .config import Settings, get_settings
 from .llm import LLM, json_object, make_llm
 from .prompt import (
     ANSWER_SCHEMA,
+    ASK_WHOLE_ANSWER,
     ORG_DRAFT_SCHEMA,
     SUMMARY_SCHEMA,
     TRANSLATION_SCHEMA,
@@ -36,6 +37,7 @@ from .prompt import (
     check_org_draft,
     check_summary,
     check_translation,
+    unfinished_reply,
 )
 
 
@@ -156,6 +158,21 @@ async def health() -> dict[str, bool]:
     return {"ok": True}
 
 
+class ModelResponse(BaseModel):
+    # True only when this service runs the local model by its own explicit setting (draft_locally).
+    local: bool
+    model: str
+
+
+@app.get("/v1/model", dependencies=[Depends(require_token)])
+async def model(settings: Annotated[Settings, Depends(get_settings)]) -> ModelResponse:
+    """Where the chat model runs, by this service's own setting, so the web
+    app masks names unless the service itself says the model is local
+    (fail closed: a hosted provider or no setting at all is not local, and the
+    web app masks when it cannot ask)."""
+    return ModelResponse(local=draft_locally(settings), model=settings.llm_model)
+
+
 @app.post("/v1/embed", dependencies=[Depends(require_token)])
 async def embed(req: EmbedRequest, llm: Annotated[LLM, Depends(get_llm)]) -> EmbedResponse:
     return EmbedResponse(vectors=await llm.embed(req.texts))
@@ -181,6 +198,8 @@ async def answer(
 
     system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
+    if unfinished_reply(raw, req.passages):
+        raw = await llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA)
     return check_answer(raw, req.passages)
 
 
@@ -230,7 +249,14 @@ async def answer_stream(
                 while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
                     yield _line({"type": "wait"})
                 found = json_object(again.result())
-            yield _line({"type": "done", "answer": check_answer(found or raw, req.passages).model_dump()})
+            reply = found or raw
+            if unfinished_reply(reply, req.passages):
+                # Only a heading, marked grounded: asked once more, whole (check_answer rejects it if it is still a heading).
+                again = asyncio.ensure_future(llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA))
+                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
+                    yield _line({"type": "wait"})
+                reply = again.result()
+            yield _line({"type": "done", "answer": check_answer(reply, req.passages).model_dump()})
         except Exception:  # noqa: BLE001 - the caller only needs to know it failed
             yield _line({"type": "error"})
 

@@ -10,7 +10,7 @@ Where this page is unsure, it says so. Everything listed as built is merged on `
 
 Selah (صلة, "connection") is a platform for consulting firms. After a firm delivers its work (plans, policies, organisational structures, recommendations), putting that work into practice is hard to follow. Selah connects each consulting output to an owner, actions, evidence, the consultant's review and follow-up, so both sides can see what is really done.
 
-- **Generic product.** Selah is built for any consulting firm. It started as a six-student Computer Science graduation project developed with a Saudi consulting firm as the partner, but the partner is never named in the product, the UI or the docs.
+- **Generic product.** Selah is built for any consulting firm. No real firm is named in the product, the UI or the docs; the sample firm is the fictional Mizan Advisory.
 - **It connects, it does not consult.** Selah never writes official recommendations, approves evidence, makes governance judgements or rules on legal compliance. People do; Selah records and shows it.
 - **Arabic first.** Arabic and right-to-left is the default; everything also exists in English.
 - **Presented as a production app**, not a prototype. It runs on sample data only until hosting and data handling are approved for real client data.
@@ -275,7 +275,7 @@ apps/web/              Next.js app: both portals and the API
   src/components/      Selah components; components/ui is shadcn/ui
   src/jobs/, scripts/  background jobs, seed, walkthrough seed, assistant evaluation
   messages/            Arabic and English strings
-  drizzle/             SQL migrations (0000_baseline.sql holds the base schema and RLS); last is 0067_indicator_data
+  drizzle/             SQL migrations (0000_baseline.sql holds the base schema and RLS); last is 0105_org_chart_publish
   tests/, tests/db/    unit and Postgres tests; e2e/ is Playwright
 services/ai/           Python FastAPI AI service (llm.py is the provider switch, prompt.py the rules)
 db/init/               database roles on first start

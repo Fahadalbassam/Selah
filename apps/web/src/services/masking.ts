@@ -3,16 +3,33 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import type { Env } from "@/env";
 import { createMasker, type Masker } from "@/lib/masking";
+import { modelIsLocal } from "./ai-client";
 
-/** Whether text is masked before it reaches the model: always when the model is hosted elsewhere. */
-export function maskingOn(
+/**
+ * Whether text is masked before it reaches the model. AI_MASKING "on" and
+ * "off" force it. "auto" (the default) masks unless the AI service itself
+ * says its model is local (modelIsLocal: by the service's own setting, asked
+ * each time), and always when this app's own LLM_PROVIDER says hosted. If the
+ * service cannot be asked, or answers anything else, the text is masked: the
+ * two apps' settings can disagree (phase 3, R1), and the service's is the one
+ * that decides where the text goes. Closed by default, as the org chart draft.
+ */
+export async function maskingOn(
   e: Pick<Env, "AI_MASKING" | "LLM_PROVIDER"> = {
     // Read directly (validated in env.ts), so jobs and tests without the web app's settings work too.
     AI_MASKING: (process.env.AI_MASKING as Env["AI_MASKING"] | undefined) ?? "auto",
     LLM_PROVIDER: (process.env.LLM_PROVIDER as Env["LLM_PROVIDER"] | undefined) ?? "ollama",
   },
-): boolean {
-  return e.AI_MASKING === "on" || (e.AI_MASKING === "auto" && e.LLM_PROVIDER !== "ollama");
+  local?: () => Promise<boolean>,
+): Promise<boolean> {
+  if (e.AI_MASKING === "on") return true;
+  if (e.AI_MASKING === "off") return false;
+  if (e.LLM_PROVIDER !== "ollama") return true;
+  try {
+    return !(await (local ?? modelIsLocal)());
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -20,8 +37,8 @@ export function maskingOn(
  * people and contacts, and the client's departments (app_mask_terms,
  * baseline: Assistant chats). Off, it changes nothing.
  */
-export async function projectMasker(tx: Tx, projectId: string, on = maskingOn()): Promise<Masker> {
-  if (!on) return createMasker([]);
+export async function projectMasker(tx: Tx, projectId: string, on?: boolean): Promise<Masker> {
+  if (!(on ?? (await maskingOn()))) return createMasker([]);
   const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`SELECT kind, term, entity FROM app_mask_terms(${projectId})`);
   return createMasker(rows, { places: true });
 }
@@ -32,8 +49,8 @@ export async function projectMasker(tx: Tx, projectId: string, on = maskingOn())
  * list of names the asker may read, so it masks every name in the text,
  * whoever asks (action owners included). Off, it changes nothing.
  */
-export async function textMasker(tx: Tx, projectIds: string[], text: string, on = maskingOn()): Promise<Masker> {
-  if (!on || projectIds.length === 0) return createMasker([]);
+export async function textMasker(tx: Tx, projectIds: string[], text: string, on?: boolean): Promise<Masker> {
+  if (projectIds.length === 0 || !(on ?? (await maskingOn()))) return createMasker([]);
   const { rows } = await tx.execute<{ pid: string; kind: string; term: string; grp: number }>(sql`
     SELECT pid, t.kind, t.term, t.grp
     FROM unnest(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) pid, LATERAL app_mask_terms_in(pid, ${text}) t`);

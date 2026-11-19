@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings, get_settings
 from app.main import app, get_llm
-from app.prompt import ANSWER_SCHEMA, HistoryTurn, Passage, build_messages, check_answer
+from app.prompt import ANSWER_SCHEMA, Answer, HistoryTurn, Passage, build_messages, check_answer
 
 TOKEN = "t" * 40
 PASSAGES = [Passage(id="P1", text="The board meets quarterly.", source="document v2")]
@@ -130,8 +130,104 @@ def test_answer_schema_is_strict():
 
 
 def test_check_answer_dedupes_and_filters():
-    raw = json.dumps({"answer": "a", "cited_ids": ["P1", "P1", "P7"], "grounded": True})
+    raw = json.dumps({"answer": "Quarterly.", "cited_ids": ["P1", "P1", "P7"], "grounded": True})
     assert check_answer(raw, PASSAGES).cited_ids == ["P1"]
+
+
+# Phase 3 runs B and C (AC1, AC2, U5, AP2): "grounded" answers that were only a heading.
+HEADINGS = [
+    "The following actions are overdue across the clients:",
+    "The evidence required for this recommendation is: [P1]",
+    "الإجراءات المتأخرة لدى عملائكم هي:",
+    "الإجراءات المتأخرة لدى عملاءكم هي:\n\n1. تشكيل لجنة المراجعة (Action",
+    "في مشروع حوكمة مجلس الإدارة، هناك إجراءين متأخرين: إعداد لائحة عمل اللجنة ( Recommendation",
+    "The steps",
+    "  ",
+]
+WHOLE = [
+    "Quarterly.",
+    "Quarterly [P1].",
+    "نعم، كل ثلاثة أشهر [P1].",
+    "Two actions are overdue: the audit charter (due 1 March) and the board calendar [P1].",
+    "The board meets quarterly, per the charter (section 4) [P1]",
+]
+
+
+@pytest.mark.parametrize("text", HEADINGS)
+def test_check_answer_rejects_a_grounded_heading(text):
+    from app.prompt import unfinished_reply
+
+    raw = json.dumps({"answer": text, "cited_ids": ["P1"], "grounded": True})
+    assert unfinished_reply(raw, PASSAGES) is True
+    assert check_answer(raw, PASSAGES) == Answer(answer="", cited_ids=[], grounded=False)
+
+
+@pytest.mark.parametrize("text", WHOLE)
+def test_check_answer_keeps_a_whole_answer(text):
+    from app.prompt import unfinished_reply
+
+    raw = json.dumps({"answer": text, "cited_ids": ["P1"], "grounded": True})
+    assert unfinished_reply(raw, PASSAGES) is False
+    assert check_answer(raw, PASSAGES).grounded is True
+
+
+def test_an_ungrounded_heading_is_not_asked_again():
+    from app.prompt import unfinished_reply
+
+    raw = json.dumps({"answer": "The passages do not say:", "cited_ids": [], "grounded": False})
+    assert unfinished_reply(raw, PASSAGES) is False
+
+
+class SequenceLLM(FakeLLM):
+    """Answers with each reply in turn, the last one again once they run out."""
+
+    def __init__(self, *replies: str) -> None:
+        super().__init__(replies[-1])
+        self.replies = list(replies)
+
+    async def chat_json(self, system: str, user: str, schema: dict) -> str:
+        self.calls.append((system, user))
+        return self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+
+
+def test_a_heading_is_asked_for_once_more_whole():
+    heading = json.dumps({"answer": "The board meets:", "cited_ids": ["P1"], "grounded": True})
+    whole = json.dumps({"answer": "Quarterly [P1].", "cited_ids": ["P1"], "grounded": True})
+    fake = SequenceLLM(heading, whole)
+    app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
+    app.dependency_overrides[get_llm] = lambda: fake
+    try:
+        body = ask(TestClient(app)).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}
+    assert len(fake.calls) == 2
+    assert "<note>" not in fake.calls[0][1] and fake.calls[1][1].endswith("</note>")
+    assert "heading" in fake.calls[1][1]
+
+
+def test_a_heading_twice_is_ungrounded_and_asked_only_once_more():
+    heading = json.dumps({"answer": "The board meets:", "cited_ids": ["P1"], "grounded": True})
+    fake = SequenceLLM(heading)
+    app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
+    app.dependency_overrides[get_llm] = lambda: fake
+    try:
+        body = ask(TestClient(app)).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body == {"answer": "", "cited_ids": [], "grounded": False}
+    assert len(fake.calls) == 2
+
+
+def test_a_whole_answer_is_asked_only_once():
+    fake = SequenceLLM(json.dumps({"answer": "Quarterly [P1].", "cited_ids": ["P1"], "grounded": True}))
+    app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
+    app.dependency_overrides[get_llm] = lambda: fake
+    try:
+        ask(TestClient(app))
+    finally:
+        app.dependency_overrides.clear()
+    assert len(fake.calls) == 1
 
 
 def test_provider_switch():
@@ -379,6 +475,32 @@ def test_stream_keeps_the_caller_waiting_while_it_asks_again(streaming_client, m
     assert events[-1]["answer"]["answer"] == "Quarterly."
 
 
+def test_stream_asks_once_more_when_the_reply_is_only_a_heading(streaming_client):
+    client, fake = streaming_client(json.dumps({"answer": "The evidence required is:", "cited_ids": ["P1"], "grounded": True}))
+    asked: list[str] = []
+
+    async def again(system: str, user: str, schema: dict) -> str:
+        asked.append(user)
+        return json.dumps({"answer": "The signed charter [P1].", "cited_ids": ["P1"], "grounded": True})
+
+    fake.chat_json = again  # type: ignore[method-assign]
+    _, events = ask_stream(client)
+    assert len(asked) == 1 and asked[0].endswith("</note>")
+    assert events[-1] == {"type": "done", "answer": {"answer": "The signed charter.", "cited_ids": ["P1"], "grounded": True}}
+
+
+def test_stream_gives_no_heading_as_an_answer(streaming_client):
+    heading = json.dumps({"answer": "The evidence required is:", "cited_ids": ["P1"], "grounded": True})
+    client, fake = streaming_client(heading)
+
+    async def again(system: str, user: str, schema: dict) -> str:
+        return heading
+
+    fake.chat_json = again  # type: ignore[method-assign]
+    _, events = ask_stream(client)
+    assert events[-1] == {"type": "done", "answer": {"answer": "", "cited_ids": [], "grounded": False}}
+
+
 def test_answer_text_decodes_escapes_split_across_pieces():
     from app.prompt import AnswerText
 
@@ -395,6 +517,27 @@ def test_words_that_look_like_passage_ids_stay():
     # Only bracketed markers go; "in P1" can be a priority label, so the prompt asks the model not to name passages in prose.
     assert strip_markers("Three actions are classified in P1 and two in P2 [P2].") == "Three actions are classified in P1 and two in P2."
     assert strip_markers("Two P1 actions are late.") == "Two P1 actions are late."
+
+
+# R1 (phase 3): the web app masks names unless this service says its model is local.
+
+
+def test_model_says_local_only_by_the_services_own_explicit_setting(monkeypatch):
+    for settings, local in (
+        (Settings(ai_service_token=TOKEN, llm_provider="ollama"), True),
+        (Settings(ai_service_token=TOKEN, llm_provider="openai_compat"), False),
+        # No setting at all: not local (closed by default, as the org draft).
+        (Settings(ai_service_token=TOKEN), False),
+    ):
+        app.dependency_overrides[get_settings] = lambda settings=settings: settings
+        try:
+            client = TestClient(app)
+            assert client.get("/v1/model").status_code == 401
+            res = client.get("/v1/model", headers={"authorization": f"Bearer {TOKEN}"})
+        finally:
+            app.dependency_overrides.clear()
+        assert res.status_code == 200
+        assert res.json() == {"local": local, "model": settings.llm_model}
 
 
 # Org chart, part 4: the assistant's draft from pasted text.

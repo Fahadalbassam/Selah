@@ -23,6 +23,8 @@ const ONE = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
 const sent: { passages: { id: string; text: string }[]; audience: string }[] = [];
 let reply = (passages: { id: string }[]) => ({ answer: "The charter is due in December.", cited_ids: [passages[0]!.id], grounded: true });
 vi.mock("@/services/ai-client", () => ({
+  // The AI service says its model is local (masking.ts asks it): names go out unmasked unless a test sets AI_MASKING=on.
+  modelIsLocal: async () => true,
   embed: async (texts: string[]) => texts.map(() => ONE),
   answer: async (_q: string, passages: { id: string; text: string; source: string }[], _l: string, _h: unknown[], audience: string) => {
     sent.push({ passages, audience });

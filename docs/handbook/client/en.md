@@ -1,6 +1,6 @@
 # Client guide
 
-Selah is where your company and your consulting firm follow what was agreed: each recommendation, who takes it on, what is done and what is waiting. This guide is a set of short tasks. Each one says when you need it, the steps, and what happens next. The Arabic guide is [ar.md](ar.md).
+Selah is where your company and your consulting firm follow what was agreed: each recommendation, who takes it on, what is done and what is waiting. This guide is a set of short tasks. Each one says when you need it, the steps, and what happens next. [The Arabic guide](ar.md) has the same tasks; in Selah, press **عربي** at the top of the page to open it.
 
 [Handbook front page](../en.md) · [What Selah will not do](../limits/en.md)
 

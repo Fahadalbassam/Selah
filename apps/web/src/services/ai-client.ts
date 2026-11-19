@@ -19,6 +19,30 @@ async function call<T>(path: string, body: unknown, schema: z.ZodType<T>): Promi
   return schema.parse(await res.json());
 }
 
+// The service is on the same network; a slow answer means something is wrong, and masking is the safe side.
+const MODEL_TIMEOUT_MS = 5_000;
+
+/**
+ * Whether the AI service itself says its chat model runs locally (GET
+ * /v1/model, by the service's own explicit LLM_PROVIDER=ollama). Anything
+ * else is false: a hosted model, no setting, an error, a timeout, an answer
+ * in another shape. The caller masks unless this is true (masking.ts).
+ */
+export async function modelIsLocal(): Promise<boolean> {
+  try {
+    const e = env();
+    const res = await fetch(new URL("/v1/model", e.AI_SERVICE_URL), {
+      headers: { authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
+      signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
+    });
+    if (!res.ok) return false;
+    const r = z.object({ local: z.boolean() }).safeParse(await res.json());
+    return r.success && r.data.local === true;
+  } catch {
+    return false;
+  }
+}
+
 export function embed(texts: string[]): Promise<number[][]> {
   return call("/v1/embed", { texts }, z.object({ vectors: z.array(z.array(z.number())) })).then((r) => r.vectors);
 }

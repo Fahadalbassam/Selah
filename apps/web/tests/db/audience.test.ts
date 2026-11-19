@@ -38,6 +38,8 @@ vi.mock("@/services/storage", () => ({
   signedDownloadUrl: async (key: string) => `https://storage.test/${key}`,
 }));
 vi.mock("@/services/ai-client", () => ({
+  // The AI service says its model is local (masking.ts asks it): names go out unmasked unless a test sets AI_MASKING=on.
+  modelIsLocal: async () => true,
   translateText: async (text: string) => ({ text, model: "fake" }),
   summarizePages: async () => {
     throw new Error("not in tests");

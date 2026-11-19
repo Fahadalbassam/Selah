@@ -672,7 +672,6 @@
     "move": {
       "assigned": "Release to owner",
       "in_progress": "Start work",
-      "blocked": "Mark as blocked",
       "awaiting_review": "Send for review",
       "verified_complete": "Verify",
       "revision_requested": "Request revision",
@@ -3641,7 +3640,7 @@
   "phases": {
     "hint": "Each phase or separately agreed scope is its own project, in the order agreed with the client.",
     "new": "New project",
-    "newHint": "A phase, a follow-on scope or a retainer for this client. It stays a draft the client doesn't see until a signed engagement covers it; staff it from its Team tab meanwhile.",
+    "newHint": "A phase, a follow-on scope or a retainer for this client. It stays a draft the client doesn't see until a signed engagement covers it; staff it from its People tab meanwhile.",
     "create": "Create project",
     "edit": "Edit details",
     "save": "Save",
@@ -5413,9 +5412,6 @@
   "help": {
     "title": "Help",
     "description": "Your consultants and how to reach them, a message to the firm's management, and answers to common questions.",
-    "ask": {
-      "button": "Ask your consultant"
-    },
     "problem": {
       "title": "Write to the firm's management",
       "lead": "If something in Selah isn't working, or something about the work worries you and you'd rather not raise it with your consultant, write here. The firm's management reads it, not your consultants.",
