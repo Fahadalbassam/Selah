@@ -708,6 +708,13 @@
       "when": 1795118611558,
       "tag": "0113_ai_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1795122082395,
+      "tag": "0114_number_scanner",
+      "breakpoints": true
     }
   ]
 }

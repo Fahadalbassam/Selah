@@ -615,6 +615,28 @@ describe("the assistant's draft from pasted text", () => {
     expect((await svc(U.lead, (tx, p) => IM.importContext(tx, p, SAHM)))!.assistant).toBe(true);
   });
 
+  it("tags personal numbers for the local model too (section 7 item 6), and a title keeps a number the text had", async () => {
+    sent.length = 0;
+    const before = answer.fn;
+    // The model writes the tag back into a title, as it was asked to keep tags.
+    answer.fn = (text) => ({
+      units: [{ ref: "U1", parent: "", code: "", name: "Finance department", kind: "department" }],
+      positions: [{ ref: "P1", unit: "U1", code: "", title: `Desk ${/\[PHONE_\d+\]/.exec(text)?.[0] ?? ""}`.trim(), reports_to: "", head: true, specialties: [] }],
+    });
+    try {
+      const pasted = "Finance department\nDesk 0551234567 (ID 1012345672, IBAN SA0380000000608010167519, passport A12345678)";
+      const draft = await svc(U.lead, (tx, p) => IM.draftFromText(tx, p, SAHM, pasted, false));
+      expect(sent).toHaveLength(1);
+      for (const raw of ["0551234567", "1012345672", "SA0380000000608010167519", "A12345678"]) expect(sent[0]).not.toContain(raw);
+      expect(sent[0]).toContain("[PHONE_1]");
+      expect(sent[0]).toContain("[ID_1]");
+      // The row shown for review reads as the pasted text did.
+      expect(draft.rows.map((r) => r.values.titleEn ?? r.values.titleAr)).toContain("Desk 0551234567");
+    } finally {
+      answer.fn = before;
+    }
+  });
+
   it("says so plainly when the AI service itself refuses (it runs a hosted model whatever the web app's setting says)", async () => {
     const before = answer.fn;
     answer.fn = () => {

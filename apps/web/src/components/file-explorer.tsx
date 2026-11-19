@@ -564,6 +564,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
             title={file.title}
             visibility={file.visibility}
             aiIndexable={file.aiIndexable}
+            numberCounts={file.numberCounts}
             can={file.can}
             uploaderName={file.uploaderName}
             onChanged={onChanged}

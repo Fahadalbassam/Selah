@@ -5,6 +5,17 @@
 // its page, and copies the file's project, label and owner so retrieval
 // filters inside the vector query. A file with no readable text is marked
 // "not searchable" instead of quietly missing from answers.
+//
+// Personal numbers (section 7 item 6: IDs, IBANs, cards, phones, e-mails,
+// passports and CR numbers next to their word) are tagged before a passage is
+// cut, embedded or stored: ai_chunks holds "[ID_1]", never the number, so no
+// search, summary or answer can read one from the index. The stored file is
+// untouched. Each file's counts by kind are kept on the file (number_counts),
+// for the warning when someone lets the assistant read it. Tagging on the way
+// in, not only on the way out, keeps the numbers out of the embedding call and
+// of every reader of the index; masking.ts tags again at send time, for what
+// is read live (records, progress updates, the question) and as a second line.
+import { countNumbers, createNumberTagger } from "../lib/sensitive-numbers";
 import { detectLang } from "../lib/translations";
 
 interface Queryable {
@@ -76,12 +87,17 @@ export async function indexDocument(db: Queryable, documentId: string, pages: Pa
   if (!doc || !doc.ai_indexable || doc.state === "archived") return 0;
   await db.query(`DELETE FROM ai_chunks WHERE source_type = 'document' AND source_id = $1`, [documentId]);
 
-  const parts = passages(pages);
+  // One tagger for the whole file, so a number has one tag on every page; tagged before cutting,
+  // so a number is never split between two passages.
+  const numbers = createNumberTagger();
+  const parts = passages(pages.map((p) => ({ n: p.n, text: numbers.tag(p.text) })));
+  const counts = JSON.stringify(numbers.counts);
   if (!parts.length) {
-    await db.query(`UPDATE documents SET text_status = $2, ocr_pages = $3 WHERE id = $1`, [
+    await db.query(`UPDATE documents SET text_status = $2, ocr_pages = $3, number_counts = $4 WHERE id = $1`, [
       documentId,
       scanned.length ? "needs_ocr" : "not_searchable",
       scanned,
+      counts,
     ]);
     return 0;
   }
@@ -107,8 +123,17 @@ export async function indexDocument(db: Queryable, documentId: string, pages: Pa
       ],
     );
   }
-  await db.query(`UPDATE documents SET text_status = 'searchable', ocr_pages = $2 WHERE id = $1`, [documentId, scanned]);
+  await db.query(`UPDATE documents SET text_status = 'searchable', ocr_pages = $2, number_counts = $3 WHERE id = $1`, [documentId, scanned, counts]);
   return parts.length;
+}
+
+/**
+ * Count a file's personal numbers without indexing it: a file the assistant may not read
+ * yet, so the switch can warn before it is turned on. Only the counts are kept; nothing is
+ * stored from the text and nothing leaves the server.
+ */
+export async function countDocumentNumbers(db: Queryable, documentId: string, pages: Page[]): Promise<void> {
+  await db.query(`UPDATE documents SET number_counts = $2 WHERE id = $1`, [documentId, JSON.stringify(countNumbers(pages.map((p) => p.text)))]);
 }
 
 // --------------------------------------------------------- the plan's records
@@ -161,7 +186,12 @@ export async function indexRecords(db: Queryable, embed: Embed, limit = 200): Pr
   // A few at a time, so one call never holds the embedding model for long.
   for (let start = 0; start < rows.length; start += EMBED_BATCH) {
     const batch = rows.slice(start, start + EMBED_BATCH);
-    const texts = batch.map((r) => recordText(r));
+    // A record's personal numbers are tagged as a file's are; the record itself is read live, and tagged again, when sent.
+    // Tagged before the passage is cut to length, so a number is never cut in half.
+    const texts = batch.map((r) => {
+      const numbers = createNumberTagger();
+      return recordText({ title: numbers.tag(r.title), parts: r.parts.map((p) => (p === null ? null : numbers.tag(p))) });
+    });
     const vectors = await embed(texts);
     if (vectors.length !== batch.length) throw new Error("the embedding service returned the wrong number of vectors");
     for (const [i, r] of batch.entries()) {

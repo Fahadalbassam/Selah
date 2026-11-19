@@ -617,7 +617,7 @@ export default async function ProjectPage({
                     {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                     {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                     {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
-                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} can={d.can} uploaderName={d.uploaderName} assistantReads={d.aiIndexable && !!data.assistantReads} />
+                    <FileActions id={d.id} title={d.title} visibility={d.visibility} aiIndexable={d.aiIndexable} numberCounts={d.numberCounts} can={d.can} uploaderName={d.uploaderName} assistantReads={d.aiIndexable && !!data.assistantReads} />
                   </li>
                 ))}
               </ul>

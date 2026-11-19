@@ -4,12 +4,16 @@
 // mapping lives only in this request; people always see the real text.
 // For a translation the database finds the names written in the text by the
 // same rules (app_mask_terms_in, migration 0112): change both together.
+// Personal numbers (IDs, IBANs, cards, phones, e-mails) are tagged first by the number
+// scanner (sensitive-numbers.ts), with or without masking, and never put back.
 import { foldWords } from "./arabic-fold";
+import type { NumberTagger } from "./sensitive-numbers";
 
 /** Lengths of a name in the other language (name_alt), as the database checks them. */
 export const NAME_ALT_LENGTH = { person: [2, 120], contact: [2, 200] } as const;
 
-export type MaskKind = "ORG" | "PERSON" | "DEPT" | "PLACE" | "EMAIL" | "PHONE";
+/** NUMBER: a long run of digits the number scanner did not take as a personal number (masked, then put back). */
+export type MaskKind = "ORG" | "PERSON" | "DEPT" | "PLACE" | "EMAIL" | "PHONE" | "NUMBER";
 
 export interface MaskTerm {
   kind: string;
@@ -19,10 +23,14 @@ export interface MaskTerm {
 }
 
 export interface Masker {
-  mask(text: string): string;
+  /** `from`: the file a passage came from, so the number tags it was indexed with stay apart from another file's. */
+  mask(text: string, from?: string): string;
+  /** Names back; a personal number's tag stays a tag. */
   unmask(text: string): string;
   /** How many different names were replaced so far. */
   readonly replaced: number;
+  /** The number scanner this masking tags with first, when it has one. */
+  readonly numbers: NumberTagger | null;
 }
 
 // Main Saudi cities, in both languages. Addresses aren't kept in Selah, so
@@ -59,7 +67,7 @@ const PHONE = /(?<![\p{N}])(?:\+|00)?\d(?:[\s-]?\d){8,13}(?![\p{N}])/gu;
 // The model sometimes drops the brackets ("PERSON_2"), so they are optional on the way back.
 // A placeholder right after the preposition ل (with و or ف before it, tatweel after it) is
 // read with that ل: «ل[ORG_1]» is written back «للنخبة» for «النخبة», «لآل سعود» for «آل سعود».
-const PLACEHOLDER = /(?:(?<![\p{L}])([وف]?)(لـ*)(?=\[))?\[?(?<![\p{L}\p{N}_])(ORG|PERSON|DEPT|PLACE|EMAIL|PHONE)_(\d+)(?![\p{N}])\]?/gu;
+const PLACEHOLDER = /(?:(?<![\p{L}])([وف]?)(لـ*)(?=\[))?\[?(?<![\p{L}\p{N}_])(ORG|PERSON|DEPT|PLACE|EMAIL|PHONE|NUMBER)_(\d+)(?![\p{N}])\]?/gu;
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 const LETTER = /\p{L}/u;
@@ -163,8 +171,14 @@ interface Spelling {
   lam?: string;
 }
 
-/** The masking a request uses. Without terms (masking off) both directions leave text as it is. */
-export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {}): Masker {
+/**
+ * The masking a request uses. Without terms (masking off) both directions leave text as it
+ * is, except that with `numbers` personal numbers are always tagged first (masking on or off,
+ * local model or hosted). The e-mails and phones the scanner leaves are its to judge: masking
+ * then only hides a long run of digits as [NUMBER_n], so its placeholders never share a name
+ * with the scanner's tags.
+ */
+export function createMasker(terms: MaskTerm[], opts: { places?: boolean; numbers?: NumberTagger } = {}): Masker {
   const kindOf = new Map<string, MaskKind>();
   // One written form of each name (marks gone), to build its pattern from.
   const formOf = new Map<string, string>();
@@ -236,14 +250,17 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
   };
   const arabic = (s: Spelling) => ARABIC.test(s.text);
 
+  const numbers = opts.numbers ?? null;
   return {
-    mask(text) {
+    mask(raw, from) {
+      // Short vowels and other marks would hide a name (or a number written with them) from the match:
+      // gone first, before the number scan (review S6 of #213).
+      const bare = raw.replace(/\p{M}/gu, "");
+      const text = numbers ? numbers.tag(bare, from) : bare;
       if (!pattern) return text;
-      // Short vowels and other marks would hide a name from the match.
       return text
-        .replace(/\p{M}/gu, "")
         .replace(EMAIL, (m) => placeholder("EMAIL", keyOf(m), { text: m }))
-        .replace(PHONE, (m) => placeholder("PHONE", keyOf(m), { text: m }))
+        .replace(PHONE, (m) => placeholder(numbers ? "NUMBER" : "PHONE", keyOf(m), { text: m }))
         .replace(pattern, (m: string, ...groups: unknown[]) => {
           const way = ways[groups.findIndex((g) => g !== undefined)]!;
           // «للنخبة» matched as «لنخبة»: alone it is «النخبة» («اللجنة» for «للجنة»).
@@ -264,7 +281,7 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
           const k = used.get(p) ?? 0;
           used.set(p, k + 1);
           let s = list[k] ?? list[0]!;
-          if (kind === "EMAIL" || kind === "PHONE") return `${pre ?? ""}${lam ?? ""}${s.text}`;
+          if (kind === "EMAIL" || kind === "PHONE" || kind === "NUMBER") return `${pre ?? ""}${lam ?? ""}${s.text}`;
           if (lam !== undefined) {
             // After ل the name is Arabic: a spelling found in Arabic, or the record's Arabic name.
             if (!arabic(s)) s = list.find((x) => arabic(x) && x.lam) ?? list.find(arabic) ?? (arabicFor.has(p) ? { text: arabicFor.get(p)! } : s);
@@ -288,6 +305,7 @@ export function createMasker(terms: MaskTerm[], opts: { places?: boolean } = {})
     get replaced() {
       return spellings.size;
     },
+    numbers,
   };
 }
 
