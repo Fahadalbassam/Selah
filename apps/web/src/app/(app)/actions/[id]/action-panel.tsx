@@ -1,12 +1,12 @@
 "use client";
 
 import { markJustVerified } from "@/components/verified-burst";
+import { FileText } from "@/components/animate-ui/icons/file-text";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
-import { FileBrowser } from "@/components/file-explorer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,38 +18,50 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
+import type { NextPlan } from "@/lib/action-next";
 import { firmToday } from "@/lib/dates";
 import { RECEIVED_VIA, receivedPayload, type ReceivedVia } from "@/lib/engagement";
-import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
+import { ASK_EVENT } from "@/lib/help";
 import { cn } from "@/lib/utils";
 import type { ActionStatus } from "@/authz";
-import type { FileEntry } from "@/services/files";
-import { SecondReviewStatus, SecondSignOffDialog, SignOffDialog, type SecondReviewView } from "./second-review";
+import { DownloadButton } from "./download-button";
+import { AskForDate } from "./follow-through-panels";
+import { SecondSignOffDialog, SignOffDialog } from "./second-review";
+import { ActionSendFile } from "./send-file";
+
+// The action page's next-step card (page audit 4.5, block 3; batch 4): one
+// solid button, what waits and on whom, three quiet links under it. What it
+// offers comes from nextStep() (lib/action-next.ts), built from the server's
+// own permissions. The rare things are in the page's menu (ActionPageMenu).
 
 interface Props {
   actionId: string;
   status: ActionStatus;
-  /** Moves the server allows this user right now (from canTransition). */
-  moves: ActionStatus[];
-  can: { addUpdate: boolean; submitEvidence: boolean };
-  /** For closing: whether the client has signed a risk acceptance, and the actions that could replace this one. */
-  close?: { signed: boolean; replacements: { id: string; title: string }[] };
-  /** The evidence list's open items: a file sent for review answers one of them. */
-  openItems?: { id: string; title: string }[];
-  /** Second sign-offs (F22); `firmView` decides how much of it is named. */
-  second?: SecondReviewView;
-  firmView?: boolean;
+  plan: NextPlan;
+  /** Evidence items still waiting for a file (open or not accepted), for the one file dialog. */
+  waitingItems: { id: string; title: string }[];
+  /** Files sent in the round under review, shown to the reviewer in the same card. */
+  judged: { documentId: string; title: string; canDownload: boolean }[];
+  /** Number of items whose files the verify step also accepts (October review, item 12). */
+  toAccept: number;
+  firmView: boolean;
   /** Firm staff recording for a client the firm runs: each note and file says how and when the client sent it. */
-  recordFor?: boolean;
+  recordFor: boolean;
   /** A draft whose named owner is no longer an active member of the project team: release would be refused. */
-  ownerGone?: boolean;
+  ownerGone: boolean;
+  blockedReason: string | null;
+  awaitingSince: string | Date | null;
+  /** The firm's reviewers for this round, by name (N25), or null for a client reader. */
+  reviewers: string[] | null;
+  /** A proposed date this reader may decide. */
+  date: { id: string; proposedDueDate: string; reason: string; requestedBy: string | null; needsLead: boolean } | null;
+  dueDate: string | null;
   /** Under the buttons: a client reader's two plain lines (what is expected next and by when, what happened last). */
   after?: ReactNode;
 }
@@ -72,6 +84,9 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("received_on cannot be in the future")) return { ok: false, error: "receivedFuture" };
   if (m.includes("say how and when the client told you")) return { ok: false, error: "received" };
   if (m.includes("owner must be an active member")) return { ok: false, error: "ownerGone" };
+  if (m.includes("owner must be on the project")) return { ok: false, error: "ownerGone" };
+  if (m.includes("already owns") || m.includes("already the action's owner")) return { ok: false, error: "sameOwner" };
+  if (m.includes("job title")) return { ok: false, error: "minimalOwner" };
   if (m.includes("replacement is still a draft")) return { ok: false, error: "replacementDraft" };
   if (res.status === 409) return { ok: false, error: "conflict" };
   if (res.status === 503) return { ok: false, error: "scanner" };
@@ -96,116 +111,186 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function ActionPanel({ actionId, status, moves, can, close, openItems = [], second, firmView = false, recordFor = false, ownerGone = false, after }: Props) {
+const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
+
+export function ActionPanel(p: Props) {
   const t = useTranslations("action");
+  const tn = useTranslations("action.next");
+  const format = useFormatter();
   const router = useRouter();
-  const transition = (to: ActionStatus, reason?: string) =>
-    send(`/api/actions/${actionId}/transition`, json(reason ? { to, reason } : { to }));
+  const transition = (to: ActionStatus, extra?: Record<string, unknown>) => send(`/api/actions/${p.actionId}/transition`, json({ to, ...extra }));
   const done = () => router.refresh();
+  const { plan, status, ownerGone } = p;
+  if (!plan.card) return null;
+  const names = (list: string[]) => format.list(list, { type: "conjunction" });
 
-  const buttons: ReactNode[] = [];
-  // The first of two sign-offs comes where the accept would (F22).
-  if (status === "awaiting_review" && second?.can.signOff) {
-    buttons.push(<SignOffDialog key="sign-off" actionId={actionId} trigger={<Button>{t("secondReview.signOff")}</Button>} />);
-  }
-  for (const to of moves) {
-    if (to === "awaiting_review") {
-      buttons.push(
-        <EvidenceDialog
-          key={to}
-          actionId={actionId}
-          submit
-          items={openItems}
-          recordFor={recordFor}
-          onDone={done}
-          trigger={<Button>{t("move.awaiting_review")}</Button>}
-        />,
+  let main: ReactNode = null;
+  switch (plan.main) {
+    case "start":
+      main = <RunButton label={t("move.in_progress")} run={() => transition("in_progress")} onDone={done} />;
+      break;
+    case "resume":
+      main = <RunButton label={t("resume")} run={() => transition("in_progress")} onDone={done} />;
+      break;
+    case "release":
+      main = <RunButton label={t("move.assigned")} run={() => transition("assigned")} onDone={done} />;
+      break;
+    case "send":
+    case "resend":
+      main = (
+        <ActionSendFile
+          actionId={p.actionId}
+          items={p.waitingItems}
+          canReview
+          defaultAfter="review"
+          recordFor={p.recordFor}
+          firm={p.firmView}
+          title={plan.main === "resend" ? tn("resend") : t("move.awaiting_review")}
+          trigger={<Button>{plan.main === "resend" ? tn("resend") : t("move.awaiting_review")}</Button>}
+        />
       );
-    } else if (to === "blocked" || to === "revision_requested") {
-      buttons.push(
-        <ReasonDialog
-          key={to}
-          title={t(`move.${to}`)}
-          hint={to === "blocked" ? t("blockHint") : t("reviseHint")}
-          run={(reason) => transition(to, reason)}
-          onDone={done}
-          trigger={<Button variant={to === "blocked" ? "outline" : "destructive"}>{t(`move.${to}`)}</Button>}
-        />,
-      );
-    } else if (to === "verified_complete" && second?.required) {
-      buttons.push(<SecondSignOffDialog key={to} actionId={actionId} trigger={<Button>{t("secondReview.verify")}</Button>} />);
-    } else if (to === "verified_complete") {
-      buttons.push(
+      break;
+    case "verify":
+      main = (
         <ConfirmDialog
-          key={to}
-          title={t(`move.${to}`)}
-          hint={t("acceptHint")}
-          run={() => transition(to)}
-          onDone={() => {
-            markJustVerified(actionId);
-            done();
-          }}
-          trigger={<Button>{t(`move.${to}`)}</Button>}
-        />,
+          title={t("move.verified_complete")}
+          hint={p.toAccept && plan.acceptsItems ? `${t("acceptHint")} ${tn("alsoAccepts", { n: p.toAccept })}` : t("acceptHint")}
+          run={() => transition("verified_complete", plan.acceptsItems ? { acceptItems: true } : undefined)}
+          onDone={() => (markJustVerified(p.actionId), done())}
+          trigger={<Button>{t("move.verified_complete")}</Button>}
+        />
       );
-    } else if (to === "closed") {
-      buttons.push(
-        <CloseDialog
-          key={to}
-          actionId={actionId}
-          signed={close?.signed ?? false}
-          replacements={close?.replacements ?? []}
-          onDone={done}
-          trigger={<Button variant="outline">{t("move.closed")}</Button>}
-        />,
-      );
-    } else if (to === "in_progress" && (status === "closed" || status === "verified_complete")) {
-      buttons.push(
-        <ReasonDialog
-          key={to}
-          title={t("reopen")}
-          hint={t("reopenHint")}
-          run={(reason) => transition(to, reason)}
-          onDone={done}
-          trigger={<Button variant="outline">{t("reopen")}</Button>}
-        />,
-      );
-    } else {
-      const label = to === "in_progress" && status !== "assigned" ? t("resume") : t(`move.${to}`);
-      buttons.push(<RunButton key={to} label={label} run={() => transition(to)} onDone={done} />);
-    }
+      break;
+    case "signOff":
+      main = <SignOffDialog actionId={p.actionId} trigger={<Button>{t("secondReview.signOff")}</Button>} />;
+      break;
+    case "secondSignOff":
+      main = <SecondSignOffDialog actionId={p.actionId} trigger={<Button>{t("secondReview.verify")}</Button>} />;
+      break;
+    case "approveDate":
+      main = p.date && !p.date.needsLead ? (
+        <RunButton label={t("deadline.approve")} run={() => send(`/api/deadline-requests/${p.date!.id}`, patch({ approve: true }))} onDone={done} />
+      ) : null;
+      break;
   }
-  if (can.submitEvidence) {
-    buttons.push(
-      <EvidenceDialog
-        key="evidence"
-        actionId={actionId}
-        submit={false}
-        recordFor={recordFor}
+  const outline = plan.outline.map((o) =>
+    o === "sendBack" ? (
+      <ReasonDialog
+        key={o}
+        title={t("move.revision_requested")}
+        hint={t("reviseHint")}
+        run={(reason) => transition("revision_requested", { reason })}
         onDone={done}
-        trigger={<Button variant="outline">{t("uploadOnly")}</Button>}
-      />,
-    );
-  }
+        trigger={<Button variant="outline">{t("move.revision_requested")}</Button>}
+      />
+    ) : o === "resume" ? (
+      <RunButton key={o} variant="outline" label={t("resume")} run={() => transition("in_progress")} onDone={done} />
+    ) : o === "approveDate" && p.date && !p.date.needsLead ? (
+      <RunButton key={o} variant="outline" label={t("deadline.approve")} run={() => send(`/api/deadline-requests/${p.date!.id}`, patch({ approve: true }))} onDone={done} />
+    ) : o === "declineDate" && p.date ? (
+      <RunButton key={o} variant="outline" label={t("deadline.reject")} run={() => send(`/api/deadline-requests/${p.date!.id}`, patch({ approve: false }))} onDone={done} />
+    ) : null,
+  );
 
-  const note = status === "awaiting_review" && buttons.length === 0 ? t("awaitingNote") : status === "verified_complete" ? t("verifiedNote") : t("noMoves");
+  const since = p.awaitingSince ? format.dateTime(new Date(p.awaitingSince), { dateStyle: "medium" }) : null;
+  const waiting =
+    plan.waiting === "withConsultant"
+      ? since
+        ? tn("withConsultantSince", { date: since })
+        : tn("withConsultant")
+      : plan.waiting === "otherReviewer"
+        ? p.reviewers?.length
+          ? tn("otherReviewer", { names: names(p.reviewers) })
+          : tn("noReviewer")
+        : plan.waiting
+          ? tn(plan.waiting)
+          : null;
+  const day = (d: string) => format.dateTime(new Date(`${d}T12:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
 
   return (
     <Card className="gap-4 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-base">{t("nextStep")}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5 px-5">
+      <CardContent className="space-y-4 px-5">
         {/* Said before the click, in the words the refusal would use. */}
         {status === "draft" && ownerGone ? <p className="text-sm text-destructive">{t("errors.ownerGone")}</p> : null}
-        {buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : <p className="text-sm text-muted-foreground">{note}</p>}
-        {/* The sign-off count is the firm's machinery: not drawn for a client reader (page audit 4.5). */}
-        {status === "awaiting_review" && second && firmView ? <SecondReviewStatus view={second} firmView={firmView} /> : null}
-        {status === "revision_requested" && moves.includes("in_progress") ? (
-          <p className="text-sm text-muted-foreground">{t("revisionNote")}</p>
+        {p.status === "blocked" && p.blockedReason ? <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{t("blocked", { reason: p.blockedReason })}</p> : null}
+        {plan.main === "approveDate" || plan.outline.includes("declineDate") ? (
+          p.date ? (
+            <div className="space-y-1 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <p className="font-medium">{tn("dateAsked", { date: day(p.date.proposedDueDate), who: p.date.requestedBy ?? t("someone") })}</p>
+              <p className="whitespace-pre-wrap text-muted-foreground" dir="auto">
+                {p.date.reason}
+              </p>
+              {p.date.needsLead ? <p className="text-xs text-muted-foreground">{t("deadline.needsLead")}</p> : null}
+            </div>
+          ) : null
         ) : null}
-        {after}
-        {can.addUpdate ? <UpdateForm actionId={actionId} recordFor={recordFor} onDone={done} /> : null}
+        {/* The reviewer judges the files in the same card. */}
+        {p.status === "awaiting_review" && p.firmView && p.judged.length ? (
+          <ul className="flex flex-wrap gap-2">
+            {p.judged.map((f) => (
+              <li key={f.documentId} className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1 text-sm">
+                <FileText className="size-3.5 text-muted-foreground" />
+                <span className="max-w-60 truncate">{f.title}</span>
+                {f.canDownload ? <DownloadButton documentId={f.documentId} label={t("download")} unavailable={t("errors.unavailable")} /> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {main || outline.some(Boolean) ? (
+          <div className="flex flex-wrap items-start gap-2">
+            {main}
+            {outline}
+          </div>
+        ) : waiting ? (
+          <p className="text-sm text-muted-foreground">{waiting}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("noMoves")}</p>
+        )}
+        {plan.secondChecks && !p.firmView ? <p className="text-sm text-muted-foreground">{tn("secondChecks")}</p> : null}
+        {/* Who reviews (N25): on a client the firm runs the consultant recording it reads that someone else checks it. */}
+        {p.recordFor && (plan.main === "send" || plan.main === "resend") && p.reviewers ? (
+          <p className="text-xs text-muted-foreground">{p.reviewers.length ? tn("reviewedBy", { names: names(p.reviewers) }) : tn("noReviewer")}</p>
+        ) : null}
+        {p.after}
+        {plan.links.length ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3" data-slot="quiet-links">
+            {plan.links.map((l) =>
+              l === "stuck" ? (
+                <ReasonDialog
+                  key={l}
+                  title={tn("stuck")}
+                  hint={t("blockHint")}
+                  run={(reason) => transition("blocked", { reason })}
+                  onDone={done}
+                  trigger={
+                    <Button type="button" variant="link" size="sm" className="h-auto px-0">
+                      {tn("stuck")}
+                    </Button>
+                  }
+                />
+              ) : l === "moreTime" ? (
+                <AskForDate
+                  key={l}
+                  actionId={p.actionId}
+                  dueDate={p.dueDate}
+                  onDone={done}
+                  trigger={
+                    <Button type="button" variant="link" size="sm" className="h-auto px-0">
+                      {tn("moreTime")}
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button key={l} type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => window.dispatchEvent(new Event(ASK_EVENT))}>
+                  {p.firmView ? tn("askClient") : tn("ask")}
+                </Button>
+              ),
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -243,11 +328,23 @@ export function ErrorText({ error }: { error: string | null }) {
   ) : null;
 }
 
-export function RunButton({ label, run, onDone }: { label: string; run: () => Promise<Result>; onDone: () => void }) {
+export function RunButton({
+  label,
+  run,
+  onDone,
+  variant = "default",
+  size,
+}: {
+  label: string;
+  run: () => Promise<Result>;
+  onDone: () => void;
+  variant?: "default" | "outline";
+  size?: "sm";
+}) {
   const { busy, error, go } = useRun(onDone);
   return (
     <div className="space-y-1">
-      <Button onClick={() => go(run)} disabled={busy}>
+      <Button variant={variant} size={size} onClick={() => go(run)} disabled={busy}>
         {busy ? <BrandLoader tone="current" className="size-4" /> : null}
         {label}
       </Button>
@@ -286,16 +383,16 @@ function ConfirmDialog(props: { title: string; hint: string; trigger: ReactNode;
 const OUTCOMES = ["partially_implemented", "risk_accepted", "not_applicable", "superseded"] as const;
 type Outcome = (typeof OUTCOMES)[number];
 
-/** End the action without verification: how it ended, and a note everyone on the project sees. */
-function CloseDialog(props: {
+/** End the action without verification: how it ended, and a note everyone on the project sees. Opened from the page menu. */
+export function CloseDialog(props: {
   actionId: string;
   signed: boolean;
   replacements: { id: string; title: string }[];
-  trigger: ReactNode;
+  control: DialogControl;
   onDone: () => void;
 }) {
   const t = useTranslations("action");
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(props.control);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [note, setNote] = useState("");
   const [successor, setSuccessor] = useState("");
@@ -309,8 +406,7 @@ function CloseDialog(props: {
   }
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent>
+      <DialogContent {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t("move.closed")}</DialogTitle>
@@ -370,25 +466,27 @@ function CloseDialog(props: {
   );
 }
 
+/** A step that needs a reason: blocking, sending back, reopening, an item not accepted. Its own trigger, or `control` from a menu. */
 export function ReasonDialog(props: {
   title: string;
   hint: string;
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  control?: DialogControl;
   run: (reason: string) => Promise<Result>;
   onDone: () => void;
 }) {
   const t = useTranslations("action");
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, contentProps } = useDialogControl(props.control);
   const [reason, setReason] = useState("");
   const { busy, error, go } = useRun(props.onDone);
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (reason.trim()) go(() => props.run(reason.trim()), () => setOpen(false));
+    if (reason.trim()) go(() => props.run(reason.trim()), () => (setOpen(false), setReason("")));
   }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent>
+      {props.trigger ? <DialogTrigger asChild>{props.trigger}</DialogTrigger> : null}
+      <DialogContent {...contentProps}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{props.title}</DialogTitle>
@@ -396,7 +494,7 @@ export function ReasonDialog(props: {
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="reason">{t("reasonLabel")}</Label>
-            <Textarea id="reason" required maxLength={4000} rows={4} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <Textarea id="reason" required maxLength={4000} rows={4} value={reason} onChange={(e) => setReason(e.target.value)} dir="auto" />
           </div>
           <ErrorText error={error} />
           <DialogFooter>
@@ -413,159 +511,6 @@ export function ReasonDialog(props: {
     </Dialog>
   );
 }
-
-/**
- * Attach a file to the action; with evidenceRequestId, it answers that item of
- * the evidence list. The file is either uploaded now or picked from the files
- * the person can already open in Selah (a copy is attached; see services/files).
- * Sent for review, a file answers the only open item on its own (the server
- * picks it); with several open items (`items`), the person says which.
- */
-export function EvidenceDialog(props: {
-  actionId: string;
-  submit: boolean;
-  trigger: ReactNode;
-  onDone: () => void;
-  evidenceRequestId?: string;
-  items?: { id: string; title: string }[];
-  title?: string;
-  /** Firm staff recording for a client the firm runs: ask how and when the client sent the file. */
-  recordFor?: boolean;
-}) {
-  const t = useTranslations("action");
-  const [open, setOpen] = useState(false);
-  const received = useReceived(props.recordFor ?? false);
-  const choose = props.submit && !props.evidenceRequestId && (props.items?.length ?? 0) > 1;
-  const [item, setItem] = useState("");
-  const itemId = props.evidenceRequestId ?? (choose && item !== NO_ITEM ? item || undefined : undefined);
-  const [mode, setMode] = useState<"upload" | "pick">("upload");
-  const [note, setNote] = useState("");
-  const { busy, error, go, setError } = useRun(props.onDone);
-  function close(next: boolean) {
-    setOpen(next);
-    setError(null);
-    if (!next) {
-      setMode("upload");
-      setNote("");
-      setItem("");
-      received.reset();
-    }
-  }
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    // Picking sends on "Use this file"; Enter in the search box sends nothing.
-    if (mode === "pick") return;
-    const form = new FormData(e.currentTarget);
-    form.delete("item");
-    const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      form.delete("file");
-      // Sending for review without a new file works only if evidence was attached earlier.
-      if (props.submit) {
-        go(() => send(`/api/actions/${props.actionId}/transition`, json({ to: "awaiting_review" })), () => close(false));
-      }
-      return;
-    }
-    form.set("submitForReview", String(props.submit));
-    if (itemId) form.set("evidenceRequestId", itemId);
-    form.delete("receivedOn");
-    for (const [k, v] of Object.entries(received.payload)) form.set(k, v);
-    if (!received.ready) return setError("received");
-    go(() => send(`/api/actions/${props.actionId}/evidence`, { method: "POST", body: form }), () => close(false));
-  }
-  function pick(file: FileEntry) {
-    if (!received.ready) return setError("received");
-    go(
-      () =>
-        send(
-          `/api/actions/${props.actionId}/evidence/existing`,
-          json({
-            documentId: file.id,
-            note: note.trim() || undefined,
-            submitForReview: props.submit,
-            evidenceRequestId: itemId,
-            ...received.payload,
-          }),
-        ),
-      () => close(false),
-    );
-  }
-  const itemField = choose ? (
-    <div className="grid gap-2">
-      <Label htmlFor="item">{t("answersItem")}</Label>
-      <Select name="item" value={item} onValueChange={setItem} required>
-        <SelectTrigger id="item" className="w-full">
-          <SelectValue placeholder={t("answersItemPick")} />
-        </SelectTrigger>
-        <SelectContent>
-          {props.items!.map((i) => (
-            <SelectItem key={i.id} value={i.id}>
-              {i.title}
-            </SelectItem>
-          ))}
-          <SelectItem value={NO_ITEM}>{t("answersNone")}</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  ) : null;
-  // Picking a file sends it at once, so the item must be chosen first.
-  const needItem = choose && !item;
-  const noteField = (
-    <div className="grid gap-2">
-      <Label htmlFor="note">{t("note")}</Label>
-      <Textarea id="note" name="note" maxLength={4000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-    </div>
-  );
-  return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent className={cn(mode === "pick" && "max-h-[85vh] overflow-y-auto sm:max-w-2xl")}>
-        <form onSubmit={submit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{props.title ?? (props.submit ? t("move.awaiting_review") : t("evidenceTitle"))}</DialogTitle>
-            <DialogDescription>{t("evidenceHint")}</DialogDescription>
-          </DialogHeader>
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "upload" | "pick")}>
-            <TabsList className="w-full">
-              <TabsTrigger value="upload">{t("uploadNew")}</TabsTrigger>
-              <TabsTrigger value="pick">{t("pickExisting")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {itemField}
-          {props.recordFor ? <ReceivedFields idPrefix="ev" {...received} /> : null}
-          {mode === "upload" ? (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="file">{t("file")}</Label>
-                <Input id="file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required={!props.submit} />
-              </div>
-              {noteField}
-            </>
-          ) : (
-            <>
-              {noteField}
-              <FileBrowser className="max-h-[50vh]" pick={{ actionId: props.actionId, onPick: pick, busy: busy || needItem }} />
-            </>
-          )}
-          <ErrorText error={error} />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => close(false)}>
-              {t("cancel")}
-            </Button>
-            {mode === "upload" ? (
-              <Button type="submit" disabled={busy || needItem}>
-                {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-                {busy ? t("saving") : props.submit ? t("sendForReview") : t("upload")}
-              </Button>
-            ) : null}
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-const NO_ITEM = "none";
 
 /**
  * How and when the client sent what the firm records for it (a client the
@@ -625,35 +570,5 @@ export function ReceivedFields({
         <DatePicker id={`${idPrefix}-on`} name="receivedOn" value={on} onChange={setOn} placeholder={t("on")} disabled={{ after: new Date(y!, m! - 1, d!) }} />
       </div>
     </div>
-  );
-}
-
-export function UpdateForm({ actionId, onDone, recordFor = false }: { actionId: string; onDone: () => void; recordFor?: boolean }) {
-  const t = useTranslations("action");
-  const [body, setBody] = useState("");
-  const received = useReceived(recordFor);
-  const { busy, error, go, setError } = useRun(onDone);
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!body.trim()) return;
-    if (!received.ready) return setError("received");
-    go(
-      () => send(`/api/actions/${actionId}/updates`, json({ body: body.trim(), ...received.payload })),
-      () => (setBody(""), received.reset()),
-    );
-  }
-  return (
-    <form onSubmit={submit} className="grid gap-2 border-t pt-4">
-      <Label htmlFor="update">{t("addUpdate")}</Label>
-      <Textarea id="update" rows={3} maxLength={4000} placeholder={t("updatePlaceholder")} value={body} onChange={(e) => setBody(e.target.value)} />
-      {recordFor ? <ReceivedFields idPrefix="up" {...received} /> : null}
-      <ErrorText error={error} />
-      <div>
-        <Button type="submit" variant="secondary" size="sm" disabled={busy || !body.trim()}>
-          {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-          {busy ? t("saving") : t("post")}
-        </Button>
-      </div>
-    </form>
   );
 }

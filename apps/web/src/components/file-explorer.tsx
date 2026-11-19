@@ -10,7 +10,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/components/ui/toast";
@@ -23,12 +22,11 @@ import { AudienceEditor, AudienceField, LimitedMarker, useAudienceRefusal, type 
 import { BrandLoader } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { FileActions } from "@/components/file-actions";
+import { SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useFloatingCard } from "@/components/floating-card";
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ui/file-tree";
-import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -36,7 +34,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import type { FileEntry, uploadTargets } from "@/services/files";
 
 // The file explorer: every file the person can already open in Selah, from
@@ -191,9 +188,7 @@ function UploadDialog({ onDone, fixed, primary = false }: { onDone: () => void; 
     ? `/api/projects/${project.id}/audience?kind=document&visibility=${label}${dept ? `&departmentId=${dept}` : ""}`
     : null;
 
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
+  async function submit(form: FormData) {
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) return;
     if (audience.dirty && !audience.value) return;
@@ -212,27 +207,20 @@ function UploadDialog({ onDone, fixed, primary = false }: { onDone: () => void; 
       }
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       const m = body.message ?? "";
-      setError(
-        refusal(m) ??
-        (res.status === 503
-          ? t("errors.scanner")
-          : m.includes("infected")
-            ? t("errors.infected")
-            : m.includes("too large")
-              ? t("errors.tooLarge")
-              : m.includes("rejected")
-                ? t("errors.type")
-                : t("errors.generic")),
-      );
+      setError(refusal(m) ?? t(`errors.${uploadErrorKey(res.status, m)}`));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setAudience({ value: null, dirty: false }))}>
-      <DialogTrigger asChild>
-        {fixed ? (
+    <SendFileDialog
+      title={t("uploadTitle")}
+      description={t("uploadHint")}
+      control={{ open, onOpenChange: setOpen }}
+      onOpenChange={(o) => (setError(null), o ? null : setAudience({ value: null, dirty: false }))}
+      trigger={
+        fixed ? (
           <Button type="button" variant={primary ? "default" : "outline"} size="sm">
             <Upload />
             {t("upload")}
@@ -242,34 +230,33 @@ function UploadDialog({ onDone, fixed, primary = false }: { onDone: () => void; 
             <Upload className="size-3.5" />
             {t("upload")}
           </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={submit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{t("uploadTitle")}</DialogTitle>
-            <DialogDescription>{t("uploadHint")}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2" hidden={!!fixed}>
-            <Label htmlFor="upload-project">{t("project")}</Label>
-            <NativeSelect
-              id="upload-project"
-              name="project"
-              className="w-full"
-              value={project.id}
-              onChange={(e) => (setProjectId(e.target.value), setAudience({ value: null, dirty: false }))}
-            >
-              {targets.projects.map((p) => (
-                <NativeSelectOption key={p.id} value={p.id}>
-                  {p.kind === "internal" ? `${t("internal")} · ${p.title}` : `${(rtl ? p.org.nameAr : null) ?? p.org.name} · ${p.title}`}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="upload-file">{t("file")}</Label>
-            <Input id="upload-file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
-          </div>
+        )
+      }
+      busy={busy}
+      error={error}
+      submitLabel={t("upload")}
+      submitDisabled={audience.dirty && !audience.value}
+      onSubmit={(form) => void submit(form)}
+      before={
+        <div className="grid gap-2" hidden={!!fixed}>
+          <Label htmlFor="upload-project">{t("project")}</Label>
+          <NativeSelect
+            id="upload-project"
+            name="project"
+            className="w-full"
+            value={project.id}
+            onChange={(e) => (setProjectId(e.target.value), setAudience({ value: null, dirty: false }))}
+          >
+            {targets.projects.map((p) => (
+              <NativeSelectOption key={p.id} value={p.id}>
+                {p.kind === "internal" ? `${t("internal")} · ${p.title}` : `${(rtl ? p.org.nameAr : null) ?? p.org.name} · ${p.title}`}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      }
+      after={
+        <>
           <fieldset className="grid gap-2">
             <legend className="mb-2 text-sm font-medium">{t("sharing")}</legend>
             <RadioGroup key={project.id} name="visibility" value={label} onValueChange={setVisibility} className="gap-2">
@@ -301,19 +288,9 @@ function UploadDialog({ onDone, fixed, primary = false }: { onDone: () => void; 
             // One picker per project; within it, a new label or department asks the server again and drops picks that no longer fit.
             <AudienceField key={project.id} kind="document" url={audienceUrl} onChange={(value, dirty) => setAudience({ value, dirty })} disabled={busy} />
           ) : null}
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              {t("cancel")}
-            </Button>
-            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
-              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-              {t("upload")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    />
   );
 }
 

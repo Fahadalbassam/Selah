@@ -7,30 +7,28 @@ import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
-import { FileText } from "@/components/animate-ui/icons/file-text";
 import { Lock } from "@/components/animate-ui/icons/lock";
-import { Paperclip } from "@/components/animate-ui/icons/paperclip";
 import { Plus } from "@/components/animate-ui/icons/plus";
 import { X } from "@/components/animate-ui/icons/x";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ApiButton, callApi, FormDialog, type Field } from "@/components/form-dialog";
+import { RequestRow } from "@/components/request-row";
 import { RowMenu, useRowCall } from "@/components/row-menu";
+import { SendFileButton, SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { SectionHeader } from "@/components/section-header";
 import { ToneBadge, type Tone } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useDialogControl, type DialogControl } from "@/hooks/use-dialog-control";
+import type { DialogControl } from "@/hooks/use-dialog-control";
 import { INFO_REQUEST_AREAS, INFO_REQUEST_TEMPLATES, NO_OWNER, requestTitle } from "@/lib/info-requests";
 import { requestRowPlan } from "@/lib/row-actions";
 import { UPLOAD_LINK_DAY_CHOICES, UPLOAD_LINK_DAYS } from "@/lib/upload-links";
-import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 import type { InfoRequestList } from "@/services/info-requests";
 
 type Item = InfoRequestList["items"][number];
@@ -182,36 +180,90 @@ function ItemRow({
   }
 
   return (
-    <li className="space-y-2 px-4 py-3 text-sm">
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1 space-y-1">
-          {/* Text in either language keeps the page's alignment. */}
-          <p className="font-medium">
-            <bdi>{title}</bdi>
-          </p>
-          {i.description ? (
-            <p className="max-w-3xl whitespace-pre-line text-muted-foreground">
-              <bdi>{i.description}</bdi>
-            </p>
-          ) : null}
-          <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>{i.ownerName ? t.rich("ownedBy", { name: i.ownerName, who: (c) => <bdi>{c}</bdi> }) : t("noOwner")}</span>
-            {i.dueDate ? (
-              <span className={i.overdue ? "font-medium text-destructive" : undefined}>
-                {t(i.overdue ? "overdueOn" : "dueOn", { date: format.dateTime(new Date(i.dueDate), { dateStyle: "medium" }) })}
-              </span>
+    <>
+      <RequestRow
+        title={title}
+        description={i.description}
+        state={{ label: t(`status.${i.status}`), tone: TONES[i.status] }}
+        badges={
+          <>
+            {i.sensitivity === "confidential" ? (
+              <ToneBadge tone="open" className="gap-1">
+                <Lock className="size-3" />
+                {t("confidential")}
+              </ToneBadge>
             ) : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {i.sensitivity === "confidential" ? (
-            <ToneBadge tone="open" className="gap-1">
-              <Lock className="size-3" />
-              {t("confidential")}
-            </ToneBadge>
-          ) : null}
-          {i.overdue ? <ToneBadge tone="problem">{t("overdue")}</ToneBadge> : null}
-          <ToneBadge tone={TONES[i.status]}>{t(`status.${i.status}`)}</ToneBadge>
+            {i.overdue ? <ToneBadge tone="problem">{t("overdue")}</ToneBadge> : null}
+          </>
+        }
+        facts={[
+          i.ownerName ? t.rich("ownedBy", { name: i.ownerName, who: (c) => <bdi>{c}</bdi> }) : t("noOwner"),
+          i.dueDate ? (
+            <span className={i.overdue ? "font-medium text-destructive" : undefined}>
+              {t(i.overdue ? "overdueOn" : "dueOn", { date: format.dateTime(new Date(i.dueDate), { dateStyle: "medium" }) })}
+            </span>
+          ) : null,
+        ]}
+        note={
+          i.statusNote && (i.status === "requested" || i.status === "not_applicable") ? (
+            <>
+              <span className="font-medium">{t(i.status === "requested" ? "returnedNote" : "naNote")}</span> <bdi>{i.statusNote}</bdi>
+            </>
+          ) : null
+        }
+        files={i.files.map((f) => ({
+          key: f.documentId,
+          node: (
+            <>
+              <a href={`/api/documents/${f.documentId}/download`} className="hover:underline">
+                <bdi>{f.title}</bdi>
+              </a>
+              {f.viaLink ? (
+                <span className="text-muted-foreground">
+                  {f.viaEmail ? t.rich("link.fromEmail", { email: f.viaEmail, a: (c) => <bdi dir="ltr">{c}</bdi> }) : t("link.byLink")}
+                </span>
+              ) : null}
+              {f.canRemove ? (
+                <button
+                  type="button"
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={t("removeFile", { name: f.title })}
+                  title={t("removeFile", { name: f.title })}
+                  onClick={() => takeOff(f.documentId, f.title)}
+                >
+                  <X className="size-3" />
+                </button>
+              ) : null}
+            </>
+          ),
+        }))}
+        extra={
+          i.links.length ? (
+            <ul className="space-y-1">
+              {i.links.map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                  <Link2 className="size-3.5" />
+                  <span>
+                    {t.rich("link.active", {
+                      email: l.email,
+                      date: format.dateTime(new Date(l.expiresAt), { dateStyle: "medium" }),
+                      n: l.uploads,
+                      a: (c) => <bdi dir="ltr">{c}</bdi>,
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null
+        }
+        main={
+          plan.main === "review" ? (
+            <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("accept")} icon={<CircleCheck />} variant="outline" size="sm" />
+          ) : plan.main === "answer" ? (
+            <AnswerDialog item={i} title={title} files={files} projectId={projectId} />
+          ) : null
+        }
+        menu={
           <RowMenu
             label={tc("moreFor", { name: title })}
             items={[
@@ -287,73 +339,14 @@ function ItemRow({
               },
             ]}
           />
-        </div>
-      </div>
-
-      {i.statusNote && (i.status === "requested" || i.status === "not_applicable") ? (
-        <p className="max-w-3xl rounded-md bg-muted px-3 py-2 text-xs">
-          <span className="font-medium">{t(i.status === "requested" ? "returnedNote" : "naNote")}</span> <bdi>{i.statusNote}</bdi>
-        </p>
-      ) : null}
-
-      {i.files.length ? (
-        <ul className="flex flex-wrap gap-2">
-          {i.files.map((f) => (
-            <li key={f.documentId} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs">
-              <FileText className="size-3.5 text-muted-foreground" />
-              <a href={`/api/documents/${f.documentId}/download`} className="hover:underline">
-                <bdi>{f.title}</bdi>
-              </a>
-              {f.viaLink ? (
-                <span className="text-muted-foreground">
-                  {f.viaEmail ? t.rich("link.fromEmail", { email: f.viaEmail, a: (c) => <bdi dir="ltr">{c}</bdi> }) : t("link.byLink")}
-                </span>
-              ) : null}
-              {f.canRemove ? (
-                <button
-                  type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label={t("removeFile", { name: f.title })}
-                  title={t("removeFile", { name: f.title })}
-                  onClick={() => takeOff(f.documentId, f.title)}
-                >
-                  <X className="size-3" />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {i.links.length ? (
-        <ul className="space-y-1">
-          {i.links.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              <Link2 className="size-3.5" />
-              <span>
-                {t.rich("link.active", {
-                  email: l.email,
-                  date: format.dateTime(new Date(l.expiresAt), { dateStyle: "medium" }),
-                  n: l.uploads,
-                  a: (c) => <bdi dir="ltr">{c}</bdi>,
-                })}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {plan.main === "review" ? (
-        <ApiButton endpoint={`${base}/status`} body={{ status: "reviewed" }} label={t("review")} icon={<CircleCheck />} />
-      ) : plan.main === "answer" ? (
-        <AnswerDialog item={i} title={title} files={files} projectId={projectId} />
-      ) : null}
+        }
+      />
       {confirmDialog}
-    </li>
+    </>
   );
 }
 
-/** Answer an item: upload a file, or pick one already shared on the project. */
+/** Answer an item: the one file dialog (components/send-file-dialog.tsx), a new file or one already shared on the project. */
 function AnswerDialog({
   item,
   title,
@@ -369,10 +362,12 @@ function AnswerDialog({
   control?: DialogControl;
 }) {
   const t = useTranslations("infoRequests");
-  const tf = useTranslations("fileActions");
+  const ts = useTranslations("sendFile");
   const tc = useTranslations("common");
   const router = useRouter();
-  const { open, setOpen, contentProps } = useDialogControl(control);
+  const [own, setOwn] = useState(false);
+  const open = control?.open ?? own;
+  const setOpen = (o: boolean) => (control?.onOpenChange ? control.onOpenChange(o) : setOwn(o));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState("");
@@ -387,9 +382,7 @@ function AnswerDialog({
     router.refresh();
   }
 
-  async function upload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
+  async function upload(form: FormData) {
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) return;
     if (audience.dirty && !audience.value) return;
@@ -400,19 +393,7 @@ function AnswerDialog({
       const res = await fetch(`/api/info-requests/${item.id}/files`, { method: "POST", body: form });
       if (res.ok) return finish();
       const m = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? "";
-      const why = refusal(m);
-      if (why) return setError(why);
-      setError(
-        res.status === 503
-          ? tf("errors.scanner")
-          : m.includes("infected")
-            ? tf("errors.infected")
-            : m.includes("too large")
-              ? tf("errors.tooLarge")
-              : m.includes("rejected")
-                ? tf("errors.type")
-                : tc("errors.generic"),
-      );
+      setError(refusal(m) ?? ts(`errors.${uploadErrorKey(res.status, m)}`));
     } catch {
       setError(tc("errors.generic"));
     } finally {
@@ -431,33 +412,53 @@ function AnswerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null), setExisting(""), setAudience({ value: null, dirty: false }))}>
-      {control ? null : (
-        <DialogTrigger asChild>
-          {/* The row's one button, so outline: a card keeps a single solid button. */}
-          <Button size="sm" variant="outline" className="w-fit">
-            <Paperclip />
-            {t(item.files.length ? "addFile" : "answer")}
-          </Button>
-        </DialogTrigger>
-      )}
-      <DialogContent {...contentProps}>
-        <form onSubmit={upload} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{t("answerTitle")}</DialogTitle>
-            <DialogDescription dir="auto">{title}</DialogDescription>
-          </DialogHeader>
-          {item.sensitivity === "confidential" ? (
-            <p className="flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs">
-              <Lock className="mt-0.5 size-3.5 shrink-0" />
-              {t("confidentialHint")}
-            </p>
-          ) : null}
+    <SendFileDialog
+      title={ts("title")}
+      description={ts("forItem", { item: title })}
+      control={{ open, onOpenChange: setOpen, returnFocus: control?.returnFocus }}
+      onOpenChange={(o) => (setError(null), setExisting(""), o ? null : setAudience({ value: null, dirty: false }))}
+      // The row's one button, so outline: a card keeps a single solid button.
+      trigger={control ? undefined : <SendFileButton label={t(item.files.length ? "addFile" : "answer")} />}
+      notice={
+        item.sensitivity === "confidential" ? (
+          <p className="flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs">
+            <Lock className="mt-0.5 size-3.5 shrink-0" />
+            {t("confidentialHint")}
+          </p>
+        ) : null
+      }
+      busy={busy}
+      error={error}
+      submitLabel={ts("button")}
+      submitDisabled={audience.dirty && !audience.value}
+      onSubmit={(form) => void upload(form)}
+      pick={
+        choices.length ? (
           <div className="grid gap-2">
-            <Label htmlFor={`answer-${item.id}`}>{t("uploadNew")}</Label>
-            <Input id={`answer-${item.id}`} name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
-            <p className="text-xs text-muted-foreground">{t("sharedHint")}</p>
+            <Label htmlFor={`existing-${item.id}`}>{t("orExisting")}</Label>
+            <div className="flex gap-2">
+              <Select value={existing} onValueChange={setExisting}>
+                <SelectTrigger id={`existing-${item.id}`} className="min-w-0 flex-1">
+                  <SelectValue placeholder={t("pickFile")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {choices.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" disabled={!existing || busy} onClick={useExisting}>
+                {t("useFile")}
+              </Button>
+            </div>
           </div>
+        ) : undefined
+      }
+      after={
+        <>
+          <p className="text-xs text-muted-foreground">{t("sharedHint")}</p>
           {open ? (
             <AudienceField
               kind="document"
@@ -466,45 +467,9 @@ function AnswerDialog({
               disabled={busy}
             />
           ) : null}
-          {choices.length ? (
-            <div className="grid gap-2">
-              <Label htmlFor={`existing-${item.id}`}>{t("orExisting")}</Label>
-              <div className="flex gap-2">
-                <Select value={existing} onValueChange={setExisting}>
-                  <SelectTrigger id={`existing-${item.id}`} className="min-w-0 flex-1">
-                    <SelectValue placeholder={t("pickFile")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {choices.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="button" variant="outline" disabled={!existing || busy} onClick={useExisting}>
-                  {t("useFile")}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {error ? (
-            <p role="alert" className="text-xs text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              {tc("cancel")}
-            </Button>
-            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
-              {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-              {tf("upload")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    />
   );
 }
 

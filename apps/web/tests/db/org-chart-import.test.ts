@@ -422,7 +422,7 @@ describe("saving into the draft", () => {
     });
   });
 
-  // Part 5 (migration 0250) made publishing place the plans: until then this test recorded that publishing left them on the next draft.
+  // Part 5 (migration 0105) made publishing place the plans: until then this test recorded that publishing left them on the next draft.
   it("publishing places the planned people from the day it takes effect and leaves no plan anywhere; no client reader ever reads a plan", async () => {
     const plans = await plansOf(SAHM);
     expect(Object.keys(plans).sort()).toEqual(["1.1", "2.1"]);

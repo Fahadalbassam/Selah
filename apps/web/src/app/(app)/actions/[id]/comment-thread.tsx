@@ -5,7 +5,7 @@ import { Send } from "@/components/animate-ui/icons/send";
 import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { panelVoice } from "@/lib/engagement";
 import { typedDir } from "@/lib/utils";
 import { ASK_EVENT, THREAD_ANCHOR } from "@/lib/help";
+import { ReceivedFields, useReceived } from "./action-panel";
 
 interface Person {
   id: string;
@@ -47,10 +48,24 @@ function threadError(message: string | undefined) {
   return "cannot";
 }
 
+/** A progress note on the work, shown in the conversation (page audit 4.5, block 6). */
+export interface ProgressNote {
+  id: string;
+  at: Date | string;
+  who: string | null;
+  body: ReactNode;
+  /** On a client the firm runs: how and when the client told the firm. */
+  received: string | null;
+}
+
 /**
- * The two-way thread on an action (F11): the firm and the client talk about
- * the work where it is recorded. Everyone who can see the action reads it;
- * a mention tells someone who can see it too.
+ * The one conversation on an action (F11; page audit 4.5, block 6): the firm
+ * and the client talk about the work where it is recorded, and the progress
+ * notes are part of it, so there is one box. Everyone who can see the action
+ * reads it; a mention tells someone who can see it too. Whoever moves the
+ * work may mark what they write as a progress note (it counts as activity on
+ * the action); on a client the firm runs, the firm records the client's
+ * progress here, with how and when the client sent it.
  */
 export function CommentThread({
   actionId,
@@ -60,8 +75,13 @@ export function CommentThread({
   firmView,
   firmRun = false,
   askMention,
+  notes = [],
+  progress,
 }: {
   actionId: string;
+  notes?: ProgressNote[];
+  /** May post a progress note (progress_update.create), and whether the firm records it for the client. */
+  progress?: { recordFor: boolean } | null;
   comments: Comment[];
   people: Person[];
   canWrite: boolean;
@@ -82,6 +102,8 @@ export function CommentThread({
   const when = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium", timeStyle: "short" });
   const byId = new Map(people.map((p) => [p.id, p]));
   const box = useRef<HTMLTextAreaElement>(null);
+  const [asNote, setAsNote] = useState(false);
+  const received = useReceived(!!progress?.recordFor && asNote);
 
   // "Ask your consultant" in the page header brings the reader here, with the lead mentioned.
   useEffect(() => {
@@ -98,13 +120,18 @@ export function CommentThread({
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!body.trim()) return;
+    if (asNote && !received.ready) return void setError("received");
     setBusy(true);
     setError(null);
-    const r = await callApi(`/api/actions/${actionId}/comments`, "POST", { body, mentions });
+    const r = asNote
+      ? await callApi(`/api/actions/${actionId}/updates`, "POST", { body: body.trim(), ...received.payload })
+      : await callApi(`/api/actions/${actionId}/comments`, "POST", { body, mentions });
     setBusy(false);
-    if (!r.ok) return void setError(threadError(r.message));
+    if (!r.ok) return void setError(asNote && /how and when/.test(r.message ?? "") ? "received" : threadError(r.message));
     setBody("");
     setMentions([]);
+    setAsNote(false);
+    received.reset();
     toast.success(t("posted"));
     router.refresh();
   }
@@ -126,9 +153,27 @@ export function CommentThread({
         <CardDescription>{t(`hint${panelVoice(firmView, firmRun)}`)}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-5">
-        {comments.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
+        {comments.length === 0 && notes.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
         <ol className="space-y-4">
-          {comments.map((c) => (
+          {[
+            ...comments.map((c) => ({ at: new Date(c.createdAt).getTime(), c, n: null })),
+            ...notes.map((n) => ({ at: new Date(n.at).getTime(), c: null, n })),
+          ]
+            .sort((a, b) => a.at - b.at)
+            .map(({ c, n }) =>
+              n ? (
+                <li key={`n-${n.id}`} className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-medium">{n.who ?? t("someone")}</span>
+                    <Badge variant="outline" className="ms-2 font-normal">
+                      {t("progressNote")}
+                    </Badge>
+                    <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(n.at)}</span>
+                  </p>
+                  {n.received ? <p className="text-xs text-muted-foreground">{n.received}</p> : null}
+                  <div>{n.body}</div>
+                </li>
+              ) : c ? (
             <li key={c.id} className="space-y-1 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <p>
@@ -161,7 +206,8 @@ export function CommentThread({
                 </>
               )}
             </li>
-          ))}
+              ) : null,
+            )}
         </ol>
 
         {canWrite ? (
@@ -180,7 +226,17 @@ export function CommentThread({
               dir={typedDir(body)}
               placeholder={t("placeholder")}
             />
-            {mentions.length ? (
+            {progress ? (
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={asNote} onCheckedChange={(on) => setAsNote(on === true)} className="mt-0.5" />
+                <span className="space-y-0.5">
+                  <span className="block">{progress.recordFor ? t("asRecorded") : t("asNote")}</span>
+                  <span className="block text-xs text-muted-foreground">{progress.recordFor ? t("asRecordedHint") : t("asNoteHint")}</span>
+                </span>
+              </label>
+            ) : null}
+            {asNote && progress?.recordFor ? <ReceivedFields idPrefix="up" {...received} /> : null}
+            {mentions.length && !asNote ? (
               <div className="flex flex-wrap items-center gap-1">
                 {mentions.map((id) => (
                   <Badge key={id} variant="secondary" className="gap-1 font-normal">
@@ -200,7 +256,7 @@ export function CommentThread({
             <div className="flex items-center justify-between gap-2">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" size="sm" disabled={people.length === 0}>
+                  <Button type="button" variant="outline" size="sm" disabled={people.length === 0 || asNote}>
                     <AtSign className="size-4" />
                     {t("mention")}
                   </Button>

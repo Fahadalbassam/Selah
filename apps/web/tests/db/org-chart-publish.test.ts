@@ -1,4 +1,4 @@
-// The organisation structure, part 5 (migration 0250): publishing (who, the
+// The organisation structure, part 5 (migration 0105): publishing (who, the
 // draft id, the day it takes effect, the people planned for the draft placed
 // from that day after a second check, the people on positions the new
 // version drops), the client's suggestions and the firm's answer, the

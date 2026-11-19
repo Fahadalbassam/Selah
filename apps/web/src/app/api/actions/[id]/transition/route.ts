@@ -12,6 +12,8 @@ const body = z.object({
       supersededBy: z.uuid().optional(),
     })
     .optional(),
+  // Verifying also accepts the files still to be checked (October review, item 12).
+  acceptItems: z.boolean().optional(),
 });
 
 export const POST = route({ params: z.object({ id: z.uuid() }), body }, ({ tx, principal, params, body }) =>

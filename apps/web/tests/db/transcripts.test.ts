@@ -57,13 +57,13 @@ const put = (userId: string, body = TEXT) =>
   sqlAs(
     userId,
     `INSERT INTO meeting_transcripts (meeting_id, project_id, org_id, lang, format, body, imported_by, delete_after)
-     VALUES ($1,$2,$3,'en','text',$4,$5,'1970-01-01') RETURNING delete_after`,
+     VALUES ($1,$2,$3,'en','text',$4,$5,'1970-01-01') RETURNING delete_after::text`,
     [MEETING, PROJ, ACME, body, userId],
   );
-const kept = async () => (await owner.query(`SELECT meeting_id, delete_after, imported_by FROM meeting_transcripts`)).rows;
-const today = async () => (await owner.query(`SELECT (now() AT TIME ZONE 'Asia/Riyadh')::date AS d`)).rows[0].d as Date;
-const plusDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000).toISOString().slice(0, 10);
-const iso = (d: Date) => new Date(d).toISOString().slice(0, 10);
+const kept = async () => (await owner.query(`SELECT meeting_id, delete_after::text, imported_by FROM meeting_transcripts`)).rows;
+// Days are counted and compared in the database as text: a date read into a JS
+// Date lands on the test machine's midnight, a day early east of UTC.
+const firmDay = async (n: number) => (await owner.query(`SELECT (app_firm_today() + $1::int)::text AS d`, [n])).rows[0].d as string;
 
 beforeAll(async () => {
   const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
@@ -117,7 +117,7 @@ describe("meeting transcripts", () => {
     await expect(put(U.cons)).rejects.toThrow(/held meeting/);
     await held();
     const [row] = (await put(U.cons)).rows;
-    expect(iso(row.delete_after)).toBe(plusDays(await today(), 90));
+    expect(row.delete_after).toBe(await firmDay(90));
   });
 
   it("are the firm's: the client and consultants off the project can neither see nor add one", async () => {
@@ -142,7 +142,7 @@ describe("meeting transcripts", () => {
       `INSERT INTO meeting_summaries (meeting_id, project_id, org_id, lang, main_points_md, confirmed_by) VALUES ($1,$2,$3,'en','Points',$4)`,
       [MEETING, PROJ, ACME, U.cons],
     );
-    expect(iso((await kept())[0].delete_after)).toBe(plusDays(await today(), 30));
+    expect((await kept())[0].delete_after).toBe(await firmDay(30));
   });
 
   it("go at once when consent is withdrawn, and on schedule by the daily job", async () => {
@@ -154,10 +154,10 @@ describe("meeting transcripts", () => {
 
     await consent(true);
     await put(U.cons);
-    expect(await owner.query(`SELECT app_purge_transcripts($1::date) AS n`, [plusDays(await today(), 89)])).toMatchObject({
+    expect(await owner.query(`SELECT app_purge_transcripts($1::date) AS n`, [await firmDay(89)])).toMatchObject({
       rows: [{ n: 0 }],
     });
-    expect(await owner.query(`SELECT app_purge_transcripts($1::date) AS n`, [plusDays(await today(), 90)])).toMatchObject({
+    expect(await owner.query(`SELECT app_purge_transcripts($1::date) AS n`, [await firmDay(90)])).toMatchObject({
       rows: [{ n: 1 }],
     });
     expect(await kept()).toHaveLength(0);

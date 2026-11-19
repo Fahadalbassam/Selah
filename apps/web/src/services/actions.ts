@@ -106,6 +106,8 @@ export interface TransitionInput {
   reason?: string;
   /** Required when closing. */
   closure?: { outcome: ClosureOutcome; note: string; supersededBy?: string };
+  /** Verifying: also accept the evidence items whose files wait to be checked (October review, item 12). */
+  acceptItems?: boolean;
 }
 
 /**
@@ -120,6 +122,20 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
   assertAllowed(principal, "action.read", resource);
 
   const from = action.status;
+  // Sent back, and the revised file was saved without sending (review S2): sending it for review is one
+  // step, through "in progress", as sending a file is (submitEvidence). Each move is checked as its own.
+  if (from === "revision_requested" && input.to === "awaiting_review") {
+    const [lastReview] = await tx.select({ at: reviews.createdAt }).from(reviews).where(eq(reviews.actionId, id)).orderBy(desc(reviews.createdAt)).limit(1);
+    const [lastEvidence] = await tx
+      .select({ at: evidenceSubmissions.submittedAt })
+      .from(evidenceSubmissions)
+      .where(eq(evidenceSubmissions.actionId, id))
+      .orderBy(desc(evidenceSubmissions.submittedAt))
+      .limit(1);
+    if (!lastEvidence || (lastReview && lastEvidence.at <= lastReview.at)) throw new BadRequestError("submit evidence before asking for review");
+    await transitionAction(tx, principal, id, { to: "in_progress" });
+    return transitionAction(tx, principal, id, { to: "awaiting_review" });
+  }
   const decision = canTransition(principal, resource, from, input.to, await roundSubmitters(tx, id));
   if (!decision.allowed) {
     throw new ForbiddenError(transitionPermission(from, input.to) ?? "action.work", resource, decision.reason);
@@ -186,6 +202,20 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     if (state?.required && !state.signed_by) throw new BadRequestError("this work needs two sign-offs; sign off first");
     if (state?.required && state.signed_by === principal.userId) {
       throw new ForbiddenError("action.review", resource, "workflow:second-reviewer");
+    }
+    // October review, item 12: verifying may also accept the files still to be checked, in one step,
+    // by the same reviewer. Never with two sign-offs (the first reviewer judges the items), and never
+    // while an item has nothing sent yet: the items are accepted one by one as before
+    // (decideEvidenceRequest, with its own checks and notices), then the action is verified.
+    if (input.acceptItems) {
+      if (state?.required) throw new BadRequestError("this work needs two sign-offs; accept each item first");
+      const left = await tx
+        .select({ id: evidenceRequests.id, status: evidenceRequests.status })
+        .from(evidenceRequests)
+        .where(and(eq(evidenceRequests.actionId, id), sql`${evidenceRequests.status} not in ('accepted', 'waived')`));
+      if (left.some((i) => i.status !== "submitted")) throw new BadRequestError("every evidence request must be accepted or waived first");
+      const { decideEvidenceRequest } = await import("./follow-through");
+      for (const item of left) await decideEvidenceRequest(tx, principal, item.id, { status: "accepted" }, { quiet: true });
     }
   }
 
