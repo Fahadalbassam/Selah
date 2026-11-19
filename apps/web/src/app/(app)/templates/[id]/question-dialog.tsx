@@ -2,6 +2,7 @@
 
 import { Pencil } from "lucide-react";
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { Hint } from "@/components/hint";
 import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -288,16 +289,18 @@ export function QuestionDialog(props: {
                     value={o.points}
                     onChange={(e) => setOptions(options.map((x, j) => (j === i ? { ...x, points: Number(e.target.value) } : x)))}
                   />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t("removeOption")}
-                    disabled={options.length <= 2}
-                    onClick={() => setOptions(options.filter((_, j) => j !== i))}
-                  >
-                    <X />
-                  </Button>
+                  <Hint asChild tip={t("removeOption")}>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t("removeOption")}
+                      disabled={options.length <= 2}
+                      onClick={() => setOptions(options.filter((_, j) => j !== i))}
+                    >
+                      <X />
+                    </Button>
+                  </Hint>
                 </div>
               ))}
               {options.length < 10 ? (

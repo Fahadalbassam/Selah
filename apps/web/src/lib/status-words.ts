@@ -268,3 +268,50 @@ export function placementTone(p: Placement): Tone {
 export function actionExactShown(state: ActionState): boolean {
   return !["in_progress", "verified_complete", "closed"].includes(state);
 }
+
+// ---- What each word means, as a tooltip (big prompt 6.1) ----
+//
+// A badge shows the word; its tooltip names the exact stored state behind it
+// and what it means for the reader, in one sentence (`tips.status.*` in the
+// message files). The kinds the firm and the client both read have one
+// sentence for each side, so the reader's own side is "you".
+
+export const CLOSURE_OUTCOMES = ["partially_implemented", "risk_accepted", "not_applicable", "superseded"] as const;
+export type ClosureOutcome = (typeof CLOSURE_OUTCOMES)[number];
+
+/** A meeting's tooltip, by what its badge says. */
+export const MEETING_TIPS = ["waiting", "upcoming", "held", "cancelled"] as const;
+export type MeetingTip = (typeof MEETING_TIPS)[number];
+
+export function meetingTip(s: MeetingState, unanswered = false): MeetingTip {
+  if (s === "held" || s === "cancelled") return s;
+  return unanswered ? "waiting" : "upcoming";
+}
+
+/** Kinds whose tooltip differs for the firm and the client reader. */
+const BY_READER = ["action", "outcome", "evidenceItem", "infoRequest"] as const;
+export type TipKind = (typeof BY_READER)[number] | "meeting" | "inquiry" | "project";
+
+/** The message key under `tips` for a badge of this kind and state, for this reader. */
+export function statusTipKey(kind: TipKind, state: string, reader: Reader): string {
+  return (BY_READER as readonly string[]).includes(kind) ? `status.${kind}.${state}.${reader}` : `status.${kind}.${state}`;
+}
+
+/** Every tooltip key a status badge can ask for: tests/tips.test.ts checks each exists in both languages. */
+export function allStatusTipKeys(): string[] {
+  const both: Reader[] = ["firm", "client"];
+  const keys: string[] = [];
+  const add = (kind: TipKind, states: readonly string[], readers: Reader[] = both) => {
+    for (const s of states) for (const r of readers) keys.push(statusTipKey(kind, s, r));
+  };
+  // A draft is never shown to the client (D6).
+  add("action", ACTION_STATES.filter((s) => s !== "draft"));
+  add("action", ["draft"], ["firm"]);
+  add("outcome", CLOSURE_OUTCOMES);
+  add("evidenceItem", EVIDENCE_ITEM_STATES);
+  add("infoRequest", INFO_REQUEST_STATES);
+  add("meeting", MEETING_TIPS, ["firm"]);
+  add("inquiry", INQUIRY_STATES, ["firm"]);
+  add("project", PROJECT_STATES, ["firm"]);
+  return [...new Set(keys)];
+}

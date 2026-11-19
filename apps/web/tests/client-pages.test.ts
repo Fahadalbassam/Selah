@@ -205,7 +205,8 @@ describe("the meeting page before and after it is held (U14)", () => {
     expect(page).toMatch(/\{show\.followUps && /);
     expect(page).toMatch(/firm && canRun && show\.transcript \? \(\s*<TranscriptPanel/);
     // Who sees it is the firm's word: no "Shared with the client" badge for a client reader.
-    expect(page).toMatch(/\{firm \? <Badge variant="outline">\{tVis\(meeting\.visibility\)\}<\/Badge> : null\}/);
+    // (Drawn with its tooltip since phase 2, VisibilityBadge.)
+    expect(page).toMatch(/\{firm \? <VisibilityBadge visibility=\{meeting\.visibility\} label=\{tVis\(meeting\.visibility\)\} \/> : null\}/);
   });
 
   it("lets the reader answer in their own voice, with no second solid button beside the call link", () => {

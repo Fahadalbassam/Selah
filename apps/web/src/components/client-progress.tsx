@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ExportButton } from "@/components/export-button";
 import { Meter, StatTile } from "@/components/stat-tile";
-import { WordBadge } from "@/components/status-badge";
+import { KindWord } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { env } from "@/env";
@@ -109,7 +109,7 @@ export async function ClientProgress({
                         {p.sequence ? tPh("numbered", { n: p.sequence, title: p.title }) : p.title}
                       </Link>
                       {/* One of the six words (D3); a project's word never waits on a side. */}
-                      {p.state === "active" ? null : <WordBadge placement={projectPlacement(p.state)} reader="firm" />}
+                      {p.state === "active" ? null : <KindWord kind="project" state={p.state} placement={projectPlacement(p.state)} reader="firm" />}
                     </span>
                   </TableCell>
                   {columns(p.numbers)}

@@ -9,6 +9,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
+import { IconTip } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MOVED_AWAY_KIND, movedAwayValues, type MovedAwayFacts } from "@/lib/indicator-notice";
@@ -155,6 +156,7 @@ export function NotificationBell({ unread }: { unread: number }) {
       }}
     >
       <PopoverTrigger asChild>
+        <IconTip name="notifications">
         <Button variant="ghost" size="icon" className="relative size-8" aria-label={`${t("open")}: ${t("unread", { n: count })}`}>
           <Bell className="size-4" />
           {count > 0 ? (
@@ -164,6 +166,7 @@ export function NotificationBell({ unread }: { unread: number }) {
             </span>
           ) : null}
         </Button>
+        </IconTip>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 p-0">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-2">

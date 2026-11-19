@@ -9,6 +9,7 @@ import { useSyncExternalStore } from "react";
 import { ArrowLeft } from "@/components/animate-ui/icons/arrow-left";
 import { ArrowRight } from "@/components/animate-ui/icons/arrow-right";
 import { X } from "@/components/animate-ui/icons/x";
+import { IconTip } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 
 export type WelcomeStep = { title: string; hint: string; href: string };
@@ -26,13 +27,16 @@ function hidden() {
 /**
  * The first-weeks welcome on the overview: the greeting types itself, the line
  * under it highlights what Selah is for (Animate UI Typing Text and Highlight
- * Text), and three role-specific places to start blur into focus, with a
- * highlight that follows the pointer. Hidden in this browser once dismissed.
+ * Text), one line on what this home is for in the reader's role, and the
+ * role's places to start blur into focus, with a highlight that follows the
+ * pointer (the first-visit hints, lib/welcome.ts). It never covers the page.
+ * Hidden in this browser once dismissed.
  */
 export function Welcome({
   greeting,
   intro,
   highlight,
+  purpose,
   lead,
   steps,
   dismissLabel,
@@ -41,6 +45,8 @@ export function Welcome({
   greeting: string;
   intro: [string, string];
   highlight: string;
+  /** What this home is for, for the reader's role (the first-visit hint). */
+  purpose: string;
   lead: string;
   steps: WelcomeStep[];
   dismissLabel: string;
@@ -58,12 +64,12 @@ export function Welcome({
   const Arrow = dir === "rtl" ? ArrowLeft : ArrowRight;
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card p-6 text-card-foreground shadow-xs">
+      <IconTip name="welcomeDismiss">
       <Button
         variant="ghost"
         size="icon-sm"
         className="absolute end-3 top-3"
         aria-label={dismissLabel}
-        title={dismissLabel}
         onClick={() => {
           try {
             localStorage.setItem(KEY, "1");
@@ -75,6 +81,7 @@ export function Welcome({
       >
         <X animateOnHover />
       </Button>
+      </IconTip>
       <h2 className="min-h-8 pe-10 text-2xl font-semibold tracking-tight">
         <TypingText text={greeting} duration={45} delay={200}>
           <TypingTextCursor className="ms-0.5 inline-block h-6 w-0.5 translate-y-1 bg-foreground" />
@@ -89,6 +96,7 @@ export function Welcome({
         />
         {intro[1].trimStart()}
       </p>
+      <p className="mt-2 max-w-3xl text-sm leading-relaxed">{purpose}</p>
       <p className="mt-5 text-xs font-medium text-muted-foreground">{lead}</p>
       <Highlight controlledItems hover mode="parent" className="rounded-lg bg-surface" transition={{ type: "spring", stiffness: 350, damping: 35 }}>
         <div className="mt-2 grid gap-2 md:grid-cols-3">

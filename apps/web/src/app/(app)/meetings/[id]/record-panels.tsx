@@ -2,6 +2,7 @@
 
 import { Ban, UserPlus } from "lucide-react";
 import { Check } from "@/components/animate-ui/icons/check";
+import { IconTip } from "@/components/hint";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus } from "@/components/animate-ui/icons/plus";
@@ -108,9 +109,11 @@ export function MeetingMenu({ meetingId }: { meetingId: string }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t("menu")} title={t("menu")}>
-            <Ellipsis className="size-4" />
-          </Button>
+          <IconTip name="moreMenu">
+            <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t("menu")}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </IconTip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
@@ -185,19 +188,20 @@ export function RemoveAttendee({ meetingId, attendeeId, name }: { meetingId: str
   const [confirm, confirmDialog] = useConfirm();
   return (
     <>
+      <IconTip name="removeAttendee">
       <Button
         size="icon"
         variant="ghost"
         className="size-7"
         disabled={busy}
         aria-label={t("remove", { name })}
-        title={t("remove", { name })}
         onClick={async () =>
           (await confirm(t("removeConfirm", { name }))) && run(`/api/meetings/${meetingId}/attendees/${attendeeId}`, "DELETE")
         }
       >
         <X />
       </Button>
+      </IconTip>
       {confirmDialog}
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
+import { IconTip } from "@/components/hint";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -111,9 +112,11 @@ export function PersonMenu(props: {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8" aria-label={t("actions", { name: props.name })}>
-            <Ellipsis className="size-4" />
-          </Button>
+          <IconTip name="moreMenu">
+            <Button variant="ghost" size="icon" className="size-8" aria-label={t("actions", { name: props.name })}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </IconTip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {props.active && props.canChange ? (

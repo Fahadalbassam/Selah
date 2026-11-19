@@ -6,6 +6,7 @@ import { firmSettings, organizations } from "@/db/schema";
 import { clientPeopleTabs, type ClientPeopleTab } from "@/lib/people-tabs";
 import { firmToday } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
+import { RoleTip } from "@/components/role-tip";
 import { ClientPeopleTabs, TeamTabs } from "@/components/people-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { withPrincipal } from "@/server/page";
@@ -98,7 +99,9 @@ export default async function TeamPage() {
                   <TableCell className="hidden text-muted-foreground sm:table-cell" dir="ltr">
                     {m.email}
                   </TableCell>
-                  <TableCell>{tRole(m.role)}</TableCell>
+                  <TableCell>
+                    <RoleTip role={m.role}>{tRole(m.role)}</RoleTip>
+                  </TableCell>
                   <TableCell className="text-end tabular-nums">{m.projectCount}</TableCell>
                 </TableRow>
               ))}

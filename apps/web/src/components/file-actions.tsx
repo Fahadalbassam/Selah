@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { IconTip } from "@/components/hint";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { AudienceEditor, AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
 import { BrandLoader } from "@/components/brand";
@@ -123,9 +124,11 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={t("menu", { title })} title={t("menu", { title })}>
-            <Ellipsis className="size-4" />
-          </Button>
+          <IconTip name="moreMenu">
+            <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={t("menu", { title })}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </IconTip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {assistantReads ? (

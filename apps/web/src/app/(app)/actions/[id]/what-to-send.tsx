@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { useStatusTip } from "@/components/status-badge";
 import { RequestRow } from "@/components/request-row";
 import { RowMenu, useRowCall } from "@/components/row-menu";
 import { SendFileButton } from "@/components/send-file-dialog";
@@ -43,6 +44,7 @@ export function WhatToSend(props: {
   const ta = useTranslations("action");
   const tc = useTranslations("common");
   const tw = useTranslations("statusWords");
+  const tip = useStatusTip();
   const format = useFormatter();
   const router = useRouter();
   const call = useRowCall();
@@ -84,7 +86,7 @@ export function WhatToSend(props: {
                   key={i.id}
                   title={i.title}
                   description={i.description}
-                  state={{ label: tw(labelKey(evidenceItemPlacement(i.status), props.firmView ? "firm" : "client")), tone: placementTone(evidenceItemPlacement(i.status)) }}
+                  state={{ label: tw(labelKey(evidenceItemPlacement(i.status), props.firmView ? "firm" : "client")), tone: placementTone(evidenceItemPlacement(i.status)), tip: tip("evidenceItem", i.status, props.firmView ? "firm" : "client") }}
                   facts={i.dueDate ? [t("due", { date: format.dateTime(new Date(i.dueDate), { dateStyle: "medium" }) })] : []}
                   note={
                     i.decisionNote && (i.status === "rejected" || i.status === "waived")

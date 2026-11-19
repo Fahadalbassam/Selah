@@ -24,6 +24,8 @@ import { EmptyState } from "@/components/empty-state";
 import { FileActions } from "@/components/file-actions";
 import { SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { Badge } from "@/components/ui/badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
+import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { useFloatingCard } from "@/components/floating-card";
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ui/file-tree";
@@ -124,9 +126,11 @@ function FloatingFiles({ orgKind, side, onClose }: { orgKind: "firm" | "client";
         </div>
         {/* Adding a file stays here for the firm; a client adds one on the project's Requests and files tab (October review, item 13). */}
         {orgKind === "firm" ? <UploadDialog onDone={() => setReload((n) => n + 1)} /> : null}
-        <Button type="button" variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label={t("close")} title={t("close")}>
-          <X />
-        </Button>
+        <Hint asChild tip={t("close")}>
+          <Button type="button" variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label={t("close")}>
+            <X />
+          </Button>
+        </Hint>
       </div>
       <FileBrowser key={reload} orgKind={orgKind} className="min-h-0 flex-1 p-3" />
     </div>,
@@ -510,6 +514,7 @@ function TreeSkeleton() {
 
 function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBrowserProps["pick"]; onChanged: () => void }) {
   const t = useTranslations("files");
+  const tTip = useTranslations("tips");
   const format = useFormatter();
   const labels = useLabels();
   const rtl = useLocale() === "ar";
@@ -552,7 +557,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
             </Link>
           </p>
         </div>
-        <VisibilityBadge visibility={file.visibility} />
+        <FileVisibility visibility={file.visibility} />
         {pick ? null : (
           <FileActions id={file.id} title={file.title} visibility={file.visibility} aiIndexable={file.aiIndexable} can={file.can} onChanged={onChanged} />
         )}
@@ -576,7 +581,7 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
           <>
             <dt className="text-muted-foreground">{t("assistant")}</dt>
             <dd>
-              {file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}
+              <Hint tip={tTip(file.aiIndexable ? "assistant.on" : "assistant.off")}>{file.aiIndexable ? t(`assistantState.${file.textStatus}`) : t("assistantOff")}</Hint>
               {file.aiIndexable && file.textStatus === "searchable" && file.ocrPages.length ? (
                 <span className="block text-xs text-muted-foreground">{t("ocrPages", { pages: format.list(file.ocrPages.map(String), { type: "unit" }) })}</span>
               ) : null}
@@ -616,15 +621,9 @@ function FileDetails({ file, pick, onChanged }: { file: FileEntry; pick?: FileBr
   );
 }
 
-function VisibilityBadge({ visibility }: { visibility: FileEntry["visibility"] }) {
+function FileVisibility({ visibility }: { visibility: FileEntry["visibility"] }) {
   const t = useTranslations("files");
-  if (visibility === "shared") return <Badge variant="secondary">{t("visibility.shared")}</Badge>;
-  return (
-    <Badge variant="outline" className="gap-1">
-      <Lock className="size-3" />
-      {t(`visibility.${visibility}`)}
-    </Badge>
-  );
+  return <VisibilityBadge visibility={visibility} label={t(`visibility.${visibility}`)} />;
 }
 
 function formatSize(bytes: number, rtl: boolean) {

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
+import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -223,7 +224,7 @@ export function ApiButton(props: {
   size?: "default" | "sm";
   confirm?: string;
   icon?: ReactNode;
-  /** Tooltip text. */
+  /** Tooltip text: one short sentence on what happens (a Hint, opened by hover or keyboard focus). */
   title?: string;
   /** Where to go once it worked (after a delete, the page is gone). */
   redirectTo?: string;
@@ -246,10 +247,19 @@ export function ApiButton(props: {
   }
   return (
     <span className="inline-flex flex-col items-start gap-1">
-      <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy} title={props.title}>
-        {busy ? <BrandLoader tone="current" className="size-4" /> : props.icon}
-        {props.label}
-      </Button>
+      {props.title ? (
+        <Hint asChild tip={props.title}>
+          <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy}>
+            {busy ? <BrandLoader tone="current" className="size-4" /> : props.icon}
+            {props.label}
+          </Button>
+        </Hint>
+      ) : (
+        <Button variant={props.variant ?? "outline"} size={props.size ?? "sm"} onClick={run} disabled={busy}>
+          {busy ? <BrandLoader tone="current" className="size-4" /> : props.icon}
+          {props.label}
+        </Button>
+      )}
       {error ? <span className="text-xs text-destructive">{t(`errors.${error}`)}</span> : null}
       {confirmDialog}
     </span>

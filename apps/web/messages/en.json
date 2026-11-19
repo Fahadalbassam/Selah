@@ -39,7 +39,8 @@
     "security": "Two-factor sign-in",
     "teamTabs": "Team and expertise",
     "clientViews": "Clients and groups",
-    "projectKinds": "Kinds of project"
+    "projectKinds": "Kinds of project",
+    "guide": "Guide"
   },
   "header": {
     "language": "العربية",
@@ -222,7 +223,7 @@
     },
     "owner": {
       "description": "Your actions, and what is asked of you.",
-      "empty": "You have no actions yet.",
+      "empty": "You have no actions yet. When an action is given to you, it appears here with your next step.",
       "waiting": {
         "title": "Waiting for you"
       },
@@ -250,7 +251,7 @@
     "title": "Projects",
     "subtitle": "Projects you are allowed to see",
     "internalNote": "Internal projects belong to the firm and never appear to any client.",
-    "empty": "No projects.",
+    "empty": "No projects yet. A project appears here once you are added to it.",
     "actions": "{n, plural, one {# action} other {# actions}}",
     "verified": "{n} verified",
     "awaitingReview": "{n} awaiting review",
@@ -281,7 +282,7 @@
     "noRecs": "No recommendations yet.",
     "noRecsClient": "No recommendations for you yet.",
     "noDocs": "No documents for you yet.",
-    "noActivity": "No activity recorded.",
+    "noActivity": "Nothing recorded yet. Changes to the plan, files and reviews appear here as they happen.",
     "requiredEvidence": "What shows it is done",
     "priority": "Priority",
     "version": "Version",
@@ -362,7 +363,7 @@
     "consultants": "Assigned consultants",
     "projects": "Projects",
     "none": "None",
-    "empty": "No clients are assigned to you.",
+    "empty": "No clients are assigned to you. A client appears here once you join its team.",
     "shortNames": {
       "title": "Short names",
       "hint": "How people write this company in files and messages. The assistant hides them, like the full name, before a hosted model sees the text.",
@@ -402,7 +403,7 @@
   "actionsPage": {
     "title": "Actions",
     "mine": "Actions assigned to you",
-    "empty": "No actions for you yet.",
+    "empty": "No actions for you yet. Your actions appear here, each with its next step.",
     "emptyFiltered": "Nothing for you in this list right now.",
     "filtersLabel": "Action lists",
     "filters": {
@@ -667,7 +668,7 @@
     "nextStep": "Next step",
     "noMoves": "Nothing for you to do on this action right now.",
     "history": "History",
-    "noHistory": "No updates, evidence or reviews yet.",
+    "noHistory": "Nothing yet. Each update, file sent and review appears here as it happens.",
     "move": {
       "assigned": "Release to owner",
       "in_progress": "Start work",
@@ -761,7 +762,7 @@
       "hintClient": "What your consultant asked for on this action. Send each item's file with the Send a file button beside it, or with Send for review. Your consultant accepts it or says what's missing.",
       "hintFirm": "What the client should send for this action. Accept, reject or waive each item once it's answered.",
       "hintFirmRun": "What the client needs to provide for this action. The client has no account in Selah, so record each file when it reaches you, then accept, reject or waive the item.",
-      "none": "No items yet.",
+      "none": "Nothing asked for yet. The files the client must send appear here once you add an item.",
       "due": "Due {date}",
       "status": {
         "open": "Waiting",
@@ -792,7 +793,7 @@
     },
     "deadline": {
       "title": "Due date changes",
-      "none": "No change requested.",
+      "none": "No date change asked for. A request to move the due date appears here.",
       "ask": "Propose a new date",
       "askHint": "Propose a new due date and say why. The consultant agrees or declines.",
       "newDate": "New due date",
@@ -861,7 +862,7 @@
     "notes": {
       "title": "Firm notes",
       "hint": "Only firm staff see these notes. The client never does.",
-      "none": "No notes yet.",
+      "none": "No notes yet. Notes the firm team adds here stay firm only.",
       "add": "Add a note",
       "label": "Note",
       "placeholder": "Context for the firm team: calls, concerns, what to check next."
@@ -900,7 +901,7 @@
       "hintFirm": "Talk with the client about this action. Everyone who can see the action reads this thread; use firm notes for anything the client shouldn't see.",
       "hintFirmRun": "The firm's team discusses this action here. The client has no account in Selah, so nothing written here reaches them.",
       "hintClient": "Ask the consulting team about this action, or answer them. Everyone who can see the action reads this thread.",
-      "none": "No comments yet.",
+      "none": "No comments yet. Questions and answers about this action appear here once someone writes below.",
       "label": "Comment",
       "placeholder": "Write a comment…",
       "post": "Post",
@@ -1154,7 +1155,7 @@
     "staff": "Staff on project",
     "staffHintClient": "Choose from the client's team. Staffed consultants see this project; others on the team do not.",
     "staffHintInternal": "Add firm colleagues to this internal project.",
-    "noStaff": "Nobody yet.",
+    "noStaff": "Nobody yet. The firm's people staffed on this project appear here.",
     "unstaffConfirm": "Take this person off the project? They will lose access to it.",
     "noCandidatesProject": "Everyone eligible is already on this project.",
     "watch": "Watch",
@@ -1462,9 +1463,9 @@
     "agendaOwn": "Only your own actions on this meeting's agenda.",
     "agendaOwnNone": "None of your actions is on this meeting's agenda.",
     "summary": "Summary",
-    "noSummary": "No summary yet.",
+    "noSummary": "No summary yet. It appears here once the firm writes and confirms it after the meeting.",
     "decisions": "Decisions",
-    "noDecisions": "No decisions recorded.",
+    "noDecisions": "No decisions recorded. Decisions written in the meeting's record appear here.",
     "decidedBy": "Decided by {who}",
     "attendees": "Attendees",
     "organizer": "Organiser",
@@ -1615,7 +1616,7 @@
       "replaces": "replaces decision {n}",
       "replaced": "replaced by a later decision",
       "followUps": "Follow-ups",
-      "noFollowUps": "No follow-ups yet.",
+      "noFollowUps": "No follow-ups yet. Tasks agreed in the meeting appear here, each with its owner.",
       "addFollowUp": "Add a follow-up",
       "followUp": "What needs doing",
       "assignee": "Assigned to",
@@ -2011,7 +2012,7 @@
     "title": "Inquiries",
     "description": "Requests from the public inquiry form. Each one is checked for conflicts, discussed in a discovery session, then won or closed.",
     "descriptionConsultant": "Inquiries the firm admin handed to you, and the ones you entered.",
-    "empty": "No inquiries here.",
+    "empty": "No inquiries here. Inquiries from the firm's public form, or entered by hand, appear here.",
     "views": {
       "open": "Open",
       "won": "Won",
@@ -2247,7 +2248,7 @@
     "unread": "{n, plural, =0 {No unread notifications} one {1 unread} other {# unread}}",
     "markAll": "Mark all as read",
     "seeAll": "See all",
-    "empty": "Nothing new.",
+    "empty": "Nothing new. Notices about your work appear here.",
     "gone": "An update about something you can no longer open",
     "kinds": {
       "action_assigned": "{title} was given to you",
@@ -2384,7 +2385,7 @@
     "offBecause": "Switched off: {reason}",
     "personal": "Personal address",
     "you": "You",
-    "noInvites": "No open invitations.",
+    "noInvites": "No open invitations. An invitation shows here until the person accepts it or it expires.",
     "invitations": "Open invitations",
     "expires": "Expires {date}",
     "revoke": "Revoke",
@@ -2598,7 +2599,7 @@
     "notYet": "Not handed over yet",
     "sponsor": "Client sponsor",
     "noSponsor": "No sponsor named",
-    "sponsorHint": "Told when an overdue action reaches the last escalation level. Named under client roles on the Team tab.",
+    "sponsorHint": "Told when an overdue action reaches the last escalation level. Named under client roles on the People tab.",
     "checkins": "Check-ins",
     "checkin": "Check-in after {n} days",
     "unassigned": "No lead consultant",
@@ -3114,7 +3115,7 @@
       "ownerName": "Owner's name",
       "ownerTitle": "Owner's job title",
       "ownerNameHint": "The firm manages this client, so the owner has no account.",
-      "noOwners": "Nobody from the client is on this project yet. Add them on the Team tab before releasing.",
+      "noOwners": "Nobody from the client is on this project yet. Add them on the People tab before releasing.",
       "department": "Department (optional)",
       "noDepartment": "No department",
       "dueDate": "Due date",
@@ -3766,7 +3767,7 @@
     "addDeliverable": "Add deliverable",
     "removeDeliverable": "Remove",
     "removeDeliverableConfirm": "Remove this deliverable from the engagement?",
-    "noDeliverables": "No deliverables listed yet.",
+    "noDeliverables": "No deliverables yet. Files handed over to the client appear here.",
     "dueOn": "due {date}",
     "noDue": "No due date",
     "draftBanner": "Draft: the client doesn't see this project until a signed engagement covers it. The firm admin records it on the client's page.",
@@ -3834,7 +3835,7 @@
     "handOverTitle": "Hand over: {title}",
     "handOverHint": "Pick the files that make up this deliverable, from the engagement's projects. Each file starts at its latest version; pick an earlier one if needed. Before you hand over, this dialog says who at the client will be asked to confirm receipt or comment.",
     "handOverHintFirmRun": "Pick the files that make up this deliverable. Each file starts at its latest version. This client has no accounts: once it has the files, record who received them.",
-    "noFiles": "No file of this engagement's projects is ready to hand over: add it on the project's Documents tab, and share it with the client from its menu.",
+    "noFiles": "No file of this engagement's projects is ready to hand over: add it on the project's Requests and files tab, and share it with the client from its menu.",
     "versionOption": "Version {n} · {date}",
     "versionField": "Version",
     "pickOne": "Pick at least one file.",
@@ -3876,7 +3877,7 @@
       "noAnswer": "Handed over on {date} by {name}; no answer before the project closed",
       "handedOver": "Handed over on {date} by {name}"
     },
-    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Documents tab; the share asks before anyone at the client can see it.",
+    "firmOnlyFiles": "Still firm-only, so not listed: {titles}. Share a file with the client first from its own menu on the project's Requests and files tab; the share asks before anyone at the client can see it.",
     "preview": {
       "asked": "Will be asked to confirm receipt: {names}.",
       "person": "{name} ({as, select, acceptor {acceptor} admin {client admin} sponsor {sponsor} other {}})",
@@ -5451,23 +5452,23 @@
       "title": "Questions people ask",
       "states": {
         "q": "What do the states of an action mean?",
-        "a": "Assigned: released to its owner; work hasn't started.\nIn progress: the owner started the work.\nBlocked: the owner said what is stopping the work, and the consultant sees the reason.\nAwaiting review: evidence was sent and a consultant is checking it.\nRevision requested: the consultant asked for changes and said why.\nVerified complete: a consultant reviewed the evidence and accepted it."
+        "a": "Not started: the action is with its owner, and work hasn't started.\nIn progress: the owner started the work.\nWaiting for you: the consultant sent the evidence back with a reason, and the next step is yours.\nWaiting for the firm: evidence was sent, and a consultant is checking it.\nNeeds attention: the owner said what is stopping the work, and the consultant sees the reason.\nVerified: a consultant checked the evidence and confirmed the work is done.\nClosed: the action was closed without being verified; its page says how it ended.\nOn the action page, the exact state shows beside the word."
       },
       "claimed": {
         "q": "Why isn't my finished work shown as complete?",
-        "a": "What your company records is a claim. In progress and Awaiting review show work you reported, not work that was checked. Only a consultant's review marks an action Verified complete, and only that state is green. A consultant can reopen it later, with a reason."
+        "a": "What your company records is a claim. In progress and Waiting for the firm show work you reported, not work that was checked. Only a consultant's review marks an action Verified, and only that word is green. A consultant can reopen it later, with a reason."
       },
       "awaiting": {
-        "q": "My action says \"Waiting for the consultant's decision\". What now?",
-        "a": "Nothing more is needed from you. The consultant reviews the evidence and either accepts it or requests a revision, and you get a notification either way. If you have a question meanwhile, press \"Ask your consultant\" on the action."
+        "q": "My action says \"With the consultant since …\". What now?",
+        "a": "Nothing more is needed from you. The consultant reviews the evidence and either verifies it or sends it back with a reason, and you get a notification either way. If you have a question meanwhile, press \"Ask the consultant\" on the action."
       },
       "revision": {
         "q": "A revision was requested. What do I do?",
-        "a": "Read the consultant's reason in the action's history. Press Resume work, make the changes, then press Send for review again with the new file."
+        "a": "Read the consultant's reason on the action page. Make the changes, then press Send the revised file for review with the new file: it is one step."
       },
       "blocked": {
         "q": "Something outside my control is stopping the work.",
-        "a": "While the action is in progress, press Mark as blocked and say what is in the way; the consultant sees it. When it's cleared, press Resume work."
+        "a": "While the action is in progress, press I am stuck and say what is in the way; the consultant sees it. When it's cleared, press Resume work."
       },
       "dueDate": {
         "q": "I need more time.",
@@ -5485,6 +5486,17 @@
       "open": "Open",
       "handled": "Handled",
       "handle": "Mark handled"
+    },
+    "guide": {
+      "open": "Open your guide",
+      "title": {
+        "firm": "Firm guide",
+        "client": "Client guide"
+      },
+      "description": {
+        "firm": "The firm's work in Selah, step by step, for each of its roles.",
+        "client": "What you do in Selah, task by task: when you need it, the steps, and what happens next."
+      }
     }
   },
   "clientAi": {
@@ -5575,7 +5587,7 @@
         },
         {
           "title": "Review submitted evidence",
-          "hint": "Accept it or ask for a revision."
+          "hint": "Verify it, or send it back with a reason."
         }
       ],
       "client_admin": [
@@ -5620,6 +5632,13 @@
           "hint": "How Selah works, and how to reach your consultant."
         }
       ]
+    },
+    "home": {
+      "firm_admin": "Your home shows first the decisions only you can take, then reviews and late work on the clients you follow.",
+      "consultant": "Your home shows the evidence waiting for your review and the late work on your projects.",
+      "client_admin": "Your home shows first what the firm is waiting for from your company, then how its projects are going.",
+      "client_manager": "Your home shows first what is waiting for you and your team, then how your company's projects are going.",
+      "action_owner": "Your home shows the actions given to you, each with your next step."
     }
   },
   "indicators": {
@@ -5634,7 +5653,7 @@
       "worse": "Worse than baseline"
     },
     "emptyManage": "No indicators yet. Add the measures the client already tracks, such as monthly sales or customer complaints, with a starting value.",
-    "empty": "No indicators yet.",
+    "empty": "No indicators yet. The business figures the company tracks appear here once they are added.",
     "inactiveList": "{n, plural, one {# switched-off indicator} other {# switched-off indicators}}",
     "claimNote": "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it.",
     "claimNoteClient": "Your company's reported figures, not verified impact. A change in an indicator is not proof that a recommendation caused it.",
@@ -6700,5 +6719,176 @@
     "joinWaitingOpen": "See the requests",
     "departments": "Departments",
     "departmentsHint": "Optional. When on, work filed under a department is seen only by its people, the client's admins, the firm and the action's owner."
+  },
+  "tips": {
+    "status": {
+      "action": {
+        "draft": {
+          "firm": "Draft: the client cannot see it until it is released to its owner."
+        },
+        "assigned": {
+          "firm": "Assigned: it is with its owner, and work has not started yet.",
+          "client": "Assigned: it is with its owner at your company, and work has not started yet."
+        },
+        "in_progress": {
+          "firm": "In progress: the owner is working on it and has not sent it for review yet.",
+          "client": "In progress: work is under way; when it is done, the file is sent for review."
+        },
+        "blocked": {
+          "firm": "Blocked: the owner has stopped work and wrote why on the action page.",
+          "client": "Blocked: work has stopped; the reason is on the action page, and your consultant sees it."
+        },
+        "awaiting_review": {
+          "firm": "Awaiting review: the evidence is in, and a consultant verifies it or sends it back.",
+          "client": "Awaiting review: your consultant has the evidence; nothing is needed from you now."
+        },
+        "revision_requested": {
+          "firm": "Revision requested: a consultant sent it back with a reason; it is the owner's move.",
+          "client": "Revision requested: your consultant sent it back with a reason; send a corrected file."
+        },
+        "verified_complete": {
+          "firm": "Verified complete: a consultant checked the evidence and confirmed the work is done.",
+          "client": "Verified complete: your consultant checked the evidence and confirmed the work is done."
+        },
+        "closed": {
+          "firm": "Closed without being verified; its page says how it ended.",
+          "client": "Closed without being verified; its page says how it ended."
+        }
+      },
+      "outcome": {
+        "partially_implemented": {
+          "firm": "Part of it was done, and the rest will not be.",
+          "client": "Part of it was done, and the rest will not be."
+        },
+        "risk_accepted": {
+          "firm": "The client signed that it accepts the risk of not finishing it, so it was closed.",
+          "client": "Your company signed that it accepts the risk of not finishing it, so it was closed."
+        },
+        "not_applicable": {
+          "firm": "It no longer applies to the client and leaves the progress figures.",
+          "client": "It no longer applies to your company and leaves the progress figures."
+        },
+        "superseded": {
+          "firm": "Another action in this project covers it; it leaves the progress figures.",
+          "client": "Another action in this project covers it; it leaves the progress figures."
+        }
+      },
+      "evidenceItem": {
+        "open": {
+          "firm": "Asked for: the client has not sent this file yet.",
+          "client": "Asked for: your consultant needs this file; send it from this row."
+        },
+        "submitted": {
+          "firm": "Sent: the file is in, and a consultant accepts it or turns it down.",
+          "client": "Sent: your consultant has the file; nothing is needed from you now."
+        },
+        "rejected": {
+          "firm": "Not accepted: the file was turned down with a reason; a new one is due from the client.",
+          "client": "Not accepted: the reason is under the row; send another file."
+        },
+        "accepted": {
+          "firm": "Accepted: a consultant accepted this file; verifying the action itself is a separate step.",
+          "client": "Accepted: your consultant accepted this file; verifying the action itself is a separate step."
+        },
+        "waived": {
+          "firm": "Not needed: the client no longer has to send this file; the reason is under the row.",
+          "client": "Not needed: you no longer have to send this file; the reason is under the row."
+        }
+      },
+      "infoRequest": {
+        "requested": {
+          "firm": "Requested: the firm asked for this document, and it has not arrived yet.",
+          "client": "Requested: the firm needs this document to understand your company; send it from this row."
+        },
+        "received": {
+          "firm": "Received: the client sent a file, and the firm accepts it or returns it.",
+          "client": "Received: the firm has your file; nothing is needed from you now."
+        },
+        "reviewed": {
+          "firm": "Accepted: the firm accepted the file, and nothing more is needed.",
+          "client": "Accepted: the firm accepted your file, and nothing more is needed."
+        },
+        "not_applicable": {
+          "firm": "Not applicable: this document is no longer needed; the reason is under the row.",
+          "client": "Not applicable: this document is no longer needed; the reason is under the row."
+        }
+      },
+      "meeting": {
+        "waiting": "You are invited and have not answered yet; say whether you will attend.",
+        "upcoming": "Scheduled: it has not taken place yet.",
+        "held": "The meeting was held; each follow-up from it has its own state.",
+        "cancelled": "The meeting was cancelled and will not take place."
+      },
+      "inquiry": {
+        "new": "New: the inquiry has arrived and nobody owns it yet; assign an owner.",
+        "triaged": "Triaged: it has an owner; next, book the discovery session.",
+        "discovery_scheduled": "The discovery session is booked; after it, the firm sends its proposal.",
+        "discovery_done": "The session was held; the firm's next step is to send the proposal.",
+        "proposal_sent": "The proposal went out, and the organisation's answer is awaited.",
+        "won": "Won: the organisation said yes and is now a client in Selah.",
+        "lost": "Lost: the organisation chose not to go ahead with the firm.",
+        "declined": "Declined: the firm chose not to take this work on.",
+        "spam": "Spam: it was not a real inquiry, so it was closed.",
+        "withdrawn": "Withdrawn: the organisation withdrew its inquiry."
+      },
+      "project": {
+        "draft": "Pitch: a proposed project no signed engagement covers yet; only the firm sees it.",
+        "planned": "Planned: the project is set up, and work has not started yet.",
+        "active": "Active: work on the plan is under way.",
+        "closing": "Closing: each open action is settled before the project closes.",
+        "closed": "Closed: the project is finished and can only be read."
+      }
+    },
+    "visibility": {
+      "shared": "Shared between the firm and the company; who sees it follows the project, its department and any audience set on it.",
+      "firm_private": "Only the firm's people see it; the client never does.",
+      "client_private": "Only your company's people see it; the firm does not.",
+      "user_private": "Only the person who added it sees it."
+    },
+    "roles": {
+      "firm_admin": "Adds clients, names each one's lead consultant and sets the firm's defaults.",
+      "consultant": "Works only on the clients and projects they are assigned to.",
+      "client_admin": "Sees all of the company's work in Selah and invites its people.",
+      "client_manager": "Follows company-wide work and their own department's, on the projects they were added to.",
+      "action_owner": "Sees only the actions given to them, and sends what shows they are done.",
+      "clientLead": "Leads the firm's work with this client: sees all its projects and staffs them.",
+      "clientDeputy": "Stands in for the lead, with the same say in this client's work.",
+      "projectLead": "Leads the firm's work on this project.",
+      "observer": "Reads everything on the project and adds notes to actions, and changes nothing else."
+    },
+    "assistant": {
+      "on": "The assistant may quote this file, only to people who can already open it.",
+      "off": "The assistant never reads this file; people still open it as usual."
+    },
+    "secondReview": {
+      "signOff": "Yours is the first sign-off; the action waits for review until another consultant signs.",
+      "verify": "Yours is the second sign-off: the action becomes verified complete, and its owner is told."
+    },
+    "closing": {
+      "start": "Starts closing: you settle each open action, then the project closes.",
+      "cancel": "Stops closing; the project goes back to active as it was.",
+      "close": "Closes the project: nothing in it changes unless it is reopened.",
+      "dispositions": {
+        "handed_over": "Handed over: a named person at the organisation carries it on after the project.",
+        "deferred": "Left for a later phase or project; the note says when or where.",
+        "withdrawn": "No longer needed; the note says why.",
+        "waived": "Not done, and the firm accepts that; the note says why."
+      }
+    },
+    "dataMode": {
+      "typed": "Figures are typed in by hand; open this to change how they reach Selah.",
+      "files": "Figures come from exports that are uploaded; open this to change how they reach Selah.",
+      "connected": "Figures arrive through a live connection; open this to change how they reach Selah."
+    },
+    "icons": {
+      "moreMenu": "Opens more steps for this item.",
+      "notifications": "Opens your notifications; the number is how many are unread.",
+      "welcomeDismiss": "Hides this welcome in this browser for good.",
+      "removeAttendee": "Takes them off the meeting; if their invitation went out, their calendar gets a cancellation.",
+      "removeComment": "Removes this comment; a line saying when it was removed stays in its place.",
+      "chatArchive": "Moves the chat to the archive; you can bring it back until it is deleted on schedule.",
+      "chatDelete": "Deletes the chat and its messages for good.",
+      "askAbout": "Opens the assistant in a chat about this item."
+    }
   }
 }

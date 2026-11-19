@@ -1,6 +1,7 @@
 import { UserPlus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
+import { Hint } from "@/components/hint";
 import { RemoveFromProject } from "./project-menu";
 import { ToneBadge } from "@/components/tone-badge";
 import { Button } from "@/components/ui/button";
@@ -58,8 +59,8 @@ export async function ClientRolesCard({ projectId, data, firm }: { projectId: st
             const held = byRole(role);
             return (
               <div key={role} className="space-y-1">
-                <dt className="text-xs text-muted-foreground" title={t(`about.${role}`)}>
-                  {t(`roles.${role}`)}
+                <dt className="text-xs text-muted-foreground">
+                  <Hint tip={t(`about.${role}`)}>{t(`roles.${role}`)}</Hint>
                 </dt>
                 {held.length === 0 ? <dd className="text-sm text-muted-foreground">{t("nobody")}</dd> : null}
                 {held.map((r) => (

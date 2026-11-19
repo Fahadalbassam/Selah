@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
+import { Hint } from "@/components/hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -148,8 +149,8 @@ export function TextStatusBadge({ status }: { status: string }) {
   if (status !== "not_searchable" && status !== "needs_ocr") return null;
   const scan = status === "needs_ocr";
   return (
-    <Badge variant="outline" title={t(scan ? "needsOcr" : "notSearchable")}>
-      {t(scan ? "needsOcrShort" : "notSearchableShort")}
-    </Badge>
+    <Hint tip={t(scan ? "needsOcr" : "notSearchable")}>
+      <Badge variant="outline">{t(scan ? "needsOcrShort" : "notSearchableShort")}</Badge>
+    </Hint>
   );
 }

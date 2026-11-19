@@ -15,6 +15,7 @@ import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import { Send } from "@/components/animate-ui/icons/send";
 import { BrandLoader, BrandMark } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
+import { Hint } from "@/components/hint";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -293,6 +294,7 @@ export function ChatHeader({
 }) {
   const t = useTranslations("assistant");
   const tc = useTranslations("common");
+  const tTip = useTranslations("tips.icons");
   const format = useFormatter();
   const locale = useLocale();
   const [confirm, confirmDialog] = useConfirm();
@@ -342,37 +344,37 @@ export function ChatHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setRenaming(true)} aria-label={t("rename")} title={t("rename")}>
-            <Pencil />
-          </Button>
-          <Button
-            variant={chat.keep ? "secondary" : "ghost"}
-            size="icon"
-            onClick={() => onPatch({ keep: !chat.keep })}
-            aria-pressed={chat.keep}
-            aria-label={chat.keep ? t("unkeep") : t("keep")}
-            title={chat.keep ? t("unkeep") : t("keepHint")}
-          >
-            {chat.keep ? <PinOff /> : <Pin />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onPatch({ archived: !chat.archivedAt })}
-            aria-label={chat.archivedAt ? t("unarchive") : t("archive")}
-            title={chat.archivedAt ? t("unarchive") : t("archive")}
-          >
-            {chat.archivedAt ? <ArchiveRestore /> : <Archive />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={async () => (await confirm(t("deleteConfirm"))) && onDelete()}
-            aria-label={t("delete")}
-            title={t("delete")}
-          >
-            <Trash2 />
-          </Button>
+          <Hint asChild tip={t("rename")}>
+            <Button variant="ghost" size="icon" onClick={() => setRenaming(true)} aria-label={t("rename")}>
+              <Pencil />
+            </Button>
+          </Hint>
+          <Hint asChild tip={chat.keep ? t("unkeep") : t("keepHint")}>
+            <Button
+              variant={chat.keep ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => onPatch({ keep: !chat.keep })}
+              aria-pressed={chat.keep}
+              aria-label={chat.keep ? t("unkeep") : t("keep")}
+            >
+              {chat.keep ? <PinOff /> : <Pin />}
+            </Button>
+          </Hint>
+          <Hint asChild tip={chat.archivedAt ? t("unarchive") : tTip("chatArchive")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onPatch({ archived: !chat.archivedAt })}
+              aria-label={chat.archivedAt ? t("unarchive") : t("archive")}
+            >
+              {chat.archivedAt ? <ArchiveRestore /> : <Archive />}
+            </Button>
+          </Hint>
+          <Hint asChild tip={tTip("chatDelete")}>
+            <Button variant="ghost" size="icon" onClick={async () => (await confirm(t("deleteConfirm"))) && onDelete()} aria-label={t("delete")}>
+              <Trash2 />
+            </Button>
+          </Hint>
         </div>
       </div>
       {deleteOn ? (

@@ -4,22 +4,12 @@ import { FirmHomeLists } from "@/components/home/firm-home";
 import { OwnerHomeLists } from "@/components/home/owner-home";
 import { PageHeader } from "@/components/page-header";
 import { Welcome } from "@/components/welcome";
-import type { Role } from "@/authz";
 import { openSection } from "@/lib/home";
+import { WELCOME_DAYS, welcomeFor } from "@/lib/welcome";
 import { withPrincipal } from "@/server/page";
 import { isNewcomer } from "@/services/consent";
 import { home } from "@/services/home";
 import { getViewer } from "@/services/queries";
-
-const WELCOME_DAYS = 14;
-// Where each role's three welcome steps lead, in the order of messages welcome.steps.<role>.
-const WELCOME_LINKS: Record<Role, [string, string, string]> = {
-  firm_admin: ["/clients", "/team", "/settings"],
-  consultant: ["/actions", "/projects", "/actions?filter=awaiting-review"],
-  client_admin: ["/projects", "/team", "/help"],
-  client_manager: ["/actions", "/projects", "/help"],
-  action_owner: ["/actions", "/actions", "/help"],
-};
 
 /** The first name in the page's language: the other-language name when the stored one is in the other script. */
 function firstName(v: { name: string; nameAlt: string | null }, locale: string) {
@@ -44,6 +34,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const [t, tW, locale] = await Promise.all([getTranslations("home"), getTranslations("welcome"), getLocale()]);
   const side = viewer.orgKind === "firm" ? "firm" : "client";
   const [before, after] = tW.raw(`intro.${side}`).split("{highlight}") as [string, string];
+  // The first-visit hints for this role (big prompt 6.1): what this home is for, then where to start.
+  const hints = welcomeFor(viewer.role);
   const description =
     page.kind === "firm" ? t(page.data.admin ? "firm.followedNote" : "firm.description") : page.kind === "owner" ? t("owner.description") : t("client.description");
 
@@ -55,8 +47,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           greeting={tW("greeting", { name: firstName(viewer, locale) })}
           intro={[before, after]}
           highlight={tW(`highlight.${side}`)}
+          purpose={tW(hints.home)}
           lead={tW("lead")}
-          steps={(tW.raw(`steps.${viewer.role}`) as { title: string; hint: string }[]).map((s, i) => ({ ...s, href: WELCOME_LINKS[viewer.role][i] ?? "/" }))}
+          steps={(tW.raw(hints.steps) as { title: string; hint: string }[]).map((s, i) => ({ ...s, href: hints.links[i] ?? "/" }))}
           dismissLabel={tW("dismiss")}
           dir={locale === "ar" ? "rtl" : "ltr"}
         />

@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/notifications";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { guideFor } from "@/lib/handbook";
 import { clientAssistant, hasHelp, sidebarFor, userMenuFor, type MenuKey } from "@/lib/nav";
 import { yourManagers } from "@/lib/org-chart";
 import { withPrincipal } from "@/server/page";
@@ -56,7 +57,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     label: navLabel(section.label),
     items: section.rows.map((row) => ({ ...row, title: navLabel(row.key) })),
   }));
-  const menu = userMenuFor(viewer.role, { assistantConsent: assistant.consentView }).map((i) => ({ ...i, label: navLabel(i.key as MenuKey) }));
+  const menu = userMenuFor(viewer.role, { assistantConsent: assistant.consentView, guide: guideFor(viewer.role, locale) !== null }).map((i) => ({ ...i, label: navLabel(i.key as MenuKey) }));
   // The person's own profile, at the top of their menu: who they report to on the company's structure.
   const manager = yourManagers(managers, rtl ? "ar" : "en").map((m) =>
     m.names.length

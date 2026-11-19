@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { Hint } from "@/components/hint";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
@@ -94,9 +95,11 @@ export function MoveDepartmentWork({
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
       {control ? null : (
         <DialogTrigger asChild>
-          <Button size="icon" variant="ghost" className="size-7" aria-label={t("open")} title={t("open")}>
-            <ArrowRightLeft />
-          </Button>
+          <Hint asChild tip={t("open")}>
+            <Button size="icon" variant="ghost" className="size-7" aria-label={t("open")}>
+              <ArrowRightLeft />
+            </Button>
+          </Hint>
         </DialogTrigger>
       )}
       <DialogContent {...contentProps}>

@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { callApi } from "@/components/form-dialog";
+import { IconTip } from "@/components/hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,9 +182,11 @@ export function CommentThread({
                   <span className="ms-2 text-xs text-muted-foreground tabular-nums">{when(c.createdAt)}</span>
                 </p>
                 {c.can.remove ? (
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => void remove(c.id)} aria-label={t("remove")} title={t("remove")}>
-                    <X animateOnHover className="size-4" />
-                  </Button>
+                  <IconTip name="removeComment">
+                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => void remove(c.id)} aria-label={t("remove")}>
+                      <X animateOnHover className="size-4" />
+                    </Button>
+                  </IconTip>
                 ) : null}
               </div>
               {c.removedAt ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
+import { IconTip } from "@/components/hint";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -118,9 +119,11 @@ export function HoldersPanel(props: {
   const menu = (h: Holding, canEnd: boolean) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-7" aria-label={t("actions", { name: h.name ?? "—" })} title={t("actions", { name: h.name ?? "—" })}>
-          <Ellipsis className="size-4" />
-        </Button>
+        <IconTip name="moreMenu">
+          <Button variant="ghost" size="icon" className="size-7" aria-label={t("actions", { name: h.name ?? "—" })}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </IconTip>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {canEnd ? <DropdownMenuItem onSelect={() => setEnding(h)}>{t("end")}</DropdownMenuItem> : null}

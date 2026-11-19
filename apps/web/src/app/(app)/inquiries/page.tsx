@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { localLabel } from "@/lib/names";
@@ -11,7 +12,7 @@ import { intakeOptions } from "@/services/intake";
 import { clientDirectory } from "@/services/staffing";
 import { EnterInquiryDialog } from "./enter-inquiry";
 import { ToneBadge } from "@/components/tone-badge";
-import { WordBadge } from "@/components/status-badge";
+import { KindWord } from "@/components/status-badge";
 import { inquiryPlacement } from "@/lib/status-words";
 
 const CLOSED = new Set(["lost", "declined", "spam", "withdrawn"]);
@@ -66,7 +67,7 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
         ))}
       </nav>
       {rows.length === 0 ? (
-        <p className="rounded-xl border bg-card px-4 py-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+        <EmptyState description={t("empty")} />
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
@@ -106,7 +107,7 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
                   </TableCell>
                   <TableCell className="text-sm">{r.urgency ? ti(`urgency.${r.urgency}`) : "—"}</TableCell>
                   <TableCell>
-                    <WordBadge placement={inquiryPlacement(r.status)} reader="firm" />
+                    <KindWord kind="inquiry" state={r.status} placement={inquiryPlacement(r.status)} reader="firm" />
                   </TableCell>
                   <TableCell className="text-sm">
                     {r.ownerName ?? <span className="text-muted-foreground">{t("unassigned")}</span>}

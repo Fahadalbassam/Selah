@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { Hint } from "@/components/hint";
 import { X } from "@/components/animate-ui/icons/x";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -515,17 +516,18 @@ export function ActionDialog(props: {
                   maxLength={300}
                   dir="auto"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={t("removeItem", { n: i + 1 })}
-                  title={t("removeItem", { n: i + 1 })}
-                  onClick={() => setItems(items.filter((_, j) => j !== i))}
-                >
-                  <X />
-                </Button>
+                <Hint asChild tip={t("removeItem", { n: i + 1 })}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    aria-label={t("removeItem", { n: i + 1 })}
+                    onClick={() => setItems(items.filter((_, j) => j !== i))}
+                  >
+                    <X />
+                  </Button>
+                </Hint>
               </div>
             ))}
             {items.length < 50 ? (

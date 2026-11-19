@@ -1,4 +1,5 @@
-import { Crown, Mail, UserCheck } from "lucide-react";
+import { BookOpen, Crown, Mail, UserCheck } from "lucide-react";
+import Link from "next/link";
 import { Users } from "@/components/animate-ui/icons/users";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
@@ -6,7 +7,9 @@ import { PageHeader } from "@/components/page-header";
 import { ToneBadge } from "@/components/tone-badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { guideFor, guideHrefFor } from "@/lib/handbook";
 import { FAQ_KEYS, helpConsultants } from "@/lib/help";
 import { localName } from "@/lib/names";
 import { withPrincipal } from "@/server/page";
@@ -23,15 +26,25 @@ import { ProblemForm } from "./problem-form";
  * steps and no list of your actions. Firm staff get a 404.
  */
 export default async function HelpPage() {
-  const help = await withPrincipal((tx, principal) => getHelp(tx, principal));
-  const [t, format, ar] = await Promise.all([getTranslations("help"), getFormatter(), getLocale().then((l) => l === "ar")]);
+  const { help, role } = await withPrincipal(async (tx, principal) => ({ help: await getHelp(tx, principal), role: principal.role }));
+  const [t, format, locale] = await Promise.all([getTranslations("help"), getFormatter(), getLocale()]);
+  const ar = locale === "ar";
+  // The reader's own part of the handbook (the client guide), once it is written (big prompt 6.2).
+  const guide = guideFor(role, locale);
   const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
   const people = helpConsultants(help);
   const firm = help.firm ? localName(help.firm, ar) : null;
 
   return (
     <>
-      <PageHeader title={t("title")} description={t("description")} />
+      <PageHeader title={t("title")} description={t("description")}>
+        {guide ? (
+          <Link href={guideHrefFor(role)} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <BookOpen />
+            {t("guide.open")}
+          </Link>
+        ) : null}
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="h-fit gap-4 py-5 shadow-xs">

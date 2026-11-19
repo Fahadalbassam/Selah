@@ -18,6 +18,9 @@ import { AudienceMarker } from "@/components/audience-marker";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { StanceBadge } from "@/components/stance-badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
+import { Hint } from "@/components/hint";
+import { RoleTip } from "@/components/role-tip";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,8 +34,8 @@ import { localLabel, localName } from "@/lib/names";
 import { NO_PREVIOUS } from "@/lib/phases";
 import { parsePlanRule, PLAN_RULES, type PlanRule } from "@/lib/plan-rules";
 import { isOldTab, oldTabTarget, openTab, projectTabHref } from "@/lib/project-tabs";
-import { meetingPlacement } from "@/lib/status-words";
-import { WordBadge } from "@/components/status-badge";
+import { meetingPlacement, meetingTip } from "@/lib/status-words";
+import { KindWord } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
 import { isOverdue } from "@/services/queries";
@@ -227,10 +230,12 @@ export default async function ProjectPage({
                 </Badge>
               ) : null}
               {observing ? (
-                <Badge variant="outline" className="gap-1" title={ts("observingHint")}>
-                  <Eye className="size-3" />
-                  {ts("observerBadge")}
-                </Badge>
+                <Hint tip={ts("observingHint")}>
+                  <Badge variant="outline" className="gap-1">
+                    <Eye className="size-3" />
+                    {ts("observerBadge")}
+                  </Badge>
+                </Hint>
               ) : null}
             </>
           }
@@ -393,12 +398,7 @@ export default async function ProjectPage({
                         {t("priority")}: {tPrio(r.priority)}
                       </Badge>
                       {r.source !== "consultant" ? <Badge variant="outline">{tPlan(`rec.sources.${r.source}`)}</Badge> : null}
-                      {r.visibility === "firm_private" ? (
-                        <Badge variant="outline" className="gap-1">
-                          <Lock className="size-3" />
-                          {tVis("firm_private")}
-                        </Badge>
-                      ) : null}
+                      {r.visibility === "firm_private" ? <VisibilityBadge visibility="firm_private" label={tVis("firm_private")} /> : null}
                       {r.department ? <Badge variant="secondary">{localLabel(r.department, ar)}</Badge> : null}
                       {firmStaff ? (
                         <span className="ms-auto flex items-center gap-1">
@@ -467,12 +467,7 @@ export default async function ProjectPage({
                           <span>{tPlan("findings.fromAssessment")}</span>
                         ) : null}
                         {finding.withdrawnAt ? <Badge variant="outline">{tPlan("changes.withdrawnBadge")}</Badge> : null}
-                        {finding.visibility === "firm_private" ? (
-                          <Badge variant="outline" className="gap-1">
-                            <Lock className="size-3" />
-                            {tVis("firm_private")}
-                          </Badge>
-                        ) : null}
+                        {finding.visibility === "firm_private" ? <VisibilityBadge visibility="firm_private" label={tVis("firm_private")} /> : null}
                         <RecordActions kind="finding" id={finding.id} title={finding.title} can={finding.can} values={{ title: finding.title, description: finding.description }} />
                       </div>
                     ) : null}
@@ -591,7 +586,7 @@ export default async function ProjectPage({
               {upload ? <AddFileDialog target={upload} primary={!requests?.can.manage} /> : null}
             </SectionHeader>
             {data.documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("noDocs")}</p>
+              <EmptyState icon={<FileText animateOnView />} description={t("noDocs")} />
             ) : (
               <ul className="divide-y rounded-xl border bg-card">
                 {data.documents.map((d) => (
@@ -608,9 +603,7 @@ export default async function ProjectPage({
                       </p>
                     </div>
                     {d.limited ? <AudienceMarker kind="document" className="ms-auto" /> : null}
-                    <Badge variant={d.visibility === "shared" ? "secondary" : "outline"} className={d.limited ? undefined : "ms-auto"}>
-                      {tVis(d.visibility)}
-                    </Badge>
+                    <VisibilityBadge visibility={d.visibility} label={tVis(d.visibility)} className={d.limited ? undefined : "ms-auto"} />
                     {firmStaff && d.aiIndexable ? <TextStatusBadge status={d.textStatus} /> : null}
                     {firmStaff && d.aiIndexable ? <DocumentSummary documentId={d.id} title={d.title} /> : null}
                     {firmStaff && d.aiIndexable ? <AskAbout projectId={project.id} type="document" id={d.id} size="icon-sm" /> : null}
@@ -654,7 +647,7 @@ export default async function ProjectPage({
               </div>
             ) : null}
             {meetings.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("noMeetings")}</p>
+              <EmptyState icon={<CalendarDays />} description={t("noMeetings")} />
             ) : (
               <ul className="divide-y rounded-xl border bg-card">
                 {meetings.map((m) => (
@@ -665,7 +658,9 @@ export default async function ProjectPage({
                     </Link>
                     <span className="text-xs text-muted-foreground tabular-nums">{format.dateTime(m.startsAt, { dateStyle: "medium", timeStyle: "short" })}</span>
                     {m.limited ? <AudienceMarker kind="meeting" className="ms-auto" /> : null}
-                    <WordBadge
+                    <KindWord
+                      kind="meeting"
+                      state={meetingTip(m.status, m.status === "scheduled" && m.unanswered)}
                       placement={meetingPlacement(m.status, m.status === "scheduled" && m.unanswered)}
                       reader={firmStaff ? "firm" : "client"}
                       className={m.limited ? undefined : "ms-auto"}
@@ -802,10 +797,12 @@ export default async function ProjectPage({
                         <p className="flex items-center gap-2 text-sm font-medium">
                           {m.name}
                           {m.isLead ? (
-                            <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
-                              <Crown className="size-3" />
-                              {ts("leadBadge")}
-                            </Badge>
+                            <RoleTip role="projectLead">
+                              <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
+                                <Crown className="size-3" />
+                                {ts("leadBadge")}
+                              </Badge>
+                            </RoleTip>
                           ) : null}
                           {m.userId === team.clientDeputy?.userId ? (
                             <Badge variant="outline" className="gap-1">
@@ -814,10 +811,12 @@ export default async function ProjectPage({
                             </Badge>
                           ) : null}
                           {m.observer ? (
-                            <Badge variant="outline" className="gap-1">
-                              <Eye className="size-3" />
-                              {ts("observerBadge")}
-                            </Badge>
+                            <RoleTip role="observer">
+                              <Badge variant="outline" className="gap-1">
+                                <Eye className="size-3" />
+                                {ts("observerBadge")}
+                              </Badge>
+                            </RoleTip>
                           ) : null}
                         </p>
                         <p className="text-xs text-muted-foreground">{m.email}</p>

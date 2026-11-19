@@ -6,6 +6,7 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { callApi } from "@/components/form-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
+import { IconTip } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
@@ -60,9 +61,11 @@ export function RowMenu({ label, items, className }: { label: string; items: Row
     <>
       <DropdownMenu dir={locale === "ar" ? "rtl" : "ltr"}>
         <DropdownMenuTrigger asChild>
-          <Button ref={trigger} type="button" variant="ghost" size="icon" className={cn("size-7 shrink-0", className)} aria-label={label} title={label}>
-            <Ellipsis className="size-4" />
-          </Button>
+          <IconTip name="moreMenu">
+            <Button ref={trigger} type="button" variant="ghost" size="icon" className={cn("size-7 shrink-0", className)} aria-label={label}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </IconTip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {plain.map(entry)}

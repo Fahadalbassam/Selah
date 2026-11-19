@@ -7,7 +7,7 @@ import { DeliverableList } from "@/components/deliverables/deliverable-list";
 import { CoverDialog, EngagementDialog } from "@/components/engagement-form";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
-import { WordBadge } from "@/components/status-badge";
+import { KindWord } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NOT_COVERED } from "@/lib/engagements";
@@ -134,7 +134,7 @@ export default async function EngagementPage({ params }: { params: Promise<{ id:
                       <Link href={`/projects/${p.id}`} className="min-w-0 flex-1 font-medium hover:underline" dir="auto">
                         {title(p)}
                       </Link>
-                      <WordBadge placement={projectPlacement(p.state)} reader="firm" />
+                      <KindWord kind="project" state={p.state} placement={projectPlacement(p.state)} reader="firm" />
                     </li>
                   ))}
                 </ul>

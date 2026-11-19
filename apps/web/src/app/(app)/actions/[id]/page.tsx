@@ -4,7 +4,6 @@ import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { CircleX } from "@/components/animate-ui/icons/circle-x";
-import { Lock } from "@/components/animate-ui/icons/lock";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
@@ -13,8 +12,8 @@ import { AskAbout } from "@/components/ask-about";
 import { FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
 import { Translatable } from "@/components/translatable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { nextStep } from "@/lib/action-next";
@@ -208,6 +207,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                 reader={firmView ? "firm" : "client"}
                 exact
                 outcome={closing.closure?.outcome ? t(`closure.outcomes.${closing.closure.outcome}`) : null}
+                outcomeKey={closing.closure?.outcome ?? null}
               />
             </VerifiedBurst>
             {action.dueDate && !finished ? (
@@ -354,10 +354,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
                 <div className="space-y-1.5">
                   <CardTitle className="flex items-center gap-2 text-base">
                     {t("notes.title")}
-                    <Badge variant="outline" className="gap-1">
-                      <Lock className="size-3" />
-                      {tVis("firm_private")}
-                    </Badge>
+                    <VisibilityBadge visibility="firm_private" label={tVis("firm_private")} />
                   </CardTitle>
                   <CardDescription>{t("notes.hint")}</CardDescription>
                 </div>
