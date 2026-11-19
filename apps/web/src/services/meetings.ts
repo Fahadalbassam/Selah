@@ -91,10 +91,11 @@ export async function listMeetings(tx: Tx, principal: Principal, projectId: stri
       provider: meetings.provider,
       status: meetings.status,
       visibility: meetings.visibility,
-      // The reader's own invitation, not yet answered: the list reads "Waiting for you" (D3, docs/placement.md).
+      // The reader's own invitation, not yet answered, on a meeting not yet over: the list reads "Waiting for you"
+      // (D3, docs/placement.md); a meeting already over waits for no answer, as on the home (services/home.ts, review S5).
       // The outer column is named with its table: in a one-table select Drizzle prints ${meetings.id} as a bare "id",
       // which inside the subquery is the attendee row's own id (review B1).
-      unanswered: sql<boolean>`exists (select 1 from meeting_attendees a where a.meeting_id = "meetings"."id" and a.user_id = ${principal.userId} and a.role <> 'organizer' and a.response = 'needs_action')`,
+      unanswered: sql<boolean>`exists (select 1 from meeting_attendees a where a.meeting_id = "meetings"."id" and a.user_id = ${principal.userId} and a.role <> 'organizer' and a.response = 'needs_action') and "meetings"."ends_at" >= now()`,
     })
     .from(meetings)
     .where(eq(meetings.projectId, projectId))
