@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import type { AttachStatus } from "@/lib/assistant-attach";
+import type { AttachedFile } from "./attach";
 import { ChatHeader, ChatList, Composer, getJson, NewChatHeader, Thread, type Chat, type ChatRow, type Lang, type NewChatCase } from "./assistant-chat";
 import { assistant, useAssistant } from "./store";
 
@@ -53,7 +55,11 @@ export interface Pending {
  * Asks with the answer streaming in. Gives the saved answer's chat, or why it failed:
  * "limit" (the client's daily limit) or "error".
  */
-async function askStreaming(body: unknown, onWriting: () => void, onAnswer: (text: string) => void): Promise<{ conversationId: string } | "limit" | "error"> {
+async function askStreaming(
+  body: unknown,
+  onWriting: () => void,
+  onAnswer: (text: string) => void,
+): Promise<{ conversationId: string; attachments: { id: string; status: AttachStatus }[] } | "limit" | "error"> {
   const res = await fetch("/api/assistant/query", {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/x-ndjson" },
@@ -70,10 +76,10 @@ async function askStreaming(body: unknown, onWriting: () => void, onAnswer: (tex
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
       if (!line) continue;
-      const event = JSON.parse(line) as { type: string; text?: string; conversationId?: string };
+      const event = JSON.parse(line) as { type: string; text?: string; conversationId?: string; attachments?: { id: string; status: AttachStatus }[] };
       if (event.type === "writing") onWriting();
       else if (event.type === "text" && event.text !== undefined) onAnswer(event.text);
-      else if (event.type === "done" && event.conversationId) return { conversationId: event.conversationId };
+      else if (event.type === "done" && event.conversationId) return { conversationId: event.conversationId, attachments: event.attachments ?? [] };
       else if (event.type === "error") return "error";
     }
   }
@@ -216,7 +222,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
     openChat(null);
   }
 
-  async function ask(question: string) {
+  async function ask(question: string, files: AttachedFile[] = []) {
     setPending({ question, writing: false, answer: "" });
     setFailed(false);
     const body = chat
@@ -227,8 +233,10 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
           language: locale,
           ...(draft.case ? { caseType: draft.case.type, caseId: draft.case.id } : {}),
         };
+    // Only the ids: the server checks each file again as this person.
+    const withFiles = files.length ? { ...body, attachments: files.map((f) => f.id) } : body;
     const r = await askStreaming(
-      body,
+      withFiles,
       () => setPending({ question, writing: true, answer: "" }),
       (answer) => setPending({ question, writing: true, answer }),
     );
@@ -238,6 +246,11 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
       return false;
     }
     const { conversationId } = r;
+    // A file the server did not read from says so once more, with why (it may have changed since it was picked).
+    for (const a of r.attachments) {
+      const f = files.find((x) => x.id === a.id);
+      if (f && a.status !== "ok") toast.info(t("attach.notUsed", { title: f.title, why: t(`attach.status.${a.status}`) }));
+    }
     if (conversationId !== chatId) setChatId(conversationId);
     else setChatVersion((v) => v + 1);
     if (ctx?.usage) setCtx({ ...ctx, usage: { ...ctx.usage, used: ctx.usage.used + 1 } });
@@ -444,7 +457,7 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
                     slow={ctx.model === "local"}
                     firm={!client}
                   />
-                  <Composer onAsk={ask} busy={pending !== null} disabled={false} usage={ctx.usage} />
+                  <Composer key={(chat ? chat.projectId : draft.projectId) ?? "all"} onAsk={ask} busy={pending !== null} disabled={false} usage={ctx.usage} projectId={chat ? chat.projectId : draft.projectId} />
                 </section>
               ) : null}
             </>

@@ -17,6 +17,7 @@ import {
   statusIntent,
   type StatusKind,
 } from "@/lib/assistant-search";
+import { attachStatus, matchFiles, MAX_ATTACHMENTS, PICKER_RESULTS, type AttachStatus } from "@/lib/assistant-attach";
 import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
@@ -24,6 +25,7 @@ import { NotFoundError } from "@/server/errors";
 import type { Masker } from "@/lib/masking";
 import { answer, answerStream, embed, modelIsLocal, type Answer, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
+import { listFiles } from "./files";
 import { myClientAi } from "./client-ai";
 import { side } from "@/lib/indicators";
 import { projectConsultants } from "./help";
@@ -46,6 +48,10 @@ const MAX_STATUS_ACTIONS = 8;
 const MAX_INDICATORS = 6;
 // Document passages kept beside them: status lives in records, not files.
 const STATUS_TOP_K = 4;
+// Passages of the files attached with "@", across them: they go first and count toward MAX_PASSAGES.
+const ATTACHED_TOP_K = 6;
+// Rows the picker reads for one search, before authorize() and the last name check keep PICKER_RESULTS.
+const PICKER_ROWS = PICKER_RESULTS * 5;
 // Earlier turns of the same chat given as context. Never as sources.
 const HISTORY_MESSAGES = 8;
 // The most passages the AI service takes in one question (services/ai max_passages).
@@ -73,6 +79,8 @@ export interface AskInput {
   /** Only when starting a chat: the record it is about. */
   case?: CaseRef;
   language: "ar" | "en" | "auto";
+  /** Files attached with "@": ids from the screen, never trusted (checked again in prepareAsk, as the person). */
+  attachments?: string[];
 }
 
 export interface Citation {
@@ -120,6 +128,8 @@ export interface PreparedAsk {
   masker: Masker;
   /** The firm day the question was counted on, against a client person's daily limit. */
   countedOn: string;
+  /** What became of each file attached with "@" (a file the person can't see reads "gone", as one that doesn't exist). */
+  attachments: { id: string; status: AttachStatus }[];
   meta: Record<string, unknown>;
 }
 
@@ -224,16 +234,31 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   ];
   const status = [...team, ...counts];
   const found = staffDraft ? [] : await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
+  // Files attached with "@" (docs/assistant.md, "Attaching a file"): the screen's ids are checked again here, in this
+  // transaction, as the person: a file they can't open, or outside the chat's projects, is "gone", as one that doesn't
+  // exist. Only a file open to the assistant and indexed gives passages, through the same permission filter as the
+  // search; they go first. Never with a progress draft (built from the actions only) or a refused draft.
+  // They never take a status record's place (review S1): they get what is left after the chat's own record and the
+  // status rows, keeping one passage free, and nothing when those fill the question.
+  const caseSlot = !staffDraft && caseRef !== null && caseRef.type !== "document" ? 1 : 0;
+  const attachRoom = Math.max(0, MAX_PASSAGES - caseSlot - status.length - 1);
+  const attach = refusedDraft
+    ? // A refused draft reads nothing, and says so for each file (review N1).
+      { chunks: [], statuses: [...new Set(input.attachments ?? [])].slice(0, MAX_ATTACHMENTS).map((id) => ({ id, status: "draft" as const })) }
+    : await attachedPassages(tx, principal, scopes, vector, input.attachments ?? [], { progressDraft, room: attachRoom });
+  const attachedIds = new Set(attach.chunks.map((c) => c.id));
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
   const hits = staffDraft ? [] : await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "records" });
   // Status lives in records, not files: a status question keeps fewer file passages (at least 2, at most
   // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
   const statusRoom = MAX_PASSAGES - 1 - status.length;
-  const chunks = found.slice(0, counts.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : Math.min(TOP_K, MAX_PASSAGES - team.length));
+  // Attached passages take the place of searched file passages; the records keep theirs.
+  const chunkRoom = counts.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : Math.min(TOP_K, MAX_PASSAGES - team.length);
+  const chunks = found.filter((c) => !attachedIds.has(c.id)).slice(0, Math.max(0, chunkRoom - attach.chunks.length));
   // "My deadlines": the search's records (a recommendation lists all its actions) would put others' work beside
   // "your actions"; only the chat's own record is kept.
-  const linked = (staffDraft ? [] : await linkedRecords(tx, caseRef, chunks, hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
+  const linked = (staffDraft ? [] : await linkedRecords(tx, caseRef, [...attach.chunks, ...chunks], hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
   // A status question: its rows first (the count, then the actions), then what the search linked.
   // The AI service takes MAX_PASSAGES, so what is cut is cut from the end.
   const records = status.length
@@ -245,8 +270,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const isCase = (r: RecordPassage) => !staffDraft && caseRef !== null && caseRef.type === r.type && caseRef.id === r.id;
   const subject = records.filter(isCase);
   const others = records.filter((r) => !isCase(r));
-  const room = MAX_PASSAGES - subject.length;
-  const kept = others.slice(0, room - chunks.length);
+  const room = MAX_PASSAGES - subject.length - attach.chunks.length;
+  const kept = others.slice(0, Math.max(0, room - chunks.length));
 
   const at = (pid: string | undefined) => (across && pid && whereOf.has(pid) ? `, ${whereOf.get(pid)}` : "");
   const toSource = (r: RecordPassage, label: string) => ({
@@ -255,21 +280,23 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
     projects: r.projectIds ?? (r.projectId ? [r.projectId] : []),
     citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null, ...(across && r.projectId ? { projectId: r.projectId } : {}) },
   });
+  const fromChunk = (c: ChunkRow, attached = false) => ({
+    text: c.content,
+    source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}${attached ? ", attached by the person" : ""}${at(c.projectId)}`,
+    projects: [c.projectId],
+    citation: {
+      chunkId: c.id,
+      sourceType: c.sourceType,
+      sourceId: c.sourceId,
+      version: c.sourceVersion,
+      page: c.page,
+      ...(across ? { projectId: c.projectId } : {}),
+    },
+  });
   const sources = [
+    ...attach.chunks.map((c) => fromChunk(c, true)),
     ...subject.map((r) => toSource(r, `${r.type}, the record this chat is about`)),
-    ...chunks.map((c) => ({
-      text: c.content,
-      source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}${at(c.projectId)}`,
-      projects: [c.projectId],
-      citation: {
-        chunkId: c.id,
-        sourceType: c.sourceType,
-        sourceId: c.sourceId,
-        version: c.sourceVersion,
-        page: c.page,
-        ...(across ? { projectId: c.projectId } : {}),
-      },
-    })),
+    ...chunks.map((c) => fromChunk(c)),
     ...kept.map((r) => toSource(r, r.type)),
   ];
   // A hosted model gets placeholders for known names, never the names (docs/assistant.md).
@@ -285,8 +312,15 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const masker = await textMasker(tx, ids, outgoing, masked);
   const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
   const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
-  // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5.
-  const maskedQuestion = subject.length ? `${masker.mask(question).slice(0, 1960)}\n(This chat is about passage P1.)` : masker.mask(question);
+  // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5. The attached
+  // passages come first, so the chat's record follows them.
+  const a = attach.chunks.length;
+  const notes = [
+    a ? `(The person attached ${a === 1 ? "a file" : "files"} to the question: passage${a === 1 ? " P1" : `s P1 to P${a}`}.)` : "",
+    subject.length ? `(This chat is about passage P${a + 1}.)` : "",
+  ].filter(Boolean);
+  const note = notes.join("\n");
+  const maskedQuestion = note ? `${masker.mask(question).slice(0, 1994 - note.length - 1)}\n${note}` : masker.mask(question);
 
   return {
     question,
@@ -305,9 +339,11 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
     projectIds: across ? [...new Set(sources.flatMap((s) => s.projects))] : null,
     masker,
     countedOn,
+    attachments: attach.statuses,
     meta: {
       ...(across ? { scope: "all", projects: ids.length } : {}),
       passages: chunks.length,
+      ...(attach.statuses.length ? { attached: attach.chunks.length, attachedFiles: attach.statuses.length } : {}),
       records: kept.length + subject.length,
       ...(kinds.size ? { status: [...kinds].join(",") } : {}),
       ...(mine ? { mine: true } : {}),
@@ -315,7 +351,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
       ...(refusedDraft ? { draft: "refused" } : {}),
       turns: history.length / 2,
       // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
-      ...(client ? { sent: chunks.map((c) => c.id).join(",") } : {}),
+      ...(client ? { sent: [...attach.chunks, ...chunks].map((c) => c.id).join(",") } : {}),
     },
   };
 }
@@ -453,7 +489,7 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
 
   // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").
   const messageId = saved.find((m) => m.role === "assistant")!.id;
-  return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations, progressDraft: isProgressDraft };
+  return { conversationId, messageId, answer: text, lang: answerLang, grounded, citations, progressDraft: isProgressDraft, attachments: prepared.attachments };
 }
 
 /**
@@ -503,21 +539,25 @@ export interface RetrieveOptions {
  * matches, merged by reciprocal rank. The permission filter lives in both
  * WHERE clauses, never after them.
  */
+const chunkFields = {
+  id: aiChunks.id,
+  projectId: aiChunks.projectId,
+  content: aiChunks.content,
+  sourceType: aiChunks.sourceType,
+  sourceId: aiChunks.sourceId,
+  sourceVersion: aiChunks.sourceVersion,
+  page: aiChunks.page,
+};
+type ChunkRow = { id: string; projectId: string; content: string; sourceType: string; sourceId: string; sourceVersion: number; page: number | null };
+/** Passages with their file joined, for scopeFilter(): every read of passages starts here. */
+const chunkRows = (tx: Tx) =>
+  tx
+    .select(chunkFields)
+    .from(aiChunks)
+    .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)));
+
 export async function retrieve(tx: Tx, scope: RetrievalScope | RetrievalScope[], vector: number[], opts: RetrieveOptions = {}) {
-  const fields = {
-    id: aiChunks.id,
-    projectId: aiChunks.projectId,
-    content: aiChunks.content,
-    sourceType: aiChunks.sourceType,
-    sourceId: aiChunks.sourceId,
-    sourceVersion: aiChunks.sourceVersion,
-    page: aiChunks.page,
-  };
-  const base = () =>
-    tx
-      .select(fields)
-      .from(aiChunks)
-      .leftJoin(documents, and(eq(aiChunks.sourceType, "document"), eq(documents.id, aiChunks.sourceId)));
+  const base = () => chunkRows(tx);
   const only =
     opts.sources === "records"
       ? inArray(aiChunks.sourceType, ["recommendation", "action"])
@@ -538,6 +578,82 @@ export async function retrieve(tx: Tx, scope: RetrievalScope | RetrievalScope[],
   const c = opts.case;
   const keep = opts.sources === "records" ? RECORD_HITS : TOP_K;
   return fuse([byMeaning, byWords], keep, c ? (r) => r.sourceType === c.type && r.sourceId === c.id : undefined);
+}
+
+/**
+ * The files attached with "@" to one question, read again as the person. The
+ * screen's ids are never trusted: a file counts only when listFiles() gives it
+ * to this person (row-level security, then authorize() with its shares and who
+ * sees it, the Files card's own check), in the chat's projects, as its current
+ * version, not archived. Anything else is "gone", the same as an id that
+ * doesn't exist, so nothing hints at a file the person can't see. A file open
+ * to the assistant and indexed gives its passages nearest the question, read
+ * through scopeFilter() (labels, departments, who sees it) under the same
+ * row-level security as the search; one with none left to give is
+ * "not_available". With a progress draft none is read ("draft").
+ */
+export async function attachedPassages(
+  tx: Tx,
+  principal: Principal,
+  scopes: RetrievalScope[],
+  vector: number[],
+  requested: string[],
+  /** `room`: the most attached passages this question has space for (at most ATTACHED_TOP_K). */
+  opts: { progressDraft?: boolean; room?: number } = {},
+): Promise<{ chunks: ChunkRow[]; statuses: { id: string; status: AttachStatus }[] }> {
+  const ids = [...new Set(requested)].slice(0, MAX_ATTACHMENTS);
+  if (!ids.length || !scopes.length) return { chunks: [], statuses: ids.map((id) => ({ id, status: "gone" as const })) };
+  const files = new Map((await listFiles(tx, principal, { ids, projectIds: scopes.map((s) => s.projectId) })).map((f) => [f.id, f]));
+  const statuses = ids.map((id): { id: string; status: AttachStatus } => {
+    const f = files.get(id);
+    if (!f) return { id, status: "gone" };
+    const status = attachStatus(f);
+    return { id, status: status === "ok" && opts.progressDraft ? "draft" : status };
+  });
+  const usable = statuses.filter((s) => s.status === "ok");
+  if (!usable.length) return { chunks: [], statuses };
+  const total = Math.max(0, Math.min(ATTACHED_TOP_K, opts.room ?? ATTACHED_TOP_K));
+  const each = Math.max(1, Math.floor(total / usable.length));
+  const chunks: ChunkRow[] = [];
+  for (const s of usable) {
+    const left = Math.min(each, total - chunks.length);
+    // No space left in this question (a status question's records fill it): nothing read, and it says so.
+    if (left <= 0) {
+      s.status = "crowded";
+      continue;
+    }
+    const rows = await chunkRows(tx)
+      .where(and(scopeFilter(scopes), eq(aiChunks.sourceType, "document"), eq(aiChunks.sourceId, s.id)))
+      .orderBy(cosineDistance(aiChunks.embedding, vector), asc(aiChunks.page), asc(aiChunks.chunkIndex))
+      .limit(left);
+    if (!rows.length) s.status = "not_available";
+    chunks.push(...rows);
+  }
+  return { chunks, statuses };
+}
+
+/**
+ * The "@" picker: files the person can already open (listFiles(), the Files
+ * card's own check) in the projects they may ask about here (one project, or
+ * every one for a chat across projects), whose title has the typed words in
+ * either spelling, each with whether the assistant can read it. Only names
+ * and states, never text.
+ */
+export async function attachableFiles(tx: Tx, principal: Principal, input: { projectId?: string | null; query: string; locale: "ar" | "en" }) {
+  const targets = input.projectId ? [await oneProject(tx, principal, input.projectId, input.locale)] : await askableProjects(tx, principal, input.locale);
+  const asked = targets.filter((p) => retrievalScope(principal, { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }) !== null);
+  // A project the person may not ask about here answers as one that doesn't exist.
+  if (input.projectId && !asked.length) throw new NotFoundError("project");
+  // The title is matched in the database, folded both sides (review S2), so an old file is found as well as a new one;
+  // the light listing reads no sources but keeps the Files card's visibility (row-level security, then authorize()).
+  const files = await listFiles(tx, principal, { projectIds: asked.map((p) => p.id), title: input.query, light: true, limit: PICKER_ROWS });
+  const where = new Map(asked.map((p) => [p.id, p.where]));
+  return matchFiles(files, input.query).map((f) => ({
+    id: f.id,
+    title: f.title,
+    ...(input.projectId ? {} : { place: where.get(f.project.id) ?? null }),
+    status: attachStatus(f),
+  }));
 }
 
 /** Why an answer may not go to a client person, or null. */

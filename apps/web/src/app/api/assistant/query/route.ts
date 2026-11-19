@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { z } from "zod";
+import { MAX_ATTACHMENTS } from "@/lib/assistant-attach";
 import { route } from "@/server/http";
 import { ask, prepareAsk, streamAnswer } from "@/services/assistant";
 import { maskingOn } from "@/services/masking";
@@ -15,6 +16,8 @@ const body = z
     caseType: caseType.optional(),
     caseId: z.uuid().optional(),
     language: z.enum(["ar", "en", "auto"]).default("auto"),
+    // Files attached with "@": only ids; prepareAsk checks each again as the person (docs/assistant.md, "Attaching a file").
+    attachments: z.array(z.uuid()).max(MAX_ATTACHMENTS).optional(),
   })
   .refine((b) => (b.caseType === undefined) === (b.caseId === undefined), { message: "caseType and caseId go together" })
   .refine((b) => !b.caseId || b.projectId, { message: "a case belongs to a project" });

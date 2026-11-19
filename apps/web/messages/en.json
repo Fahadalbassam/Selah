@@ -534,6 +534,25 @@
     "assistantName": "Assistant",
     "emptyThread": "Ask about everything you can open, or pick one project. Answers cite the files and records they come from. Each question starts or continues one chat.",
     "notGrounded": "No permitted source supports a confident answer.",
+    "attach": {
+      "hint": "Type @ to attach a file you can see",
+      "pickerTitle": "Files you can attach to your question",
+      "searching": "Searching your files…",
+      "none": "No file you can see has that name.",
+      "full": "A question can carry at most three files.",
+      "chipsLabel": "Files attached to your question",
+      "remove": "Remove {title}",
+      "notUsed": "“{title}” was not read: {why}",
+      "status": {
+        "not_available": "Not available to the assistant, so nothing from it is sent",
+        "not_indexed": "Not indexed yet, so nothing from it is sent",
+        "scanned": "Scanned pages only: the assistant can't read them yet",
+        "unreadable": "Its text can't be read, so nothing from it is sent",
+        "draft": "A draft is never written from attached files",
+        "crowded": "The work-status records filled this question, so nothing from it was read",
+        "gone": "This file is no longer available to you"
+      }
+    },
     "enterHint": "Enter to send · Shift+Enter for a new line",
     "searching": "Searching the records you can see…",
     "toLatest": "Jump to the latest answer",
