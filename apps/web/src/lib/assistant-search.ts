@@ -1,3 +1,5 @@
+import { foldArabic } from "./arabic-fold";
+
 // Pure helpers for the assistant's hybrid search (docs/assistant.md): the
 // keyword query, the merge of the two ranked lists, and a chat's title.
 
@@ -81,6 +83,75 @@ const STATUS: [StatusKind, RegExp][] = [
 export function statusIntent(question: string): Set<StatusKind> {
   const q = question.replace(/\p{M}/gu, "");
   return new Set(STATUS.filter(([, re]) => re.test(q)).map(([k]) => k));
+}
+
+// "My" work, in both languages: "my deadlines", "what do I own", «ما المطلوب مني؟», «ما الذي عليّ؟».
+// Not "my company", "my team", "my manager's", "my CFO", "my direct reports" or "Ahmed's
+// deadlines, not my own": those are about someone else (review S7). The Arabic is in the
+// folded spelling (foldArabic). «علي» without its shadda is a name (Ali), so only «عليّ»
+// and «علي أن» count.
+const NOT_ME = String.raw`company|organi[sz]ation|business|team|department|unit|project|projects|firm|consultants?|board|colleagues?|staff|employees|manager|managers|boss|supervisor|cfo|ceo|coo|cto|chair(?:man|person)?|secretary|deputy|assistant|direct\s+reports?|reports|subordinates?|people|family|father|brother|partner`;
+const MINE_EN = new RegExp(
+  String.raw`\b(?:my|mine)\b(?!\s+(?:${NOT_ME})\b)(?!\s+[\w-]+'s\b)|\b(?:assigned to me|i own|i am responsible|i'm responsible|on my plate|do i (?:have|own|need))\b`,
+  "i",
+);
+const MINE_AR = /المطلوب مني|مطلوب مني|علي ان|مهامي|مهماتي|اجراءاتي|مواعيدي|اعمالي|المسنده (?:الي|لي)|المكلف(?:ه)? بها|مسووليتي|مسؤوليتي/;
+// Someone else's work named outright: "Ahmed's deadlines", "not my own".
+const OTHERS = /\b(?!my\b)[a-z][\w-]*'s\s+(?:deadlines?|actions?|tasks?|work|due|items?)\b|\bnot (?:mine|my own)\b/i;
+// Deadline words that make a "my ..." question a status question even without a status word ("my deadlines").
+const DEADLINE = /\b(?:deadlines?|due dates?|tasks?|actions?|to-?dos?|due)\b|مواعيد|موعد|مهام|مهمه|اجراءات|المطلوب|مطلوب|مستحق/i;
+
+/**
+ * Whether a status question asks about the person's own work ("what are my
+ * deadlines?", «ما المطلوب مني؟»). It only ever narrows: statusRecords then
+ * keeps the actions the person owns or is named on (docs/assistant.md).
+ */
+export function mineIntent(question: string): boolean {
+  if (OTHERS.test(question)) return false;
+  // «عليّ» is read with its shadda, before folding takes it away.
+  const shadda = /عل[يى]ّ/.test(question.replace(/[ً-ِْٰـ]/g, ""));
+  return shadda || MINE_EN.test(question) || MINE_AR.test(foldArabic(question));
+}
+
+/** "My deadlines" with no status word: read as every open action of the person's. */
+export function myDeadlinesIntent(question: string): boolean {
+  return mineIntent(question) && DEADLINE.test(foldArabic(question));
+}
+
+// Who the person's consultants are, asked as such: "who is my consultant?", "who do I
+// contact at the firm?", «من مستشاري؟», «من المستشار المسؤول عن مشروعنا؟». Not every
+// question that names a consultant ("what does the consultant accept?"): those keep
+// their file passages (review S6; folded spelling).
+const CONSULTANT =
+  /\bwho\b[^?]{0,50}\b(?:consultants?|advis[eo]rs?|contact|point of contact|account manager|lead|team at the firm|firm)\b|\b(?:name|names) of (?:my|our|the) consultants?\b|\b(?:my|our) (?:consultants?|advis[eo]rs?|point of contact|account manager)\s*\??$|^\s*و?(?:من|مين)\s+(?:هو\s+|هي\s+|هم\s+)?\S*مستشار|مستشاري(?=[\s؟?.،]|$)|مستشارنا|مستشارينا|(?:من|مين)\s+يتابع(?:نا|ني)?|(?:من|مين)\s+(?:هو\s+)?(?:ال)?مسوول\s+عن(?:نا|ي)?\s+في\s+(?:ال)?مكتب/i;
+
+/** Whether a question asks who the person's consultants are ("who is my consultant?", «من مستشاري؟»). */
+export function consultantIntent(question: string): boolean {
+  return CONSULTANT.test(foldArabic(question).replace(/ؤ/g, "و"));
+}
+
+// A progress-update draft the person asks for (the one draft a client person may get: CLIENT_RULES).
+const PROGRESS_DRAFT =
+  /\b(?:draft|write|prepare|compose)\b.{0,40}\b(?:progress|status) (?:update|report|summary)\b|\b(?:progress|status) (?:update|report)\b.{0,30}\bdraft\b|(?:مسوده|صياغه|صغ|اكتب|اعد|جهز)(?:\s+\S+){0,4}\s+(?:تحديث|تقرير|ملخص)\S*(?:\s+\S+){0,3}\s+(?:ال)?(?:تقدم|انجاز|حاله|سير العمل)/i;
+// Any other draft: a message, e-mail, letter, memo, minutes, a decision or a policy, or
+// anything written to someone ("to the consultant", «إلى المستشار») or asking for something
+// ("asking for two more weeks", «تطلب التمديد»). Refused in code (review S3; folded spelling).
+const OTHER_DOC =
+  /\b(?:draft|write|compose|prepare|formulate|word)\b(?:\s+\S+){0,6}?\s+(?:an?\s+|the\s+|my\s+|our\s+|me\s+an?\s+)?(?:e-?mails?|letters?|messages?|memos?|repl(?:y|ies)|responses?|minutes|resolutions?|decisions?|polic(?:y|ies)|announcements?|invitations?|notes?|whatsapp|texts?)\b|\bdraft\s+(?:a|an|the|me|us|for|something)\b(?!(?:\s+(?:a|an|my|our|the))?(?:\s+(?:short|brief|quick|monthly|weekly|quarterly))?\s+(?:progress|status)\b)|(?:مسوده|صياغه|صغ|اكتب|اعد|جهز|حرر)(?:\s+\S+){0,4}?\s+(?:ال)?(?:رساله|خطاب|بريد|ايميل|مذكره|محضر|قرار|رد|دعوه|تعميم|سياسه)|(?:اكتب|صغ|جهز|اعد|حرر)\s+(?:لي\s+|لنا\s+)?(?:ال)?مسوده(?!(?:\s+\S+){0,2}\s+(?:ال)?(?:تحديث|تقرير|ملخص))/i;
+const TO_SOMEONE =
+  /\bto (?:the |our |my )?(?:consultants?|firm|advis[eo]rs?|cma|regulator|authority|ministry|auditors?|lawyers?|bank|shareholders?|investors?|[A-Z][a-z]+)\b|\b(?:asking|requesting|to ask|to request|demanding|complaining|to complain)\b|(?:الي|ل)\s*(?:ال)?(?:مستشار|مكتب|هيئه|وزاره|مراجع|محامي|بنك|مساهمين)|تطلب|يطلب|نطلب|اطلب/;
+
+/** Whether a client person asks for a draft of their own progress update, and nothing else. */
+export function progressDraftIntent(question: string): boolean {
+  const q = foldArabic(question);
+  return PROGRESS_DRAFT.test(q) && !OTHER_DOC.test(q) && !TO_SOMEONE.test(q);
+}
+
+/** Whether a client person asks for any other draft (an e-mail, a letter, a decision): refused without asking the model. */
+export function otherDraftIntent(question: string): boolean {
+  if (progressDraftIntent(question)) return false;
+  const q = foldArabic(question);
+  return OTHER_DOC.test(q) || (PROGRESS_DRAFT.test(q) && TO_SOMEONE.test(q));
 }
 
 // Indicator words in both languages: the client's own business measures (KPI layer B).

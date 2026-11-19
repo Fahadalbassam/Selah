@@ -942,3 +942,106 @@ def test_ollama_gives_back_the_raw_reply_after_two_bad_tries():
 
     assert asyncio.run(_ollama_with(handler).chat_json("sys", "user", {})) == "no json here"
     assert calls == 2
+
+
+# --- client rules: legal facts, the progress-update draft, no rating words (Gate B, 19 Nov 2026)
+
+
+def test_client_rules_allow_only_a_facts_only_progress_draft():
+    system, _ = build_messages("Draft my progress update", PASSAGES, "en", audience="client")
+    assert "progress update" in system and "Draft: check before sending" in system and "مسودة: راجعها قبل الإرسال" in system
+    assert "never sends, stores or shares" in system
+    assert "Any other draft" in system and "stays refused" in system
+    assert "Never rate or judge the work" in system
+    # Legal: the facts with citations, then the judgement left to the consultant or a legal adviser.
+    assert "give what the relevant passages state" in system and "legal adviser" in system
+    staff, _ = build_messages("Draft my progress update", PASSAGES, "en")
+    assert "progress update" not in staff and "Never rate" not in staff
+
+
+RATINGS = [
+    "Overall, the company is on track.",
+    "You have made good progress this month.",
+    "The work so far is excellent.",
+    "Great work on the charter.",
+    "Good work so far.",
+    "The work is progressing nicely.",
+    "Everything is going smoothly.",
+    "We are on target.",
+    "The team did well.",
+    "Strong momentum this month.",
+    "الشركة على المسار الصحيح.",
+    "حققتم تقدماً جيداً هذا الشهر.",
+    "العمل ممتاز حتى الآن.",
+    "تقدم العمل جيد.",
+    "العمل جيد.",
+    "يسير العمل جيدًا جدًا.",
+    "المشروع يسير وفق الخطة.",
+    "إنجاز كبير هذا الشهر.",
+    "أداء الفريق جيدٌ جداً.",
+    "عملٌ ممتـــاز.",
+]
+
+
+@pytest.mark.parametrize("rating", RATINGS)
+def test_rating_sentences_are_taken_out_of_a_progress_draft(rating):
+    from app.prompt import without_ratings
+
+    facts = "Action A was verified on 2026-10-02 [P1]."
+    raw = json.dumps({"answer": f"Draft: check before sending\n{facts} {rating}", "cited_ids": ["P1"], "grounded": True})
+    got = check_answer(raw, PASSAGES, "client", progress_draft=True)
+    assert got.grounded and got.answer == "Draft: check before sending\n\nAction A was verified on 2026-10-02."
+    assert without_ratings(rating) == ""
+    # Only the draft: an ordinary client answer and a staff answer are not changed by this check (review S1).
+    assert rating in check_answer(raw, PASSAGES, "client").answer
+    assert rating in check_answer(raw, PASSAGES, "staff").answer
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "Two actions are still outstanding.",
+        "Outstanding actions: 3.",
+        "The board is encouraging members to disclose.",
+        "Article 12 requires satisfactory evidence of disclosure.",
+        "The meeting is on schedule for 3 May.",
+        'The policy calls for "excellent record keeping" by the secretary.',
+        "تنص السياسة على «خدمة ممتازة للعملاء».",
+        "Action B is 3 days overdue (due 2026-11-16).",
+        "الإجراء ج متأخر.",
+    ],
+)
+def test_facts_stay_in_a_progress_draft(fact):
+    raw = json.dumps({"answer": f"Draft: check before sending\n- {fact} [P1]", "cited_ids": ["P1"], "grounded": True})
+    got = check_answer(raw, PASSAGES, "client", progress_draft=True)
+    assert got.grounded and fact.rstrip(".") in got.answer
+
+
+def test_a_draft_that_is_only_ratings_is_ungrounded():
+    raw = json.dumps({"answer": "Draft: check before sending\nGreat job, everything is on track [P1].", "cited_ids": ["P1"], "grounded": True})
+    assert check_answer(raw, PASSAGES, "client", progress_draft=True) == Answer(answer="", cited_ids=[], grounded=False)
+
+
+@pytest.mark.parametrize(
+    "written",
+    ["**Draft: check before sending**", "Draft — check it before sending.", "draft - check before sending", "Draft: check before sending\nDraft: check before sending"],
+)
+def test_the_draft_mark_is_written_once_in_its_one_form(written):
+    raw = json.dumps({"answer": f"{written}\nDone: Action A [P1].", "cited_ids": ["P1"], "grounded": True})
+    assert check_answer(raw, PASSAGES, "client", progress_draft=True).answer == "Draft: check before sending\n\nDone: Action A."
+    ar = json.dumps({"answer": "**مسودة — راجعها قبل الإرسال**\nأُنجز الإجراء أ [P1].", "cited_ids": ["P1"], "grounded": True})
+    assert check_answer(ar, PASSAGES, "client", progress_draft=True).answer == "مسودة: راجعها قبل الإرسال\n\nأُنجز الإجراء أ."
+
+
+def test_the_service_strips_ratings_only_for_a_progress_draft(client_with):
+    client, _ = client_with(json.dumps({"answer": "Quarterly [P1]. Excellent governance.", "cited_ids": ["P1"], "grounded": True}))
+
+    def post(**extra):
+        return client.post(
+            "/v1/answer",
+            headers={"authorization": f"Bearer {TOKEN}"},
+            json={"question": "How often?", "passages": [p.model_dump() for p in PASSAGES], "audience": "client", **extra},
+        ).json()
+
+    assert post(progress_draft=True) == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}
+    assert post()["answer"] == "Quarterly. Excellent governance."

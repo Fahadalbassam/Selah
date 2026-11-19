@@ -35,10 +35,11 @@ CLIENT_RULES = """
 You are answering a person at the CLIENT organisation, not a consultant. Extra rules:
 - Report only what the passages say about this client's own work: its recommendations, actions, dates, statuses and files.
 - Never say what the consulting firm or its consultants intend, plan, think or will do, and never guess at their reasons. If asked, say that the person should ask their consultant.
-- Never give a legal or compliance ruling: do not say the organisation is or is not compliant, in breach, or legally required to do something. Say what the passages state and that the judgement is for the consultant or a legal adviser.
+- Never give a legal or compliance ruling: do not say the organisation is or is not compliant, in breach, or legally required to do something. When the question asks for one, still answer: give what the relevant passages state on the subject, each point with its citation (for example "your policy says ..."), set "grounded" to true when they are relevant, and end by saying that whether it is enough is for their consultant or a legal adviser.
 - Never name, compare with or speculate about any other company, client or person outside the passages.
 - Never mention internal firm material (notes, scores, assessments, reviews of consultants, surveys) even if the question asks about it.
-- Do not draft messages, decisions or records for the person; answer the question only.
+- Do not draft messages, decisions or records for the person; answer the question only. One exception: when the person asks for a draft of their own progress update (a report on the state of their work), write it only from the passages: what is done, in progress, waiting (for review or for the firm) and late, each with its date and citation. Begin it with the line "Draft: check before sending" in English or «مسودة: راجعها قبل الإرسال» in Arabic. Selah never sends, stores or shares it; the person checks it and sends it themselves. Any other draft (a letter, an e-mail, a decision, a policy, minutes) stays refused.
+- Never rate or judge the work, in an answer or a draft: no words such as "good progress", "on track", "excellent", "behind schedule", "well done", "satisfactory", «تقدم جيد», «على المسار الصحيح», «ممتاز». State the facts and dates only.
 - Keep the tone factual and neutral; do not criticise the client's staff or the firm."""
 
 ANSWER_SCHEMA: dict[str, Any] = {
@@ -109,14 +110,92 @@ def _parse_answer(raw: str, passages: list[Passage]) -> Answer:
     return Answer(answer=strip_markers(parsed.answer), cited_ids=cited, grounded=parsed.grounded and bool(cited))
 
 
-def check_answer(raw: str, passages: list[Passage]) -> Answer:
+def check_answer(
+    raw: str,
+    passages: list[Passage],
+    audience: Literal["staff", "client"] = "staff",
+    progress_draft: bool = False,
+) -> Answer:
     """Parse the model's reply and keep only citations we actually supplied.
     Anything malformed, grounded without a valid citation, or "grounded" but
-    only a heading (unfinished), is ungrounded."""
+    only a heading (unfinished), is ungrounded. A client person's
+    progress-update draft (progress_draft) loses every sentence that rates the
+    work (without_ratings) and gets its mark in the one canonical form; a
+    draft left with nothing but the mark is ungrounded. Other answers are not
+    changed by this check (review S1: "outstanding" and quoted policy text are facts)."""
     parsed = _parse_answer(raw, passages)
+    if parsed.grounded and audience == "client" and progress_draft:
+        mark, body = split_draft_mark(parsed.answer)
+        kept = without_ratings(body)
+        if not re.search(r"[^\W_]", strip_markers(kept)):
+            return Answer(answer="", cited_ids=[], grounded=False)
+        parsed = Answer(answer=f"{mark}\n\n{kept}" if mark else kept, cited_ids=parsed.cited_ids, grounded=True)
     if parsed.grounded and unfinished(parsed.answer):
         return Answer(answer="", cited_ids=[], grounded=False)
     return parsed
+
+
+def fold_arabic(text: str) -> str:
+    """One spelling for Arabic before matching (the web app's foldArabic): no
+    marks, nunation, shadda or tatweel; one alef; ى → ي; ة → ه."""
+    text = re.sub(r"[ً-ٰٟـ]", "", text)
+    return re.sub(r"[أإآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
+
+
+# Selah never judges the work (standing rule 2), and a client's progress-update
+# draft is facts only (Gate B, 19 Nov 2026): words that rate the work, in both
+# languages, matched against fold_arabic(text) (the Arabic is in the folded
+# spelling). Facts stay: "late", "overdue", "outstanding" (still open),
+# "satisfactory evidence" and "on schedule for 3 May" as a policy or a date says them.
+RATING_WORDS = re.compile(
+    r"\b(?:(?:very |really )?(?:good|great|strong|solid|excellent|remarkable|significant|steady|tremendous|poor|slow|weak|limited) progress"
+    r"|on[- ]track|off[- ]track|on target|on course|well ahead|ahead of schedule|behind schedule"
+    r"|well done|good job|great job|(?:great|good|nice|solid|excellent|fine) work"
+    r"|excellent(?:ly)?|impressive(?:ly)?|commendable|exemplary|unsatisfactory|disappointing"
+    r"|(?:doing|going|performing|progressing|proceeding|moving|coming along) (?:very |really |so )?(?:well|badly|poorly|nicely|smoothly|great|as planned|according to plan)"
+    r"|did (?:very |really |so )?well|(?:good|strong|poor|weak) performance|strong momentum)\b"
+    r"|تقدما? (?:ال)?(?:جيد|ممتاز|ملحوظ|ملموس|كبير|ضعيف|بطيء|بطي|مرض)"
+    r"|(?:العمل|التقدم|الاداء|الوضع|المستوي|النتائج|الانجاز|تقدم العمل)\s+(?:\S+\s+)?(?:جيد|ممتاز|رائع|ضعيف|متميز|مرض|مرضيه|مشجع)"
+    r"|علي (?:ال)?مسار (?:ال)?صحيح|في (?:ال)?مسار (?:ال)?صحيح|خارج (?:ال)?مسار"
+    r"|ممتاز|رائع|جيد(?:ه|ا)? جدا|اداء (?:جيد|ممتاز|ضعيف|متميز)|وفق الخطه|حسب الخطه|كما هو مخطط"
+    r"|انجاز (?:كبير|ملحوظ|رائع)|متقدم علي الجدول|احسنتم|عمل رائع|يسير (?:العمل )?(?:بشكل )?جيد|مخيب للامال",
+    re.IGNORECASE,
+)
+
+# The draft mark in every form a model writes it, in either language, with
+# Markdown or a dash; the web app reads the same forms (withDraftMark in
+# apps/web/src/lib/client-ai.ts) and the draft carries the canonical one.
+DRAFT_MARK = re.compile(
+    r"^[\s*_#>`~-]*(?:(?P<en>draft\s*[:\-–—]\s*check (?:it )?before sending)|(?P<ar>مسودة\s*[:\-–—]\s*راجعها قبل الإرسال))\.?[\s*_`~]*(?:\n|$)",
+    re.IGNORECASE,
+)
+DRAFT_MARK_TEXT = {"en": "Draft: check before sending", "ar": "مسودة: راجعها قبل الإرسال"}
+
+# Text in quotation marks: what a policy or a record says, never rated (review S1).
+_QUOTED = re.compile(r'"[^"\n]*"|“[^”\n]*”|«[^»\n]*»')
+
+_SENTENCE = re.compile(r"(?<=[.!?؟؛;])\s+")
+
+
+def split_draft_mark(text: str) -> tuple[str, str]:
+    """The canonical draft mark (or "" when the model wrote none) and the text after every mark it wrote."""
+    body, mark = text.strip(), ""
+    while m := DRAFT_MARK.match(body):
+        mark = mark or DRAFT_MARK_TEXT["ar" if m.group("ar") else "en"]
+        body = body[m.end() :].lstrip()
+    return mark, body
+
+
+def without_ratings(text: str) -> str:
+    """The text without any sentence (or list line) that rates the work.
+    Quoted words are not read: a policy may say "excellent"."""
+    out: list[str] = []
+    for line in text.splitlines():
+        parts = [s for s in _SENTENCE.split(line) if not RATING_WORDS.search(fold_arabic(_QUOTED.sub(" ", s)))]
+        if not parts and line.strip():
+            continue  # the whole line rated the work
+        out.append(" ".join(parts))
+    return "\n".join(out).strip()
 
 
 def unfinished_reply(raw: str, passages: list[Passage]) -> bool:

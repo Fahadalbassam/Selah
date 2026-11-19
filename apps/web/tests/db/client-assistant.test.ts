@@ -441,7 +441,9 @@ describe("limits and the answer filter", () => {
     try {
       reply = (ps) => ({ answer: "Your company is not compliant with the Companies Law.", cited_ids: [ps[0]!.id], grounded: true });
       let out = await ask("Are we compliant?");
-      expect(out).toMatchObject({ grounded: false, citations: [], answer: CLIENT_REFUSAL.legal_ruling.en });
+      // Only a ruling: the refusal, with the sources it cited still listed (Gate B: the facts, never the ruling).
+      expect(out).toMatchObject({ answer: CLIENT_REFUSAL.legal_ruling.en });
+      expect(out.citations.length).toBe(1);
       reply = (ps) => ({ answer: "The firm probably plans to extend the project.", cited_ids: [ps[0]!.id], grounded: true });
       out = await ask("What does the firm really want?");
       expect(out.answer).toBe(CLIENT_REFUSAL.firm_intent.en);

@@ -313,7 +313,7 @@ Docs worth reading first: `authorization.md`, `rules.md`, `data-model.md`, `enga
 ## 11. Open items
 
 - **Simplification review.** The app has too many buttons for some users. A review found 18 issues with a six-batch fix order (project files: `plan/selah-simplification-review.html`); four decisions are waiting on the product owner, and nothing from it is built yet.
-- **Client assistant defaults.** Four questions (legal questions, deadlines aware of who asks, drafting a progress update for the client, cross-language search) have working defaults but no final answer.
+- **Client assistant defaults.** Answered at Gate B (19 Nov 2026; `docs/assistant.md`, "The client assistant"): legal questions get the facts, never a ruling; "my deadlines" narrows to the asker's own actions; a facts-only progress-update draft, marked as a draft and never sent by Selah; "who is my consultant" from the same names Help shows. Cross-language search keeps the multilingual vectors; the Arabic spelling fold for word search is still to come.
 - **Before real client data:** counsel reviews the legal drafts; hosting, retention and legal duties confirmed with the firm and the supervisor; direct hosting instead of the tunnel; a mail sender on the firm's own domain with SPF, DKIM and DMARC; backups need the second disk, off-server key and crontab; R6 and R7.
 - **Deployment** has not happened; the server is not running Selah yet.
 - **Inquiry lead picker** still uses the old dropdown rather than the typeable picker.
