@@ -9,7 +9,7 @@ How much a client takes part in Selah, and the optional departments that narrow 
 | | full | restricted | consultant_managed |
 |---|---|---|---|
 | Client accounts | any client role | client admins only, up to `firm_settings.restricted_max_admins` (2) | none |
-| Who records progress and evidence | the client's people | the client admin | firm staff on the project, for the client |
+| Who records progress and evidence | the client's people (the action's owner, or a client manager) | the client admin, on the actions they own | firm staff on the project, for the client |
 | Client uploads | as chosen | private to the client until a client admin shares them | n/a |
 | Reminders | the owner, then the ladder | the owner (an admin), then the ladder | the client's lead consultant at every level, then the watching firm admins |
 
@@ -25,6 +25,10 @@ The client does not use Selah. Firm staff on its project record what they hear t
 - Firm staff can record only for a consultant-managed client. In the other modes the client records its own work.
 - An action's owner can be a name instead of an account: `ownerName` on `POST /api/recommendations/:id/actions` and `PATCH /api/actions/:id`, for consultant-managed clients only. Client contacts (`/api/clients/:id/contacts`) hold their details.
 - **Separation of duties.** Whoever submitted evidence, or recorded progress for the client, since the last review cannot review that round. Someone else on the team verifies.
+
+## Restricted: the admin does the owner's work
+
+A restricted client has admin accounts only, and the firm does not record for it. So the client admin who owns an action does on it what an action owner does on a full client: start it, say "I am stuck" and resume, write progress, send evidence for review and send the revised file, and ask for more time (`RESTRICTED_POLICY` in `src/authz/policy.ts`). Only on the actions they own: a second admin's action, or one nobody owns, answers 404, and the database refuses the move, the note, the file and the date request (`app_restricted_admin_works()`, migration `0107_restricted_admin_work`). To work such an action, the admin first gives it to themselves (decision D1: the change is recorded in the audit log as `action.owner_change`, and the previous owner is told), then works it. When one admin is switched off, the other gives that admin's open actions to themselves or a colleague before anyone can work them. The firm still reviews, and whoever sent a round never reviews it. On a full client nothing changes: its admin does not record progress or evidence (owner decision, 19 Nov 2026).
 
 ## Restricted: client-private files
 

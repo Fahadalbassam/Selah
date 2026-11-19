@@ -422,6 +422,21 @@ const CONSULTANT_MANAGED_POLICY: Partial<Record<Permission, Grants>> = {
 };
 
 /**
+ * A restricted client has admin accounts only (docs/engagement.md), and the
+ * firm records only for clients it runs, so the admin does the owner's work
+ * on the actions they own: start, stuck and resume, progress, evidence, send
+ * and resend for review, more time. Only on actions they own ("assigned"),
+ * as an action owner does on a full client. A full client's admin keeps
+ * POLICY's rights (owner decision, 19 Nov 2026). Reviewing stays the firm's.
+ */
+const RESTRICTED_POLICY: Partial<Record<Permission, Grants>> = {
+  "action.work": { ...DO_WORK, client_admin: "assigned" },
+  "evidence.submit": { ...DO_WORK, client_admin: "assigned" },
+  "progress_update.create": { ...DO_WORK, client_admin: "assigned" },
+  "deadline_request.create": { ...DO_WORK, client_admin: "assigned" },
+};
+
+/**
  * A closed project is read-only (baseline: Closing, 0020): every permission
  * that writes is refused on its records, except these. Reading needs no
  * entry here. After-care check-ins go on after closing, watching and
@@ -473,7 +488,9 @@ export function grantFor(
       ? INTERNAL_POLICY[permission]
       : engagementMode === "consultant_managed"
         ? CONSULTANT_MANAGED_POLICY[permission]
-        : undefined;
+        : engagementMode === "restricted"
+          ? RESTRICTED_POLICY[permission]
+          : undefined;
   const grants = special ?? (POLICY[permission] as Grants);
   return grants[role];
 }

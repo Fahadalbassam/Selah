@@ -659,6 +659,13 @@
       "when": 1795077078084,
       "tag": "0106_classification_leaks",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795081064373,
+      "tag": "0107_restricted_admin_work",
+      "breakpoints": true
     }
   ]
 }
