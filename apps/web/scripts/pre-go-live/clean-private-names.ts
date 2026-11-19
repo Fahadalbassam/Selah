@@ -25,6 +25,11 @@ const apply = args.includes("--apply");
 const allowTest = args.includes("--allow-test");
 
 const pool = new Pool({ connectionString: url, max: 1 });
+// An idle connection dropped by the server: say so and exit, don't crash.
+pool.on("error", (e) => {
+  console.error(`clean-private-names: database connection lost: ${e.message}`);
+  process.exit(1);
+});
 try {
   // Always show what would change first.
   const dry = await cleanPrivateNames(pool, { allowTest });

@@ -10,7 +10,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CLEAN_ACTION, cleanPrivateNames, looksLikeTestDatabase } from "@/jobs/clean-private-names";
+import { readFileSync } from "node:fs";
+import { CLEAN_ACTION, MIGRATION_0106_WHEN, cleanPrivateNames, looksLikeTestDatabase } from "@/jobs/clean-private-names";
 import { truncateAuditLog } from "./audit-reset";
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
@@ -27,6 +28,8 @@ const P = { acme: id(5), beta: id(6) };
 const U = { admin: id(11), lead: id(12), acmeAdmin: id(13), betaAdmin: id(14) };
 const D = { a1: id(21), a2: id(22), a3: id(23), b1: id(24), firm: id(25), late: id(26) };
 const SECRET = /Salary|Disciplinary|CFO|wrong file|mistake/;
+// The stored text that is not a private name (the non-file event below).
+const storedSecrets = (text: string) => text.replace(/Not a file/g, "");
 
 let db = "";
 const q = (sql: string, params: unknown[] = []) => owner.query(sql, params);
@@ -107,6 +110,11 @@ beforeAll(async () => {
   await q(
     `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, visibility) VALUES ($1,$2,$3,'document',$4,'document_withdrawn','client_private')`,
     [P.acme, ACME, U.acmeAdmin, D.late],
+  );
+  // A withdrawal event about something other than a file is not one of these rows.
+  await q(
+    `INSERT INTO activity_events (project_id, org_id, actor_id, entity_type, entity_id, event, meta) VALUES ($1,$2,$3,'action',$4,'document_withdrawn','{"title":"Not a file"}')`,
+    [P.acme, ACME, U.lead, id(41)],
   );
   // A different event that happens to carry a title stays as it is.
   await q(
@@ -213,7 +221,7 @@ describe("pre-go-live clean-up of old private file names", () => {
 
     // The names and reasons are gone from storage; a marker says so.
     const stored = JSON.stringify(await q(`SELECT meta FROM audit_log UNION ALL SELECT meta FROM activity_events`).then((x) => x.rows));
-    expect(stored).not.toMatch(SECRET);
+    expect(storedSecrets(stored)).not.toMatch(SECRET);
     expect(await n(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'document.withdraw' AND meta = '{"redacted": true}'`)).toBe(5);
     expect(await n(`SELECT count(*)::int AS n FROM activity_events WHERE event = 'document_withdrawn' AND meta = '{"redacted": true}'`)).toBe(3);
     // Each old event now has its file's label; the 0106-era event keeps its own.
@@ -225,6 +233,7 @@ describe("pre-go-live clean-up of old private file names", () => {
     expect((await q(`SELECT meta FROM audit_log WHERE resource_id = $1`, [D.late])).rows).toEqual([{ meta: {} }]);
     expect((await q(`SELECT meta FROM activity_events WHERE entity_id = $1`, [D.late])).rows).toEqual([{ meta: {} }]);
     expect((await q(`SELECT meta FROM activity_events WHERE event = 'action_created'`)).rows).toEqual([{ meta: { title: "Kept title" } }]);
+    expect((await q(`SELECT meta FROM activity_events WHERE entity_id = $1`, [id(41)])).rows).toEqual([{ meta: { title: "Not a file" } }]);
     expect((await q(`SELECT meta FROM audit_log WHERE action = 'document.download'`)).rows).toEqual([{ meta: { note: "kept" } }]);
 
     // The chain still checks, and the row the job had not sealed yet seals cleanly.
@@ -274,6 +283,50 @@ describe("pre-go-live clean-up of old private file names", () => {
     expect(again).toMatchObject({ applied: true, counts: [], rehashed: 0, rehashedFrom: null });
     expect(await snapshot()).toEqual(before);
     expect(await n(`SELECT count(*)::int AS n FROM audit_log WHERE action = $1`, [CLEAN_ACTION])).toBe(1);
+  });
+
+  it("refuses a database without migration 0106, changing nothing", async () => {
+    const journal = JSON.parse(readFileSync(new URL("../../drizzle/meta/_journal.json", import.meta.url), "utf8")) as { entries: { tag: string; when: number }[] };
+    expect(journal.entries.find((e) => e.tag === "0106_classification_leaks")?.when).toBe(MIGRATION_0106_WHEN);
+    const row = (await q(`SELECT id, hash, created_at FROM drizzle.__drizzle_migrations WHERE created_at::bigint = $1`, [MIGRATION_0106_WHEN])).rows[0];
+    expect(row).toBeTruthy();
+    await oldAudit(id(28), U.acmeAdmin, ACME, "Salary before 0106.pdf");
+    await q(`DELETE FROM drizzle.__drizzle_migrations WHERE id = $1`, [row.id]);
+    try {
+      const before = await snapshot();
+      await expect(cleanPrivateNames(owner, { allowTest: true })).rejects.toThrow(/migration 0106 is not applied/);
+      await expect(cleanPrivateNames(owner, { apply: true, allowTest: true, confirm: db })).rejects.toThrow(/migration 0106 is not applied/);
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await q(`INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES ($1,$2,$3)`, [row.id, row.hash, row.created_at]);
+    }
+  });
+
+  it("waits for a sealing run that holds the seal lock, without a deadlock", async () => {
+    // The row left by the previous test is cleaned here.
+    const sealer = await owner.connect();
+    try {
+      await sealer.query("BEGIN");
+      await sealer.query(`SELECT pg_advisory_xact_lock(hashtext('selah.audit_seal'))`);
+      const run = cleanPrivateNames(owner, { apply: true, allowTest: true, confirm: db });
+      // Wait until the run is queued on the seal lock.
+      for (let i = 0; i < 100; i++) {
+        const waiting = (await app.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`)).rows[0].n;
+        if (waiting > 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      // What a sealing run does next: write to the audit log. Had the run
+      // locked the table before asking for the seal lock, this would deadlock.
+      await sealer.query(`SET LOCAL lock_timeout = '5s'`);
+      expect((await sealer.query(`SELECT app_seal_audit_log(10000) AS n`)).rows[0].n).toBeGreaterThan(0);
+      await sealer.query("COMMIT");
+      const r = await run;
+      expect(r.totals["audit_log document.withdraw"]).toBe(1);
+    } finally {
+      sealer.release();
+    }
+    expect(await chainOk()).toBe(true);
+    expect(await n(`SELECT count(*)::int AS n FROM audit_log WHERE meta ? 'title'`)).toBe(0);
   });
 
   it("the firm admin's audit page shows the system event, with no name", async () => {

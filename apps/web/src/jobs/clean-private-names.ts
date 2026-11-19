@@ -24,7 +24,8 @@
 // driver import: it runs only from the owner's script and the DB test.
 interface Client {
   query<R = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: R[] }>;
-  release(): void;
+  release(destroy?: boolean): void;
+  on?(event: "error", listener: (e: Error) => void): unknown;
 }
 interface Connectable {
   connect(): Promise<Client>;
@@ -43,10 +44,21 @@ const WRONG_LABEL = `${OLD_EVENT} AND EXISTS (SELECT 1 FROM documents d WHERE d.
 /** The row kinds #193 found carrying a private file name (or the wrong label) to the other side. */
 export const KINDS = [
   { kind: "audit_log document.withdraw", table: "audit_log", match: `t.action = 'document.withdraw' AND t.${HAS_FIELDS}` },
-  { kind: "activity_events document_withdrawn", table: "activity_events", match: `t.event = 'document_withdrawn' AND t.${HAS_FIELDS}` },
+  {
+    kind: "activity_events document_withdrawn",
+    table: "activity_events",
+    match: `t.event = 'document_withdrawn' AND t.entity_type = 'document' AND t.${HAS_FIELDS}`,
+  },
   { kind: "activity_events document_withdrawn label", table: "activity_events", match: WRONG_LABEL },
 ] as const;
 export type Kind = (typeof KINDS)[number]["kind"];
+
+/**
+ * Migration 0106 (its "when" in drizzle/meta/_journal.json, which the
+ * migrator stores as created_at). Before it, the app still writes names into
+ * new rows, so cleaning would not last: the script refuses.
+ */
+export const MIGRATION_0106_WHEN = 1795077078084;
 
 /** The system event this writes to the audit log (counts only). */
 export const CLEAN_ACTION = "audit_log.redact_private_names";
@@ -100,6 +112,14 @@ const totalsOf = (list: CountRow[]) =>
  */
 export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = {}): Promise<CleanReport> {
   const c = await pool.connect();
+  // A connection dropped mid-run (server restart, network) makes the client
+  // emit "error"; without a listener that would crash the process. The query
+  // in flight rejects anyway, so note it and let the normal path roll back
+  // (nothing was committed) and report it.
+  let lost: Error | null = null;
+  c.on?.("error", (e) => {
+    lost = e;
+  });
   try {
     const me = (
       await c.query<{ db: string; owns: boolean }>(
@@ -111,6 +131,13 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
       throw new Error(`"${me.db}" looks like a test or check database; pass --allow-test to run against it`);
     }
     if (!me.owns) throw new Error("run this as the schema owner (DATABASE_OWNER_URL)");
+    const migrated = (
+      await c.query<{ ok: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at::bigint = $1) AS ok`,
+        [MIGRATION_0106_WHEN],
+      ).catch(() => ({ rows: [{ ok: false }] }))
+    ).rows[0]!.ok;
+    if (!migrated) throw new Error("migration 0106 is not applied to this database; upgrade first (ops/upgrade.sh), then run this");
     if (opts.apply && opts.confirm !== me.db) {
       throw new Error(`not confirmed: type the database name "${me.db}" exactly to apply`);
     }
@@ -132,11 +159,14 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
     }
 
     await c.query("BEGIN");
-    // Hold both tables still until commit: the app's inserts wait (they need
-    // ROW EXCLUSIVE, which conflicts), and so does the sealing job, which also
-    // takes the seal lock below.
-    await c.query(`LOCK TABLE audit_log, activity_events IN SHARE ROW EXCLUSIVE MODE`);
+    // The seal lock first, as app_seal_audit_log and app_prune_audit_log take
+    // it before they touch the table: taken the other way round, a sealing run
+    // already holding the seal lock would wait for our table lock while we
+    // wait for its seal lock (a deadlock). Then hold both tables still until
+    // commit: the app's inserts wait (they need ROW EXCLUSIVE, which
+    // conflicts).
     await c.query(`SELECT pg_advisory_xact_lock(hashtext('selah.audit_seal'))`);
+    await c.query(`LOCK TABLE audit_log, activity_events IN SHARE ROW EXCLUSIVE MODE`);
 
     // Re-hashing a chain that is already broken would hide whatever broke it.
     const before = (await c.query<{ ok: boolean; first_bad_seq: string | null }>(`SELECT ok, first_bad_seq FROM app_check_audit_chain()`)).rows[0]!;
@@ -232,10 +262,13 @@ export async function cleanPrivateNames(pool: Connectable, opts: CleanOptions = 
     await c.query("COMMIT");
     return { database: me.db, applied: true, counts: list, totals, rehashed, rehashedFrom: from };
   } catch (e) {
-    await c.query("ROLLBACK").catch(() => {});
+    if (!lost) await c.query("ROLLBACK").catch(() => {});
+    // The transaction rolls back on the server when the connection goes; only
+    // a loss during COMMIT itself leaves it unknown, which the dry run shows.
+    if (lost) throw new Error(`the database connection was lost (${(lost as Error).message}); run the dry run again to see what is left`);
     throw e;
   } finally {
-    c.release();
+    c.release(lost !== null);
   }
 }
 

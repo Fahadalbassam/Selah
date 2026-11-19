@@ -74,6 +74,8 @@ It exits non-zero on any failure. Run it monthly (the crontab above), and once a
 5. puts back any stored file the bucket is missing, after checking its sha256 (it never overwrites or deletes);
 6. starts everything again.
 
+A backup taken before the pre-go-live clean-up (Before go-live, step 2) still holds old private file names: after restoring one, stop `web jobs` and run that script again.
+
 On a new server: install Docker, check out the same commit (the manifest names it), fill `.env` with the same role passwords, `docker compose up -d db storage`, `docker compose run --rm setup`, then `ops/restore.sh`. Work done after the backup is lost; say so to the clients affected.
 
 Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the machine instead of the containers.
@@ -103,7 +105,7 @@ Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the m
 
 ## Before go-live
 
-Do these once, on the live database, before the firm's real clients are let in. Take a backup first (`ops/backup.sh`).
+Do these once, on the live database, before the firm's real clients are let in.
 
 **1. Size the engagement end reminders (migration 0109).** Also before any later upgrade that first brings 0109. The first daily run after it tells the firm about every open engagement of an active client that ends within the next 30 days or ended in the last 30. Size it on the live database first (read only):
 
@@ -121,17 +123,22 @@ The notices go into each person's summary mail, so mails are at most one per per
 **2. Clean old private file names out of the audit log and the activity record.** Before migration 0106, withdrawing a wrong upload stored the file's name in the audit log (`document.withdraw`, `meta.title`) and the file's name and the reason in the activity record (`document_withdrawn`, `meta.title` and `meta.reason`), where the other side could read them. 0106 stopped that and hides the old rows when they are read, but the stored rows still hold the names. `pre-go-live:clean-private-names` removes those fields and leaves `"redacted": true` in their place. Those old activity rows were also all stored with the label "shared", whatever the file's label; it gives each one its file's own label, as 0106 does for new rows. It never deletes a row, and rows written since 0106 are not touched.
 
 - Run it as the schema owner, with the web app and the jobs stopped. It holds the audit log and the activity record locked while it works.
+- It refuses a database that does not have migration 0106 yet (checked in the migrations journal, `drizzle.__drizzle_migrations`): until 0106, new withdrawals still write the names. Upgrade first.
+- Rebuild the tools image at the commit you are running, so the `jobs` container has the script.
 - By default it is a dry run: it changes nothing and prints how many rows of each kind hold a name, and how many old activity rows have a label unlike their file's, per organisation (ids only, never a name), and how many audit entries it would re-hash.
 - With `--apply` it shows the dry run, asks you to type the database's name, and then does everything in one transaction. Any error rolls it all back.
 - The audit log is hash-chained and its guard refuses every change. Inside that one transaction the script switches the guard off, blanks the fields, re-hashes every sealed entry from the first changed one to the head, switches the guard back on and checks the whole chain. If the chain was already broken it refuses and changes nothing. If the check after re-hashing fails, it rolls back.
 - It writes one system entry to the audit log, `audit_log.redact_private_names` ("Old file names removed before go-live"), with the counts (labels set included) and the chain's old and new head hash. A head copied off the server before today matches `previous_head_hash` in that entry; copy the new head (Audit log, chain status) off the server again afterwards.
 - A second run finds nothing and changes nothing.
 - It refuses a database whose name looks like a test or check copy (`test`, `check`, `ci`, `tmp`, `scratch`) unless `--allow-test` is given.
+- **Backups still hold the names.** Every backup taken before the run (the one just before it, the nightly ones and the encrypted off-site copies) still has the names and the old chain. Don't delete them early: let them expire under the usual keep period. If anyone restores a backup from before the run, run this script again straight after the restore (`ops/restore.sh` starts everything again, so stop `web jobs` first, as below).
 
 ```sh
 cd /srv/selah
+git rev-parse HEAD                      # the commit you upgraded to, with migration 0106
+docker compose stop web jobs            # first, so nothing writes during the backup or the run
+docker compose build jobs               # the tools image at this commit, with the script
 ops/backup.sh
-docker compose stop web jobs
 # Dry run: counts only, nothing changed.
 docker compose run --rm --no-deps jobs npm run pre-go-live:clean-private-names
 # Apply: type the database name (selah) when asked.
@@ -164,7 +171,7 @@ A breach is anyone seeing, changing, losing or destroying personal data they sho
 9. **The NCA.** If the client is in the scope of the NCA's Essential Cybersecurity Controls, tell it at once so it can report as those controls require.
 
 **Afterwards.**
-10. Fix the cause, check the fix, and run the restore drill if data was changed or lost.
+10. Fix the cause, check the fix, and run the restore drill if data was changed or lost. If you restore a backup from before the pre-go-live clean-up, run the clean-up script again afterwards (Before go-live, step 2); its old chain head is the `previous_head_hash` in the `audit_log.redact_private_names` entry.
 11. Close the register entry with what was learned. Review the register at least once a year.
 
 ### The incident register
