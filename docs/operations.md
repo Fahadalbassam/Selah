@@ -151,6 +151,13 @@ ops/readiness.sh
 
 The next nightly `job:audit-check` should pass and print the new head. To see it at once: `docker compose run --rm --no-deps jobs npm run job:audit-check`.
 
+**3. Test the tunnel live.** The cloudflared image was updated (2025.10.0 to 2026.10.4, PR #139) without a live tunnel test: on the test stack it pulled and ran, and `tunnel run` without a token failed with the same message as the old version, but no tunnel was started. Before go-live, with the real tunnel token on the server:
+
+- Start the tunnel edge (`docker compose up -d` with the tunnel profile you use) and check `docker compose logs cloudflared` shows the connections registered, with no error.
+- From outside the firm's network, open the app's public address: the sign-in page loads over HTTPS, and a file download and a PDF export work (they go through the same edge).
+- Ask the assistant one question and watch a slow answer finish: the stream must stay open past 100 seconds (the waits from PR #208) and translations or summaries must finish as jobs (PR #211).
+- If anything fails, set the image back to `cloudflare/cloudflared:2025.10.0` in `docker-compose.yml`, `docker compose up -d`, and note it in the incident register.
+
 ## When something goes wrong
 
 ### A personal-data breach

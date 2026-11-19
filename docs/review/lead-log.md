@@ -289,3 +289,140 @@ Recorded first, as he asked (also in `work/build-brief.md`, "Plan additions from
 - Batch 4: owner changes are shown on the action page to anyone who may open it, through a reader for that action only; "Reassign their actions first" lists this project's actions, never the switch-off dialog.
 
 **Stops.** Helpers stopped at the five-hour usage limit three times today and resumed from their saved work. The last stop also named a monthly spend limit on Fahad's account.
+
+### Phase 2, part B: handbook (PR #189)
+
+The handbook is in `docs/handbook/` (firm, client, limits, technical; Arabic and English, same section ids). README's four errors fixed. Docs only. Screenshots get added from `docs/review/shots/main-final/` in a later pass.
+
+Things the builder found in the app while writing it. These go to phase 3 (the guides follow the code, not these texts):
+1. Client admin on restricted clients: docs and the People hint say the admin can record progress and evidence, but `action.work` and `evidence.submit` in `policy.ts` do not grant `client_admin`. Not run yet; to confirm.
+2. "I am stuck" notifies nobody at the firm, but the hint says the consultant will see it.
+3. Help FAQ (`help.faq.*`) uses old wording: "Mark as blocked", "Ask your consultant", two-step revision, "Waiting for the consultant's decision", old state names.
+4. Old tab names in messages: `deliverables.noFiles`, `deliverables.firmOnlyFiles` ("Documents tab"), `plan.action.noOwners`, `handover.sponsorHint` ("Team tab").
+5. Docs: walkthrough says «اسأل مستشارك» (code: «اسأل المستشار»); `docs/handoff.md` says last migration is 0067 (now 0105) and mentions the student-project origin, which the technical pack links to. That line must go before the pack is handed to anyone.
+
+### Phase 2 closed; phase 3 started (19 Nov)
+
+PR #190 merged: tooltips (95), first-visit lines, empty states, `/help/guide` per role, FAQ and tab-name wording. Independent review: nothing blocking; its six points fixed before merge. Screen check: clients get the client guide, firm staff the firm guide. Capture of the finished app: 4,753 screens, 14 accounts, 0 failures (`docs/review/shots/main-final/`).
+
+Running: an independent helper follows the client guide on a fresh copy (`selah_check`, port 3930) → `work/client-guide-walk.md`. Phase 3 (brief: `work/phase3-brief.md`): one builder fixes the three section 7 bugs (num_ctx, JSON fallback on Ollama, README card claim; branch `fix/ollama-context`); three assessors write `work/phase3-assistant-redaction.md`, `work/phase3-classification.md`, `work/phase3-kpi-gaps-leftovers.md`. The lead merges them into `unfinished-assessment.md`, then stops at Gate B.
+
+### Phase 3: classification leaks found and being fixed (19 Nov)
+
+The classification assessor proved five leaks with tests run as the wrong user (`work/phase3-classification.md`): a firm-only action's title in the client admin's leaving report; a client-private file name in the firm admin's audit log on withdraw; withdrawn names and reasons kept as "shared" in activity rows; shared monthly reports and PDF counting firm-only work; the Progress history chart counting firm-only and other-department actions for client managers. Also: confidential request bypass by a new file version, and the database letting a client manager move another person's file. Lead decision: these are bugs, not features, so they are fixed now (branch `fix/classification-leaks`), without waiting for Gate B. Existing append-only audit and activity rows are not rewritten; that needs Fahad. Gate B question: should only the uploader and the client admin control a file's assistant switch (today any client manager can)? The assessor recommends yes.
+
+Assistant and redaction assessment done (`work/phase3-assistant-redaction.md`); stand-in local model only, nothing left the machine.
+
+### Gate B answers from Fahad, part 1 (19 Nov)
+
+**Value test:** no outside consultants. Fahad runs it himself on his laptop: each task once with the assistant and once without, timing it, checking whether the answer is right, and noting whether he would use it. The lead prepares the task list and a simple score sheet. It is reported as a single-tester trial (not the 5-consultant plan in `work/phase3-assistant-redaction.md` 1.5).
+
+**Later improvements: document only, build nothing now.** A "Later improvements" section goes in `docs/progress-checklist.md` and in the handbook, for the team to split up later, balanced and simple, no heavy machinery:
+- Automatic KPI help: pull indicator values from client files or spreadsheets, flag a value that moved away from its target, suggest a likely link to a recommendation.
+- Governance assessment help: suggest draft scores from evidence against the reference library, with a citation for each.
+- Workflow lane detection: spot stuck or overloaded consultant or client lanes from action history.
+- Other practical ideas from the reports, only where each clearly helps.
+Rules for every item: automation suggests and a person decides; it must run fine on our server; note the data it needs. For now only keep that data structured and timestamped (KPIs, assessment answers, action history).
+
+**Reference library plan (later, not built):** IFC family business governance handbook, OECD corporate governance principles, CMA governance regulations, Balanced Scorecard, Good Strategy Bad Strategy (Rumelt), the Ministry of Economy and Planning strategy framework. Kept as a separate "reference" source from client evidence, labelled as such in citations; copyrighted books quoted only briefly; Arabic and English questions about them added to the labelled test set (section 7 item 7).
+
+The other Gate B items are still waiting for Fahad's answers.
+
+Leak fixes (#193) screen check, 19 Nov: `selah_check` rebuilt from the branch (0106 applied, walkthrough seeded); Progress tab as manager@nukhba shows no stored history (25%, 1 of 4), as lead@mizan unchanged (13%, history and cards); Team page as admin@nukhba renders normally. Shots: `docs/review/shots/leak-fixes/`. Client guide corrections are PR #194 (docs only).
+
+### Gate B answers from Fahad, part 2 (19 Nov): Gate B closed
+
+- **The rest of the list:** accept all the lead's recommendations, including item 20, in the proposed order.
+- **Client progress-update draft:** yes, facts-only; Selah never sends it. Update the written rule (`CLIENT_RULES`, `docs/assistant.md`) to match.
+- **Build before the scenarios:** the lead-change notice (client and old lead, handover note), the end-of-engagement reminder, "who is my consultant", and "my deadlines" showing only the asker's own dates.
+- **Section 7:** OK to download `qwen3.5:4b` (3.4 GB) and make it the default. Order: labelled test set first, then Arabic search (spelling fold), then the number scanner before any real client file. Reranker only if the test set shows it helps.
+- **Section D:** only the uploader and the client admin control a file's assistant switch. Meeting headings follow the reader's language. Refuse inviting a department manager to a meeting she cannot open. Clean old audit rows holding private file names with a script run before go-live (not run now). The three smaller questions: the lead's recommendations (a handbook line on the firm's free-text report note; the action page says the firm admin must review when nobody else on the team can; no change for client admins on full clients).
+- **Later improvements, two more rules:**
+  - Keep the app light: one shared local model and one search index serve every AI feature; no new model, agent or service for a single feature. Prefer plain rules and SQL (thresholds, counts, dates) over AI wherever they do the job; AI only where it clearly helps.
+  - Keep it fast: AI jobs in one shared queue (one at a time on our server); cache answers and embeddings that have not changed; index files once and again only when they change; measure page and AI response times before and after each feature.
+- **Working rule:** at most 2 helpers at a time. Independent review only for privacy, permission, AI or database changes.
+
+**Build order from here:** (1) merge the leak fixes (#193); (2) restricted-client fix; (3) build-now batch A — permissions and privacy: assistant switch owners, refuse the meeting invitation, "I am stuck" notifies the firm; (4) build-now batch B — words and small bugs: items 2, 3, 20, 21, meeting headings in the reader's language, the firm-admin review note, the report-note handbook line; (5) client assistant: who is my consultant, my deadlines, legal answers with the documents' facts, facts-only progress draft and the rule change; (6) lead-change notice and end-of-engagement reminder; (7) section 7: qwen3.5:4b default, labelled test set (with the reference-library questions), Arabic search, number scanner; reranker only on evidence; (8) the pre-go-live audit clean-up script (written, not run). Then Fahad's additions list, then the scenarios.
+
+### Working rules from Fahad (19 Nov, evening): speed-up
+
+- Up to **3 builders** at a time, as long as they do not touch the same files. Background commands (CI waits and the like) do not count as builders.
+- Model by task: **Opus** for privacy, permissions, database, AI and all independent reviews; **Sonnet** for UI, wording, docs and ordinary features; **Haiku** for running tests, waiting on CI, searching code and taking screenshots.
+- The lead (Opus) checks every Sonnet and Haiku result before merge, and redoes it if it is not good enough.
+- Independent review still only for privacy, permission, AI or database changes.
+- "Org chart part 5" showing 2h 49m: checked; not stuck. Its helper completed and the work merged as #186 (19 Nov, 04:19 UTC). The shown time is its last run; nothing to restart.
+
+Merged 19 Nov evening: #193 leak fixes (migration 0106; review B1 version chain locked, S1 old audit names hidden at read time and confidential versions switched off once, S2 report PDF lists shared work only, S3 firm told when an owner of firm-only work leaves), #194 client guide, #195 value test and later improvements, #196 words and small bugs. Open: #197 restricted clients (0107, in review; re-chain after 0106). Running: client assistant gaps, privacy batch (0108).
+
+### Progress report change (Fahad, 19 Nov evening)
+
+Queued after the lead-change notice and end reminder, before section 7:
+- The assistant's progress draft gets a **"Use as draft"** button that opens the existing report page pre-filled; the user edits it there. The chat keeps only the answer.
+- **2–3 report templates** (monthly progress, steering summary, closing summary), Arabic and English, chosen on the report page.
+- In the assistant, the user can **@-attach a Selah file** they can already see.
+- **Sending to the client:** on the report page, and also as a button in the assistant that opens the same confirmation dialog. A person always confirms; the assistant never sends on its own. The firm side approves before a client-facing report goes out.
+- **Later improvements (document only):** user-made templates and a richer formatted editor; research first.
+- Models: Opus for the send and permission parts; Sonnet for the templates and UI.
+- **Answer (Fahad):** firm's report only. Add the facts-only progress draft to the consultants' assistant; "Use as draft" fills the firm's report page. The client's draft stays an answer in their chat. Add "a client page to keep and edit their own report" to Later improvements (document only).
+
+### One more step before the Selah map (Fahad, 19 Nov evening)
+
+Order unchanged. Added at the end, right before the interactive "Selah map" and the three team PDFs (Sonnet is fine):
+- Write `CLAUDE.md` at the repo root and `docs/system-map.md`: the modules and how they connect (pages → server actions → database tables → permission checks → AI service), the roles and what each sees, the action states, where the rules live (UI guidelines, migration rule, review rules, helper and model rules, "keep it light"), and "if you change X, also check Y".
+- A rule in `CLAUDE.md`: any PR that changes a connection updates `system-map.md` in the same PR.
+- Then build the interactive HTML map (Arabic and English) and update the handbook, workflows and production PDFs **from `system-map.md`**, so they all match.
+
+Lead decision (19 Nov, privacy batch review S1): D1 is applied as "switching a file's assistant flag **on** needs the uploader of that version or the owning side's admin; switching it **off** is open to anyone on the owning side". Switching off only ever protects privacy, and without it a manager hits a dead end on confidential requests. Undoable; Fahad to confirm.
+- **Confirmed by Fahad (19 Nov):** anyone on the owning side may switch a file's assistant flag off; only the uploader or the admin may switch it on.
+
+Follow-up queued (19 Nov): the server still accepts giving an action to a full client's admin (`changeActionOwner` and the trigger require only an active non-observer member); #202 only hides them in the list. Small permission fix to add with the next Opus batch.
+
+Merged 19 Nov night: #197 restricted clients (0107), #198 client assistant gaps, #200 privacy batch (0108: assistant switch on = uploader or admin, off = anyone on the owning side; whole-project invitations refused for department-limited managers; "I am stuck" notifies the firm by trigger), #202 give to a colleague. Open: #199 lead change (re-chaining to 0109 now), #201 report flow (fixing review B1/B2 leaks; will be 0110), server refusal for full-client admin as owner (0111).
+
+Merged 19 Nov night: #199 lead-change notice and end reminder (0109), #201 report flow (0110: consultants' facts-only draft, Use as draft, approval by the second sign-off rule, confirmed send; review B1/B2 leaks fixed and re-checked). Running: #203 owner refusal (review fixes, then 0111 re-chain), report templates (Sonnet), assistant @-attach (Opus).
+
+### Dependabot (19 Nov night)
+
+Triage in `work/dependabot-triage.md`. Merged: #141 mailpit, #52 pydantic-settings, #51 fastapi. #49 uvicorn: re-rebasing after the other two (requirements.txt). #46, #50, #140 (GitHub Actions v7): safe, but the lead's `gh` token has no `workflow` scope, so GitHub refuses the merge; Fahad merges them in the browser or runs `gh auth refresh -s workflow`. Images (#144 gotenberg security release, #143 caddy, #142 rustfs, #139 cloudflared): after a full stack check. Recommended to close (asked Fahad): #148 Python 3.15, #45 Node 25, #54 TypeScript 7, #56 @types/node 26. Recommended to defer: #57 vitest 5, #55 eslint 10.
+
+Merged 19 Nov night: #204 report templates, #205 pre-go-live clean-up script (not run), #206 assistant @-attach (review: no leak; status rows never crowded out; picker matches in SQL). The progress report change is complete (#201, #204, #206). Fahad's additions: technical docs pack and README permission fix were done in #189 (README now says a consultant sees only staffed projects; the pack links handoff/operations/data-architecture). Staging e2e: no staging server exists; the suite runs on the production-like `docker-compose.test.yml` stack on this machine (`work/e2e-stack-run.md`), which also checks the four image updates.
+- Dependabot, owner's decisions (19 Nov night): Fahad merged #50 and #140 and will merge #46 when green; #148, #45, #54, #56 closed with reasons; #57 and #55 deferred and left open (noted in `work/dependabot-triage.md`).
+- #46 merged by Fahad (19 Nov night). Dependabot done on the owner's side; only the four image updates remain, pending the stack check.
+
+### Section 7 test set (PR #207, 19 Nov night)
+
+`qwen3.5:4b` default; 164 synthetic files, 100 questions + 18 reference-library questions; first run on the lead copy's processor-only Ollama (`docs/assistant-eval-results.md`): retrieval 81/89 right passage reached the model (91%), recall 0.89, first-ranked 66%, no cross-project passages; 20 full answers, median 117 s (max 350 s), builder's review 10 right / 3 partly / 6 wrong. Findings for next steps: conflicting versions split by language (Arabic got only the 2026 draft); scanned page invents an answer; cross-client follow-ups fail (search reads only the follow-up); long files crowd out others; "due this week" mislabels some.
+**Bug found:** on a processor-only server the assistant card times out after 120 s with no output (4 of 9 answers failed). Fixing now (`fix/assistant-slow-stream`).
+Lead mistake: two builders were given the same test database (`selah_test_s`); one's tests truncated it during the other's run. No harm to results (the final run read everything first), but future builders get separate databases.
+- Slow-server fix (PR #208, in review): waits every 10 s, 10-minute ceilings, "still working" message. Queued follow-up: through a Cloudflare tunnel, non-streamed AI calls (translations, summaries, org chart draft) can still hit the 100 s limit on a processor-only server; stream them or run them as background jobs.
+
+### Spec for the interactive "Selah map" (Fahad, 19 Nov night) — end step, order unchanged
+
+Built after `CLAUDE.md` and `docs/system-map.md`. **One map of the whole app, not split into team sections or owners:** anyone who starts editing any part sees the full structure and every connection. "Highlight connected" and "Show conflicts" are only views on that same whole map; the shareable link just opens it focused on a node.
+
+**Goal:** hand a teammate a node; they see their section, what it touches, what's risky, and where in the repo to work.
+
+**Shape:** a radial graph you can explore (like Neo4j, but clearer). Selah in the centre, branching 360° to every feature, then every sub-feature (e.g. Assistant → client assistant, @-attach, progress draft; Files → versions, confidential, scanner). Zoom, pan, search, collapse/expand branches. Arabic/English toggle. One self-contained HTML file.
+
+**Starts clean, with layers:** by default only features and sub-features. Everything else is a layer, toggled from a side panel, each with its own colour: Frontend (pages/components), Backend (server actions/services), Database (tables/migrations), Permissions (RLS/authorize checks), AI (assistant, qwen3.5:4b, bge-m3, masking, RAG), Jobs and mail, Tests, Risk flags (privacy, permissions, AI, migration), Shared files (used by more than one feature, where teammates could conflict). Edges coloured by connection type (data, permission, AI call, job, shared file), with a label saying what flows.
+
+**Hover and click:** hover a node → one-line description. Click a node → side panel with repo paths (pages, server actions, services, DB schema/migrations, tests), what it connects to, which roles can see it, a risk badge ("careful: privacy / permissions / AI / migration") and the rules to follow (links to UI guidelines, the migration rule, the review rules). Click an edge → the exact file(s) linking the two features, with paths (e.g. "Reports → Assistant via apps/web/src/services/reports.ts").
+
+**Teammate tools:** "Highlight everything connected" (blast radius of a section); "Show conflicts for my section" (shared files and every other feature touching them); filter state in the URL so a link opens on a section with the right layers on.
+
+**Keeping it true:** data generated from `docs/system-map.md` plus a script that checks every path exists in the repo and fails if one doesn't. Any PR that changes a connection updates `system-map.md` and re-generates the map in the same PR. Then the handbook, workflows and production PDFs are updated from the same `system-map.md`, so everything matches.
+
+### Working rules from Fahad (19 Nov night): speed-up, still conservative
+
+- Up to **3 builders** at a time, never two on the same files.
+- Plus **1 read-only helper (Sonnet)** that does not count as a builder: it prepares scenarios 1–21 now (steps, accounts, expected results, data needed) and drafts `docs/system-map.md` from the current code. No edits to app code.
+- **Only one job may use the local model at a time.** No second model run while the test set or the end-to-end tests are running.
+- If memory or disk gets tight (about 6 GB free last time), drop back to **2 builders**.
+
+### End-to-end on the production-like stack (19 Nov night)
+
+No staging server exists; ran the full Playwright suite on `docker-compose.test.yml` (`work/e2e-stack-run.md`). Final run on a fresh database with all four image bumps: 67 passed, 1 failed, 3 not run; crawl passed for 14 role/language combinations. Test drift fixed in PR #210 (test-only). No app bug found. Remaining: two assistant tests written for the hosted model; one note for later: an answer that only echoes the question is shown as grounded (add to the after-scenarios list; candidate for the `unfinished()`/check_answer guard).
+Image bumps: #144 gotenberg (15/15 PDF tests), #142 rustfs (upgraded over old data, 18/18 file tests), #143 caddy (Caddyfile validates both modes; proxies the same) → merging. #139 cloudflared: pulls and runs, no tunnel started → needs Fahad.
+Disk: 5.9 GB free (98% full) → dropped to 2 builders per Fahad's rule; cleaning merged worktrees next.
+- Lead mistake, second time (19 Nov night): the #209 reviewer and the AI-jobs builder were both given `selah_test_r`; one wiped it mid-run. Fix: `work/test-db-assignments.md` lists one owner per test database; updated before every helper starts. Arabic search review (#209): B1 blocking (unmasking corrupts names starting «آل/أل/إل»), S1–S5 (tatweel in «لل», spelling restored per occurrence, Latin+«لل», over-masking without a word boundary, slow tsv rewrite with an exclusive lock) sent back.
+- Arabic search (#209) review fixes done: «لآل/لإل/لأل» round-trip, tatweel in «لل», each occurrence restored in its own spelling, no «لAl-…», word-boundary rule ends over-masking of «كامل/البشري/السلمي» (person names), `app_search_tsv` 7.1 → 2.5 ms per passage; 0112 locks `ai_chunks` during the rewrite (~4 min per 100k passages on the laptop; maintenance window documented). Fresh test-set rerun: hit rate level (81/89), first-ranked 59 → 60; the set's clean Arabic under-tests the fold. Open notes: organisation names like «أمل» still over-mask (safe direction); text already containing "[ORG_1]" is unmasked into a name the user can already see (pre-existing). #211 must renumber its 0112 after #209 merges.

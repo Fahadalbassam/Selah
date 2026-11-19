@@ -1,0 +1,1 @@
+- guide-fixes worktree: apps/web/node_modules is a LINK to small-bugs' packages; remove with 'cmd /c rmdir' only, never recursively.
