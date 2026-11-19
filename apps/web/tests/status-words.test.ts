@@ -121,6 +121,8 @@ describe("the parts: one 'yes' verb per level", () => {
   it("inquiries and projects", () => {
     expect(wordKey(inquiryPlacement("new"), "firm")).toBe("waitingFirm");
     expect(wordKey(inquiryPlacement("proposal_sent"), "firm")).toBe("waitingClient");
+    // After the session the next move is the firm's (the proposal): not "waiting for the client" (review S2).
+    expect(wordKey(inquiryPlacement("discovery_done"), "firm")).toBe("inProgress");
     expect(inquiryPlacement("spam").word).toBe("closed");
     expect(labelKey(projectPlacement("draft"), "firm")).toBe("items.pitch");
     expect(wordKey(projectPlacement("closing"), "firm")).toBe("inProgress");

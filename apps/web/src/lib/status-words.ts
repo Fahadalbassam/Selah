@@ -119,8 +119,9 @@ const INQUIRY: Record<InquiryState, Placement> = {
   new: { word: "waiting", on: "firm" },
   triaged: { word: "in_progress" },
   discovery_scheduled: { word: "in_progress" },
+  // After the session the firm sends the proposal: its own move (review S2).
+  discovery_done: { word: "in_progress" },
   // The prospect's move: the firm waits for their answer.
-  discovery_done: { word: "waiting", on: "client" },
   proposal_sent: { word: "waiting", on: "client" },
   won: { word: "closed" },
   lost: { word: "closed" },

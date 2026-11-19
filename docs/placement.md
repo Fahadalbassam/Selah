@@ -79,7 +79,8 @@ The stored word for the firm's yes on a request is `reviewed`; on screen it is *
 |---|---|---|
 | `new` | Waiting for the firm | Assign an owner |
 | `triaged`, `discovery_scheduled` | In progress | Book or hold the discovery session |
-| `discovery_done`, `proposal_sent` | Waiting for the client (the prospect) | Record the answer |
+| `discovery_done` | In progress (the firm sends the proposal next) | Proposal sent |
+| `proposal_sent` | Waiting for the client (the prospect) | Make it a client, or close it with the answer |
 | `won` | Closed: won (the client is created) | none |
 | `lost`, `declined`, `withdrawn`, `spam` | Closed: *the reason* | none |
 
