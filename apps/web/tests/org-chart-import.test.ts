@@ -19,6 +19,7 @@ import {
   guessKind,
   ORG_CODE_FIELDS,
   ORG_IMPORT_FIELDS,
+  ORG_DRAFT_BODY,
   ORG_IMPORT_LIMITS,
   outlineRows,
   parseKind,
@@ -531,6 +532,13 @@ describe("the round trip: the template exports a structure and imports it back t
     expect(without.map((r) => r[vacant]).filter(Boolean)).toEqual(["no", "no", "no", "yes"]);
     const titlesOnly = structureRows(units, positions.map((p) => ({ ...p, holders: [], vacant: null })), { locale: "ar", names: true, holderText: (h) => h.name });
     expect(titlesOnly.every((r) => !r[holder] && !r[vacant])).toBe(true);
+  });
+});
+
+describe("the pasted text's route", () => {
+  it("takes a text well over the limit, so the server can say how much shorter it must be", () => {
+    expect(ORG_DRAFT_BODY.safeParse({ text: "x".repeat(ORG_IMPORT_LIMITS.text + 5000) }).success).toBe(true);
+    expect(ORG_DRAFT_BODY.safeParse({ text: "x".repeat(ORG_IMPORT_LIMITS.text * 10 + 1) }).success).toBe(false);
   });
 });
 

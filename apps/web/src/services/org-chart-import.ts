@@ -186,6 +186,20 @@ export async function clearPlan(tx: Tx, principal: Principal, clientOrgId: strin
   return { ok: true };
 }
 
+/**
+ * How many positions of the client's draft plan this person, for the leaving
+ * list (leaving removes them: migration 0100). Read under the reader's
+ * row-level security: only the draft's editors count any, so a client's admin
+ * switching someone off learns nothing of the firm's draft.
+ */
+export async function plansNaming(tx: Tx, clientOrgId: string, userId: string): Promise<number> {
+  const rows = await tx
+    .select({ id: orgChartPlannedHolders.id })
+    .from(orgChartPlannedHolders)
+    .where(and(eq(orgChartPlannedHolders.orgId, clientOrgId), eq(orgChartPlannedHolders.userId, userId)));
+  return rows.length;
+}
+
 /** Whether a position's plan already is this list (same people, same order). */
 const samePlan = (current: Plan[], wanted: PlannedHolder[]) =>
   current.length === wanted.length &&

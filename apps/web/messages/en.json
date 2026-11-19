@@ -2352,7 +2352,8 @@
       "replacementTyped": "Or type the name of a replacement without an account",
       "fromTomorrow": "The replacement takes over tomorrow.",
       "cancelledAppointment": "Starts on {date}: this appointment is cancelled when the account is switched off, since it has not started.",
-      "droppedPosition": "This position is no longer in the current structure: the holding ends on the day the account is switched off, with no replacement."
+      "droppedPosition": "This position is no longer in the current structure: the holding ends on the day the account is switched off, with no replacement.",
+      "plans": "{n, plural, one {# position} other {# positions}} in the structure's draft plan this person: they are removed from the plan when the account is switched off."
     },
     "position": "Position in the structure (optional)",
     "positionPlaceholder": "Choose a vacant position",

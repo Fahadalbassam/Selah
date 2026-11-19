@@ -78,6 +78,7 @@ Object.assign(process.env, {
 
 const OC = await import("@/services/org-chart");
 const IM = await import("@/services/org-chart-import");
+const AC = await import("@/services/accounts");
 
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
 const app = new Pool({ connectionString: appUrl, max: 2 });
@@ -542,6 +543,23 @@ describe("saving into the draft", () => {
     expect(await plansOf(FAMILY)).toEqual({});
     await toMinimal();
     expect((await q(`SELECT minimal_records FROM organizations WHERE id = $1`, [FAMILY])).rows[0].minimal_records).toBe(true);
+  });
+
+  it("removes a person's plans when they leave the client, and the leaving list says so to the firm only", async () => {
+    expect((await plansOf(SAHM))["2.1"]).toEqual([{ userId: U.mgr, name: null }]);
+    // The leaving list: the firm admin sees the plan; the client's admin, who may switch her off too, learns nothing of the firm's draft.
+    expect((await svc(U.admin, (tx, p) => AC.personHoldings(tx, p, U.mgr))).plans).toBe(1);
+    expect((await svc(U.cadmin, (tx, p) => AC.personHoldings(tx, p, U.mgr))).plans).toBe(0);
+    await truncateAuditLog(owner);
+    await svc(U.cadmin, (tx, p) => AC.setActive(tx, p, U.mgr, { active: false, reason: "Left the company" }), true);
+    try {
+      expect((await plansOf(SAHM))["2.1"]).toBeUndefined();
+      const [entry] = (await q(`SELECT meta FROM audit_log WHERE action = 'org_chart.plan'`)).rows;
+      expect(entry.meta).toMatchObject({ removed: 1, leaving: true });
+      expect(JSON.stringify(entry.meta)).not.toMatch(/Nawaf|mgr@/);
+    } finally {
+      await q(`UPDATE org_memberships SET active = true, deactivation_reason = NULL WHERE user_id = $1`, [U.mgr]);
+    }
   });
 
   it("keeps no names at a client with minimal records: no plan, no holding", async () => {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ORG_IMPORT_LIMITS } from "@/lib/org-chart-import";
+import { ORG_DRAFT_BODY } from "@/lib/org-chart-import";
 import { route } from "@/server/http";
 import { draftFromText } from "@/services/org-chart-import";
 
@@ -10,8 +10,8 @@ import { draftFromText } from "@/services/org-chart-import";
 export const POST = route(
   {
     params: z.object({ id: z.uuid() }),
-    // A little room over the limit, so the service can say "too long" in words.
-    body: z.object({ text: z.string().max(ORG_IMPORT_LIMITS.text + 1000) }),
+    // Well over the limit, so the service can say in words how much shorter the text must be.
+    body: ORG_DRAFT_BODY,
   },
   ({ tx, principal, params, body }) => draftFromText(tx, principal, params.id, body.text),
 );

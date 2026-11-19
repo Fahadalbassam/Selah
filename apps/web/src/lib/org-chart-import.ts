@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { DocBlock } from "./office/docx-read";
 import { cleanSpecialties, nextCode, ORG_CHART_LIMITS, ORG_CODE, ORG_UNIT_KINDS, type OrgUnitKind } from "./org-chart";
 import { compareCodes } from "./org-chart-tree";
@@ -74,6 +75,13 @@ export const ORG_IMPORT_LIMITS = {
   /** The most characters of pasted text the assistant drafts from (the AI service takes as much). */
   text: 20_000,
 } as const;
+
+/**
+ * The pasted-text route's body: far more than the limit is accepted, so the
+ * server can say by how many characters a text must be shorter ("text too
+ * long: N") instead of refusing it unread.
+ */
+export const ORG_DRAFT_BODY = z.object({ text: z.string().max(ORG_IMPORT_LIMITS.text * 10) });
 
 /** Codes already used, which a code Selah gives must avoid. */
 export interface Taken {
