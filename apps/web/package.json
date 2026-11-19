@@ -36,6 +36,7 @@
     "job:purge-inquiries": "tsx scripts/purge-inquiries.ts",
     "job:purge-minimal": "tsx scripts/purge-minimal.ts",
     "job:purge-transcripts": "tsx scripts/purge-transcripts.ts",
+    "pre-go-live:clean-private-names": "tsx scripts/pre-go-live/clean-private-names.ts",
     "restore:storage": "tsx scripts/storage-restore.ts"
   },
   "dependencies": {
