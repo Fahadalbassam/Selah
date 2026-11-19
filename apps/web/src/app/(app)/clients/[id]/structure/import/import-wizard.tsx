@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent } from "react";
+import { AiJobState, useAiJob } from "@/components/ai-job";
 import { Upload } from "@/components/animate-ui/icons/upload";
 import { Hint } from "@/components/hint";
 import { BrandLoader } from "@/components/brand";
@@ -39,6 +40,7 @@ import {
   type OrgRow,
   type OrgRowCheck,
 } from "@/lib/org-chart-import";
+import type { AiJob } from "@/lib/ai-jobs";
 import { cn } from "@/lib/utils";
 
 // Org chart, part 4: bringing a client's structure into the firm's draft, in
@@ -78,6 +80,7 @@ function errorKey(status: number, message: string | undefined, way: Way): string
   if (m.includes("no text")) return "noText";
   if (m.includes("text too long")) return "textLong";
   if (m.includes("local model only")) return "notHere";
+  if (m.includes("already have requests")) return "busy";
   if (m.includes("expired")) return "expired";
   if (m.includes("rows with errors")) return "changed";
   return "generic";
@@ -114,6 +117,8 @@ export function OrgChartImportWizard({
   const [mode, setMode] = useState<OrgImportMode | null>(draft ? null : "add");
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<OrgRow | null>(null);
+  // The assistant's draft from pasted text, while the jobs runner works on it.
+  const aiJob = useAiJob<AiJob & { draft?: Imported }>();
   // Replacing removes what the rows do not hold: the person ticks that they have looked at it.
   const [leavingSeen, setLeavingSeen] = useState(false);
 
@@ -153,19 +158,30 @@ export function OrgChartImportWizard({
     }
     setBusy(true);
     setError(null);
+    aiJob.clear();
     try {
       const res = await fetch(`/api/clients/${clientId}/structure/import/draft`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      const body = (await res.json().catch(() => ({}))) as Imported & { message?: string };
+      const body = (await res.json().catch(() => ({}))) as Imported & { message?: string; job?: AiJob };
       if (!res.ok) {
         setShorterBy(Number(/text too long: (\d+)/.exec(body.message ?? "")?.[1] ?? 0));
         return setError(errorKey(res.status, body.message, "text"));
       }
+      // The draft is a job (docs/assistant.md, "Slow calls as jobs"): the local model takes minutes. Follow it; its rows come with it.
+      if (res.status === 202 && body.job) {
+        const ended = await aiJob.follow(body.job);
+        if (ended.status !== "done" || !ended.draft) return;
+        aiJob.clear();
+        return received(ended.draft);
+      }
       received(body);
-    } catch {
+    } catch (e) {
+      // The page moved on (cancelled, or left).
+      if (e instanceof DOMException && e.name === "AbortError") return;
+
       setError("generic");
     } finally {
       setBusy(false);
@@ -317,6 +333,7 @@ export function OrgChartImportWizard({
                       <p className="text-xs text-muted-foreground tabular-nums">{t("source.textCount", { n: text.length, max: ORG_IMPORT_LIMITS.text })}</p>
                     </div>
                     {alert}
+                    {aiJob.job ? <AiJobState job={aiJob.job} waitedMs={aiJob.waitedMs} onCancel={() => void aiJob.cancel()} /> : null}
                     <Button type="submit" className="w-fit" disabled={busy || !text.trim()}>
                       {busy ? <BrandLoader tone="current" className="size-4" /> : null}
                       {busy ? t("source.drafting") : t("source.draft")}

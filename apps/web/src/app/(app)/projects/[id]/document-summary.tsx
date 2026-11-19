@@ -2,7 +2,8 @@
 
 import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AiJobState, useAiJob } from "@/components/ai-job";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { Hint } from "@/components/hint";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { isFinished, type AiJob } from "@/lib/ai-jobs";
 
 type Lang = "ar" | "en";
 interface Point {
@@ -39,6 +41,15 @@ export function DocumentSummary({ documentId, title }: { documentId: string; tit
   const [data, setData] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const aiJob = useAiJob();
+  // The language shown now: a summary made for the other one is not loaded over it.
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
+  // The language the job is making a summary in.
+  const [jobLang, setJobLang] = useState<Lang>(lang);
+  const job = aiJob.job && jobLang === lang ? aiJob.job : null;
 
   async function load(l: Lang) {
     setBusy(true);
@@ -51,10 +62,27 @@ export function DocumentSummary({ documentId, title }: { documentId: string; tit
   async function make() {
     setBusy(true);
     setError(null);
-    const r = await callApi(`/api/documents/${documentId}/summary`, "POST", { lang });
+    aiJob.clear();
+    const res = await fetch(`/api/documents/${documentId}/summary`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lang }),
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { job?: AiJob; message?: string } | Loaded["summary"] | null;
     setBusy(false);
-    if (r.ok) setData((d) => d && { ...d, summary: r.data as Loaded["summary"] });
-    else setError(errorKey(r.message));
+    if (!res?.ok) return setError(res?.status === 429 ? "limit" : errorKey((body as { message?: string } | null)?.message));
+    // A new summary is a job (docs/assistant.md, "Slow calls as jobs"): follow it, then read the kept summary.
+    if (res.status === 202 && body && "job" in body && body.job) {
+      const made = lang;
+      setJobLang(made);
+      const ended = await aiJob.follow(body.job).catch(() => null);
+      if (ended?.status === "done") {
+        aiJob.clear();
+        if (made === langRef.current) await load(made);
+      }
+      return;
+    }
+    setData((d) => d && { ...d, summary: body as Loaded["summary"] });
   }
 
   return (
@@ -122,11 +150,18 @@ export function DocumentSummary({ documentId, title }: { documentId: string; tit
             <p className="text-sm text-muted-foreground">{t("notForAssistant")}</p>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">{t("none")}</p>
-              <Button size="sm" onClick={make}>
-                <Sparkles className="size-4" />
-                {t("make")}
-              </Button>
+              {job ? (
+                <AiJobState job={job} waitedMs={aiJob.waitedMs} onCancel={() => void aiJob.cancel()} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("none")}</p>
+              )}
+              {/* While a summary is being made the button waits; one that ended without a summary can be asked for again. */}
+              {!job || isFinished(job.status) ? (
+                <Button size="sm" onClick={make}>
+                  <Sparkles className="size-4" />
+                  {t("make")}
+                </Button>
+              ) : null}
             </div>
           )
         ) : null}
@@ -139,6 +174,7 @@ export function DocumentSummary({ documentId, title }: { documentId: string; tit
 function errorKey(message: string | undefined) {
   if (!message) return "generic";
   if (/too many summaries/.test(message)) return "limit";
+  if (/already have requests/.test(message)) return "busy";
   if (/not available right now|try again later|no summary that cites/.test(message)) return "unavailable";
   if (/no text|could not be read|not been indexed/.test(message)) return "noText";
   return "generic";

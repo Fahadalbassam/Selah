@@ -4,14 +4,16 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import type { Principal } from "@/authz";
 import { detectLang, isTranslatable } from "@/lib/translations";
-import { BadRequestError, NotFoundError, UnavailableError } from "@/server/errors";
+import type { Masker } from "@/lib/masking";
+import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "@/server/errors";
 import { translateText } from "./ai-client";
-import { textMasker } from "./masking";
+import { maskingOn, textMasker } from "./masking";
 
 // On-demand translations (baseline: Translations). The database
 // lets a person read or make a translation only while they can read the
 // original and it is unchanged; this service finds the original, returns the
-// kept translation if there is one, or asks the model once and keeps it.
+// kept translation if there is one, or asks the model once, in a job
+// (services/ai-jobs.ts), and keeps it.
 
 export interface TranslationRequest {
   entityType: string;
@@ -56,37 +58,92 @@ async function kept(tx: Tx, r: TranslationRequest, hash: string) {
   return rows[0];
 }
 
-/** `masked`: maskingOn(), worked out before the transaction by the route; left out, it is asked here. */
-export async function translate(tx: Tx, principal: Principal, r: TranslationRequest, masked?: boolean): Promise<TranslationResult> {
+/** The original in the language asked for, or the kept translation; null when the model must be asked. */
+async function ready(tx: Tx, r: TranslationRequest) {
   const src = await source(tx, r);
   const sourceLang = detectLang(src.body);
-  if (sourceLang === r.to) return { id: null, text: src.body, sourceLang, original: true, reviewed: false };
+  if (sourceLang === r.to) return { src, sourceLang, hash: "", done: { id: null, text: src.body, sourceLang, original: true, reviewed: false } as TranslationResult };
   if (src.body.length > MAX_CHARS) throw new BadRequestError("this text is too long to translate");
-
   const hash = sha256(src.body);
   const hit = await kept(tx, r, hash);
-  if (hit) return { id: hit.id, text: hit.text, sourceLang, original: false, reviewed: hit.reviewed_by !== null };
+  const done: TranslationResult | null = hit ? { id: hit.id, text: hit.text, sourceLang, original: false, reviewed: hit.reviewed_by !== null } : null;
+  return { src, sourceLang, hash, done };
+}
 
-  let made: { text: string; model: string };
-  try {
-    // A hosted model gets placeholders for the known names written in the text (docs/translations.md).
-    const masker = await textMasker(tx, src.projectIds, src.body, masked);
-    made = await translateText(masker.mask(src.body), sourceLang, r.to);
-    made = { ...made, text: masker.unmask(made.text) };
-  } catch {
-    throw new UnavailableError("translation is not available right now");
-  }
+/**
+ * Asking on the page (POST): the original or the kept translation, or null,
+ * and the caller files a job (services/ai-jobs.ts). The database lets the
+ * person read the original, or the call is a 404, before any job is filed.
+ */
+export async function requestTranslation(tx: Tx, r: TranslationRequest): Promise<TranslationResult | null> {
+  return (await ready(tx, r)).done;
+}
+
+/** What the model is given for one translation, and what is needed to keep its answer. */
+export interface TranslationWork {
+  request: TranslationRequest;
+  sourceLang: "ar" | "en";
+  hash: string;
+  /** The text, masked for a hosted model. */
+  text: string;
+  masker: Masker;
+}
+
+/**
+ * The first half, as the person who asked (the job's first transaction): the
+ * kept translation if one was made meanwhile, or the text to send. `masked`
+ * is maskingOn(), decided before the transaction.
+ */
+export async function prepareTranslation(
+  tx: Tx,
+  r: TranslationRequest,
+  masked: boolean,
+): Promise<{ done: TranslationResult } | { work: TranslationWork }> {
+  const { src, sourceLang, hash, done } = await ready(tx, r);
+  if (done) return { done };
+  // A hosted model gets placeholders for the known names written in the text (docs/translations.md).
+  const masker = await textMasker(tx, src.projectIds, src.body, masked);
+  return { work: { request: r, sourceLang, hash, text: masker.mask(src.body), masker } };
+}
+
+/**
+ * The second half, as the person who asked (the job's second transaction):
+ * they must still read the original, unchanged since the model read it; the
+ * database checks both again on insert (app_translation_current).
+ */
+export async function storeTranslation(tx: Tx, principal: Principal, work: TranslationWork, reply: { text: string; model: string }): Promise<TranslationResult> {
+  const r = work.request;
+  const src = await source(tx, r);
+  if (sha256(src.body) !== work.hash) throw new ConflictError("the text changed while it was being translated");
+  const text = work.masker.unmask(reply.text);
   const { rows } = await tx.execute<Row>(sql`
     insert into content_translations
       (project_id, org_id, entity_type, entity_id, field, source_lang, target_lang, source_sha256, text, model, created_by)
-    values (${src.projectId}, ${src.orgId}, ${r.entityType}, ${r.entityId}, ${r.field}, ${sourceLang}, ${r.to}, ${hash},
-            ${made.text}, ${made.model}, ${principal.userId})
+    values (${src.projectId}, ${src.orgId}, ${r.entityType}, ${r.entityId}, ${r.field}, ${work.sourceLang}, ${r.to}, ${work.hash},
+            ${text}, ${reply.model}, ${principal.userId})
     on conflict (entity_type, entity_id, field, target_lang, source_sha256) do nothing
     returning id, text, reviewed_by`);
   // Someone else made it a moment earlier: use theirs.
-  const row = rows[0] ?? (await kept(tx, r, hash));
+  const row = rows[0] ?? (await kept(tx, r, work.hash));
   if (!row) throw new NotFoundError("text");
-  return { id: row.id, text: row.text, sourceLang, original: false, reviewed: row.reviewed_by !== null };
+  return { id: row.id, text: row.text, sourceLang: work.sourceLang, original: false, reviewed: row.reviewed_by !== null };
+}
+
+/**
+ * Both halves and the model in one transaction: for the tests, which fake
+ * the model. The app translates in jobs (services/ai-jobs.ts), so no
+ * transaction waits on the model. `masked`: maskingOn(); left out, it is asked here.
+ */
+export async function translate(tx: Tx, principal: Principal, r: TranslationRequest, masked?: boolean): Promise<TranslationResult> {
+  const prepared = await prepareTranslation(tx, r, masked ?? (await maskingOn()));
+  if ("done" in prepared) return prepared.done;
+  let made: { text: string; model: string };
+  try {
+    made = await translateText(prepared.work.text, prepared.work.sourceLang, r.to);
+  } catch {
+    throw new UnavailableError("translation is not available right now");
+  }
+  return storeTranslation(tx, principal, prepared.work, made);
 }
 
 /**

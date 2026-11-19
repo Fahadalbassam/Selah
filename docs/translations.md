@@ -23,8 +23,8 @@ The list lives in `app_translation_source()` and `src/lib/translations.ts`. Anyt
 
 1. The original is read with the caller's own rights. A record they can't see answers 404, the same as one that doesn't exist.
 2. If the text is already in the language asked for, the original comes back (`original: true`) and no model is called.
-3. A kept translation of exactly this text is returned if there is one. Otherwise the model translates it once and the result is kept with the model's name.
-4. If the model is down, the answer is 503 and the original stays on screen.
+3. A kept translation of exactly this text is returned if there is one. Otherwise the request files a job and answers 202 at once; the jobs runner has the model translate it once, as the person who asked, and the result is kept with the model's name; the page follows the job, then asks again for the kept text ([assistant.md](assistant.md), "Slow calls as jobs").
+4. If the model is down, the job ends "failed", the page says so and the original stays on screen.
 
 On screen ("Show in English" / "اعرض بالعربية"), a translation is labelled **Machine translated** with **Show original** next to it. Firm staff can **mark it reviewed** (`PATCH /api/translations/:id`, optionally with corrected text), and then it reads "Translation reviewed by the firm". Recommendations and decisions are governance records: the original language stays the authority.
 

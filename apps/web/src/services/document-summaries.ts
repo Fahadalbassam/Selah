@@ -6,10 +6,12 @@ import { assertAllowed, type Principal } from "@/authz";
 import { BadRequestError, ConflictError, NotFoundError, UnavailableError } from "@/server/errors";
 import { summarizePages, type SummaryPoint } from "./ai-client";
 import { audit } from "./audit";
-import { projectMasker } from "./masking";
+import { maskingOn, projectMasker } from "./masking";
+import type { Masker } from "@/lib/masking";
 
 // File summaries (baseline: AI sources). One per file version
-// and language, made the first time someone asks and then kept. It is made
+// and language, made the first time someone asks and then kept. The model
+// is asked in a job (services/ai-jobs.ts), never while a request waits. It is made
 // from the same page text the assistant searches, read with the caller's own
 // rights, and every line cites its pages. The database decides who reads it
 // (whoever can open the file) and limits how many a person makes an hour.
@@ -21,9 +23,9 @@ export type Summarizer = (
 
 const MAX_PAGES = 200;
 
-// A file the model just failed on is not sent again for a while: failed
-// calls are rolled back with the request, so they don't count towards the
-// database's hourly limit. Per server process.
+// A file the model just failed on is not sent again for a while: a failed
+// call keeps nothing, so it doesn't count towards the database's hourly
+// limit. Per process (the jobs runner's, where the model is asked).
 const FAILURE_PAUSE_MS = 10 * 60_000;
 const failedUntil = new Map<string, number>();
 function failed(key: string) {
@@ -83,23 +85,52 @@ export async function getDocumentSummary(tx: Tx, principal: Principal, documentI
   };
 }
 
-export async function summarizeDocument(
-  tx: Tx,
-  principal: Principal,
-  documentId: string,
-  lang: "ar" | "en",
-  summarizer: Summarizer = summarizePages,
-  /** maskingOn(), worked out before the transaction by the route; left out, it is asked here. */
-  masked?: boolean,
-) {
+/** The file, if a summary can be made of it: the caller may open it and ask for one, it is for the assistant, and its text was read. */
+async function summarizable(tx: Tx, principal: Principal, documentId: string) {
   const doc = await loadForSummary(tx, principal, documentId);
   if (!doc.aiIndexable) throw new ConflictError("this file is not available to the assistant");
   if (doc.textStatus === "not_searchable") throw new ConflictError("this file's text could not be read");
   if (doc.textStatus === "needs_ocr") throw new ConflictError("this file is a scan and its text has not been recognised yet");
   if (doc.textStatus !== "searchable") throw new ConflictError("this file has not been indexed yet");
+  return doc;
+}
 
+/**
+ * Asking for a summary on the page (POST): the kept one when there is one,
+ * else null, and the caller files a job (services/ai-jobs.ts). Every check
+ * the job makes again is made here first, so a refusal shows at once.
+ */
+export async function requestSummary(tx: Tx, principal: Principal, documentId: string, lang: "ar" | "en") {
+  const doc = await summarizable(tx, principal, documentId);
   const kept = await keptSummary(tx, doc, lang);
-  if (kept) return view(kept);
+  return kept ? view(kept) : null;
+}
+
+/** What the model is given for one summary, and what is needed to keep its answer. */
+export interface SummaryWork {
+  documentId: string;
+  lang: "ar" | "en";
+  sha256: string;
+  /** The pages, masked for a hosted model. */
+  pages: { n: number; text: string }[];
+  masker: Masker;
+}
+
+/**
+ * The first half of making a summary, as the person who asked (the job's
+ * first transaction): the kept summary if one was made meanwhile, or the
+ * pages to send. `masked` is maskingOn(), decided before the transaction.
+ */
+export async function prepareSummary(
+  tx: Tx,
+  principal: Principal,
+  documentId: string,
+  lang: "ar" | "en",
+  masked: boolean,
+): Promise<{ kept: SummaryView } | { work: SummaryWork }> {
+  const doc = await summarizable(tx, principal, documentId);
+  const kept = await keptSummary(tx, doc, lang);
+  if (kept) return { kept: view(kept) };
 
   const chunks = await tx
     .select({ page: aiChunks.page, content: aiChunks.content })
@@ -111,24 +142,29 @@ export async function summarizeDocument(
   const pages = [...byPage].slice(0, MAX_PAGES).map(([n, parts]) => ({ n, text: parts.join("\n").slice(0, 20000) }));
   if (!pages.length) throw new BadRequestError("this file has no text to summarise");
 
-  const attempt = `${doc.sha256}:${lang}`;
-  if ((failedUntil.get(attempt) ?? 0) > Date.now())
+  if ((failedUntil.get(`${doc.sha256}:${lang}`) ?? 0) > Date.now())
     throw new UnavailableError("this file could not be summarised, try again later");
-  let made: Awaited<ReturnType<Summarizer>>;
   // A hosted model gets placeholders for known names (docs/assistant.md).
   const masker = await projectMasker(tx, doc.projectId, masked);
-  try {
-    made = await summarizer(
-      pages.map((p) => ({ ...p, text: masker.mask(p.text) })),
-      lang,
-    );
-    made = { ...made, points: made.points.map((p) => ({ ...p, text: masker.unmask(p.text) })) };
-  } catch {
-    failed(attempt);
-    throw new UnavailableError("summaries are not available right now");
-  }
+  return { work: { documentId: doc.id, lang, sha256: doc.sha256, pages: pages.map((p) => ({ ...p, text: masker.mask(p.text) })), masker } };
+}
+
+/** The model failed on this file: it is not sent again for a while. */
+export function summaryFailed(work: SummaryWork) {
+  failed(`${work.sha256}:${work.lang}`);
+}
+
+/**
+ * The second half, as the person who asked (the job's second transaction):
+ * every check again (they may have lost the file meanwhile), the file must
+ * be the version the model read, then the answer is kept.
+ */
+export async function storeSummary(tx: Tx, principal: Principal, work: SummaryWork, reply: Awaited<ReturnType<Summarizer>>) {
+  const doc = await summarizable(tx, principal, work.documentId);
+  if (doc.sha256 !== work.sha256) throw new ConflictError("the file changed while it was being summarised");
+  const made = { ...reply, points: reply.points.map((p) => ({ ...p, text: work.masker.unmask(p.text) })) };
   // Only points that cite pages we gave, one line each.
-  const known = new Set(pages.map((p) => p.n));
+  const known = new Set(work.pages.map((p) => p.n));
   const points = made.points
     .map((p) => ({
       text: p.text.replace(/\s+/g, " ").trim(),
@@ -136,7 +172,7 @@ export async function summarizeDocument(
     }))
     .filter((p) => p.text && p.pages.length);
   if (!points.length) {
-    failed(attempt);
+    summaryFailed(work);
     throw new UnavailableError("the model gave no summary that cites the file");
   }
 
@@ -147,7 +183,7 @@ export async function summarizeDocument(
       projectId: doc.projectId,
       orgId: doc.orgId,
       sha256: doc.sha256,
-      lang,
+      lang: work.lang,
       summary: points.map((p) => p.text).join("\n"),
       citations: points.map((p, i) => ({ line: i + 1, pages: p.pages })),
       model: made.model,
@@ -157,10 +193,37 @@ export async function summarizeDocument(
     .returning();
   // Someone else made it a moment earlier: use theirs.
   if (row) return view(row);
-  const theirs = await keptSummary(tx, doc, lang);
+  const theirs = await keptSummary(tx, doc, work.lang);
   if (!theirs) throw new NotFoundError("summary");
   return view(theirs);
 }
+
+/**
+ * Both halves and the model in one transaction: for the tests, which fake
+ * the model. The app makes summaries as jobs (services/ai-jobs.ts), so no
+ * transaction waits on the model.
+ */
+export async function summarizeDocument(
+  tx: Tx,
+  principal: Principal,
+  documentId: string,
+  lang: "ar" | "en",
+  summarizer: Summarizer = summarizePages,
+  masked?: boolean,
+) {
+  const ready = await prepareSummary(tx, principal, documentId, lang, masked ?? (await maskingOn()));
+  if ("kept" in ready) return ready.kept;
+  let made: Awaited<ReturnType<Summarizer>>;
+  try {
+    made = await summarizer(ready.work.pages, lang);
+  } catch {
+    summaryFailed(ready.work);
+    throw new UnavailableError("summaries are not available right now");
+  }
+  return storeSummary(tx, principal, ready.work, made);
+}
+
+export type SummaryView = ReturnType<typeof view>;
 
 function view(s: typeof documentSummaries.$inferSelect) {
   const lines = s.summary.split("\n");

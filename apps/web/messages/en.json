@@ -1483,7 +1483,29 @@
     "original": "Show original",
     "markReviewed": "Mark as reviewed",
     "unavailable": "Translation isn't available right now.",
-    "limited": "Too many translations for now. Try again later."
+    "limited": "Too many translations for now. Try again later.",
+    "busy": "You already have requests being worked on. Wait for one to finish, then ask again."
+  },
+  "aiJob": {
+    "queued": "Your request is waiting its turn.",
+    "queuedNext": "Your request is next.",
+    "running": "The assistant is working on it…",
+    "runningSlow": "Still working. Local answers can take a few minutes.",
+    "done": "Done.",
+    "cancel": "Cancel",
+    "errors": {
+      "access": "The request was not finished: you no longer have access to this.",
+      "changed": "The text changed while it was being worked on. Ask again.",
+      "local_only": "The assistant can't do this here: it works with the local model only.",
+      "limit": "You've asked for a lot in the last hour. Try again later.",
+      "too_long": "The text is longer than the assistant takes.",
+      "no_text": "There is no text to work on.",
+      "unavailable": "The assistant couldn't finish this right now. Try again later.",
+      "stopped": "Work on the request stopped before it finished. Ask again.",
+      "expired": "The request waited too long without starting. Ask again later.",
+      "cancelled": "Request cancelled.",
+      "taken": "These rows were already picked up. Paste the text again for a new draft."
+    }
   },
   "meeting": {
     "back": "Back to the project",
@@ -1960,7 +1982,8 @@
       "generic": "Something went wrong. Try again.",
       "limit": "You've made the most summaries allowed this hour.",
       "unavailable": "Summaries aren't available right now. Try again later.",
-      "noText": "This file has no readable text to summarise."
+      "noText": "This file has no readable text to summarise.",
+      "busy": "You already have requests being worked on. Wait for one to finish, then ask again."
     },
     "needsOcr": "This file is a scan. Its text hasn't been recognised yet, so it can't be searched or summarised.",
     "needsOcrShort": "Scanned"
@@ -3587,7 +3610,8 @@
       "expired": "This check has expired. Bring the rows in again.",
       "changed": "The draft changed while you were checking. Bring the rows in again to check them against it.",
       "generic": "That didn't work. Reload the page and try again.",
-      "notHere": "The assistant can't draft here: it drafts only with the model on Selah's own server, and this server uses a hosted model. Use the Excel template."
+      "notHere": "The assistant can't draft here: it drafts only with the model on Selah's own server, and this server uses a hosted model. Use the Excel template.",
+      "busy": "You already have requests with the assistant. Wait for one to finish, then ask again."
     },
     "guide": {
       "sheet": "Guide",
@@ -4617,7 +4641,12 @@
       "org_chart_draft_reset": "Started the organisation structure's draft again from the current version",
       "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left",
       "org_chart_head_confirm": "Confirmed a department's head as the organisation structure has it",
-      "action_owner_change": "Action given to a colleague"
+      "action_owner_change": "Action given to a colleague",
+      "ai_job_request": "Request to the assistant (summary, translation or structure draft)",
+      "ai_job_cancel": "Request to the assistant cancelled",
+      "ai_job_refused": "Request to the assistant refused: access lost",
+      "ai_job_failed": "Request to the assistant not finished",
+      "ai_job_expired": "Request to the assistant expired before it started"
     },
     "csv": {
       "time": "Time (UTC)",
@@ -4842,7 +4871,12 @@
       "org_chart_draft_reset": "restarted the organisation structure draft from the current version",
       "org_chart_holder_cancel": "cancelled appointments not yet started after someone left",
       "action_owner_change": "gave an action to a colleague",
-      "org_chart_head_confirm": "confirmed a department's head as the organisation structure shows it"
+      "org_chart_head_confirm": "confirmed a department's head as the organisation structure shows it",
+      "ai_job_request": "asked the assistant for a summary, a translation or a structure draft",
+      "ai_job_cancel": "cancelled a request to the assistant",
+      "ai_job_refused": "had a request to the assistant refused, having lost access",
+      "ai_job_failed": "had a request to the assistant fail",
+      "ai_job_expired": "had a request to the assistant expire before it started"
     },
     "line": "<who>{name}</who> {event}.",
     "lineLabel": "<who>{name}</who>: {event}.",

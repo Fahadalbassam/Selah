@@ -80,6 +80,8 @@ Object.assign(process.env, {
 
 const OC = await import("@/services/org-chart");
 const IM = await import("@/services/org-chart-import");
+const J = await import("@/services/ai-jobs");
+const { runNextAiJob } = await import("@/jobs/ai-jobs");
 const AC = await import("@/services/accounts");
 
 const owner = new Pool({ connectionString: ownerUrl, max: 2 });
@@ -705,5 +707,127 @@ describe("the assistant's draft from pasted text", () => {
     sent.length = 0;
     await expect(svc(U.admin, (tx, p) => IM.draftFromText(tx, p, NOPROJ, "Accountant"))).rejects.toThrow(REFUSED);
     expect(sent).toEqual([]);
+  });
+  describe("as a job (the local model takes minutes: docs/assistant.md, \"Slow calls as jobs\")", () => {
+    const run = () =>
+      runNextAiJob({
+        owner,
+        asUser: (userId, fn) => as(userId, (c) => fn(drizzle(c, { schema }) as unknown as Tx), true),
+        maskingOn: async () => true,
+        model: {
+          draftOrgChart: async (text) => {
+            sent.push(text);
+            return { ...answer.fn(text), model: "fake" } as never;
+          },
+          translate: async () => {
+            throw new Error("not here");
+          },
+          summarize: async () => {
+            throw new Error("not here");
+          },
+        },
+        checkEveryMs: 20,
+      });
+    const file = (who: string, text = TEXT) =>
+      svc(
+        who,
+        async (tx, p) => {
+          const { sha256, spend } = await IM.requestOrgDraft(tx, p, SAHM, text, true);
+          return J.fileJob(tx, p, "org_draft", `org_draft:${SAHM}:${sha256}`, { clientOrgId: SAHM, text }, spend);
+        },
+        true,
+      );
+    // The runner checks what route() checks: the current terms accepted (two-factor sign-in is off in these tests).
+    beforeAll(async () => {
+      process.env.TWO_FACTOR_REQUIRED = "false";
+      await q(
+        `INSERT INTO consent_records (user_id, doc, version, locale)
+         SELECT u, d, app_legal_version(d), 'en' FROM unnest($1::uuid[]) u, unnest(enum_range(NULL::legal_doc)) d
+         ON CONFLICT DO NOTHING`,
+        [Object.values(U)],
+      );
+    });
+    const observing = (on: boolean) => q(`UPDATE project_members SET observer = $3 WHERE project_id = $1 AND user_id = $2`, [P, U.cons, on]);
+
+    it("is filed at once and drafted as the person who asked, masked; the rows go only to them, signed for the review step", async () => {
+      await q(`DELETE FROM ai_jobs`);
+      sent.length = 0;
+      answer.fn = () => ({
+        units: [{ ref: "U1", parent: "", code: "", name: "Finance department", kind: "department" }],
+        positions: [{ ref: "P1", unit: "U1", code: "", title: "Accountant", reports_to: "", head: false, specialties: [] }],
+      });
+      const job = await file(U.cons);
+      expect(job).toMatchObject({ kind: "org_draft", status: "queued" });
+      expect(sent).toEqual([]);
+      expect(await run()).toMatchObject({ id: job.id, status: "done" });
+      expect(sent).toHaveLength(1);
+      for (const name of ["Sahm", "Nawaf", "Reem", "reem.h@example.test"]) expect(sent[0]).not.toContain(name);
+      // The pasted text is gone; what waits is the rows, never the text.
+      const [row] = (await q(`SELECT input, result FROM ai_jobs WHERE id = $1`, [job.id])).rows;
+      expect(row.input).toBeNull();
+      expect(JSON.stringify(row.result)).not.toMatch(/Nawaf|Reem|0551234567/);
+
+      const got = await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true);
+      expect(got).toMatchObject({ status: "done", draft: { source: "text", fileName: null } });
+      expect(got.draft!.rows.some((r) => r.values.titleEn === "Accountant" || r.values.titleAr === "Accountant")).toBe(true);
+      // Signed for this person and client: the review step saves it like any import.
+      const rows = got.draft!.rows.map((r) => ({ line: r.line, values: r.values }));
+      expect((await svc(U.cons, (tx, p) => IM.saveImport(tx, p, SAHM, { token: got.draft!.token, rows, mode: "add" }))).counts.positionsAdded).toBe(1);
+      // Nobody else sees the job, the firm admin included.
+      for (const who of [U.admin, U.lead, U.cadmin]) await expect(svc(who, (tx, p) => J.getJob(tx, p, job.id)), who).rejects.toThrow(REFUSED);
+      // Handed over once: the rows are gone from the job.
+      expect((await q(`SELECT result FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].result).toBeNull();
+      expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "expired", error: "taken" });
+      expect((await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).draft).toBeUndefined();
+    });
+
+    it("hands the rows over only while the person may still import there with the assistant on", async () => {
+      await q(`DELETE FROM ai_jobs`);
+      const job = await file(U.cons, `${TEXT}\nDriver`);
+      expect(await run()).toMatchObject({ id: job.id, status: "done" });
+      // An observer now: not handed over, and still there should they be staffed again within the hour.
+      await observing(true);
+      try {
+        expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "refused", error: "access" });
+      } finally {
+        await observing(false);
+      }
+      // The assistant off here now (a hosted model): not handed over either.
+      process.env.LLM_PROVIDER = "openai_compat";
+      try {
+        expect(await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).toMatchObject({ status: "refused", error: "access" });
+      } finally {
+        process.env.LLM_PROVIDER = "ollama";
+      }
+      expect((await q(`SELECT result FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].result).not.toBeNull();
+      expect((await svc(U.cons, (tx, p) => J.getJob(tx, p, job.id), true)).draft).toBeDefined();
+    });
+
+    it("is refused, and the text never sent, when the person lost the right to import before it ran", async () => {
+      await q(`DELETE FROM ai_jobs`);
+      sent.length = 0;
+      const job = await file(U.cons);
+      await observing(true);
+      try {
+        expect(await run()).toMatchObject({ id: job.id, status: "refused", error: "access" });
+      } finally {
+        await observing(false);
+      }
+      expect(sent).toEqual([]);
+      expect((await q(`SELECT input FROM ai_jobs WHERE id = $1`, [job.id])).rows[0].input).toBeNull();
+    });
+
+    it("is refused when the runner's own setting is a hosted model: only the local model drafts", async () => {
+      await q(`DELETE FROM ai_jobs`);
+      sent.length = 0;
+      const job = await file(U.cons);
+      process.env.LLM_PROVIDER = "openai_compat";
+      try {
+        expect(await run()).toMatchObject({ id: job.id, status: "refused", error: "local_only" });
+      } finally {
+        process.env.LLM_PROVIDER = "ollama";
+      }
+      expect(sent).toEqual([]);
+    });
   });
 });
