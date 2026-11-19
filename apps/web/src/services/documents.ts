@@ -276,7 +276,7 @@ export async function withdrawDocument(tx: Tx, principal: Principal, id: string,
     resourceType: "document",
     resourceId: id,
     outcome: "allow",
-    meta: { title: loaded.doc.title },
+    // No name: the audit log is read by the other side's admin, who may not open the file (phase 3, L2).
   });
   return { id, withdrawn: true };
 }

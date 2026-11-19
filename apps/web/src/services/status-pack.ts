@@ -68,7 +68,7 @@ export async function reportPack(tx: Tx, principal: Principal, reportId: string)
   return {
     draft: true,
     pack: await packFor(tx, row.projectId, row.orgId, row.periodStart, row.periodEnd),
-    live: await projectProgress(tx, principal, row.projectId, row.periodEnd),
+    live: await projectProgress(tx, principal, row.projectId, row.periodEnd, { clientSide: true }),
   };
 }
 
@@ -80,7 +80,8 @@ export async function issueStatusPack(tx: Tx, principal: Principal, reportId: st
   const [row] = await tx.select({ kind: reports.kind, metrics: reports.metrics, orgId: reports.orgId }).from(reports).where(eq(reports.id, reportId)).limit(1);
   if (row?.kind !== "status_pack") throw new NotFoundError("report");
   if (row.metrics) throw new ConflictError("this status pack was already issued");
-  const metrics = await projectProgress(tx, principal, report.projectId, report.periodEnd!);
+  // As the client counts them (phase 3, L4): the lists already keep to shared recommendations.
+  const metrics = await projectProgress(tx, principal, report.projectId, report.periodEnd!, { clientSide: true });
   const pack = await packFor(tx, report.projectId, row.orgId, report.periodStart!, report.periodEnd!);
   await tx.update(reports).set({ bodyMd: input.bodyMd.trim(), metrics, pack }).where(eq(reports.id, reportId));
   await audit(tx, {
