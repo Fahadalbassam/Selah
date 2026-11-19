@@ -67,6 +67,9 @@ describe("the owner's or manager's next step (page audit 4.5, block 3)", () => {
     expect(owner("in_progress").main).toBe("send");
     // Sent back: one step sends the revised file for review (no "Resume work" first).
     expect(owner("revision_requested").main).toBe("resend");
+    // Review S2: "Resume work" stays beside it, so a revised file saved without sending never strands the action.
+    expect(owner("revision_requested").outline).toEqual(["resume"]);
+    expect(nextStep(base({ status: "revision_requested" })).outline).toEqual([]);
     expect(owner("blocked").main).toBe("resume");
     expect(owner("awaiting_review").main).toBeNull();
     expect(owner("awaiting_review").waiting).toBe("withConsultant");

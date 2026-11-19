@@ -182,6 +182,8 @@ export function ActionPanel(p: Props) {
         onDone={done}
         trigger={<Button variant="outline">{t("move.revision_requested")}</Button>}
       />
+    ) : o === "resume" ? (
+      <RunButton key={o} variant="outline" label={t("resume")} run={() => transition("in_progress")} onDone={done} />
     ) : o === "approveDate" && p.date && !p.date.needsLead ? (
       <RunButton key={o} variant="outline" label={t("deadline.approve")} run={() => send(`/api/deadline-requests/${p.date!.id}`, patch({ approve: true }))} onDone={done} />
     ) : o === "declineDate" && p.date ? (

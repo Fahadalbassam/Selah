@@ -335,6 +335,43 @@ describe("D1 on a minimal-records client: the owner is a typed name", () => {
   });
 });
 
+// Review S2: a sent-back action whose revised file was saved without sending is sent for review in
+// one step, through "in progress", as sending a file does; with nothing new sent, it is refused and
+// stays where it was.
+describe("sent back, then sent for review without a new file", () => {
+  async function sentBack(withNewFile: boolean) {
+    const aid = id(200 + (withNewFile ? 1 : 2));
+    await q(
+      `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, owner_user_id, status, due_date, created_by)
+       VALUES ($1,$2,$3,$4,'Sent back one',$5,'revision_requested',app_firm_today() + 30,$6) ON CONFLICT (id) DO NOTHING`,
+      [aid, P, ACME, REC.p, U.owner1, U.lead],
+    );
+    await q(`INSERT INTO reviews (project_id, org_id, action_id, reviewer_id, outcome, reason, created_at) VALUES ($1,$2,$3,$4,'revise','More',now() - interval '1 day')`, [P, ACME, aid, U.staff]);
+    if (withNewFile) {
+      const doc = id(210);
+      await q(
+        `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, title, storage_key, content_type, size_bytes, sha256, visibility, state, scan_status)
+         VALUES ($1,$2,$3,$3,$4,'evidence','Revised.pdf','k-revised','application/pdf',1,'s','shared','submitted','clean') ON CONFLICT (id) DO NOTHING`,
+        [doc, P, ACME, U.owner1],
+      );
+      await q(`INSERT INTO evidence_submissions (project_id, org_id, action_id, document_id, submitted_by) VALUES ($1,$2,$3,$4,$5)`, [P, ACME, aid, doc, U.owner1]);
+    }
+    return aid;
+  }
+
+  it("with the revised file saved: sent for review in one step", async () => {
+    const aid = await sentBack(true);
+    await svc(U.owner1, (tx, p) => transitionAction(tx, p, aid, { to: "awaiting_review" }), true);
+    expect((await ownerOf(aid)).status).toBe("awaiting_review");
+  });
+
+  it("with nothing new: refused, and the action stays sent back", async () => {
+    const aid = await sentBack(false);
+    await expect(svc(U.owner1, (tx, p) => transitionAction(tx, p, aid, { to: "awaiting_review" }), true)).rejects.toThrow(/submit evidence/);
+    expect((await ownerOf(aid)).status).toBe("revision_requested");
+  });
+});
+
 // October review, item 12: may accepting the last evidence item and verifying be one step?
 // Yes, for the reviewer who may verify alone; never with two sign-offs or with an item still unsent.
 describe("October item 12: verify accepts the files still to check", () => {

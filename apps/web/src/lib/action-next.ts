@@ -18,7 +18,7 @@ import type { ActionStatus } from "@/authz/workflow";
 //   Verified, closed: no card.
 
 export type MainStep = "start" | "send" | "resend" | "resume" | "release" | "verify" | "signOff" | "secondSignOff" | "approveDate";
-export type OutlineStep = "sendBack" | "approveDate" | "declineDate";
+export type OutlineStep = "sendBack" | "resume" | "approveDate" | "declineDate";
 /** Who the action is with, when the reader has nothing to press. */
 export type Waiting = "withConsultant" | "withClient" | "withOwner" | "otherReviewer";
 export type QuietLink = "stuck" | "moreTime" | "ask";
@@ -90,6 +90,11 @@ export function nextStep(x: NextInput): NextPlan {
   } else if (x.status === "revision_requested") {
     // One step: the server moves it through "in progress" when the file is sent for review.
     if (x.canSubmitEvidence && can("in_progress")) main = "resend";
+    // Review S2: "Resume work" beside it, never only a move the server could refuse.
+    if (can("in_progress")) {
+      if (main) outline.push("resume");
+      else main = "resume";
+    }
   } else if (x.status === "blocked") {
     if (can("in_progress")) main = "resume";
   } else if (x.status === "awaiting_review") {
