@@ -23,6 +23,7 @@ import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
 import type { Masker } from "@/lib/masking";
+import { createNumberTagger, findNumbers, NUMBER_KINDS } from "@/lib/sensitive-numbers";
 import { answer, answerStream, embed, modelIsLocal, type Answer, type HistoryTurn, type Passage } from "./ai-client";
 import { audit } from "./audit";
 import { listFiles } from "./files";
@@ -195,7 +196,11 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   await tx.execute(sql`select app_count_ai_question(${countedOn}::date)`);
 
   const caseRef = chat ? chat.caseRef : across ? null : (input.case ?? null);
-  const [vector] = await embed([input.question]);
+  // Personal numbers are tagged in everything sent to a model, the question's embedding
+  // included, with a local model too (section 7 item 6). One tagger for the whole request,
+  // so a number keeps one tag in the question, the passages and the earlier turns.
+  const numbers = createNumberTagger();
+  const [vector] = await embed([numbers.tag(input.question)]);
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
   // A progress-update draft, built from the records the person can read, done ones included: a client
@@ -276,12 +281,15 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const at = (pid: string | undefined) => (across && pid && whereOf.has(pid) ? `, ${whereOf.get(pid)}` : "");
   const toSource = (r: RecordPassage, label: string) => ({
     text: r.text,
+    from: undefined as string | undefined,
     source: `${label}${at(r.projectId)}`,
     projects: r.projectIds ?? (r.projectId ? [r.projectId] : []),
     citation: { chunkId: null, sourceType: r.type, sourceId: r.id, version: 1, page: null, ...(across && r.projectId ? { projectId: r.projectId } : {}) },
   });
   const fromChunk = (c: ChunkRow, attached = false) => ({
     text: c.content,
+    // The file's passages were indexed with its own number tags ([ID_1] of that file).
+    from: c.sourceId as string | undefined,
     source: `${c.sourceType} v${c.sourceVersion}${c.page ? ` p.${c.page}` : ""}${attached ? ", attached by the person" : ""}${at(c.projectId)}`,
     projects: [c.projectId],
     citation: {
@@ -309,8 +317,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const history = chat && !staffDraft ? await recentTurns(tx, chat.id) : [];
   const question = input.question;
   const outgoing = [question, ...sources.flatMap((s) => [s.text, s.source]), ...history.map((h) => h.content)].join("\n");
-  const masker = await textMasker(tx, ids, outgoing, masked);
-  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text), source: masker.mask(s.source) }));
+  const masker = await textMasker(tx, ids, outgoing, masked, numbers);
+  const passages: Passage[] = sources.map((s, i) => ({ id: `P${i + 1}`, text: masker.mask(s.text, s.from), source: masker.mask(s.source) }));
   const byPassageId = new Map(passages.map((p, i) => [p.id, sources[i]!.citation as Citation]));
   // Labelling the passage alone was not enough (1 in 5 runs); with this note, 5 in 5. The attached
   // passages come first, so the chat's record follows them.
@@ -334,7 +342,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
     // Another draft is refused without the model: nothing is sent (review S3).
     passages: refusedDraft ? [] : passages,
     maskedQuestion,
-    history: history.map((h) => ({ ...h, content: masker.mask(h.content) })),
+    // An earlier answer's tags were that request's: numbered again here, apart from this one's.
+    history: history.map((h) => ({ ...h, content: masker.mask(h.content, "earlier turns") })),
     byPassageId,
     projectIds: across ? [...new Set(sources.flatMap((s) => s.projects))] : null,
     masker,
@@ -363,11 +372,46 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
  */
 export function shownSoFar(masker: Masker, text: string) {
   const tail = /\[?([A-Z]+)(_\d*)?$/.exec(text);
-  const cut =
-    tail && ["ORG", "PERSON", "DEPT", "PLACE", "EMAIL", "PHONE"].some((k) => (tail[2] === undefined ? k.startsWith(tail[1]!) : k === tail[1]))
+  let cut =
+    tail && [...PLACEHOLDER_KINDS].some((k) => (tail[2] === undefined ? k.startsWith(tail[1]!) : k === tail[1]))
       ? text.slice(0, tail.index)
       : text;
-  return masker.unmask(cut);
+  // A number, an e-mail (its local part too) or a direction mark still being written is held back
+  // until it is whole, so the check below sees all of it.
+  cut = cut.slice(0, heldBackFrom(cut));
+  return answerNumbersTagged(masker, masker.unmask(cut)).text;
+}
+
+// Digits (any script) and what may come between a number's groups, invisible marks included.
+const DIGITISH = /[0-9٠-٩۰-۹\s()+\-./​-‏⁠﻿؜‪-‮⁦-⁩]/;
+
+/**
+ * Where the held-back tail of a streamed answer starts: the last word (it may still become an
+ * e-mail, its local part included), and before it a run of digits and their separators (it may
+ * still become a phone or an ID). At most 80 characters back each, so it stays cheap.
+ */
+function heldBackFrom(text: string): number {
+  let i = text.length;
+  while (i > 0 && text.length - i < 80 && !/\s/.test(text[i - 1]!)) i--;
+  let j = i;
+  while (j > 0 && text.length - j < 80 && DIGITISH.test(text[j - 1]!)) j--;
+  if (/[0-9٠-٩۰-۹]/.test(text.slice(j, i))) i = j;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+  return i;
+}
+
+const PLACEHOLDER_KINDS = new Set<string>(["ORG", "PERSON", "DEPT", "PLACE", "EMAIL", "PHONE", "NUMBER", ...NUMBER_KINDS]);
+
+/**
+ * The check on every answer before it is shown or kept (section 7 item 6): a personal
+ * number written out in it (the model only ever saw tags, so it made one up or rebuilt it)
+ * is tagged like the rest, and counted so the audit shows it.
+ */
+export function answerNumbersTagged(masker: Pick<Masker, "numbers">, text: string): { text: string; raw: number } {
+  const raw = findNumbers(text).length;
+  if (!raw) return { text, raw };
+  // Only the numbers written out get a tag: the tags the answer already has keep their numbers (review S8 of #213).
+  return { text: (masker.numbers ?? createNumberTagger()).tagNew(text), raw };
 }
 
 /**
@@ -467,6 +511,10 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     // uses it on the report page ("Use as draft"), and a colleague approves the report before it is sent.
     text = withDraftMark(text, language === "auto" ? detectLang(question) : language);
   }
+  // No personal number is kept or shown as written, whichever way the text was made.
+  const checked = answerNumbersTagged(masker, text);
+  if (checked.raw) console.warn(`assistant: ${checked.raw} personal number(s) in an answer were tagged before it was kept`);
+  text = checked.text;
   // Kept with the answer, so the chat can offer "Use as draft" under it (migration 0110).
   const isProgressDraft = prepared.progressDraft && grounded && !filtered;
 
@@ -489,7 +537,15 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     resourceType: prepared.projectId ? "project" : "organization",
     resourceId: prepared.projectId ?? principal.orgId,
     outcome: "allow",
-    meta: { ...prepared.meta, cited: citations.length, grounded, masked: masker.replaced, ...(filtered ? { filtered } : {}) },
+    meta: {
+      ...prepared.meta,
+      cited: citations.length,
+      grounded,
+      masked: masker.replaced,
+      numbers: masker.numbers?.found ?? 0,
+      ...(checked.raw ? { numbersInAnswer: checked.raw } : {}),
+      ...(filtered ? { filtered } : {}),
+    },
   });
 
   // The answer's id lets its owner ask for it in the other language (POST /api/translations, entity "ai_message").

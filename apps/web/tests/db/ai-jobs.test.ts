@@ -217,6 +217,40 @@ describe("a translation as a job", () => {
     expect((await jobRow(job.id)).status).toBe("done");
   });
 
+  it("sends personal numbers to the model as tags with the local model, and keeps the translation with the numbers (section 7 item 6)", async () => {
+    const withNumbers = "تحويل إلى الآيبان SA0380000000608010167519 للهوية ١٠١٢٣٤٥٦٧٢، جوال 0551234567.";
+    await owner.query(`UPDATE recommendations SET rationale = $2 WHERE id = $1`, [REC3, withNumbers]);
+    try {
+      const job = await fileTranslation(U.cons, REC3);
+      expect(await runNextAiJob(deps())).toMatchObject({ id: job.id, status: "done" });
+      expect(calls).toHaveLength(1);
+      for (const raw of ["SA0380000000608010167519", "١٠١٢٣٤٥٦٧٢", "0551234567"]) expect(calls[0]!.text).not.toContain(raw);
+      expect(calls[0]!.text).toContain("[IBAN_1]");
+      expect(calls[0]!.text).toContain("[ID_1]");
+      expect(calls[0]!.text).toContain("[PHONE_1]");
+      // The person reads the original anyway: the kept translation has the numbers as written.
+      expect((await kept())[0]!.text).toBe(`[ar->en] ${withNumbers}`);
+    } finally {
+      await owner.query(`UPDATE recommendations SET rationale = 'ميثاق ثالث للمجلس.' WHERE id = $1`, [REC3]);
+    }
+  });
+
+  it("sends a file's pages to the summary model with the tags they were indexed with", async () => {
+    await indexDocument(owner, DOC, [{ n: 1, text: "Pay the board's fees to IBAN SA0380000000608010167519." }, { n: 2, text: "Exits need a family vote." }], async (t) =>
+      t.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0))),
+    );
+    try {
+      const job = await svc(U.cons, (tx, p) => J.fileJob(tx, p, "summary", `summary:${DOC}:en`, { documentId: DOC, lang: "en" }));
+      expect(await runNextAiJob(deps())).toMatchObject({ id: job.id, status: "done" });
+      expect(calls[0]!.text).toContain("[IBAN_1]");
+      expect(calls[0]!.text).not.toContain("SA0380000000608010167519");
+    } finally {
+      await indexDocument(owner, DOC, [{ n: 1, text: "The board of Acme Holding meets monthly." }, { n: 2, text: "Exits need a family vote." }], async (t) =>
+        t.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0))),
+      );
+    }
+  });
+
   it("is refused, and audited, when the person lost access between asking and the runner taking it", async () => {
     const job = await fileTranslation(U.cons);
     await owner.query(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [PROJ, U.cons]);

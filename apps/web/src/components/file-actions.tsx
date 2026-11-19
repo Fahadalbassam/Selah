@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { IconTip } from "@/components/hint";
@@ -17,12 +17,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Bot } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { NUMBER_KINDS, type NumberCounts } from "@/lib/sensitive-numbers";
 
 export interface FileActionsProps {
   id: string;
   title: string;
   visibility: "shared" | "firm_private" | "client_private" | "user_private";
   aiIndexable: boolean;
+  /** Personal numbers the indexing job counted in the file (null: not read yet): said before the assistant is let in. */
+  numberCounts?: NumberCounts | null;
   /** From fileControls() on the server; the server decides again. */
   can: {
     shareWithClient: boolean;
@@ -48,8 +51,9 @@ export interface FileActionsProps {
  * new version. Used wherever files are listed, so every screen offers the
  * same choices. Renders nothing when there is nothing to offer.
  */
-export function FileActions({ id, title, visibility, aiIndexable, can, onChanged, assistantReads = false, uploaderName = null }: FileActionsProps) {
+export function FileActions({ id, title, visibility, aiIndexable, numberCounts = null, can, onChanged, assistantReads = false, uploaderName = null }: FileActionsProps) {
   const t = useTranslations("fileActions");
+  const locale = useLocale();
   const tc = useTranslations("common");
   const ta = useTranslations("audience");
   const refusal = useAudienceRefusal();
@@ -91,7 +95,10 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
   }
 
   async function assistant(on: boolean) {
-    if (!(await confirm(on ? t("assistantOnConfirm") : t("assistantOffConfirm")))) return;
+    // Personal numbers found in the file are said first, by kind (section 7 item 6).
+    const found = NUMBER_KINDS.filter((k) => (numberCounts?.[k] ?? 0) > 0).map((k) => t(`numberKinds.${k}`, { n: numberCounts![k]! }));
+    const onText = found.length ? t("assistantOnConfirmNumbers", { list: found.join(locale === "ar" ? "، " : ", ") }) : t("assistantOnConfirm");
+    if (!(await confirm(on ? onText : t("assistantOffConfirm")))) return;
     const r = await callApi(`/api/documents/${id}/assistant`, "PUT", { on });
     if (!r.ok) return void toast.error(tc(`errors.${r.error}`));
     toast.success(on ? t("assistantOn") : t("assistantOff"));

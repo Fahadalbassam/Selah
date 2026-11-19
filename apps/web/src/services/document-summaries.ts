@@ -144,7 +144,8 @@ export async function prepareSummary(
 
   if ((failedUntil.get(`${doc.sha256}:${lang}`) ?? 0) > Date.now())
     throw new UnavailableError("this file could not be summarised, try again later");
-  // A hosted model gets placeholders for known names (docs/assistant.md).
+  // A hosted model gets placeholders for known names (docs/assistant.md); any model gets tags for
+  // personal numbers (section 7 item 6), which stay tags in the summary as in the passages.
   const masker = await projectMasker(tx, doc.projectId, masked);
   return { work: { documentId: doc.id, lang, sha256: doc.sha256, pages: pages.map((p) => ({ ...p, text: masker.mask(p.text) })), masker } };
 }

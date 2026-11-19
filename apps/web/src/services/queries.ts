@@ -362,6 +362,8 @@ export async function getProject(tx: Tx, principal: Principal, id: string) {
       version: documents.version,
       aiIndexable: documents.aiIndexable,
       textStatus: documents.textStatus,
+      // Personal numbers the indexing job counted, for the warning on the assistant switch.
+      numberCounts: documents.numberCounts,
       purpose: documents.purpose,
       state: documents.state,
       createdAt: documents.createdAt,

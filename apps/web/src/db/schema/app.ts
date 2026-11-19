@@ -40,6 +40,7 @@ import {
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
+import type { NumberCounts } from "../../lib/sensitive-numbers";
 import { user } from "./auth";
 
 export const orgKind = pgEnum("org_kind", ["firm", "client"]);
@@ -859,6 +860,11 @@ export const documents = pgTable(
     textStatus: textStatus("text_status").notNull().default("pending"),
     /** Scanned pages (no text layer) waiting for text recognition; set by the indexing job. */
     ocrPages: integer("ocr_pages").array().notNull().default(sql`'{}'::integer[]`),
+    /**
+     * Personal numbers in the file, by kind ({"ID": 2, "IBAN": 1}), counted by the indexing job
+     * (section 7 item 6, migration 0114); null until counted. Set by the job only.
+     */
+    numberCounts: jsonb("number_counts").$type<NumberCounts>(),
     /** The uploader took a wrong file back (N8): archived, kept for the record, with why. */
     withdrawnAt: ts("withdrawn_at"),
     withdrawnBy: uuid("withdrawn_by").references(() => user.id),

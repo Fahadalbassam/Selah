@@ -2,6 +2,7 @@ import "server-only";
 import { Agent } from "undici";
 import { z } from "zod";
 import { env } from "@/env";
+import { createNumberTagger, hasRawNumbers, type NumberTagger } from "@/lib/sensitive-numbers";
 
 // Client for the Python AI service. The service never gets database
 // credentials: it receives only passages this server already authorized.
@@ -39,6 +40,32 @@ export function patientDispatcher(timeoutMs: number): Agent {
 const patiently = (init: RequestInit, timeoutMs: number): RequestInit => ({ ...init, dispatcher: patientDispatcher(timeoutMs) }) as RequestInit;
 
 /**
+ * The last check before anything leaves for the AI service (section 7 item 6): every
+ * caller tags personal numbers already (masking.ts, the indexing job), so this finds none;
+ * if one ever slips through, it is tagged here and the slip is logged, never sent as written.
+ * Its tags have their own range ([ID_S1]): a tag already in the body is left as it is, and
+ * one of these is never read as a request's own tag, so a translation's restore() can never
+ * write another person's number in its place (review S7 of #213).
+ */
+export function sealed<T>(body: T): T {
+  let tagger: NumberTagger | null = null;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") {
+      if (!hasRawNumbers(v)) return v;
+      tagger ??= createNumberTagger({ prefix: "S" });
+      return tagger.tagNew(v);
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  const out = walk(body) as T;
+  const slipped = tagger as NumberTagger | null;
+  if (slipped) console.error(`ai-client: ${slipped.found} personal number(s) reached the AI service call untagged; tagged here`);
+  return out;
+}
+
+/**
  * The AI service's address and key, read straight from the environment: the
  * jobs runner (src/jobs/ai-jobs.ts) has these two and not the web app's
  * other settings, which env() would ask for. The web app checks them with
@@ -59,7 +86,7 @@ async function call<T>(path: string, body: unknown, schema: z.ZodType<T>, timeou
       {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
-        body: JSON.stringify(body),
+        body: JSON.stringify(sealed(body)),
         // `stop`: the person cancelled the job (src/jobs/ai-jobs.ts): the runner hangs up and moves on.
         signal: stop ? AbortSignal.any([limit, stop]) : limit,
       },
@@ -168,7 +195,7 @@ export async function answerStream(
         {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
-          body: JSON.stringify({ question, passages, language, history, audience, progress_draft: opts.progressDraft === true }),
+          body: JSON.stringify(sealed({ question, passages, language, history, audience, progress_draft: opts.progressDraft === true })),
           signal: stop.signal,
         },
         STREAM_TOTAL_MS,

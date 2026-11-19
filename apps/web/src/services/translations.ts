@@ -101,7 +101,8 @@ export async function prepareTranslation(
 ): Promise<{ done: TranslationResult } | { work: TranslationWork }> {
   const { src, sourceLang, hash, done } = await ready(tx, r);
   if (done) return { done };
-  // A hosted model gets placeholders for the known names written in the text (docs/translations.md).
+  // A hosted model gets placeholders for the known names written in the text (docs/translations.md);
+  // any model gets tags for personal numbers (section 7 item 6).
   const masker = await textMasker(tx, src.projectIds, src.body, masked);
   return { work: { request: r, sourceLang, hash, text: masker.mask(src.body), masker } };
 }
@@ -115,7 +116,10 @@ export async function storeTranslation(tx: Tx, principal: Principal, work: Trans
   const r = work.request;
   const src = await source(tx, r);
   if (sha256(src.body) !== work.hash) throw new ConflictError("the text changed while it was being translated");
-  const text = work.masker.unmask(reply.text);
+  // Names come back, and so do personal numbers (section 7 item 6): the translation is for people who read
+  // the original. Only tags this request made are given back; a tag the original already had stays a tag.
+  const names = work.masker.unmask(reply.text);
+  const text = work.masker.numbers ? work.masker.numbers.restore(names) : names;
   const { rows } = await tx.execute<Row>(sql`
     insert into content_translations
       (project_id, org_id, entity_type, entity_id, field, source_lang, target_lang, source_sha256, text, model, created_by)

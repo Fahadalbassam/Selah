@@ -3782,6 +3782,17 @@
     "assistantTurnOff": "Stop the assistant reading it",
     "assistantOnConfirm": "Let the assistant read this file? Its text is indexed on your server, and answers can quote it to people who can already open it.",
     "assistantOffConfirm": "Stop the assistant reading this file? Its passages and summaries are removed from the assistant at once.",
+    "assistantOnConfirmNumbers": "This file holds personal numbers: {list}. The assistant will not read them and no model is sent them: tags such as [ID_1] take their place in what it reads, and the file itself stays as it is. Let the assistant read this file? Its text is indexed on your server, and answers can quote it to people who can already open it.",
+    "numberKinds": {
+      "ID": "national ID ({n})",
+      "IQAMA": "Iqama ({n})",
+      "IBAN": "IBAN ({n})",
+      "CARD": "bank card ({n})",
+      "PHONE": "phone ({n})",
+      "EMAIL": "e-mail ({n})",
+      "PASSPORT": "passport ({n})",
+      "CR": "commercial registration ({n})"
+    },
     "assistantOn": "The assistant can read this file",
     "assistantOff": "The assistant no longer reads this file",
     "newVersion": "Upload a new version",

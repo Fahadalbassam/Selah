@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import type { Env } from "@/env";
 import { createMasker, type Masker } from "@/lib/masking";
+import { createNumberTagger, type NumberTagger } from "@/lib/sensitive-numbers";
 import { modelIsLocal } from "./ai-client";
 
 /**
@@ -35,25 +36,29 @@ export async function maskingOn(
 /**
  * The masking for one request about one project: its client and firm, their
  * people and contacts, and the client's departments (app_mask_terms,
- * baseline: Assistant chats). Off, it changes nothing.
+ * baseline: Assistant chats). Off, it masks no name. Either way personal
+ * numbers are tagged (section 7 item 6): with a local model too.
  */
-export async function projectMasker(tx: Tx, projectId: string, on?: boolean): Promise<Masker> {
-  if (!(on ?? (await maskingOn()))) return createMasker([]);
+export async function projectMasker(tx: Tx, projectId: string, on?: boolean, numbers: NumberTagger = createNumberTagger()): Promise<Masker> {
+  if (!(on ?? (await maskingOn()))) return createMasker([], { numbers });
   const { rows } = await tx.execute<{ kind: string; term: string; entity: string }>(sql`SELECT kind, term, entity FROM app_mask_terms(${projectId})`);
-  return createMasker(rows, { places: true });
+  return createMasker(rows, { places: true, numbers });
 }
 
 /**
  * The masking for one text, for translation and the assistant: only the
  * names of its projects written in that text (app_mask_terms_in), never the
  * list of names the asker may read, so it masks every name in the text,
- * whoever asks (action owners included). Off, it changes nothing.
+ * whoever asks (action owners included). Off, it masks no name. Either way
+ * personal numbers are tagged (section 7 item 6): with a local model too.
+ * `numbers`: a tagger the request already used (the assistant tags the
+ * question before it is embedded), so one number keeps one tag.
  */
-export async function textMasker(tx: Tx, projectIds: string[], text: string, on?: boolean): Promise<Masker> {
-  if (projectIds.length === 0 || !(on ?? (await maskingOn()))) return createMasker([]);
+export async function textMasker(tx: Tx, projectIds: string[], text: string, on?: boolean, numbers: NumberTagger = createNumberTagger()): Promise<Masker> {
+  if (projectIds.length === 0 || !(on ?? (await maskingOn()))) return createMasker([], { numbers });
   const { rows } = await tx.execute<{ pid: string; kind: string; term: string; grp: number }>(sql`
     SELECT pid, t.kind, t.term, t.grp
     FROM unnest(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) pid, LATERAL app_mask_terms_in(pid, ${text}) t`);
   // The names of one record share a number within their project.
-  return createMasker(rows.map((r) => ({ kind: r.kind, term: r.term, entity: `${r.pid}:${r.grp}` })), { places: true });
+  return createMasker(rows.map((r) => ({ kind: r.kind, term: r.term, entity: `${r.pid}:${r.grp}` })), { places: true, numbers });
 }

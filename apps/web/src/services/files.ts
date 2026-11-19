@@ -21,6 +21,7 @@ import {
   user,
 } from "@/db/schema";
 import { foldName } from "@/lib/person-match";
+import type { NumberCounts } from "@/lib/sensitive-numbers";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import type { Received } from "@/lib/engagement";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
@@ -67,6 +68,8 @@ export interface FileEntry {
   textStatus: "pending" | "searchable" | "not_searchable" | "needs_ocr";
   /** Scanned pages the assistant can't read yet (no text layer). */
   ocrPages: number[];
+  /** Personal numbers the indexing job counted, by kind (null: not read yet), for the assistant switch's warning. */
+  numberCounts: NumberCounts | null;
   /** What this person may change (share, assistant flag, new version, who sees it). */
   can: FileControls;
   /**
@@ -148,6 +151,7 @@ export async function listFiles(
         aiIndexable: documents.aiIndexable,
         textStatus: documents.textStatus,
         ocrPages: documents.ocrPages,
+        numberCounts: documents.numberCounts,
         firstVersion: sql<boolean>`${documents.supersedesId} is null`,
         settled: sql<boolean>`app_document_settled(${documents.id})`,
       },
@@ -318,6 +322,7 @@ export async function listFiles(
       aiIndexable: r.doc.aiIndexable,
       textStatus: r.doc.textStatus,
       ocrPages: r.doc.ocrPages,
+      numberCounts: r.doc.numberCounts,
       // Listed files are the latest version and not archived (the query's filter).
       can: fileControls(principal, {
         doc: r.doc,

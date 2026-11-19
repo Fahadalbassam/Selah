@@ -439,7 +439,11 @@ export async function finishOrgDraft(tx: Tx, principal: Principal, work: OrgDraf
   if (!view) throw new NotFoundError("org chart");
   if (!(await assistantProjects(tx, principal, work.clientOrgId)).length) throw new NotFoundError("assistant");
   // A placeholder comes back only where the text had it: one the text never had stays a placeholder, and draftRows drops it.
-  const back = (s: string) => work.masker.unmask(s);
+  // A personal number's tag (section 7 item 6) comes back as the number the pasted text had.
+  const back = (s: string) => {
+    const names = work.masker.unmask(s);
+    return work.masker.numbers ? work.masker.numbers.restore(names) : names;
+  };
   const { rows, dropped } = draftRows(
     {
       units: reply.units.map((u) => ({ ref: u.ref, parent: u.parent, kind: u.kind, name: back(u.name), code: back(u.code) })),
