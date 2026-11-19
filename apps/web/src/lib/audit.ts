@@ -62,7 +62,7 @@ export const AUDIT_AREAS = {
     "org_chart",
     "org_chart_request",
   ],
-  assistant: ["assistant", "ai_conversation", "client_ai"],
+  assistant: ["assistant", "ai_conversation", "client_ai", "ai_job"],
   settings: ["firm_settings", "audit_log"],
 } as const satisfies Record<string, readonly string[]>;
 

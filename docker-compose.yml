@@ -206,6 +206,10 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       AI_SERVICE_URL: http://ai:8000
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      # Slow AI calls run here as jobs (job:ai), with the web app's model settings:
+      # the org chart draft is for the local model only, and names are masked unless the service says local.
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      AI_MASKING: ${AI_MASKING:-auto}
       # The readiness alert (docs/operations.md): sent straight through the
       # relay, not the mail queue, and/or to a webhook.
       OPS_READY_URL: http://web:3000/api/ready

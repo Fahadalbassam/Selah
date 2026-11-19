@@ -10,7 +10,13 @@
 # and runs the retention purges. On the 1st of each month: takes the metrics
 # snapshot and drafts last month's status packs (job:status-packs). A failing job is logged and retried on the next round; it never
 # stops the others.
+#
+# Slow AI calls (file summaries, translations, org chart drafts from pasted
+# text; docs/assistant.md, "Slow calls as jobs") run in their own loop beside
+# these, waking on each new job: one can take minutes on a processor, and the
+# rounds below must not wait for it. It is started again if it stops.
 set -u
+( while :; do npm run --silent job:ai -- --watch || echo "jobs: job:ai stopped, starting it again" >&2; sleep 5; done ) &
 INDEX_EVERY="${INDEX_EVERY_SECONDS:-120}"
 last_day=""
 last_month=""

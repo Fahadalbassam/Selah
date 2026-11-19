@@ -38,8 +38,21 @@ export function patientDispatcher(timeoutMs: number): Agent {
 /** fetch's init with the patient agent (Node's fetch takes an undici dispatcher; the DOM type doesn't know it). */
 const patiently = (init: RequestInit, timeoutMs: number): RequestInit => ({ ...init, dispatcher: patientDispatcher(timeoutMs) }) as RequestInit;
 
-async function call<T>(path: string, body: unknown, schema: z.ZodType<T>, timeoutMs: number): Promise<T> {
-  const e = env();
+/**
+ * The AI service's address and key, read straight from the environment: the
+ * jobs runner (src/jobs/ai-jobs.ts) has these two and not the web app's
+ * other settings, which env() would ask for. The web app checks them with
+ * the rest (env.ts); when they are missing, env() says so.
+ */
+function service(): { AI_SERVICE_URL: string; AI_SERVICE_TOKEN: string } {
+  const { AI_SERVICE_URL, AI_SERVICE_TOKEN } = process.env;
+  if (AI_SERVICE_URL && AI_SERVICE_TOKEN) return { AI_SERVICE_URL, AI_SERVICE_TOKEN };
+  return env();
+}
+
+async function call<T>(path: string, body: unknown, schema: z.ZodType<T>, timeoutMs: number, stop?: AbortSignal): Promise<T> {
+  const e = service();
+  const limit = AbortSignal.timeout(timeoutMs);
   const res = await fetch(
     new URL(path, e.AI_SERVICE_URL),
     patiently(
@@ -47,7 +60,8 @@ async function call<T>(path: string, body: unknown, schema: z.ZodType<T>, timeou
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        // `stop`: the person cancelled the job (src/jobs/ai-jobs.ts): the runner hangs up and moves on.
+        signal: stop ? AbortSignal.any([limit, stop]) : limit,
       },
       timeoutMs,
     ),
@@ -67,7 +81,7 @@ const MODEL_TIMEOUT_MS = 5_000;
  */
 export async function modelIsLocal(): Promise<boolean> {
   try {
-    const e = env();
+    const e = service();
     const res = await fetch(new URL("/v1/model", e.AI_SERVICE_URL), {
       headers: { authorization: `Bearer ${e.AI_SERVICE_TOKEN}` },
       signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
@@ -196,8 +210,8 @@ const streamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("wait") }),
 ]);
 
-export function translateText(text: string, source: "ar" | "en", target: "ar" | "en"): Promise<{ text: string; model: string }> {
-  return call("/v1/translate", { text, source, target }, z.object({ text: z.string().min(1), model: z.string() }), TRANSLATE_TIMEOUT_MS);
+export function translateText(text: string, source: "ar" | "en", target: "ar" | "en", stop?: AbortSignal): Promise<{ text: string; model: string }> {
+  return call("/v1/translate", { text, source, target }, z.object({ text: z.string().min(1), model: z.string() }), TRANSLATE_TIMEOUT_MS, stop);
 }
 
 const orgDraftSchema = z.object({
@@ -227,8 +241,8 @@ export type OrgDraft = z.infer<typeof orgDraftSchema>;
  * written in it (lib/org-chart-import.ts). Anything else the service sends
  * back is dropped here (zod keeps only the fields named).
  */
-export function draftOrgChart(text: string): Promise<OrgDraft> {
-  return call("/v1/org-chart/draft", { text }, orgDraftSchema, LONG_MODEL_TIMEOUT_MS);
+export function draftOrgChart(text: string, stop?: AbortSignal): Promise<OrgDraft> {
+  return call("/v1/org-chart/draft", { text }, orgDraftSchema, LONG_MODEL_TIMEOUT_MS, stop);
 }
 
 export interface SummaryPoint {
@@ -240,11 +254,13 @@ export interface SummaryPoint {
 export function summarizePages(
   pages: { n: number; text: string }[],
   lang: "ar" | "en",
+  stop?: AbortSignal,
 ): Promise<{ points: SummaryPoint[]; model: string }> {
   return call(
     "/v1/summarize",
     { pages, lang },
     z.object({ points: z.array(z.object({ text: z.string(), pages: z.array(z.number().int()) })), model: z.string() }),
     LONG_MODEL_TIMEOUT_MS,
+    stop,
   );
 }

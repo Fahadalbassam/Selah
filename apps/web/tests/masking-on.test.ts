@@ -91,16 +91,24 @@ describe("maskingOn", () => {
 describe("where the masking decision and the 'local' wording come from", () => {
   const src = (p: string) => readFileSync(join(__dirname, "../src", p), "utf8");
 
-  it("is worked out before the transaction opens, on every route that sends text to the model", () => {
-    for (const p of [
-      "app/api/assistant/query/route.ts",
-      "app/api/translations/route.ts",
-      "app/api/documents/[id]/summary/route.ts",
-      "app/api/clients/[id]/structure/import/draft/route.ts",
-    ]) {
+  it("is worked out before the transaction opens, on every route that sends text to the model or measures it masked", () => {
+    for (const p of ["app/api/assistant/query/route.ts", "app/api/clients/[id]/structure/import/draft/route.ts"]) {
       expect(src(p), p).toMatch(/prepare: \(\) => maskingOn\(\)/);
       expect(src(p), p).toMatch(/prepared/);
     }
+  });
+
+  it("is worked out by the jobs runner before each job's first transaction (translations, summaries, org chart drafts)", () => {
+    // The routes only file the job: nothing they do reaches the model.
+    for (const p of ["app/api/translations/route.ts", "app/api/documents/[id]/summary/route.ts", "app/api/clients/[id]/structure/import/draft/route.ts"]) {
+      expect(src(p), p).toMatch(/fileJob\(/);
+      expect(src(p), p).not.toMatch(/ai-client|translateText|summarizePages|draftOrgChart|summarizeDocument|draftFromText|translate\(/);
+    }
+    const runner = src("jobs/ai-jobs.ts");
+    const decided = runner.indexOf("const masked = await deps.maskingOn();");
+    expect(decided).toBeGreaterThan(0);
+    expect(runner.indexOf("asPerson(deps, job, (tx, p) => kind.prepare(tx, p, input, masked))")).toBeGreaterThan(decided);
+    expect(readFileSync(join(__dirname, "../scripts/ai-jobs.ts"), "utf8")).toMatch(/maskingOn: \(\) => maskingOn\(\)/);
   });
 
   it("says 'local' only when the AI service says so, never from this app's setting alone", () => {

@@ -472,6 +472,8 @@ async function dev(flags, { walkthrough = false } = {}) {
     spawn("npm", ["run", "dev"], { cwd: WEB, env: { ...process.env, ...env }, stdio: "inherit", shell: WIN }),
     // Sends queued mail to Mailpit as it is written.
     spawn("npm", ["run", "job:mail", "--", "--watch"], { cwd: WEB, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "inherit"], shell: WIN }),
+    // Translations, file summaries and org chart drafts are jobs (docs/assistant.md, "Slow calls as jobs").
+    ...(ai ? [spawn("npm", ["run", "job:ai", "--", "--watch"], { cwd: WEB, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "inherit"], shell: WIN })] : []),
   ];
   const stopIndexing = ai ? indexLoop(env) : () => {};
   const stop = () => {

@@ -4,7 +4,9 @@ import { Languages } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "@/components/ui/toast";
+import { AiJobState, useAiJob } from "@/components/ai-job";
 import { BrandLoader } from "@/components/brand";
+import type { AiJob } from "@/lib/ai-jobs";
 import { detectLang, type TranslatableType } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
@@ -39,20 +41,41 @@ export function Translatable({
   const locale = useLocale() as "ar" | "en";
   const [shown, setShown] = useState<Shown | null>(null);
   const [busy, setBusy] = useState(false);
+  const aiJob = useAiJob();
   const source = detectLang(text);
   const other = source !== locale;
 
-  async function load() {
-    setBusy(true);
-    const res = await fetch("/api/translations", {
+  const ask = () =>
+    fetch("/api/translations", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ entityType, entityId, field, to: locale }),
     }).catch(() => null);
-    setBusy(false);
-    if (!res?.ok) return toast.error(t(res?.status === 429 ? "limited" : "unavailable"));
-    const data = (await res.json()) as Shown & { original: boolean };
-    setShown(data.original ? null : data);
+
+  async function load() {
+    setBusy(true);
+    aiJob.clear();
+    try {
+      let res = await ask();
+      // A new translation is a job (docs/assistant.md, "Slow calls as jobs"): follow it, then ask again for the kept text.
+      if (res?.status === 202) {
+        const { job: filed } = (await res.json()) as { job: AiJob };
+        const ended = await aiJob.follow(filed);
+        if (ended.status !== "done") return;
+        aiJob.clear();
+        res = await ask();
+      }
+      if (!res?.ok) {
+        const body = (await res?.json().catch(() => null)) as { message?: string } | null;
+        return toast.error(t(res?.status === 429 ? "limited" : /already have requests/.test(body?.message ?? "") ? "busy" : "unavailable"));
+      }
+      const data = (await res.json()) as Shown & { original: boolean };
+      setShown(data.original ? null : data);
+    } catch {
+      // The page moved on.
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function review() {
@@ -90,12 +113,21 @@ export function Translatable({
                 </button>
               ) : null}
             </>
+          ) : aiJob.job ? (
+            <AiJobState job={aiJob.job} waitedMs={aiJob.waitedMs} onCancel={() => void aiJob.cancel()} className="text-xs" />
           ) : (
             <button type="button" className={link} onClick={load} disabled={busy}>
               {busy ? <BrandLoader tone="current" className="size-3" /> : <Languages className="size-3" />}
               {t("show")}
             </button>
           )}
+          {/* A job that ended without a translation: say why, and the link is there to ask again. */}
+          {aiJob.job && aiJob.job.status !== "done" && !busy ? (
+            <button type="button" className={link} onClick={load}>
+              <Languages className="size-3" />
+              {t("show")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

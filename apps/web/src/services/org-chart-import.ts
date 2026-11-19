@@ -35,10 +35,11 @@ import {
   type Taken,
 } from "@/lib/org-chart-import";
 import { BadRequestError, ConflictError, NotFoundError, RateLimitError, UnavailableError } from "@/server/errors";
-import { draftOrgChart } from "./ai-client";
+import { draftOrgChart, type OrgDraft } from "./ai-client";
 import { audit } from "./audit";
 import type { PreparedUpload } from "./evidence";
-import { textMasker } from "./masking";
+import { maskingOn, textMasker } from "./masking";
+import type { Masker } from "@/lib/masking";
 import * as OC from "./org-chart";
 
 // Org chart, part 4: the ways a client's structure gets into the firm's
@@ -345,8 +346,26 @@ export async function parseImportFile(tx: Tx, principal: Principal, clientOrgId:
  * written in the text are kept (draftRows); anything else the model returns
  * is left out and listed, never added. The rows go to the same review step
  * as a file. Only where the assistant is on for this reader at this client.
+ *
+ * In the app it is a job (services/ai-jobs.ts), since the local model takes
+ * minutes: requestOrgDraft on the page, then prepareOrgDraft, the model and
+ * finishOrgDraft in the jobs runner, and fetchOrgDraft when the page picks
+ * the rows up. draftFromText does it all in one transaction, for the tests.
  */
 export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn?: boolean): Promise<ImportedRows> {
+  await requestOrgDraft(tx, principal, clientOrgId, text, maskOn);
+  const { work } = await prepareOrgDraft(tx, principal, clientOrgId, text, maskOn ?? (await maskingOn()));
+  let reply: OrgDraft;
+  try {
+    reply = await draftOrgChart(work.masked);
+  } catch (e) {
+    throw orgDraftFailure(e);
+  }
+  return deliverOrgDraft(principal, clientOrgId, await finishOrgDraft(tx, principal, work, reply));
+}
+
+/** The pasted text, if the reader may draft from it here: the draft's editors, with the assistant on (local model only), within the limit after masking. */
+async function draftable(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn: boolean | undefined) {
   const view = await importContext(tx, principal, clientOrgId);
   if (!view) throw new NotFoundError("org chart");
   const projectIds = await assistantProjects(tx, principal, clientOrgId);
@@ -359,18 +378,62 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
   const masked = masker.mask(body);
   // The AI service takes as much after masking, and a placeholder can be longer than the name it hides ("جدة" is "[PLACE_1]").
   if (masked.length > ORG_IMPORT_LIMITS.text) throw new BadRequestError(`text too long: ${masked.length - ORG_IMPORT_LIMITS.text}`);
-  if (draftsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many drafts");
+  return { view, body, masked, masker };
+}
 
-  let reply: Awaited<ReturnType<typeof draftOrgChart>>;
-  try {
-    reply = await draftOrgChart(masked);
-  } catch (e) {
-    // The service runs a hosted model whatever this app believes: it refuses, and the screen says the assistant cannot draft here.
-    if (e instanceof Error && /failed: 409$/.test(e.message)) throw new ConflictError("local model only");
-    throw new UnavailableError("the assistant could not draft rows");
-  }
+/**
+ * Asking for a draft on the page (POST): every check the job makes again,
+ * so a refusal shows at once, and the hourly limit. The text's hash names
+ * the job (services/ai-jobs.ts). `maskOn` is maskingOn(), decided before the transaction.
+ */
+export async function requestOrgDraft(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn?: boolean) {
+  const { body } = await draftable(tx, principal, clientOrgId, text, maskOn);
+  if (draftsPerPerson.take(principal.userId) !== null) throw new RateLimitError("too many drafts");
+  return { sha256: createHash("sha256").update(body).digest("hex") };
+}
+
+export interface OrgDraftWork {
+  clientOrgId: string;
+  /** The text as pasted (line ends evened out). */
+  body: string;
+  /** What the model is given. */
+  masked: string;
+  masker: Masker;
+}
+
+/** The first half, as the person who asked (the job's first transaction): the checks again, and the masked text. */
+export async function prepareOrgDraft(tx: Tx, principal: Principal, clientOrgId: string, text: string, maskOn: boolean): Promise<{ work: OrgDraftWork }> {
+  // The runner's own setting, checked again: with a hosted model the text never leaves.
+  if (!localModel()) throw new ConflictError("local model only");
+  const { body, masked, masker } = await draftable(tx, principal, clientOrgId, text, maskOn);
+  return { work: { clientOrgId, body, masked, masker } };
+}
+
+/** The model's refusal or failure, in the words the screen knows. */
+export function orgDraftFailure(e: unknown): Error {
+  // The service runs a hosted model whatever this app believes: it refuses, and the screen says the assistant cannot draft here.
+  if (e instanceof Error && /failed: 409$/.test(e.message)) return new ConflictError("local model only");
+  return new UnavailableError("the assistant could not draft rows");
+}
+
+/** What a finished draft keeps for the person until they fetch it (ai_jobs.result): never the text, and no signed token. */
+export interface OrgDraftResult {
+  sha256: string;
+  rows: OrgRow[];
+  dropped: Dropped[];
+}
+
+/**
+ * The second half, as the person who asked (the job's second transaction):
+ * they must still be one of the draft's editors with the assistant on; only
+ * units, positions and specialties written in the text are kept.
+ */
+export async function finishOrgDraft(tx: Tx, principal: Principal, work: OrgDraftWork, reply: OrgDraft): Promise<OrgDraftResult> {
+  const view = await importContext(tx, principal, work.clientOrgId);
+  if (!view) throw new NotFoundError("org chart");
+  if (!(await assistantProjects(tx, principal, work.clientOrgId)).length) throw new NotFoundError("assistant");
   // A placeholder comes back only where the text had it: one the text never had stays a placeholder, and draftRows drops it.
-  const back = (s: string) => masker.unmask(s);
+  const back = (s: string) => work.masker.unmask(s);
   const { rows, dropped } = draftRows(
     {
       units: reply.units.map((u) => ({ ref: u.ref, parent: u.parent, kind: u.kind, name: back(u.name), code: back(u.code) })),
@@ -384,21 +447,35 @@ export async function draftFromText(tx: Tx, principal: Principal, clientOrgId: s
         specialties: p.specialties.map(back),
       })),
     },
-    body,
+    work.body,
     takenOf(view.ctx),
   );
-  const sha256 = createHash("sha256").update(body).digest("hex");
+  const sha256 = createHash("sha256").update(work.body).digest("hex");
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,
     action: "org_chart.import_draft",
     resourceType: "organization",
-    resourceId: clientOrgId,
+    resourceId: work.clientOrgId,
     outcome: "allow",
     // Never the text itself: its length, its hash, and what came of it.
-    meta: { chars: body.length, sha256, masked: masker.replaced, rows: rows.length, dropped: dropped.length, model: reply.model },
+    meta: { chars: work.body.length, sha256, masked: work.masker.replaced, rows: rows.length, dropped: dropped.length, model: reply.model },
   });
-  return { token: signSource({ clientOrgId, userId: principal.userId, sha256, source: "text" }), fileName: null, source: "text", rows, dropped };
+  return { sha256, rows, dropped };
+}
+
+/** The draft as the review step takes it, signed for this person and client. */
+function deliverOrgDraft(principal: Principal, clientOrgId: string, d: OrgDraftResult): ImportedRows {
+  return { token: signSource({ clientOrgId, userId: principal.userId, sha256: d.sha256, source: "text" }), fileName: null, source: "text", rows: d.rows, dropped: d.dropped };
+}
+
+/**
+ * A finished draft fetched from its job (services/ai-jobs.ts): only while
+ * the person may still import into this client's draft.
+ */
+export async function fetchOrgDraft(tx: Tx, principal: Principal, clientOrgId: string, d: OrgDraftResult): Promise<ImportedRows> {
+  if (!(await importContext(tx, principal, clientOrgId))) throw new NotFoundError("org chart");
+  return deliverOrgDraft(principal, clientOrgId, d);
 }
 
 export interface SaveInput {

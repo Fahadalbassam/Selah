@@ -19,6 +19,7 @@
     "db:seed:walkthrough": "tsx --conditions=react-server scripts/walkthrough/seed.ts",
     "storage:init": "tsx scripts/storage-init.ts",
     "handbook:copy": "tsx scripts/handbook-copy.ts",
+    "job:ai": "tsx --conditions=react-server scripts/ai-jobs.ts",
     "job:audit-check": "tsx scripts/audit-check.ts",
     "job:audit-seal": "tsx scripts/audit-seal.ts",
     "job:delete-objects": "tsx scripts/delete-objects.ts",

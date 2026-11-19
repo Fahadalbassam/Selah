@@ -87,6 +87,7 @@ npm run db:migrate          # uses DATABASE_OWNER_URL
 npm run storage:init
 npm run db:seed
 npm run dev
+npm run job:ai -- --watch   # beside it: translations, file summaries and org chart drafts run as jobs
 ```
 
 ## Frontend

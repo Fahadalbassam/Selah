@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { route } from "@/server/http";
-import { getDocumentSummary, summarizeDocument } from "@/services/document-summaries";
-import { maskingOn } from "@/services/masking";
+import { accepted, fileJob } from "@/services/ai-jobs";
+import { getDocumentSummary, requestSummary } from "@/services/document-summaries";
 
 const lang = z.enum(["ar", "en"]);
 
@@ -10,9 +10,12 @@ export const GET = route({ params: z.object({ id: z.uuid() }), query: z.object({
   getDocumentSummary(tx, principal, params.id, query.lang),
 );
 
-// Made once per file version and language, then kept; each line cites its pages.
-// Whether names are masked is asked of the AI service before the transaction opens (prepare).
-export const POST = route(
-  { params: z.object({ id: z.uuid() }), body: z.object({ lang }), prepare: () => maskingOn() },
-  ({ tx, principal, params, body, prepared }) => summarizeDocument(tx, principal, params.id, body.lang, undefined, prepared),
-);
+// Made once per file version and language, then kept; each line cites its
+// pages. The kept one (200), or a job that asks the model (202 with the job;
+// docs/assistant.md, "Slow calls as jobs"): the page asks after the job, then
+// reads the summary with GET.
+export const POST = route({ params: z.object({ id: z.uuid() }), body: z.object({ lang }) }, async ({ tx, principal, params, body }) => {
+  const kept = await requestSummary(tx, principal, params.id, body.lang);
+  if (kept) return kept;
+  return accepted(await fileJob(tx, principal, "summary", `summary:${params.id}:${body.lang}`, { documentId: params.id, lang: body.lang }));
+});
