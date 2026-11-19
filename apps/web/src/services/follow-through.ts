@@ -401,12 +401,22 @@ export interface Progress {
   late?: Record<AgingBucket, number>;
 }
 
-/** The project's numbers, computed in Postgres under the caller's row-level security. */
-export async function projectProgress(tx: Tx, principal: Principal, projectId: string, today?: string): Promise<Progress> {
+/**
+ * The project's numbers, computed in Postgres under the caller's row-level security.
+ * `clientSide` counts only the work the client may see (actions under shared
+ * recommendations): the numbers a report freezes for the client (phase 3, L4).
+ */
+export async function projectProgress(
+  tx: Tx,
+  principal: Principal,
+  projectId: string,
+  today?: string,
+  opts: { clientSide?: boolean } = {},
+): Promise<Progress> {
   await loadProject(tx, principal, projectId);
   const day = today ?? firmToday();
   const { rows } = await tx.execute<Record<string, string | number | null>>(
-    sql`select * from app_project_progress(${projectId}::uuid, ${day}::date)`,
+    sql`select * from app_project_progress(${projectId}::uuid, ${day}::date, ${opts.clientSide ?? false})`,
   );
   const r = rows[0]!;
   return {
@@ -444,7 +454,8 @@ export async function snapshotReport(
   const { project, resource } = await loadProject(tx, principal, projectId);
   assertAllowed(principal, "report.write", { ...resource, type: "report" });
   if (input.periodEnd < input.periodStart) throw new BadRequestError("the period ends before it starts");
-  const metrics = await projectProgress(tx, principal, projectId, input.periodEnd);
+  // Frozen as the client would count them: a report is for the client once shared.
+  const metrics = await projectProgress(tx, principal, projectId, input.periodEnd, { clientSide: true });
   const [row] = await tx
     .insert(reports)
     .values({
@@ -575,11 +586,16 @@ export async function projectMetrics(tx: Tx, principal: Principal, projectId: st
   const { rows } = await tx.execute<Record<string, string | number | null>>(
     sql`select * from v_project_metrics where project_id = ${projectId}::uuid`,
   );
-  const history = await tx
-    .select({ metric: metricSnapshots.metric, value: metricSnapshots.value, asOf: metricSnapshots.asOf })
-    .from(metricSnapshots)
-    .where(eq(metricSnapshots.projectId, projectId))
-    .orderBy(asc(metricSnapshots.asOf), asc(metricSnapshots.metric));
+  // The stored history counts every released action, firm-only and every
+  // department included: it is the firm's (phase 3, L5; the row rule agrees).
+  const history =
+    principal.orgKind === "firm"
+      ? await tx
+          .select({ metric: metricSnapshots.metric, value: metricSnapshots.value, asOf: metricSnapshots.asOf })
+          .from(metricSnapshots)
+          .where(eq(metricSnapshots.projectId, projectId))
+          .orderBy(asc(metricSnapshots.asOf), asc(metricSnapshots.metric))
+      : [];
   const live = { ...rows[0] };
   delete live.project_id;
   delete live.org_id;

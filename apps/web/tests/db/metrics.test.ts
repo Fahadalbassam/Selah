@@ -190,7 +190,7 @@ describe("implementation metrics", () => {
     expect((await rows(U.betaMgr))[0].actions_total).toBe(1);
   });
 
-  it("are copied monthly by the job only, once per day, and read like the project", async () => {
+  it("are copied monthly by the job only, once per day, and read by the firm on the project only", async () => {
     const first = Number((await owner.query(`SELECT app_snapshot_metrics('2026-10-31') AS n`)).rows[0].n);
     expect(first).toBeGreaterThan(0);
     expect(Number((await owner.query(`SELECT app_snapshot_metrics('2026-10-31') AS n`)).rows[0].n)).toBe(0);
@@ -198,8 +198,10 @@ describe("implementation metrics", () => {
     const seen = async (uid: string) =>
       Number((await attempt(uid, `SELECT count(*) FROM metric_snapshots WHERE as_of = '2026-10-31'`)).rows[0].count);
     expect(await seen(U.outsider)).toBe(0);
-    expect(await seen(U.betaMgr)).toBeGreaterThan(0);
-    expect(await seen(U.betaMgr)).toBeLessThan(first);
+    // The stored history counts firm-only and every department's work: a client reader gets none (phase 3, L5).
+    expect(await seen(U.betaMgr)).toBe(0);
+    expect(await seen(U.cmgr)).toBe(0);
+    expect(await seen(U.admin)).toBe(first);
     await expect(attempt(U.admin, `UPDATE metric_snapshots SET value = 100`)).rejects.toThrow(/permission denied/);
     await expect(owner.query(`UPDATE metric_snapshots SET value = 100`)).rejects.toThrow(/append-only/);
   });
