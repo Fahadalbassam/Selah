@@ -216,6 +216,10 @@ function hrefFor(kind: string, entityType: string, entityId: string, orgKind: Pr
   if (kind === "access_review.due") return "/team";
   // An invitation's person was not placed in the position chosen (org chart, part 3): People in positions, where they are placed.
   if (kind === "org_chart.invite_not_placed") return orgKind === "client" ? "/departments/structure?view=people" : `/clients/${entityId}/structure?view=people`;
+  // A suggested change to the structure (org chart, part 5): the firm reads and answers it on the client's
+  // Structure tab; the client's admin reads the answer on its own.
+  if (kind === "org_chart.change_requested") return `/clients/${entityId}/structure#suggestions`;
+  if (kind.startsWith("org_chart.request_")) return orgKind === "client" ? "/departments/structure#suggestions" : null;
   if (kind.startsWith("info_request.")) return `/projects/${entityId}?tab=files`;
   // A drafted status pack waits on the project's progress tab; a quiet client shows in the Projects table ("Client last active").
   if (kind === "report.pack_drafted") return `/projects/${entityId}?tab=progress`;

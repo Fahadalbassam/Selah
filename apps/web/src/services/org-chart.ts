@@ -1,10 +1,12 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
+  departmentMembers,
   departments,
+  documents,
   orgChartChangeRequests,
   orgCharts,
   orgChartVersions,
@@ -29,8 +31,10 @@ import {
   versionStatus,
   type VersionStatus,
 } from "@/lib/org-chart";
+import { structureChanges } from "@/lib/org-chart-changes";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { audit } from "./audit";
+import { putDepartmentMember } from "./engagement";
 import { listFiles } from "./files";
 import { isOverdue, listActions } from "./queries";
 
@@ -518,6 +522,11 @@ export async function getStructure(tx: Tx, principal: Principal, clientOrgId: st
     shown = { version: current.version, status: statusOf(current.version.id), asOf: today, names: current.names, units: current.units, positions: current.positions };
   } else if (draftSummary) shown = await draft();
   const { departmentsEnabled } = await clientOf(tx, clientOrgId);
+  // The board resolution of the version shown, when there is one and the reader may open the file (row-level security decides).
+  const resolutionId = shown?.version.resolutionDocumentId ?? null;
+  const [resolution] = resolutionId
+    ? await tx.select({ id: documents.id, title: documents.title }).from(documents).where(eq(documents.id, resolutionId)).limit(1)
+    : [];
   const can = {
     canEditDraft: current.canEditDraft,
     canPublish: current.canPublish,
@@ -525,7 +534,16 @@ export async function getStructure(tx: Tx, principal: Principal, clientOrgId: st
     canSetShowNames: current.canSetShowNames,
     canSuggest: current.canSuggest,
   };
-  return { client: { ...current.client, departmentsEnabled }, today, current: current.version, versions, shown, draftId: draftSummary?.id ?? null, can };
+  return {
+    client: { ...current.client, departmentsEnabled },
+    today,
+    current: current.version,
+    versions,
+    shown,
+    resolution: resolution ?? null,
+    draftId: draftSummary?.id ?? null,
+    can,
+  };
 }
 
 export type Structure = Awaited<ReturnType<typeof getStructure>>;
@@ -996,23 +1014,166 @@ export async function deletePosition(tx: Tx, principal: Principal, positionId: s
 
 // ------------------------------------------------------------------ publishing
 
+// ------------------------------------------------------------------ publishing
+
+/** What publishing does with a person planned for a position of the draft (app_org_chart_plan_outcomes). */
+export type PlanOutcome = "place" | "left" | "holds" | "filled";
+
+export interface PlannedPerson {
+  positionId: string;
+  code: string;
+  userId: string | null;
+  name: string | null;
+  outcome: PlanOutcome;
+  /** In a one-person position, who leaves it the day before the planned person takes it (changeHolder()'s rule). */
+  leaving: string[];
+}
+
+type PlanRow = { position_id: string; code: string; user_id: string | null; name: string | null; outcome: PlanOutcome; leaving: string[] | null };
+const plannedPerson = (r: PlanRow): PlannedPerson => ({
+  positionId: r.position_id,
+  code: r.code,
+  userId: r.user_id,
+  name: r.name,
+  outcome: r.outcome,
+  leaving: r.outcome === "place" ? (r.leaving ?? []) : [],
+});
+
+/** The plans of a draft as publishing on a day treats them; the draft's editors only (the database gives anyone else none). */
+async function planOutcomes(tx: Tx, draftId: string, effectiveOn: string): Promise<PlannedPerson[]> {
+  const { rows } = await tx.execute<PlanRow>(sql`
+    select position_id, code, user_id, name, outcome, leaving from app_org_chart_plan_outcomes(${draftId}::uuid, ${effectiveOn}::date)`);
+  return rows.map(plannedPerson);
+}
+
+/** The first day a new version may take effect: today, or the current version's day when that is later (never back-dated). */
+export function earliestEffective(currentEffectiveOn: string | null, today: string): string {
+  return currentEffectiveOn && currentEffectiveOn > today ? currentEffectiveOn : today;
+}
+
+/** A version's unit id as the draft copied from it holds it (app_org_chart_copy: md5 of the draft's id and the unit's). */
+function copiedId(draftId: string, unitId: string): string {
+  const h = createHash("md5").update(`${draftId}${unitId}`).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/**
+ * The files the board resolution can be: the client's files the client can
+ * see (shared, not archived), as the publisher reads them under their own
+ * rights, so only a file they may open. Newest first.
+ */
+async function resolutionChoices(tx: Tx, clientOrgId: string) {
+  return tx
+    .select({ id: documents.id, title: documents.title, createdAt: documents.createdAt })
+    .from(documents)
+    .where(and(eq(documents.orgId, clientOrgId), eq(documents.visibility, "shared"), ne(documents.state, "archived")))
+    .orderBy(desc(documents.createdAt))
+    .limit(200);
+}
+
+/** Whether one file can be the board resolution: the client's, shared, not archived, and one the publisher may open. */
+async function resolutionReadable(tx: Tx, clientOrgId: string, documentId: string) {
+  const [d] = await tx
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.id, documentId), eq(documents.orgId, clientOrgId), eq(documents.visibility, "shared"), ne(documents.state, "archived")))
+    .limit(1);
+  return !!d;
+}
+
+/**
+ * What the publisher checks before publishing the draft (the publishing
+ * screen): what changes against the version in effect (units and positions
+ * added, moved, renamed and removed), the people whose positions the new
+ * version drops and what happens to them on the day it takes effect (part
+ * 3's rule: a holding that has started ends the day before; one that has not
+ * started is cancelled), what happens to each person planned for the draft
+ * (placed from that day, or skipped and why), and the files the board
+ * resolution may be. For the firm admin, the lead and the deputy; anyone
+ * else a 404. `draftId` is what the publisher must send back.
+ */
+export async function publishPreview(tx: Tx, principal: Principal, clientOrgId: string, effectiveOn?: string | null, today = firmToday()) {
+  const client = await clientOf(tx, clientOrgId);
+  assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
+  if (effectiveOn) checkDay(effectiveOn);
+  const chart = await chartOf(tx, client.id);
+  const draft = chart ? await versionIn(tx, chart.id, "draft") : null;
+  if (!chart || !draft) throw new NotFoundError("draft");
+  const current = await versionIn(tx, chart.id, "published");
+  const after = await structureOf(tx, draft);
+  const before = current ? await structureOf(tx, current) : { units: [], positions: [] };
+  const changes = structureChanges(before, after, (draftUnitId) => before.units.find((u) => copiedId(draft.id, u.id) === draftUnitId)?.id ?? null);
+  // The day the new version takes effect: the one asked, else the earliest allowed, which is today or
+  // the current version's day if later (never back-dated: review B1).
+  const earliest = earliestEffective(current?.effectiveOn ?? null, today);
+  const on = effectiveOn && effectiveOn >= earliest ? effectiveOn : earliest;
+  const lastDay = dayBefore(on);
+  // Part 3's rule as publishing applies it (close_dropped_holdings): started by today ends, never deleted.
+  const startedBy = lastDay > today ? lastDay : today;
+  const dropped = new Set(changes.positions.removed.map((p) => p.lineageId));
+  const leaving = dropped.size
+    ? await tx
+        .select({ lineage: positionHolders.positionLineageId, userId: positionHolders.userId, typed: positionHolders.name, userName: user.name, from: positionHolders.fromDate })
+        .from(positionHolders)
+        .leftJoin(user, eq(user.id, positionHolders.userId))
+        .where(
+          and(
+            eq(positionHolders.chartId, chart.id),
+            inArray(positionHolders.positionLineageId, [...dropped]),
+            sql`(${positionHolders.toDate} is null or ${positionHolders.toDate} > ${lastDay}::date)`,
+          ),
+        )
+        .orderBy(asc(positionHolders.fromDate))
+    : [];
+  const removedBy = new Map(changes.positions.removed.map((p) => [p.lineageId, p]));
+  return {
+    client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
+    draftId: draft.id,
+    /** The draft as shown here (its units, positions and plans): publishing with it is refused once the draft changes (review N2). */
+    revision: (await tx.execute<{ r: string | null }>(sql`select app_org_chart_draft_revision(${draft.id}::uuid) as r`)).rows[0]?.r ?? null,
+    hasUnits: after.units.length > 0,
+    current: current ? summary(current, await publisherName(tx, current.publishedBy)) : null,
+    nextNumber: (current?.number ?? 0) + 1,
+    today,
+    effectiveOn: on,
+    earliest,
+    changes,
+    /** People on positions the new version drops: their holding ends the day before it takes effect, or, not started yet, is cancelled. */
+    dropped: leaving.map((h) => {
+      const p = removedBy.get(h.lineage)!;
+      const cancelled = h.from > startedBy;
+      return { code: p.code, titleAr: p.titleAr, titleEn: p.titleEn, name: h.typed ?? h.userName, endsOn: cancelled ? null : h.from > lastDay ? h.from : lastDay, cancelled };
+    }),
+    plans: client.minimalRecords ? [] : await planOutcomes(tx, draft.id, on),
+    resolutions: await resolutionChoices(tx, client.id),
+  };
+}
+
+export type PublishPreview = Awaited<ReturnType<typeof publishPreview>>;
+
 /**
  * Publish the draft (the firm admin, the lead or the deputy) with the day it
- * takes effect and, optionally, the board resolution (a file of the client
- * that the client can see). The current version becomes history, the draft
+ * takes effect, on or after the current version's, and, optionally, the
+ * board resolution (a file of the client that the client can see and the
+ * publisher may open). The current version becomes history, the draft
  * becomes current with its structure frozen, and a copy becomes the next
- * draft. Holdings of positions the new structure drops end today.
- * `draftId` is the draft the publisher checked (getDraft's `draft.id`): once
- * it is published, or for any id that is not this client's draft, publishing
- * is refused ("this draft is no longer the current one", orgChart.errors
- * draftChanged), so two publishers at the same moment make one version. A
- * malformed id is a bad request.
+ * draft. Holdings of positions the new structure drops end the day before it
+ * takes effect (part 3). The people planned for the draft's positions are
+ * placed in them from that day, each checked again first: someone who is no
+ * longer one of the client's active people, or already holds the position,
+ * is skipped and listed; the plans are then cleared, and the client's lead
+ * and deputy are told (the database does it all: app_publish_org_chart).
+ * `draftId` is the draft the publisher checked (getDraft's or
+ * publishPreview's `draftId`): once it is published, or for any id that is
+ * not this client's draft, publishing is refused ("this draft is no longer
+ * the current one", orgChart.errors draftChanged), so two publishers at the
+ * same moment make one version. A malformed id is a bad request.
  */
 export async function publish(
   tx: Tx,
   principal: Principal,
   clientOrgId: string,
-  input: { draftId: string; effectiveOn: string; resolutionDocumentId?: string | null },
+  input: { draftId: string; effectiveOn: string; resolutionDocumentId?: string | null; revision?: string | null },
 ) {
   const client = await clientOf(tx, clientOrgId);
   assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
@@ -1020,11 +1181,22 @@ export async function publish(
   if (!UUID.test(input.draftId ?? "")) throw new BadRequestError("draft_id");
   const chart = await chartOf(tx, client.id);
   if (!chart) throw new NotFoundError("draft");
-  const { rows } = await tx.execute<{ id: string }>(
-    sql`select app_publish_org_chart(${chart.id}::uuid, ${input.draftId}::uuid, ${input.effectiveOn}::date, ${input.resolutionDocumentId ?? null}::uuid) as id`,
+  const current = await versionIn(tx, chart.id, "published");
+  if (input.effectiveOn < earliestEffective(current?.effectiveOn ?? null, firmToday())) throw new BadRequestError("effective_before");
+  const resolution = input.resolutionDocumentId ?? null;
+  // The publisher may open the file (read under their rights), whatever its age (review N3).
+  if (resolution && (!UUID.test(resolution) || !(await resolutionReadable(tx, client.id, resolution)))) throw new BadRequestError("resolution");
+  // The database works out who is placed inside its lock and says so (review N1); with the screen's revision,
+  // it refuses a draft that changed since it was shown (review N2).
+  const { rows } = await tx.execute<{ out: { version: string; number: number; plans: PlanRow[] } }>(
+    sql`select app_publish_org_chart_checked(${chart.id}::uuid, ${input.draftId}::uuid, ${input.revision ?? null}::text, ${input.effectiveOn}::date, ${resolution}::uuid) as out`,
   );
-  const id = rows[0]!.id;
-  const [v] = await tx.select({ number: orgChartVersions.number }).from(orgChartVersions).where(eq(orgChartVersions.id, id)).limit(1);
+  const out = rows[0]!.out;
+  const id = out.version;
+  const v = { number: out.number };
+  const planned = out.plans.map(plannedPerson);
+  const placed = planned.filter((x) => x.outcome === "place");
+  const skipped = planned.filter((x) => x.outcome !== "place");
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,
@@ -1032,9 +1204,9 @@ export async function publish(
     resourceType: "org_chart",
     resourceId: id,
     outcome: "allow",
-    meta: { client: client.id, number: v?.number ?? null, effectiveOn: input.effectiveOn, resolution: input.resolutionDocumentId ?? null },
+    meta: { client: client.id, number: v?.number ?? null, effectiveOn: input.effectiveOn, resolution, placed: placed.length, skipped: skipped.length },
   });
-  return { versionId: id, number: v?.number ?? null };
+  return { versionId: id, number: v?.number ?? null, placed, skipped };
 }
 
 /**
@@ -1571,6 +1743,9 @@ export async function suggestChange(tx: Tx, principal: Principal, clientOrgId: s
   return { id: row!.id };
 }
 
+/** Whether the reader may read the client's suggestions (the firm's readers, the client's admins). */
+export const canReadRequests = (principal: Principal, clientOrgId: string) => can(principal, "org_chart_request.read", clientOrgId);
+
 const author = alias(user, "author");
 const closer = alias(user, "closer");
 
@@ -1618,6 +1793,158 @@ export async function closeChangeRequest(tx: Tx, principal: Principal, requestId
     resourceId: requestId,
     outcome: "allow",
     meta: { client: row.orgId, status },
+  });
+  return { ok: true };
+}
+
+/**
+ * The suggestions waiting on the client's lead or deputy, for the firm home's
+ * "Waiting on your decision" (batch 2): every open one on a client the
+ * reader leads, read under their rights, with who wrote it. The firm marks
+ * one done or declined on the client's Structure tab.
+ */
+export async function openRequestsToDecide(tx: Tx, principal: Principal) {
+  if (principal.orgKind !== "firm" || !principal.leadClientIds.size) return [];
+  const rows = await tx
+    .select({
+      id: orgChartChangeRequests.id,
+      orgId: orgChartChangeRequests.orgId,
+      what: orgChartChangeRequests.what,
+      createdAt: orgChartChangeRequests.createdAt,
+      byName: author.name,
+      orgName: organizations.name,
+      orgNameAr: organizations.nameAr,
+    })
+    .from(orgChartChangeRequests)
+    .innerJoin(organizations, eq(organizations.id, orgChartChangeRequests.orgId))
+    .leftJoin(author, eq(author.id, orgChartChangeRequests.createdBy))
+    .where(and(eq(orgChartChangeRequests.status, "open"), inArray(orgChartChangeRequests.orgId, [...principal.leadClientIds])))
+    .orderBy(asc(orgChartChangeRequests.createdAt));
+  return rows.filter((r) => can(principal, "org_chart_request.close", r.orgId));
+}
+
+// ------------------------------------------------------------------ the department-head suggestion
+
+export interface HeadSuggestion {
+  departmentId: string;
+  departmentNameAr: string | null;
+  departmentNameEn: string | null;
+  unitNameAr: string | null;
+  unitNameEn: string | null;
+  positionTitleAr: string | null;
+  positionTitleEn: string | null;
+  /** Who holds the unit's head position today, with an account. */
+  holder: { userId: string; name: string };
+  /** Who heads the department in Selah today (nobody, or someone else). */
+  heads: { userId: string; name: string }[];
+}
+
+const headRecord = (p: Principal, orgId: string): Resource => ({
+  type: "department",
+  orgId,
+  firmOrgId: p.orgKind === "firm" ? p.orgId : undefined,
+  projectId: null,
+});
+
+/**
+ * Where the structure and the departments disagree about a head: the head
+ * position of a unit linked to one of the client's active departments is
+ * held today, on the current version, by someone with an account who is not
+ * that department's head in Selah. Only a suggestion, for the people who
+ * manage departments (the client's admin, the firm admin): nothing changes
+ * unless one of them confirms it, and the structure itself never grants or
+ * limits anyone's access. Empty with departments off, at a client that keeps
+ * minimal records, or for anyone else.
+ */
+export async function headSuggestions(tx: Tx, principal: Principal, clientOrgId: string, today = firmToday()): Promise<HeadSuggestion[]> {
+  if (!UUID.test(clientOrgId) || !authorize(principal, "department.manage", headRecord(principal, clientOrgId)).allowed || !canReadStructure(principal, clientOrgId)) return [];
+  const chart = await getPublishedChart(tx, principal, clientOrgId, today);
+  const { departmentsEnabled } = await clientOf(tx, clientOrgId);
+  if (!chart.version || chart.client.minimalRecords || !departmentsEnabled) return [];
+  const linked = chart.units.filter((u) => u.departmentId);
+  if (!linked.length) return [];
+  const active = await tx
+    .select({ id: departments.id, nameAr: departments.nameAr, nameEn: departments.nameEn })
+    .from(departments)
+    .where(and(eq(departments.orgId, clientOrgId), eq(departments.active, true), inArray(departments.id, linked.map((u) => u.departmentId!))));
+  const heads = active.length
+    ? await tx
+        .select({ departmentId: departmentMembers.departmentId, userId: departmentMembers.userId, name: user.name })
+        .from(departmentMembers)
+        .innerJoin(user, eq(user.id, departmentMembers.userId))
+        .where(and(eq(departmentMembers.isHead, true), inArray(departmentMembers.departmentId, active.map((d) => d.id))))
+    : [];
+  // Only people still with the client (review S3): the leaving ends a holding today, and the account is off.
+  const activePeople = new Set(
+    (
+      await tx
+        .select({ userId: orgMemberships.userId })
+        .from(orgMemberships)
+        .where(and(eq(orgMemberships.orgId, clientOrgId), eq(orgMemberships.active, true)))
+    ).map((m) => m.userId),
+  );
+  const out: HeadSuggestion[] = [];
+  for (const d of active) {
+    for (const u of linked.filter((x) => x.departmentId === d.id)) {
+      const head = chart.positions.find((p) => p.unitId === u.id && p.isHead);
+      if (!head) continue;
+      // Someone whose holding ends today, or who is no longer one of the client's active people (the leaving
+      // ends a holding today), is leaving the position: never suggested, and not counted (review S3).
+      const staying = head.holders.filter((h) => (h.to === null || h.to > today) && (!h.userId || activePeople.has(h.userId)));
+      // Only while the head position has exactly one holder (review S2): with several, which one heads the
+      // department is the people's own choice, and confirming one would undo the other.
+      if (staying.length !== 1) continue;
+      const theirs = heads.filter((h) => h.departmentId === d.id);
+      for (const h of staying) {
+        if (!h.named || !h.userId || !h.name) continue;
+        if (theirs.some((x) => x.userId === h.userId) || out.some((s) => s.departmentId === d.id && s.holder.userId === h.userId)) continue;
+        out.push({
+          departmentId: d.id,
+          departmentNameAr: d.nameAr,
+          departmentNameEn: d.nameEn,
+          unitNameAr: u.nameAr,
+          unitNameEn: u.nameEn,
+          positionTitleAr: head.titleAr,
+          positionTitleEn: head.titleEn,
+          holder: { userId: h.userId, name: h.name },
+          heads: theirs.map((x) => ({ userId: x.userId, name: x.name })),
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Confirm a department-head suggestion (the client's admin or the firm
+ * admin): the person holding the head position becomes the department's
+ * head in Selah, through the same rule as the Departments page (added to the
+ * department if they were not in it), and whoever headed it stays in it, no
+ * longer as its head. Refused when the suggestion no longer stands (the
+ * structure or the department changed since). Audited.
+ */
+export async function confirmHeadSuggestion(tx: Tx, principal: Principal, clientOrgId: string, input: { departmentId: string; userId: string }) {
+  assertAllowed(principal, "department.manage", headRecord(principal, clientOrgId));
+  const s = (await headSuggestions(tx, principal, clientOrgId)).find((x) => x.departmentId === input.departmentId && x.holder.userId === input.userId);
+  if (!s) throw new BadRequestError("suggestion_gone");
+  try {
+    for (const h of s.heads) await putDepartmentMember(tx, principal, s.departmentId, h.userId, { isHead: false });
+    await putDepartmentMember(tx, principal, s.departmentId, s.holder.userId, { isHead: true });
+  } catch (e) {
+    // The department's own rule refused it (the person left in the meantime): said in plain words, never the database's.
+    if (/department members are active people/.test(`${(e as Error).message} ${((e as Error).cause as Error | undefined)?.message ?? ""}`)) {
+      throw new BadRequestError("suggestion_gone");
+    }
+    throw e;
+  }
+  await audit(tx, {
+    actorId: principal.userId,
+    orgId: principal.orgId,
+    action: "org_chart.head_confirm",
+    resourceType: "department",
+    resourceId: s.departmentId,
+    outcome: "allow",
+    meta: { client: clientOrgId, head: s.holder.userId, before: s.heads.length },
   });
   return { ok: true };
 }

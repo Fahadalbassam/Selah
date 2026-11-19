@@ -23,6 +23,7 @@ import { authorize, canTransition, OPEN_STATUSES, type ActionStatus, type Princi
 import { firmToday } from "@/lib/dates";
 import { NotFoundError } from "@/server/errors";
 import { audiencesForMe } from "./audience";
+import { openRequestsToDecide } from "./org-chart";
 
 // A firm person's day across every client (Wave 3, research section 7), read
 // by the firm home (page audit 4.2; "Today" became the home, decision D2):
@@ -84,7 +85,7 @@ export interface MeetingItem extends Item {
 }
 
 export interface DecisionItem extends Omit<Item, "projectId" | "projectTitle"> {
-  kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment" | "disputed" | "ready_to_close";
+  kind: "join_request" | "deadline_request" | "closure_request" | "info_request" | "deliverable_comment" | "org_chart_request" | "disputed" | "ready_to_close";
   projectId: string | null;
   projectTitle: string | null;
   /** Who asked (join, deadline and closure requests). */
@@ -611,6 +612,23 @@ export async function today(tx: Tx, principal: Principal, day = firmToday()): Pr
         at: c.commentedAt!,
       });
     }
+  }
+  // Changes the client's admin suggested to its organisation structure (org
+  // chart, part 5), on the clients I lead or deputise for: the lead makes one
+  // in the draft and marks it done, or declines it, on the Structure tab.
+  for (const r of await openRequestsToDecide(tx, principal)) {
+    decisions.push({
+      kind: "org_chart_request",
+      id: r.id,
+      group: { id: r.orgId, internal: false, name: r.orgName, nameAr: r.orgNameAr },
+      projectId: null,
+      projectTitle: null,
+      title: r.what,
+      href: `/clients/${r.orgId}/structure#suggestions`,
+      who: r.byName,
+      proposed: null,
+      at: r.createdAt,
+    });
   }
   // Recommendations the client disagrees with, on the client projects I work
   // on: the same rule as the "disputed" deviation (app_recommendation_stances,
