@@ -63,38 +63,66 @@ GRANT EXECUTE ON FUNCTION app_can_approve_report(uuid) TO selah_app;
 --> statement-breakpoint
 -- 3. The database keeps the writer, the approval and the send in order. The
 --    app never sets drafted_by or approved_at itself: it names itself as the
---    approver (approved_by = app_uid()) and the stamp is the database's. The
---    schema owner (migrations, the seed, tests) is not checked, as in
---    check_status_pack(). Fires before report_frozen and status_pack (names
---    sort in that order).
+--    approver (approved_by = app_uid()) and the stamp is the database's.
+--    Whoever writes and freezes a report's note is its writer (review S1): a
+--    report the app makes is made by the caller in their own name with its
+--    numbers frozen at once, and a status pack's note is written only as it
+--    is issued, by its issuer. Only the app's roles are checked; the schema
+--    owner (migrations, the monthly job, the seed, tests) is not (review N6).
+--    Fires before report_frozen and status_pack (names sort in that order).
+--
+-- The caller's own progress-draft answer in the assistant, in a chat on this project (review N1).
+CREATE FUNCTION app_own_progress_draft(mid uuid, pid uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM ai_messages m JOIN ai_conversations c ON c.id = m.conversation_id
+    WHERE m.id = mid AND m.user_id = app_uid() AND c.user_id = app_uid() AND m.role = 'assistant'
+      AND m.progress_draft AND c.project_id = pid)
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_own_progress_draft(uuid, uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_own_progress_draft(uuid, uuid) TO selah_app;
+--> statement-breakpoint
 CREATE FUNCTION check_report_approval() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 BEGIN
-  IF app_uid() IS NULL THEN RETURN NEW; END IF;
+  IF current_user NOT IN ('selah_app', 'selah_auth') THEN RETURN NEW; END IF;
+  IF app_uid() IS NULL THEN
+    RAISE EXCEPTION 'a report is written only by a signed-in person' USING ERRCODE = 'insufficient_privilege';
+  END IF;
   IF TG_OP = 'INSERT' THEN
-    NEW.drafted_by := CASE WHEN NEW.kind = 'report' THEN NEW.generated_by END;
+    IF NEW.generated_by IS DISTINCT FROM app_uid() THEN
+      RAISE EXCEPTION 'you write a report only in your own name' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF NEW.kind = 'report' AND NEW.metrics IS NULL THEN
+      RAISE EXCEPTION 'a report freezes its numbers when it is made' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.drafted_by := app_uid();
     NEW.approved_by := NULL;
     NEW.approved_at := NULL;
     IF NEW.visibility = 'shared' THEN
       RAISE EXCEPTION 'a report is sent to the client only once approved' USING ERRCODE = 'check_violation';
     END IF;
-    IF NEW.draft_message_id IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM ai_messages m WHERE m.id = NEW.draft_message_id AND m.user_id = app_uid() AND m.progress_draft) THEN
+    IF NEW.draft_message_id IS NOT NULL AND NOT app_own_progress_draft(NEW.draft_message_id, NEW.project_id) THEN
       RAISE EXCEPTION 'a report starts only from your own progress draft' USING ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
   END IF;
 
-  -- The writer: kept, except that issuing a status pack names whoever issued it.
-  IF NEW.kind = 'status_pack' AND OLD.metrics IS NULL AND NEW.metrics IS NOT NULL THEN
+  -- The writer: whoever freezes the note; until then the note changes only as it is frozen.
+  IF OLD.metrics IS NULL AND NEW.metrics IS NOT NULL THEN
     NEW.drafted_by := app_uid();
   ELSE
     NEW.drafted_by := OLD.drafted_by;
+    IF OLD.metrics IS NULL AND NEW.body_md IS DISTINCT FROM OLD.body_md THEN
+      RAISE EXCEPTION 'a status pack''s note is written as it is issued' USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
-  -- The draft it started from: only while the note can still change, and only the caller's own.
+  -- The draft it started from: only while the note is being written, and only the caller's own.
   IF NEW.draft_message_id IS DISTINCT FROM OLD.draft_message_id THEN
-    IF OLD.metrics IS NOT NULL OR (NEW.draft_message_id IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM ai_messages m WHERE m.id = NEW.draft_message_id AND m.user_id = app_uid() AND m.progress_draft)) THEN
+    IF OLD.metrics IS NOT NULL OR NEW.metrics IS NULL
+      OR (NEW.draft_message_id IS NOT NULL AND NOT app_own_progress_draft(NEW.draft_message_id, OLD.project_id)) THEN
       RAISE EXCEPTION 'a report starts only from your own progress draft' USING ERRCODE = 'check_violation';
     END IF;
   END IF;

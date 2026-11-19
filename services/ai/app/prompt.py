@@ -44,10 +44,13 @@ You are answering a person at the CLIENT organisation, not a consultant. Extra r
 
 # Added for firm staff who ask for a progress-update draft (migration 0110):
 # the same facts-only draft a client person gets, for the free-text note of
-# the firm's report to the client. The web app sends only the work the client
-# may be shown and refuses every other draft before the model is asked; a
-# person edits the note, a colleague approves the report and someone presses
-# Send. Selah never sends it.
+# the firm's report to the client. For this draft the web app sends only its
+# progress records (progressRecords with clientSide in
+# apps/web/src/services/assistant.ts): released actions under shared
+# recommendations tagged to no department, which every client reader of the
+# report may see; no file passage, searched record, chat-subject record or
+# earlier turn goes with them. A person edits the note, a colleague approves
+# the report and someone presses Send. Selah never sends it.
 STAFF_DRAFT_RULES = """
 
 The consultant asks for a draft of the client's progress update, for the note of the firm's report to the client. Extra rules:

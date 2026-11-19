@@ -17,7 +17,7 @@ import {
   statusIntent,
   type StatusKind,
 } from "@/lib/assistant-search";
-import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, STAFF_DRAFT_REFUSAL, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
+import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
@@ -104,7 +104,7 @@ export interface PreparedAsk {
   client: boolean;
   /** A draft of the progress update (a client person, or firm staff for the firm's report): the answer starts with DRAFT_MARK. */
   progressDraft: boolean;
-  /** Any other draft, from anyone: refused without asking the model (review S3; staff since migration 0110). */
+  /** A client person asked for any other draft: refused without asking the model (review S3). */
   refusedDraft: boolean;
   /** Null for a chat across projects. */
   projectId: string | null;
@@ -191,9 +191,14 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // A progress-update draft, built from the records the person can read, done ones included: a client
   // person's own, or firm staff's for the note of the firm's report (Fahad, 19 Nov: the same draft, reused).
   const progressDraft = progressDraftIntent(input.question);
+  // Firm staff's draft becomes the note of a report every client reader sees (migration 0110, review B1):
+  // it is built ONLY from the progress records below, which keep to what every client reader may see.
+  // No file passage, no searched record, no chat-subject record, no earlier turn goes with it.
+  const staffDraft = progressDraft && !client;
   // "My deadlines": only the person's own actions. It only narrows what they can read (statusRecords).
-  // Any other draft (an e-mail, a letter, a decision) is refused here, not left to the prompt (review S3), for staff too.
-  const refusedDraft = !progressDraft && otherDraftIntent(input.question);
+  // A client person's other draft (an e-mail, a letter, a decision) is refused here, not left to the
+  // prompt (review S3). Firm staff draft other things as before (review S3 of the report flow).
+  const refusedDraft = client && !progressDraft && otherDraftIntent(input.question);
   // A client item (Gate B): firm staff keep the project's status for "my ..." (review S5).
   const mine = client && !progressDraft && mineIntent(input.question) && (kinds.size > 0 || myDeadlinesIntent(input.question));
   if (mine && !kinds.size) kinds.add("open");
@@ -204,31 +209,31 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const team = client && consultantIntent(input.question) ? await consultantRecords(tx, principal, targets, across ? whereOf : undefined) : [];
   const counts = [
     ...(progressDraft
-      ? await progressRecords(tx, ids, across ? whereOf : undefined, { clientSide: !client })
+      ? await progressRecords(tx, ids, across ? whereOf : undefined, { clientSide: staffDraft })
       : kinds.size
         ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined, mine ? { mine: principal.userId } : {})
         : []),
     // Indicators are a client's own; across clients there is no one set to give.
     // Across projects they belong to the client, so the answer quotes every project of it the person can ask about
     // (ai_messages.project_ids): taken off any of them, the person no longer reads the answer.
-    ...(clientOrgs.length === 1 && indicatorIntent(input.question)
+    ...(!staffDraft && clientOrgs.length === 1 && indicatorIntent(input.question)
       ? (await indicatorRecords(tx, clientOrgs[0]!, across ? undefined : projectId!)).map((r) =>
           across ? { ...r, projectIds: targets.filter((p) => p.orgId === clientOrgs[0]).map((p) => p.id) } : r,
         )
       : []),
   ];
   const status = [...team, ...counts];
-  const found = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
+  const found = staffDraft ? [] : await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "files" });
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
-  const hits = await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "records" });
+  const hits = staffDraft ? [] : await retrieve(tx, scopes, vector, { query: input.question, case: caseRef, sources: "records" });
   // Status lives in records, not files: a status question keeps fewer file passages (at least 2, at most
   // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
   const statusRoom = MAX_PASSAGES - 1 - status.length;
   const chunks = found.slice(0, counts.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : Math.min(TOP_K, MAX_PASSAGES - team.length));
   // "My deadlines": the search's records (a recommendation lists all its actions) would put others' work beside
   // "your actions"; only the chat's own record is kept.
-  const linked = (await linkedRecords(tx, caseRef, chunks, hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
+  const linked = (staffDraft ? [] : await linkedRecords(tx, caseRef, chunks, hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
   // A status question: its rows first (the count, then the actions), then what the search linked.
   // The AI service takes MAX_PASSAGES, so what is cut is cut from the end.
   const records = status.length
@@ -237,7 +242,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
 
   // The chat's own record goes first and says so: asked "explain this action", the model
   // otherwise picked whichever action came first (client run, 2026-10-24).
-  const isCase = (r: RecordPassage) => caseRef !== null && caseRef.type === r.type && caseRef.id === r.id;
+  const isCase = (r: RecordPassage) => !staffDraft && caseRef !== null && caseRef.type === r.type && caseRef.id === r.id;
   const subject = records.filter(isCase);
   const others = records.filter((r) => !isCase(r));
   const room = MAX_PASSAGES - subject.length;
@@ -273,7 +278,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // for translation, never from the list of names the asker may read: a name she may not
   // read but wrote, or that a passage holds (a typed holder of the client's structure),
   // is masked all the same, for every asker.
-  const history = chat ? await recentTurns(tx, chat.id) : [];
+  // Earlier turns are context for a follow-up; a staff draft goes without them (review B1).
+  const history = chat && !staffDraft ? await recentTurns(tx, chat.id) : [];
   const question = input.question;
   const outgoing = [question, ...sources.flatMap((s) => [s.text, s.source]), ...history.map((h) => h.content)].join("\n");
   const masker = await textMasker(tx, ids, outgoing, masked);
@@ -389,7 +395,7 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
     text = grounded ? said : cannotConfirm(language, question);
     if (!grounded) citations = [];
   } else if (prepared.refusedDraft) {
-    text = (prepared.client ? DRAFT_REFUSAL : STAFF_DRAFT_REFUSAL)[language === "auto" ? detectLang(question) : language];
+    text = DRAFT_REFUSAL[language === "auto" ? detectLang(question) : language];
   } else {
     text = cannotConfirm(language, question);
   }
@@ -986,10 +992,15 @@ export async function progressRecords(
 ): Promise<RecordPassage[]> {
   if (!projectIds.length) return [];
   const today = sql`${firmToday()}::date`;
-  // Firm staff's draft is for a report the client will read: only the work the client may be shown
-  // (released actions under shared recommendations), as app_project_progress(client_side) counts it (L4).
+  // Firm staff's draft is the note of a report every client reader sees, whatever their department
+  // (migration 0110, reviews B1 and B2): only work every client reader may be shown. Released actions
+  // under shared recommendations (as app_project_progress(client_side) counts, L4), and, at a client with
+  // departments on, only work tagged to no department (neither the action nor its recommendation).
+  // Actions have no audience picker, so nothing narrower applies to them.
   const shown = opts.clientSide
-    ? sql` AND (a.recommendation_id IS NULL OR EXISTS (SELECT 1 FROM recommendations r WHERE r.id = a.recommendation_id AND r.visibility = 'shared'))`
+    ? sql` AND (a.recommendation_id IS NULL OR EXISTS (SELECT 1 FROM recommendations r WHERE r.id = a.recommendation_id AND r.visibility = 'shared'
+        AND (r.department_id IS NULL OR NOT (SELECT o.departments_enabled FROM organizations o WHERE o.id = a.org_id))))
+      AND (a.department_id IS NULL OR NOT (SELECT o.departments_enabled FROM organizations o WHERE o.id = a.org_id))`
     : sql``;
   const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) AND a.status <> 'draft'${shown}`;
   const rows = (
