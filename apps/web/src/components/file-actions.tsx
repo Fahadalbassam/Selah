@@ -24,7 +24,18 @@ export interface FileActionsProps {
   visibility: "shared" | "firm_private" | "client_private" | "user_private";
   aiIndexable: boolean;
   /** From fileControls() on the server; the server decides again. */
-  can: { shareWithClient: boolean; shareWithFirm: boolean; assistant: boolean; newVersion: boolean; withdraw: boolean; audience?: boolean };
+  can: {
+    shareWithClient: boolean;
+    shareWithFirm: boolean;
+    assistant: boolean;
+    /** The switch is someone else's (D1): which side's admin may change it, besides the uploader. */
+    assistantLocked?: "firm" | "client" | null;
+    newVersion: boolean;
+    withdraw: boolean;
+    audience?: boolean;
+  };
+  /** Who uploaded it, when the reader may see that name: said when the switch is someone else's. */
+  uploaderName?: string | null;
   /** After a change; refreshes the page when not given. */
   onChanged?: () => void;
   /** The assistant may read this file here: said as the menu's first line, not a badge on the row (October review, item 7). */
@@ -37,7 +48,7 @@ export interface FileActionsProps {
  * new version. Used wherever files are listed, so every screen offers the
  * same choices. Renders nothing when there is nothing to offer.
  */
-export function FileActions({ id, title, visibility, aiIndexable, can, onChanged, assistantReads = false }: FileActionsProps) {
+export function FileActions({ id, title, visibility, aiIndexable, can, onChanged, assistantReads = false, uploaderName = null }: FileActionsProps) {
   const t = useTranslations("fileActions");
   const tc = useTranslations("common");
   const ta = useTranslations("audience");
@@ -54,7 +65,8 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
   const [error, setError] = useState<string | null>(null);
   const done = () => (onChanged ? onChanged() : router.refresh());
 
-  if (!assistantReads && !can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.newVersion && !can.withdraw && !can.audience) return null;
+  if (!assistantReads && !can.shareWithClient && !can.shareWithFirm && !can.assistant && !can.assistantLocked && !can.newVersion && !can.withdraw && !can.audience)
+    return null;
 
   async function share(message: string) {
     if (!(await confirm(message))) return;
@@ -149,6 +161,10 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
           {can.shareWithFirm ? <DropdownMenuItem onSelect={() => share(t("shareWithFirmConfirm"))}>{t("shareWithFirm")}</DropdownMenuItem> : null}
           {can.assistant ? (
             <DropdownMenuItem onSelect={() => assistant(!aiIndexable)}>{aiIndexable ? t("assistantTurnOff") : t("assistantTurnOn")}</DropdownMenuItem>
+          ) : can.assistantLocked ? (
+            <DropdownMenuLabel className="max-w-64 text-xs font-normal text-muted-foreground">
+              <AssistantWho side={can.assistantLocked} uploaderName={uploaderName} />
+            </DropdownMenuLabel>
           ) : null}
           {can.newVersion ? <DropdownMenuItem onSelect={() => setVersionOpen(true)}>{t("newVersion")}</DropdownMenuItem> : null}
           {can.withdraw ? (
@@ -240,4 +256,10 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
       />
     </>
   );
+}
+
+/** Who may switch the assistant for a file that is someone else's (D1): its uploader, or the side's admin. */
+export function AssistantWho({ side, uploaderName }: { side: "firm" | "client"; uploaderName?: string | null }) {
+  const t = useTranslations("fileActions.assistantWho");
+  return <>{uploaderName ? t(side, { name: uploaderName }) : t(`${side}Unnamed`)}</>;
 }

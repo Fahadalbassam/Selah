@@ -171,7 +171,7 @@ A project page has five tabs: **Plan** · **Requests and files** · **Meetings**
 **When:** a steering committee, a department workshop, a hand-over. **Who:** staffed consultants; the client's admins and managers can book too.
 
 1. Project page → **Meetings** → **Book a meeting**: the time, the call link (Meet, Teams or Zoom) or the place, the attendees, and a department if it is one department's meeting.
-2. A department's meeting lists only that department's work on its agenda. A meeting of the whole project opens only for people who may see everything on the project; if you invite someone with limits, the form names them before you save and offers that department's meeting instead. An invited action owner sees only their own actions on the agenda.
+2. A department's meeting lists only that department's work on its agenda. A meeting of the whole project opens only for people who may see everything on the project; someone with limits cannot be invited to it: the form names them, offers that department's meeting instead, and does not save until they are taken off. An invited action owner sees only their own actions on the agenda.
 3. **Send invites**: every attendee gets a calendar invitation by email. Send them again after any change.
 4. The agenda is built from the work itself: late work, work waiting for review, blocked work, and what changed since the last meeting.
 5. Afterwards: **Mark as held**, then **Edit summary**, **Record a decision**, and **Add a follow-up** for each thing someone took on.

@@ -160,6 +160,9 @@ export async function bookMeeting(
     // same (policy whole_project on meetings).
     throw new BadRequestError("book a meeting for one of your departments: a whole-project meeting is for people who see all of the project's work");
   }
+  // A manager with department limits is not invited to a meeting of the whole project (Gate B, D3):
+  // she could never open it. The database refuses the same (check_meeting_invitee).
+  if (!input.departmentId) await refuseShutOut(tx, projectId, attendees.flatMap((a) => (a.userId && a.userId !== principal.userId ? [a.userId] : [])));
   const id = randomUUID();
   await tx.insert(meetings).values({
     id,
@@ -203,6 +206,25 @@ export async function bookMeeting(
   if (!send) return { id, queued: 0 };
   const { rows } = await tx.execute<{ n: number }>(sql`select app_send_meeting_invites(${id}) as n`);
   return { id, queued: rows[0]!.n };
+}
+
+/** What the booking form and the server say when someone invited could not open a meeting of the whole project (D3). */
+export const SHUT_OUT_MESSAGE =
+  "invite them to a department's meeting: a meeting of the whole project opens only for people who see every department's work";
+
+/**
+ * Refuse inviting, to a meeting of the whole project, a client manager who
+ * could not open it (department limits, or in no department). The invite
+ * list says it of each person (app_meeting_invitees); action owners and
+ * everyone who sees the whole project pass.
+ */
+async function refuseShutOut(tx: Tx, projectId: string, userIds: string[]) {
+  if (!userIds.length) return;
+  const { rows } = await tx.execute<{ user_id: string; firm: boolean; whole_project: boolean }>(
+    sql`select user_id, firm, whole_project from app_meeting_invitees(${projectId}::uuid)`,
+  );
+  const wanted = new Set(userIds);
+  if (rows.some((r) => wanted.has(r.user_id) && !r.firm && !r.whole_project)) throw new BadRequestError(SHUT_OUT_MESSAGE);
 }
 
 /**
@@ -302,10 +324,20 @@ export async function getMeeting(tx: Tx, principal: Principal, id: string) {
     .orderBy(asc(meetingAttendees.createdAt));
   const { rows: names } = await tx.execute<{ user_id: string; name: string }>(sql`select user_id, name from app_meeting_attendee_names(${id})`);
   const nameOf = new Map(names.map((n) => [n.user_id, n.name]));
-  const attendees = rows.map(({ contactName, ...a }) => ({
-    ...a,
-    name: (a.userId ? nameOf.get(a.userId) : contactName) ?? null,
-  }));
+  // Invited before the rule of D3, and unable to open it. Firm staff and the organiser read "Can't open this
+  // meeting"; everyone else just does not see her as missing an answer (no response shown; review N4).
+  const { rows: shut } = await tx.execute<{ user_id: string }>(sql`select app_meeting_shut_out(${id}::uuid) as user_id`);
+  const shutOut = new Set(shut.map((r) => r.user_id));
+  const told = principal.orgKind === "firm" || principal.userId === meeting.organizerId;
+  const attendees = rows.map(({ contactName, ...a }) => {
+    const out = !!a.userId && shutOut.has(a.userId);
+    return {
+      ...a,
+      response: out && !told ? null : a.response,
+      name: (a.userId ? nameOf.get(a.userId) : contactName) ?? null,
+      cannotOpen: out && told,
+    };
+  });
   const decisions = await tx
     .select()
     .from(meetingDecisions)
@@ -595,9 +627,10 @@ export async function addAttendee(
   id: string,
   input: { userId?: string; contactId?: string; optional?: boolean },
 ) {
-  const { resource } = await loadMeeting(tx, principal, id);
+  const { meeting, resource } = await loadMeeting(tx, principal, id);
   assertAllowed(principal, "meeting.run", resource);
   if (!input.userId === !input.contactId) throw new BadRequestError("give a person or a contact");
+  if (input.userId && !meeting.departmentId) await refuseShutOut(tx, meeting.projectId, [input.userId]);
   const [row] = await tx
     .insert(meetingAttendees)
     .values({ meetingId: id, userId: input.userId, contactId: input.contactId, role: input.optional ? "optional" : "required" })

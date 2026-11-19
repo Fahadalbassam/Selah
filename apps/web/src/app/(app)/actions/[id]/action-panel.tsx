@@ -53,6 +53,8 @@ interface Props {
   /** Number of items whose files the verify step also accepts (October review, item 12). */
   toAccept: number;
   firmView: boolean;
+  /** An internal project: no client, so the stuck hint names only the consultants on it. */
+  internal?: boolean;
   /** Firm staff recording for a client the firm runs: each note and file says how and when the client sent it. */
   recordFor: boolean;
   /** A draft whose named owner is no longer an active member of the project team: release would be refused. */
@@ -290,7 +292,7 @@ export function ActionPanel(p: Props) {
                 <ReasonDialog
                   key={l}
                   title={tn("stuck")}
-                  hint={t("blockHint")}
+                  hint={p.internal ? t("blockHintInternal") : p.firmView ? t("blockHintFirm") : t("blockHint")}
                   run={(reason) => transition("blocked", { reason })}
                   onDone={done}
                   trigger={

@@ -326,9 +326,11 @@ describe("C3: only the uploader or the owning side's admin renames or refiles a 
     expect(await refused(rowsAs(U.lead, `UPDATE documents SET title = 'x' WHERE id = $1`, [D.cadminDoc]))).toMatch(/uploaded/);
   });
 
-  it("other changes by a reader are not affected (the assistant flag keeps its own rule)", async () => {
-    // Unchanged rule (question C2 for gate B): a manager may still switch the flag on.
-    const r = await svc(U.mgr, (tx, p) => setAssistantFlag(tx, p, D.cadminDoc, true));
+  it("the assistant flag keeps its own rule (Gate B, D1: the uploader or the side's admin)", async () => {
+    // C2, answered at Gate B: a manager who did not upload the file no longer switches it (0108);
+    // the client's admin still does. tests/db/privacy-batch.test.ts covers the rest.
+    await expect(svc(U.mgr, (tx, p) => setAssistantFlag(tx, p, D.cadminDoc, true))).rejects.toThrow(/forbidden|not found/i);
+    const r = await svc(U.cadmin, (tx, p) => setAssistantFlag(tx, p, D.cadminDoc, true));
     expect(r.aiIndexable).toBe(true);
   });
 });

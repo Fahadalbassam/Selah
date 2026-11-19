@@ -289,6 +289,9 @@ export async function transitionAction(tx: Tx, principal: Principal, id: string,
     });
   }
 
+  // "I am stuck" tells the firm (Gate B, item 1): the database does it on the move itself (trigger
+  // action_stuck, migration 0108); the owner notice above is the only one written here.
+
   // Work waiting for review goes to the project's firm-side audience: the
   // client's lead and the staff on the project (an internal project's leads),
   // plus admins watching it (baseline: Staffed visibility).

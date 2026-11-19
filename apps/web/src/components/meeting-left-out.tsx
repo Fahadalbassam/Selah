@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
  * instead. While booking, the organiser can make it a department's meeting
  * (`offers`); a meeting already booked keeps its department (`booked`).
  * Someone in no department is not included by any department's meeting
- * either, and the warning says so. Saving anyway is allowed; the server
- * decides who opens the meeting.
+ * either, and the warning says so. Saving is refused while they are on the
+ * list (Gate B, D3); the server and the database refuse it too.
  */
 export function LeftOutWarning(props: {
   people: { name: string; departmentIds: string[] }[];
@@ -42,6 +42,7 @@ export function LeftOutWarning(props: {
       <CircleAlert />
       <AlertDescription className="gap-2">
         <p>{t("leftOut", { names, n })}</p>
+        {offers.length ? <p>{t("leftOutOffer", { n })}</p> : null}
         {offers.length ? (
           <div className="flex flex-wrap gap-2">
             {offers.map((d) => (
@@ -51,7 +52,7 @@ export function LeftOutWarning(props: {
             ))}
           </div>
         ) : homeless.length === n ? null : (
-          <p>{props.booked ? t("leftOutKeepsDepartment", { names: inADepartment }) : t("leftOutNoOffer", { names: inADepartment })}</p>
+          <p>{props.booked ? t("leftOutKeepsDepartment", { names: inADepartment }) : t("leftOutNoOffer", { names: inADepartment, n })}</p>
         )}
         {homeless.length ? <p>{t("leftOutNoDepartment", { n: homeless.length, names: homelessNames })}</p> : null}
       </AlertDescription>

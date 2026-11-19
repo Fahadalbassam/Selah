@@ -64,7 +64,7 @@ export async function loadDocument(tx: Tx, id: string, principal: Principal) {
 
 /** What fileControls() needs about a file: loadDocument() gives it, and so does the file list. */
 export interface ControlledFile {
-  doc: { purpose: string; state: string; visibility: string };
+  doc: { purpose: string; state: string; visibility: string; aiIndexable: boolean };
   resource: Resource;
   context: {
     projectKind: "internal" | "client";
@@ -85,7 +85,9 @@ export interface ControlledFile {
  * controls, 0005).
  *   shareWithClient - firm staff share a firm-only file of a client project (one-way)
  *   shareWithFirm   - a client's admin shares its private file (one-way)
- *   assistant       - the owning side switches "available to the assistant"
+ *   assistant       - switch "available to the assistant": off, anyone on the owning side; on, only the person who
+ *                     uploaded that version or the owning side's admin (D1, review S1)
+ *   assistantLocked - the file is off and someone else on the owning side may switch it on (the screen says who)
  *   newVersion      - the owning side uploads the next version
  *   withdraw        - the uploader takes back a wrong first version nobody relied on yet, on an open project (N8)
  *   audience        - the owning side's firm staff, or the client's admin, choose who sees it (feature A)
@@ -96,11 +98,16 @@ export function fileControls(principal: Principal, loaded: ControlledFile) {
   const manage = authorize(principal, "document.manage", resource).allowed;
   const evidence = doc.purpose === "evidence";
   const live = doc.state !== "archived" && context.latest;
+  const assistantSwitch = manage && live && !evidence && !context.minimal && doc.visibility !== "user_private";
+  const canSwitchOn = authorize(principal, "document.assistant", resource).allowed;
   return {
     shareWithClient:
       manage && live && !evidence && principal.orgKind === "firm" && context.projectKind === "client" && doc.visibility === "firm_private",
     shareWithFirm: live && doc.visibility === "client_private" && authorize(principal, "document.share", resource).allowed,
-    assistant: manage && live && !evidence && !context.minimal && doc.visibility !== "user_private",
+    // Off is open to the owning side; on only to the uploader of this version or the side's admin.
+    assistant: assistantSwitch && (doc.aiIndexable || canSwitchOn),
+    // Off, and someone else may switch it on (D1): the screen says who. Which side's admin, since only the owning side gets this far.
+    assistantLocked: assistantSwitch && !doc.aiIndexable && !canSwitchOn ? principal.orgKind : null,
     newVersion: manage && live && !evidence && !context.projectClosed,
     withdraw: live && !evidence && !context.projectClosed && resource.createdBy === principal.userId && context.firstVersion && !context.settled,
     audience: live && !evidence && authorize(principal, "document.audience", resource).allowed,
@@ -196,6 +203,8 @@ export async function setAssistantFlag(tx: Tx, principal: Principal, id: string,
   const loaded = await loadDocument(tx, id, principal);
   if (!loaded) throw new NotFoundError("document");
   assertAllowed(principal, "document.manage", loaded.resource);
+  // On: only the person who uploaded this version, or the owning side's admin (D1). Off: the owning side (review S1).
+  if (on) assertAllowed(principal, "document.assistant", loaded.resource);
   if (!fileControls(principal, loaded).assistant) throw new BadRequestError("this file's assistant flag cannot be changed");
   await tx.update(documents).set({ aiIndexable: on }).where(eq(documents.id, id));
   await audit(tx, {

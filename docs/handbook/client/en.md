@@ -153,10 +153,10 @@ What your company sends is a claim that the work is done until a consultant revi
 **When:** the work stopped for something outside your hands (an approval not given yet, someone unavailable). **Who:** the owner, and a manager, while the action is **In progress**.
 
 1. On the action page, under the **Next step** card, press **I am stuck**.
-2. Write in **Reason** what is in the way. The consultant will see it.
+2. Write in **Reason** what is in the way. Your company's lead consultant, their deputy and the consultants on the project are told.
 3. **Confirm**.
 
-**What happens next:** the action reads **Needs attention**, the reason shows at the top of the card, and it joins the consultant's lists of blocked work and the next meeting's agenda. No separate notification is sent to the consultant, so if you need a quick answer, write to them in the **Discussion** (see [Ask your consultant](#ask)). When it is cleared, press **Resume work**.
+**What happens next:** the action reads **Needs attention**, the reason shows at the top of the card, and it joins the consultant's lists of blocked work and the next meeting's agenda. Your company's lead consultant, their deputy and the consultants on the project get a notification; the action's owner does too when someone else marks it. If you need a quick answer, write to them in the **Discussion** as well (see [Ask your consultant](#ask)). When it is cleared, press **Resume work**.
 
 <a id="ask"></a>
 

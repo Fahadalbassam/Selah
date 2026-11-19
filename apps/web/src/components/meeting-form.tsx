@@ -171,7 +171,8 @@ export function MeetingForm(props: {
   const contactList = props.firm && shared ? (props.invitees?.contacts ?? []) : [];
   // People chosen who could not open a meeting of the whole project: said
   // before saving, by name, with the departments' meetings to make it instead.
-  // Saving anyway is allowed; the server decides who opens it.
+  // Saving is refused until they are taken off or it is a department's
+  // meeting (Gate B, D3); the server and the database refuse it too.
   const leftOut = editing ? [] : leftOutOfMeeting([...firmPeople, ...clientPeople], people, dept || null);
   const offers = departmentsToOffer(leftOut, props.departments ?? []).slice(0, 3);
   // The people who would see it, from the server, for what the form says now (everyone invited
@@ -400,7 +401,7 @@ export function MeetingForm(props: {
             <p role="alert" className="text-sm text-destructive">
               {error.startsWith("plain:")
                 ? error.slice("plain:".length)
-                : ["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove", "wholeProject"].includes(error)
+                : ["when", "badLink", "cannotOpen", "firmPrivate", "cannotMove", "wholeProject", "invitedLimited"].includes(error)
                   ? t(`errors.${error}`)
                   : tc(`errors.${error}`)}
             </p>
@@ -409,7 +410,7 @@ export function MeetingForm(props: {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button type="submit" disabled={busy || (audience.dirty && !audience.value)}>
+            <Button type="submit" disabled={busy || (audience.dirty && !audience.value) || leftOut.length > 0}>
               {busy ? <BrandLoader tone="current" className="size-4" /> : null}
               {busy ? tc("saving") : editing ? t("save") : t("book")}
             </Button>

@@ -680,7 +680,7 @@
     "resume": "Resume work",
     "reasonLabel": "Reason",
     "reasonRequired": "A reason is required.",
-    "blockHint": "Explain what is blocking this action. The consultant will see it.",
+    "blockHint": "Say what is in the way. Your company's lead consultant, their deputy and the consultants on this project are told, and the reason shows on the action page.",
     "reviseHint": "Tell the owner what is missing. They will see this reason.",
     "acceptHint": "Accepting marks this action as verified complete. A consultant can reopen it later, with a reason.",
     "closeHint": "Closing ends work on this action without verification. Choose how it ended; the note is shown on the action.",
@@ -1065,7 +1065,9 @@
       "told": "This is recorded in the action's history and the audit log.",
       "give": "Give it"
     },
-    "owner": "Owner"
+    "owner": "Owner",
+    "blockHintFirm": "Say what is in the way. The client's lead consultant, their deputy and the consultants on this project are told, and the reason shows on the action page.",
+    "blockHintInternal": "Say what is in the way. The consultants on this project are told, and the reason shows on the action page."
   },
   "common": {
     "cancel": "Cancel",
@@ -1485,7 +1487,8 @@
       "needs_action": "No answer yet",
       "accepted": "Accepted",
       "declined": "Declined",
-      "tentative": "Maybe"
+      "tentative": "Maybe",
+      "cannotOpen": "Can't open this meeting"
     },
     "transcript": {
       "title": "Transcript",
@@ -1588,18 +1591,20 @@
         "firmPrivate": "This meeting is firm only, so its records stay firm only.",
         "cannotMove": "A held or cancelled meeting can't be moved.",
         "otherMeeting": "That decision is from another meeting.",
-        "wholeProject": "A whole-project meeting is booked by people who see all of the project's work. Choose one of your departments."
+        "wholeProject": "A whole-project meeting is booked by people who see all of the project's work. Choose one of your departments.",
+        "invitedLimited": "Someone invited sees only their department's work, so a meeting of the whole project would not open for them. Book a meeting for their department instead."
       },
       "department": "Department",
       "wholeProject": "The whole project",
       "departmentHint": "A department's meeting gets an agenda of that department's work only. A whole-project meeting opens only for people who see all of the project's work.",
       "departmentOnlyHint": "A whole-project meeting opens only for people who see all of the project's work, so you book one for one of your departments.",
-      "leftOut": "{names} can't open this meeting: a meeting of the whole project opens only for people who see every department's work. They still get the calendar invitation when it is sent, with the title, time, link and who is invited, not the agenda. You can still save it.",
+      "leftOut": "{names} can't be invited to a meeting of the whole project: it opens only for people who see every department's work.",
       "makeDepartmentMeeting": "Make it a {department} meeting",
-      "leftOutNoOffer": "To include them, book a meeting for their department instead.",
+      "leftOutNoOffer": "To include them, book a meeting for their department instead; to save this one, take them off the invitation.",
       "leftOutNoDepartment": "{n, plural, one {Someone in no department is not included by any department's meeting either: have them added to a department first, or leave them out.} other {People in no department are not included by any department's meeting either: have them added to a department first, or leave them out.}}",
-      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department. You can still add them; they won't be able to open it.",
-      "yourPeople": "Your company"
+      "leftOutKeepsDepartment": "A meeting keeps its department once booked: to include them, book a meeting for their department.",
+      "yourPeople": "Your company",
+      "leftOutOffer": "Make it a meeting of their department instead, or take them off the invitation."
     },
     "record": {
       "mainPoints": "Main points",
@@ -3735,7 +3740,13 @@
     "withdrawHint": "Use this when {title} was the wrong file. It leaves every list and the assistant, stops answering any request it was sent for, and stays on record with your reason. You can then upload the right one.",
     "withdrawReason": "Why is it withdrawn?",
     "withdrawn": "File withdrawn",
-    "assistantReads": "Available to the assistant"
+    "assistantReads": "Available to the assistant",
+    "assistantWho": {
+      "client": "Only the person who uploaded it ({name}) or your company's admin can make it available to the assistant.",
+      "clientUnnamed": "Only the person who uploaded it or your company's admin can make it available to the assistant.",
+      "firm": "Only the person who uploaded it ({name}) or the firm admin can make it available to the assistant.",
+      "firmUnnamed": "Only the person who uploaded it or the firm admin can make it available to the assistant."
+    }
   },
   "engagements": {
     "title": "Signed engagements",
@@ -5468,7 +5479,7 @@
       },
       "blocked": {
         "q": "Something outside my control is stopping the work.",
-        "a": "While the action is in progress, press I am stuck and say what is in the way; the consultant sees it. When it's cleared, press Resume work."
+        "a": "While the action is in progress, press I am stuck and say what is in the way: your company's lead consultant, their deputy and the consultants on the project are told. When it's cleared, press Resume work."
       },
       "dueDate": {
         "q": "I need more time.",
