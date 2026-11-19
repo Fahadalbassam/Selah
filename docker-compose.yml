@@ -63,7 +63,7 @@ services:
   # so it can only render the HTML and fonts the web app sends it. No port is
   # published. The web app refuses PDF exports while it is down.
   pdf:
-    image: gotenberg/gotenberg:8.38.1-chromium
+    image: gotenberg/gotenberg:8.39.0-chromium
     command:
       - gotenberg
       - --chromium-disable-javascript=true
