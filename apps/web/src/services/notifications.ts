@@ -200,7 +200,7 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
   // A change of the client's lead consultant (migration 0109): the client and the new lead's
   // name, read through a function that answers only for the reader's own notices (the
   // record itself, with its handover note, is firm only). The client's admins open Help
-  // ("Your consultants"); the person who led before opens the client page.
+  // ("Your consultants"); the person who led before opens the client page, or their home once off its team.
   const names = new Map<string, string | null>();
   const changeLinks = new Map<string, string>();
   const changeIds = ids(rows, "lead_change");
@@ -209,9 +209,13 @@ export async function listNotifications(tx: Tx, principal: Principal, limit = 30
       sql`select * from app_lead_change_notices(${`{${changeIds.join(",")}}`}::uuid[])`,
     );
     for (const c of found) {
+      // A new lead whose account is gone since: the line reads as about something no longer there.
+      if (!c.lead_name) continue;
       titles.set(c.id, { title: c.client_name, titleAr: c.client_name_ar });
       names.set(c.id, c.lead_name);
-      changeLinks.set(c.id, principal.orgKind === "client" ? "/help" : `/clients/${c.client_org_id}`);
+      // The old lead opens the client while they still may; otherwise their home.
+      const mayOpen = principal.role === "firm_admin" || principal.assignedClientIds.has(c.client_org_id);
+      changeLinks.set(c.id, principal.orgKind === "client" ? "/help" : mayOpen ? `/clients/${c.client_org_id}` : "/");
     }
   }
 

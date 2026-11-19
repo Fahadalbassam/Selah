@@ -1192,7 +1192,8 @@
     "handoverTitle": "Handover note",
     "handoverBy": "Written by {author} on {date}",
     "handoverByFrom": "Written by {author} on {date}, when the client moved from {from}",
-    "handoverPrivate": "For the firm's people on this client only; the client never sees it."
+    "handoverPrivate": "For the firm's people on this client only; the client never sees it.",
+    "handoverEarlier": "This note was written at an earlier change of lead, not the latest one."
   },
   "inquiry": {
     "metaTitle": "Work with us",

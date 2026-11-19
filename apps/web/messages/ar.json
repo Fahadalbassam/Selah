@@ -1192,7 +1192,8 @@
     "handoverTitle": "ملاحظة التسليم",
     "handoverBy": "كتبها {author} في {date}",
     "handoverByFrom": "كتبها {author} في {date} عند انتقال العميل من {from}",
-    "handoverPrivate": "لفريق المكتب على هذا العميل فقط، ولا يراها العميل."
+    "handoverPrivate": "لفريق المكتب على هذا العميل فقط، ولا يراها العميل.",
+    "handoverEarlier": "كُتبت هذه الملاحظة عند تغيير سابق للمستشار الرئيسي، لا عند آخر تغيير."
   },
   "inquiry": {
     "metaTitle": "تواصل معنا",

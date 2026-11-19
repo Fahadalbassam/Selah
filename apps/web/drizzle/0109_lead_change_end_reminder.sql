@@ -31,12 +31,16 @@ CREATE INDEX "client_lead_changes_client_idx" ON "client_lead_changes" USING btr
 -- 1. The record of each change, with the handover note the person making it
 --    may write for the new lead. Firm only: the firm admin, the person who
 --    led before, the one who leads now, and the client's current lead and
---    deputy read it; the client never does. Written by the firm admin
---    (setLead) and by the departure handover (app_hand_over, below); never
---    changed or removed through the app.
+--    deputy read it; the client never does. Written only by
+--    app_change_client_lead() (the firm admin, below) and by the departure
+--    handover (app_hand_over, below): the app role reads, never writes, so
+--    the old lead is always the client's real lead before the change, the
+--    new lead an active consultant of the admin's own firm, and the client
+--    one this firm serves. Never changed or removed but by the minimal-records
+--    purge, which clears the note.
 ALTER TABLE client_lead_changes ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
-GRANT SELECT, INSERT ON client_lead_changes TO selah_app;
+GRANT SELECT ON client_lead_changes TO selah_app;
 --> statement-breakpoint
 CREATE POLICY lead_change_read ON client_lead_changes FOR SELECT TO selah_app USING (
   app_org_kind() = 'firm' AND firm_org_id = app_org() AND (
@@ -47,27 +51,87 @@ CREATE POLICY lead_change_read ON client_lead_changes FOR SELECT TO selah_app US
   )
 );
 --> statement-breakpoint
--- Only the firm admin records one, for a lead that is the client's lead now,
--- from someone of the same firm, in their own name.
-CREATE POLICY lead_change_insert ON client_lead_changes FOR INSERT TO selah_app WITH CHECK (
-  app_role() = 'firm_admin' AND firm_org_id = app_org() AND app_can_see_org(client_org_id)
-  AND changed_by = app_uid()
-  AND (from_user_id IS NULL OR app_user_org(from_user_id) = app_org())
-  AND EXISTS (SELECT 1 FROM client_assignments ca WHERE ca.client_org_id = client_lead_changes.client_org_id AND ca.user_id = client_lead_changes.to_user_id AND ca.is_lead)
-);
+-- A client this firm serves: no other firm has a project, an engagement or a
+-- consultant on it (a client just added has none yet).
+CREATE FUNCTION app_firm_serves_client(client uuid, firm uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM organizations o WHERE o.id = client AND o.kind = 'client')
+    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.org_id = client AND p.firm_org_id <> firm)
+    AND NOT EXISTS (SELECT 1 FROM engagements g WHERE g.client_org_id = client AND g.firm_org_id <> firm)
+    AND NOT EXISTS (
+      SELECT 1 FROM client_assignments ca JOIN org_memberships m ON m.user_id = ca.user_id
+      WHERE ca.client_org_id = client AND m.org_id <> firm)
+$$;
 --> statement-breakpoint
--- 2. Telling people. The client's active admins read who their new lead
+-- 2. The firm admin names a client's lead (setLead): the swap and its record
+--    in one step. Refused for anyone else, an archived client, a client of
+--    another firm, or someone who is not an active consultant of the admin's
+--    firm. The old lead is read here, never sent. Naming the lead again
+--    changes nothing and returns null.
+CREATE FUNCTION app_change_client_lead(client uuid, to_uid uuid, note text) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  firm uuid := app_org();
+  before uuid;
+  cid uuid := gen_random_uuid();
+BEGIN
+  IF app_uid() IS NULL OR app_org_kind() IS DISTINCT FROM 'firm' OR app_role() IS DISTINCT FROM 'firm_admin'
+     OR NOT app_firm_serves_client(client, firm) THEN
+    RAISE EXCEPTION 'no such client' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF NOT app_is_active_client(client) THEN
+    RAISE EXCEPTION 'an archived client''s lead does not change' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM org_memberships m WHERE m.user_id = to_uid AND m.org_id = firm AND m.role = 'consultant' AND m.active) THEN
+    RAISE EXCEPTION 'only active consultants can be assigned to clients' USING ERRCODE = 'check_violation';
+  END IF;
+  SELECT ca.user_id INTO before FROM client_assignments ca WHERE ca.client_org_id = client AND ca.is_lead FOR UPDATE;
+  IF before IS NOT DISTINCT FROM to_uid THEN
+    RETURN NULL;
+  END IF;
+  UPDATE client_assignments SET is_lead = false WHERE client_org_id = client AND is_lead;
+  INSERT INTO client_assignments (client_org_id, user_id, is_lead, assigned_by) VALUES (client, to_uid, true, app_uid())
+    ON CONFLICT (client_org_id, user_id) DO UPDATE SET is_lead = true;
+  INSERT INTO client_lead_changes (id, client_org_id, firm_org_id, from_user_id, to_user_id, changed_by, handover_note)
+    VALUES (cid, client, firm, before, to_uid, app_uid(), nullif(btrim(note), ''));
+  RETURN cid;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_firm_serves_client(uuid, uuid), app_change_client_lead(uuid, uuid, text) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_change_client_lead(uuid, uuid, text) TO selah_app;
+--> statement-breakpoint
+-- The newest change of a client's lead, whoever reads, so a note written for
+-- an earlier change is never shown as the latest. Only to firm staff who read
+-- the client's team; the id only.
+CREATE FUNCTION app_latest_lead_change(client uuid) RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT c.id FROM client_lead_changes c
+  WHERE c.client_org_id = client AND app_org_kind() = 'firm' AND c.firm_org_id = app_org()
+    AND (app_role() = 'firm_admin' OR app_is_assigned_to_client(client))
+  ORDER BY c.created_at DESC, c.id DESC LIMIT 1
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_latest_lead_change(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_latest_lead_change(uuid) TO selah_app;
+--> statement-breakpoint
+-- 3. Telling people. The client's active admins read who their new lead
 --    consultant is (client.lead_changed); the person who led before reads
 --    that the client was handed to the new lead (client.handed_over). Nothing
 --    else: no reason, nothing about anyone's work. The new lead is told by
---    setLead (client.lead, as before). Mail by each reader's choice for
---    updates: right away (work mail, so it waits for their sending hours), in
---    their daily or weekly summary (app_queue_digests below), or not at all.
---    The mail is a line and a link; the name is read in Selah.
+--    setLead and the departure handover (client.lead). Nobody is told about
+--    an archived client. Mail by each reader's choice for updates: right
+--    away (work mail, so it waits for their sending hours), in their daily or
+--    weekly summary (app_queue_digests below), or not at all. A person
+--    leaving whose clients are handed over (app_hand_over) is never mailed
+--    once per client: their notices go into one summary. The mail is a line
+--    and a link; the name is read in Selah.
 CREATE FUNCTION tell_lead_change() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
-  IF NEW.to_user_id IS NULL OR NEW.from_user_id IS NOT DISTINCT FROM NEW.to_user_id THEN
+  IF NEW.to_user_id IS NULL OR NEW.from_user_id IS NOT DISTINCT FROM NEW.to_user_id
+     OR NOT app_is_active_client(NEW.client_org_id) THEN
     RETURN NULL;
   END IF;
   INSERT INTO notifications (user_id, kind, entity_type, entity_id)
@@ -79,16 +143,18 @@ BEGIN
     FROM org_memberships m
     WHERE m.user_id = NEW.from_user_id AND m.org_id = NEW.firm_org_id AND m.active;
   -- Right away for those who want updates so (the notice's insert trigger
-  -- clears mailed_at, so it is set here); the rest wait for the summary.
+  -- clears mailed_at, so it is set here); the rest wait for the summary,
+  -- and so does a person leaving (app_hand_over sets selah.hand_over).
   WITH now_mail AS (
     UPDATE notifications x SET mailed_at = now()
     WHERE x.entity_type = 'lead_change' AND x.entity_id = NEW.id AND x.mailed_at IS NULL
+      AND NOT (x.kind = 'client.handed_over' AND coalesce(current_setting('selah.hand_over', true), '') = 'on')
       AND app_can_reset_password(x.user_id)
       AND (SELECT c.updates FROM app_mail_choice(x.user_id) c) = 'instant'
     RETURNING x.user_id, x.kind
   )
   INSERT INTO outbound_emails (to_email, kind, link)
-    SELECT u.email, t.kind, CASE t.kind WHEN 'client.lead_changed' THEN '/help' ELSE '/clients/' || NEW.client_org_id END
+    SELECT u.email, t.kind, CASE t.kind WHEN 'client.lead_changed' THEN '/help' ELSE '/notifications' END
     FROM now_mail t JOIN "user" u ON u.id = t.user_id;
   RETURN NULL;
 END $$;
@@ -97,8 +163,10 @@ REVOKE ALL ON FUNCTION tell_lead_change() FROM PUBLIC;
 --> statement-breakpoint
 CREATE TRIGGER tell_lead_change AFTER INSERT ON client_lead_changes FOR EACH ROW EXECUTE FUNCTION tell_lead_change();
 --> statement-breakpoint
--- 3. What a notice about a change says, for its own reader only: the client's
---    name and the new lead's name. Nothing from the note.
+-- What a notice about a change says, to the people it is for only: an
+-- active admin of that client, or the person who led before. The client's
+-- name and the new lead's name; nothing from the note. A notice row alone
+-- proves nothing (anyone can write one addressed to themselves).
 CREATE FUNCTION app_lead_change_notices(ids uuid[])
 RETURNS TABLE (id uuid, client_org_id uuid, client_name text, client_name_ar text, lead_name text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -107,15 +175,21 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   JOIN organizations o ON o.id = c.client_org_id
   LEFT JOIN "user" u ON u.id = c.to_user_id
   WHERE c.id = ANY (ids)
-    AND EXISTS (SELECT 1 FROM notifications n WHERE n.user_id = app_uid() AND n.entity_type = 'lead_change' AND n.entity_id = c.id)
+    AND (
+      EXISTS (SELECT 1 FROM org_memberships m
+              WHERE m.user_id = app_uid() AND m.org_id = c.client_org_id AND m.role = 'client_admin' AND m.active)
+      OR (c.from_user_id = app_uid() AND app_org() = c.firm_org_id)
+    )
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app_lead_change_notices(uuid[]) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_lead_change_notices(uuid[]) TO selah_app;
 --> statement-breakpoint
--- 4. The departure handover records the change too. Latest definition:
---    0034_observers; only the client_lead block gains the insert.
+-- 4. The departure handover records the change too, tells the new lead
+--    (client.lead, as setLead does) and marks the transaction so the person
+--    leaving is not mailed once per client. Latest definition:
+--    0034_observers; only the client_lead block changes.
 CREATE OR REPLACE FUNCTION app_hand_over(from_uid uuid, to_uid uuid, kinds text[]) RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
@@ -170,6 +244,7 @@ BEGIN
 
   IF 'client_lead' = ANY (kinds) THEN
     k := 0;
+    PERFORM set_config('selah.hand_over', 'on', true);
     FOR r IN SELECT h.entity_id FROM app_person_holdings_of(from_uid) h WHERE h.kind = 'client_lead' LOOP
       UPDATE client_assignments SET is_lead = false WHERE client_org_id = r.entity_id AND user_id = from_uid;
       INSERT INTO client_assignments (client_org_id, user_id, is_lead, assigned_by) VALUES (r.entity_id, to_uid, true, app_uid())
@@ -177,8 +252,12 @@ BEGIN
       -- Recorded as a change of lead, which tells the client's admins and the person leaving (0109).
       INSERT INTO client_lead_changes (client_org_id, firm_org_id, from_user_id, to_user_id, changed_by)
         VALUES (r.entity_id, org, from_uid, to_uid, app_uid());
+      IF app_is_active_client(r.entity_id) THEN
+        INSERT INTO notifications (user_id, kind, entity_type, entity_id) VALUES (to_uid, 'client.lead', 'organization', r.entity_id);
+      END IF;
       k := k + 1;
     END LOOP;
+    PERFORM set_config('selah.hand_over', '', true);
     moved := moved + k;
     counts := counts || jsonb_build_object('client_lead', k);
   END IF;
@@ -217,7 +296,8 @@ END $$;
 -- 5. The daily job tells the client's lead and deputy and the firm's admins,
 --    once, when an open engagement is 30 days or less from its end date
 --    (engagement.ending), and once more when the end date has passed and it
---    is still open (engagement.ended). Open: a project it covers is not
+--    is still open (engagement.ended), within 30 days after the date (so one
+--    that ended long ago, with or without projects, is never told). Open: a project it covers is not
 --    closed, or it covers none yet. Only active clients. Never anyone at the
 --    client. A new end date sends them again (ends_on is part of the key).
 --    Only the job reads or writes the log.
@@ -257,6 +337,8 @@ BEGIN
       ARRAY(SELECT app_engagement_reminder_audience(g.id)) AS recipients
     FROM engagements g JOIN organizations o ON o.id = g.client_org_id AND o.status = 'active'
     WHERE g.ends_on IS NOT NULL AND today >= g.ends_on - app_engagement_reminder_days()
+      -- after the end, only within as many days: an engagement that ended long ago is never told
+      AND today <= g.ends_on + app_engagement_reminder_days()
       AND app_engagement_open(g.id)
   ),
   logged AS (
@@ -280,8 +362,9 @@ REVOKE ALL ON FUNCTION app_engagement_reminder_days(), app_engagement_open(uuid)
 -- ------------------------------------------------ mail
 -- 6. The summary mail (latest: 0092_deliverable_receipts, every line of it
 --    kept), now with the engagement reminders by the reader's reminders
---    cadence, and the change-of-lead notices by their updates cadence when
---    that is a summary (right away is mailed by tell_lead_change).
+--    cadence, and the change-of-lead notices not mailed right away by their
+--    updates cadence (daily for someone whose updates come right away: a
+--    person leaving, whose handovers are never mailed one by one).
 CREATE OR REPLACE FUNCTION app_queue_digests(today date) RETURNS integer
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE n integer;
@@ -305,7 +388,9 @@ BEGIN
         -- an engagement about to end, or past its end and still open (0109)
         WHEN x.entity_type = 'engagement' AND x.kind IN ('engagement.ending', 'engagement.ended') THEN app_cadence_due(c.reminders, today)
         -- a change of the client's lead consultant, for a reader who batches updates (0109)
-        WHEN x.entity_type = 'lead_change' AND x.kind IN ('client.lead_changed', 'client.handed_over') THEN c.updates <> 'instant' AND app_cadence_due(c.updates, today)
+        -- (one mailed right away is already marked; a person leaving gets the rest in a daily summary)
+        WHEN x.entity_type = 'lead_change' AND x.kind IN ('client.lead_changed', 'client.handed_over')
+          THEN c.updates <> 'off' AND app_cadence_due(CASE WHEN c.updates = 'instant' THEN 'daily'::mail_cadence ELSE c.updates END, today)
         WHEN x.entity_type = 'action' AND x.kind = ANY (app_update_mail_kinds()) THEN c.updates <> 'instant' AND app_cadence_due(c.updates, today)
         ELSE false
       END
@@ -369,3 +454,50 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path = public, pg_temp AS $$
     'org_chart.holder_changed', 'org_chart.change_requested', 'deliverable.handed_over', 'deliverable.commented',
     'client.lead_changed', 'client.handed_over']
 $$;
+--> statement-breakpoint
+-- 8. The minimal-records purge (latest: 0046_action_comments, every line kept)
+--    also clears the client's handover notes.
+CREATE OR REPLACE FUNCTION app_purge_minimal_records(today date) RETURNS integer
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE
+  pid uuid;
+  n integer := 0;
+  gone constant text := '—';
+BEGIN
+  PERFORM set_config('selah.purge', 'on', true);
+  FOR pid IN
+    SELECT p.id FROM projects p
+      JOIN organizations o ON o.id = p.org_id AND o.minimal_records
+      LEFT JOIN firm_settings fs ON fs.org_id = p.firm_org_id
+    WHERE p.handover_on IS NOT NULL AND p.minimal_purged_at IS NULL
+      AND p.handover_on + coalesce(fs.minimal_purge_days, 90) <= today
+  LOOP
+    UPDATE progress_updates SET body = gone WHERE project_id = pid AND body <> gone;
+    UPDATE action_notes SET body = gone WHERE project_id = pid AND body <> gone;
+    UPDATE action_comments SET body = gone WHERE project_id = pid AND removed_at IS NULL AND body <> gone;
+    UPDATE meeting_notes SET body = gone WHERE project_id = pid AND body <> gone;
+    UPDATE meeting_decisions SET text = gone WHERE project_id = pid AND text <> gone;
+    UPDATE meeting_summaries SET main_points_md = gone WHERE project_id = pid AND main_points_md <> gone;
+    UPDATE meetings SET agenda_md = gone WHERE project_id = pid AND agenda_md <> gone;
+    UPDATE findings SET description = gone WHERE project_id = pid AND description <> gone;
+    UPDATE recommendations SET rationale = gone WHERE project_id = pid AND rationale <> gone;
+    UPDATE recommendations SET target_outcome = gone WHERE project_id = pid AND target_outcome <> gone;
+    UPDATE recommendations SET required_evidence = gone WHERE project_id = pid AND required_evidence <> gone;
+    UPDATE recommendation_responses SET reason = gone WHERE project_id = pid AND reason <> gone;
+    UPDATE recommendation_responses SET planned_action = gone WHERE project_id = pid AND planned_action <> gone;
+    UPDATE recommendation_responses SET firm_reply = gone WHERE project_id = pid AND firm_reply <> gone;
+    UPDATE actions SET description = gone WHERE project_id = pid AND description <> gone;
+    UPDATE actions SET closure_note = gone WHERE project_id = pid AND closure_note <> gone;
+    UPDATE actions SET blocked_reason = gone WHERE project_id = pid AND blocked_reason <> gone;
+    UPDATE assessment_answers SET text_answer = gone WHERE project_id = pid AND text_answer <> gone;
+    UPDATE assessment_answers SET comment = gone WHERE project_id = pid AND comment <> gone;
+    UPDATE assessment_notes SET body = gone WHERE project_id = pid AND body <> gone;
+    -- The handover notes written at a change of the client's lead (0109): free text, cleared with the rest.
+    UPDATE client_lead_changes SET handover_note = NULL
+      WHERE client_org_id = (SELECT p.org_id FROM projects p WHERE p.id = pid) AND handover_note IS NOT NULL;
+    UPDATE projects SET minimal_purged_at = now() WHERE id = pid;
+    n := n + 1;
+  END LOOP;
+  PERFORM set_config('selah.purge', 'off', true);
+  RETURN n;
+END $$;

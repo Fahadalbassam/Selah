@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "@/db/client";
 import {
@@ -238,10 +238,12 @@ export async function removeConsultant(tx: Tx, principal: Principal, clientOrgId
 }
 
 /**
- * Make `userId` the client's lead (adding them to the team if needed). A real
- * change is recorded with the handover note the admin may write for the new
- * lead (Gate B, item 6.2); the database then tells the client's admins who
- * their new lead is and the person who led before (tell_lead_change, 0109).
+ * Make `userId` the client's lead (adding them to the team if needed). The
+ * swap and its record are one database step (app_change_client_lead, 0109):
+ * only the firm admin, for a client this firm serves, to an active consultant
+ * of the firm, with the optional handover note for the new lead (Gate B,
+ * item 6.2). The database then tells the client's admins who their new lead
+ * is and the person who led before (tell_lead_change).
  */
 export async function setLead(tx: Tx, principal: Principal, clientOrgId: string, userId: string, handoverNote?: string | null) {
   assertAllowed(principal, "client_assignment.set_lead", assignmentOf(principal, clientOrgId));
@@ -251,24 +253,11 @@ export async function setLead(tx: Tx, principal: Principal, clientOrgId: string,
     .from(clientAssignments)
     .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.isLead, true)))
     .limit(1);
-  if (before?.userId === userId) return { ok: true };
-  await tx
-    .update(clientAssignments)
-    .set({ isLead: false })
-    .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.isLead, true)));
-  await tx
-    .insert(clientAssignments)
-    .values({ clientOrgId, userId, isLead: true, assignedBy: principal.userId })
-    .onConflictDoUpdate({ target: [clientAssignments.clientOrgId, clientAssignments.userId], set: { isLead: true } });
   const note = handoverNote?.trim() || null;
-  await tx.insert(clientLeadChanges).values({
-    clientOrgId,
-    firmOrgId: principal.orgId,
-    fromUserId: before?.userId ?? null,
-    toUserId: userId,
-    changedBy: principal.userId,
-    handoverNote: note,
-  });
+  const { rows } = await tx.execute<{ id: string | null }>(
+    sql`select app_change_client_lead(${clientOrgId}::uuid, ${userId}::uuid, ${note}) as id`,
+  );
+  if (!rows[0]?.id) return { ok: true };
   await tx.insert(notifications).values({ userId, kind: "client.lead", entityType: "organization", entityId: clientOrgId });
   await audit(tx, {
     actorId: principal.userId,
@@ -284,7 +273,7 @@ export async function setLead(tx: Tx, principal: Principal, clientOrgId: string,
 
 /**
  * The handover note written for the client's current lead, when the latest
- * change of lead carries one. Row-level security limits it to the firm admin,
+ * change of lead with a note was for them. Row-level security limits it to the firm admin,
  * the old and new lead and the client's lead and deputy; anyone else gets null.
  */
 export async function latestHandoverNote(tx: Tx, clientOrgId: string) {
@@ -292,6 +281,7 @@ export async function latestHandoverNote(tx: Tx, clientOrgId: string) {
   const from = alias(user, "from_lead");
   const [last] = await tx
     .select({
+      id: clientLeadChanges.id,
       note: clientLeadChanges.handoverNote,
       toUserId: clientLeadChanges.toUserId,
       at: clientLeadChanges.createdAt,
@@ -301,8 +291,8 @@ export async function latestHandoverNote(tx: Tx, clientOrgId: string) {
     .from(clientLeadChanges)
     .leftJoin(author, eq(author.id, clientLeadChanges.changedBy))
     .leftJoin(from, eq(from.id, clientLeadChanges.fromUserId))
-    .where(eq(clientLeadChanges.clientOrgId, clientOrgId))
-    .orderBy(desc(clientLeadChanges.createdAt))
+    .where(and(eq(clientLeadChanges.clientOrgId, clientOrgId), isNotNull(clientLeadChanges.handoverNote)))
+    .orderBy(desc(clientLeadChanges.createdAt), desc(clientLeadChanges.id))
     .limit(1);
   if (!last?.note) return null;
   const [lead] = await tx
@@ -311,7 +301,11 @@ export async function latestHandoverNote(tx: Tx, clientOrgId: string) {
     .where(and(eq(clientAssignments.clientOrgId, clientOrgId), eq(clientAssignments.isLead, true)))
     .limit(1);
   if (!lead || lead.userId !== last.toUserId) return null;
-  return { note: last.note, at: last.at, author: last.author, fromName: last.fromName };
+  // The newest change overall (not only those this reader sees): a note written
+  // for an earlier change (A to B, then B to C, then C to B) says so.
+  const { rows } = await tx.execute<{ id: string | null }>(sql`select app_latest_lead_change(${clientOrgId}::uuid) as id`);
+  const earlier = rows[0]?.id !== last.id;
+  return { note: last.note, at: last.at, author: last.author, fromName: last.fromName, earlier };
 }
 
 /**

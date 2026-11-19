@@ -415,6 +415,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <p dir="auto" className="whitespace-pre-line text-sm">
                   {data.handover.note}
                 </p>
+                {data.handover.earlier ? <p className="text-xs text-muted-foreground">{t("handoverEarlier")}</p> : null}
                 <p className="text-xs text-muted-foreground">{t("handoverPrivate")}</p>
               </CardContent>
             </Card>
