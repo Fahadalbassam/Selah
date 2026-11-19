@@ -14,9 +14,10 @@ import {
   recommendations,
   user,
 } from "@/db/schema";
-import { assertAllowed, authorize, type Principal, type Visibility } from "@/authz";
+import { assertAllowed, authorize, ForbiddenError, type Principal, type Visibility } from "@/authz";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { loadAction } from "./actions";
+import { canChangeOwner, recordOwnerChange } from "./action-owner";
 import { audit } from "./audit";
 import { loadProject } from "./staffing";
 
@@ -346,6 +347,10 @@ export async function updateAction(
     throw new BadRequestError("a released action needs an owner and a due date");
   }
 
+  // A new owner follows decision D1 wherever it is set: the same rule, notices and record as the owner control.
+  const ownerChanged = (ownerUserId ?? null) !== (action.ownerUserId ?? null) || (ownerName ?? null) !== (action.ownerName ?? null);
+  if (ownerChanged && !(await canChangeOwner(tx, id))) throw new ForbiddenError("action.assign_owner", resource, "owner:not-allowed");
+
   await tx.update(actions).set(patch).where(eq(actions.id, id));
   await tx.insert(activityEvents).values({
     projectId: action.projectId,
@@ -356,9 +361,7 @@ export async function updateAction(
     event: "updated",
     meta: { fields: Object.keys(input) },
   });
-  // A released action handed to someone new: they hear it's theirs. A draft waits for its release.
-  if (patch.ownerUserId && patch.ownerUserId !== action.ownerUserId && patch.ownerUserId !== principal.userId && action.status !== "draft") {
-    await tx.insert(notifications).values({ userId: patch.ownerUserId, kind: "action.assigned", entityType: "action", entityId: id });
-  }
+  // The new owner, the old one, the lead and deputy and the staffed consultants hear of it; a draft tells nobody yet.
+  if (ownerChanged) await recordOwnerChange(tx, principal, action, { ownerUserId: ownerUserId ?? null, ownerName: ownerName ?? null });
   return { id };
 }

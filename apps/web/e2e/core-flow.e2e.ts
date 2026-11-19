@@ -76,12 +76,14 @@ test("owner sees it, starts work, posts a note and is refused an infected file (
   await expect(page.getByRole("heading", { name: actTitle })).toBeVisible();
   await page.getByRole("button", { name: t("action.move.in_progress") }).click();
   await toastSaved(page);
-  await page.locator("#update").fill("بدأنا العمل على المحضر");
-  await page.getByRole("button", { name: t("action.post") }).click();
+  // One conversation box (batch 4): the owner marks what they write as an update on the work.
+  await page.locator(`#thread-${actionId}`).fill("بدأنا العمل على المحضر");
+  await page.getByLabel(t("action.thread.asNote")).check();
+  await page.getByRole("button", { name: t("action.thread.post") }).click();
   await expect(page.getByText("بدأنا العمل على المحضر")).toBeVisible();
 
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
-  await page.locator("#file").setInputFiles({ name: "eicar.txt", mimeType: "text/plain", buffer: EICAR });
+  await page.locator("#send-file").setInputFiles({ name: "eicar.txt", mimeType: "text/plain", buffer: EICAR });
   // The page's button and the dialog's say the same words ("send for review"): press the dialog's.
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await expect(page.getByRole("alert").filter({ hasText: t("action.errors.infected") })).toBeVisible();
@@ -94,11 +96,11 @@ test("owner submits a clean PDF for review (Arabic)", async ({ browser }) => {
   const page = await open(browser, "abdullah", "ar");
   await page.goto(`/actions/${actionId}`);
   await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
-  await page.locator("#file").setInputFiles({ name: "minutes.pdf", mimeType: "application/pdf", buffer: pdf() });
-  await page.locator("#note").fill("المحضر مرفق");
+  await page.locator("#send-file").setInputFiles({ name: "minutes.pdf", mimeType: "application/pdf", buffer: pdf() });
+  await page.locator("#send-note").fill("المحضر مرفق");
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
   await toastSaved(page);
-  await expect(page.getByText(t("action.awaitingNote"))).toBeVisible();
+  await expect(page.getByText(t("status.awaiting_review")).first()).toBeVisible();
   // Bug 12: with one evidence item open, the file sent for review answers it.
   expect(one(`select count(*) from evidence_submissions where action_id='${actionId}' and evidence_request_id is not null`)).toBe("1");
   await page.screenshot({ path: "e2e-results/shots/owner-ar-awaiting.png", fullPage: true });
@@ -130,21 +132,19 @@ test("owner is notified, asks for a later date and resubmits (Arabic)", async ({
   await expect(page.getByText(t("notifications.kinds.action_revision_requested", { title: actTitle }))).toBeVisible();
   await page.goto(`/actions/${actionId}`);
   // A client reader proposes a new date from the quiet "I need more time" under the next step (page audit 4.5).
-  await page.getByRole("button", { name: t("action.plain.ask") }).click();
+  await page.getByRole("button", { name: t("action.next.moreTime") }).click();
   await pickNextMonthDay(page, "new-date");
   await page.locator("#date-reason").fill("ننتظر توقيع رئيس المجلس");
   await page.getByRole("button", { name: t("action.deadline.send") }).click();
   await toastSaved(page);
-  // After a revision request the owner resumes work before sending again.
-  await page.getByRole("button", { name: t("action.resume") }).click();
-  await toastSaved(page);
+  // After a revision request one step sends the revised file for review (page audit 4.5; no "Resume work" first).
   // The first file already answered the only evidence item (bug 12), so the
   // item waits for the consultant; the signed file goes with the resubmission.
-  await expect(page.getByRole("button", { name: t("action.items.answer") })).toHaveCount(0);
-  await page.getByRole("button", { name: t("action.move.awaiting_review") }).click();
-  await page.locator("#file").setInputFiles({ name: "minutes-signed.pdf", mimeType: "application/pdf", buffer: pdf("signed") });
+  await expect(page.getByRole("button", { name: t("sendFile.button") })).toHaveCount(0);
+  await page.getByRole("button", { name: t("action.next.resend") }).click();
+  await page.locator("#send-file").setInputFiles({ name: "minutes-signed.pdf", mimeType: "application/pdf", buffer: pdf("signed") });
   await page.getByRole("dialog").getByRole("button", { name: t("action.sendForReview") }).click();
-  await expect(page.getByText(t("action.awaitingNote"))).toBeVisible();
+  await expect(page.getByText(t("status.awaiting_review")).first()).toBeVisible();
   await page.context().close();
 });
 
@@ -154,17 +154,30 @@ test("consultant approves the date and verifies the action (English)", async ({ 
   await page.goto(`/actions/${actionId}`);
   await page.getByRole("button", { name: t("action.deadline.approve") }).click();
   await toastSaved(page);
-  // Bug #11: verifying with an open evidence item said "someone else changed this action".
+  // Bug #11 (restored, review N6): with an item that has nothing sent, verifying says so, not
+  // "someone else changed this action". The consultant asks for one more item, tries, then waives it.
+  await page.getByRole("button", { name: t("action.items.add") }).click();
+  await page.locator("#item-title").fill("Attendance sheet");
+  await page.getByRole("dialog").getByRole("button", { name: t("action.items.add") }).click();
+  await toastSaved(page);
   await page.getByRole("button", { name: t("action.move.verified_complete") }).click();
   await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("alert").filter({ hasText: t("action.errors.openEvidence") })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: t("action.cancel") }).click();
-  await page.getByRole("button", { name: t("action.items.accept"), exact: true }).click();
-  await expect(page.getByRole("button", { name: t("action.items.accept"), exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: t("common.moreFor", { name: "Attendance sheet" }) }).click();
+  await page.getByRole("menuitem", { name: t("action.items.waive") }).click();
+  await page.locator("#reason").fill("The minutes list who attended.");
+  await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
+  await toastSaved(page);
+  // October review, item 12: the only item left has its file, so verifying accepts it in the same step.
   await page.getByRole("button", { name: t("action.move.verified_complete") }).click();
   await page.getByRole("dialog").getByRole("button", { name: t("action.confirm") }).click();
   await expect(page.getByText(t("status.verified_complete")).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: t("action.reopen") })).toBeVisible();
+  expect(one(`select count(*) from evidence_requests where action_id='${actionId}' and status = 'accepted'`)).toBe("1");
+  // Reopening is a rare step: in the page menu, not a button.
+  await expect(page.getByRole("button", { name: t("action.reopen") })).toHaveCount(0);
+  await page.getByRole("button", { name: t("action.menu.label") }).click();
+  await expect(page.getByRole("menuitem", { name: t("action.reopen") })).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/consultant-en-verified.png", fullPage: true });
   await page.context().close();
 });

@@ -9,13 +9,12 @@ import { AudienceEditor, AudienceField, useAudienceRefusal, type AudienceValue }
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
+import { SendFileDialog, uploadErrorKey } from "@/components/send-file-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ACCEPTED_EXTENSIONS } from "@/lib/upload-rules";
 
 export interface FileActionsProps {
   id: string;
@@ -96,9 +95,7 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
     done();
   }
 
-  async function upload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
+  async function upload(form: FormData) {
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) return;
     setBusy(true);
@@ -112,17 +109,8 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
         return;
       }
       const m = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? "";
-      setError(
-        res.status === 503
-          ? t("errors.scanner")
-          : m.includes("infected")
-            ? t("errors.infected")
-            : m.includes("too large")
-              ? t("errors.tooLarge")
-              : m.includes("rejected")
-                ? t("errors.type")
-                : tc("errors.generic"),
-      );
+      const key = uploadErrorKey(res.status, m);
+      setError(key === "generic" ? tc("errors.generic") : t(`errors.${key}`));
     } finally {
       setBusy(false);
     }
@@ -225,34 +213,16 @@ export function FileActions({ id, title, visibility, aiIndexable, can, onChanged
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog open={versionOpen} onOpenChange={(o) => (setVersionOpen(o), setError(null))}>
-        <DialogContent>
-          <form onSubmit={upload} className="grid gap-4">
-            <DialogHeader>
-              <DialogTitle>{t("newVersion")}</DialogTitle>
-              <DialogDescription>{t(visibility === "shared" ? "newVersionHintShared" : "newVersionHint", { title })}</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor={`version-${id}`}>{t("file")}</Label>
-              <Input id={`version-${id}`} name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
-            </div>
-            {error ? (
-              <p role="alert" className="text-xs text-destructive">
-                {error}
-              </p>
-            ) : null}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setVersionOpen(false)}>
-                {tc("cancel")}
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? <BrandLoader tone="current" className="size-4" /> : null}
-                {t("upload")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <SendFileDialog
+        control={{ open: versionOpen, onOpenChange: setVersionOpen }}
+        onOpenChange={() => setError(null)}
+        title={t("newVersion")}
+        description={t(visibility === "shared" ? "newVersionHintShared" : "newVersionHint", { title })}
+        busy={busy}
+        error={error}
+        submitLabel={t("upload")}
+        onSubmit={(form) => void upload(form)}
+      />
     </>
   );
 }

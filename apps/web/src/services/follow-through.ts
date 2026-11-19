@@ -122,6 +122,7 @@ export async function decideEvidenceRequest(
   principal: Principal,
   requestId: string,
   input: { status: EvidenceRequestDecision; note?: string },
+  opts: { quiet?: boolean } = {},
 ) {
   const [item] = await tx.select().from(evidenceRequests).where(eq(evidenceRequests.id, requestId)).limit(1);
   if (!item) throw new NotFoundError("evidence request");
@@ -136,7 +137,8 @@ export async function decideEvidenceRequest(
     .set({ status: input.status, decisionNote: input.note ?? null })
     .where(and(eq(evidenceRequests.id, requestId), eq(evidenceRequests.status, item.status)));
   await activity(tx, principal, action, `evidence_request_${input.status}`, { requestId });
-  await notify(tx, action.ownerUserId, principal, `evidence_request.${input.status}`, action.id);
+  // Accepted as part of verifying (October review, item 12): the owner hears once, of the verification (review N3).
+  if (!opts.quiet) await notify(tx, action.ownerUserId, principal, `evidence_request.${input.status}`, action.id);
   return { id: requestId, status: input.status };
 }
 

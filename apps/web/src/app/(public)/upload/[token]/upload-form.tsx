@@ -6,8 +6,7 @@ import { CircleCheck } from "@/components/animate-ui/icons/circle-check";
 import { Upload } from "@/components/animate-ui/icons/upload";
 import { BrandLoader } from "@/components/brand";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FileField, uploadErrorKey } from "@/components/send-file-dialog";
 import { ACCEPTED_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 
 /** Sends one file at a time through the link; the server checks, scans and files it. */
@@ -43,15 +42,9 @@ export function UploadForm({ token }: { token: string }) {
           ? t("closed")
           : res.status === 429
             ? t("full")
-            : res.status === 503
-              ? tf("errors.scanner")
-              : m.includes("infected")
-                ? tf("errors.infected")
-                : m.includes("too large")
-                  ? tf("errors.tooLarge")
-                  : m.includes("rejected")
-                    ? tf("errors.type")
-                    : tc("errors.generic"),
+            : uploadErrorKey(res.status, m) === "generic"
+              ? tc("errors.generic")
+              : tf(`errors.${uploadErrorKey(res.status, m) as "scanner" | "infected" | "tooLarge" | "type"}`),
       );
     } catch {
       setError(tc("errors.generic"));
@@ -79,17 +72,16 @@ export function UploadForm({ token }: { token: string }) {
       ) : null}
       {closed ? null : (
         <form ref={form} onSubmit={submit} className="grid gap-3">
-          <div className="grid gap-2">
-            <Label htmlFor="upload-file">{sent.length ? t("another") : t("file")}</Label>
-            <Input id="upload-file" name="file" type="file" accept={ACCEPTED_EXTENSIONS} required />
-            <p className="text-xs text-muted-foreground">
-              {/* The extensions are one left-to-right piece: loose inside the Arabic sentence, the dots and brackets land on the wrong sides. */}
-              {t.rich("rules", {
-                types: () => <bdi dir="ltr">{ACCEPTED_EXTENSIONS.replaceAll(",", " ")}</bdi>,
-                mb: MAX_UPLOAD_BYTES / 1024 / 1024,
-              })}
-            </p>
-          </div>
+          {/* The same file field as the one dialog every signed-in page uses (components/send-file-dialog.tsx). */}
+          <FileField
+            id="upload-file"
+            label={sent.length ? t("another") : t("file")}
+            hint={t.rich("rules", {
+              // The extensions are one left-to-right piece: loose inside the Arabic sentence, the dots and brackets land on the wrong sides.
+              types: () => <bdi dir="ltr">{ACCEPTED_EXTENSIONS.replaceAll(",", " ")}</bdi>,
+              mb: MAX_UPLOAD_BYTES / 1024 / 1024,
+            })}
+          />
           <Button type="submit" disabled={busy} className="justify-self-start">
             {busy ? <BrandLoader tone="current" className="size-4" /> : <Upload />}
             {busy ? t("sending") : t("send")}

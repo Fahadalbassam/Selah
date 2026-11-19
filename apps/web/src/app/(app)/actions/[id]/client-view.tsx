@@ -1,87 +1,88 @@
 "use client";
 
-import { BellOff, ShieldCheck } from "lucide-react";
-import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { callApi } from "@/components/form-dialog";
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { RowMenu } from "@/components/row-menu";
+import type { MenuItem } from "@/lib/action-next";
 import type { LastLine, NextLine, PlainWho } from "@/lib/action-plain";
+import { CloseDialog, json, ReasonDialog, send } from "./action-panel";
 import { SignDialog } from "./closure-panels";
-import { AskForDate } from "./follow-through-panels";
 
-// The action page for a client reader (page audit 4.5, batch 1): the rare
-// things sit in a menu, and two plain lines stand in for the firm's reminder
-// ladder and date history.
+// The action page's rare things (page audit 4.5, batch 4), for every reader:
+// close and reopen (the firm), accepting the risk of not finishing it (a
+// client admin or manager), mail about it. They were buttons before. And for
+// a client reader, two plain lines in place of the firm's reminder ladder
+// and date history.
 
-/**
- * The page menu for a client reader: mail about this action, and accepting the
- * risk of not finishing it (a client admin or manager, while it is open). Both
- * were buttons on every action before.
- */
-export function ActionMenu({ actionId, muted, canSign }: { actionId: string; muted: boolean; canSign: boolean }) {
+/** The page menu (⋯) beside the title. Only the items the server allows (nextStep().menu). */
+export function ActionPageMenu({
+  actionId,
+  items,
+  muted,
+  close,
+}: {
+  actionId: string;
+  items: MenuItem[];
+  muted: boolean;
+  close: { signed: boolean; replacements: { id: string; title: string }[] } | null;
+}) {
   const t = useTranslations("action.menu");
+  const ta = useTranslations("action");
   const tm = useTranslations("notifications.mail");
   const tc = useTranslations("common");
   const router = useRouter();
-  const [signing, setSigning] = useState(false);
+  const done = () => router.refresh();
   async function toggleMute() {
     const r = await callApi(`/api/actions/${actionId}/mute`, "PUT", { muted: !muted });
     if (!r.ok) return void toast.error(tc(`errors.${r.error}`));
     toast.success(muted ? tm("unmuted") : tm("mutedDone"));
-    router.refresh();
+    done();
   }
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("label")} title={t("label")}>
-            <Ellipsis className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => void toggleMute()}>
-            <BellOff />
-            {muted ? tm("unmute") : tm("mute")}
-          </DropdownMenuItem>
-          {canSign ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setSigning(true)}>
-                <ShieldCheck />
-                {t("acceptRisk")}
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {canSign ? <SignDialog actionId={actionId} open={signing} onOpenChange={setSigning} /> : null}
-    </>
+    <RowMenu
+      label={t("label")}
+      items={[
+        { key: "mute", label: muted ? tm("unmute") : tm("mute"), allowed: items.includes("mute"), onSelect: () => void toggleMute() },
+        {
+          key: "acceptRisk",
+          label: t("acceptRisk"),
+          allowed: items.includes("acceptRisk"),
+          dialog: (control) => <SignDialog actionId={actionId} open={control.open} onOpenChange={control.onOpenChange} />,
+        },
+        {
+          key: "reopen",
+          label: ta("reopen"),
+          allowed: items.includes("reopen"),
+          dialog: (control) => (
+            <ReasonDialog control={control} title={ta("reopen")} hint={ta("reopenHint")} run={(reason) => send(`/api/actions/${actionId}/transition`, json({ to: "in_progress", reason }))} onDone={done} />
+          ),
+        },
+        {
+          key: "close",
+          label: ta("move.closed"),
+          allowed: items.includes("close"),
+          destructive: true,
+          dialog: (control) => (
+            <CloseDialog actionId={actionId} signed={close?.signed ?? false} replacements={close?.replacements ?? []} control={control} onDone={done} />
+          ),
+        },
+      ]}
+    />
   );
 }
 
 /**
  * Two plain lines for a client reader, in place of the reminder ladder and
  * the date history: what is expected next and by when, and what happened last
- * to the date (lib/action-plain.ts). With `ask`, a quiet "I need more time"
- * that proposes a new date.
+ * to the date (lib/action-plain.ts). "I need more time" is one of the quiet
+ * links under the next step.
  */
-export function PlainDateLines({
-  next,
-  last,
-  ask,
-}: {
-  next: NextLine | null;
-  last: LastLine | null;
-  ask?: { actionId: string; dueDate: string | null };
-}) {
+export function PlainDateLines({ next, last }: { next: NextLine | null; last: LastLine | null }) {
   const t = useTranslations("action.plain");
   const format = useFormatter();
-  const router = useRouter();
-  if (!next && !last && !ask) return null;
+  if (!next && !last) return null;
   const day = (d: string) => format.dateTime(new Date(`${d}T12:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
   const on = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium" });
   const who = (list: PlainWho[]) => format.list(list.map((w) => t(`who.${w}`)), { type: "conjunction" });
@@ -113,18 +114,6 @@ export function PlainDateLines({
     <div className="space-y-1.5 border-t pt-4 text-sm" data-slot="plain-date-lines">
       {nextText ? <p>{nextText}</p> : null}
       {lastText ? <p className="text-muted-foreground">{lastText}</p> : null}
-      {ask ? (
-        <AskForDate
-          actionId={ask.actionId}
-          dueDate={ask.dueDate}
-          onDone={() => router.refresh()}
-          trigger={
-            <Button type="button" variant="link" size="sm" className="h-auto px-0">
-              {t("ask")}
-            </Button>
-          }
-        />
-      ) : null}
     </div>
   );
 }

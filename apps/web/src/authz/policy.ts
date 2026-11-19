@@ -177,7 +177,10 @@ export const POLICY = {
   // Actions. Status moves map to these in workflow.ts.
   "action.read": { ...READ_WORK },
   "action.write": { ...STAFF },
-  "action.assign_owner": { ...STAFF, client_manager: "any" },
+  // Give one open action to a colleague (decision D1): the firm's staff on the
+  // project, the client's admin, and a client manager only as the project's
+  // coordinator or sponsor, which the database decides (app_can_change_owner).
+  "action.assign_owner": { ...STAFF, client_admin: "any", client_manager: "any" },
   "action.release": { ...STAFF }, // draft -> assigned
   "action.work": { ...DO_WORK }, // start, block, unblock, submit, rework
   "action.review": { ...STAFF }, // accept or request revision
