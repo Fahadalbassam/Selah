@@ -320,7 +320,8 @@
       "second_review_requested": "اعتماد أول وطلب اعتماد ثانٍ",
       "closure_request_requested": "طلب إغلاق المشروع من المكتب",
       "closure_request_declined": "رفض طلب إغلاق المشروع",
-      "closure_request_accepted": "بدء الإغلاق بناءً على الطلب"
+      "closure_request_accepted": "بدء الإغلاق بناءً على الطلب",
+      "action_owner_changed": "إسناد إجراء إلى زميل"
     },
     "eventsClient": {
       "assessment_shared": "مشاركة تقييم مع شركتكم",

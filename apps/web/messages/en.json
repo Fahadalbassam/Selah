@@ -320,7 +320,8 @@
       "second_review_requested": "signed off and asked for a second sign-off",
       "closure_request_requested": "asked the firm to close the project",
       "closure_request_declined": "declined the request to close",
-      "closure_request_accepted": "started closing, as asked"
+      "closure_request_accepted": "started closing, as asked",
+      "action_owner_changed": "gave an action to a colleague"
     },
     "eventsClient": {
       "assessment_shared": "shared an assessment with your company",

@@ -206,3 +206,25 @@ describe("one way to send a file (U05)", () => {
     expect(panel).not.toMatch(/UpdateForm/);
   });
 });
+
+// Review S4: the project's activity tab names an owner change in plain words, not "made a change".
+describe("the activity line for an owner change", () => {
+  it("has its own words in both languages", async () => {
+    const ar = (await import("../messages/ar.json")).default as { project: { events: Record<string, string> } };
+    const en = (await import("../messages/en.json")).default as { project: { events: Record<string, string> } };
+    expect(en.project.events.action_owner_changed).toBe("gave an action to a colleague");
+    expect(ar.project.events.action_owner_changed).toMatch(/[؀-ۿ]/);
+  });
+});
+
+// Review S3: "Reassign their actions first" opens the person's actions on this project, each with its owner
+// control; it never sends anyone to the switch-off dialog.
+describe("Reassign their actions first", () => {
+  const src = join(__dirname, "..", "src");
+  it("opens the project's own list, never the hand-over in the switch-off dialog", () => {
+    const people = readFileSync(join(src, "app/(app)/projects/[id]/project-people.tsx"), "utf8");
+    expect(people).not.toMatch(/handover=/);
+    expect(people).toMatch(/<ReassignActions/);
+    expect(readFileSync(join(src, "app/(app)/team/people-panels.tsx"), "utf8")).not.toMatch(/startOpen/);
+  });
+});
