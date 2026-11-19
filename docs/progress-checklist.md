@@ -8,7 +8,7 @@ This file replaces the earlier "living plan" page, which stopped at PR #24.
 
 - **Tick in the same PR.** The PR that delivers an item changes its box and adds `pr: #N` in the same commit. Nothing is ticked before its PR merges on main.
 - **Boxes:** `[x]` done and merged on main · `[~]` in progress, with an open PR · `[ ]` open · `[-]` outside Selah by design.
-- **Ids are stable.** `J` journey steps, `F` full-picture items, `R` readiness, `N` journey-map gaps, `D` decisions, `X` standing rules. Never renumber; add new ids at the end of a section.
+- **Ids are stable.** `J` journey steps, `F` full-picture items, `R` readiness, `N` journey-map gaps, `D` decisions, `X` standing rules, `LI` later improvements, `RL` the reference library. Never renumber; add new ids at the end of a section.
 - **Fields** after the dash: `lane` (firm, shared, client), `map` (what the journey map found on 24 Oct: exists, wave 1, missing, outside Selah), `covered by` (the item that builds the step), `journey` (steps an item covers), `wave` (1, 2, frozen, or later for readiness items needed only before real data), `pr`.
 - **A journey step is done when every item covering it is done.** Tick the step in the same PR as its last item.
 - Statuses were checked against main at 87099c7 (PR #58) on 24 Oct 2026. Sources: the journey map (`plan/selah-journey-map.html`) and the full picture (`plan/selah-full-picture.html`) in the project files.
@@ -271,3 +271,28 @@ Fahad asked for everything his team needs to walk through the whole product loca
 
 - [x] **D8** KPI layer B: may client KPIs live at company and department level with a simple weighted cascade? — done: Fahad decided on 2026-10-25 to build company and department indicators without a weighted cascade (F35, #132)
 - [x] **D11** Rewrite the partner name out of the first commit (force-push, can't be undone for clones) — done: Fahad's go on 2026-10-24; history rewritten and every branch force-pushed, main 71e45d0 became 9d0c72c with identical files · related: X4
+
+## Later improvements (not built)
+
+The owner's Gate B answer (19 Nov 2026, `docs/review/lead-log.md`, Gate B answers, part 1): document these, build nothing now, no dates. The handbook part `docs/handbook/later/` (Arabic and English) says what each does and how the team can split them.
+
+Rules for every item here:
+- Automation suggests, a person decides: nothing changes until a consultant or the client accepts it, and the record says who decided.
+- It runs well on our server (GTX 1050, 16 GB RAM, the local model); no client file goes to a hosted model.
+- Keep the app light: one shared local model and one search index serve every AI feature; no new model, agent or service just for one feature; plain rules and SQL (thresholds, counts, dates) wherever they do the job, AI only where it clearly helps.
+- Keep it fast: AI jobs in one shared queue (one at a time on the server), cache answers and embeddings that have not changed, index a file once and again only when it changes, and measure page and AI response times before and after each feature.
+- Each item names the data it needs; for now only keep that data structured and timestamped.
+
+- [ ] **LI01** Automatic KPI help: read indicator values from a client's spreadsheet or file and propose the rows, flag a value that moved away from its target (a plain rule), suggest a likely link to a recommendation (the firm confirms) — size: M · model: only for messy files · needs: baseline, target, direction, values by period · keep now: each value's period, who entered it and when, how it came in, corrections beside the original; each link's author and time
+- [ ] **LI02** Governance assessment help: draft answers and scores from the client's evidence against the reference library, a citation each (client file and reference), the consultant accepts or changes each; scores stay firm-only — size: M–L · model: the shared one, background job · depends on: RL01, the labelled test set · keep now: each answer's author and time, its template version, its linked evidence; keep an earlier answer when it changes (to check: today only the latest time is kept)
+- [ ] **LI03** Workflow lane detection: spot stuck or overloaded consultant or client lanes from action history (reviews waiting long, one person owning most late work, a project with no movement); facts and counts for the firm admin or lead, never a score or ranking — size: S–M · model: none (SQL) · keep now: each state change with who and when, never rewritten; review decisions and date requests with their times
+- [ ] **LI04** "What changed since my last visit" and a meeting brief in the staff assistant: cited, marked draft, from the readers the screens already use — size: S–M · after: the value test (tasks 3 and 6)
+- [ ] **LI05** Text recognition for scanned pages, on the pages marked scanned only, in the shared queue, indexed once — size: M · model: none (text recognition on the processor)
+- [ ] **LI06** Save an assistant answer with its citations as a firm-only project note, by the asker; never shared with the client automatically — size: S
+
+Decided, not an idea: the client's progress-update draft is approved as facts only, marked draft, never sent by Selah (Gate B).
+
+## Reference library (plan, not built)
+
+- [ ] **RL01** A reference library of six sources: the IFC family business governance handbook; the OECD Principles of Corporate Governance; the CMA Corporate Governance Regulations; the Balanced Scorecard; Good Strategy Bad Strategy; the Ministry of Economy and Planning strategy framework — kept as a separate "reference" source, never mixed with client evidence; labelled "Reference" with source, edition and place in every citation; each source stored with its edition or date; each licence checked before loading; the two copyrighted books quoted only briefly, with the firm's own short notes instead of their text · handbook: `docs/handbook/later/`, section "reference-library"
+- [ ] **RL02** Arabic and English questions about each reference source in the labelled test set (section 7 item 7), with the right passages marked · depends on: RL01

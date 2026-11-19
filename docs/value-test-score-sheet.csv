@@ -1,0 +1,13 @@
+task,title,role,question_language,attempt,order,time_mm_ss,right_yes_partly_no,citation_checked_yes_no,would_use_yes_maybe_no,note
+1,Late work across clients,lead@mizan.test,en,with assistant,1st,,,,,
+1,Late work across clients,lead@mizan.test,en,without,2nd,,,n/a,n/a,
+2,A board decision (client side),manager@nukhba.test,ar,with assistant,2nd,,,,,
+2,A board decision (client side),manager@nukhba.test,ar,without,1st,,,n/a,n/a,
+3,Getting ready for a meeting,lead@mizan.test,ar,with assistant,1st,,,,,
+3,Getting ready for a meeting,lead@mizan.test,ar,without,2nd,,,n/a,n/a,
+4,Two versions of one rule,lead@mizan.test,ar,with assistant,2nd,,,,,
+4,Two versions of one rule,lead@mizan.test,ar,without,1st,,,n/a,n/a,
+5,A recommendation's evidence and a reply,lead@mizan.test,en,with assistant,1st,,,,,
+5,A recommendation's evidence and a reply,lead@mizan.test,en,without,2nd,,,n/a,n/a,
+6,What changed since my last visit,lead@mizan.test,ar,with assistant,2nd,,,,,
+6,What changed since my last visit,lead@mizan.test,ar,without,1st,,,n/a,n/a,
