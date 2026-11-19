@@ -72,6 +72,16 @@ describe("every written action has a sentence", () => {
   });
 });
 
+describe("one word per thing (page audit 4.7, review N4)", () => {
+  it("an inquiry is «الطلب» in the audit log, as on its page and in the sidebar", () => {
+    const a = (ar as unknown as { audit: Record<string, Record<string, string>> }).audit;
+    for (const group of ["sentences", "actions", "areas"]) {
+      for (const [k, v] of Object.entries(a[group] ?? {})) expect(v, `${group}.${k}`).not.toMatch(/استفسار/);
+    }
+    expect(a.sentences!.inquiry_convert).toMatch(/طلب/);
+  });
+});
+
 describe("the sentences, in both languages", () => {
   it("a sign-in", () => {
     expect(say("ar", { action: "auth.sign_in", outcome: "allow" }, "سارة")).toBe("تسجيل الدخول، بواسطة سارة");
