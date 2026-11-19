@@ -1859,15 +1859,28 @@ export async function headSuggestions(tx: Tx, principal: Principal, clientOrgId:
         .innerJoin(user, eq(user.id, departmentMembers.userId))
         .where(and(eq(departmentMembers.isHead, true), inArray(departmentMembers.departmentId, active.map((d) => d.id))))
     : [];
+  // Only people still with the client (review S3): the leaving ends a holding today, and the account is off.
+  const activePeople = new Set(
+    (
+      await tx
+        .select({ userId: orgMemberships.userId })
+        .from(orgMemberships)
+        .where(and(eq(orgMemberships.orgId, clientOrgId), eq(orgMemberships.active, true)))
+    ).map((m) => m.userId),
+  );
   const out: HeadSuggestion[] = [];
   for (const d of active) {
     for (const u of linked.filter((x) => x.departmentId === d.id)) {
       const head = chart.positions.find((p) => p.unitId === u.id && p.isHead);
+      if (!head) continue;
+      // Someone whose holding ends today, or who is no longer one of the client's active people (the leaving
+      // ends a holding today), is leaving the position: never suggested, and not counted (review S3).
+      const staying = head.holders.filter((h) => (h.to === null || h.to > today) && (!h.userId || activePeople.has(h.userId)));
       // Only while the head position has exactly one holder (review S2): with several, which one heads the
       // department is the people's own choice, and confirming one would undo the other.
-      if (!head || head.holders.length !== 1) continue;
+      if (staying.length !== 1) continue;
       const theirs = heads.filter((h) => h.departmentId === d.id);
-      for (const h of head.holders) {
+      for (const h of staying) {
         if (!h.named || !h.userId || !h.name) continue;
         if (theirs.some((x) => x.userId === h.userId) || out.some((s) => s.departmentId === d.id && s.holder.userId === h.userId)) continue;
         out.push({
@@ -1899,8 +1912,16 @@ export async function confirmHeadSuggestion(tx: Tx, principal: Principal, client
   assertAllowed(principal, "department.manage", headRecord(principal, clientOrgId));
   const s = (await headSuggestions(tx, principal, clientOrgId)).find((x) => x.departmentId === input.departmentId && x.holder.userId === input.userId);
   if (!s) throw new BadRequestError("suggestion_gone");
-  for (const h of s.heads) await putDepartmentMember(tx, principal, s.departmentId, h.userId, { isHead: false });
-  await putDepartmentMember(tx, principal, s.departmentId, s.holder.userId, { isHead: true });
+  try {
+    for (const h of s.heads) await putDepartmentMember(tx, principal, s.departmentId, h.userId, { isHead: false });
+    await putDepartmentMember(tx, principal, s.departmentId, s.holder.userId, { isHead: true });
+  } catch (e) {
+    // The department's own rule refused it (the person left in the meantime): said in plain words, never the database's.
+    if (/department members are active people/.test(`${(e as Error).message} ${((e as Error).cause as Error | undefined)?.message ?? ""}`)) {
+      throw new BadRequestError("suggestion_gone");
+    }
+    throw e;
+  }
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,

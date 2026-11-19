@@ -552,7 +552,7 @@ describe("the department-head suggestion, after the people change", () => {
   });
 
   // Review S3: someone who left today was still suggested, and confirming gave a database message.
-  it.skip("never suggests a holder whose term ends today or who was switched off; a refusal is said in plain words", async () => {
+  it("never suggests a holder whose term ends today or who was switched off; a refusal is said in plain words", async () => {
     const cfo = await livePosition("2.1.1");
     const holding = (who: string) => q(`SELECT id FROM position_holders WHERE position_lineage_id = $1 AND user_id = $2`, [cfo.lineageId, who]).then((r) => r.rows[0].id as string);
     const chart = (await q(`SELECT id FROM org_charts WHERE org_id = $1`, [SAHM])).rows[0].id as string;

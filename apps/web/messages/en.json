@@ -5846,7 +5846,7 @@
       "effective_before": "A new version takes effect today or later, and not before the day the current one did.",
       "noUnits": "The draft has no units yet.",
       "resolution": "Choose one of the client's files that the client can see, or leave the board resolution empty.",
-      "suggestion_gone": "The structure or the department changed since this suggestion was shown. Reload the page.",
+      "suggestion_gone": "This suggestion no longer stands: the structure or the department changed, or the person is no longer one of your people. Reload the page.",
       "what": "Write the change you suggest in at least three characters.",
       "text_length": "The text is longer than allowed.",
       "answered": "This suggestion has already been answered."

@@ -110,6 +110,7 @@ export function orgChartError(message: string | undefined): string | null {
     [/takes effect (today or later, and )?on or after the day the current one did/, "effective_before"],
     [/the draft has no units yet/, "noUnits"],
     [/the resolution must be a file of this client/, "resolution"],
+    [/department members are active people of the client/, "suggestion_gone"],
     [/already holds the position on some of those days/, "alreadyHolds"],
     [/a holder is one of the client's own active people/, "ownPeople"],
     [/a holding ends on or after the day it started/, "endBefore"],
