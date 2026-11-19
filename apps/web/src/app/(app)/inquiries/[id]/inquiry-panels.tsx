@@ -144,6 +144,8 @@ export function ConvertDialog(props: {
   consultants: { id: string; name: string }[];
   /** A returning client's inquiry starts on that client. */
   existingClientId?: string | null;
+  /** The current step's one solid button; outline when it is the quiet second way (after the session, before a proposal). */
+  primary?: boolean;
 }) {
   const t = useTranslations("inbox");
   const te = useTranslations("engagements");
@@ -181,7 +183,7 @@ export function ConvertDialog(props: {
   return (
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), setError(null))}>
       <DialogTrigger asChild>
-        <Button className="w-full">
+        <Button variant={props.primary === false ? "outline" : "default"}>
           <Handshake />
           {t("convert")}
         </Button>

@@ -23,6 +23,10 @@ import { getInquiry, suggestLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
 import { listClients, listTeam } from "@/services/queries";
 import { BookDiscovery, ConvertDialog } from "./inquiry-panels";
+import { WordBadge } from "@/components/status-badge";
+import { inquirySteps } from "@/lib/inquiry-steps";
+import { inquiryPlacement } from "@/lib/status-words";
+import { cn } from "@/lib/utils";
 
 const CLOSED = ["lost", "declined", "spam", "withdrawn"] as const;
 // The self-check keys as the database stores them.
@@ -45,11 +49,12 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
     };
   });
   if (!data) notFound();
-  const [t, ti, tq, tc, format] = await Promise.all([
+  const [t, ti, tq, tc, tw, format] = await Promise.all([
     getTranslations("inbox"),
     getTranslations("inquiry"),
     getTranslations("qualification"),
     getTranslations("common"),
+    getTranslations("statusWords"),
     getFormatter(),
   ]);
   const ar = (await getLocale()) === "ar";
@@ -171,6 +176,119 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
   ];
 
   const pendingSession = data.discoverySessions.find((s) => !s.heldAt && !s.outcome);
+  // The numbered steps and the one current step (U16, lib/inquiry-steps.ts).
+  const view = inquirySteps({
+    status: q.status,
+    hasOwner: !!q.ownerUserId,
+    conflictStatus: q.conflictStatus,
+    searched: !!data.conflictSearch,
+    sessionBooked: !!pendingSession,
+    converted: !!q.clientOrgId,
+    can,
+  });
+  const assignDialog = (primary: boolean) => (
+    <FormDialog
+      trigger={
+        <Button variant={primary ? "default" : "outline"} size={primary ? "default" : "sm"}>
+          <UserPlus />
+          {t("assign")}
+        </Button>
+      }
+      title={t("assign")}
+      description={t("assignHint")}
+      endpoint={`/api/intake/inquiries/${q.id}`}
+      method="PATCH"
+      fields={[
+        {
+          name: "ownerUserId",
+          label: t("owner"),
+          type: "select",
+          required: true,
+          defaultValue: q.ownerUserId ?? undefined,
+          options: data.team.map((m) => ({ value: m.id, label: m.name })),
+        },
+      ]}
+      submitLabel={t("assign")}
+    />
+  );
+  const conflictDialog = (primary: boolean) => (
+    <FormDialog
+      trigger={
+        <Button variant={primary ? "default" : "outline"} size={primary ? "default" : "sm"}>
+          {t("recordConflict")}
+        </Button>
+      }
+      title={t("conflictCheck")}
+      description={t("conflictHint")}
+      endpoint={`/api/intake/inquiries/${q.id}`}
+      method="PATCH"
+      fields={[
+        {
+          name: "conflictStatus",
+          label: t("conflict"),
+          type: "select",
+          required: true,
+          defaultValue: q.conflictStatus === "not_checked" ? (data.conflictSearch ? "clear" : "flagged") : q.conflictStatus,
+          // Clearing needs a search first (check_conflict_cleared).
+          options: (data.conflictSearch ? (["clear", "flagged", "waived"] as const) : (["flagged", "waived"] as const)).map((s) => ({
+            value: s,
+            label: t(`conflicts.${s}`),
+          })),
+        },
+        {
+          name: "conflictNote",
+          label: t("conflictNote"),
+          type: "textarea",
+          maxLength: 2000,
+          defaultValue: q.conflictNote ?? undefined,
+        },
+      ]}
+      submitLabel={t("recordConflict")}
+    />
+  );
+  const recordDialog = (s: (typeof data.discoverySessions)[number], primary: boolean) => (
+    <FormDialog
+      trigger={
+        <Button variant={primary ? "default" : "outline"} size={primary ? "default" : "sm"}>
+          <NotebookPen />
+          {t("record")}
+        </Button>
+      }
+      title={t("record")}
+      description={t("recordHint")}
+      endpoint={`/api/intake/discovery/${s.id}`}
+      method="PATCH"
+      fields={[
+        {
+          name: "outcome",
+          label: t("outcome"),
+          type: "select",
+          required: true,
+          defaultValue: s.outcome ?? undefined,
+          options: (["proceed", "needs_followup", "not_a_fit"] as const).map((o) => ({ value: o, label: t(`outcomes.${o}`) })),
+        },
+        { name: "notes", label: t("notes"), type: "textarea", maxLength: 8000, defaultValue: s.notes ?? undefined },
+      ]}
+      submitLabel={t("record")}
+    />
+  );
+  const convertDialog = (primary: boolean) => (
+    <>
+      <ConvertDialog
+        primary={primary}
+        inquiryId={q.id}
+        orgName={q.orgName ?? ""}
+        orgNameAr={q.orgNameAr ?? null}
+        clients={data.clients}
+        existingClientId={returning}
+        consultants={[
+          ...(data.leads ?? []).map((l) => ({ id: l.userId, name: l.name })),
+          ...data.team.filter((m) => m.role === "consultant" && !data.leads?.some((l) => l.userId === m.id)),
+        ]}
+      />
+      {returning ? <p className="w-full text-xs text-muted-foreground">{t("returning", { name: data.clients.find((c) => c.id === returning)?.name ?? "—" })}</p> : null}
+    </>
+  );
 
   return (
     <>
@@ -181,74 +299,124 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
       <PageHeader
         title={(ar ? q.orgNameAr : null) ?? q.orgName ?? q.publicRef}
         description={`${q.publicRef} · ${t("received")} ${when(q.createdAt)}`}
-        meta={<ToneBadge tone={q.status === "new" ? "new" : "open"}>{status(q.status)}</ToneBadge>}
+        meta={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <WordBadge placement={inquiryPlacement(q.status)} reader="firm" />
+            <span className="text-xs text-muted-foreground" title={tw("exactLabel")}>
+              {status(q.status)}
+            </span>
+          </span>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
-          {can.work && !q.clientOrgId ? (
-            <Card className="gap-4 py-5 shadow-xs">
-              <CardHeader className="px-5">
-                <CardTitle className="text-base">{t("nextStep")}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 px-5">
-                {can.forward === "triaged" || can.forward === "proposal_sent" ? (
-                  <ApiButton
-                    endpoint={`/api/intake/inquiries/${q.id}`}
-                    method="PATCH"
-                    body={{ status: can.forward }}
-                    label={t(`forward.${can.forward}`)}
-                    variant="default"
-                    size="default"
-                  />
-                ) : null}
-                {/* A booked session not yet recorded is the next step, not another booking (review L04). */}
-                {pendingSession ? <p className="w-full text-sm text-muted-foreground">{t("discoveryBooked", { date: when(pendingSession.scheduledAt) })}</p> : null}
-                {["new", "triaged", "discovery_scheduled"].includes(q.status) && !pendingSession ? (
-                  // One solid button per card: booking steps back when moving the inquiry forward is offered.
-                  <BookDiscovery inquiryId={q.id} secondary={can.forward === "triaged" || can.forward === "proposal_sent"} />
-                ) : null}
-                {can.decide && !closed ? (
-                  <FormDialog
-                    trigger={<Button variant="outline">{t("close")}</Button>}
-                    title={t("close")}
-                    description={t("closeHint")}
-                    endpoint={`/api/intake/inquiries/${q.id}`}
-                    method="PATCH"
-                    fields={[
-                      {
-                        name: "status",
-                        label: t("closeAs"),
-                        type: "select",
-                        required: true,
-                        options: CLOSED.map((s) => ({ value: s, label: t(`statuses.${s}`) })),
-                      },
-                    ]}
-                    submitLabel={t("close")}
-                  />
-                ) : null}
-                {can.declineMail ? (
-                  <ApiButton
-                    endpoint={`/api/intake/inquiries/${q.id}/decline-mail`}
-                    label={t("declineMail")}
-                    title={t("declineMailHint")}
-                    confirm={t("declineMailConfirm", { email: q.contactEmail ?? "" })}
-                    icon={<Mail />}
-                    size="default"
-                  />
-                ) : null}
-                {can.decide && closed ? (
-                  <ApiButton
-                    endpoint={`/api/intake/inquiries/${q.id}`}
-                    method="PATCH"
-                    body={{ status: "new" }}
-                    label={t("reopen")}
-                    size="default"
-                  />
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
+          {/* The steps (U16): numbered, one current step, and only it has a button. */}
+          <Card className="gap-4 py-5 shadow-xs">
+            <CardHeader className="px-5">
+              <CardTitle className="text-base">{t("stepsTitle")}</CardTitle>
+              <CardDescription>{view.closed ? t("stepsClosed", { status: status(q.status) }) : q.clientOrgId ? t("converted") : t("stepsHint")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 px-5">
+              <ol className="space-y-3">
+                {view.steps.map((st, i) => {
+                  const isCurrent = st.key === view.current;
+                  return (
+                    <li
+                      key={st.key}
+                      aria-current={isCurrent ? "step" : undefined}
+                      className={cn("flex gap-3 rounded-lg px-3 py-2.5 text-sm", isCurrent ? "border bg-muted/40" : "text-muted-foreground")}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums",
+                          st.state === "done" && "border-transparent bg-muted text-muted-foreground",
+                          isCurrent && "border-foreground text-foreground",
+                          st.state === "problem" && "border-destructive text-destructive",
+                        )}
+                      >
+                        {st.state === "done" ? <CircleCheck className="size-3.5" /> : format.number(i + 1)}
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className={cn("font-medium", isCurrent || st.state === "problem" ? "text-foreground" : undefined)}>
+                          {t(`steps.${st.key}.title`)}
+                          <span className="ms-2 text-xs font-normal text-muted-foreground">{t(`stepState.${st.state}`)}</span>
+                        </p>
+                        {isCurrent ? (
+                          <>
+                            <p className="text-muted-foreground">
+                              {st.key === "discovery" && pendingSession ? t("discoveryBooked", { date: when(pendingSession.scheduledAt) }) : t(`steps.${st.key}.hint`)}
+                            </p>
+                            {view.main === null ? <p className="text-xs text-muted-foreground">{t(`steps.${st.key}.notYours`)}</p> : null}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {view.main === "assign" ? assignDialog(true) : null}
+                              {view.main === "triage" || view.main === "proposalSent" ? (
+                                <ApiButton
+                                  endpoint={`/api/intake/inquiries/${q.id}`}
+                                  method="PATCH"
+                                  body={{ status: can.forward }}
+                                  label={t(`forward.${can.forward as "triaged" | "proposal_sent"}`)}
+                                  variant="default"
+                                  size="default"
+                                />
+                              ) : null}
+                              {view.main === "runSearch" ? (
+                                <ApiButton endpoint={`/api/intake/inquiries/${q.id}/conflict-search`} label={t("runSearch")} icon={<Search />} variant="default" size="default" />
+                              ) : null}
+                              {view.main === "recordConflict" ? conflictDialog(true) : null}
+                              {view.main === "bookDiscovery" ? <BookDiscovery inquiryId={q.id} /> : null}
+                              {view.main === "recordDiscovery" && pendingSession ? recordDialog(pendingSession, true) : null}
+                              {view.main === "convert" || view.alsoConvert ? convertDialog(view.main === "convert") : null}
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+              {/* Rare moves under the steps, quiet: closing, reopening, the courteous decline mail. */}
+              {can.decide && !q.clientOrgId ? (
+                <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                  {!closed ? (
+                    <FormDialog
+                      trigger={
+                        <Button variant="ghost" size="sm" data-step="closeInquiry">
+                          {t("close")}
+                        </Button>
+                      }
+                      title={t("close")}
+                      description={t("closeHint")}
+                      endpoint={`/api/intake/inquiries/${q.id}`}
+                      method="PATCH"
+                      fields={[
+                        {
+                          name: "status",
+                          label: t("closeAs"),
+                          type: "select",
+                          required: true,
+                          options: CLOSED.map((s) => ({ value: s, label: t(`statuses.${s}`) })),
+                        },
+                      ]}
+                      submitLabel={t("close")}
+                    />
+                  ) : (
+                    <ApiButton endpoint={`/api/intake/inquiries/${q.id}`} method="PATCH" body={{ status: "new" }} label={t("reopen")} />
+                  )}
+                  {can.declineMail ? (
+                    <ApiButton
+                      endpoint={`/api/intake/inquiries/${q.id}/decline-mail`}
+                      label={t("declineMail")}
+                      title={t("declineMailHint")}
+                      confirm={t("declineMailConfirm", { email: q.contactEmail ?? "" })}
+                      icon={<Mail />}
+                      variant="ghost"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
           <Card className="gap-4 py-5 shadow-xs">
             <CardHeader className="px-5">
@@ -325,41 +493,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                       {s.notes}
                     </p>
                   ) : null}
-                  {can.work && !q.clientOrgId ? (
-                    <FormDialog
-                      trigger={
-                        <Button variant="outline" size="sm">
-                          <NotebookPen />
-                          {t("record")}
-                        </Button>
-                      }
-                      title={t("record")}
-                      description={t("recordHint")}
-                      endpoint={`/api/intake/discovery/${s.id}`}
-                      method="PATCH"
-                      fields={[
-                        {
-                          name: "outcome",
-                          label: t("outcome"),
-                          type: "select",
-                          required: true,
-                          defaultValue: s.outcome ?? undefined,
-                          options: (["proceed", "needs_followup", "not_a_fit"] as const).map((o) => ({
-                            value: o,
-                            label: t(`outcomes.${o}`),
-                          })),
-                        },
-                        {
-                          name: "notes",
-                          label: t("notes"),
-                          type: "textarea",
-                          maxLength: 8000,
-                          defaultValue: s.notes ?? undefined,
-                        },
-                      ]}
-                      submitLabel={t("record")}
-                    />
-                  ) : null}
+                  {can.work && !q.clientOrgId ? recordDialog(s, false) : null}
                 </div>
               ))}
             </CardContent>
@@ -426,33 +560,8 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
               <CardDescription>{t("owner")}</CardDescription>
               <CardTitle className="text-base">{nameOf(q.ownerUserId) ?? q.ownerName ?? (q.ownerUserId ? "—" : t("unassigned"))}</CardTitle>
             </CardHeader>
-            {can.decide && !q.clientOrgId ? (
-              <CardContent className="px-5">
-                <FormDialog
-                  trigger={
-                    <Button variant="outline" size="sm">
-                      <UserPlus />
-                      {t("assign")}
-                    </Button>
-                  }
-                  title={t("assign")}
-                  description={t("assignHint")}
-                  endpoint={`/api/intake/inquiries/${q.id}`}
-                  method="PATCH"
-                  fields={[
-                    {
-                      name: "ownerUserId",
-                      label: t("owner"),
-                      type: "select",
-                      required: true,
-                      defaultValue: q.ownerUserId ?? undefined,
-                      options: data.team.map((m) => ({ value: m.id, label: m.name })),
-                    },
-                  ]}
-                  submitLabel={t("assign")}
-                />
-              </CardContent>
-            ) : null}
+            {/* A fact with its edit; while giving it an owner is the current step, the step holds the button. */}
+            {can.decide && !q.clientOrgId && view.main !== "assign" ? <CardContent className="px-5">{assignDialog(false)}</CardContent> : null}
           </Card>
 
           <Card className="gap-3 py-5 shadow-xs">
@@ -474,48 +583,17 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                   <ConflictMatches search={data.conflictSearch} />
                 </div>
               ) : null}
-              {can.decide && !q.clientOrgId ? (
-                <ApiButton
-                  endpoint={`/api/intake/inquiries/${q.id}/conflict-search`}
-                  label={data.conflictSearch ? t("searchAgain") : t("runSearch")}
-                  icon={<Search />}
-                  variant="outline"
-                />
-              ) : null}
-              {can.decide && !q.clientOrgId ? (
-                <FormDialog
-                  trigger={
-                    <Button variant="outline" size="sm">
-                      {t("recordConflict")}
-                    </Button>
-                  }
-                  title={t("conflictCheck")}
-                  description={t("conflictHint")}
-                  endpoint={`/api/intake/inquiries/${q.id}`}
-                  method="PATCH"
-                  fields={[
-                    {
-                      name: "conflictStatus",
-                      label: t("conflict"),
-                      type: "select",
-                      required: true,
-                      defaultValue: q.conflictStatus === "not_checked" ? (data.conflictSearch ? "clear" : "flagged") : q.conflictStatus,
-                      // Clearing needs a search first (check_conflict_cleared).
-                      options: (data.conflictSearch ? (["clear", "flagged", "waived"] as const) : (["flagged", "waived"] as const)).map((s) => ({
-                        value: s,
-                        label: t(`conflicts.${s}`),
-                      })),
-                    },
-                    {
-                      name: "conflictNote",
-                      label: t("conflictNote"),
-                      type: "textarea",
-                      maxLength: 2000,
-                      defaultValue: q.conflictNote ?? undefined,
-                    },
-                  ]}
-                  submitLabel={t("recordConflict")}
-                />
+              {/* Facts with their edits; while the check is the current step, the step holds the button. */}
+              {can.decide && !q.clientOrgId && view.main !== "runSearch" && view.main !== "recordConflict" ? (
+                <div className="flex flex-wrap gap-2">
+                  <ApiButton
+                    endpoint={`/api/intake/inquiries/${q.id}/conflict-search`}
+                    label={data.conflictSearch ? t("searchAgain") : t("runSearch")}
+                    icon={<Search />}
+                    variant="outline"
+                  />
+                  {conflictDialog(false)}
+                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -615,33 +693,6 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
                 <p>{t("converted")}</p>
                 <Link href={`/clients/${q.clientOrgId}`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>{t("openClient")}</Link>
               </CardContent>
-            </Card>
-          ) : can.decide && !closed ? (
-            <Card className="gap-3 py-5 shadow-xs">
-              <CardHeader className="px-5">
-                <CardTitle className="text-base">{t("convert")}</CardTitle>
-                <CardDescription>{can.convert ? t("convertHint") : t("convertBlocked")}</CardDescription>
-                {can.convert && returning ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t("returning", { name: data.clients.find((c) => c.id === returning)?.name ?? "—" })}
-                  </p>
-                ) : null}
-              </CardHeader>
-              {can.convert ? (
-                <CardContent className="px-5">
-                  <ConvertDialog
-                    inquiryId={q.id}
-                    orgName={q.orgName ?? ""}
-                    orgNameAr={q.orgNameAr ?? null}
-                    clients={data.clients}
-                    existingClientId={returning}
-                    consultants={[
-                      ...(data.leads ?? []).map((l) => ({ id: l.userId, name: l.name })),
-                      ...data.team.filter((m) => m.role === "consultant" && !data.leads?.some((l) => l.userId === m.id)),
-                    ]}
-                  />
-                </CardContent>
-              ) : null}
             </Card>
           ) : null}
 
