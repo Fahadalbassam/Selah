@@ -135,6 +135,20 @@ What changed, question by question (only Arabic questions changed):
 - **Conflicting versions:** unchanged. N08, N09, N10, N13 and W05 still get both versions; N11 (English) and N12 (Arabic) still get only the version in their own language (recall 0.5 each): the 2024 matrix is English and the 2026 draft Arabic, and a spelling fold cannot join two languages. W06 (a follow-up) still finds nothing. These need the next steps above (the other version of a found file; follow-ups searched with the earlier question).
 - Still missed: N04, N14, N19 (cross-language and long files), W04, R05, R07 (long files crowding), N27 (the scan, not read here), W06 and AC08 (follow-ups).
 
+**Second run, after the review of #209 (same night).** The review changed the masking and made `app_search_tsv()` faster (two passes of one regular expression over the whole passage instead of a call per word; the same words come out, checked by `tests/db/arabic-search.test.ts`). The search rules themselves did not change. The run was repeated from scratch on `selah_test_p`: a new database at migration 0111, seeded and indexed again (so new embeddings), "before" with `origin/main`'s `keywordQuery()`, then 0112 applied on those rows and "after" with the new code. Again all 46 English questions sent the same passages before and after.
+
+| | Before | After |
+|---|---|---|
+| Hit rate | 81 of 89 (91%) | 81 of 89 (91%) |
+| Mean recall | 0.893 | 0.893 |
+| Right passage sent first | 59 of 89 (66%) | **60 of 89 (67%)** |
+| Arabic / English questions | 40 of 43 / 41 of 46 | 40 of 43 / 41 of 46 |
+| Long files / versions (Arabic, English) / cross-language | 14 of 17 / 6 of 7, 1 of 1 / 9 of 11 | same |
+| Other project's passages, leak words | 0, 0 | 0, 0 |
+| Median search time | 0.69 s | 0.68 s |
+
+The new indexing changed the baseline: this time the vectors alone found R06 and R05, so the fold had no miss left to turn into a hit. What moved is the order: N15 and N16 2nd → 1st, N21 8th → 7th, N33 5th → 4th, and again N35 1st → 2nd. N11 and N12 still get one version each (recall 0.5). **Read together, the two runs say the fold helps Arabic questions by a little (one more hit in the first run, one to two more right passages ranked first in both) and costs nothing measurable elsewhere; on this set it is not a big gain, because the vector search already finds most of what the spelling would.** The set's Arabic is written consistently (hamza and ة as they should be), so it under-tests what the fold is for: files typed without hamza, with tatweel or Arabic-Indic digits.
+
 **False matches (the cautions of section 3.3).** The shorter forms that strip a real first letter exist, as expected: in the 223 indexed passages, 424 of the 889 different Arabic words get a shorter form (405 different ones, 117 of which are also words in their own right, for example «مجلس», «سياسه», «مكافات»); about 20 of them take off a letter that belongs to the word: «لجنه» → «جنه», «لجان» → «جان», «كتابه» → «تابه», «برنامج» → «رنامج», «ورشه» → «رشه», «لقاء» → «قاء», «بلاغ» → «لاغ», «فبراير» → «براير», «كلمه» → «لمه», «بينهم» → «ينهم» and the like. On the question side, 130 shorter forms were added over the Arabic questions; the wrong ones (N21 «لجنة» → «جنه» and «وجود» → «جود», N29 «ورشة» → «رشه», R18 «برنامج» → «رنامج», N30 «لقاء» → «قاء», N25 «بلاغه» → «لاغه», REF14 «كتاب» → «تاب») matched only passages that hold the same word, because none of those short forms is a word in this set; **no wrong passage was found through one**. «بنك» is never «نك» (fewer than three letters would be left; W14's «البنك» asks for «بنك» only). So the cost on this set is the small reordering of N35, not false passages; a set with «جنة» (a garden) or «تاب» as words of their own would show the caution, and keeping both forms with `ts_rank` puts the passage with the word as written first (`tests/db/arabic-search.test.ts`).
 
 The raw files (both results JSON files, the logs and the word lists) stayed on the machine that ran them.

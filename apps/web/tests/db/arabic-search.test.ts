@@ -45,6 +45,13 @@ const WORDS = [
   "مُرَاجَعَةٌ", "نظاماً", "ممتـــثلة", "٢٠٢٧", "۱۴۰۵", "ب٣", "والشركة", "بالمراجعة", "وبالمكافآت", "فالقرار", "كالعادة",
   "للنخبة", "وللجنة", "لجنة", "بنك", "البنك", "الله", "وال", "والي", "كتاب", "فيه", "لها", "ولي", "مجلس", "المجلس",
   "Board", "ÉTÉ", "Al-Nukhba", "2027", "x٣y", "",
+  // Review of #209: letters whose lower case JavaScript writes differently by default, digits inside words.
+  "İstanbul", "İ", "ΣΑΣ", "ẞ", "Ǆemal", "ÅNGSTRÖM", "عام٢٠٢٥م", "ب٣ت", "A٢B۳", "Vision٢٠٣٠", "ق٫٥",
+];
+const SENTENCES = [
+  "وبالمكافآت السنوية تختص لجنة الترشيحات، وللجنة أن تستعين بخبراء مستقلين.",
+  "يرفع المسؤول التنفيذي تقريره إلى أعضاء مجلس الإدارة في عام ٢٠٢٧. والي فبراير بنك البنك للنخبة، والشركة 2027 Board ب3",
+  "(للجنة) «وللنخبة»؛ كالعادة—فالقرار…للإنماء ولـلنخبة الله لله",
 ];
 
 beforeAll(async () => {
@@ -102,6 +109,19 @@ describe("the database's fold is lib/arabic-fold.ts's", () => {
     expect(at("البنك")).toEqual(["بنك"]);
     expect(at("الله")).toEqual([]);
     expect(at("Board")).toEqual([]);
+  });
+
+  it("indexes a passage by exactly those shorter forms (app_search_tsv)", async () => {
+    for (const text of SENTENCES) {
+      const words = foldWords(text).split(/[^ء-ي]+/).filter(Boolean);
+      const stems = words.flatMap(searchStems).join(" ");
+      const { rows } = await owner.query<{ got: string[]; want: string[] }>(
+        `SELECT ARRAY(SELECT unnest(tsvector_to_array(app_search_tsv($1))) ORDER BY 1) AS got,
+                ARRAY(SELECT unnest(tsvector_to_array(to_tsvector('simple', app_search_fold($1)) || to_tsvector('simple', $2))) ORDER BY 1) AS want`,
+        [text, stems],
+      );
+      expect(rows[0]!.got).toEqual(rows[0]!.want);
+    }
   });
 });
 
@@ -183,6 +203,23 @@ describe("masking finds names in the folded text", () => {
     expect(await terms("النخبةوي ونخبة لنخبة")).toEqual([]);
   });
 
+  it("finds a name only at the start of a word or after a prefix written on to it (review S4)", async () => {
+    await owner.query(
+      `INSERT INTO client_contacts (org_id, name) VALUES ($1,'بشرى المطيري'), ($1,'سلمى الدوسري'), ($1,'أمل الشهري'), ($1,'آل سعود'), ($1,'إلهام الزهراني')`,
+      [NUKHBA],
+    );
+    const found = async (text: string) => (await terms(text)).map((r) => r.term);
+    // Inside another word: not found.
+    expect(await found("رأس المال البشري والتعايش")).toEqual([]);
+    expect(await found("الانتقال السلمي للسلطة")).toEqual([]);
+    expect(await found("التطبيق الكامل وشامل للعامل")).toEqual([]);
+    // At the start of a word, after و ب ل, «لل» for the article, «لآل» and «لإلهام» as written.
+    expect(await found("قالت بشرى ثم وأمل الشهري")).toEqual(expect.arrayContaining(["بشرى", "أمل الشهري"]));
+    expect(await found("رسالة لآل سعود")).toContain("آل سعود");
+    expect(await found("أرسلت لإلهام")).toContain("إلهام");
+    expect(await found("رفع للنخبة")).toContain("النخبة");
+  });
+
   it("masks a text as the whole list would", async () => {
     const all = (await owner.query(`SELECT kind, term, entity FROM app_mask_terms($1)`, [PROJ])).rows;
     const texts = [
@@ -192,7 +229,8 @@ describe("masking finds names in the folded text", () => {
       "عرض على النخبة وبالنخبة ولشركة النخبة القابضة",
       "تقرير لِلنُّخبة عن الإدارة",
       "Al-Nukhba Holding and Reem Al-Harbi",
-      "النخبةوي ونخبة لنخبة",
+      "للـنخبة ولـلنخبة، لآل سعود، لإلهام، وقالت بشرى ولأمل الشهري",
+      "النخبةوي ونخبة لنخبة، رأس المال البشري، الانتقال السلمي، التطبيق الكامل وشامل للعامل، وفي حكمه",
     ];
     for (const [i, text] of texts.entries()) {
       const some = await terms(text);

@@ -12,7 +12,7 @@ const LETTERS_TO = "اااايه";
 /** For word search and masking only: ؤ ئ → ء, and Arabic-Indic and Persian digits → 0-9. */
 const SEARCH_FROM = "ؤئ٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹";
 const SEARCH_TO = "ءء01234567890123456789";
-/** The whole search fold as one map, in the order app_search_fold() passes it to translate(). */
+/** The whole search fold as one map (app_search_fold() applies the same map). */
 export const SEARCH_FOLD_FROM = LETTERS_FROM + SEARCH_FROM;
 export const SEARCH_FOLD_TO = LETTERS_TO + SEARCH_TO;
 
@@ -39,7 +39,15 @@ export function foldArabic(text: string): string {
  * word; «٢٠٢٧» is «2027». The same as app_search_fold() in the database.
  */
 export function foldWords(text: string): string {
-  return text.toLowerCase().replace(DROP, "").replace(SEARCH_RE, (c) => SEARCH.get(c)!);
+  return lower(text).replace(DROP, "").replace(SEARCH_RE, (c) => SEARCH.get(c)!);
+}
+
+/**
+ * Lower case as the database's lower() gives it: letter by letter (no final-sigma rule:
+ * «Σ» is always «σ»), and «İ» is «i», not «i» with a combining dot.
+ */
+function lower(text: string): string {
+  return /[\u0080-\uffff]/.test(text) ? Array.from(text, (c) => (c === "İ" ? "i" : c.toLowerCase())).join("") : text.toLowerCase();
 }
 
 // A leading «ال», also after و or ف and ب ك or ل («وال», «بال», «وبال»), or «لل» (ل + ال,

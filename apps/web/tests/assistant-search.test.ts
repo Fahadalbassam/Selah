@@ -130,6 +130,92 @@ describe("masking", () => {
     expect(m.mask("النخبةوي ونخبة لنخبة")).toBe("النخبةوي ونخبة لنخبة");
   });
 
+  // Review of #209: B1, S1 to S4 and the notes.
+  it("writes «ل» + a name back as it was, whatever the name starts with (B1)", () => {
+    const round = (term: string, text: string, kind = "ORG") => {
+      const m = createMasker([{ kind, term, entity: "e" }], { places: false });
+      const masked = m.mask(text);
+      expect(masked).toMatch(/\[(ORG|PERSON)_1\]/);
+      return m.unmask(masked);
+    };
+    expect(round("آل سعود", "رسالة لآل سعود")).toBe("رسالة لآل سعود");
+    expect(round("إلهام الحربي", "أرسلت لإلهام التقرير", "PERSON")).toBe("أرسلت لإلهام التقرير");
+    expect(round("ألفا", "قدم لألفا")).toBe("قدم لألفا");
+    // A name kept without its hamza («الهام» for «إلهام») is still found after ل as written.
+    expect(round("الهام الحربي", "أرسلت لإلهام التقرير", "PERSON")).toBe("أرسلت لإلهام التقرير");
+    // A name with the article as written, and one whose article meets a ل of its own.
+    expect(round("الإنماء", "للإنماء وللإنماء")).toBe("للإنماء وللإنماء");
+    expect(round("اللجنة", "رفع للجنة ثم اللجنة")).toBe("رفع للجنة ثم اللجنة");
+    // The model writes «ل[ORG_1]» of a name it was given alone.
+    const m = createMasker([{ kind: "ORG", term: "آل سعود", entity: "a" }, { kind: "ORG", term: "النخبة", entity: "o" }], { places: false });
+    m.mask("آل سعود والنخبة");
+    expect(m.unmask("ل[ORG_1] ول[ORG_2]")).toBe("لآل سعود وللنخبة");
+  });
+
+  it("finds «لل» + a name with tatweel anywhere (S1)", () => {
+    for (const text of ["للـنخبة", "لـلنخبة", "ولـلنخبة", "للنخبـة"]) {
+      const m = createMasker([{ kind: "ORG", term: "النخبة", entity: "o" }], { places: false });
+      const masked = m.mask(text);
+      expect(masked).toMatch(/^و?لـ*\[ORG_1\]$/);
+      expect(m.unmask(masked)).toBe(text);
+    }
+  });
+
+  it("gives each occurrence back in its own spelling (S2)", () => {
+    const round = (terms: { kind: string; term: string; entity: string }[], text: string) => {
+      const m = createMasker(terms, { places: false });
+      return m.unmask(m.mask(text));
+    };
+    const ahmed = [{ kind: "PERSON", term: "أحمد العتيبي", entity: "p" }];
+    expect(round(ahmed, "قال احمد ثم أحمد ثم أحـــمد")).toBe("قال احمد ثم أحمد ثم أحـــمد");
+    expect(round([{ kind: "ORG", term: "النخبة", entity: "o" }], "النخبه ثم النخبة ثم للنخبة")).toBe("النخبه ثم النخبة ثم للنخبة");
+    expect(round([{ kind: "ORG", term: "Vision 2030", entity: "v" }], "Vision ٢٠٣٠ and Vision 2030")).toBe("Vision ٢٠٣٠ and Vision 2030");
+    expect(round([{ kind: "ORG", term: "رؤية 2030", entity: "v" }], "رؤية ٢٠٣٠ ورؤية 2030 ورؤيه ۲۰۳۰")).toBe("رؤية ٢٠٣٠ ورؤية 2030 ورؤيه ۲۰۳۰");
+    // Still one placeholder for one record.
+    const m = createMasker(ahmed, { places: false });
+    expect(m.mask("احمد ثم أحمد")).toBe("[PERSON_1] ثم [PERSON_1]");
+  });
+
+  it("never writes «لAl-Nukhba»: after ل the name comes back in Arabic (S3)", () => {
+    const terms = [
+      { kind: "ORG", term: "Al-Nukhba", entity: "o" },
+      { kind: "ORG", term: "النخبة", entity: "o" },
+    ];
+    const m = createMasker(terms, { places: false });
+    expect(m.mask("Al-Nukhba asked")).toBe("[ORG_1] asked");
+    expect(m.unmask("قدمنا ل[ORG_1] تقريراً")).toBe("قدمنا للنخبة تقريراً");
+    // Between Arabic words, the Arabic spelling once the text had one.
+    m.mask("وللنخبة رأي");
+    expect(m.unmask("تقدمت [ORG_1] بطلب")).toBe("تقدمت النخبة بطلب");
+    // A record with no Arabic name: kept apart from the ل.
+    const latin = createMasker([{ kind: "ORG", term: "Rawdah Group", entity: "r" }], { places: false });
+    latin.mask("Rawdah Group");
+    expect(latin.unmask("ل[ORG_1]")).toBe("لـ Rawdah Group");
+  });
+
+  it("never masks a name inside another word (S4)", () => {
+    const masks = (term: string, text: string, kind = "PERSON") => createMasker([{ kind, term, entity: "e" }], { places: false }).mask(text) !== text;
+    // Must not mask.
+    expect(masks("بشرى الحربي", "رأس المال البشري والتعايش")).toBe(false);
+    expect(masks("سلمى القحطاني", "الانتقال السلمي للسلطة")).toBe(false);
+    expect(masks("أمل", "التطبيق الكامل وشامل للعامل")).toBe(false);
+    expect(masks("أمل", "كامل")).toBe(false);
+    expect(masks("حكمة", "وفي حكمه أن القرار نهائي", "ORG")).toBe(false);
+    // Must mask.
+    expect(masks("أمل", "وأمل وبأمل لأمل")).toBe(true);
+    expect(masks("بشرى الحربي", "قالت بشرى")).toBe(true);
+    expect(masks("سلمى القحطاني", "وسلمى")).toBe(true);
+    expect(masks("حكمة", "شركة حكمة وبحكمة", "ORG")).toBe(true);
+    expect(masks("نخبة", "والنخبة وللنخبة", "ORG")).toBe(true);
+    expect(masks("رؤية 2030", "رؤيه 2030", "ORG")).toBe(true);
+    expect(masks("النخبة", "النخبه", "ORG")).toBe(true);
+  });
+
+  it("reads Arabic-Indic digits in a Latin name, and folds case as the database does", () => {
+    const m = createMasker([{ kind: "ORG", term: "Vision 2030", entity: "v" }, { kind: "PERSON", term: "İnan Kaya", entity: "p" }], { places: false });
+    expect(m.mask("VISION ۲۰۳۰ and inan kaya")).toBe("[ORG_1] and [PERSON_1]");
+  });
+
   it("changes nothing when off", () => {
     const m = createMasker([]);
     expect(m.mask("Reem in Riyadh, 0551234567")).toBe("Reem in Riyadh, 0551234567");
