@@ -51,6 +51,7 @@ import {
   signRiskAcceptance,
   snapshotReport,
 } from "@/services/follow-through";
+import { approveReport } from "@/services/report-send";
 import { reportProblem } from "@/services/help";
 import { addValue, createIndicator, linkRecommendation } from "@/services/indicators";
 import { addTemplateItems, answerWithUpload, createInfoRequest } from "@/services/info-requests";
@@ -724,7 +725,9 @@ const report = await as(U.lead, (tx, p) =>
     bodyMd: "تقدم جيد في ميثاق المجلس. لجنة المراجعة متوقفة على قرار الجمعية العامة. مصفوفة الصلاحيات متأخرة أسبوعين.",
   }),
 );
-await as(U.lead, (tx, p) => shareReport(tx, p, report.id));
+// Khalid wrote it, so Noura (the deputy) approves it before he sends it (migration 0110).
+await as(U.deputy, (tx, p) => approveReport(tx, p, report.id));
+await as(U.lead, (tx, p) => shareReport(tx, p, report.id, { confirmed: true }));
 
 // The client assistant: the firm offers it, the client admin consents.
 step("client assistant on for Al-Nukhba");

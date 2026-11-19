@@ -273,6 +273,10 @@ export const POLICY = {
   "report.read": { ...ALL_BUT_OWNER },
   "report.write": { ...STAFF },
   "report.share": { ...STAFF },
+  // Approving a client-facing report before it is sent (migration 0110): the
+  // client's lead or deputy, an internal project's lead or the firm admin,
+  // never its writer (the database decides: app_report_approver).
+  "report.approve": { firm_admin: "any", consultant: "lead" },
   // The project's activity record: who did what, across the whole project.
   // For the firm and the client's admin (decision D8); a manager limited to
   // her departments and an action owner would read other people's work in

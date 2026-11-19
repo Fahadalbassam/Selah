@@ -13,6 +13,7 @@ import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
 import { runStatusPacks } from "@/jobs/status-packs";
 import { getReport, shareReport } from "@/services/follow-through";
+import { approveReport } from "@/services/report-send";
 import { loadPrincipal } from "@/services/principal";
 import { issueStatusPack, reportPack } from "@/services/status-pack";
 
@@ -164,8 +165,8 @@ describe("a draft", () => {
     expect(p!.pack.decisions.map((x) => [x.kind, x.id]).sort()).toEqual([["response", R.fin], ["response", R.hr]].sort());
     expect(p!.pack.decisions.every((x) => !!x.since)).toBe(true);
     const { can } = await svc(U.lead, (tx, pr) => getReport(tx, pr, rid));
-    expect(can).toEqual({ share: false, issue: true });
-    expect(await refused(svc(U.lead, (tx, pr) => shareReport(tx, pr, rid)))).toMatch(/issue the status pack/);
+    expect(can).toEqual({ share: false, issue: true, approve: false });
+    expect(await refused(svc(U.lead, (tx, pr) => shareReport(tx, pr, rid, { confirmed: true })))).toMatch(/issue the status pack/);
     // Straight to the database, too.
     expect(await refused(owner.query(`UPDATE reports SET visibility = 'shared' WHERE id = $1`, [rid]))).toMatch(/changes only its note|reports_pack_issued_before_shared/);
     // The client sees nothing of it.
@@ -206,14 +207,18 @@ describe("issuing", () => {
     expect(p!.pack.overdue).toHaveLength(2);
     expect(await refused(svc(U.lead, (tx, pr) => issueStatusPack(tx, pr, rid, { bodyMd: "" })))).toMatch(/already issued/);
     const { can } = await svc(U.lead, (tx, pr) => getReport(tx, pr, rid));
-    expect(can).toEqual({ share: true, issue: false });
-    await svc(U.lead, (tx, pr) => shareReport(tx, pr, rid));
+    // The lead issued it, so someone else approves it before it can be sent (migration 0110).
+    expect(can).toEqual({ share: false, issue: false, approve: false });
+    await svc(U.admin, (tx, pr) => approveReport(tx, pr, rid));
+    expect((await svc(U.lead, (tx, pr) => getReport(tx, pr, rid))).can).toEqual({ share: true, issue: false, approve: false });
+    await svc(U.lead, (tx, pr) => shareReport(tx, pr, rid, { confirmed: true }));
   });
 
   it("shows a client reader only their departments' items, and the admin all of them", async () => {
     const rid = await packId();
     await svc(U.lead, (tx, pr) => issueStatusPack(tx, pr, rid, { bodyMd: "" }));
-    await svc(U.lead, (tx, pr) => shareReport(tx, pr, rid));
+    await svc(U.admin, (tx, pr) => approveReport(tx, pr, rid));
+    await svc(U.lead, (tx, pr) => shareReport(tx, pr, rid, { confirmed: true }));
     const forManager = await svc(U.cman, (tx, pr) => reportPack(tx, pr, rid));
     expect(forManager!.pack.overdue.map((o) => o.id)).toEqual([A.hr]);
     const forAdmin = await svc(U.cadmin, (tx, pr) => reportPack(tx, pr, rid));

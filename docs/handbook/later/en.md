@@ -61,8 +61,10 @@ Only ideas that clearly help, each small:
 - **"What changed since my last visit" and a meeting brief in the assistant.** The screens already know what moved; the assistant does not. A cited list of the changes, and a brief built from a meeting's agenda, open decisions and open actions, marked as a draft. Value test tasks 3 and 6 show whether the time saved is worth it. Uses the same model and the same readers as the screens.
 - **Reading scanned pages (text recognition).** A scanned board minute is invisible to the assistant today. Run text recognition only on the pages marked as scanned, in the shared queue, then index them once. Runs on the processor.
 - **Saving an answer as a note.** Save an assistant answer, with its citations, as a firm-only note on the project, by the person who asked. Never shared with the client automatically.
+- **User-made report templates and a richer formatted editor.** The firm makes its own templates for a report's note (set headings and paragraphs), and writes the note with richer formatting than plain text (headings, lists, small tables). **Research first:** which editor works well in Arabic, right to left; how formatted text is stored safely (no user HTML shown as it is); how it looks in the PDF and in translation; and whether the fixed templates being built now are enough. Everything sent to the client still needs a colleague's approval and a person's confirmation. No model.
+- **A client page to keep and edit their own report.** Today the progress-update draft the assistant writes for a client person stays an answer in their own chat. A small page on the client's side where they keep the draft as their company's own report and edit it; the firm sees it only if the client shares it themselves, and Selah never sends it. Data: the report's text, its writer, the time of each edit, and who shared it and when. No model.
 
-Already decided, not an idea: the client's **progress-update draft** is approved as facts only (done, in progress, waiting, late, with dates and sources), marked as a draft, and never sent by Selah.
+Already decided, not an idea: the client's **progress-update draft** is approved as facts only (done, in progress, waiting, late, with dates and sources), marked as a draft, and never sent by Selah. The same draft in the consultants' assistant fills the firm's report note ("Use as draft"), and a report reaches the client only after a colleague other than its writer approves it and a person confirms the send (built, 19 Nov).
 
 <a id="reference-library"></a>
 
@@ -98,6 +100,8 @@ Each item can be taken by one person or a pair. Suggested order: the things that
 | 1. Indicator help: messy files and suggested links | Yes, the shared one | The flag above | Medium |
 | 4. "What changed" and the meeting brief | Yes, the shared one | Value test result | Small to medium |
 | 4. Saving an answer as a note | No | None | Small |
+| 4. User-made templates and a formatted editor | No | Research first; the fixed templates | Medium |
+| 4. The client's own report page | No | None | Small to medium |
 | 4. Reading scanned pages | No (text recognition) | The shared queue | Medium |
 | 5. The reference library | For search only | Licence check of each source | Medium |
 | 2. Assessment help | Yes, the shared one | The reference library, the labelled test set | Medium to large |

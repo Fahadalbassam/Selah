@@ -629,8 +629,8 @@ describe("a shared status pack", () => {
       U.lead,
     ]);
     await owner.query(
-      `INSERT INTO reports (id, project_id, org_id, kind, title, body_md, generated_by, period_start, period_end, metrics, pack, visibility, shared_at)
-       VALUES ($1,$2,$3,'status_pack','Status pack','',$4,'2030-01-01','2030-01-31','{}',$5,'shared', now())`,
+      `INSERT INTO reports (id, project_id, org_id, kind, title, body_md, generated_by, period_start, period_end, metrics, pack, visibility, shared_at, approved_at)
+       VALUES ($1,$2,$3,'status_pack','Status pack','',$4,'2030-01-01','2030-01-31','{}',$5,'shared', now(), now())`,
       [REPORT, P, ACME, U.lead, JSON.stringify(pack)],
     );
   });

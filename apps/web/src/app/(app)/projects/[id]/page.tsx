@@ -38,6 +38,7 @@ import { meetingPlacement, meetingTip } from "@/lib/status-words";
 import { KindWord } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { withPrincipal } from "@/server/page";
+import { draftForReport } from "@/services/report-send";
 import { isOverdue } from "@/services/queries";
 import { loadProjectPage } from "@/services/project-page";
 import { StartAssessment } from "../../assessments/[id]/assessment-panels";
@@ -67,11 +68,12 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; rule?: string }>;
+  /** draft: an assistant answer to start a new report's note from ("Use as draft"); nothing is saved until Create report. */
+  searchParams: Promise<{ tab?: string; rule?: string; draft?: string }>;
 }) {
   const { id } = await params;
   // A link may open a tab (a notification about a request opens Requests and files), and Plan may be filtered by a rule.
-  const { tab, rule: ruleParam } = await searchParams;
+  const { tab, rule: ruleParam, draft: draftParam } = await searchParams;
   if (!isUuid(id)) notFound();
   // An old address (the eleven tabs before batch 3, lib/project-tabs.ts OLD_TABS) goes on to its new place
   // before anything is loaded: only the reader's side is needed (where Assessments went differs by side).
@@ -81,6 +83,14 @@ export default async function ProjectPage({
     if (moved) redirect(projectTabHref(id, moved));
   }
   const page = await withPrincipal((tx, principal) => loadProjectPage(tx, principal, id));
+  // "Use as draft": the person's own progress draft for this project, read only (services/report-send.ts).
+  const reportDraft =
+    draftParam && isUuid(draftParam) && page.reports?.can.write
+      ? await withPrincipal(async (tx, principal) => {
+          const d = await draftForReport(tx, principal, draftParam);
+          return d?.projectId === id ? { messageId: d.messageId, note: d.note } : null;
+        })
+      : null;
   const { data, plan, team, people, roles, consultants, firmStaff, reassign, meetings, invitees, me, observing, assessments, templates, metrics, reports, visit, handover } =
     page;
   const { requests, closure, pulse, caseStudy, attention, evidence, upload, tabs } = page;
@@ -675,7 +685,7 @@ export default async function ProjectPage({
         {tabs.includes("progress") ? (
           <TabsContent value="progress" className="space-y-6">
             {/* Numbers first, then the reports, then the handover, then the activity record (page audit row 4b). */}
-            {metrics ? <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} /> : null}
+            {metrics ? <ProgressTab projectId={project.id} data={metrics} reports={reports} firm={firmStaff} draft={reportDraft} /> : null}
             {/* The handover date and the firm's check-ins after it are the firm's to run (page audit U11, batch 1). */}
             {handover ? <HandoverCard projectId={project.id} data={handover} /> : null}
             {data.activity ? (

@@ -15,8 +15,8 @@ export interface DialogControl {
 }
 
 /** The dialog's open state (its own, or the caller's) and the props for its content. */
-export function useDialogControl(control?: DialogControl) {
-  const [own, setOwn] = useState(false);
+export function useDialogControl(control?: DialogControl, defaultOpen = false) {
+  const [own, setOwn] = useState(defaultOpen);
   const open = control?.open ?? own;
   const setOpen = (next: boolean) => (control?.onOpenChange ? control.onOpenChange(next) : setOwn(next));
   const onCloseAutoFocus = (e: Event) => {

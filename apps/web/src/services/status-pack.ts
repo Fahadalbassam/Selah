@@ -73,7 +73,7 @@ export async function reportPack(tx: Tx, principal: Principal, reportId: string)
 }
 
 /** Issue a draft pack: the note goes on it and the numbers and lists freeze. It stays firm-only until shared. */
-export async function issueStatusPack(tx: Tx, principal: Principal, reportId: string, input: { bodyMd: string }) {
+export async function issueStatusPack(tx: Tx, principal: Principal, reportId: string, input: { bodyMd: string; draftMessageId?: string }) {
   const { report } = await getReport(tx, principal, reportId);
   const { resource } = await loadProject(tx, principal, report.projectId);
   assertAllowed(principal, "report.write", { ...resource, type: "report" });
@@ -83,7 +83,11 @@ export async function issueStatusPack(tx: Tx, principal: Principal, reportId: st
   // As the client counts them (phase 3, L4): the lists already keep to shared recommendations.
   const metrics = await projectProgress(tx, principal, report.projectId, report.periodEnd!, { clientSide: true });
   const pack = await packFor(tx, report.projectId, row.orgId, report.periodStart!, report.periodEnd!);
-  await tx.update(reports).set({ bodyMd: input.bodyMd.trim(), metrics, pack }).where(eq(reports.id, reportId));
+  // Whoever issues it is its writer (check_report_approval): someone else approves it before it is sent.
+  await tx
+    .update(reports)
+    .set({ bodyMd: input.bodyMd.trim(), metrics, pack, ...(input.draftMessageId ? { draftMessageId: input.draftMessageId } : {}) })
+    .where(eq(reports.id, reportId));
   await audit(tx, {
     actorId: principal.userId,
     orgId: principal.orgId,

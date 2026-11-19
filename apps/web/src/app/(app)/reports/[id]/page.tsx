@@ -1,4 +1,4 @@
-import { ArrowLeft, Send, Share2 } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Send } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -6,6 +6,7 @@ import { ExportButton } from "@/components/export-button";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { LateAgainstOriginal } from "@/components/late-against-original";
 import { PageHeader } from "@/components/page-header";
+import { ReportSendDialog } from "@/components/reports/report-send-dialog";
 import { Meter, StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,21 +17,33 @@ import { withPrincipal } from "@/server/page";
 import { getReport } from "@/services/follow-through";
 import { getProject } from "@/services/queries";
 import { reportPack } from "@/services/status-pack";
+import { draftForReport } from "@/services/report-send";
 import { StatusPackLists } from "./status-pack";
 
-export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReportPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  /** draft: an assistant answer to start the pack's note from ("Use as draft"); nothing is saved until Issue. */
+  searchParams: Promise<{ draft?: string }>;
+}) {
   const { id } = await params;
+  const { draft: draftId } = await searchParams;
   if (!isUuid(id)) notFound();
-  const { report, can, projectTitle, firm, pack } = await withPrincipal(async (tx, principal) => {
+  const { report, can, projectTitle, firm, pack, draft } = await withPrincipal(async (tx, principal) => {
     const r = await getReport(tx, principal, id);
     const { project } = await getProject(tx, principal, r.report.projectId);
     const pack = r.report.kind === "status_pack" ? await reportPack(tx, principal, id) : null;
-    return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm", pack };
+    // Only the person's own draft, for this project, while the pack can still take a note: else the page as usual.
+    const d = r.can.issue && draftId && isUuid(draftId) ? await draftForReport(tx, principal, draftId) : null;
+    return { ...r, projectTitle: project.title, firm: principal.orgKind === "firm", pack, draft: d?.projectId === r.report.projectId ? d : null };
   });
-  const [t, tPack, tExport, format] = await Promise.all([
+  const [t, tPack, tExport, tSend, format] = await Promise.all([
     getTranslations("metrics"),
     getTranslations("statusPack"),
     getTranslations("exports"),
+    getTranslations("reportSend"),
     getFormatter(),
   ]);
   const day = (d: string | Date) => format.dateTime(new Date(d), { dateStyle: "medium" });
@@ -81,20 +94,58 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             title={tPack("issueTitle")}
             description={tPack("issueHint")}
             endpoint={`/api/reports/${report.id}/issue`}
-            fields={[{ name: "bodyMd", label: tPack("note"), type: "textarea", maxLength: 8000, placeholder: tPack("notePlaceholder") }]}
+            fields={[
+              {
+                name: "bodyMd",
+                label: tPack("note"),
+                type: "textarea",
+                maxLength: 8000,
+                placeholder: tPack("notePlaceholder"),
+                defaultValue: draft?.note.slice(0, 8000),
+              },
+            ]}
             submitLabel={tPack("issue")}
+            defaultOpen={draft !== null}
+            notice={draft ? tSend("prefilledPack") : undefined}
+            extra={draft ? { draftMessageId: draft.messageId } : undefined}
           />
         ) : null}
-        {can.share ? (
+        {/* Approve, then Send (migration 0110): one is the page's main action at a time. */}
+        {can.approve ? (
           <ApiButton
-            endpoint={`/api/reports/${report.id}/share`}
-            label={t("share")}
-            confirm={t("shareConfirm")}
-            icon={<Share2 />}
+            endpoint={`/api/reports/${report.id}/approve`}
+            label={tSend("approve")}
+            title={tSend("approveHint")}
+            confirm={tSend("approveConfirm")}
+            variant="default"
+            icon={<BadgeCheck />}
+          />
+        ) : null}
+        {firm && report.metrics && report.visibility !== "shared" && (can.share || report.approval?.at === null) ? (
+          <ReportSendDialog
+            source={{ reportId: report.id }}
+            trigger={
+              <Button size="sm" variant={can.share ? "default" : "outline"}>
+                <Send />
+                {tSend("send")}
+              </Button>
+            }
           />
         ) : null}
       </PageHeader>
-      <p className="-mt-3 text-sm text-muted-foreground">{t("by", { who: report.author ?? "—", date: day(report.createdAt) })}</p>
+      <p className="-mt-3 text-sm text-muted-foreground">
+        {t("by", { who: report.author ?? "—", date: day(report.createdAt) })}
+        {firm && report.metrics ? (
+          <>
+            {" · "}
+            {report.approval?.at
+              ? report.approval.by
+                ? tSend("approvedBy", { who: report.approval.by, date: day(report.approval.at) })
+                : tSend("approvedBefore")
+              : tSend("waiting")}
+          </>
+        ) : null}
+      </p>
       {!firm && m ? <p className="text-sm text-muted-foreground">{t("clientCountNote")}</p> : null}
       {pack?.draft ? (
         <Card className="gap-1 border-dashed py-4 shadow-none">

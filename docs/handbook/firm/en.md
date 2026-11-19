@@ -187,12 +187,14 @@ A project page has five tabs: **Plan** · **Requests and files** · **Meetings**
 **When:** monthly, and before steering meetings. **Who:** staffed consultants.
 
 1. Project page → **Progress**: the numbers (what the consultant verified, how actions ended, what is late, how long reviews wait), then **Reports**, the hand-over card, and the activity record.
-2. **New report** → **Create report**: it freezes the project's numbers as they were on the last day of the period, and stays with the firm. Then **Share with the client** (sharing cannot be undone).
-3. The monthly status pack: the monthly job drafts it, seen only by the firm. Write a **Note for the client**, **Issue** it, then share it.
-4. Per client: client page → **Overview**: progress across projects and departments, and **Download the client-wide report as PDF**.
-5. Across the firm: **Projects** → **Table**: per project, open, late and blocked work and the oldest waiting review, as counts with no judging word.
-6. **Business indicators** on the client page: the client's own figures (complaints, staff turnover…) with a baseline and a target. They always carry: "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it." Only the firm links an indicator to a recommendation. When a figure moves away from its baseline, the lead, the deputy and the client's admins get a notice with the figures only.
-7. The free-text note on a report or a status pack is read by every client reader of it, whatever their department. Do not name another department's work in it.
+2. **New report** → **Create report**: it freezes the project's numbers as they were on the last day of the period, and stays with the firm.
+3. The monthly status pack: the monthly job drafts it, seen only by the firm. Write a **Note for the client**, then **Issue** it.
+4. **Approve**, then **Send to the client**: a report reaches the client only after a colleague other than its writer approves it: the client's lead or deputy consultant, or the firm admin (a status pack's writer is whoever issued it). Then one of you presses **Send to the client**; a confirmation dialog opens, and nothing goes until you press **Send** in it. Sending cannot be undone, and Selah never sends a report on its own.
+5. From the assistant: in a chat on the client's project, ask "draft a progress update". The draft is facts only (done, in progress, waiting, late, with dates and sources), from the work every client reader of the report may see (no firm-only work, no work limited to one department), and takes nothing from files or from the chat's earlier messages; and starts with "Draft: check before sending". Under it, **Use as draft** opens the report page with the text as the note (this month's status pack if it is still waiting for its note, otherwise a new report); edit it there, and nothing is saved until you save. **Send to the client** under it opens the same confirmation dialog for the report made from the draft, and only once it is approved.
+6. Per client: client page → **Overview**: progress across projects and departments, and **Download the client-wide report as PDF**.
+7. Across the firm: **Projects** → **Table**: per project, open, late and blocked work and the oldest waiting review, as counts with no judging word.
+8. **Business indicators** on the client page: the client's own figures (complaints, staff turnover…) with a baseline and a target. They always carry: "These figures are reported by the client and are not verified impact. A change in an indicator is not proof that a recommendation caused it." Only the firm links an indicator to a recommendation. When a figure moves away from its baseline, the lead, the deputy and the client's admins get a notice with the figures only.
+9. The free-text note on a report or a status pack is read by every client reader of it, whatever their department. Do not name another department's work in it.
 
 **Screens:** project page → Progress, a report (`/reports/<id>`), Projects → Table, an indicator (`/indicators/<id>`).
 

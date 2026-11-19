@@ -91,7 +91,7 @@ class AnswerRequest(BaseModel):
     history: list[HistoryTurn] = Field(default_factory=list, max_length=8)
     # "client": a person at the client organisation; extra rules apply (prompt.CLIENT_RULES).
     audience: Literal["staff", "client"] = "staff"
-    # A client person's progress-update draft (Gate B): its mark in the canonical form, no rating words.
+    # A progress-update draft (Gate B; firm staff's too since migration 0110): its mark in the canonical form, no rating words.
     progress_draft: bool = False
 
 
@@ -199,7 +199,7 @@ async def answer(
     if not req.passages:
         return Answer(answer="", cited_ids=[], grounded=False)
 
-    system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
+    system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience, req.progress_draft)
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     if unfinished_reply(raw, req.passages):
         raw = await llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA)
@@ -231,7 +231,7 @@ async def answer_stream(
         if not req.passages:
             yield _line({"type": "done", "answer": Answer(answer="", cited_ids=[], grounded=False).model_dump()})
             return
-        system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience)
+        system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience, req.progress_draft)
         partial = AnswerText()
         raw, shown, last = "", "", 0.0
         try:
