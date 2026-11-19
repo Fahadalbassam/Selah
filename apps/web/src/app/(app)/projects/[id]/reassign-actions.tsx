@@ -49,6 +49,7 @@ export function ReassignActions({ name, actions, firm }: { name: string; actions
 function ReassignRow({ action }: { action: { id: string; title: string; control: OwnerControl } }) {
   const t = useTranslations("action.ownerChange");
   const tc = useTranslations("common");
+  const ta = useTranslations("action.errors");
   const router = useRouter();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,7 +58,7 @@ function ReassignRow({ action }: { action: { id: string; title: string; control:
     setBusy(true);
     const r = await callApi(`/api/actions/${action.id}/owner`, "POST", typed ? { ownerName: value.trim() } : { ownerUserId: value });
     setBusy(false);
-    if (!r.ok) return void toast.error(tc(`errors.${r.error}`));
+    if (!r.ok) return void toast.error(r.message?.includes("full client's admin does not own actions") ? ta("fullAdminOwner") : tc(`errors.${r.error}`));
     toast.success(tc("saved"));
     router.refresh();
   }

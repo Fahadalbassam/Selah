@@ -91,6 +91,7 @@ export async function send(url: string, init: RequestInit): Promise<Result> {
   if (m.includes("say how and when the client told you")) return { ok: false, error: "received" };
   if (m.includes("owner must be an active member")) return { ok: false, error: "ownerGone" };
   if (m.includes("owner must be on the project")) return { ok: false, error: "ownerGone" };
+  if (m.includes("full client's admin does not own actions")) return { ok: false, error: "fullAdminOwner" };
   if (m.includes("already owns") || m.includes("already the action's owner")) return { ok: false, error: "sameOwner" };
   if (m.includes("job title")) return { ok: false, error: "minimalOwner" };
   if (m.includes("replacement is still a draft")) return { ok: false, error: "replacementDraft" };
