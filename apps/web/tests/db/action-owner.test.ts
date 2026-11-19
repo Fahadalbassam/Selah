@@ -342,6 +342,24 @@ describe("D1 on a minimal-records client: the owner is a typed name", () => {
     expect(await svc(U.cadmin, (tx, p) => ownerControl(tx, p, A.verified))).toBeNull();
   });
 
+  it("the list leaves out the client admin on a full client and keeps them on a restricted one", async () => {
+    await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false)`, [P, U.cadmin]);
+    try {
+      const full = await svc(U.coord, (tx, p) => ownerControl(tx, p, A.open));
+      expect(full!.people.map((x) => x.id)).not.toContain(U.cadmin);
+      expect(full!.people.map((x) => x.id)).toContain(U.mgr);
+      // A restricted client has admin accounts only: the others are switched off first.
+      await q(`UPDATE org_memberships SET active = false WHERE org_id = $1 AND role <> 'client_admin'`, [ACME]);
+      await q(`UPDATE organizations SET engagement_mode = 'restricted' WHERE id = $1`, [ACME]);
+      const restricted = await svc(U.lead, (tx, p) => ownerControl(tx, p, A.open));
+      expect(restricted!.people.map((x) => x.id)).toContain(U.cadmin);
+    } finally {
+      await q(`UPDATE organizations SET engagement_mode = 'full' WHERE id = $1`, [ACME]);
+      await q(`UPDATE org_memberships SET active = true WHERE org_id = $1`, [ACME]);
+      await q(`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`, [P, U.cadmin]);
+    }
+  });
+
   it("a typed name is refused for a client with accounts, and from the client side", async () => {
     await expect(svc(U.lead, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow(/firm manages/);
     await expect(svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow();

@@ -9,23 +9,25 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  useComboboxFilter,
 } from "@/components/ui/combobox";
+import { personMatches } from "@/lib/person-match";
 
 export interface PersonOption {
   value: string;
   label: string;
   /** Shown under the name and searched too: an email, a role. */
   hint?: string;
+  /** Searched but not shown: the name in the other language. */
+  alt?: string[];
 }
 
 /**
  * How a typed query matches a person: any of their texts (a name in either
- * language, an email), without regard to case or accents.
+ * language, an email), without regard to case, accents, Arabic short vowels,
+ * tatweel or alef spelling (lib/person-match.ts).
  */
 export function usePersonMatch() {
-  const { contains } = useComboboxFilter({ sensitivity: "base" });
-  return (texts: readonly (string | undefined)[], query: string) => texts.some((text) => !!text && contains(text, query));
+  return personMatches;
 }
 
 /** A person in a picker's list: the name, and the hint under it. */
@@ -78,7 +80,7 @@ export function PersonPicker(props: {
         itemToStringLabel={(o: PersonOption) => o.label}
         itemToStringValue={(o: PersonOption) => o.value}
         isItemEqualToValue={(a: PersonOption, b: PersonOption) => a.value === b.value}
-        filter={(o: PersonOption, query: string) => matches([o.label, o.hint], query)}
+        filter={(o: PersonOption, query: string) => matches([o.label, o.hint, ...(o.alt ?? [])], query)}
         name={props.name}
         required={props.required}
         disabled={props.disabled}

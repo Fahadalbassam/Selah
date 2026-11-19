@@ -1032,6 +1032,7 @@
       "withOwner": "With the person it is given to.",
       "otherReviewer": "Another consultant reviews this: {names}.",
       "noReviewer": "Nobody else on this project can review it, and nobody reviews work they sent. Ask the firm's admin to add a consultant to the project.",
+      "firmAdminReviews": "Nobody else on the team can review this round, so the firm admin will.",
       "reviewedBy": "Once it is sent, {names} reviews it: nobody reviews work they sent.",
       "secondChecks": "A second consultant checks it too.",
       "dateAsked": "{who} asks to move the due date to {date}.",
