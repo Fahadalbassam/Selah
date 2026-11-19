@@ -1,6 +1,6 @@
 {
-  "id": "8ef47e89-d626-4a65-9935-abf63f3b26ae",
-  "prevId": "2a8bc2ef-da2b-41d4-a7c0-f7c3b04fc6cc",
+  "id": "8af5fb28-100f-4410-88d6-26edd7dc04f9",
+  "prevId": "08e9591d-2315-4d2c-a6be-b2984c06172b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5120,6 +5120,162 @@
       },
       "isRLSEnabled": false
     },
+    "public.client_lead_changes": {
+      "name": "client_lead_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_org_id": {
+          "name": "client_org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "firm_org_id": {
+          "name": "firm_org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_user_id": {
+          "name": "from_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_user_id": {
+          "name": "to_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "changed_by": {
+          "name": "changed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handover_note": {
+          "name": "handover_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_lead_changes_client_idx": {
+          "name": "client_lead_changes_client_idx",
+          "columns": [
+            {
+              "expression": "client_org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "client_lead_changes_client_org_id_organizations_id_fk": {
+          "name": "client_lead_changes_client_org_id_organizations_id_fk",
+          "tableFrom": "client_lead_changes",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "client_org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "client_lead_changes_firm_org_id_organizations_id_fk": {
+          "name": "client_lead_changes_firm_org_id_organizations_id_fk",
+          "tableFrom": "client_lead_changes",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "firm_org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "client_lead_changes_from_user_id_user_id_fk": {
+          "name": "client_lead_changes_from_user_id_user_id_fk",
+          "tableFrom": "client_lead_changes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "from_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "client_lead_changes_to_user_id_user_id_fk": {
+          "name": "client_lead_changes_to_user_id_user_id_fk",
+          "tableFrom": "client_lead_changes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "to_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "client_lead_changes_changed_by_user_id_fk": {
+          "name": "client_lead_changes_changed_by_user_id_fk",
+          "tableFrom": "client_lead_changes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "changed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "client_lead_change_note": {
+          "name": "client_lead_change_note",
+          "value": "\"client_lead_changes\".\"handover_note\" IS NULL OR char_length(\"client_lead_changes\".\"handover_note\") BETWEEN 1 AND 4000"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.client_offboardings": {
       "name": "client_offboardings",
       "schema": "",
@@ -7690,6 +7846,78 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.engagement_reminders": {
+      "name": "engagement_reminders",
+      "schema": "",
+      "columns": {
+        "engagement_id": {
+          "name": "engagement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_on": {
+          "name": "ends_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipients": {
+          "name": "recipients",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "engagement_reminders_engagement_id_engagements_id_fk": {
+          "name": "engagement_reminders_engagement_id_engagements_id_fk",
+          "tableFrom": "engagement_reminders",
+          "tableTo": "engagements",
+          "columnsFrom": [
+            "engagement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "engagement_reminders_engagement_id_kind_ends_on_pk": {
+          "name": "engagement_reminders_engagement_id_kind_ends_on_pk",
+          "columns": [
+            "engagement_id",
+            "kind",
+            "ends_on"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "engagement_reminder_kind": {
+          "name": "engagement_reminder_kind",
+          "value": "\"engagement_reminders\".\"kind\" IN ('ending', 'ended')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.engagements": {
