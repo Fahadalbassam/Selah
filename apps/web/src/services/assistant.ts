@@ -4,8 +4,19 @@ import { asUser, type Tx } from "@/db/client";
 import { env } from "@/env";
 import { aiChunks, aiConversations, aiMessages, documents, organizations, projects } from "@/db/schema";
 import { authorize, ForbiddenError, OPEN_STATUSES, retrievalScope, type Principal, type RetrievalScope } from "@/authz";
-import { chatTitle, fuse, indicatorIntent, keywordQuery, statusIntent, type StatusKind } from "@/lib/assistant-search";
-import { CLIENT_REFUSAL, clientAnswerProblem, type FilterReason } from "@/lib/client-ai";
+import {
+  chatTitle,
+  consultantIntent,
+  fuse,
+  indicatorIntent,
+  keywordQuery,
+  mineIntent,
+  myDeadlinesIntent,
+  progressDraftIntent,
+  statusIntent,
+  type StatusKind,
+} from "@/lib/assistant-search";
+import { CLIENT_REFUSAL, DRAFT_MARK, LEGAL_NOTE, clientAnswerProblem, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
 import { NotFoundError } from "@/server/errors";
@@ -14,6 +25,7 @@ import { answer, answerStream, embed, modelIsLocal, type Answer, type HistoryTur
 import { audit } from "./audit";
 import { myClientAi } from "./client-ai";
 import { side } from "@/lib/indicators";
+import { projectConsultants } from "./help";
 import { indicatorSnapshot } from "./indicators";
 import { textMasker } from "./masking";
 import { listProjects } from "./queries";
@@ -89,6 +101,8 @@ export interface PreparedAsk {
   language: AskInput["language"];
   /** The model's audience: a client person gets the client rules and the client filter. */
   client: boolean;
+  /** A client person asked for a draft of their progress update: the answer starts with DRAFT_MARK. */
+  progressDraft: boolean;
   /** Null for a chat across projects. */
   projectId: string | null;
   chatId: string | null;
@@ -171,10 +185,21 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   const [vector] = await embed([input.question]);
   if (!vector) throw new Error("embedding failed");
   const kinds = statusIntent(input.question);
+  // A client person's progress-update draft: built from the records they can read, done ones included.
+  const progressDraft = client && progressDraftIntent(input.question);
+  // "My deadlines": only the person's own actions. It only narrows what they can read (statusRecords).
+  const mine = !progressDraft && mineIntent(input.question) && (kinds.size > 0 || myDeadlinesIntent(input.question));
+  if (mine && !kinds.size) kinds.add("open");
   const ids = scopes.map((sc) => sc.projectId);
   const clientOrgs = [...new Set(targets.filter((p) => p.kind === "client").map((p) => p.orgId))];
   const status = [
-    ...(kinds.size ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined) : []),
+    // "Who is my consultant?": the firm's people on each project, as Help and People show them.
+    ...(client && consultantIntent(input.question) ? await consultantRecords(tx, principal, targets, across ? whereOf : undefined) : []),
+    ...(progressDraft
+      ? await progressRecords(tx, ids, across ? whereOf : undefined)
+      : kinds.size
+        ? await statusRecords(tx, ids, kinds, across ? whereOf : undefined, mine ? { mine: principal.userId } : {})
+        : []),
     // Indicators are a client's own; across clients there is no one set to give.
     // Across projects they belong to the client, so the answer quotes every project of it the person can ask about
     // (ai_messages.project_ids): taken off any of them, the person no longer reads the answer.
@@ -192,7 +217,9 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
   const statusRoom = MAX_PASSAGES - 1 - status.length;
   const chunks = found.slice(0, status.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : TOP_K);
-  const linked = await linkedRecords(tx, caseRef, chunks, hits);
+  // "My deadlines": the search's records (a recommendation lists all its actions) would put others' work beside
+  // "your actions"; only the chat's own record is kept.
+  const linked = (await linkedRecords(tx, caseRef, chunks, hits)).filter((r) => !mine || (caseRef !== null && caseRef.type === r.type && caseRef.id === r.id));
   // A status question: its rows first (the count, then the actions), then what the search linked.
   // The AI service takes MAX_PASSAGES, so what is cut is cut from the end.
   const records = status.length
@@ -250,6 +277,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
     question,
     language: input.language,
     client,
+    progressDraft,
     projectId,
     chatId: chat?.id ?? null,
     case: input.case ?? null,
@@ -265,6 +293,8 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
       passages: chunks.length,
       records: kept.length + subject.length,
       ...(kinds.size ? { status: [...kinds].join(",") } : {}),
+      ...(mine ? { mine: true } : {}),
+      ...(progressDraft ? { draft: "progress" } : {}),
       turns: history.length / 2,
       // For a client person, which passages went to the model (ids only, never text), so a leak can be traced.
       ...(client ? { sent: chunks.map((c) => c.id).join(",") } : {}),
@@ -353,12 +383,24 @@ export async function finishAsk(tx: Tx, principal: Principal, prepared: Prepared
   let filtered: FilterReason | null = null;
   if (prepared.client && grounded) {
     filtered = await clientFilter(tx, text);
-    if (filtered) {
-      const lang = language === "auto" ? detectLang(question) : language;
+    const lang = language === "auto" ? detectLang(question) : language;
+    // A legal question gets the facts the sources give, without the sentences that rule (Gate B, 19 Nov 2026).
+    // What is kept passes the whole filter again; otherwise the refusal, with the sources it cited still listed.
+    const facts = filtered === "legal_ruling" ? withoutRulings(text) : null;
+    if (filtered === "legal_ruling" && facts && !(await clientFilter(tx, facts))) {
+      text = `${facts}\n\n${LEGAL_NOTE[lang]}`;
+    } else if (filtered === "legal_ruling") {
+      text = CLIENT_REFUSAL.legal_ruling[lang];
+    } else if (filtered) {
       // Another client's name gets the plain "can't confirm": a refusal must not say who else the firm serves.
       text = filtered === "other_client" ? cannotConfirm(language, question) : CLIENT_REFUSAL[filtered][lang];
       citations = [];
       grounded = false;
+    }
+    // A progress-update draft always says it is one, first, whatever the model wrote.
+    if (prepared.progressDraft && grounded && !text.trimStart().startsWith(DRAFT_MARK[lang])) {
+      const other = DRAFT_MARK[lang === "ar" ? "en" : "ar"];
+      text = `${DRAFT_MARK[lang]}\n\n${text.trimStart().startsWith(other) ? text.trimStart().slice(other.length).trimStart() : text}`;
     }
   }
 
@@ -712,11 +754,15 @@ export async function statusRecords(
   projectIds: string | string[],
   kinds: Set<StatusKind>,
   where?: Map<string, string>,
+  opts: { mine?: string } = {},
 ): Promise<RecordPassage[]> {
   const ids = Array.isArray(projectIds) ? projectIds : [projectIds];
   if (!ids.length) return [];
   const across = where !== undefined;
-  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}])`;
+  // "My deadlines" (mineIntent): only the actions the person owns, or is named on as the typed
+  // owner (no account, the same name). Added to every query below, so it only narrows what RLS gives.
+  const own = opts.mine ? ownedBy(opts.mine) : sql`true`;
+  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}]) AND ${own}`;
   const today = sql`${firmToday()}::date`;
   const STATUS_WHERE = statusWhere(today);
   const counts = (
@@ -780,7 +826,7 @@ export async function statusRecords(
   const recs = (
     await tx.execute<{ id: string; project_id: string; title: string; due_date: string; open: number }>(sql`
       SELECT r.id, r.project_id, r.title, r.due_date, count(a.id)::int AS open
-      FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status IN ${OPEN}
+      FROM recommendations r JOIN actions a ON a.recommendation_id = r.id AND a.status IN ${OPEN} AND ${own}
       WHERE ${sql`r.project_id = ANY(ARRAY[${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}])`} AND r.due_date < ${today}
       GROUP BY r.id ORDER BY r.due_date LIMIT 3`)
   ).rows;
@@ -811,6 +857,7 @@ export async function statusRecords(
       id: ids[0]!,
       ...(across ? { projectIds: counts.map((r) => r.project_id!) } : { projectId: ids[0] }),
       text:
+        (opts.mine ? 'The person asks about their own actions: these are only the actions they own or are named on; call them "your actions". ' : "") +
         (across
           ? `Status of the actions across the ${ids.length} projects the person can see, as of ${c.today} (from the action records, not files): `
           : `Status of the project's actions as of ${c.today} (from the action records, not files): `) +
@@ -848,6 +895,124 @@ export async function statusRecords(
   ];
   return out;
 }
+
+// Projects named in one "who is my consultant?" answer across projects.
+const MAX_CONSULTANT_PROJECTS = 3;
+
+/**
+ * "Who is my consultant?": for each client project asked about, the client's
+ * lead and deputy and the consultants staffed on it (not observers): the same
+ * people Help and the project's People tab show this person, read as them
+ * (projectConsultants, app_my_consultants: only a project they can see).
+ * Names only, never e-mail addresses. Cited as the project's record.
+ */
+export async function consultantRecords(
+  tx: Tx,
+  principal: Principal,
+  targets: { id: string; kind: string }[],
+  where?: Map<string, string>,
+): Promise<RecordPassage[]> {
+  const out: RecordPassage[] = [];
+  for (const p of targets.filter((t) => t.kind === "client").slice(0, MAX_CONSULTANT_PROJECTS)) {
+    // Only a project the person can see (the client's lead and deputy rows are not per project).
+    const [seen] = (await tx.execute<{ ok: boolean }>(sql`select app_can_see_project(${p.id}::uuid) as ok`)).rows;
+    if (!seen?.ok) continue;
+    const team = await projectConsultants(tx, principal, p.id);
+    if (!team || (!team.lead && !team.deputy && !team.staffed.length)) continue;
+    const names = (list: { name: string }[]) => list.map((c) => clip(c.name, 80)).join(", ");
+    out.push({
+      type: "project",
+      id: p.id,
+      projectId: p.id,
+      text:
+        `The consulting firm's people for this project${where ? ` (${clip(where.get(p.id) ?? "", 160)})` : ""}, as the person's Help and People pages show them: ` +
+        [
+          team.lead ? `lead consultant ${clip(team.lead.name, 80)}` : "no lead consultant named",
+          team.deputy ? `deputy consultant ${clip(team.deputy.name, 80)}` : "",
+          team.staffed.length ? `consultants on the project: ${names(team.staffed)}` : "",
+        ]
+          .filter(Boolean)
+          .join("; ") +
+        ".",
+    });
+  }
+  return out;
+}
+
+// Actions in one progress-update draft (the most the AI service takes, less the summary).
+const MAX_PROGRESS_ACTIONS = 9;
+
+/**
+ * A client person's progress-update draft (Gate B, 19 Nov 2026): the facts
+ * from the actions they can read, under their own row-level security (a
+ * manager: their departments'; never a draft action, D6). A count by state,
+ * then the actions: late first, then waiting, in progress, not started and
+ * done, each with its date. Facts only: the model writes the draft from these.
+ */
+export async function progressRecords(tx: Tx, projectIds: string[], where?: Map<string, string>): Promise<RecordPassage[]> {
+  if (!projectIds.length) return [];
+  const today = sql`${firmToday()}::date`;
+  const inScope = sql`a.project_id = ANY(ARRAY[${sql.join(projectIds.map((i) => sql`${i}::uuid`), sql`, `)}]) AND a.status <> 'draft'`;
+  const rows = (
+    await tx.execute<{
+      id: string;
+      project_id: string;
+      title: string;
+      status: string;
+      due_date: string | null;
+      late: number | null;
+      done_on: string | null;
+    }>(sql`
+      SELECT a.id, a.project_id, a.title, a.status, a.due_date,
+        CASE WHEN a.status IN ${OPEN} THEN ${today} - a.due_date END AS late,
+        CASE WHEN a.status IN ('verified_complete', 'closed') THEN coalesce(a.closed_at,
+          (SELECT max(v.created_at) FROM reviews v WHERE v.action_id = a.id)) END AS done_on
+      FROM actions a WHERE ${inScope}
+      ORDER BY (a.status IN ${OPEN} AND a.due_date < ${today}) DESC,
+        array_position(ARRAY['awaiting_review','revision_requested','blocked','in_progress','assigned','verified_complete','closed']::text[], a.status::text),
+        a.due_date ASC NULLS LAST, a.created_at`)
+  ).rows;
+  if (!rows.length) return [];
+  const count = (f: (r: (typeof rows)[number]) => boolean) => rows.filter(f).length;
+  const open = (s: string) => (OPEN_STATUSES as readonly string[]).includes(s);
+  const at = (pid: string) => (where ? ` (${clip(where.get(pid) ?? "", 160)})` : "");
+  const words: Record<string, string> = {
+    assigned: "not started",
+    in_progress: "in progress",
+    blocked: "blocked",
+    awaiting_review: "waiting for the firm's review",
+    revision_requested: "sent back, waiting for the company",
+    verified_complete: "verified",
+    closed: "closed",
+  };
+  return [
+    {
+      type: where ? "status" : "project",
+      id: projectIds[0]!,
+      ...(where ? { projectIds: [...new Set(rows.map((r) => r.project_id))] } : { projectId: projectIds[0] }),
+      text:
+        `For a progress-update draft, the actions the person can see as of ${firmToday()} (from the action records): ` +
+        `${count((r) => r.status === "verified_complete" || r.status === "closed")} done (verified or closed), ` +
+        `${count((r) => r.status === "in_progress" || r.status === "assigned")} in progress or not started, ` +
+        `${count((r) => r.status === "awaiting_review")} waiting for the firm's review, ` +
+        `${count((r) => r.status === "revision_requested" || r.status === "blocked")} waiting on the company (sent back or blocked), ` +
+        `${count((r) => open(r.status) && (r.late ?? 0) > 0)} late (past their due date).`,
+    },
+    ...rows.slice(0, MAX_PROGRESS_ACTIONS).map((a) => ({
+      type: "action" as const,
+      id: a.id,
+      projectId: a.project_id,
+      text:
+        `Action "${clip(a.title, 200)}"${at(a.project_id)}: ${words[a.status] ?? a.status}` +
+        (a.done_on ? `, done ${day(a.done_on)}` : a.due_date ? `, due ${day(a.due_date)}${a.late && a.late > 0 ? ` (${a.late} days late)` : ""}` : ", no due date") +
+        ".",
+    })),
+  ];
+}
+
+/** An action the person owns, or is named on as its typed owner (no account) by their own name. */
+const ownedBy = (userId: string) => sql`(a.owner_user_id = ${userId}::uuid OR (a.owner_user_id IS NULL AND a.owner_name IS NOT NULL
+  AND lower(btrim(a.owner_name)) = (SELECT lower(btrim(me.name)) FROM "user" me WHERE me.id = ${userId}::uuid)))`;
 
 /**
  * The client's business indicators, for a question about them: each one's

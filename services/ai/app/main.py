@@ -201,7 +201,7 @@ async def answer(
     raw = await llm.chat_json(system, user, ANSWER_SCHEMA)
     if unfinished_reply(raw, req.passages):
         raw = await llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA)
-    return check_answer(raw, req.passages)
+    return check_answer(raw, req.passages, req.audience)
 
 
 # At most this often a "text" line while the answer is written: the screen
@@ -259,7 +259,7 @@ async def answer_stream(
                 while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
                     yield _line({"type": "wait"})
                 reply = json_object(again.result()) or again.result()
-            yield _line({"type": "done", "answer": check_answer(reply, req.passages).model_dump()})
+            yield _line({"type": "done", "answer": check_answer(reply, req.passages, req.audience).model_dump()})
         except Exception:  # noqa: BLE001 - the caller only needs to know it failed
             yield _line({"type": "error"})
 

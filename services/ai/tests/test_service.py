@@ -942,3 +942,63 @@ def test_ollama_gives_back_the_raw_reply_after_two_bad_tries():
 
     assert asyncio.run(_ollama_with(handler).chat_json("sys", "user", {})) == "no json here"
     assert calls == 2
+
+
+# --- client rules: legal facts, the progress-update draft, no rating words (Gate B, 19 Nov 2026)
+
+
+def test_client_rules_allow_only_a_facts_only_progress_draft():
+    system, _ = build_messages("Draft my progress update", PASSAGES, "en", audience="client")
+    assert "progress update" in system and "Draft: check before sending" in system and "مسودة: راجعها قبل الإرسال" in system
+    assert "never sends, stores or shares" in system
+    assert "Any other draft" in system and "stays refused" in system
+    assert "Never rate or judge the work" in system
+    # Legal: the facts with citations, then the judgement left to the consultant or a legal adviser.
+    assert "give what the relevant passages state" in system and "legal adviser" in system
+    staff, _ = build_messages("Draft my progress update", PASSAGES, "en")
+    assert "progress update" not in staff and "Never rate" not in staff
+
+
+@pytest.mark.parametrize(
+    "rating",
+    [
+        "Overall, the company is on track.",
+        "You have made good progress this month.",
+        "The work so far is excellent.",
+        "Progress is satisfactory.",
+        "الشركة على المسار الصحيح.",
+        "حققتم تقدماً جيداً هذا الشهر.",
+        "العمل ممتاز حتى الآن.",
+    ],
+)
+def test_rating_sentences_are_taken_out_of_a_client_answer(rating):
+    from app.prompt import without_ratings
+
+    facts = "Action A was verified on 2026-10-02 [P1]."
+    raw = json.dumps({"answer": f"Draft: check before sending\n{facts} {rating}", "cited_ids": ["P1"], "grounded": True})
+    got = check_answer(raw, PASSAGES, "client")
+    assert got.grounded and got.answer == "Draft: check before sending\nAction A was verified on 2026-10-02."
+    assert without_ratings(rating) == ""
+    # Staff answers are not changed by this check.
+    assert rating in check_answer(raw, PASSAGES, "staff").answer
+
+
+def test_facts_stay_late_and_overdue_are_not_ratings():
+    raw = json.dumps({"answer": "مسودة: راجعها قبل الإرسال\n- Action B is 3 days overdue (due 2026-11-16) [P1].\n- الإجراء ج متأخر [P1].", "cited_ids": ["P1"], "grounded": True})
+    got = check_answer(raw, PASSAGES, "client")
+    assert got.grounded and "3 days overdue" in got.answer and "متأخر" in got.answer
+
+
+def test_a_draft_that_is_only_ratings_is_ungrounded():
+    raw = json.dumps({"answer": "Draft: check before sending\nGreat job, everything is on track [P1].", "cited_ids": ["P1"], "grounded": True})
+    assert check_answer(raw, PASSAGES, "client") == Answer(answer="", cited_ids=[], grounded=False)
+
+
+def test_the_service_strips_ratings_for_a_client_person(client_with):
+    client, _ = client_with(json.dumps({"answer": "Quarterly [P1]. Excellent governance.", "cited_ids": ["P1"], "grounded": True}))
+    body = client.post(
+        "/v1/answer",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json={"question": "How often?", "passages": [p.model_dump() for p in PASSAGES], "audience": "client"},
+    ).json()
+    assert body == {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}

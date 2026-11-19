@@ -23,6 +23,8 @@ const LEGAL: RegExp[] = [
   /\b(?:violates?|breach(?:es)?|is illegal|is unlawful|legally (?:required|binding|obliged)|you are (?:legally )?obliged)\b/i,
   /\b(?:certif(?:y|ies|ied)|guarantee[sd]?) (?:that )?(?:you|the company|it) (?:is|are|meets?)\b/i,
   /(?:متوافق(?:ة)?|ممتثل(?:ة)?|غير متوافق(?:ة)?|غير ممتثل(?:ة)?) (?:مع|لـ|ل)(?:\s?)(?:النظام|الأنظمة|القانون|اللوائح|نظام)/,
+  // "ممتثلة للنظام": the joined form, which the pattern above does not read.
+  /(?:متوافق(?:ة)?|ممتثل(?:ة)?) (?:للنظام|للأنظمة|للقانون|للوائح|لنظام)/,
   /(?:يخالف|تخالف|مخالف(?:ة)? (?:لل|ل)(?:نظام|قانون|أنظمة)|غير نظامي(?:ة)?|غير قانوني(?:ة)?|ملزم(?:ة)? (?:قانوناً|قانونا|نظاماً|نظاما))/,
   /(?:نشهد|نؤكد|يؤكد) (?:أن|بأن) (?:الشركة|المنشأة|منشأتكم|شركتكم) (?:ممتثلة|متوافقة|مستوفية)/,
 ];
@@ -53,11 +55,43 @@ export function clientAnswerProblem(text: string): Exclude<FilterReason, "other_
   return null;
 }
 
+/**
+ * A legal question gets the facts, not a ruling (Gate B, 19 Nov 2026): the
+ * answer without the sentences that rule, or null when nothing else is left.
+ * Whatever is kept passes clientAnswerProblem() again before it is shown.
+ */
+export function withoutRulings(text: string): string | null {
+  const kept = text
+    .split("\n")
+    .map((line) =>
+      line
+        .split(/(?<=[.!?؟؛;])\s+/)
+        .filter((s) => !LEGAL.some((r) => r.test(s)))
+        .join(" "),
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return /[\p{L}\p{N}]/u.test(kept) && clientAnswerProblem(kept) === null ? kept : null;
+}
+
+/** Said after the facts of a legal question, in place of the ruling taken out. */
+export const LEGAL_NOTE = {
+  ar: "هذا ما تقوله مصادرك. أمّا هل يكفي ذلك نظامًا، فالحكم لمستشارك أو لمستشارك القانوني.",
+  en: "This is what your sources say. Whether it is enough is for your consultant or a legal adviser to judge.",
+};
+
+/** The first line of a client's progress-update draft: Selah never sends, stores as a record, or shares it. */
+export const DRAFT_MARK = {
+  ar: "مسودة: راجعها قبل الإرسال",
+  en: "Draft: check before sending",
+};
+
 /** What a client sees instead of a filtered answer. Another client's name gets the plain "can't confirm", so a refusal never tells a client who else the firm serves. */
 export const CLIENT_REFUSAL: Record<"legal_ruling" | "firm_intent" | "firm_internal", { ar: string; en: string }> = {
   legal_ruling: {
-    ar: "لا أستطيع إصدار حكم نظامي أو حكم بالامتثال. أستطيع أن أبيّن ما تقوله المستندات والسجلات المتاحة لك، والحكم لمستشارك أو لمستشارك القانوني.",
-    en: "I can't give a legal or compliance ruling. I can show what the documents and records available to you say; the judgement is for your consultant or your legal adviser.",
+    ar: "لا أستطيع إصدار حكم نظامي أو حكم بالامتثال. المصادر المذكورة أدناه هي ما تقوله مستنداتك وسجلاتك في هذا، والحكم لمستشارك أو لمستشارك القانوني.",
+    en: "I can't give a legal or compliance ruling. The sources listed below are what your documents and records say on this; the judgement is for your consultant or your legal adviser.",
   },
   firm_intent: {
     ar: "لا أستطيع التكهّن بما ينويه المكتب أو مستشاروه. أستطيع أن أبيّن ما تقوله السجلات المتاحة لك، ولأي سؤال آخر اسأل مستشارك مباشرة.",

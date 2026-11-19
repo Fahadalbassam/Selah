@@ -83,6 +83,45 @@ export function statusIntent(question: string): Set<StatusKind> {
   return new Set(STATUS.filter(([, re]) => re.test(q)).map(([k]) => k));
 }
 
+// "My" work, in both languages: "my deadlines", "what do I own", «ما المطلوب مني؟», «ما الذي عليّ؟».
+// "My company", "my team", "my department" and the like are not the person's own actions.
+const MINE =
+  /\b(?:my|mine)\b(?!\s+(?:company|company's|organi[sz]ation|organi[sz]ation's|business|team|team's|department|department's|unit|project|projects|firm|consultants?|board|colleagues?|staff|employees))|\b(?:assigned to me|i own|i am responsible|i'm responsible|on my plate|do i (?:have|own|need))\b|المطلوب مني|مطلوب مني|علي(?=\s*[؟?.!]|\s*$)|عليّ|مهامي|مهماتي|إجراءاتي|اجراءاتي|مواعيدي|أعمالي|المسندة (?:إلي|الي|لي)|المكلف(?:ة)? بها|مسؤوليتي/iu;
+// Deadline words that make a "my ..." question a status question even without a status word ("my deadlines").
+const DEADLINE = /\b(?:deadlines?|due dates?|tasks?|actions?|to-?dos?|due)\b|مواعيد|موعد|مهام|مهمة|إجراءات|اجراءات|المطلوب|مطلوب|مستحق/iu;
+
+/**
+ * Whether a status question asks about the person's own work ("what are my
+ * deadlines?", «ما المطلوب مني؟»). It only ever narrows: statusRecords then
+ * keeps the actions the person owns or is named on (docs/assistant.md).
+ */
+export function mineIntent(question: string): boolean {
+  return MINE.test(question.replace(/[ً-ِْٰـ]/g, ""));
+}
+
+/** "My deadlines" with no status word: read as every open action of the person's. */
+export function myDeadlinesIntent(question: string): boolean {
+  const q = question.replace(/\p{M}/gu, "");
+  return mineIntent(question) && DEADLINE.test(q);
+}
+
+// Who the person's consultants are: the firm's people on the project, as Help and People show them.
+const CONSULTANT = /\b(?:consultants?|advisers?|advisors?|account manager|who (?:is|are) (?:our|my) (?:contact|lead|team))\b|مستشار|المستشارين|المستشارون|فريق المكتب|من يتابع(?:نا)?|مسؤول الحساب/iu;
+
+/** Whether a question asks who the person's consultants are ("who is my consultant?", «من مستشاري؟»). */
+export function consultantIntent(question: string): boolean {
+  return CONSULTANT.test(question.replace(/\p{M}/gu, ""));
+}
+
+// A progress-update draft the person asks for (the one draft a client person may get: CLIENT_RULES).
+const PROGRESS_DRAFT =
+  /\b(?:draft|write|prepare|compose)\b.{0,40}\b(?:progress|status) (?:update|report|summary)\b|\b(?:progress|status) (?:update|report)\b.{0,30}\bdraft\b|(?:مسودة|صياغة|صغ|اكتب|أعد|جهز)(?:\s+\S+){0,4}\s+(?:تحديث|تقرير|ملخص)\S*(?:\s+\S+){0,3}\s+(?:ال)?(?:تقدم|إنجاز|انجاز|حالة|سير العمل)/iu;
+
+/** Whether a client person asks for a draft of their own progress update. */
+export function progressDraftIntent(question: string): boolean {
+  return PROGRESS_DRAFT.test(question.replace(/\p{M}/gu, ""));
+}
+
 // Indicator words in both languages: the client's own business measures (KPI layer B).
 const INDICATOR = /\b(kpis?|indicators?|metrics?|measures?|targets?|baselines?)\b|مؤشر|المؤشرات|مستهدف|المستهدفات|خط (ال)?أساس/iu;
 
