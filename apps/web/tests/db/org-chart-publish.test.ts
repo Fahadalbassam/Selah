@@ -37,6 +37,7 @@ const OTHER = id(3); // another client of the firm, with a draft of its own
 const P = id(6);
 const P_OTHER = id(7);
 const FIN = id(10); // Sahm's Finance department
+const HR = id(11); // Sahm's HR department: the Finance manager is not in it
 const U = {
   admin: id(21), // firm admin
   lead: id(22), // Sahm's and Other's lead
@@ -175,7 +176,7 @@ beforeAll(async () => {
     [SAHM, U.lead, U.deputy, U.cons, U.obs, OTHER],
   );
   await q(`INSERT INTO project_members (project_id, user_id, observer) VALUES ($1,$2,false), ($1,$3,true)`, [P, U.cons, U.obs]);
-  await q(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$2,'المالية','Finance')`, [FIN, SAHM]);
+  await q(`INSERT INTO departments (id, org_id, name_ar, name_en) VALUES ($1,$3,'المالية','Finance'), ($2,$3,'الموارد البشرية','HR')`, [FIN, HR, SAHM]);
   await q(`INSERT INTO department_members (department_id, user_id, is_head) VALUES ($1,$2,false), ($1,$3,true)`, [FIN, U.mgr, U.fhead]);
 
   // Sahm's first draft: the board, the chief executive, Finance (linked to the department) with its head, an accountant and a clerk.
@@ -249,8 +250,9 @@ describe("publishing places the people planned for the draft", () => {
     await plan(pos.chair!, { name: "Reem Typed" });
     await plan(pos.treasurer!, { userId: U.newbie });
     await plan(pos.clerk!, { userId: U.leaver });
-    // The leaver is no longer one of Sahm's people (the membership gone, so the leaving hook never ran).
-    await q(`DELETE FROM org_memberships WHERE user_id = $1 AND org_id = $2`, [U.leaver, SAHM]);
+    // The leaver moved to another client (one membership a person: review S4). Switching an account off removes its plans
+    // altogether (migration 0100, tested with the imports); this is the second check publishing makes.
+    await q(`UPDATE org_memberships SET org_id = $1, role = 'action_owner' WHERE user_id = $2`, [OTHER, U.leaver]);
     const preview = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, SAHM, plus(3)));
     expect(preview.effectiveOn).toBe(plus(3));
     expect(preview.plans.map((x) => [x.code, x.name, x.outcome])).toEqual([
@@ -574,5 +576,72 @@ describe("the department-head suggestion, after the people change", () => {
     expect(orgChartError((err as Error).message)).toBe("suggestion_gone");
     // The database's own refusal, if it ever reached the screen, is said the same way.
     expect(orgChartError("department members are active people of the client")).toBe("suggestion_gone");
+  });
+});
+
+// Review S4: the rules this part promises that had no test.
+describe("what the review found untested", () => {
+  /** A file of Sahm's project, shared with the client, written by the schema's owner (the rules that read it are what is tested). */
+  async function doc(docId: string, title: string, departmentId: string | null = null, kind: { purpose: string; state: string } = { purpose: "deliverable", state: "submitted" }) {
+    await q(
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id,
+         storage_key, content_type, size_bytes, sha256, scan_status)
+       VALUES ($1,$2,$3,$3,$4,$9,$10,$5,'shared',$6,$7,'application/pdf',10,$8,'clean')`,
+      [docId, P, SAHM, U.cadmin, title, departmentId, `k-${docId}`, `sha-${docId}`, kind.purpose, kind.state],
+    );
+  }
+  const DOC_DRAFT = id(73);
+  const DOC_HR = id(71);
+  const DOC_ONLY = id(72);
+  const resolutionFor = async (who: string) => (await svc(who, (tx, p) => OC.getStructure(tx, p, SAHM))).resolution?.title ?? null;
+
+  it("publishing changes no department, even with a plan in a linked unit's head position", async () => {
+    const members = async () => (await q(`SELECT department_id, user_id, is_head FROM department_members ORDER BY department_id, user_id`)).rows;
+    const before = await members();
+    await plan((await draftPosition("2.1.1")).id, { userId: U.fhead });
+    await doc(DOC_HR, "Board resolution (HR)", HR);
+    const done = await svc(U.lead, async (tx, p) => OC.publish(tx, p, SAHM, { draftId: await draftId(), effectiveOn: plus(7), resolutionDocumentId: DOC_HR }), true);
+    expect(done.placed.map((x) => x.name)).toEqual(["Finance Head"]);
+    expect(await members()).toEqual(before);
+  });
+
+  it("shows the board resolution to each reader who may open its file, and to nobody else", async () => {
+    // A file of the HR department: the Finance manager may not open it; the client's admin and the firm's readers may.
+    for (const who of [U.cadmin, U.lead, U.cons, U.obs, U.admin]) expect(await resolutionFor(who), who).toBe("Board resolution (HR)");
+    expect(await resolutionFor(U.mgr)).toBeNull();
+    // A file only the client's admin may see ("only these people", set by the admin): the manager gets nothing.
+    await doc(DOC_ONLY, "Board resolution (only)");
+    await q(`INSERT INTO item_audiences (org_id, item_type, item_id, mode, set_by) VALUES ($1,'document',$2,'only',$3)`, [SAHM, DOC_ONLY, U.cadmin]);
+    await q(`INSERT INTO item_audience_people (item_type, item_id, user_id) VALUES ('document',$1,$2)`, [DOC_ONLY, U.cadmin]);
+    await svc(U.lead, async (tx, p) => OC.publish(tx, p, SAHM, { draftId: await draftId(), effectiveOn: plus(7), resolutionDocumentId: DOC_ONLY }), true);
+    expect(await resolutionFor(U.cadmin)).toBe("Board resolution (only)");
+    expect(await resolutionFor(U.mgr)).toBeNull();
+  });
+
+  it("refuses a resolution the publisher may not open, though the database alone would take it", async () => {
+    // Evidence the client's admin is still preparing: shared and not archived, but only its uploader opens it.
+    await doc(DOC_DRAFT, "Draft evidence", null, { purpose: "evidence", state: "draft" });
+    expect(await as(U.lead, async (c) => (await c.query(`SELECT 1 FROM documents WHERE id = $1`, [DOC_DRAFT])).rowCount)).toBe(0);
+    const err = await svc(U.lead, async (tx, p) => OC.publish(tx, p, SAHM, { draftId: await draftId(), effectiveOn: plus(7), resolutionDocumentId: DOC_DRAFT })).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/^resolution$/);
+    // The database's own check (a shared file of this client) would have let it through (rolled back).
+    const chart = (await q(`SELECT id FROM org_charts WHERE org_id = $1`, [SAHM])).rows[0].id as string;
+    const draft = await draftId();
+    await as(U.lead, (c) => c.query(`SELECT app_publish_org_chart($1, $2, $3::date, $4)`, [chart, draft, plus(7), DOC_DRAFT]));
+  });
+
+  it("a head confirmation for another client, or by another client's admin, is a 404", async () => {
+    expect(await svc(U.oadmin, (tx, p) => OC.headSuggestions(tx, p, SAHM))).toEqual([]);
+    await expect(svc(U.oadmin, (tx, p) => OC.confirmHeadSuggestion(tx, p, SAHM, { departmentId: FIN, userId: U.mgr }))).rejects.toThrow(REFUSED);
+    await expect(svc(U.cadmin, (tx, p) => OC.confirmHeadSuggestion(tx, p, OTHER, { departmentId: FIN, userId: U.mgr }))).rejects.toThrow(REFUSED);
+  });
+
+  it("an answer to a suggestion reaches nobody once its author is switched off", async () => {
+    const asked = (await svc(U.suggester, (tx, p) => OC.suggestChange(tx, p, SAHM, { what: "Rename the board's secretariat" }), true)).id;
+    await svc(U.cadmin, (tx, p) => AC.setActive(tx, p, U.suggester, { active: false, reason: "Left the company" }), true);
+    expect((await q(`SELECT active FROM org_memberships WHERE user_id = $1`, [U.suggester])).rows).toEqual([{ active: false }]);
+    await q(`DELETE FROM notifications`);
+    await svc(U.lead, (tx, p) => OC.closeChangeRequest(tx, p, asked, "done"), true);
+    expect((await q(`SELECT user_id FROM notifications WHERE kind LIKE 'org_chart.request_%'`)).rows).toEqual([]);
   });
 });
