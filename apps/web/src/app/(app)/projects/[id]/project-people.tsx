@@ -4,7 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { FormDialog } from "@/components/form-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { actionsHref } from "@/lib/action-filters";
+import type { OwnerControl } from "@/services/action-owner";
+import { ReassignActions } from "./reassign-actions";
 import type { getProjectPeople } from "@/services/staffing";
 import { RemoveFromProject } from "./project-menu";
 
@@ -22,7 +23,7 @@ export async function ProjectPeople({
   firm,
   data,
   primary = true,
-  handOverAt = null,
+  reassign = {},
 }: {
   projectId: string;
   clientId: string;
@@ -30,8 +31,8 @@ export async function ProjectPeople({
   data: People;
   /** Its add button is the tab's one solid button only when the firm's staffing card is not there (the screen standard). */
   primary?: boolean;
-  /** Who may hand a person's work over on Team: the firm admin (the client's People page), the client's admin (their own). */
-  handOverAt?: "firm" | "client" | null;
+  /** Each person's open actions here that the reader may give to a colleague (review S3). */
+  reassign?: Record<string, { id: string; title: string; control: OwnerControl }[]>;
 }) {
   // A client reader's own roles in their own words ("Admin", not "Client admin").
   const [t, tRole] = await Promise.all([getTranslations("projectPeople"), getTranslations(firm ? "role" : "roleClient")]);
@@ -98,19 +99,12 @@ export async function ProjectPeople({
             </div>
             {data.can.manage ? (
               m.openActions ? (
-                // To the hand-over on Team for an admin; for anyone else, the person's actions here, each with its owner control (D1).
-                <Link
-                  href={
-                    handOverAt === "firm"
-                      ? `/clients/${clientId}/people?handover=${m.userId}`
-                      : handOverAt === "client"
-                        ? `/team?handover=${m.userId}`
-                        : actionsHref({ project: projectId, owner: m.userId })
-                  }
-                  className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                >
-                  {t("reassignFirst")}
-                </Link>
+                // Their actions on this project, each with its own owner control (review S3; D1), for whoever may reassign them.
+                reassign[m.userId]?.length ? (
+                  <ReassignActions name={m.name} actions={reassign[m.userId]!} firm={firm} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">{t("reassignFirst")}</span>
+                )
               ) : (
                 <RemoveFromProject name={m.name} endpoint={`/api/projects/${projectId}/people/${m.userId}`} confirm={t(`removeConfirm${own}`, { name: m.name })} />
               )

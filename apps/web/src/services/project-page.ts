@@ -1,4 +1,5 @@
 import "server-only";
+import { reassignList } from "./action-owner";
 import type { Tx } from "@/db/client";
 import type { Principal } from "@/authz";
 import { closingTabShown, projectTabs } from "@/lib/project-tabs";
@@ -34,8 +35,14 @@ export async function loadProjectPage(tx: Tx, principal: Principal, id: string) 
     data.project.state === "draft"
       ? null
       : await getClosure(tx, principal, id).then((c) => (c.firm || c.state === "closing" || c.state === "closed" || c.can.request || c.request ? c : null));
+  const people = await getProjectPeople(tx, principal, id);
+  // "Reassign their actions first" (review S3): each person's open actions here, with the owner
+  // control, for whoever may give them to a colleague; nothing for anyone else.
+  const reassign: Record<string, Awaited<ReturnType<typeof reassignList>>> = {};
+  for (const m of people?.people ?? []) if (m.openActions) reassign[m.userId] = await reassignList(tx, principal, id, m.userId);
   const page = {
     data,
+    reassign,
     // Client projects only; roles that can't read assessments get neither Sources nor the shared list.
     assessments: client ? await listAssessments(tx, principal, id).catch(() => null) : null,
     // Published templates to start from, for firm staff. Not for an observer:
@@ -52,15 +59,12 @@ export async function loadProjectPage(tx: Tx, principal: Principal, id: string) 
     evidence: await planEvidence(tx, actionIds),
     team: await getProjectTeam(tx, principal, id),
     // The client's own people on the project: the firm, and the client's admin.
-    people: await getProjectPeople(tx, principal, id),
+    people,
     // Sponsor, coordinator, steering committee, acceptors, observers (client projects).
     roles: client ? await listClientRoles(tx, principal, id) : null,
     // The firm's consultants on the project, for a client reader (until batch 3 only Help named them).
     consultants: client ? await projectConsultants(tx, principal, id) : null,
     firmStaff,
-    // Who may hand a person's work over on Team (app_can_manage_person): the firm admin, on the client's
-    // People page; the client's admin, on its own. "Reassign their actions first" links there.
-    handOverAt: principal.role === "firm_admin" ? ("firm" as const) : principal.role === "client_admin" ? ("client" as const) : null,
     // Roles that can't read meetings simply get no tab.
     meetings: await listMeetings(tx, principal, id).catch(() => null),
     // Who may book: the list of people to invite, or null.

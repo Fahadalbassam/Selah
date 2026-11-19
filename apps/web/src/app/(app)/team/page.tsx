@@ -5,7 +5,6 @@ import { authorize } from "@/authz";
 import { firmSettings, organizations } from "@/db/schema";
 import { clientPeopleTabs, type ClientPeopleTab } from "@/lib/people-tabs";
 import { firmToday } from "@/lib/dates";
-import { isUuid } from "@/lib/ids";
 import { PageHeader } from "@/components/page-header";
 import { ClientPeopleTabs, TeamTabs } from "@/components/people-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,9 +24,7 @@ import { SectionHeader } from "@/components/section-header";
 
 // Firm: the team, with Expertise as a tab. Client: the company's People, with
 // Departments and the Structure as tabs (page audit 4.1); managers read it.
-export default async function TeamPage({ searchParams }: { searchParams: Promise<{ handover?: string }> }) {
-  // From a project's People tab, "Reassign their actions first": the hand-over opens for that person.
-  const { handover } = await searchParams;
+export default async function TeamPage() {
   const data = await withPrincipal(async (tx, principal) => {
     const since = new Date(`${firmToday()}T00:00:00Z`);
     since.setUTCDate(since.getUTCDate() - 90);
@@ -80,7 +77,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
       {clientTabs ? <ClientPeopleTabs tabs={clientTabs} current="people" /> : <TeamTabs current="people" />}
       {clientTabs ? <PageHeader title={t("titleClient")} description={t("hintClient")} /> : <PageHeader title={t("title")} />}
       {people ? (
-        <PeopleAdmin data={people} me={me} myRole={role} reviewDays={reviewDays} vacancies={vacancies} handover={isUuid(handover ?? "") ? handover : undefined} />
+        <PeopleAdmin data={people} me={me} myRole={role} reviewDays={reviewDays} vacancies={vacancies} />
       ) : team.length === 0 ? (
         <EmptyState icon={<Users animateOnView />} description={t("empty")} />
       ) : (

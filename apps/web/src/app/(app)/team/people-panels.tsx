@@ -100,12 +100,10 @@ export function PersonMenu(props: {
   canErase: boolean;
   /** Active colleagues who can take over this person's work. */
   colleagues: { userId: string; name: string }[];
-  /** Open the hand-over at once (from a project's "Reassign their actions first"). */
-  startOpen?: boolean;
 }) {
   const t = useTranslations("people");
   const router = useRouter();
-  const [open, setOpen] = useState<Open>(props.startOpen ? "off" : null);
+  const [open, setOpen] = useState<Open>(null);
   const set = (o: boolean) => !o && setOpen(null);
   const base = `/api/people/${props.userId}`;
 

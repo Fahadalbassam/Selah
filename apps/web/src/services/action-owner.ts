@@ -160,3 +160,30 @@ export async function recordOwnerChange(
     meta,
   });
 }
+
+/**
+ * "Reassign their actions first" on a project's People tab (review S3): the
+ * person's open actions on this project, each with the owner control, for
+ * whoever may give each one to a colleague. Read under the reader's own rules,
+ * so an action they cannot open is not there; empty for anyone who may not
+ * reassign. It never opens the switch-off dialog's hand-over of everything.
+ */
+export async function reassignList(tx: Tx, principal: Principal, projectId: string, ownerUserId: string) {
+  const rows = await tx
+    .select({ id: actions.id, title: actions.title })
+    .from(actions)
+    .where(
+      and(
+        eq(actions.projectId, projectId),
+        eq(actions.ownerUserId, ownerUserId),
+        sql`${actions.status} in ('draft', 'assigned', 'in_progress', 'blocked', 'awaiting_review', 'revision_requested')`,
+      ),
+    )
+    .orderBy(asc(actions.title));
+  const out: { id: string; title: string; control: OwnerControl }[] = [];
+  for (const r of rows) {
+    const control = await ownerControl(tx, principal, r.id).catch(() => null);
+    if (control) out.push({ ...r, control });
+  }
+  return out;
+}

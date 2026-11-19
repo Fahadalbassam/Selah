@@ -34,7 +34,6 @@ export async function PeopleAdmin({
   reviewDays,
   asPage = false,
   vacancies = [],
-  handover,
 }: {
   data: People;
   me: string;
@@ -44,8 +43,6 @@ export async function PeopleAdmin({
   asPage?: boolean;
   /** At a client with a published structure: its vacant positions, which the invite form offers (org chart, part 3). */
   vacancies?: Vacancy[];
-  /** A person whose hand-over opens at once (from a project's "Reassign their actions first"). */
-  handover?: string;
 }) {
   const [t, tRole, format] = await Promise.all([getTranslations("people"), getTranslations("role"), getFormatter()]);
   const ar = (await getLocale()) === "ar";
@@ -158,7 +155,6 @@ export async function PeopleAdmin({
                         canChange={canChange}
                         canResetTwoFactor={canChange && p.twoFactor}
                         canErase={data.can.erase}
-                        startOpen={p.active && handover === p.userId}
                         colleagues={data.people
                           .filter((c) => c.active && c.userId !== p.userId)
                           .map((c) => ({ userId: c.userId, name: c.name }))}

@@ -3635,7 +3635,8 @@
     },
     "noCandidatesClient": "All your people are on this project.",
     "noneClient": "Nobody from your company is on it yet.",
-    "removeConfirmClient": "Take {name} off this project? They stop seeing it, unless they are one of your company's admins."
+    "removeConfirmClient": "Take {name} off this project? They stop seeing it, unless they are one of your company's admins.",
+    "reassignTitle": "{name}'s actions on this project"
   },
   "fileActions": {
     "menu": "More for {title}",

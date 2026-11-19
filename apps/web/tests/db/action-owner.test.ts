@@ -17,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
-import { changeActionOwner, ownerControl } from "@/services/action-owner";
+import { changeActionOwner, ownerControl, reassignList } from "@/services/action-owner";
 import { transitionAction } from "@/services/actions";
 import { listNotifications } from "@/services/notifications";
 import { updateAction } from "@/services/plan";
@@ -332,6 +332,26 @@ describe("D1 on a minimal-records client: the owner is a typed name", () => {
   it("a typed name is refused for a client with accounts, and from the client side", async () => {
     await expect(svc(U.lead, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow(/firm manages/);
     await expect(svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, A.open, { ownerName: "someone" }))).rejects.toThrow();
+  });
+});
+
+// Review S3 (the coordinator's decision): "Reassign their actions first" on a project's People tab
+// opens that person's open actions on this project, each with its own owner control, for everyone
+// who may reassign; never the switch-off dialog.
+describe("Reassign their actions first", () => {
+  it("lists the person's open actions on this project with a control, for those who may reassign", async () => {
+    for (const who of [U.cadmin, U.coord, U.staff]) {
+      const list = await svc(who, (tx, p) => reassignList(tx, p, P, U.owner1));
+      // Open ones only: not the verified one; the draft only for the firm.
+      const ids = list.map((x) => x.id).sort();
+      expect(ids, who).toEqual((who === U.staff ? [A.open, A.awaiting, A.draft] : [A.open, A.awaiting]).sort());
+      expect(list.every((x) => x.control.people.length > 0)).toBe(true);
+    }
+  });
+
+  it("is empty for someone who may not reassign, and names no one else's action", async () => {
+    for (const who of [U.mgr, U.owner2, U.observer]) expect(await svc(who, (tx, p) => reassignList(tx, p, P, U.owner1)), who).toEqual([]);
+    expect(await svc(U.cadmin, (tx, p) => reassignList(tx, p, P, U.owner2))).toEqual([]);
   });
 });
 
