@@ -294,3 +294,112 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER document_rename BEFORE UPDATE OF title, department_id ON documents
   FOR EACH ROW EXECUTE FUNCTION check_document_rename();
+--> statement-breakpoint
+-- 8. A version stays in its chain (review B1). The confidential rule (6)
+--    follows supersedes_id, and nothing froze it after insert, so anyone who
+--    could write a file could unlink a version from a confidential answer
+--    and switch the assistant on. A file's place in its version history is
+--    set when it is uploaded and never changes, for every role.
+CREATE FUNCTION check_document_lineage() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.supersedes_id IS DISTINCT FROM OLD.supersedes_id THEN
+    RAISE EXCEPTION 'a file''s place in its versions never changes' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER document_lineage BEFORE UPDATE OF supersedes_id ON documents
+  FOR EACH ROW EXECUTE FUNCTION check_document_lineage();
+--> statement-breakpoint
+-- 9. Versions of a confidential answer already with the assistant before
+--    this migration (review S1). The assistant's passages are derived data:
+--    switching the flag off drops them (baseline) and the owning side can
+--    switch it on again once the request is no longer confidential. Owner
+--    only; the migration runs it once, and it is safe to run again.
+CREATE FUNCTION app_retire_confidential_versions() RETURNS integer
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE n integer;
+BEGIN
+  UPDATE documents d SET ai_indexable = false
+  WHERE d.ai_indexable AND app_document_answers_confidential(d.id);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app_retire_confidential_versions() FROM PUBLIC;
+--> statement-breakpoint
+SELECT app_retire_confidential_versions();
+--> statement-breakpoint
+-- 10. The audit log's withdrawal rows written before this migration carry
+--     the file's name, which the other side's admin read on the Audit page
+--     and in its export (review S1). The rows are not rewritten: the name is
+--     left out when the log is read. Withdrawal rows written since carry no
+--     name. Everything else as 0023.
+CREATE OR REPLACE FUNCTION app_audit_entries(
+  since timestamptz, until timestamptz, who uuid, areas text[], result text, of_org uuid, max_rows integer, skip integer)
+RETURNS TABLE (
+  id uuid, created_at timestamptz, actor_id uuid, actor_name text, actor_email text, actor_org text, actor_org_ar text,
+  org_id uuid, action text, resource_type text, resource_id uuid, outcome text, reason text, ip text, meta jsonb,
+  chain_seq bigint, total bigint)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  WITH me AS (SELECT app_org_kind() = 'firm' AS firm)
+  SELECT a.id, a.created_at, u.id, u.name, u.email, o.name, o.name_ar, a.org_id, a.action, a.resource_type,
+    CASE WHEN me.firm OR a.outcome <> 'deny' THEN a.resource_id END,
+    a.outcome::text,
+    CASE WHEN me.firm OR a.outcome <> 'deny' THEN a.reason END,
+    a.ip,
+    CASE WHEN NOT (me.firm OR a.outcome <> 'deny') THEN '{}'::jsonb
+         WHEN a.action = 'document.withdraw' THEN a.meta - 'title'
+         ELSE a.meta END,
+    a.chain_seq, count(*) OVER ()
+  FROM audit_log a
+  CROSS JOIN me
+  -- The person: who acted, or for a sign-in event without one the account it was for.
+  LEFT JOIN "user" u ON u.id = coalesce(a.actor_id, CASE WHEN a.action LIKE 'auth.%' AND a.resource_type = 'user' THEN a.resource_id END)
+  LEFT JOIN org_memberships m ON m.user_id = u.id
+  LEFT JOIN organizations o ON o.id = m.org_id
+  WHERE app_audit_visible(a)
+    AND (since IS NULL OR a.created_at >= since)
+    AND (until IS NULL OR a.created_at < until)
+    AND (who IS NULL OR u.id = who)
+    AND (areas IS NULL OR EXISTS (SELECT 1 FROM unnest(areas) p WHERE a.action = p OR a.action LIKE p || '.%'))
+    AND (result IS NULL OR a.outcome::text = result)
+    AND (of_org IS NULL OR m.org_id = of_org)
+  ORDER BY a.created_at DESC, a.id DESC
+  LIMIT least(greatest(max_rows, 1), 20000) OFFSET greatest(skip, 0)
+$$;
+--> statement-breakpoint
+-- 11. Work a client admin could not see, left with nobody (review S3). Since
+--     (1) a firm-only action, or a draft, owned by a client person neither
+--     shows nor blocks when the client's admin switches that person off. The
+--     firm is told instead: the project's lead consultants, the client's lead
+--     and deputy consultants and the firm's admins get "action.owner_left"
+--     for each such open action, and hand it over from the person's leaving
+--     report.
+CREATE FUNCTION tell_firm_owner_left() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF OLD.active AND NOT NEW.active AND app_uid() IS NOT NULL AND app_org_kind() = 'client' THEN
+    INSERT INTO notifications (user_id, kind, entity_type, entity_id)
+      SELECT DISTINCT x.user_id, 'action.owner_left', 'action', a.id
+      FROM actions a
+      JOIN projects p ON p.id = a.project_id
+      CROSS JOIN LATERAL (
+        SELECT pm.user_id FROM project_members pm WHERE pm.project_id = p.id AND pm.is_lead
+        UNION
+        SELECT ca.user_id FROM client_assignments ca WHERE ca.client_org_id = p.org_id AND (ca.is_lead OR ca.is_deputy) AND p.kind = 'client'
+        UNION
+        SELECT fm.user_id FROM org_memberships fm WHERE fm.org_id = p.firm_org_id AND fm.role = 'firm_admin'
+      ) x
+      JOIN org_memberships m ON m.user_id = x.user_id AND m.org_id = p.firm_org_id AND m.active
+      WHERE a.owner_user_id = NEW.user_id AND a.status NOT IN ('verified_complete', 'closed') AND p.state <> 'closed'
+        AND (a.status = 'draft' OR NOT app_recommendation_label_ok(a.recommendation_id) OR NOT app_dept_ok(a.department_id, a.org_id));
+  END IF;
+  RETURN NULL;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION tell_firm_owner_left() FROM PUBLIC;
+--> statement-breakpoint
+CREATE TRIGGER membership_owner_left AFTER UPDATE OF active ON org_memberships
+  FOR EACH ROW EXECUTE FUNCTION tell_firm_owner_left();

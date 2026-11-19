@@ -2329,7 +2329,8 @@
       "org_chart_request_done": "Your consultants made the change you suggested to your company's structure",
       "org_chart_request_declined": "Your consultants declined the change you suggested to your company's structure",
       "action_owner_moved": "An action you had on {title} was given to a colleague",
-      "action_owner_changed": "{title} was given to someone else"
+      "action_owner_changed": "{title} was given to someone else",
+      "action_owner_left": "{title} has no active owner: the person who held it left. Give it to someone from their leaving report"
     },
     "mail": {
       "sectionHint": "In-app notifications always arrive. These choices only change what reaches your inbox, and when.",

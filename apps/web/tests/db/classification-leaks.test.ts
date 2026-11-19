@@ -7,17 +7,42 @@
 //   L5       the stored monthly history is the firm's
 //   C1       a file answering a confidential request stays out of the assistant across versions
 //   C3       only the uploader or the owning side's admin renames or refiles a file
+// and the independent review of the fix (docs/review/work/leak-fixes-review.md):
+//   B1       a version never leaves its chain
+//   S1       old withdrawal audit rows lose the name when read; old assistant-read versions are switched off
+//   S2       the report PDF lists only what the client may see
+//   S3       the firm is told when a client admin switches off the owner of work the admin cannot see
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Principal } from "@/authz";
 import type { Tx } from "@/db/client";
 import * as schema from "@/db/schema";
+import { indexDocument, pagesFromText, type Embed } from "@/jobs/index-documents";
 import { setAssistantFlag, withdrawDocument } from "@/services/documents";
+import { reportPdf } from "@/services/exports";
 import { getReport, projectMetrics, projectProgress, shareReport, snapshotReport } from "@/services/follow-through";
 import { loadPrincipal } from "@/services/principal";
 import { issueStatusPack } from "@/services/status-pack";
 import { truncateAuditLog } from "./audit-reset";
+
+// The report PDF: keep the HTML the renderer would get (review S2).
+const rendered: string[] = [];
+vi.mock("@/services/pdf", () => ({
+  renderPdf: async (html: string) => {
+    rendered.push(html);
+    return new Uint8Array([1]);
+  },
+}));
+vi.mock("next-intl/server", async () => {
+  const { createTranslator } = await import("next-intl");
+  const messages = { ar: (await import("../../messages/ar.json")).default, en: (await import("../../messages/en.json")).default };
+  return {
+    getTranslations: async ({ locale, namespace }: { locale: "ar" | "en"; namespace?: string }) =>
+      createTranslator({ locale, messages: messages[locale], namespace: namespace as never }),
+  };
+});
+const embed: Embed = async (texts) => texts.map(() => Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)));
 
 const ownerUrl = process.env.TEST_DATABASE_OWNER_URL;
 const appUrl = process.env.TEST_DATABASE_APP_URL;
@@ -305,5 +330,97 @@ describe("C3: only the uploader or the owning side's admin renames or refiles a 
     // Unchanged rule (question C2 for gate B): a manager may still switch the flag on.
     const r = await svc(U.mgr, (tx, p) => setAssistantFlag(tx, p, D.cadminDoc, true));
     expect(r.aiIndexable).toBe(true);
+  });
+});
+
+describe("review B1: a version never leaves its chain", () => {
+  it("nobody unlinks a version, so a confidential answer's version stays off for the assistant", async () => {
+    for (const who of [U.cadmin, U.lead]) {
+      expect(await refused(rowsAs(who, `UPDATE documents SET supersedes_id = NULL WHERE id = $1`, [D.answerV2]))).toMatch(/versions never changes/);
+    }
+    expect(await refused(rowsAs(U.cadmin, `UPDATE documents SET supersedes_id = $2 WHERE id = $1`, [D.answerV3, D.answer]))).toMatch(/versions never changes/);
+    expect(await refused(owner.query(`UPDATE documents SET supersedes_id = NULL WHERE id = $1`, [D.answerV2]))).toMatch(/versions never changes/);
+    expect(await refused(rowsAs(U.cadmin, `UPDATE documents SET ai_indexable = true WHERE id = $1`, [D.answerV2]))).toMatch(/confidential/);
+  });
+});
+
+describe("review S1: what was written before the fix", () => {
+  it("a withdrawal audit row written with the file's name is read without it", async () => {
+    await owner.query(
+      `INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+       VALUES ($1,$2,'document.withdraw','document',$3,'allow','{"title":"Salary scale 2027 (client private).pdf"}')`,
+      [U.cadmin, ACME, D.clientPriv],
+    );
+    for (const who of [U.admin, U.cadmin]) {
+      const rows = await rowsAs(who, `SELECT action, meta FROM app_audit_entries(NULL, NULL, NULL, NULL, NULL, NULL, 1000, 0)`);
+      const hits = rows.filter((r) => r.action === "document.withdraw");
+      expect(hits.length).toBeGreaterThan(0);
+      expect(JSON.stringify(hits)).not.toContain("Salary");
+    }
+    // The stored row is unchanged (append-only).
+    expect((await owner.query(`SELECT count(*)::int AS n FROM audit_log WHERE meta->>'title' LIKE 'Salary%'`)).rows[0].n).toBe(1);
+  });
+
+  it("a version of a confidential answer already with the assistant is switched off and its passages go", async () => {
+    const rq = id(73);
+    const [v1, v2] = [id(83), id(84)];
+    await owner.query(
+      `INSERT INTO info_requests (id, project_id, org_id, area, title, sensitivity, created_by) VALUES ($1,$2,$3,'governance','Family charter','standard',$4)`,
+      [rq, P, ACME, U.lead],
+    );
+    await doc(v1, { by: U.cadmin, ownerOrg: ACME, title: "charter.pdf", visibility: "shared", purpose: "client_document" });
+    await rowsAs(U.cadmin, `INSERT INTO info_request_files (request_id, document_id, attached_by) VALUES ($1,$2,$3)`, [rq, v1, U.cadmin], true);
+    await rowsAs(
+      U.cadmin,
+      `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, version, supersedes_id,
+         storage_key, content_type, size_bytes, sha256, scan_status, ai_indexable)
+       VALUES ($1,$2,$3,$3,$4,'client_document','submitted','charter v2.pdf','shared',2,$5,$6,'application/pdf',1,'s3','clean',true)`,
+      [v2, P, ACME, U.cadmin, v1, `k-${v2}`],
+      true,
+    );
+    expect(await indexDocument(owner, v2, pagesFromText("The family agreed the succession plan."), embed)).toBe(1);
+    // The state before this fix: the request became confidential with v2 already read (the new check is set aside to build it).
+    await owner.query(`ALTER TABLE info_requests DISABLE TRIGGER info_request_versions`);
+    try {
+      await owner.query(`UPDATE info_requests SET sensitivity = 'confidential' WHERE id = $1`, [rq]);
+    } finally {
+      await owner.query(`ALTER TABLE info_requests ENABLE TRIGGER info_request_versions`);
+    }
+    expect((await owner.query(`SELECT app_retire_confidential_versions() AS n`)).rows[0].n).toBe(1);
+    expect((await owner.query(`SELECT ai_indexable FROM documents WHERE id = $1`, [v2])).rows[0].ai_indexable).toBe(false);
+    expect((await owner.query(`SELECT count(*)::int AS n FROM ai_chunks WHERE source_id = $1`, [v2])).rows[0].n).toBe(0);
+    expect(await refused(rowsAs(U.cadmin, `SELECT app_retire_confidential_versions()`))).toMatch(/permission denied/);
+  });
+});
+
+describe("review S2: the report PDF is the client's copy", () => {
+  it("lists no firm-only action, for the firm reader and for the client", async () => {
+    const { id: rid } = await svc(U.lead, (tx, p) => snapshotReport(tx, p, P, { title: "For the PDF", periodStart: "2026-11-01", periodEnd: today() }), true);
+    await svc(U.lead, (tx, p) => shareReport(tx, p, rid), true);
+    for (const who of [U.lead, U.cadmin]) {
+      rendered.length = 0;
+      await svc(who, (tx, p) => reportPdf(tx, p, rid, "en"));
+      expect(rendered).toHaveLength(1);
+      expect(rendered[0]).toContain("Board canary");
+      expect(rendered[0]).not.toContain("Firm-only canary");
+    }
+  });
+});
+
+describe("review S3: the firm is told about work left with someone who has gone", () => {
+  it("switching off the owner of a firm-only action tells the project's lead consultant and the firm admin", async () => {
+    // The shared action was handed over earlier; the firm-only one is still the person's.
+    await rowsAs(U.cadmin, `UPDATE org_memberships SET active = false, deactivation_reason = 'left' WHERE user_id = $1`, [U.owner], true);
+    const told = (
+      await owner.query(`SELECT user_id FROM notifications WHERE kind = 'action.owner_left' AND entity_id = $1 ORDER BY user_id`, [A.firm])
+    ).rows.map((r) => r.user_id);
+    expect(told).toEqual([U.admin, U.lead].sort());
+    // Nothing about the actions the client admin could see, and nothing for the client.
+    expect((await owner.query(`SELECT count(*)::int AS n FROM notifications WHERE kind = 'action.owner_left' AND entity_id <> $1`, [A.firm])).rows[0].n).toBe(0);
+    expect(await rowsAs(U.cadmin, `SELECT id FROM notifications WHERE kind = 'action.owner_left'`)).toEqual([]);
+    // The firm admin settles it: hands it to an active colleague of the person.
+    const moved = await rowsAs(U.admin, `SELECT app_hand_over($1, $2, ARRAY['action']) AS n`, [U.owner, U.owner2], true);
+    expect(moved[0].n).toBe(1);
+    expect((await owner.query(`SELECT owner_user_id FROM actions WHERE id = $1`, [A.firm])).rows[0].owner_user_id).toBe(U.owner2);
   });
 });

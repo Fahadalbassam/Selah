@@ -223,12 +223,22 @@ export async function actionsWorkbook(tx: Tx, principal: Principal, locale: Loca
  * the project's actions as they stand on the day of the export (labelled so
  * nobody mistakes them for frozen). Rendered by the PDF service from HTML
  * that holds no script and no outside links.
+ *
+ * A report is the client's copy, whoever downloads it: the list keeps to the
+ * work the client may see (actions under shared recommendations), as its
+ * frozen numbers do (app_project_progress client_side), so the firm's PDF
+ * can be handed over and agrees with itself (phase 3 review S2).
  */
 export async function reportPdf(tx: Tx, principal: Principal, reportId: string, locale: Locale): Promise<ExportFile> {
   const { report } = await getReport(tx, principal, reportId);
   const { project } = await getProject(tx, principal, report.projectId);
   const [firmOrg] = await tx.select({ name: organizations.name, nameAr: organizations.nameAr }).from(organizations).where(eq(organizations.id, project.firmOrgId));
-  const list = await listActions(tx, principal, { projectId: report.projectId, mineOnly: principal.role === "action_owner" });
+  const { rows: clientSide } = await tx.execute<{ id: string }>(
+    sql`select a.id from actions a join recommendations r on r.id = a.recommendation_id
+        where a.project_id = ${report.projectId}::uuid and r.visibility = 'shared'`,
+  );
+  const shared = new Set(clientSide.map((r) => r.id));
+  const list = (await listActions(tx, principal, { projectId: report.projectId, mineOnly: principal.role === "action_owner" })).filter((a) => shared.has(a.id));
   const today = firmToday();
   const t = await getTranslations({ locale });
   const ar = locale === "ar";
