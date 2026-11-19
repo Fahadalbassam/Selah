@@ -12,7 +12,7 @@ import { localName } from "@/lib/names";
 import { localText } from "@/lib/org-chart-tree";
 import { BadRequestError, NotFoundError } from "@/server/errors";
 import { withPrincipal } from "@/server/page";
-import { publishPreview } from "@/services/org-chart";
+import { dayBefore, publishPreview } from "@/services/org-chart";
 import { PublishForm } from "./publish-form";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -143,7 +143,15 @@ export default async function PublishStructurePage({ params, searchParams }: { p
                     {p.code}
                   </span>
                   {p.outcome === "place" ? (
-                    <span className="text-muted-foreground">· {t("plans.place", { date: day(data.effectiveOn) })}</span>
+                    <span className="text-muted-foreground">
+                      · {t("plans.place", { date: day(data.effectiveOn) })}
+                      {p.leaving.length ? (
+                        <>
+                          {" · "}
+                          {t("plans.takesOver", { names: p.leaving.join(ar ? "، " : ", "), date: day(dayBefore(data.effectiveOn)) })}
+                        </>
+                      ) : null}
+                    </span>
                   ) : (
                     <ToneBadge tone="waiting">{t(`plans.${p.outcome}`)}</ToneBadge>
                   )}

@@ -5960,7 +5960,9 @@
         "hint": "They are placed in their positions from {date}, each checked again first, and the plans are then cleared. The lead consultant and the deputy are told.",
         "place": "Placed from {date}",
         "left": "Not placed: no longer one of the client's people",
-        "holds": "Not placed: already holds the position"
+        "holds": "Not placed: already holds the position",
+        "filled": "Not placed: a one-person position someone is already due to take on that day or later",
+        "takesOver": "Takes over from {names}, whose holding ends on {date}"
       },
       "form": {
         "title": "Publish",

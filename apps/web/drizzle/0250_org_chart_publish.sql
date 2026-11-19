@@ -16,13 +16,18 @@
 -- 1. What publishing will do with each plan of a draft, on a day: 'place'
 --    (the person is placed from that day), 'left' (an account that is no
 --    longer one of the client's active people: skipped), or 'holds' (the
---    person already holds that position on that day or later: skipped).
---    Names included, so for the draft's editors only (the people who read
---    the plans); nothing for anyone else or for a version that is not the
---    draft. The publishing screen lists it before the publisher confirms,
---    and app_publish_org_chart() reads the same list.
+--    person already holds that position on that day or later: skipped), or
+--    'filled' (a one-person position someone else is already due to take
+--    on that day or later: skipped). Placing someone follows changeHolder()
+--    (review S1): in a one-person position, whoever holds it with no end
+--    date and started before that day leaves it the day before; `leaving`
+--    names them, `one_person` says the rule applies. Names included, so for
+--    the draft's editors only (the people who read the plans); nothing for
+--    anyone else or for a version that is not the draft. The publishing
+--    screen lists it before the publisher confirms, and
+--    app_publish_org_chart() works it out again inside its lock.
 CREATE FUNCTION app_org_chart_plan_outcomes(p_draft uuid, p_effective date)
-RETURNS TABLE (plan_id uuid, position_id uuid, lineage_id uuid, code text, user_id uuid, name text, outcome text)
+RETURNS TABLE (plan_id uuid, position_id uuid, lineage_id uuid, code text, user_id uuid, name text, outcome text, one_person boolean, leaving text[])
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT h.id, p.id, p.lineage_id, p.code, h.user_id, coalesce(h.name, u.name),
     CASE
@@ -33,8 +38,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
         WHERE x.position_lineage_id = p.lineage_id
           AND ((h.user_id IS NOT NULL AND x.user_id = h.user_id) OR (h.name IS NOT NULL AND lower(x.name) = lower(h.name)))
           AND (x.to_date IS NULL OR x.to_date >= p_effective)) THEN 'holds'
+      WHEN p.planned_count = 1 AND EXISTS (
+        SELECT 1 FROM position_holders x
+        WHERE x.position_lineage_id = p.lineage_id AND x.to_date IS NULL AND x.from_date >= p_effective) THEN 'filled'
       ELSE 'place'
-    END
+    END,
+    p.planned_count = 1,
+    CASE WHEN p.planned_count = 1 THEN ARRAY(
+      SELECT coalesce(x.name, xu.name) FROM position_holders x LEFT JOIN "user" xu ON xu.id = x.user_id
+      WHERE x.position_lineage_id = p.lineage_id AND x.to_date IS NULL AND x.from_date < p_effective
+      ORDER BY x.from_date) ELSE '{}'::text[] END
   FROM org_chart_versions v
     JOIN positions p ON p.version_id = v.id
     JOIN org_chart_planned_holders h ON h.position_id = p.id
@@ -63,6 +76,7 @@ DECLARE
   fresh uuid;
   plans jsonb;
   r record;
+  ended record;
   placed integer := 0;
   skipped integer := 0;
 BEGIN
@@ -99,8 +113,20 @@ BEGIN
       published_by = app_uid(), published_at = now(), resolution_document_id = p_resolution,
       show_names = coalesce(prev_names, false), published_snapshot = app_org_chart_snapshot_of(d.id)
     WHERE id = d.id;
-  FOR r IN SELECT * FROM jsonb_to_recordset(plans) AS x(lineage_id uuid, user_id uuid, name text, outcome text) LOOP
+  FOR r IN SELECT * FROM jsonb_to_recordset(plans) AS x(lineage_id uuid, user_id uuid, name text, outcome text, one_person boolean) LOOP
     IF r.outcome = 'place' THEN
+      -- A one-person position changes hands as changeHolder() does it (review S1): the holder leaves the day before.
+      IF r.one_person THEN
+        FOR ended IN
+          UPDATE position_holders x SET to_date = p_effective - 1
+          WHERE x.position_lineage_id = r.lineage_id AND x.to_date IS NULL AND x.from_date < p_effective
+          RETURNING x.id
+        LOOP
+          INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+            VALUES (app_uid(), coalesce(app_org(), c.org_id), 'org_chart.holder_end', 'org_chart', r.lineage_id, 'allow',
+              jsonb_build_object('client', c.org_id, 'holder', ended.id, 'on', p_effective - 1, 'version', d.id));
+        END LOOP;
+      END IF;
       INSERT INTO position_holders (chart_id, org_id, position_lineage_id, user_id, name, from_date, created_by)
         VALUES (cid, c.org_id, r.lineage_id, r.user_id, CASE WHEN r.user_id IS NULL THEN r.name END, p_effective, app_uid());
       placed := placed + 1;

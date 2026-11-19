@@ -379,6 +379,31 @@ describe("people on positions the new version drops", () => {
   });
 });
 
+// Review S1 (19 Nov): publishing put a second person in a one-person position. It now follows changeHolder().
+describe("a planned person taking over a one-person position", () => {
+  it("ends the current holder the day before, lists who leaves and who takes it, and skips a position someone takes later", async () => {
+    // The CEO's one-person position: someone is already due to take it after the new version's day.
+    const ceo = await livePosition("2.0.1");
+    await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, ceo.id, { start: { name: "Future Ceo", from: plus(10) } }), true);
+    await plan((await draftPosition("2.1.4")).id, { name: "Bob Typed" });
+    await plan((await draftPosition("2.0.1")).id, { name: "Planned Ceo" });
+    const preview = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, SAHM, plus(6)));
+    expect(preview.plans.map((x) => [x.code, x.name, x.outcome, x.leaving])).toEqual([
+      ["2.0.1", "Planned Ceo", "filled", []],
+      ["2.1.4", "Bob Typed", "place", ["Newbie Person"]],
+    ]);
+    const done = await svc(U.lead, async (tx, p) => OC.publish(tx, p, SAHM, { draftId: await draftId(), effectiveOn: plus(6) }), true);
+    expect(done.placed.map((x) => x.name)).toEqual(["Bob Typed"]);
+    expect(done.skipped.map((x) => [x.name, x.outcome])).toEqual([["Planned Ceo", "filled"]]);
+    const treasurer = await livePosition("2.1.4");
+    expect(await holdingsOf(treasurer.lineageId)).toEqual([
+      { user_id: U.newbie, name: null, from_date: plus(3), to_date: plus(5) },
+      { user_id: null, name: "Bob Typed", from_date: plus(6), to_date: null },
+    ]);
+    expect((await holdingsOf(ceo.lineageId)).map((h) => h.name)).toEqual(["Future Ceo"]);
+  });
+});
+
 describe("suggestions from the client", () => {
   let requestId = "";
 

@@ -1017,7 +1017,7 @@ export async function deletePosition(tx: Tx, principal: Principal, positionId: s
 // ------------------------------------------------------------------ publishing
 
 /** What publishing does with a person planned for a position of the draft (app_org_chart_plan_outcomes). */
-export type PlanOutcome = "place" | "left" | "holds";
+export type PlanOutcome = "place" | "left" | "holds" | "filled";
 
 export interface PlannedPerson {
   positionId: string;
@@ -1025,13 +1025,25 @@ export interface PlannedPerson {
   userId: string | null;
   name: string | null;
   outcome: PlanOutcome;
+  /** In a one-person position, who leaves it the day before the planned person takes it (changeHolder()'s rule). */
+  leaving: string[];
 }
+
+type PlanRow = { position_id: string; code: string; user_id: string | null; name: string | null; outcome: PlanOutcome; leaving: string[] | null };
+const plannedPerson = (r: PlanRow): PlannedPerson => ({
+  positionId: r.position_id,
+  code: r.code,
+  userId: r.user_id,
+  name: r.name,
+  outcome: r.outcome,
+  leaving: r.outcome === "place" ? (r.leaving ?? []) : [],
+});
 
 /** The plans of a draft as publishing on a day treats them; the draft's editors only (the database gives anyone else none). */
 async function planOutcomes(tx: Tx, draftId: string, effectiveOn: string): Promise<PlannedPerson[]> {
-  const { rows } = await tx.execute<{ position_id: string; code: string; user_id: string | null; name: string | null; outcome: PlanOutcome }>(sql`
-    select position_id, code, user_id, name, outcome from app_org_chart_plan_outcomes(${draftId}::uuid, ${effectiveOn}::date)`);
-  return rows.map((r) => ({ positionId: r.position_id, code: r.code, userId: r.user_id, name: r.name, outcome: r.outcome }));
+  const { rows } = await tx.execute<PlanRow>(sql`
+    select position_id, code, user_id, name, outcome, leaving from app_org_chart_plan_outcomes(${draftId}::uuid, ${effectiveOn}::date)`);
+  return rows.map(plannedPerson);
 }
 
 /** The first day a new version may take effect: today, or the current version's day when that is later (never back-dated). */
