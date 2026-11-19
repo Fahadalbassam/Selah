@@ -72,6 +72,22 @@ describe("the old sub-pages redirect", () => {
   });
 });
 
+describe("links to what moved off Overview land on its tab (review S4)", () => {
+  it("a join request on the firm admin's home opens People, at the requests", () => {
+    expect(source("services/today.ts")).toMatch(/href: clientTabHref\(j\.clientOrgId, "people", "join-requests"\)/);
+  });
+
+  it("the client-assistant and export-pack notices open Setup, where their cards are", () => {
+    const n = source("services/notifications.ts");
+    expect(n).toMatch(/kind\.startsWith\("client_ai\."\)\) return clientTabHref\(entityId, "setup"\)/);
+    expect(n).toMatch(/kind === "client\.pack_received"\) return clientTabHref\(entityId, "setup"\)/);
+  });
+
+  it("a client lead held by someone leaving opens People, where the lead is set", () => {
+    expect(source("app/(app)/team/departure-dialog.tsx")).toMatch(/client_lead"\s*\?\s*clientTabHref\(h\.entityId, "people"\)/);
+  });
+});
+
 describe("what each tab holds (page audit 4.4)", () => {
   it("Overview: progress, indicators, projects with New project, the join-request notice", () => {
     const s = page();

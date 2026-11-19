@@ -18,6 +18,7 @@ import { PersonPicker } from "@/components/person-picker";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { orgChartError } from "@/lib/org-chart";
+import { clientTabHref } from "@/lib/client-tabs";
 
 type Kind = "action" | "client_lead" | "project_lead" | "review" | "client_role" | "department_head";
 interface Holding {
@@ -60,7 +61,7 @@ const href = (h: Holding) =>
   h.kind === "action" || h.kind === "review"
     ? `/actions/${h.entityId}`
     : h.kind === "client_lead"
-      ? `/clients/${h.entityId}`
+      ? clientTabHref(h.entityId, "people")
       : h.kind === "department_head"
         ? "/departments"
         : h.projectId
