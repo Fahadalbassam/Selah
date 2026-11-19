@@ -287,7 +287,7 @@ def test_translate_returns_the_translation_and_model(client_with):
     client, fake = client_with(json.dumps({"translation": "The board meets quarterly."}))
     res = translate(client)
     assert res.status_code == 200
-    assert res.json() == {"text": "The board meets quarterly.", "model": "qwen3:4b"}
+    assert res.json() == {"text": "The board meets quarterly.", "model": "qwen3.5:4b"}
     system, user = fake.calls[0]
     assert "from Arabic to English" in system
     assert user.startswith("<text>")
@@ -326,7 +326,7 @@ def test_summarize_keeps_only_points_that_cite_a_given_page(client_with):
     assert res.status_code == 200
     assert res.json() == {
         "points": [{"text": "The board meets quarterly.", "pages": [1]}, {"text": "A family council is planned.", "pages": [2]}],
-        "model": "qwen3:4b",
+        "model": "qwen3.5:4b",
     }
     assert '<page n="1">' in fake.calls[0][1]
 
@@ -716,7 +716,7 @@ def test_org_draft_asks_through_chat_json_with_the_strict_schema(local_client):
     finally:
         app.dependency_overrides.clear()
     assert res.status_code == 200
-    assert res.json() == {**reply, "model": "qwen3:4b"}
+    assert res.json() == {**reply, "model": "qwen3.5:4b"}
     assert fake.schemas == [ORG_DRAFT_SCHEMA]
     # Strict: every object lists all its fields as required and allows no others.
     for obj in (ORG_DRAFT_SCHEMA, ORG_DRAFT_SCHEMA["properties"]["units"]["items"], ORG_DRAFT_SCHEMA["properties"]["positions"]["items"]):

@@ -242,6 +242,21 @@ Both runs also ask with no project picked ("All my clients" for staff, "All your
 
 Run the staff run before `client-seed.ts`, or on a fresh seed: the canary files crowd the staff questions' search.
 
+### The labelled test set (section 7 item 7)
+
+`scripts/assistant-eval/testset/` is the set the model and search choices are made on: 164 synthetic files over three projects (Al-Nukhba 58, Al-Waha 53, Rawdah 53; Arabic, English and both in one file; a PDF whose second page is a scan; two versions of one remuneration policy and a draft beside an approved delegation matrix; four long files of 9,500 to 14,600 characters (about 3,000 to 5,000 tokens each), so the passages of one question can pass 4,000 tokens), 100 questions with the passages that hold each answer marked by id, and 18 more in a separate **reference** group about the reference library planned in Gate B (IFC family business governance handbook, OECD principles, CMA regulations, Balanced Scorecard, Good Strategy Bad Strategy, the Ministry of Economy and Planning framework). The reference works are not in the set and none of their text is: those questions only say what such a source would cover, and today the right answer is "I can't confirm". `tests/assistant-eval-set.test.ts` checks the set (sizes, ids, that the indexer never cuts a marked passage).
+
+Scoring needs no model for retrieval: `prepareAsk()` gives exactly what would go to the model, and a passage counts as found when a sent search result contains its text (hit rate, recall, rank of the first right passage). A full run reads the database first (search and passages for every question), then asks the AI service's answer call (the card's prompt and answer check) with no database open, and scores citation support by the same ids; faithfulness is scored by a person on the review sheet it writes. No model judges anything, and a full run refuses unless the AI service reports a local model.
+
+```sh
+npm run db:seed && npx tsx scripts/assistant-eval/testset-seed.ts > /tmp/testset-ids.json
+npm run job:index-documents && npm run job:index-documents   # 100 files a round
+CONTENT=/tmp/testset-ids.json MODE=retrieval OUT=/tmp/ts-retrieval.json TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/testset-run.ts
+CONTENT=/tmp/testset-ids.json MODE=full OUT=/tmp/ts-full.json SHEET=/tmp/ts-review.md PAYLOAD_LOG=… TWO_FACTOR_REQUIRED=false npx tsx --conditions=react-server scripts/assistant-eval/testset-run.ts
+```
+
+Full runs answer the 20 questions in `FULL_SAMPLE` unless `SAMPLE` or `ONLY` names others. Results: `docs/assistant-eval-results.md`.
+
 ## Not done yet
 
 - Text recognition (OCR) for scanned pages and images: they are listed in `ocr_pages` and marked `needs_ocr` until it exists.

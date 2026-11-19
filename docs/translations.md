@@ -44,5 +44,5 @@ The text is sent as data inside `<text>` tags, escaped so it can't close them, a
 
 ## Not done yet
 
-- No model has been run for this here: tests use a fake translator, and the live check used a stub service. The quality of Arabic from a small local model (qwen3:4b) is unknown and should be checked on sample text before relying on it.
+- No model has been run for this here: tests use a fake translator, and the live check used a stub service. The quality of Arabic from a small local model (qwen3.5:4b) is unknown and should be checked on sample text before relying on it.
 - Meeting and assessment screens don't exist yet, so their translate buttons will come with those screens.

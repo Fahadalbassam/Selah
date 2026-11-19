@@ -210,7 +210,7 @@ Weighting formulas, automatic impact claims, consultant rankings, AI compliance 
 | PDF export | **Gotenberg** (Chromium) in its own container with no network route out |
 | Mail | **Nodemailer** over SMTP; Resend as the relay was tested; **Mailpit** catches mail locally |
 | AI service | **Python FastAPI** (`services/ai`): embeddings, answers, summaries, behind one provider interface |
-| Models | Embeddings: **bge-m3** (always local, through **Ollama**). Answers: **qwen3:4b** locally through Ollama, or a hosted OpenAI-compatible API (tested with **GPT-OSS-120B** on Ollama's cloud) |
+| Models | Embeddings: **bge-m3** (always local, through **Ollama**). Answers: **qwen3.5:4b** locally through Ollama, or a hosted OpenAI-compatible API (tested with **GPT-OSS-120B** on Ollama's cloud) |
 | Text extraction | poppler `pdftotext` for PDF; own zip/XML readers for Word, PowerPoint and Excel |
 | Edge | **Caddy**, optionally **Cloudflare Tunnel** (`cloudflared`) |
 | Containers | **Docker Compose** (`docker-compose.yml`, `docker-compose.test.yml`) |

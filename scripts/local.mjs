@@ -295,7 +295,7 @@ async function prepareDatabase(env, seed = "db:seed") {
 
 /** The local model answers on the processor, so slowly; these four lines in .env switch to a hosted one (docs/walkthrough.md). */
 function printLocalModelHint() {
-  say("the assistant answers with the local model (qwen3:4b) on this computer's processor: about a minute per answer.");
+  say("the assistant answers with the local model (qwen3.5:4b) on this computer's processor: one to two minutes per answer.");
   say("For answers in a few seconds, make a free key at https://ollama.com/settings/keys, put these four lines in .env");
   say("(replacing the LLM_PROVIDER line there), then run this command again:");
   for (const line of ["LLM_PROVIDER=openai_compat", "LLM_API_BASE=https://ollama.com/v1", "LLM_MODEL=gpt-oss:120b", "LLM_API_KEY=<your key>"]) {
