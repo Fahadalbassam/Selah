@@ -410,6 +410,8 @@ export function ChatHeader({
 
 // ------------------------------------------------------------- messages
 
+const FAILED_TEXT = { error: "error", limit: "dailyLimit", busy: "busy" } as const;
+
 export function Thread({
   chat,
   loading,
@@ -422,8 +424,8 @@ export function Thread({
   chat: Chat | null;
   loading: boolean;
   /** A question on its way, with the answer written so far. */
-  pending: { question: string; writing: boolean; answer: string } | null;
-  failed: false | "error" | "limit";
+  pending: { question: string; writing: boolean; answer: string; waiting?: boolean } | null;
+  failed: false | "error" | "limit" | "busy";
   /** Under the empty chat's hint: what the assistant does not do. */
   note?: string;
   /** The model runs on the firm's own server: answers can take a minute. */
@@ -447,7 +449,7 @@ export function Thread({
           {/* A first question that failed leaves the chat empty: say so here, not only in a thread. */}
           {failed ? (
             <Bubble variant="destructive">
-              <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
+              <BubbleContent role="alert">{t(FAILED_TEXT[failed])}</BubbleContent>
             </Bubble>
           ) : null}
         </EmptyHeader>
@@ -498,11 +500,12 @@ export function Thread({
                             <TraceIcon>
                               {pending.writing ? <Sparkles animate loop className="size-4" /> : <Search animate loop className="size-4" />}
                             </TraceIcon>
-                            <TraceTitle>{t(pending.writing ? "writing" : "searching")}</TraceTitle>
+                            <TraceTitle>{t(pending.waiting ? "stillWorking" : pending.writing ? "writing" : "searching")}</TraceTitle>
                           </TraceLine>
                         </Trace>
                       )}
-                      {slow && !pending.answer ? <SlowNotice /> : null}
+                      {/* Once it says it is still working, that line says it all. */}
+                      {slow && !pending.answer && !pending.waiting ? <SlowNotice /> : null}
                     </MessageContent>
                   </Message>
                 </motion.div>
@@ -510,7 +513,7 @@ export function Thread({
             ) : null}
             {failed ? (
               <Bubble variant="destructive">
-                <BubbleContent role="alert">{t(failed === "limit" ? "dailyLimit" : "error")}</BubbleContent>
+                <BubbleContent role="alert">{t(FAILED_TEXT[failed])}</BubbleContent>
               </Bubble>
             ) : null}
           </MessageScrollerContent>

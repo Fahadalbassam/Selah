@@ -10,7 +10,7 @@ import hmac
 import json
 import time
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -209,8 +209,32 @@ async def answer(
 # At most this often a "text" line while the answer is written: the screen
 # needs no more, and each line repeats the answer so far.
 TEXT_EVERY_S = 0.1
-# While a reply is asked for again whole, a {"type": "wait"} line this often keeps the caller's idle timer from firing.
-WAIT_EVERY_S = 15.0
+# When nothing else was sent for this long, a {"type": "wait"} line, from the
+# moment the request is accepted to the last line: while the model reads the
+# prompt (minutes on a processor, before its first word), while it writes
+# something the screen doesn't show, and while a reply is asked for again.
+# It keeps the web side's idle timer, and any proxy's, from firing.
+WAIT_EVERY_S = 10.0
+
+
+class _Beat:
+    """When the last line went out, so a wait is due WAIT_EVERY_S after it."""
+
+    def __init__(self) -> None:
+        self.last = time.monotonic()
+
+    def line(self, event: dict[str, object]) -> str:
+        self.last = time.monotonic()
+        return _line(event)
+
+    def left(self) -> float:
+        return max(0.0, self.last + WAIT_EVERY_S - time.monotonic())
+
+
+async def _waits_until_done(task: asyncio.Future[object], beat: _Beat) -> AsyncIterator[str]:
+    """A wait line each time one is due, until the task is done."""
+    while not (await asyncio.wait({task}, timeout=beat.left()))[0]:
+        yield beat.line({"type": "wait"})
 
 
 @app.post("/v1/answer/stream", dependencies=[Depends(require_token)])
@@ -221,10 +245,12 @@ async def answer_stream(
 ) -> StreamingResponse:
     """The same answer as /v1/answer, as lines of JSON while the model writes:
     {"type": "text", "text": the answer so far} now and then, then
-    {"type": "done", "answer": the checked answer}, with {"type": "wait"} now
-    and then while a reply that wasn't JSON is asked for again. Only the done line counts:
-    the text lines are unchecked, for showing progress. A failure after the
-    first line is {"type": "error"}."""
+    {"type": "done", "answer": the checked answer}, with {"type": "wait"}
+    whenever nothing else was sent for WAIT_EVERY_S (the model reading the
+    prompt, or asking again). Only the done line counts: the text lines are
+    unchecked, for showing progress. A failure after the first line is
+    {"type": "error"}. One model run at a time, as before: the waits only
+    watch it. If the caller goes away, the model call is stopped."""
     _check_size(req, settings)
 
     async def lines() -> AsyncIterator[str]:
@@ -232,16 +258,26 @@ async def answer_stream(
             yield _line({"type": "done", "answer": Answer(answer="", cited_ids=[], grounded=False).model_dump()})
             return
         system, user = build_messages(req.question, req.passages, req.language, req.history, req.audience, req.progress_draft)
+        beat = _Beat()
         partial = AnswerText()
         raw, shown, last = "", "", 0.0
+        pieces = llm.chat_json_stream(system, user, ANSWER_SCHEMA)
+        task: asyncio.Future[object] | None = None
         try:
-            async for piece in llm.chat_json_stream(system, user, ANSWER_SCHEMA):
+            while True:
+                task = asyncio.ensure_future(anext(pieces))
+                async for wait in _waits_until_done(task, beat):
+                    yield wait
+                try:
+                    piece = str(task.result())
+                except StopAsyncIteration:
+                    break
                 raw += piece
                 partial.feed(piece)
                 now = time.monotonic()
                 if now - last >= TEXT_EVERY_S and (text := partial.text()) != shown:
                     shown, last = text, now
-                    yield _line({"type": "text", "text": text})
+                    yield beat.line({"type": "text", "text": text})
             # At most three model runs, on a processor several minutes, still
             # inside the web's stream limit: the stream, then one chat_json
             # (which has its own one retry for both providers) either because
@@ -250,20 +286,33 @@ async def answer_stream(
             asked_again = found is None
             if asked_again:
                 # Not JSON: asked again whole with chat_json.
-                again = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
-                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
-                    yield _line({"type": "wait"})
-                found = json_object(again.result())
+                task = asyncio.ensure_future(llm.chat_json(system, user, ANSWER_SCHEMA))
+                async for wait in _waits_until_done(task, beat):
+                    yield wait
+                found = json_object(str(task.result()))
             reply = found or raw
             if not asked_again and unfinished_reply(reply, req.passages):
                 # Only a heading, marked grounded: asked once more, whole (check_answer rejects it if it is still a heading).
-                again = asyncio.ensure_future(llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA))
-                while not (await asyncio.wait({again}, timeout=WAIT_EVERY_S))[0]:
-                    yield _line({"type": "wait"})
-                reply = json_object(again.result()) or again.result()
+                task = asyncio.ensure_future(llm.chat_json(system, user + ASK_WHOLE_ANSWER, ANSWER_SCHEMA))
+                async for wait in _waits_until_done(task, beat):
+                    yield wait
+                reply = json_object(str(task.result())) or str(task.result())
             yield _line({"type": "done", "answer": check_answer(reply, req.passages, req.audience, req.progress_draft).model_dump()})
         except Exception:  # noqa: BLE001 - the caller only needs to know it failed
             yield _line({"type": "error"})
+        finally:
+            # The caller went away (or it failed): stop the model call rather
+            # than leave it holding the model for someone who isn't there.
+            if task is not None and not task.done():
+                task.cancel()
+                # asyncio.wait, not await task: the server may cancel this
+                # generator again while it cleans up, and a cancel passed on
+                # into the task would cut httpx's own cleanup short and leave
+                # the connection to Ollama open (and the model running).
+                with suppress(BaseException):
+                    await asyncio.wait({task})
+            with suppress(BaseException):
+                await pieces.aclose()  # type: ignore[attr-defined]
 
     return StreamingResponse(lines(), media_type="application/x-ndjson")
 

@@ -505,6 +505,87 @@ def test_stream_keeps_the_caller_waiting_while_it_asks_again(streaming_client, m
     assert events[-1]["answer"]["answer"] == "Quarterly."
 
 
+class SlowStreamingLLM(FakeStreamingLLM):
+    """A model on a processor: it reads the prompt for a while before its first piece."""
+
+    def __init__(self, reply: str, reading_s: float) -> None:
+        super().__init__(reply)
+        self.reading_s = reading_s
+        self.stopped = False
+
+    async def chat_json_stream(self, system: str, user: str, schema: dict):
+        try:
+            await asyncio.sleep(self.reading_s)
+        except asyncio.CancelledError:
+            self.stopped = True
+            raise
+        async for piece in super().chat_json_stream(system, user, schema):
+            yield piece
+
+
+def test_stream_sends_waits_at_the_interval_while_the_model_reads_the_prompt(monkeypatch):
+    # Section 7 test run: on a processor the model read a long prompt for
+    # minutes and the service sent nothing, so the web's idle timer fired.
+    monkeypatch.setattr("app.main.WAIT_EVERY_S", 0.05)
+    monkeypatch.setattr("app.main.TEXT_EVERY_S", 0)
+    fake = SlowStreamingLLM(json.dumps({"answer": "Quarterly [P1].", "cited_ids": ["P1"], "grounded": True}), reading_s=0.32)
+    app.dependency_overrides[get_settings] = lambda: Settings(ai_service_token=TOKEN)
+    app.dependency_overrides[get_llm] = lambda: fake
+    try:
+        res = TestClient(app).post(
+            "/v1/answer/stream",
+            headers={"authorization": f"Bearer {TOKEN}"},
+            json={"question": "How often does the board meet?", "passages": [p.model_dump() for p in PASSAGES]},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    events = [json.loads(line) for line in res.text.splitlines() if line]
+    first_text = next(i for i, e in enumerate(events) if e["type"] == "text")
+    # 0.32 s of reading at one wait per 0.05 s: about six, all before the first word.
+    assert 4 <= first_text <= 7
+    assert all(e == {"type": "wait"} for e in events[:first_text])
+    assert events[-1] == {"type": "done", "answer": {"answer": "Quarterly.", "cited_ids": ["P1"], "grounded": True}}
+
+
+def test_stream_waits_are_spaced_by_the_interval(monkeypatch):
+    from app.main import AnswerRequest, answer_stream
+
+    monkeypatch.setattr("app.main.WAIT_EVERY_S", 0.05)
+    fake = SlowStreamingLLM(json.dumps({"answer": "Quarterly [P1].", "cited_ids": ["P1"], "grounded": True}), reading_s=0.3)
+    req = AnswerRequest(question="How often does the board meet?", passages=PASSAGES)
+
+    async def run() -> list[tuple[float, dict]]:
+        res = await answer_stream(req, fake, Settings(ai_service_token=TOKEN))
+        start, seen = asyncio.get_running_loop().time(), []
+        async for line in res.body_iterator:
+            seen.append((asyncio.get_running_loop().time() - start, json.loads(line)))
+        return seen
+
+    seen = asyncio.run(run())
+    waits = [t for t, e in seen if e == {"type": "wait"}]
+    assert len(waits) >= 4
+    # One per interval, never a burst, never a long gap.
+    gaps = [b - a for a, b in zip([0.0, *waits], waits)]
+    assert all(0.04 <= g <= 0.12 for g in gaps), gaps
+
+
+def test_stream_stops_the_model_when_the_caller_goes_away(monkeypatch):
+    from app.main import AnswerRequest, answer_stream
+
+    monkeypatch.setattr("app.main.WAIT_EVERY_S", 0.01)
+    fake = SlowStreamingLLM("{}", reading_s=30)
+    req = AnswerRequest(question="How often does the board meet?", passages=PASSAGES)
+
+    async def run() -> None:
+        res = await answer_stream(req, fake, Settings(ai_service_token=TOKEN))
+        lines = res.body_iterator
+        assert json.loads(await anext(lines)) == {"type": "wait"}
+        await lines.aclose()  # the web side closed the connection
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+    assert fake.stopped
+
+
 def test_stream_asks_once_more_when_the_reply_is_only_a_heading(streaming_client):
     client, fake = streaming_client(json.dumps({"answer": "The evidence required is:", "cited_ids": ["P1"], "grounded": True}))
     asked: list[str] = []
@@ -783,6 +864,44 @@ def _ollama_reply(content: str, prompt_eval_count: int = 100, eval_count: int = 
 
     body = {"message": {"role": "assistant", "content": content}, "done": True, "prompt_eval_count": prompt_eval_count, "eval_count": eval_count}
     return httpx.Response(200, json=body)
+
+
+def test_chat_calls_wait_minutes_for_the_model_and_embeddings_do_not():
+    import httpx
+
+    timeouts: dict[str, dict] = {}
+
+    def handler(request):
+        timeouts[request.url.path] = request.extensions["timeout"]
+        if request.url.path == "/api/embed":
+            return httpx.Response(200, json={"embeddings": [[0.0]]})
+        return _ollama_reply('{"translation": "x"}')
+
+    llm = _ollama_with(handler)
+    asyncio.run(llm.chat_json("sys", "user", {}))
+    assert timeouts["/api/chat"]["read"] == 600.0
+    assert timeouts["/api/chat"]["connect"] == 120.0
+    llm._client = httpx.AsyncClient(base_url="http://ollama.test", transport=httpx.MockTransport(handler), timeout=120.0)
+    asyncio.run(llm.embed(["x"]))
+    assert timeouts["/api/embed"]["read"] == 120.0
+
+
+def test_hosted_chat_keeps_the_short_timeout():
+    import httpx
+
+    from app.llm import HostedChatLLM
+
+    seen: list[dict] = []
+
+    def handler(request):
+        seen.append(request.extensions["timeout"])
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"translation": "x"}'}}]})
+
+    llm = HostedChatLLM(Settings(ai_service_token=TOKEN, llm_provider="openai_compat", llm_api_base="https://api.example", llm_api_key="k"))
+    llm._client = httpx.AsyncClient(base_url="https://api.example", transport=httpx.MockTransport(handler), timeout=120.0)
+    asyncio.run(llm.chat_json("sys", "user", {}))
+    # LLM_TIMEOUT_S is for a model on this server's processor only.
+    assert seen[0]["read"] == 120.0
 
 
 def test_ollama_sends_the_context_size():

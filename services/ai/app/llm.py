@@ -39,6 +39,14 @@ RETRY_ECHO_CHARS = 400
 KEEP_ALIVE = "30m"
 
 
+def chat_timeout(settings: Settings) -> httpx.Timeout:
+    """For a local chat call: the usual limit to connect and send, and
+    llm_timeout_s to wait for the reply, since a model on a processor may read
+    the prompt for minutes before it sends anything. A hosted API answers in
+    seconds, so it keeps request_timeout_s."""
+    return httpx.Timeout(settings.request_timeout_s, read=settings.llm_timeout_s)
+
+
 class OllamaLLM:
     """Embeddings and chat through a local Ollama server."""
 
@@ -91,7 +99,7 @@ class OllamaLLM:
             )
 
     async def _complete(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
-        res = await self._client.post("/api/chat", json=self._chat(messages, schema, stream=False))
+        res = await self._client.post("/api/chat", json=self._chat(messages, schema, stream=False), timeout=chat_timeout(self._s))
         res.raise_for_status()
         body = res.json()
         self._check_context(body)
@@ -104,7 +112,9 @@ class OllamaLLM:
 
     async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
         # No retry here: the caller checks the whole reply and asks again with chat_json.
-        async with self._client.stream("POST", "/api/chat", json=self._chat(_messages(system, user), schema, stream=True)) as res:
+        async with self._client.stream(
+            "POST", "/api/chat", json=self._chat(_messages(system, user), schema, stream=True), timeout=chat_timeout(self._s)
+        ) as res:
             res.raise_for_status()
             async for line in res.aiter_lines():
                 if not line.strip():
@@ -152,7 +162,9 @@ class HostedChatLLM:
 
     async def chat_json_stream(self, system: str, user: str, schema: dict[str, Any]) -> AsyncIterator[str]:
         # No retry here: the caller checks the whole reply and asks again with chat_json.
-        async with self._client.stream("POST", "/chat/completions", json=self._body(_messages(system, user), schema, stream=True)) as res:
+        async with self._client.stream(
+            "POST", "/chat/completions", json=self._body(_messages(system, user), schema, stream=True)
+        ) as res:
             res.raise_for_status()
             async for line in res.aiter_lines():
                 if not line.startswith("data:"):
