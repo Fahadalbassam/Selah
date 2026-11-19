@@ -40,7 +40,7 @@ export async function canChangeOwner(tx: Tx, actionId: string) {
 export const FULL_ADMIN_OWNER = "a full client's admin does not own actions";
 
 /**
- * A full client's admin does not do actions, so is never given one: refused
+ * A full client's admin does not do actions, so is never given a released one: refused
  * with a plain reason (they are on the project and in the reader's list
  * anyway, so it tells nothing new). The database holds the same
  * (app_full_client_admin(), check_owner_not_full_client_admin(), migration 0111).
@@ -130,8 +130,8 @@ export async function changeActionOwner(tx: Tx, principal: Principal, actionId: 
       .where(and(eq(projectMembers.projectId, action.projectId), eq(projectMembers.userId, ownerUserId), eq(projectMembers.observer, false)))
       .limit(1);
     if (!m) throw new BadRequestError("the owner must be on the project team");
-    // Never offered (ownerControl), and never given one.
-    await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
+    // Never offered (ownerControl), and never given a released one (a draft is still the firm's plan).
+    if (action.status !== "draft") await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
   }
   // The status is the one read above: the owner changes, nothing else does.
   const updated = await tx

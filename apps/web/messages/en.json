@@ -2483,7 +2483,8 @@
         "lastAdmin": "The firm needs at least one active admin. Make someone else an admin first.",
         "badReceiver": "Choose an active colleague in the same organisation.",
         "needsLead": "Every client with consultants needs a lead consultant.",
-        "stillHoldsError": "Hand over what this person still holds before switching the account off."
+        "stillHoldsError": "Hand over what this person still holds before switching the account off.",
+        "fullAdminActions": "The company's account admin is not given actions on this kind of account. Hand the actions to a colleague who does the work."
       },
       "positions": "Positions in the organisation structure",
       "positionsHint": "Each of their holdings ends on the day the account is switched off, even one with a later end date; the positions stay. For each one: leave it vacant, or pick a replacement who takes over tomorrow. An appointment that has not started is cancelled.",

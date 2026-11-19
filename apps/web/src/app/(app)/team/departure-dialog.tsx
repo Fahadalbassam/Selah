@@ -55,6 +55,7 @@ const KNOWN: Record<string, string> = {
   "hand over to an active member of the same organisation": "badReceiver",
   "every client with consultants needs a lead consultant": "needsLead",
   "hand over what this person still holds before switching the account off": "stillHoldsError",
+  "a full client's admin does not own actions": "fullAdminActions",
 };
 const ORDER: Kind[] = ["action", "client_lead", "project_lead", "review", "client_role", "department_head"];
 const href = (h: Holding) =>
@@ -83,7 +84,7 @@ export function DepartureDialog(props: {
   onOpenChange: (o: boolean) => void;
   userId: string;
   name: string;
-  colleagues: { userId: string; name: string }[];
+  colleagues: { userId: string; name: string; takesActions: boolean }[];
 }) {
   const t = useTranslations("people.departure");
   const tc = useTranslations("common");
@@ -117,7 +118,8 @@ export function DepartureDialog(props: {
   const setReplacement = (positionId: string, next: Replacement) => {
     setReplacements((all) => ({ ...all, [positionId]: next }));
     // Their open actions can go to the same person: offered as the one to hand over to.
-    if (next.mode === "person" && next.userId && !to) {
+    const takes = !(items ?? []).some((i) => i.kind === "action") || props.colleagues.some((c) => c.userId === next.userId && c.takesActions);
+    if (next.mode === "person" && next.userId && !to && takes) {
       setTo(next.userId);
       setPrefilled((n) => n + 1);
     }
@@ -142,6 +144,8 @@ export function DepartureDialog(props: {
   const blocking = items?.filter((i) => i.blocking).length ?? 0;
   const movable = (items ?? []).filter((i) => i.kind !== "department_head" && (i.blocking || roles));
   const kinds = [...new Set(movable.map((i) => i.kind))];
+  // Their actions go to a colleague who does the work: not to a full client's admin (migration 0111).
+  const receivers = kinds.includes("action") ? props.colleagues.filter((c) => c.takesActions) : props.colleagues;
 
   async function handOver() {
     setBusy("hand");
@@ -244,7 +248,7 @@ export function DepartureDialog(props: {
                       defaultValue={to || undefined}
                       onValueChange={setTo}
                       placeholder={t("toPlaceholder")}
-                      options={props.colleagues.map((c) => ({ value: c.userId, label: c.name }))}
+                      options={receivers.map((c) => ({ value: c.userId, label: c.name }))}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">{t("toHint")}</p>

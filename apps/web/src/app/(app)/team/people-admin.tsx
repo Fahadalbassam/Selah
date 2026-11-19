@@ -50,6 +50,7 @@ export async function PeopleAdmin({
   const ar = (await getLocale()) === "ar";
   const Heading = asPage ? PageHeader : SectionHeader;
   const org = data.organization;
+  const fullClient = org.kind === "client" && org.engagementMode === "full";
   const firm = org.kind === "firm";
   const roles = firm ? ROLES.firm : ROLES[org.engagementMode ?? "full"];
   const day = (d: Date) => format.dateTime(d, { dateStyle: "medium" });
@@ -161,7 +162,8 @@ export async function PeopleAdmin({
                         canErase={data.can.erase}
                         colleagues={data.people
                           .filter((c) => c.active && c.userId !== p.userId)
-                          .map((c) => ({ userId: c.userId, name: c.name }))}
+                          // A full client's admin does not do actions, so does not take over someone's actions (migration 0111).
+                          .map((c) => ({ userId: c.userId, name: c.name, takesActions: !(fullClient && c.role === "client_admin") }))}
                       />
                     )}
                   </TableCell>

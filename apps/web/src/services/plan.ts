@@ -350,8 +350,8 @@ export async function updateAction(
   // A new owner follows decision D1 wherever it is set: the same rule, notices and record as the owner control.
   const ownerChanged = (ownerUserId ?? null) !== (action.ownerUserId ?? null) || (ownerName ?? null) !== (action.ownerName ?? null);
   if (ownerChanged && !(await canChangeOwner(tx, id))) throw new ForbiddenError("action.assign_owner", resource, "owner:not-allowed");
-  // Changing the owner of an existing action, never to a full client's admin (creating one may name them).
-  if (ownerUserId && ownerUserId !== action.ownerUserId) await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
+  // A released action's new owner is never a full client's admin (creating one, or a draft, may name them).
+  if (action.status !== "draft" && ownerUserId && ownerUserId !== action.ownerUserId) await assertNotFullClientAdmin(tx, ownerUserId, action.orgId);
 
   await tx.update(actions).set(patch).where(eq(actions.id, id));
   await tx.insert(activityEvents).values({

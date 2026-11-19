@@ -566,10 +566,18 @@ describe("a full client's admin is never given an action", () => {
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
   });
 
-  it("editing an existing action's owner through the plan (updateAction) is refused with the reason; creating one may still name them", async () => {
+  it("editing a released action's owner through the plan (updateAction) is refused with the reason; a draft and a new action may name them", async () => {
     await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.open, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
-    await expect(svc(U.lead, (tx, p) => updateAction(tx, p, A.draft, { ownerUserId: U.cadmin }))).rejects.toThrow(FULL_ADMIN);
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+    // A draft is still the firm's plan: its owner may be the admin, through the plan, D1 and in SQL.
+    await svc(U.lead, (tx, p) => updateAction(tx, p, A.draft, { ownerUserId: U.cadmin }), true);
+    expect((await ownerOf(A.draft)).owner_user_id).toBe(U.cadmin);
+    await q(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [A.draft, U.owner1]);
+    await svc(U.staff, (tx, p) => changeActionOwner(tx, p, A.draft, { ownerUserId: U.cadmin }), true);
+    expect((await ownerOf(A.draft)).owner_user_id).toBe(U.cadmin);
+    await q(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [A.draft, U.owner1]);
+    await as(U.staff, (c) => c.query(`UPDATE actions SET owner_user_id = $2 WHERE id = $1`, [A.draft, U.cadmin]), true);
+    expect((await ownerOf(A.draft)).owner_user_id).toBe(U.cadmin);
     // Unchanged for creating (the firm names the admin for what it asks of them; the walkthrough seed does).
     // An edit that keeps the admin as owner, and changes only the title, is not refused. (One transaction, rolled back.)
     const owned = await svc(U.lead, async (tx, p) => {
@@ -601,14 +609,24 @@ describe("a full client's admin is never given an action", () => {
     expect((await ownerOf(list[0]!.id)).owner_user_id).toBe(U.owner2);
   });
 
-  it("the leaver hand-over still works, to a colleague and to the admin, who then gives each action on", async () => {
+  it("the hand-over sends a person's actions straight to a colleague, never to the admin", async () => {
+    // To the admin: refused, by the client admin and by the firm admin, through the service and in SQL; nothing moves.
+    for (const who of [U.cadmin, U.fadmin]) {
+      await expect(svc(who, (tx, p) => handOver(tx, p, U.owner1, { to: U.cadmin, kinds: ["action"] })), who).rejects.toThrow(FULL_ADMIN);
+    }
+    await expect(as(U.cadmin, (c) => c.query(`SELECT app_hand_over($1, $2, '{action}')`, [U.owner1, U.cadmin]))).rejects.toThrow(FULL_ADMIN);
+    expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner1);
+    // To a colleague who does the work: as before.
     await svc(U.cadmin, (tx, p) => handOver(tx, p, U.owner1, { to: U.owner2, kinds: ["action"] }), true);
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.owner2);
-    // Handing a leaver's work to the admin is the admin's choice there (the leaver's open actions block the switch-off).
-    await svc(U.cadmin, (tx, p) => handOver(tx, p, U.owner2, { to: U.cadmin, kinds: ["action"] }), true);
-    expect((await ownerOf(A.open)).owner_user_id).toBe(U.cadmin);
-    await svc(U.cadmin, (tx, p) => changeActionOwner(tx, p, A.open, { ownerUserId: U.mgr }), true);
+    expect((await ownerOf(A.awaiting)).owner_user_id).toBe(U.owner2);
+    await svc(U.cadmin, (tx, p) => handOver(tx, p, U.owner2, { to: U.mgr, kinds: ["action"] }), true);
     expect((await ownerOf(A.open)).owner_user_id).toBe(U.mgr);
+  });
+
+  it("other work of a person (a client role) may still go to the admin", async () => {
+    const r = await svc(U.cadmin, (tx, p) => handOver(tx, p, U.coord, { to: U.cadmin, kinds: ["client_role"] }));
+    expect(r.moved).toBe(1);
   });
 
   it("on a restricted client the admin may still be given one (PR #197), in the service and in SQL", async () => {
@@ -630,6 +648,8 @@ describe("a full client's admin is never given an action", () => {
     expect(await full(U.cadmin, ACME)).toBe(true);
     expect(await full(U.coord, ACME)).toBe(false);
     expect(await full(U.cadmin, OTHER)).toBe(false);
+    // Only about an organisation the caller may see: another client's owner learns nothing about Acme.
+    expect((await as(U.otherOwner, (c) => c.query(`SELECT app_full_client_admin($1, $2) AS ok`, [U.cadmin, ACME]))).rows[0].ok).toBe(false);
     try {
       await q(`UPDATE org_memberships SET active = false WHERE org_id = $1 AND role <> 'client_admin'`, [ACME]);
       // (A client the firm runs has no active accounts at all, which the database holds, so nothing changes there.)

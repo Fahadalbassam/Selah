@@ -99,8 +99,8 @@ export function PersonMenu(props: {
   canChange: boolean;
   canResetTwoFactor: boolean;
   canErase: boolean;
-  /** Active colleagues who can take over this person's work. */
-  colleagues: { userId: string; name: string }[];
+  /** Active colleagues who can take over this person's work (a full client's admin takes no actions). */
+  colleagues: { userId: string; name: string; takesActions: boolean }[];
 }) {
   const t = useTranslations("people");
   const router = useRouter();
