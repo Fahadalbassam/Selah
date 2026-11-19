@@ -9,7 +9,8 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
-import { WordBadge } from "@/components/status-badge";
+import { KindWord } from "@/components/status-badge";
+import { RoleTip } from "@/components/role-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -304,7 +305,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                               .join(" · ") || tPh("noDates")}
                           </p>
                         </div>
-                        <WordBadge placement={projectPlacement(p.state)} reader="firm" />
+                        <KindWord kind="project" state={p.state} placement={projectPlacement(p.state)} reader="firm" />
                       </li>
                     );
                   })}
@@ -365,16 +366,20 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                     <p className="flex items-center gap-2 text-sm font-medium">
                       {m.name}
                       {m.isLead ? (
-                        <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
-                          <Crown className="size-3" />
-                          {t("leadBadge")}
-                        </Badge>
+                        <RoleTip role="clientLead">
+                          <Badge variant="outline" className="gap-1 border-transparent bg-accent text-accent-foreground">
+                            <Crown className="size-3" />
+                            {t("leadBadge")}
+                          </Badge>
+                        </RoleTip>
                       ) : null}
                       {m.isDeputy ? (
-                        <Badge variant="outline" className="gap-1">
-                          <UserCheck className="size-3" />
-                          {t("deputyBadge")}
-                        </Badge>
+                        <RoleTip role="clientDeputy">
+                          <Badge variant="outline" className="gap-1">
+                            <UserCheck className="size-3" />
+                            {t("deputyBadge")}
+                          </Badge>
+                        </RoleTip>
                       ) : null}
                     </p>
                     <p className="text-xs text-muted-foreground">

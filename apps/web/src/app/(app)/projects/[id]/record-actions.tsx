@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { IconTip } from "@/components/hint";
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
@@ -105,9 +106,11 @@ export function RecordActions(props: Props) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("menu", { title: props.title })} title={t("menu", { title: props.title })}>
-            <Ellipsis className="size-4" />
-          </Button>
+          <IconTip name="moreMenu">
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("menu", { title: props.title })}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </IconTip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {can.edit ? <DropdownMenuItem onSelect={() => (setError(null), setEditOpen(true))}>{t("edit")}</DropdownMenuItem> : null}

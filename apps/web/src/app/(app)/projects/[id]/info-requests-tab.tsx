@@ -3,6 +3,7 @@
 import { ClipboardList, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { useStatusTip } from "@/components/status-badge";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { AudienceField, useAudienceRefusal, type AudienceValue } from "@/components/audience-field";
@@ -151,6 +152,7 @@ function ItemRow({
 }) {
   const t = useTranslations("infoRequests");
   const tw = useTranslations("statusWords");
+  const tip = useStatusTip();
   const tc = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
@@ -187,7 +189,7 @@ function ItemRow({
       <RequestRow
         title={title}
         description={i.description}
-        state={{ label: tw(labelKey(infoRequestPlacement(i.status), reader)), tone: placementTone(infoRequestPlacement(i.status)) }}
+        state={{ label: tw(labelKey(infoRequestPlacement(i.status), reader)), tone: placementTone(infoRequestPlacement(i.status)), tip: tip("infoRequest", i.status, reader) }}
         badges={
           <>
             {i.sensitivity === "confidential" ? (

@@ -7,6 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/brand";
+import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -116,6 +117,7 @@ const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" 
 export function ActionPanel(p: Props) {
   const t = useTranslations("action");
   const tn = useTranslations("action.next");
+  const tTip = useTranslations("tips");
   const format = useFormatter();
   const router = useRouter();
   const transition = (to: ActionStatus, extra?: Record<string, unknown>) => send(`/api/actions/${p.actionId}/transition`, json({ to, ...extra }));
@@ -162,10 +164,28 @@ export function ActionPanel(p: Props) {
       );
       break;
     case "signOff":
-      main = <SignOffDialog actionId={p.actionId} trigger={<Button>{t("secondReview.signOff")}</Button>} />;
+      main = (
+        <SignOffDialog
+          actionId={p.actionId}
+          trigger={
+            <Hint asChild tip={tTip("secondReview.signOff")}>
+              <Button>{t("secondReview.signOff")}</Button>
+            </Hint>
+          }
+        />
+      );
       break;
     case "secondSignOff":
-      main = <SecondSignOffDialog actionId={p.actionId} trigger={<Button>{t("secondReview.verify")}</Button>} />;
+      main = (
+        <SecondSignOffDialog
+          actionId={p.actionId}
+          trigger={
+            <Hint asChild tip={tTip("secondReview.verify")}>
+              <Button>{t("secondReview.verify")}</Button>
+            </Hint>
+          }
+        />
+      );
       break;
     case "approveDate":
       main = p.date && !p.date.needsLead ? (

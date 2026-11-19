@@ -2,6 +2,7 @@ import { UserPlus } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
 import { PageHeader } from "@/components/page-header";
+import { RoleTip } from "@/components/role-tip";
 import { SectionHeader } from "@/components/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,7 +140,9 @@ export async function PeopleAdmin({
                       {p.personalEmail ? <Badge variant="outline">{t("personal")}</Badge> : null}
                     </p>
                   </TableCell>
-                  <TableCell>{tRole(p.role)}</TableCell>
+                  <TableCell>
+                    <RoleTip role={p.role}>{tRole(p.role)}</RoleTip>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={p.twoFactor ? "secondary" : "outline"}>{p.twoFactor ? t("on") : t("notSetUp")}</Badge>
                   </TableCell>

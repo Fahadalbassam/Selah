@@ -12,6 +12,7 @@ import { AudienceMarker } from "@/components/audience-marker";
 import { PageHeader } from "@/components/page-header";
 import { Translatable } from "@/components/translatable";
 import { Badge } from "@/components/ui/badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,7 +116,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
             <MeetingWord status={meeting.status} unanswered={meetingUnanswered(meeting, mine)} reader={firm ? "firm" : "client"} />
             <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
             {/* Who sees it is the firm's question; a client reader only ever sees the meetings shared with them. */}
-            {firm ? <Badge variant="outline">{tVis(meeting.visibility)}</Badge> : null}
+            {firm ? <VisibilityBadge visibility={meeting.visibility} label={tVis(meeting.visibility)} /> : null}
             {limited ? <AudienceMarker kind="meeting" /> : null}
           </>
         }

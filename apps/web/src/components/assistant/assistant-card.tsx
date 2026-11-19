@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/components/ui/toast";
+import { Hint } from "@/components/hint";
 import { Bot } from "@/components/animate-ui/icons/bot";
 import { Maximize } from "@/components/animate-ui/icons/maximize";
 import { MessageSquarePlus } from "@/components/animate-ui/icons/message-square-plus";
@@ -333,57 +334,61 @@ function AssistantCard({ side, client, seq, request }: { side: "left" | "right";
         >
           {focused ? null : <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
           {focused || view === "chat" ? (
+            <Hint asChild tip={listLabel}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => (focused ? setListShown(!listShown) : setView("list"))}
+                aria-label={listLabel}
+                aria-pressed={focused ? listShown : undefined}
+              >
+                {showList ? <PanelLeftClose animateOnHover className="rtl:-scale-x-100" /> : <PanelLeftOpen animateOnHover className="rtl:-scale-x-100" />}
+              </Button>
+            </Hint>
+          ) : null}
+          <h2 id="assistant-card-title" className="min-w-0 flex-1 truncate px-1 text-base font-semibold">
+            {t("title")}
+          </h2>
+          <Hint asChild tip={t("newChat")}>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className="size-8"
-              onClick={() => (focused ? setListShown(!listShown) : setView("list"))}
-              aria-label={listLabel}
-              title={listLabel}
-              aria-pressed={focused ? listShown : undefined}
+              onClick={newChat}
+              disabled={noProjects}
+              aria-label={t("newChat")}
             >
-              {showList ? <PanelLeftClose animateOnHover className="rtl:-scale-x-100" /> : <PanelLeftOpen animateOnHover className="rtl:-scale-x-100" />}
+              <MessageSquarePlus animateOnHover />
             </Button>
-          ) : null}
-          <h2 id="assistant-card-title" className="min-w-0 flex-1 truncate px-1 text-base font-semibold">
-            {t("title")}
-          </h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={newChat}
-            disabled={noProjects}
-            aria-label={t("newChat")}
-            title={t("newChat")}
-          >
-            <MessageSquarePlus animateOnHover />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setFocused(!focused)}
-            aria-pressed={focused}
-            aria-label={focused ? t("card.unfocus") : t("card.focus")}
-            title={focused ? t("card.unfocus") : t("card.focus")}
-          >
-            {focused ? <Minimize animateOnHover /> : <Maximize animateOnHover />}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => assistant.close()}
-            aria-label={t("card.close")}
-            title={t("card.close")}
-          >
-            <X animateOnHover />
-          </Button>
+          </Hint>
+          <Hint asChild tip={focused ? t("card.unfocus") : t("card.focus")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => setFocused(!focused)}
+              aria-pressed={focused}
+              aria-label={focused ? t("card.unfocus") : t("card.focus")}
+            >
+              {focused ? <Minimize animateOnHover /> : <Maximize animateOnHover />}
+            </Button>
+          </Hint>
+          <Hint asChild tip={t("card.close")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => assistant.close()}
+              aria-label={t("card.close")}
+            >
+              <X animateOnHover />
+            </Button>
+          </Hint>
         </motion.div>
 
         <motion.div layout layoutDependency={focused} transition={spring} className="flex min-h-0 flex-1">

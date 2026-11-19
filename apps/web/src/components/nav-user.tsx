@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronsUpDown, Database, GraduationCap, LifeBuoy, Mail, Settings, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, ChevronsUpDown, Database, GraduationCap, LifeBuoy, Mail, Settings, type LucideIcon } from "lucide-react";
 import { LogOut } from "@/components/animate-ui/icons/log-out";
 import { ShieldCheck } from "@/components/animate-ui/icons/shield-check";
 import Link from "next/link";
@@ -29,6 +29,7 @@ const ICONS: Record<MenuKey, LucideIcon | ComponentType<{ className?: string }>>
   mailOptions: Mail,
   security: ShieldCheck,
   help: LifeBuoy,
+  guide: BookOpen,
 };
 
 export interface NavUserProps {

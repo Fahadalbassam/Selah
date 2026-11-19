@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import { toast } from "@/components/ui/toast";
+import { Hint } from "@/components/hint";
 import { BrandLoader } from "@/components/brand";
 import { callApi } from "@/components/form-dialog";
 import { ToneBadge } from "@/components/tone-badge";
@@ -106,15 +107,17 @@ export function ExpertiseTable({ data, me }: { data: ExpertiseData; me: string }
                 )}
                 <TableCell className="align-top">
                   {c.canEdit ? (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-7"
-                      aria-label={c.profile ? t("editFor", { name: c.name }) : t("setUpFor", { name: c.name })}
-                      onClick={() => setEditing(c)}
-                    >
-                      <Pencil />
-                    </Button>
+                    <Hint asChild tip={c.profile ? t("editFor", { name: c.name }) : t("setUpFor", { name: c.name })}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        aria-label={c.profile ? t("editFor", { name: c.name }) : t("setUpFor", { name: c.name })}
+                        onClick={() => setEditing(c)}
+                      >
+                        <Pencil />
+                      </Button>
+                    </Hint>
                   ) : null}
                 </TableCell>
               </TableRow>

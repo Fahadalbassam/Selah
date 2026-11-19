@@ -2,6 +2,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, DatabaseZap, FileUp, Gauge } 
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Plus } from "@/components/animate-ui/icons/plus";
+import { Hint } from "@/components/hint";
 import { ToneBadge } from "@/components/tone-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,7 @@ export async function IndicatorsCard({
   quiet?: boolean;
 }) {
   const t = await getTranslations("indicators");
+  const tTip = await getTranslations("tips");
   const { counts } = data;
   const active = data.indicators.filter((k) => k.active);
   const inactive = data.indicators.filter((k) => !k.active);
@@ -110,10 +112,12 @@ export async function IndicatorsCard({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
         {scope === "client" && (data.canManage || data.canImport) ? (
-          <Link href={`/indicators/data?client=${data.client.id}`} data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-            <DatabaseZap />
-            {t(`dataModes.${data.dataMode}`)}
-          </Link>
+          <Hint asChild tip={tTip(`dataMode.${data.dataMode}`)}>
+            <Link href={`/indicators/data?client=${data.client.id}`} data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              <DatabaseZap />
+              {t(`dataModes.${data.dataMode}`)}
+            </Link>
+          </Hint>
         ) : null}
         {data.canImport && active.length ? (
           <Link href={`/indicators/import?client=${data.client.id}`} data-slot="button" className={buttonVariants({ variant: "outline", size: "sm" })}>

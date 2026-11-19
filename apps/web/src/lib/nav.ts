@@ -1,4 +1,5 @@
 import type { Role } from "@/authz";
+import { guideHrefFor } from "./handbook";
 
 // One sidebar per role and the user menu (page audit 4.1, batch 2, U09).
 // This only decides which rows to draw from what the server already knows
@@ -132,14 +133,16 @@ export function clientAssistant(ai: { on: boolean; canConsent: boolean; canWithd
   return { row: ai.on ? "card" : consentView ? "consent" : null, consentView };
 }
 
-export type MenuKey = "settings" | "myExpertise" | "dataSharing" | "assistantConsent" | "mailOptions" | "security" | "help";
+export type MenuKey = "settings" | "myExpertise" | "dataSharing" | "assistantConsent" | "mailOptions" | "security" | "help" | "guide";
 
 /**
  * The menu under the person's name at the foot of the sidebar. Language and
  * theme are not here: they stay in the top bar (October review item 6).
- * Sign out always closes it.
+ * Sign out always closes it. Firm staff have no Help page, so their part of
+ * the handbook (the firm guide) is here, once it is written (`guide`); the
+ * client's people open theirs from Help.
  */
-export function userMenuFor(role: Role, facts: { assistantConsent?: boolean }): { key: MenuKey; href: string }[] {
+export function userMenuFor(role: Role, facts: { assistantConsent?: boolean; guide?: boolean }): { key: MenuKey; href: string }[] {
   const items: { key: MenuKey; href: string }[] = [];
   if (role === "firm_admin") items.push({ key: "settings", href: "/settings" });
   // A consultant edits their own line of the Expertise tab from here.
@@ -150,5 +153,6 @@ export function userMenuFor(role: Role, facts: { assistantConsent?: boolean }): 
   }
   items.push({ key: "mailOptions", href: "/notifications/mail" }, { key: "security", href: "/security" });
   if (hasHelp(role)) items.push({ key: "help", href: "/help" });
+  else if (facts.guide) items.push({ key: "guide", href: guideHrefFor(role) });
   return items;
 }

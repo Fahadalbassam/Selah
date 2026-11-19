@@ -23,7 +23,7 @@ import { getInquiry, suggestLeads } from "@/services/inquiries";
 import { intakeOptions } from "@/services/intake";
 import { listClients, listTeam } from "@/services/queries";
 import { BookDiscovery, ConvertDialog } from "./inquiry-panels";
-import { WordBadge } from "@/components/status-badge";
+import { KindWord } from "@/components/status-badge";
 import { inquirySteps, type StepMove } from "@/lib/inquiry-steps";
 import { Fragment } from "react";
 import { inquiryPlacement } from "@/lib/status-words";
@@ -326,7 +326,7 @@ export default async function InquiryPage({ params }: { params: Promise<{ id: st
         description={`${q.publicRef} · ${t("received")} ${when(q.createdAt)}`}
         meta={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            <WordBadge placement={inquiryPlacement(q.status)} reader="firm" />
+            <KindWord kind="inquiry" state={q.status} placement={inquiryPlacement(q.status)} reader="firm" />
             <span className="text-xs text-muted-foreground" title={tw("exactLabel")}>
               {status(q.status)}
             </span>

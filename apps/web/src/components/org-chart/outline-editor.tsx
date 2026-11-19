@@ -1,6 +1,7 @@
 "use client";
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
+import { IconTip } from "@/components/hint";
 import { Lock, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -198,9 +199,11 @@ export function OutlineEditor(props: {
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-7" aria-label={t("rowActions", { name })} title={t("rowActions", { name })} disabled={busy}>
-                <Ellipsis className="size-4" />
-              </Button>
+              <IconTip name="moreMenu">
+                <Button variant="ghost" size="icon" className="size-7" aria-label={t("rowActions", { name })} disabled={busy}>
+                  <Ellipsis className="size-4" />
+                </Button>
+              </IconTip>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-60">
               <DropdownMenuItem onSelect={() => setPanel({ kind: "unit", id: u.id })}>{t("details")}</DropdownMenuItem>
@@ -269,9 +272,11 @@ export function OutlineEditor(props: {
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7" aria-label={t("rowActions", { name })} title={t("rowActions", { name })} disabled={busy}>
-              <Ellipsis className="size-4" />
-            </Button>
+            <IconTip name="moreMenu">
+              <Button variant="ghost" size="icon" className="size-7" aria-label={t("rowActions", { name })} disabled={busy}>
+                <Ellipsis className="size-4" />
+              </Button>
+            </IconTip>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-60">
             <DropdownMenuItem onSelect={() => setPanel({ kind: "position", id: p.id })}>{t("details")}</DropdownMenuItem>
@@ -319,9 +324,11 @@ export function OutlineEditor(props: {
           {props.canRestart && props.draftId ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8" aria-label={t("pageActions")} title={t("pageActions")}>
-                  <Ellipsis className="size-4" />
-                </Button>
+                <IconTip name="moreMenu">
+                  <Button variant="ghost" size="icon" className="size-8" aria-label={t("pageActions")}>
+                    <Ellipsis className="size-4" />
+                  </Button>
+                </IconTip>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => void restart()}>{t("restart")}</DropdownMenuItem>

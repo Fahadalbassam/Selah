@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { BrandLoader } from "@/components/brand";
+import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -147,24 +148,27 @@ export function OrgTreeView({ html, clientId, version, tools }: { html: string; 
             </Button>
           ) : null}
           <div className="ms-auto flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setZoom(zoomOut)} disabled={zoom <= ZOOM_STEPS[0]} aria-label={t("zoomOut")} title={t("zoomOut")}>
-              <Minus className="size-4" />
-            </Button>
+            <Hint asChild tip={t("zoomOut")}>
+              <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setZoom(zoomOut)} disabled={zoom <= ZOOM_STEPS[0]} aria-label={t("zoomOut")}>
+                <Minus className="size-4" />
+              </Button>
+            </Hint>
             <Button type="button" variant="ghost" size="sm" className="min-w-14 tabular-nums" onClick={() => setZoom(ZOOM_DEFAULT)} aria-label={t("zoomReset")} title={t("zoomReset")}>
               {t("percent", { n: zoomPercent(zoom) })}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => setZoom(zoomIn)}
-              disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]!}
-              aria-label={t("zoomIn")}
-              title={t("zoomIn")}
-            >
-              <Plus className="size-4" />
-            </Button>
+            <Hint asChild tip={t("zoomIn")}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => setZoom(zoomIn)}
+                disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]!}
+                aria-label={t("zoomIn")}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </Hint>
           </div>
         </div>
       ) : null}

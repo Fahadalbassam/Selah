@@ -5,6 +5,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { ExportButton } from "@/components/export-button";
 import { ApiButton, FormDialog } from "@/components/form-dialog";
+import { Hint } from "@/components/hint";
 import { SectionHeader } from "@/components/section-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ToneBadge, type Tone } from "@/components/tone-badge";
@@ -34,6 +35,7 @@ export async function ClosureTab({
   caseStudyNotAsked?: boolean;
 }) {
   const t = await getTranslations("closure");
+  const tTip = await getTranslations("tips.closing");
   const format = await getFormatter();
   const day = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium" });
   const base = `/api/projects/${projectId}/closure`;
@@ -87,10 +89,10 @@ export async function ClosureTab({
                 submitLabel={t("request.send")}
               />
             ) : null}
-            {data.can.start ? <ApiButton endpoint={base} body={{ step: "start" }} label={t("start")} icon={<Flag />} confirm={t("startConfirm")} /> : null}
-            {data.can.cancel ? <ApiButton endpoint={base} body={{ step: "cancel" }} label={t("cancel")} variant="ghost" confirm={t("cancelConfirm")} /> : null}
+            {data.can.start ? <ApiButton endpoint={base} body={{ step: "start" }} label={t("start")} icon={<Flag />} confirm={t("startConfirm")} title={tTip("start")} /> : null}
+            {data.can.cancel ? <ApiButton endpoint={base} body={{ step: "cancel" }} label={t("cancel")} variant="ghost" confirm={t("cancelConfirm")} title={tTip("cancel")} /> : null}
             {data.can.close && data.blockers.length === 0 ? (
-              <ApiButton endpoint={base} body={{ step: "close" }} label={t("close")} variant="default" icon={<Lock />} confirm={t("closeConfirm")} />
+              <ApiButton endpoint={base} body={{ step: "close" }} label={t("close")} variant="default" icon={<Lock />} confirm={t("closeConfirm")} title={tTip("close")} />
             ) : null}
             {closed && env().PDF_SERVICE_URL ? <ExportButton endpoint={`${base}/report`} label={t("reportPdf")} title={t("report")} /> : null}
             {data.can.reopen ? (
@@ -191,7 +193,9 @@ export async function ClosureTab({
                       <TableCell className="max-w-72 space-y-1 whitespace-normal">
                         {i.disposition ? (
                           <>
-                            <ToneBadge tone={DISPOSITION_TONE[i.disposition]}>{t(`dispositions.${i.disposition}`)}</ToneBadge>
+                            <Hint tip={tTip(`dispositions.${i.disposition}`)}>
+                              <ToneBadge tone={DISPOSITION_TONE[i.disposition]}>{t(`dispositions.${i.disposition}`)}</ToneBadge>
+                            </Hint>
                             {i.disposition === "handed_over" ? (
                               <p className={i.sustainer ? "text-xs" : "text-xs text-destructive"} dir="auto">
                                 {i.sustainer ? t("sustainedBy", { name: i.sustainer.name ?? t("someone") }) : t("noSustainer")}

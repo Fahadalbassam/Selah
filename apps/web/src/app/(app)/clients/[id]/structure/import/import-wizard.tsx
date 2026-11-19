@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent } from "react";
 import { Upload } from "@/components/animate-ui/icons/upload";
+import { Hint } from "@/components/hint";
 import { BrandLoader } from "@/components/brand";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ExportButton } from "@/components/export-button";
@@ -601,9 +602,11 @@ function ReviewRow(props: {
         </div>
       </TableCell>
       <TableCell>
-        <Button variant="ghost" size="icon" className="size-7" onClick={props.onEdit} aria-label={t("edit", { n: row.line })} title={t("edit", { n: row.line })}>
-          <Pencil />
-        </Button>
+        <Hint asChild tip={t("edit", { n: row.line })}>
+          <Button variant="ghost" size="icon" className="size-7" onClick={props.onEdit} aria-label={t("edit", { n: row.line })}>
+            <Pencil />
+          </Button>
+        </Hint>
       </TableCell>
     </TableRow>
   );

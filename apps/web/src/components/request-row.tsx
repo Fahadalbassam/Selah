@@ -1,5 +1,6 @@
 import { FileText } from "@/components/animate-ui/icons/file-text";
 import type { ReactNode } from "react";
+import { Hint } from "@/components/hint";
 import { ToneBadge, type Tone } from "@/components/tone-badge";
 
 // One row for "the firm asked you for a file" (page audit 4.5, last
@@ -13,8 +14,8 @@ import { ToneBadge, type Tone } from "@/components/tone-badge";
 export interface RequestRowProps {
   title: string;
   description?: string | null;
-  /** The state word and its tone (docs/placement.md). */
-  state: { label: string; tone: Tone };
+  /** The state word, its tone (docs/placement.md) and its tooltip: the exact state and what it means. */
+  state: { label: string; tone: Tone; tip?: string };
   /** Other quiet badges before the state (confidential, late). */
   badges?: ReactNode;
   /** One line of facts under the title: who it is asked of, the due date. */
@@ -52,7 +53,13 @@ export function RequestRow(p: RequestRowProps) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {p.badges}
-          <ToneBadge tone={p.state.tone}>{p.state.label}</ToneBadge>
+          {p.state.tip ? (
+            <Hint tip={p.state.tip}>
+              <ToneBadge tone={p.state.tone}>{p.state.label}</ToneBadge>
+            </Hint>
+          ) : (
+            <ToneBadge tone={p.state.tone}>{p.state.label}</ToneBadge>
+          )}
           {p.menu}
         </div>
       </div>
