@@ -84,7 +84,8 @@ test("the consultant keeps the client's contacts: add, edit, remove (English)", 
   const org = ids.org("Al-Nukhba Holding");
   const name = `Faisal Contact ${stamp}`;
   const page = await open(browser, "khalid", "en");
-  await page.goto(`/clients/${org}`);
+  // Contacts moved to the client page's People tab (batch 5).
+  await page.goto(`/clients/${org}?tab=people`);
   await hydrated(page, "main");
   await page.getByRole("button", { name: t("clients.contacts.add") }).click();
   let d = page.getByRole("dialog");
@@ -96,11 +97,14 @@ test("the consultant keeps the client's contacts: add, edit, remove (English)", 
   await d.locator("#f-email").fill(`faisal-${stamp}@nukhba.example`);
   await d.getByRole("button", { name: t("clients.contacts.add") }).click();
   await toastSaved(page);
-  const row = page.locator("div").filter({ hasText: name }).filter({ has: page.getByRole("button", { name: t("clients.contacts.edit") }) }).last();
+  // Each contact's Edit and Remove sit in its "More for <name>" menu (batch 5).
+  const more = page.getByRole("button", { name: t("common.moreFor", { name }) });
+  const row = page.locator("div").filter({ hasText: name }).filter({ has: more }).last();
   await expect(row.getByText("Board secretary")).toBeVisible();
 
   // Edit: clear the email, so the list says invites can't reach them.
-  await row.getByRole("button", { name: t("clients.contacts.edit") }).click();
+  await more.click();
+  await page.getByRole("menuitem", { name: t("clients.contacts.edit") }).click();
   d = page.getByRole("dialog");
   await expect(d.locator("#f-name")).toHaveValue(name);
   await d.locator("#f-email").fill("");
@@ -111,7 +115,8 @@ test("the consultant keeps the client's contacts: add, edit, remove (English)", 
   expect(one(`select created_by is not null from client_contacts where name='${name}'`)).toBe("t");
   await page.screenshot({ path: "e2e-results/shots/consultant-en-contacts.png" });
 
-  await row.getByRole("button", { name: t("clients.contacts.remove") }).click();
+  await more.click();
+  await page.getByRole("menuitem", { name: t("clients.contacts.remove") }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: t("common.continue") }).click();
   await expect(page.getByText(name)).toHaveCount(0);
   expect(one(`select count(*) from client_contacts where name='${name}'`)).toBe("0");

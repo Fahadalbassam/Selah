@@ -26,6 +26,8 @@ test("consultant asks in Arabic and gets a sourced answer, then switches to Engl
   const answer = page.locator("#assistant-card").getByRole("article").last().or(page.locator("[data-role=assistant]").last());
   const res = await page.waitForResponse((r) => r.url().includes("/api/assistant/query") && r.request().method() === "POST", { timeout: 90_000 });
   console.log("query status:", res.status());
+  // The answer streams as it is written: wait for the whole body, not just the headers.
+  await res.text();
   await page.waitForTimeout(1500);
   console.log("answer seconds:", (Date.now() - t0) / 1000);
   await page.screenshot({ path: "e2e-results/shots/assistant-ar.png", fullPage: true });
