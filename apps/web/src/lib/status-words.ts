@@ -169,6 +169,19 @@ export function meetingPlacement(s: MeetingState, unanswered = false): Placement
   return unanswered ? { word: "waiting", on: "reader" } : { word: "not_started" };
 }
 
+/**
+ * Whether a meeting waits for this reader's answer, read the same way as the
+ * Meetings list (services/meetings.ts listMeetings, "unanswered"): their own
+ * invitation, not as organiser, not answered, on a meeting not yet over.
+ */
+export function meetingUnanswered(
+  m: { status: MeetingState; endsAt: Date | string },
+  mine: { role: string; response: string } | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  return m.status === "scheduled" && !!mine && mine.role !== "organizer" && mine.response === "needs_action" && new Date(m.endsAt) >= now;
+}
+
 /** The tables, for the tests and docs/placement.md. */
 export const PLACEMENTS = {
   action: ACTION,

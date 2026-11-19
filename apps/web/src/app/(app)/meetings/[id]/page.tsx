@@ -33,7 +33,8 @@ import {
 } from "./record-panels";
 import { SummarySources } from "./summary-sources";
 import { TranscriptPanel } from "./transcript-panel";
-import { ToneBadge } from "@/components/tone-badge";
+import { MeetingWord } from "@/components/status-badge";
+import { meetingUnanswered } from "@/lib/status-words";
 
 export default async function MeetingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -110,9 +111,8 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
         title={meeting.title}
         meta={
           <>
-            <ToneBadge tone={meeting.status === "cancelled" ? "problem" : held ? "neutral" : "open"}>
-              {t(`status.${meeting.status}`)}
-            </ToneBadge>
+            {/* The same word as the Meetings list (D3, review S1); the exact state beside it while it is to come. */}
+            <MeetingWord status={meeting.status} unanswered={meetingUnanswered(meeting, mine)} reader={firm ? "firm" : "client"} />
             <Badge variant="outline">{t(`kinds.${meeting.kind}`)}</Badge>
             {/* Who sees it is the firm's question; a client reader only ever sees the meetings shared with them. */}
             {firm ? <Badge variant="outline">{tVis(meeting.visibility)}</Badge> : null}
