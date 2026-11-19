@@ -503,6 +503,22 @@ describe("engagement modes", () => {
     expect(authorize(principal("consultant", [], undefined, [ACME]), "progress_update.create", managed("action")).allowed).toBe(false);
   });
 
+  it("a restricted client's admin does the owner's work on the actions they own, and a full client's admin does not", () => {
+    const admin = principal("client_admin");
+    const restricted = (assignees: string[]) => acmeRecord("action", { projectKind: "client", engagementMode: "restricted", assignees });
+    const fullOwned = acmeRecord("action", { projectKind: "client", engagementMode: "full", assignees: [admin.userId] });
+    for (const perm of ["action.work", "evidence.submit", "progress_update.create", "deadline_request.create"] as const) {
+      expect(authorize(admin, perm, restricted([admin.userId])).allowed, perm).toBe(true);
+      expect(authorize(admin, perm, restricted(["00000000-0000-4000-8000-0000000fffff"])).allowed, perm).toBe(false);
+      expect(authorize(admin, perm, restricted([])).allowed, perm).toBe(false);
+      expect(authorize(admin, perm, fullOwned).allowed, perm).toBe(false);
+      // The firm still records only for a client it runs.
+      expect(authorize(principal("consultant", [ACME_PROJ_1], undefined, [ACME]), perm, restricted([])).allowed, perm).toBe(false);
+    }
+    // Reviewing stays the firm's.
+    expect(authorize(admin, "action.review", restricted([admin.userId])).allowed).toBe(false);
+  });
+
   it("only the firm admin changes a client's mode; the client admin manages its departments", () => {
     const org = acmeRecord("organization", { projectId: null });
     const dept = acmeRecord("department", { projectId: null });
