@@ -20,6 +20,7 @@ import {
   recommendations,
   user,
 } from "@/db/schema";
+import { foldName } from "@/lib/person-match";
 import { assertAllowed, authorize, type Principal, type Resource } from "@/authz";
 import type { Received } from "@/lib/engagement";
 import { BadRequestError, ConflictError, NotFoundError } from "@/server/errors";
@@ -81,6 +82,19 @@ export interface FileEntry {
 /** Most files a list returns; the newest come first. */
 const LIMIT = 1000;
 
+/**
+ * The title holds the typed words, matched in the database in the spelling
+ * foldName() gives both sides: lower case, no accents or Arabic short vowels
+ * and tatweel (NFD, then the combining marks out), one alef, ى as ي, ة as ه.
+ * The words go in as a parameter, never as a pattern.
+ */
+function titleHas(query: string | undefined) {
+  const q = query ? foldName(query).trim() : "";
+  if (!q) return undefined;
+  const folded = sql`translate(regexp_replace(lower(normalize(${documents.title}, NFD)), ${"[̀-ًͯ-ٰـ]"}, '', 'g'), ${"أإآٱىة"}, ${"اااايه"})`;
+  return sql`position(${q} in ${folded}) > 0`;
+}
+
 export async function listFiles(
   tx: Tx,
   principal: Principal,
@@ -96,6 +110,10 @@ export async function listFiles(
     projectIds?: string[];
     /** Only these files (a file attached to a question, checked again when it is asked). */
     ids?: string[];
+    /** Only files whose title has these words, folded both sides as the person picker folds names (lib/person-match.ts). */
+    title?: string;
+    /** The list only, without the sources (evidence, assessment, meeting) each file came from: the same files, read faster. */
+    light?: boolean;
   } = {},
 ): Promise<FileEntry[]> {
   if (filter.projectIds?.length === 0 || filter.ids?.length === 0) return [];
@@ -159,6 +177,7 @@ export async function listFiles(
         filter.uploadedBy ? eq(documents.uploadedBy, filter.uploadedBy) : undefined,
         filter.projectIds ? inArray(documents.projectId, filter.projectIds) : undefined,
         filter.ids ? inArray(documents.id, filter.ids) : undefined,
+        titleHas(filter.title),
       ),
     )
     .orderBy(desc(documents.createdAt))
@@ -204,7 +223,7 @@ export async function listFiles(
   // it, as a second lock. A teammate's file stays; its action is not named.
   const actionProject = alias(projects, "action_project");
   const actionOrg = alias(organizations, "action_org");
-  const [evidenceRows, assessed, cited] = await Promise.all([
+  const [evidenceRows, assessed, cited] = filter.light ? [[], [], []] : await Promise.all([
     tx
       .select({
         documentId: evidenceSubmissions.documentId,

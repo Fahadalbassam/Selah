@@ -548,7 +548,8 @@
         "not_indexed": "Not indexed yet, so nothing from it is sent",
         "scanned": "Scanned pages only: the assistant can't read them yet",
         "unreadable": "Its text can't be read, so nothing from it is sent",
-        "draft": "A progress draft is written from the actions only, never from files",
+        "draft": "A draft is never written from attached files",
+        "crowded": "The work-status records filled this question, so nothing from it was read",
         "gone": "This file is no longer available to you"
       }
     },

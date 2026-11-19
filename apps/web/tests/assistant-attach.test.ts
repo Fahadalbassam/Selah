@@ -98,7 +98,8 @@ describe("the chips", () => {
       ["not_indexed", "Not indexed yet", "لم يُجهَّز للبحث بعد"],
       ["scanned", "Scanned pages only", "ممسوحة ضوئيًا"],
       ["unreadable", "Its text can&#x27;t be read", "غير مقروء"],
-      ["draft", "progress draft", "مسودة التقدم"],
+      ["draft", "never written from attached files", "لا تُكتب من الملفات المرفقة"],
+      ["crowded", "work-status records filled this question", "سجلات حالة العمل"],
       ["gone", "no longer available to you", "لم يعد هذا الملف متاحًا لك"],
     ];
     expect(cases.map((c) => c[0]).sort()).toEqual([...ATTACH_PROBLEMS].sort());

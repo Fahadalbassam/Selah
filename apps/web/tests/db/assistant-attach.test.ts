@@ -134,13 +134,13 @@ const embedAll = (async (texts: string[]) => texts.map(() => ONE)) as Embed;
 
 async function doc(
   d: { id: string; title: string },
-  o: { project?: string; org?: string; ownerOrg?: string; by?: string; visibility?: string; ai?: boolean; dept?: string | null } = {},
+  o: { project?: string; org?: string; ownerOrg?: string; by?: string; visibility?: string; ai?: boolean; dept?: string | null; old?: boolean } = {},
 ) {
   await q(
     `INSERT INTO documents (id, project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, department_id,
-       ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status)
-     VALUES ($1,$2,$3,$4,$5,'deliverable','submitted',$6,$7,$8,$9,$10,'text/plain',1,$11,'clean')`,
-    [d.id, o.project ?? P1, o.org ?? ACME, o.ownerOrg ?? FIRM, o.by ?? U.cons, d.title, o.visibility ?? "shared", o.dept ?? null, o.ai ?? true, `key-${d.id}`, `sha-${d.id}`],
+       ai_indexable, storage_key, content_type, size_bytes, sha256, scan_status, created_at)
+     VALUES ($1,$2,$3,$4,$5,'deliverable','submitted',$6,$7,$8,$9,$10,'text/plain',1,$11,'clean', now() - ($12::int * interval '1 year'))`,
+    [d.id, o.project ?? P1, o.org ?? ACME, o.ownerOrg ?? FIRM, o.by ?? U.cons, d.title, o.visibility ?? "shared", o.dept ?? null, o.ai ?? true, `key-${d.id}`, `sha-${d.id}`, o.old ? 5 : 0],
   );
 }
 /** A passage left in the index whatever the file's state (as a stale one would be). */
@@ -370,6 +370,55 @@ describe("a progress draft never reads an attached file", () => {
   });
 });
 
+describe("a client's refused draft (review N1)", () => {
+  it("reads nothing and says so for each attached file", async () => {
+    const out = await ask(U.cadmin, { question: "Write an email to the consultant about the charter", attachments: [DOC.open.id, DOC.open.id, MISSING] });
+    expect(out.attachments).toEqual([
+      { id: DOC.open.id, status: "draft" },
+      { id: MISSING, status: "draft" },
+    ]);
+    expect(sent).toHaveLength(0);
+  });
+});
+
+describe("attachments never crowd out a status question's records (review S1)", () => {
+  const SIX = id(320);
+  const REC = id(520);
+  const LATE = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => id(530 + n));
+  beforeAll(async () => {
+    await doc({ id: SIX, title: "Six page report" });
+    await indexDocument(owner, SIX, pagesFromText([1, 2, 3, 4, 5, 6].map((n) => `SIXCANARY page ${n}.`).join("")), embedAll);
+    await q(`INSERT INTO recommendations (id, project_id, org_id, title, visibility, created_by) VALUES ($1,$2,$3,'Close the late work','shared',$4)`, [REC, P1, ACME, U.cons]);
+    for (const [i, a] of LATE.entries()) {
+      await q(
+        `INSERT INTO actions (id, project_id, org_id, recommendation_id, title, status, due_date, created_by)
+         VALUES ($1,$2,$3,$4,$5,'in_progress',app_firm_today() - $6::int,$7)`,
+        [a, P1, ACME, REC, `Late step ${i + 1}`, 30 + i, U.cons],
+      );
+    }
+  });
+  afterAll(async () => {
+    await q(`DELETE FROM actions WHERE id = ANY($1)`, [LATE]);
+    await q(`DELETE FROM recommendations WHERE id = $1`, [REC]);
+  });
+
+  it("a consultant asking what is overdue with a six-page file attached keeps all eight late actions", async () => {
+    const out = await ask(U.cons, { question: "What is overdue?", attachments: [SIX] });
+    const ps = sent[0]!.passages;
+    for (let n = 1; n <= 8; n++) expect(ps.some((x) => x.text.includes(`Action "Late step ${n}"`)), `Late step ${n}`).toBe(true);
+    expect(ps.length).toBeLessThanOrEqual(12);
+    // What is left goes to the file, first.
+    expect(ps[0]!.text).toContain("SIXCANARY");
+    expect(ps.filter((x) => x.text.includes("SIXCANARY")).length).toBeLessThan(6);
+    expect(out.attachments).toEqual([{ id: SIX, status: "ok" }]);
+  });
+
+  it("the same file with no status question gives up to six passages", async () => {
+    await ask(U.cons, { question: "Summarise the report", attachments: [SIX] });
+    expect(sent[0]!.passages.filter((x) => x.text.includes("SIXCANARY"))).toHaveLength(6);
+  });
+});
+
 describe("the picker", () => {
   const pick = (uid: string, query: string, projectId: string | null = P1) =>
     svc(uid, (tx, p) => A.attachableFiles(tx, p, { projectId, query, locale: "en" }));
@@ -405,5 +454,34 @@ describe("the picker", () => {
     await expect(pick(U.bAdmin, "", P1)).rejects.toThrow(/not found/i);
     await expect(pick(U.owner1, "", P1)).rejects.toThrow(/not found/i);
     expect(await pick(U.owner1, "", null).catch(() => [])).toEqual([]);
+  });
+});
+
+describe("the picker searches every file, not only the newest (review S2)", () => {
+  const OLD = { id: id(601), title: "Ancient bylaws" };
+  const HIDDEN = { id: id(602), title: "Ancient pricing" };
+  beforeAll(async () => {
+    await doc(OLD, { old: true });
+    await doc(HIDDEN, { visibility: "firm_private", old: true });
+    // A thousand newer files on the same project.
+    await q(
+      `INSERT INTO documents (project_id, org_id, owner_org_id, uploaded_by, purpose, state, title, visibility, storage_key, content_type, size_bytes, sha256, scan_status)
+       SELECT $1, $2, $3, $4, 'deliverable', 'submitted', 'Bulk file ' || g, 'shared', 'bulk-' || g, 'text/plain', 1, 'sha-bulk-' || g, 'clean'
+       FROM generate_series(1, 1000) g`,
+      [P1, ACME, FIRM, U.cons],
+    );
+  });
+  afterAll(async () => {
+    await q(`DELETE FROM documents WHERE storage_key LIKE 'bulk-%'`);
+  });
+  const pick = (uid: string, query: string) => svc(uid, (tx, p) => A.attachableFiles(tx, p, { projectId: P1, query, locale: "en" }));
+
+  it("finds an old file beyond the newest thousand, and never one the asker can't open", async () => {
+    expect((await pick(U.cadmin, "ancient")).map((f) => f.id)).toEqual([OLD.id]);
+    expect((await pick(U.cons, "ANCIENT")).map((f) => f.id).sort()).toEqual([OLD.id, HIDDEN.id].sort());
+    expect(await pick(U.left, "ancient pricing")).toEqual([]);
+    // Still folded in the database: the Arabic file is found by another spelling among a thousand others.
+    expect((await pick(U.cadmin, "خطه الاداره")).map((f) => f.id)).toEqual([DOC.arabic.id]);
+    expect(await pick(U.cadmin, "bulk")).toHaveLength(8);
   });
 });

@@ -17,7 +17,7 @@ import {
   statusIntent,
   type StatusKind,
 } from "@/lib/assistant-search";
-import { attachStatus, matchFiles, MAX_ATTACHMENTS, type AttachStatus } from "@/lib/assistant-attach";
+import { attachStatus, matchFiles, MAX_ATTACHMENTS, PICKER_RESULTS, type AttachStatus } from "@/lib/assistant-attach";
 import { CLIENT_REFUSAL, DRAFT_REFUSAL, LEGAL_NOTE, clientAnswerProblem, withDraftMark, withoutRulings, type FilterReason } from "@/lib/client-ai";
 import { firmToday } from "@/lib/dates";
 import { detectLang } from "@/lib/translations";
@@ -50,6 +50,8 @@ const MAX_INDICATORS = 6;
 const STATUS_TOP_K = 4;
 // Passages of the files attached with "@", across them: they go first and count toward MAX_PASSAGES.
 const ATTACHED_TOP_K = 6;
+// Rows the picker reads for one search, before authorize() and the last name check keep PICKER_RESULTS.
+const PICKER_ROWS = PICKER_RESULTS * 5;
 // Earlier turns of the same chat given as context. Never as sources.
 const HISTORY_MESSAGES = 8;
 // The most passages the AI service takes in one question (services/ai max_passages).
@@ -236,9 +238,14 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // transaction, as the person: a file they can't open, or outside the chat's projects, is "gone", as one that doesn't
   // exist. Only a file open to the assistant and indexed gives passages, through the same permission filter as the
   // search; they go first. Never with a progress draft (built from the actions only) or a refused draft.
+  // They never take a status record's place (review S1): they get what is left after the chat's own record and the
+  // status rows, keeping one passage free, and nothing when those fill the question.
+  const caseSlot = !staffDraft && caseRef !== null && caseRef.type !== "document" ? 1 : 0;
+  const attachRoom = Math.max(0, MAX_PASSAGES - caseSlot - status.length - 1);
   const attach = refusedDraft
-    ? { chunks: [], statuses: [] }
-    : await attachedPassages(tx, principal, scopes, vector, input.attachments ?? [], { progressDraft });
+    ? // A refused draft reads nothing, and says so for each file (review N1).
+      { chunks: [], statuses: [...new Set(input.attachments ?? [])].slice(0, MAX_ATTACHMENTS).map((id) => ({ id, status: "draft" as const })) }
+    : await attachedPassages(tx, principal, scopes, vector, input.attachments ?? [], { progressDraft, room: attachRoom });
   const attachedIds = new Set(attach.chunks.map((c) => c.id));
   // A recommendation or action found by the search goes as the record itself
   // (status, due date, last review), never as its indexed text.
@@ -246,7 +253,7 @@ export async function prepareAsk(tx: Tx, principal: Principal, input: AskInput, 
   // Status lives in records, not files: a status question keeps fewer file passages (at least 2, at most
   // STATUS_TOP_K, as the status rows leave room). Records are linked only from the passages sent.
   const statusRoom = MAX_PASSAGES - 1 - status.length;
-  // Attached passages take the place of searched ones, never of the records.
+  // Attached passages take the place of searched file passages; the records keep theirs.
   const chunkRoom = counts.length ? Math.min(STATUS_TOP_K, Math.max(statusRoom, 2)) : Math.min(TOP_K, MAX_PASSAGES - team.length);
   const chunks = found.filter((c) => !attachedIds.has(c.id)).slice(0, Math.max(0, chunkRoom - attach.chunks.length));
   // "My deadlines": the search's records (a recommendation lists all its actions) would put others' work beside
@@ -591,7 +598,8 @@ export async function attachedPassages(
   scopes: RetrievalScope[],
   vector: number[],
   requested: string[],
-  opts: { progressDraft?: boolean } = {},
+  /** `room`: the most attached passages this question has space for (at most ATTACHED_TOP_K). */
+  opts: { progressDraft?: boolean; room?: number } = {},
 ): Promise<{ chunks: ChunkRow[]; statuses: { id: string; status: AttachStatus }[] }> {
   const ids = [...new Set(requested)].slice(0, MAX_ATTACHMENTS);
   if (!ids.length || !scopes.length) return { chunks: [], statuses: ids.map((id) => ({ id, status: "gone" as const })) };
@@ -604,17 +612,24 @@ export async function attachedPassages(
   });
   const usable = statuses.filter((s) => s.status === "ok");
   if (!usable.length) return { chunks: [], statuses };
-  const each = Math.max(2, Math.floor(ATTACHED_TOP_K / usable.length));
+  const total = Math.max(0, Math.min(ATTACHED_TOP_K, opts.room ?? ATTACHED_TOP_K));
+  const each = Math.max(1, Math.floor(total / usable.length));
   const chunks: ChunkRow[] = [];
   for (const s of usable) {
+    const left = Math.min(each, total - chunks.length);
+    // No space left in this question (a status question's records fill it): nothing read, and it says so.
+    if (left <= 0) {
+      s.status = "crowded";
+      continue;
+    }
     const rows = await chunkRows(tx)
       .where(and(scopeFilter(scopes), eq(aiChunks.sourceType, "document"), eq(aiChunks.sourceId, s.id)))
       .orderBy(cosineDistance(aiChunks.embedding, vector), asc(aiChunks.page), asc(aiChunks.chunkIndex))
-      .limit(each);
+      .limit(left);
     if (!rows.length) s.status = "not_available";
     chunks.push(...rows);
   }
-  return { chunks: chunks.slice(0, ATTACHED_TOP_K), statuses };
+  return { chunks, statuses };
 }
 
 /**
@@ -629,7 +644,9 @@ export async function attachableFiles(tx: Tx, principal: Principal, input: { pro
   const asked = targets.filter((p) => retrievalScope(principal, { type: "project", id: p.id, orgId: p.orgId, firmOrgId: p.firmOrgId, projectId: p.id }) !== null);
   // A project the person may not ask about here answers as one that doesn't exist.
   if (input.projectId && !asked.length) throw new NotFoundError("project");
-  const files = await listFiles(tx, principal, { projectIds: asked.map((p) => p.id) });
+  // The title is matched in the database, folded both sides (review S2), so an old file is found as well as a new one;
+  // the light listing reads no sources but keeps the Files card's visibility (row-level security, then authorize()).
+  const files = await listFiles(tx, principal, { projectIds: asked.map((p) => p.id), title: input.query, light: true, limit: PICKER_ROWS });
   const where = new Map(asked.map((p) => [p.id, p.where]));
   return matchFiles(files, input.query).map((f) => ({
     id: f.id,

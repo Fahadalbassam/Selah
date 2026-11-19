@@ -16,12 +16,13 @@ export const PICKER_RESULTS = 8;
  *   not_indexed    - switched on, waiting for the indexing job
  *   scanned        - only scanned pages, no text layer yet (text recognition comes later)
  *   unreadable     - indexing could not read its text (damaged, encrypted)
- *   draft          - a progress draft is built from the actions only, never from a file
+ *   draft          - a draft: a progress draft is built from the actions only, another draft a client asks for is refused
+ *   crowded        - a question about the state of the work whose records fill every passage the model takes
  *   gone           - not a file this person can see in the chat's projects: answered the same as one that doesn't exist
  */
-export type AttachStatus = "ok" | "not_available" | "not_indexed" | "scanned" | "unreadable" | "draft" | "gone";
+export type AttachStatus = "ok" | "not_available" | "not_indexed" | "scanned" | "unreadable" | "draft" | "crowded" | "gone";
 
-export const ATTACH_PROBLEMS = ["not_available", "not_indexed", "scanned", "unreadable", "draft", "gone"] as const satisfies readonly AttachStatus[];
+export const ATTACH_PROBLEMS = ["not_available", "not_indexed", "scanned", "unreadable", "draft", "crowded", "gone"] as const satisfies readonly AttachStatus[];
 
 /** A file's own state, as the indexing job left it (docs/assistant.md, "The search index"). */
 export function attachStatus(file: { aiIndexable: boolean; textStatus: string; archived?: boolean }): AttachStatus {
