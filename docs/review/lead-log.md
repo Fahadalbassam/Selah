@@ -278,3 +278,14 @@ Recorded first, as he asked (also in `work/build-brief.md`, "Plan additions from
 **Decided by the lead:** org chart part 2 shows the Structure tab only once there is something to read; with departments off a manager sees only the Structure tab, the client admin keeps both (the switch lives there). Org chart part 3 lets the people who may change holders **remove a holding entered by mistake** (asked first; the audit records the removal without the typed name), so a mistyped name can be deleted and minimal records become possible again.
 
 **Paused** on Fahad's request (he closed the laptop): Docker Desktop, every selah-lead container (data kept) and the Windows Ollama app stopped; the picker and org chart part 3 helpers stopped mid-work. **Resumed** the same evening: my copy restarted without a reset (the helpers' test databases survived), both helpers continued, and org chart part 4 (imports) started beside part 3.
+
+## 19 Nov 2026
+
+**Merged** (CI green, low code review with no findings, independent review and screen check before each): #167 to #186. The approved features are complete: the indicator moved-away notice (#167), deliverable receipt (#171), the visibility picker (#162, #175), the org chart in five parts (#168, #172, #181, #183, #186; F43 ticked). Screen batches 1 to 4 are merged (#176-#184); batch 5 is being built. #185 made two retention tests independent of the machine's time zone and moved three test dates that would have expired.
+
+**Decisions I made inside the reviews** (all keep or narrow access; none deletes a person's record):
+- The org chart: people change only on the published structure; names from imports are firm-only plans placed at publication; a version is never back-dated and a started holding is never deleted; removing a name entered by mistake is allowed (audited without the name); the assistant's draft from pasted text never handles people and runs only on the local model, checked by the AI service itself and the web app, both closed by default; a department-head suggestion changes nothing until the client admin or firm admin confirms.
+- Batch 3: the Closing tab shows only while a request to close waits or the project is closing or closed.
+- Batch 4: owner changes are shown on the action page to anyone who may open it, through a reader for that action only; "Reassign their actions first" lists this project's actions, never the switch-off dialog.
+
+**Stops.** Helpers stopped at the five-hour usage limit three times today and resumed from their saved work. The last stop also named a monthly spend limit on Fahad's account.

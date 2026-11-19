@@ -551,3 +551,18 @@ Fahad asked (17 Nov) to re-check only the screens that are new or changed since 
 - A meeting's agenda headings and status words follow the meeting's language, not the reader's. Recommendation: follow the reader's language.
 - A department-limited manager can be invited (after a warning) to a whole-project meeting she cannot open. She receives the calendar invitation (title, time, call link, organiser, the invitees' names and addresses; nothing about the work). Options: keep it and say "N meetings you're invited to are open only to people who see the whole project"; or refuse the invitation. Recommendation: refuse it and suggest a department meeting, so an invitation always opens.
 - The firm's free-text report note can name another department's work to a limited manager (the note is the firm's own text; Selah cannot filter it). Recommendation: a line in the handbook for consultants.
+
+### 8.1 The new features and batches 1-4, screen-checked before each merge (added 19 Nov 2026)
+
+Each feature and each batch was looked at by the lead on a copy of the walkthrough data built from its own branch (Arabic first, the roles it touches), after its independent review and before it merged. Screenshots are under `docs/review/shots/check-*`.
+
+| What | Pull request | What the screens showed |
+|---|---|---|
+| Indicator moved away (4b) | #167 | The notice to the lead, deputy and client admin in plain figures; "your company's reported figures" to the client; the manager who typed the figure not told |
+| Deliverable handed over and received (4a) | #171 | One solid "Confirm receipt" and "Comment" for the acceptor; "received never means accepted"; the owner gets Not found |
+| Who sees an item, part 2 (picker enforced) | #175 | "Seen by: everyone with access · Customise" closed by default; the limited file marked for those who see it, absent for the person left out; locked people listed |
+| Org chart parts 2-5 | #172, #181, #183, #186 | The drawn tree with names only where allowed; the editor (indented list, ⋯ menus, "the firm's draft"); the person work card showing only what the viewer may open, no score; People in positions under the client's People tabs; the import page (paste hidden on a hosted model); publishing (what changes, today or later, one solid button) |
+| Batch 1: the client's own pages, Help, dense rows, inquiry | #176, #177 | The owner's action page with one solid button and two plain lines; a scheduled meeting without empty record cards; Help with three parts; Requests tab 27 → 14 buttons |
+| Batch 2: homes, sidebars, Actions | #178, #179, #180 | Each home answers "what waits for me" first, then one line of counts; each sidebar exactly as 4.1; `/review`, `/oversight`, `/today` redirect |
+| Batch 3: the project page | #182 | Five tabs (four for an action owner), the tab row at 260 px instead of 517, one status line of counts |
+| Batch 4: one upload, one action page, D1 | #184 | The reviewer's page with one solid "verify", the sign-off box and "give to a colleague" |
