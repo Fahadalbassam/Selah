@@ -15,18 +15,19 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
     embed_model: str = "bge-m3"
 
-    # Chat model provider. "ollama" runs locally (qwen3:4b runs on the
-    # processor; a GPU needs more memory than a GTX 1050 has).
+    # Chat model provider. "ollama" runs locally (qwen3.5:4b, about 3.3 GB,
+    # runs on the processor; a GTX 1050 has 2 GB, too little to hold it, and
+    # Pascal cards need Ollama's CUDA 12 build to use the card at all).
     # "openai_compat" calls any hosted API that speaks the OpenAI
     # chat-completions format; use it with sample data only unless the
     # firm approves sending documents to that provider.
     llm_provider: Literal["ollama", "openai_compat"] = "ollama"
-    llm_model: str = "qwen3:4b"
+    llm_model: str = "qwen3.5:4b"
     # Context size for the local model, in tokens. Ollama otherwise picks one
     # from the graphics memory (about 4,000 tokens on small cards) and cuts
     # longer prompts without an error. The upper bound keeps a typo from
     # reserving more memory than the server has (16384 is about 2.3 GB of
-    # cache for qwen3:4b).
+    # cache for a 4B model).
     llm_num_ctx: int = Field(default=16384, ge=2048, le=131072)
     llm_api_base: str = ""
     llm_api_key: str = ""

@@ -87,7 +87,8 @@ services:
     image: ollama/ollama:0.40.6
     volumes: [ollama-models:/root/.ollama]
     ports: ["127.0.0.1:11434:11434"]
-    # For an NVIDIA GPU, uncomment:
+    # For an NVIDIA GPU, uncomment. Pascal cards (GTX 10 series) need Ollama's
+    # CUDA 12 build; a 2 GB card such as a GTX 1050 cannot hold qwen3.5:4b.
     # deploy: { resources: { reservations: { devices: [{ driver: nvidia, count: all, capabilities: [gpu] }] } } }
 
   # Pulls the models once into the ollama volume. The chat model only when it
@@ -98,7 +99,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - ollama pull ${EMBED_MODEL:-bge-m3} && if [ "${LLM_PROVIDER:-ollama}" = ollama ]; then ollama pull ${LLM_MODEL:-qwen3:4b}; fi
+      - ollama pull ${EMBED_MODEL:-bge-m3} && if [ "${LLM_PROVIDER:-ollama}" = ollama ]; then ollama pull ${LLM_MODEL:-qwen3.5:4b}; fi
     depends_on: [ollama]
     restart: "no"
 
@@ -109,7 +110,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
-      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}
       LLM_API_BASE: ${LLM_API_BASE:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-16384}

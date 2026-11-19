@@ -72,7 +72,7 @@ To create sample users (one per role, password from `SEED_PASSWORD`), run `npm r
 
 ### AI provider
 
-The AI service talks to the model through one interface (`services/ai/app/llm.py`). Set `LLM_PROVIDER=ollama` (default, runs `qwen3:4b` locally; it runs on the processor and does not fit a small card such as a GTX 1050, which has 2 GB, or 3 GB on one variant; Pascal cards like the GTX 10 series also need Ollama's CUDA 12 build) or `LLM_PROVIDER=openai_compat` with `LLM_API_BASE`, `LLM_API_KEY` and `LLM_MODEL` to use a hosted API for answers. Embeddings always stay local (`bge-m3`), so document text is only sent to a hosted API as the passages of a question.
+The AI service talks to the model through one interface (`services/ai/app/llm.py`). Set `LLM_PROVIDER=ollama` (default, runs `qwen3.5:4b`, about 3.3 GB, locally; it runs on the processor and does not fit a small card such as a GTX 1050, which has 2 GB, or 3 GB on one variant; Pascal cards like the GTX 10 series also need Ollama's CUDA 12 build) or `LLM_PROVIDER=openai_compat` with `LLM_API_BASE`, `LLM_API_KEY` and `LLM_MODEL` to use a hosted API for answers. Embeddings always stay local (`bge-m3`), so document text is only sent to a hosted API as the passages of a question.
 
 ### Developing the web app without Docker for it
 
