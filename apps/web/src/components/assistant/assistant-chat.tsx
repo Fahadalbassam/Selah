@@ -4,7 +4,7 @@ import { Archive, ArchiveRestore, FilePen, Languages, Pencil, Pin, PinOff, Send 
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "@/components/ui/toast";
 import { openFilePage } from "@/app/(app)/projects/[id]/document-summary";
 import { CircleAlert } from "@/components/animate-ui/icons/circle-alert";
@@ -38,7 +38,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
+import { addAttachment, MAX_ATTACHMENTS, mentionAt, withoutMention } from "@/lib/assistant-attach";
 import { cn } from "@/lib/utils";
+import { AttachChips, FilePicker, type AttachedFile } from "./attach";
 
 export type Lang = "ar" | "en";
 type CaseType = "recommendation" | "action" | "finding" | "meeting" | "document";
@@ -806,54 +808,164 @@ export function Composer({
   busy,
   disabled,
   usage,
+  projectId,
 }: {
-  onAsk: (q: string) => Promise<boolean>;
+  /** Gives whether the question was taken; the files attached go with it, as ids. */
+  onAsk: (q: string, attachments: AttachedFile[]) => Promise<boolean>;
   busy: boolean;
   disabled: boolean;
   /** A client's questions today against the daily limit. */
   usage?: { used: number; limit: number } | null;
+  /** The chat's project, for the "@" picker; null: every project the person may ask about. The card keys the box by it, so files picked in one project don't follow to another. */
+  projectId?: string | null;
 }) {
   const t = useTranslations("assistant");
+  const locale = useLocale();
+  const listId = useId();
+  const box = useRef<HTMLTextAreaElement>(null);
   const [question, setQuestion] = useState("");
+  const [attached, setAttached] = useState<AttachedFile[]>([]);
+  // The "@" being typed, the files found for it and the one the arrows are on.
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [found, setFound] = useState<{ key: string; files: AttachedFile[] } | null>(null);
+  const [active, setActive] = useState(0);
+  const full = attached.length >= MAX_ATTACHMENTS;
+  const searchKey = mention ? `${projectId ?? ""}:${mention.query}` : null;
+  const results = found && found.key === searchKey ? found.files : null;
+
+  useEffect(() => {
+    if (searchKey === null || full) return;
+    let live = true;
+    const params = new URLSearchParams({ locale, q: mention!.query });
+    if (projectId) params.set("project", projectId);
+    // A short pause, so a search runs once the person stops typing.
+    const timer = setTimeout(() => {
+      void getJson<AttachedFile[]>(`/api/assistant/files?${params}`).then((files) => {
+        if (live) setFound({ key: searchKey, files: files ?? [] });
+      });
+    }, 150);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // `mention` changes with `searchKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey, full, locale]);
+
+  function track(text: string, caret: number) {
+    const m = mentionAt(text, caret);
+    setMention(m);
+    if (m?.query !== mention?.query) setActive(0);
+  }
+
+  function pick(file: AttachedFile) {
+    if (!mention) return;
+    const next = withoutMention(question, mention);
+    setQuestion(next.text);
+    setAttached((list) => addAttachment(list, file));
+    setMention(null);
+    requestAnimationFrame(() => {
+      box.current?.focus();
+      box.current?.setSelectionRange(next.caret, next.caret);
+    });
+  }
+
   async function submit(e?: FormEvent) {
     e?.preventDefault();
     const q = question.trim();
     if (!q || busy || disabled) return;
+    const files = attached;
     setQuestion("");
-    if (!(await onAsk(q))) setQuestion(q);
+    setAttached([]);
+    setMention(null);
+    if (!(await onAsk(q, files))) {
+      setQuestion(q);
+      setAttached(files);
+    }
   }
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention && !e.nativeEvent.isComposing) {
+      const n = results?.length ?? 0;
+      if (e.key === "Escape") {
+        // Closes the list only, not the card.
+        e.preventDefault();
+        setMention(null);
+        return;
+      }
+      if (n && e.key === "ArrowDown") {
+        e.preventDefault();
+        setActive((i) => (i + 1) % n);
+        return;
+      }
+      if (n && e.key === "ArrowUp") {
+        e.preventDefault();
+        setActive((i) => (i - 1 + n) % n);
+        return;
+      }
+      if (n && !full && (e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+        e.preventDefault();
+        pick(results![Math.min(active, n - 1)]!);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void submit();
     }
   }
+  const open = mention !== null;
   return (
     <form onSubmit={submit} className="border-t bg-background/60 p-3">
-      <div
-        className={cn(
-          "flex items-end gap-2 rounded-xl border bg-background p-2 shadow-xs transition-[border-color,box-shadow]",
-          "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30",
-        )}
-      >
-        <Textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={t("placeholder")}
-          aria-label={t("placeholder")}
-          maxLength={2000}
-          rows={1}
-          autoFocus
-          dir="auto"
-          className="max-h-40 min-h-9 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-        <Button type="submit" size="icon" disabled={busy || disabled || !question.trim()} aria-label={busy ? t("asking") : t("ask")}>
-          {busy ? <BrandLoader tone="current" className="size-4" /> : <Send animateOnHover className="rtl:-scale-x-100" />}
-        </Button>
+      <div className="relative">
+        {open ? (
+          <FilePicker
+            id={listId}
+            results={results}
+            active={active}
+            loading={results === null}
+            full={full}
+            onPick={pick}
+            onHover={setActive}
+          />
+        ) : null}
+        <div
+          className={cn(
+            "rounded-xl border bg-background p-2 shadow-xs transition-[border-color,box-shadow]",
+            "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30",
+          )}
+        >
+          <AttachChips files={attached} onRemove={(id) => setAttached((list) => list.filter((f) => f.id !== id))} />
+          <div className="flex items-end gap-2">
+            <Textarea
+              ref={box}
+              value={question}
+              onChange={(e) => {
+                setQuestion(e.target.value);
+                track(e.target.value, e.target.selectionStart ?? e.target.value.length);
+              }}
+              onSelect={(e) => track(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+              onBlur={() => setMention(null)}
+              onKeyDown={onKeyDown}
+              placeholder={t("placeholder")}
+              aria-label={t("placeholder")}
+              aria-autocomplete="list"
+              aria-expanded={open && Boolean(results?.length)}
+              aria-controls={open && results?.length ? listId : undefined}
+              aria-activedescendant={open && results?.length ? `${listId}-${Math.min(active, results.length - 1)}` : undefined}
+              maxLength={2000}
+              rows={1}
+              autoFocus
+              dir="auto"
+              className="max-h-40 min-h-9 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+            <Button type="submit" size="icon" disabled={busy || disabled || !question.trim()} aria-label={busy ? t("asking") : t("ask")}>
+              {busy ? <BrandLoader tone="current" className="size-4" /> : <Send animateOnHover className="rtl:-scale-x-100" />}
+            </Button>
+          </div>
+        </div>
       </div>
       <p className="mt-1.5 px-1 text-xs text-muted-foreground">
-        {t("enterHint")}
+        {t("enterHint")} · {t("attach.hint")}
         {usage ? ` · ${t("clientUsage", { used: usage.used, limit: usage.limit })}` : null}
       </p>
     </form>

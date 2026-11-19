@@ -92,8 +92,13 @@ export async function listFiles(
     orgId?: string;
     /** At most this many rows read (the newest first); the default is the explorer's limit. */
     limit?: number;
+    /** Only files of these projects (the assistant's "@" picker: the chat's projects). */
+    projectIds?: string[];
+    /** Only these files (a file attached to a question, checked again when it is asked). */
+    ids?: string[];
   } = {},
 ): Promise<FileEntry[]> {
+  if (filter.projectIds?.length === 0 || filter.ids?.length === 0) return [];
   // Picking evidence: only files of the same client as the action.
   let orgId: string | undefined = filter.orgId;
   if (filter.actionId) {
@@ -152,6 +157,8 @@ export async function listFiles(
         sql`not exists (select 1 from documents n where n.supersedes_id = ${documents.id})`,
         orgId ? eq(documents.orgId, orgId) : undefined,
         filter.uploadedBy ? eq(documents.uploadedBy, filter.uploadedBy) : undefined,
+        filter.projectIds ? inArray(documents.projectId, filter.projectIds) : undefined,
+        filter.ids ? inArray(documents.id, filter.ids) : undefined,
       ),
     )
     .orderBy(desc(documents.createdAt))
