@@ -101,7 +101,11 @@ Tested with `SELAH_LOCAL=1`, which runs the same scripts with the tools on the m
 
 `ops/upgrade.sh --rollback` goes back: the previous commit, rebuilt, with the database restored from the backup taken before the upgrade (migrations only go forward). Work done since the upgrade is lost, so roll back soon or not at all. Upgrade outside working hours, and run `ops/readiness.sh` afterwards.
 
-**Before the upgrade that brings migration 0109 (engagement end reminders).** The first daily run after it tells the firm about every open engagement of an active client that ends within the next 30 days or ended in the last 30. Size it on the live database first (read only):
+## Before go-live
+
+Do these once, on the live database, before the firm's real clients are let in. Take a backup first (`ops/backup.sh`).
+
+**1. Size the engagement end reminders (migration 0109).** Also before any later upgrade that first brings 0109. The first daily run after it tells the firm about every open engagement of an active client that ends within the next 30 days or ended in the last 30. Size it on the live database first (read only):
 
 ```sql
 SELECT count(*) AS engagements,
@@ -113,6 +117,30 @@ WHERE g.ends_on IS NOT NULL
 ```
 
 The notices go into each person's summary mail, so mails are at most one per person that day. Run it after the migration (the functions come with it) and before the next daily job, or with the functions' bodies inlined before.
+
+**2. Clean old private file names out of the audit log and the activity record.** Before migration 0106, withdrawing a wrong upload stored the file's name in the audit log (`document.withdraw`, `meta.title`) and the file's name and the reason in the activity record (`document_withdrawn`, `meta.title` and `meta.reason`), where the other side could read them. 0106 stopped that and hides the old rows when they are read, but the stored rows still hold the names. `pre-go-live:clean-private-names` removes those fields and leaves `"redacted": true` in their place. It never deletes a row, and rows written since 0106 are not touched.
+
+- Run it as the schema owner, with the web app and the jobs stopped. It holds the audit log and the activity record locked while it works.
+- By default it is a dry run: it changes nothing and prints how many rows of each kind hold a name, per organisation (ids only, never a name), and how many audit entries it would re-hash.
+- With `--apply` it shows the dry run, asks you to type the database's name, and then does everything in one transaction. Any error rolls it all back.
+- The audit log is hash-chained and its guard refuses every change. Inside that one transaction the script switches the guard off, blanks the fields, re-hashes every sealed entry from the first changed one to the head, switches the guard back on and checks the whole chain. If the chain was already broken it refuses and changes nothing. If the check after re-hashing fails, it rolls back.
+- It writes one system entry to the audit log, `audit_log.redact_private_names` ("Old file names removed before go-live"), with the counts and the chain's old and new head hash. A head copied off the server before today matches `previous_head_hash` in that entry; copy the new head (Audit log, chain status) off the server again afterwards.
+- A second run finds nothing and changes nothing.
+- It refuses a database whose name looks like a test or check copy (`test`, `check`, `ci`, `tmp`, `scratch`) unless `--allow-test` is given.
+
+```sh
+cd /srv/selah
+ops/backup.sh
+docker compose stop web jobs
+# Dry run: counts only, nothing changed.
+docker compose run --rm --no-deps jobs npm run pre-go-live:clean-private-names
+# Apply: type the database name (selah) when asked.
+docker compose run --rm --no-deps jobs npm run pre-go-live:clean-private-names -- --apply
+docker compose start web jobs
+ops/readiness.sh
+```
+
+The next nightly `job:audit-check` should pass and print the new head. To see it at once: `docker compose run --rm --no-deps jobs npm run job:audit-check`.
 
 ## When something goes wrong
 
