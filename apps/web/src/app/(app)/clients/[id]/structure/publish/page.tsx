@@ -171,6 +171,7 @@ export default async function PublishStructurePage({ params, searchParams }: { p
           <PublishForm
             clientId={id}
             draftId={data.draftId}
+            revision={data.revision ?? ""}
             number={data.nextNumber}
             effectiveOn={data.effectiveOn}
             earliest={data.earliest}

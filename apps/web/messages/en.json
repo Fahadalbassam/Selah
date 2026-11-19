@@ -5845,6 +5845,7 @@
       "successor": "Someone is already scheduled to take this position over. Leave it vacant, or change that first under People in positions.",
       "effective_before": "A new version takes effect today or later, and not before the day the current one did.",
       "noUnits": "The draft has no units yet.",
+      "draftEdited": "The draft changed since this page showed it. Reload the page and check it again.",
       "resolution": "Choose one of the client's files that the client can see, or leave the board resolution empty.",
       "suggestion_gone": "This suggestion no longer stands: the structure or the department changed, or the person is no longer one of your people. Reload the page.",
       "what": "Write the change you suggest in at least three characters.",
@@ -5913,6 +5914,7 @@
       "label": "Tools for reading the drawing",
       "focus": "Focus on",
       "whole": "The whole structure",
+      "show": "Show",
       "collapseAll": "Collapse all",
       "expandAll": "Expand all",
       "zoomOut": "Zoom out",
@@ -5978,6 +5980,7 @@
       "button": "Publish version {n}",
       "confirm": "Publish version {n}, taking effect on {date}? A published version is never taken back; a newer one can be published later.",
       "done": "Version {n} is published.",
+      "doneWithPlans": "Version {n} is published. {placed, plural, one {# planned person placed} other {# planned people placed}}{skipped, plural, =0 {} one {, # not placed} other {, # not placed}}.",
       "emptyDraft": "The draft has no units yet."
     },
     "requests": {

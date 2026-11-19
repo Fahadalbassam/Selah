@@ -44,6 +44,8 @@ export function OrgTreeView({ html, clientId, version, tools }: { html: string; 
   const setCollapsed = (next: ReadonlySet<string> | ((c: ReadonlySet<string>) => ReadonlySet<string>)) =>
     setFolds((f) => ({ html, units: typeof next === "function" ? next(f.html === html ? f.units : NONE) : next }));
   const [zoom, setZoom] = useState<number>(ZOOM_DEFAULT);
+  // The department picked in the list, opened only on Enter or "Show".
+  const [pick, setPick] = useState(tools?.focus.current ?? "");
   const frame = useRef<HTMLDivElement>(null);
   const drawing = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number; id: number } | null>(null);
@@ -101,17 +103,29 @@ export function OrgTreeView({ html, clientId, version, tools }: { html: string; 
   }
 
   const all = tools?.units ?? [];
+  function go() {
+    if (!tools || pick === (tools.focus.current ?? "")) return;
+    router.push(tools.focus.choices.find((c) => c.id === pick)?.href ?? tools.focus.whole);
+  }
   return (
     <div className="grid gap-2">
       {tools ? (
         <div role="group" aria-label={t("label")} className="flex flex-wrap items-center gap-2 text-sm">
           {tools.focus.choices.length ? (
-            <label className="flex items-center gap-2">
-              <span className="text-muted-foreground">{t("focus")}</span>
+            <div className="flex items-center gap-2">
+              <label htmlFor="oc-focus" className="text-muted-foreground">{t("focus")}</label>
+              {/* Choosing only picks; Enter or "Show" opens it (review N5: arrow keys on a closed list change its value). */}
               <NativeSelect
+                id="oc-focus"
                 size="sm"
-                value={tools.focus.current ?? ""}
-                onChange={(e) => router.push(tools.focus.choices.find((c) => c.id === e.target.value)?.href ?? tools.focus.whole)}
+                value={pick}
+                onChange={(e) => setPick(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    go();
+                  }
+                }}
               >
                 <NativeSelectOption value="">{t("whole")}</NativeSelectOption>
                 {tools.focus.choices.map((c) => (
@@ -120,7 +134,12 @@ export function OrgTreeView({ html, clientId, version, tools }: { html: string; 
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
-            </label>
+              {pick !== (tools.focus.current ?? "") ? (
+                <Button type="button" variant="ghost" size="sm" onClick={go}>
+                  {t("show")}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {all.length ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => setCollapsed(collapsed.size ? new Set() : new Set(all))}>

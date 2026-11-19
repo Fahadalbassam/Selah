@@ -23,6 +23,8 @@ import { toast } from "@/components/ui/toast";
 export function PublishForm(props: {
   clientId: string;
   draftId: string;
+  /** The draft as this page shows it; the server refuses the publish once it changed. */
+  revision: string;
   number: number;
   effectiveOn: string;
   /** The first day allowed: today, or the current version's day when later (never back-dated). */
@@ -54,12 +56,17 @@ export function PublishForm(props: {
     setBusy(true);
     const r = await callApi(`/api/clients/${props.clientId}/structure/publish`, "POST", {
       draftId: props.draftId,
+      revision: props.revision,
       effectiveOn: props.effectiveOn,
       resolutionDocumentId: resolution || null,
     });
     setBusy(false);
     if (!r.ok) return setError(say(r));
-    toast.success(t("done", { n: props.number }));
+    // What the database did, as it said it (review N2): who was placed, and who was not.
+    const out = r.data as { placed?: unknown[]; skipped?: unknown[] } | null;
+    const placed = out?.placed?.length ?? 0;
+    const skipped = out?.skipped?.length ?? 0;
+    toast.success(placed + skipped ? t("doneWithPlans", { n: props.number, placed, skipped }) : t("done", { n: props.number }));
     router.push(props.base);
     router.refresh();
   }

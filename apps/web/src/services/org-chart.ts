@@ -1071,6 +1071,16 @@ async function resolutionChoices(tx: Tx, clientOrgId: string) {
     .limit(200);
 }
 
+/** Whether one file can be the board resolution: the client's, shared, not archived, and one the publisher may open. */
+async function resolutionReadable(tx: Tx, clientOrgId: string, documentId: string) {
+  const [d] = await tx
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.id, documentId), eq(documents.orgId, clientOrgId), eq(documents.visibility, "shared"), ne(documents.state, "archived")))
+    .limit(1);
+  return !!d;
+}
+
 /**
  * What the publisher checks before publishing the draft (the publishing
  * screen): what changes against the version in effect (units and positions
@@ -1119,6 +1129,8 @@ export async function publishPreview(tx: Tx, principal: Principal, clientOrgId: 
   return {
     client: { id: client.id, name: client.name, nameAr: client.nameAr, minimalRecords: client.minimalRecords },
     draftId: draft.id,
+    /** The draft as shown here (its units, positions and plans): publishing with it is refused once the draft changes (review N2). */
+    revision: (await tx.execute<{ r: string | null }>(sql`select app_org_chart_draft_revision(${draft.id}::uuid) as r`)).rows[0]?.r ?? null,
     hasUnits: after.units.length > 0,
     current: current ? summary(current, await publisherName(tx, current.publishedBy)) : null,
     nextNumber: (current?.number ?? 0) + 1,
@@ -1161,7 +1173,7 @@ export async function publish(
   tx: Tx,
   principal: Principal,
   clientOrgId: string,
-  input: { draftId: string; effectiveOn: string; resolutionDocumentId?: string | null },
+  input: { draftId: string; effectiveOn: string; resolutionDocumentId?: string | null; revision?: string | null },
 ) {
   const client = await clientOf(tx, clientOrgId);
   assertAllowed(principal, "org_chart.publish", resource(principal, client.id, true));
@@ -1172,14 +1184,17 @@ export async function publish(
   const current = await versionIn(tx, chart.id, "published");
   if (input.effectiveOn < earliestEffective(current?.effectiveOn ?? null, firmToday())) throw new BadRequestError("effective_before");
   const resolution = input.resolutionDocumentId ?? null;
-  if (resolution && (!UUID.test(resolution) || !(await resolutionChoices(tx, client.id)).some((d) => d.id === resolution))) throw new BadRequestError("resolution");
-  // Who is planned, as the database will treat them (it checks each one again itself).
-  const planned = client.minimalRecords ? [] : await planOutcomes(tx, input.draftId, input.effectiveOn);
-  const { rows } = await tx.execute<{ id: string }>(
-    sql`select app_publish_org_chart(${chart.id}::uuid, ${input.draftId}::uuid, ${input.effectiveOn}::date, ${resolution}::uuid) as id`,
+  // The publisher may open the file (read under their rights), whatever its age (review N3).
+  if (resolution && (!UUID.test(resolution) || !(await resolutionReadable(tx, client.id, resolution)))) throw new BadRequestError("resolution");
+  // The database works out who is placed inside its lock and says so (review N1); with the screen's revision,
+  // it refuses a draft that changed since it was shown (review N2).
+  const { rows } = await tx.execute<{ out: { version: string; number: number; plans: PlanRow[] } }>(
+    sql`select app_publish_org_chart_checked(${chart.id}::uuid, ${input.draftId}::uuid, ${input.revision ?? null}::text, ${input.effectiveOn}::date, ${resolution}::uuid) as out`,
   );
-  const id = rows[0]!.id;
-  const [v] = await tx.select({ number: orgChartVersions.number }).from(orgChartVersions).where(eq(orgChartVersions.id, id)).limit(1);
+  const out = rows[0]!.out;
+  const id = out.version;
+  const v = { number: out.number };
+  const planned = out.plans.map(plannedPerson);
   const placed = planned.filter((x) => x.outcome === "place");
   const skipped = planned.filter((x) => x.outcome !== "place");
   await audit(tx, {

@@ -12,6 +12,8 @@ export const POST = route(
     params: z.object({ id: z.uuid() }),
     body: z.object({
       draftId: z.uuid(),
+      // The draft as the publishing screen showed it: refused once it changed (review N2).
+      revision: z.string().regex(/^[0-9a-f]{32}$/),
       effectiveOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       resolutionDocumentId: z.uuid().nullish(),
     }),

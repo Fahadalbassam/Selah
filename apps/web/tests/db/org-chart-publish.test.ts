@@ -507,28 +507,44 @@ describe("the department-head suggestion", () => {
 });
 
 describe("your manager", () => {
-  it("names the manager only while the current version shows names; an action owner has it, never the tab", async () => {
+  it("reads the version in effect today only: none at Sahm, whose versions all take effect later (review N4)", async () => {
     const accountant = await livePosition("2.1.2");
     await svc(U.cadmin, (tx, p) => OC.changeHolder(tx, p, accountant.id, { start: { userId: U.owner, from: plus(-1) } }), true);
-    const current = (await svc(U.cadmin, (tx, p) => OC.getPublishedChart(tx, p, SAHM))).version!;
-    expect(current.showNames).toBe(false);
-    const mine = () => svc(U.owner, (tx, p) => OC.myManager(tx, p));
-    expect((await mine()).map((m) => [m.titleEn, m.name, m.vacant])).toEqual([["Chief financial officer", null, false]]);
-    // Only the client's admin switches names on.
-    for (const who of [U.lead, U.admin, U.mgr, U.owner]) {
-      await expect(svc(who, (tx, p) => OC.setShowNames(tx, p, current.id, true)), who).rejects.toThrow(REFUSED);
-    }
-    await svc(U.cadmin, (tx, p) => OC.setShowNames(tx, p, current.id, true), true);
-    expect((await mine()).map((m) => [m.titleEn, m.name])).toEqual([["Chief financial officer", "Nawaf Outsider"]]);
+    expect(await svc(U.owner, (tx, p) => OC.myManager(tx, p))).toEqual([]);
     // The owner reads no structure at all.
     expect(await svc(U.owner, (tx, p) => OC.hasStructure(tx, p, SAHM))).toBe(false);
     await expect(svc(U.owner, (tx, p) => OC.getStructure(tx, p, SAHM))).rejects.toThrow(REFUSED);
-    // Off again: no name.
-    await svc(U.cadmin, (tx, p) => OC.setShowNames(tx, p, current.id, false), true);
-    expect((await mine())[0]!.name).toBeNull();
-    // Someone with no position has no manager line; firm staff neither.
-    expect(await svc(U.mgr, (tx, p) => OC.myManager(tx, p))).toEqual([]);
+    // Firm staff have no manager line.
     expect(await svc(U.lead, (tx, p) => OC.myManager(tx, p))).toEqual([]);
+  });
+
+  it("names the manager only while names are shown, from the version in effect, never one published to start later", async () => {
+    // At Other (in effect since today): a secretary reporting to the chair, held by the leaver, now Other's action owner.
+    const d = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, OTHER));
+    const chair = d.positions.find((x) => x.code === "1.1")!;
+    await svc(U.lead, (tx, p) => OC.addPosition(tx, p, d.units[0]!.id, { code: "1.3", titleEn: "Secretary", reportsToId: chair.id }), true);
+    await svc(U.lead, async (tx, p) => OC.publish(tx, p, OTHER, { draftId: (await OC.getDraft(tx, p, OTHER)).draft!.id, effectiveOn: firmToday() }), true);
+    const live = await svc(U.oadmin, (tx, p) => OC.getPublishedChart(tx, p, OTHER));
+    await svc(U.oadmin, (tx, p) => OC.changeHolder(tx, p, live.positions.find((x) => x.code === "1.1")!.id, { start: { name: "Typed Chair", from: firmToday() } }), true);
+    await svc(U.oadmin, (tx, p) => OC.changeHolder(tx, p, live.positions.find((x) => x.code === "1.3")!.id, { start: { userId: U.leaver, from: firmToday() } }), true);
+    const mine = () => svc(U.leaver, async (tx, p) => (await OC.myManager(tx, p)).map((m) => [m.titleEn, m.name]));
+    expect(await mine()).toEqual([["Chair", null]]);
+    // Only the client's admin switches names on.
+    for (const who of [U.lead, U.admin, U.leaver, U.cadmin]) {
+      await expect(svc(who, (tx, p) => OC.setShowNames(tx, p, live.version!.id, true)), who).rejects.toThrow(REFUSED);
+    }
+    await svc(U.oadmin, (tx, p) => OC.setShowNames(tx, p, live.version!.id, true), true);
+    expect(await mine()).toEqual([["Chair", "Typed Chair"]]);
+    // Version 4, from a later day, puts the secretary under a new chief executive: until then, "your manager" stays the chair.
+    const d2 = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, OTHER));
+    const ceo = await svc(U.lead, (tx, p) => OC.addPosition(tx, p, d2.units[0]!.id, { code: "1.4", titleEn: "Chief executive", reportsToId: d2.positions.find((x) => x.code === "1.1")!.id }), true);
+    await svc(U.lead, (tx, p) => OC.setReportsTo(tx, p, d2.positions.find((x) => x.code === "1.3")!.id, ceo.id), true);
+    await svc(U.lead, async (tx, p) => OC.publish(tx, p, OTHER, { draftId: (await OC.getDraft(tx, p, OTHER)).draft!.id, effectiveOn: plus(10) }), true);
+    expect(await mine()).toEqual([["Chair", "Typed Chair"]]);
+    // Names off again (the current version's switch): no name.
+    const current = (await svc(U.oadmin, (tx, p) => OC.getPublishedChart(tx, p, OTHER))).version!;
+    await svc(U.oadmin, (tx, p) => OC.setShowNames(tx, p, current.id, false), true);
+    expect(await mine()).toEqual([["Chair", null]]);
   });
 });
 
@@ -643,5 +659,32 @@ describe("what the review found untested", () => {
     await q(`DELETE FROM notifications`);
     await svc(U.lead, (tx, p) => OC.closeChangeRequest(tx, p, asked, "done"), true);
     expect((await q(`SELECT user_id FROM notifications WHERE kind LIKE 'org_chart.request_%'`)).rows).toEqual([]);
+  });
+});
+
+describe("the review's notes", () => {
+  it("refuses a publish when the draft changed after the screen showed it (N2); the answer is what the database did (N1)", async () => {
+    const before = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, SAHM, plus(7)));
+    expect(before.revision).toMatch(/^[0-9a-f]{32}$/);
+    // Nobody but the draft's editors gets a revision.
+    for (const who of [U.cadmin, U.obs]) {
+      const { rows } = await as(who, (c) => c.query(`SELECT app_org_chart_draft_revision($1) AS r`, [before.draftId]));
+      expect(rows[0].r, who).toBeNull();
+    }
+    // Someone plans a person for the draft meanwhile: the screen's revision no longer matches.
+    await plan((await draftPosition("2.1.2")).id, { name: "Carl Typed" });
+    const err = await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId: before.draftId, revision: before.revision!, effectiveOn: plus(7) })).catch((e: Error) => e);
+    expect(orgChartError((err as Error).message)).toBe("draftEdited");
+    const fresh = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, SAHM, plus(7)));
+    expect(fresh.revision).not.toBe(before.revision);
+    expect(fresh.plans.map((x) => [x.name, x.outcome, x.leaving])).toEqual([["Carl Typed", "place", ["Owner Person"]]]);
+    await truncateAuditLog(owner);
+    const done = await svc(U.lead, (tx, p) => OC.publish(tx, p, SAHM, { draftId: fresh.draftId, revision: fresh.revision!, effectiveOn: plus(7) }), true);
+    expect(done.placed.map((x) => [x.name, x.leaving])).toEqual([["Carl Typed", ["Owner Person"]]]);
+    const audits = (await q(`SELECT action, meta FROM audit_log WHERE action IN ('org_chart.plan', 'org_chart.publish') ORDER BY action`)).rows;
+    expect(audits.map((a) => [a.action, a.meta.placed, a.meta.skipped])).toEqual([
+      ["org_chart.plan", 1, 0],
+      ["org_chart.publish", 1, 0],
+    ]);
   });
 });

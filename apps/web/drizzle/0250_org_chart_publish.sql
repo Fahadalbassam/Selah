@@ -65,7 +65,29 @@ $$;
 --    plan of the published draft is removed before the copy that becomes the
 --    next draft is made (so none follows it: carry_plans_to_draft()). The
 --    audit row counts placed and skipped plans, never a name.
-CREATE OR REPLACE FUNCTION app_publish_org_chart(cid uuid, p_draft uuid, p_effective date, p_resolution uuid) RETURNS uuid
+--
+--    The draft's revision (review N2): a fingerprint of its units, positions
+--    and plans, which the publishing screen carries from what it showed. For
+--    the draft's editors only (null for anyone else).
+CREATE FUNCTION app_org_chart_draft_revision(p_draft uuid) RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT md5(
+    coalesce((SELECT string_agg(concat_ws('|', u.id, u.parent_id, u.kind, u.code, u.name_ar, u.name_en, u.level, u.sort_order, u.advisory, u.department_id), ',' ORDER BY u.id)
+              FROM org_units u WHERE u.version_id = v.id), '')
+    || '#' || coalesce((SELECT string_agg(concat_ws('|', p.id, p.lineage_id, p.unit_id, p.code, p.title_ar, p.title_en, p.reports_to_id, p.is_head,
+                          array_to_string(p.specialties, ';'), p.planned_count, p.sort_order), ',' ORDER BY p.id)
+                        FROM positions p WHERE p.version_id = v.id), '')
+    || '#' || coalesce((SELECT string_agg(concat_ws('|', h.id, h.position_id, h.user_id, h.name, h.sort_order), ',' ORDER BY h.id)
+                        FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id WHERE p.version_id = v.id), ''))
+  FROM org_chart_versions v WHERE v.id = p_draft AND v.state = 'draft' AND app_org_chart_editor(v.org_id)
+$$;
+--> statement-breakpoint
+-- The publish itself. With a revision (the publishing screen), refused when
+-- the draft changed since it was shown. Everything about the plans is
+-- worked out here, inside the chart's lock, and returned (review N1), so
+-- the answer, the service's audit row and what the database did agree:
+-- {version, number, plans: [{code, user_id, name, outcome, leaving}]}.
+CREATE FUNCTION app_publish_org_chart_checked(cid uuid, p_draft uuid, p_revision text, p_effective date, p_resolution uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   c org_charts;
@@ -91,6 +113,9 @@ BEGIN
   SELECT * INTO d FROM org_chart_versions v WHERE v.chart_id = cid AND v.state = 'draft' FOR UPDATE;
   IF d.id IS DISTINCT FROM p_draft THEN
     RAISE EXCEPTION 'this draft is no longer the current one; reload the page' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_revision IS NOT NULL AND p_revision IS DISTINCT FROM app_org_chart_draft_revision(d.id) THEN
+    RAISE EXCEPTION 'the draft changed since you checked it; check it again, then publish' USING ERRCODE = 'check_violation';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM org_units u WHERE u.version_id = d.id) THEN
     RAISE EXCEPTION 'the draft has no units yet' USING ERRCODE = 'check_violation';
@@ -143,8 +168,16 @@ BEGIN
   INSERT INTO org_chart_versions (chart_id, org_id, state, based_on_id, created_by)
     VALUES (cid, c.org_id, 'draft', d.id, app_uid()) RETURNING id INTO fresh;
   PERFORM app_org_chart_copy(d.id, fresh);
-  RETURN d.id;
+  RETURN jsonb_build_object('version', d.id, 'number', next_number,
+    'plans', coalesce((SELECT jsonb_agg(jsonb_build_object('position_id', x->'position_id', 'code', x->'code', 'user_id', x->'user_id', 'name', x->'name',
+                         'outcome', x->'outcome', 'leaving', x->'leaving')) FROM jsonb_array_elements(plans) x), '[]'::jsonb));
 END $$;
+--> statement-breakpoint
+-- The publish as part 1 called it (no revision): the same, returning the published version.
+CREATE OR REPLACE FUNCTION app_publish_org_chart(cid uuid, p_draft uuid, p_effective date, p_resolution uuid) RETURNS uuid
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT (app_publish_org_chart_checked(cid, p_draft, NULL, p_effective, p_resolution) ->> 'version')::uuid
+$$;
 --> statement-breakpoint
 -- 2b. The positions a new version drops (latest definition:
 --     0097_org_chart_editor). Defence in depth beside the rule above (the
@@ -209,6 +242,38 @@ END $$;
 CREATE TRIGGER org_chart_change_request_answered AFTER UPDATE OF status ON org_chart_change_requests
   FOR EACH ROW WHEN (OLD.status = 'open' AND NEW.status <> 'open') EXECUTE FUNCTION notify_org_chart_request_answered();
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app_org_chart_plan_outcomes(uuid, date), notify_org_chart_request_answered() FROM PUBLIC;
+-- 4. "Your manager" (latest definition: 0091_org_chart), shown in every
+--    page's menu (part 5): read from the version in effect today, the
+--    latest published one whose day has come (review N4), never one
+--    published to start later; the name, as before, only while the current
+--    version shows names (one switch), or for the client's admin.
+CREATE OR REPLACE FUNCTION app_my_manager()
+RETURNS TABLE (my_position_id uuid, position_id uuid, code text, title_ar text, title_en text, holder_name text, vacant boolean)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  WITH cur AS (
+    SELECT v.show_names FROM org_chart_versions v JOIN organizations o ON o.id = v.org_id
+    WHERE app_org_kind() = 'client' AND v.org_id = app_org() AND v.state = 'published' AND NOT o.minimal_records
+  ), v AS (
+    SELECT v.id, (SELECT cur.show_names FROM cur) AS show_names FROM org_chart_versions v
+    WHERE EXISTS (SELECT 1 FROM cur) AND v.org_id = app_org() AND v.state <> 'draft' AND v.effective_on <= app_firm_today()
+    ORDER BY v.number DESC LIMIT 1
+  ), mine AS (
+    SELECT DISTINCT p.id, p.reports_to_id, v.show_names FROM v JOIN positions p ON p.version_id = v.id
+      JOIN position_holders h ON h.position_lineage_id = p.lineage_id
+    WHERE h.user_id = app_uid() AND h.from_date <= app_firm_today() AND (h.to_date IS NULL OR h.to_date >= app_firm_today())
+      AND p.reports_to_id IS NOT NULL
+  )
+  SELECT m.id, b.id, b.code, b.title_ar, b.title_en,
+    CASE WHEN m.show_names OR app_role() = 'client_admin' THEN coalesce(h.name, u.name) END,
+    h.id IS NULL
+  FROM mine m JOIN positions b ON b.id = m.reports_to_id
+    LEFT JOIN position_holders h ON h.position_lineage_id = b.lineage_id
+      AND h.from_date <= app_firm_today() AND (h.to_date IS NULL OR h.to_date >= app_firm_today())
+    LEFT JOIN "user" u ON u.id = h.user_id
+  ORDER BY m.id, h.from_date
+$$;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app_org_chart_plan_outcomes(uuid, date) TO selah_app;
+REVOKE ALL ON FUNCTION app_org_chart_plan_outcomes(uuid, date), notify_org_chart_request_answered(), app_org_chart_draft_revision(uuid),
+  app_publish_org_chart_checked(uuid, uuid, text, date, uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app_org_chart_plan_outcomes(uuid, date), app_org_chart_draft_revision(uuid), app_publish_org_chart_checked(uuid, uuid, text, date, uuid) TO selah_app;
