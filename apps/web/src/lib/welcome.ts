@@ -2,7 +2,7 @@
 // home, one short set for each role, never a tour that covers the screen.
 // Each set says what this home is for (`welcome.home.<role>`) and the first
 // few things to do (`welcome.steps.<role>`), each step a link. Plain module:
-// the home page and tests/welcome.test.ts share it.
+// the home page and tests/help-in-app.test.ts share it.
 
 import type { Role } from "@/authz";
 

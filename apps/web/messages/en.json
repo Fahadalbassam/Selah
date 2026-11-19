@@ -403,7 +403,7 @@
   "actionsPage": {
     "title": "Actions",
     "mine": "Actions assigned to you",
-    "empty": "No actions for you yet. Actions appear here once they are released on your projects.",
+    "empty": "No actions for you yet. Your actions appear here, each with its next step.",
     "emptyFiltered": "Nothing for you in this list right now.",
     "filtersLabel": "Action lists",
     "filters": {
@@ -6840,7 +6840,7 @@
       }
     },
     "visibility": {
-      "shared": "Both the firm and the company's people on the project see it.",
+      "shared": "Shared between the firm and the company; who sees it follows the project, its department and any audience set on it.",
       "firm_private": "Only the firm's people see it; the client never does.",
       "client_private": "Only your company's people see it; the firm does not.",
       "user_private": "Only the person who added it sees it."
@@ -6849,7 +6849,7 @@
       "firm_admin": "Adds clients, names each one's lead consultant and sets the firm's defaults.",
       "consultant": "Works only on the clients and projects they are assigned to.",
       "client_admin": "Sees all of the company's work in Selah and invites its people.",
-      "client_manager": "Follows the company's work, only in their own departments when the company uses departments.",
+      "client_manager": "Follows company-wide work and their own department's, on the projects they were added to.",
       "action_owner": "Sees only the actions given to them, and sends what shows they are done.",
       "clientLead": "Leads the firm's work with this client: sees all its projects and staffs them.",
       "clientDeputy": "Stands in for the lead, with the same say in this client's work.",
@@ -6886,7 +6886,7 @@
       "welcomeDismiss": "Hides this welcome in this browser for good.",
       "removeAttendee": "Takes them off the meeting; if their invitation went out, their calendar gets a cancellation.",
       "removeComment": "Removes this comment; a line saying when it was removed stays in its place.",
-      "chatArchive": "Moves the chat to the archive; you can bring it back at any time.",
+      "chatArchive": "Moves the chat to the archive; you can bring it back until it is deleted on schedule.",
       "chatDelete": "Deletes the chat and its messages for good.",
       "askAbout": "Opens the assistant in a chat about this item."
     }

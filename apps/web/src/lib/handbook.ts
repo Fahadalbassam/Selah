@@ -2,7 +2,7 @@
 // part of the handbook, and nothing else. The guides are written in
 // `docs/handbook/` (Arabic and English); `npm run handbook:copy` copies them
 // into `handbook-content.ts` so the app carries them (the web image is built
-// from `apps/web` alone), and tests/handbook.test.ts fails when the copy and
+// from `apps/web` alone), and tests/help-in-app.test.ts fails when the copy and
 // the files in `docs/handbook/` differ. Until a guide is written, its part is
 // empty: no link, no page (a 404), never a placeholder.
 //
@@ -90,7 +90,8 @@ export type Block =
   | { kind: "list"; ordered: boolean; items: Inline[][] }
   | { kind: "table"; head: Inline[][]; rows: Inline[][][] };
 
-const SAFE_HREF = /^(\/(?!\/)|#)/;
+// An address inside Selah ("/…"; never "//…" or "/\…", which browsers read as another site), or a heading ("#…").
+const SAFE_HREF = /^(\/(?![/\\])|#)/;
 
 export function parseInline(src: string): Inline[] {
   const out: Inline[] = [];

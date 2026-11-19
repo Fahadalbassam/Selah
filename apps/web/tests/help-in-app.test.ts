@@ -131,6 +131,10 @@ describe("reading a guide's Markdown", () => {
     const last = blocks[5]!;
     expect(last.kind === "paragraph" && last.text.filter((p) => p.kind === "link").map((p) => (p as { href: string }).href)).toEqual(["/help", "#roles"]);
     expect(JSON.stringify(blocks)).not.toContain("script");
-    expect(parseInline("[x](//evil.example)")).toEqual([{ kind: "text", text: "x" }]);
+    // Browsers read "//host", "/\host" and "\\host" as another site: drawn as text, never as a link.
+    for (const href of ["//evil.example", "/\\evil.example", "\\\\evil.example", "\\evil.example", "https://evil.example", "javascript:void"]) {
+      expect(parseInline(`[x](${href})`), href).toEqual([{ kind: "text", text: "x" }]);
+    }
+    expect(parseInline("[Help](/help)")).toEqual([{ kind: "link", text: "Help", href: "/help" }]);
   });
 });
