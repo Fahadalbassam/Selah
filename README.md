@@ -10,12 +10,14 @@ Selah connects consulting outputs (recommendations, policies, structures) to own
 
 - **The firm** is the consulting company running Selah. Its staff are a firm admin and consultants.
 - **Internal projects** belong to the firm itself. Only firm staff who are members see them; clients never do.
-- **Client projects** belong to a client organization. A consultant sees a client only when the firm admin assigns them to it (`client_assignments`), and then sees all of that client's projects. Other consultants don't.
+- **Client projects** belong to a client organization. A consultant reaches a client only through its team (`client_assignments`: the firm admin adds them, or the client's lead does). Being on the team opens the client's name and team, not its projects: a consultant sees only the projects they are staffed on (`project_members`). The client's lead consultant and deputy see all of its projects. Other consultants see the client's name only.
 - **Client users** (client admin, client manager, action owner) see only their own organization. Firm documents stay `firm_private` unless someone chooses to share them with the client.
 
 New to the project? Start with [docs/handoff.md](docs/handoff.md): what Selah is, how it works, what is built and what it is built with.
 
-Design documents: the **Scope, Permissions and AI Access Spec** and the **Stack Decision Record** (shared separately). This repo implements them.
+The handbook for the firm and its clients is in [docs/handbook/](docs/handbook/en.md) (Arabic and English): the firm guide, the client guide, what Selah will not do, and the technical pack for the firm's IT person.
+
+The rules the design set out (who sees what, what the assistant may read, the stack) are written down in this repository: [docs/authorization.md](docs/authorization.md), [docs/rules.md](docs/rules.md), [docs/assistant.md](docs/assistant.md), and the stack and key decisions in [docs/handoff.md](docs/handoff.md). Where an older design note and these files differ, these files and the code win.
 
 ## Layout
 
@@ -29,7 +31,7 @@ apps/web/            Next.js app: both portals and the API (TypeScript)
   src/app/           Pages: (app) is the signed-in shell, (auth) is sign-in
   src/components/    App sidebar, tables, badges; components/ui is shadcn/ui
   messages/          Arabic and English strings (next-intl)
-  drizzle/           SQL migrations: 0000_baseline.sql holds the whole schema, incl. row-level security
+  drizzle/           SQL migrations, applied in order: 0000_baseline.sql is the starting schema; each later file adds to it or redefines a function or policy (the latest file wins)
   tests/             Unit tests, route guard, and Postgres RLS tests (tests/db)
 services/ai/         Python FastAPI service: cited answers via a swappable LLM provider
 db/init/             Creates database roles on first start
@@ -89,7 +91,7 @@ npm run dev
 
 ## Frontend
 
-Built from the free official shadcn/ui blocks: `sidebar-07` (collapsible icon sidebar with the user menu at the bottom), `sidebar-03` (grouped sub-menus) and the cards and tables from `dashboard-01`. Arabic is the default and the layout flips to right-to-left; English is a toggle in the user menu, as is dark mode. Every page loads its data through `withPrincipal()` and the read services in `src/services/queries.ts`, which run each row through `authorize()`, so the UI shows exactly what the API allows.
+Built from the free official shadcn/ui blocks: `sidebar-07` (collapsible icon sidebar with the user menu at the bottom), `sidebar-03` (grouped sub-menus) and the cards and tables from `dashboard-01`. Arabic is the default and the layout flips to right-to-left; English is the **EN / عربي** button in the top bar, and dark mode is the icon beside it. The user menu at the foot of the sidebar holds mail options, two-factor sign-in and, by role, settings or help, not the language or the theme. Every page loads its data through `withPrincipal()` and the read services in `src/services/queries.ts`, which run each row through `authorize()`, so the UI shows exactly what the API allows.
 
 ## Tests
 
