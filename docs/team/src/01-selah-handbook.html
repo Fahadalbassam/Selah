@@ -1,0 +1,1033 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Selah Team Handbook</title>
+<style>:root{--ink:#1a1a1a;--mute:#5b5b5b;--line:#d9d9d6;--soft:#f3f3f1;--accent:#1f3a5f;--ok:#2f6b3f;--warn:#9a6a00;--bad:#9b2c2c}
+*{box-sizing:border-box}
+html{font-size:10pt}
+body{font-family:"Segoe UI","IBM Plex Sans","Tahoma","Arial",sans-serif;color:var(--ink);line-height:1.45;margin:0;background:#fff}
+[lang=ar],.ar{font-family:"Segoe UI","IBM Plex Sans Arabic","Tahoma","Arial",sans-serif;unicode-bidi:isolate}
+.kicker{font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 4mm}
+h1{font-size:23pt;line-height:1.15;margin:0 0 3mm;color:var(--accent)}
+h2{font-size:15pt;margin:8mm 0 2.5mm;color:var(--accent);border-top:1.2pt solid var(--accent);padding-top:3mm;break-after:avoid}
+h3{font-size:11.5pt;margin:5mm 0 1.5mm;break-after:avoid}
+h4{font-size:10pt;margin:3mm 0 1mm;break-after:avoid}
+p{margin:0 0 2.2mm}
+ul,ol{margin:0 0 2.5mm;padding-left:5.5mm}
+li{margin-bottom:.8mm}
+.lead{font-size:11pt;color:#333}
+table{border-collapse:collapse;width:100%;margin:2mm 0 4mm;font-size:8.8pt}
+th{background:var(--accent);color:#fff;text-align:left;padding:1.6mm 2mm;font-weight:600}
+td{border-bottom:.5pt solid var(--line);padding:1.5mm 2mm;vertical-align:top}
+tr{break-inside:avoid}
+tbody tr:nth-child(even) td{background:#fafaf8}
+code{font-family:Consolas,monospace;font-size:8.5pt;background:var(--soft);padding:0 1mm;border-radius:1mm}
+pre{background:var(--soft);padding:2.5mm;font-size:8pt;white-space:pre-wrap;border-radius:1.5mm;break-inside:avoid}
+pre code{background:none;padding:0}
+.box{background:var(--soft);border-left:2pt solid var(--accent);padding:2.5mm 3.5mm;margin:2.5mm 0 4mm;break-inside:avoid}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.box.warn{border-left-color:var(--warn)}
+.box.ok{border-left-color:var(--ok)}
+.box.bad{border-left-color:var(--bad)}
+blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);color:#333;background:#fafaf8}
+.tag{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.04em;padding:.2mm 1.6mm;border-radius:1mm;border:.6pt solid;vertical-align:1pt;white-space:nowrap}
+.built,.solid{color:var(--ok);border-color:var(--ok)}
+.part,.partial{color:var(--warn);border-color:var(--warn)}
+.open,.missing{color:var(--bad);border-color:var(--bad)}
+.later{color:var(--mute);border-color:var(--mute)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:1.5mm;margin:2mm 0 4mm;break-inside:avoid}
+.flow .step{flex:1 1 22mm;min-width:22mm;max-width:40mm;border:.8pt solid var(--accent);background:#fff;border-radius:1.5mm;padding:1.6mm 2mm;font-size:8.3pt;text-align:center;display:flex;align-items:center;justify-content:center}
+.flow .step.who{background:var(--accent);color:#fff;border-color:var(--accent)}
+.flow .step.dash{border-style:dashed;color:var(--mute)}
+.flow .arr{align-self:center;color:var(--accent);font-weight:700;font-size:10pt}
+.stat{display:flex;gap:3mm;margin:3mm 0 4mm}
+.stat div{flex:1;border:.6pt solid var(--line);border-radius:1.5mm;padding:2mm 3mm;break-inside:avoid}
+.stat b{display:block;font-size:15pt;color:var(--accent)}
+.toc{columns:2;column-gap:8mm;font-size:9pt;margin:2mm 0 4mm}
+.toc div{break-inside:avoid;margin-bottom:.8mm}
+.small{font-size:8.3pt;color:var(--mute)}
+
+@page{size:A4 portrait;margin:15mm 15mm 17mm 15mm;
+ @bottom-left{content:"Selah team handbook";font:7.5pt 'Segoe UI',sans-serif;color:#777}
+ @bottom-right{content:counter(page) " / " counter(pages);font:7.5pt 'Segoe UI',sans-serif;color:#777}}
+</style></head><body><p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #213 · 20 November 2026</p>
+
+<h1>Selah, explained for the team</h1>
+<p>This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #213, database migrations up to 0114).</p>
+<p>Two companion documents go with it: <strong>Workflows</strong> (the everyday flows step by step, and what the scenario tests found so far) and <strong>Production path</strong> (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.</p>
+<div class="box">
+<p><strong>What is new since the 6 November edition.</strong> Help and a role guide inside the app. A privacy clean-up (five leaks found and fixed). Restricted clients can finally work. The client assistant answers "who is my consultant" and "my deadlines". Staff get a facts-only progress draft that opens the report page. Reports have templates, a second person's approval and a confirmed send. Files can be attached in a question with @. The client is told when the lead consultant changes, and the firm is reminded before an engagement ends. The client's organisation structure (org chart). A local model (qwen3.5:4b), better Arabic search, a scanner for personal numbers, and slow AI work as background jobs. The full list is in section 19.</p>
+</div>
+<div class="toc">
+<div>01 What Selah is</div><div>02 Words we use</div><div>03 The core loop</div><div>04 Firm-side roles</div><div>05 Client-side roles</div><div>06 Every screen and what you do there</div><div>07 From first contact to goodbye</div><div>08 When things go wrong</div><div>09 Files</div><div>10 The assistant</div><div>11 Meetings and summaries</div><div>12 Reports, templates and sending</div><div>13 The client's organisation structure</div><div>14 Internal projects</div><div>15 Help and guides inside the app</div><div>16 The design rules</div><div>17 How to try it yourself</div><div>18 Also in Selah</div><div>19 What changed in this run</div>
+</div>
+
+<h2>01 What Selah is</h2>
+<p>A consulting firm finishes its work and hands the client plans, policies, a new structure and a list of recommendations. Then the hard part starts: making sure the client actually does them. Today that happens in emails, Excel sheets and WhatsApp. Nobody can see what is really done.</p>
+<p>Selah (<span class="ar" dir="rtl" lang="ar">سلة</span>, "connection") connects the consultant and the client around that follow-up. Each recommendation gets an owner, a deadline and actions. The client reports progress and uploads proof. The consultant checks the proof and either accepts it or sends it back. Both sides see the same, true picture.</p>
+<table>
+<thead>
+<tr>
+<th>Selah does</th>
+<th>Selah never does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Record what the consultant recommended and who must do it</td>
+<td>Write official recommendations itself</td>
+</tr>
+<tr>
+<td>Chase late work automatically</td>
+<td>Approve evidence or decide if work is good enough</td>
+</tr>
+<tr>
+<td>Keep proof (evidence) and the consultant's decision on it</td>
+<td>Make governance judgements or rule on legal compliance</td>
+</tr>
+<tr>
+<td>Show both sides honest progress and reports</td>
+<td>Claim business impact from a percentage</td>
+</tr>
+<tr>
+<td>Answer questions about the files and records you may see (the assistant)</td>
+<td>Send a report, a message or a draft on its own</td>
+</tr>
+<tr>
+<td>Suggest drafts and next steps for a person to check</td>
+<td>Approve, close or change anything for you</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Six facts to remember</strong></p>
+<ul>
+<li><strong>Generic product.</strong> It is built for any consulting firm. The partner firm is never named in the product, the screens or the documents. The sample firm is called Mizan Advisory.</li>
+<li><strong>One install, one firm.</strong> Each firm gets its own installation with all its clients inside.</li>
+<li><strong>Arabic first.</strong> Arabic right-to-left is the default; every screen, email and export also exists in English.</li>
+<li><strong>Presented as a production app.</strong> No "demo" or "prototype" labels. It still runs on sample data only, because hosting and data handling are not approved for real client data yet (see the Production path).</li>
+<li><strong>No client ever sees another client.</strong> If you are not allowed to see something, Selah answers "Not found", as if it did not exist. Two independent checks guard this, one in the app and one in the database. Every scenario test so far found no privacy leak.</li>
+<li><strong>Automation suggests, a person decides.</strong> This is the rule for the assistant today and for every future feature.</li>
+</ul>
+<h2>02 Words we use</h2>
+<table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Firm</td>
+<td>The consulting firm that runs Selah (its admins and consultants).</td>
+</tr>
+<tr>
+<td>Client</td>
+<td>A company the firm works for. Each client is sealed off from every other client.</td>
+</tr>
+<tr>
+<td>Project</td>
+<td>One piece of agreed work for a client, for example "Board governance". A client can have many projects (one per phase or scope).</td>
+</tr>
+<tr>
+<td>Finding</td>
+<td>A problem or gap the consultant found (for example from an assessment).</td>
+</tr>
+<tr>
+<td>Recommendation</td>
+<td>What the consultant advises the client to do about it. Can also be a board decision.</td>
+</tr>
+<tr>
+<td>Action</td>
+<td>A concrete task under a recommendation, with one owner and a due date.</td>
+</tr>
+<tr>
+<td>Evidence</td>
+<td>A file that proves an action was done (a signed charter, minutes, a policy).</td>
+</tr>
+<tr>
+<td>Review</td>
+<td>The consultant's decision on evidence: accept (verified) or ask for a revision.</td>
+</tr>
+<tr>
+<td>Engagement</td>
+<td>The signed contract record between the firm and the client, with its dates and deliverables.</td>
+</tr>
+<tr>
+<td>Inquiry</td>
+<td>A request from a possible new client, from the public form or entered by staff.</td>
+</tr>
+<tr>
+<td>Pitch</td>
+<td>A draft client the firm is trying to win. Only the firm sees it.</td>
+</tr>
+<tr>
+<td>Report</td>
+<td>A frozen picture of a project's numbers, with a note. A client sees it only after approval and a confirmed send.</td>
+</tr>
+<tr>
+<td>Template</td>
+<td>A starting outline for a report: monthly progress, steering summary or closing summary, in Arabic and English.</td>
+</tr>
+<tr>
+<td>Structure</td>
+<td>The client's organisation chart: units, positions and the people in them. It never changes who sees what.</td>
+</tr>
+<tr>
+<td>Job</td>
+<td>Slow work that runs in the background in one shared queue: reading files, translations, summaries, an org chart draft from pasted text.</td>
+</tr>
+<tr>
+<td>Firm-only</td>
+<td>Anything the client can never see: internal notes, scores, internal projects. Marked with a lock icon.</td>
+</tr>
+</tbody>
+</table>
+<h2>03 The core loop</h2>
+<p>Everything in Selah serves this one chain. The rest of the product is what happens around it.</p>
+<div class="flow"><div class="step">Assessment (optional)</div><div class="arr">&rarr;</div><div class="step">Finding</div><div class="arr">&rarr;</div><div class="step">Recommendation</div><div class="arr">&rarr;</div><div class="step">Owner + deadline</div><div class="arr">&rarr;</div><div class="step">Actions</div><div class="arr">&rarr;</div><div class="step">Progress + evidence</div><div class="arr">&rarr;</div><div class="step">Consultant review</div><div class="arr">&rarr;</div><div class="step">Follow-up + reports</div></div>
+
+<ol>
+<li><strong>The firm writes the plan.</strong> Consultants type findings and recommendations, or import them from Excel or Word.</li>
+<li><strong>The client answers.</strong> The client admin or the project's sponsor says "agree", "partly agree" or "disagree" on each recommendation, with a reason.</li>
+<li><strong>Actions are released.</strong> An action starts as a draft the client cannot see. The consultant releases it with an owner and a due date.</li>
+<li><strong>The client works.</strong> The owner starts it, says if they are stuck, asks for a new date if needed, talks to the consultant on the action, and sends evidence.</li>
+<li><strong>The firm reviews.</strong> A consultant accepts the evidence (the action becomes verified) or sends it back with a reason. Nobody reviews their own work. Some work needs a second consultant to sign off too.</li>
+<li><strong>Follow-up.</strong> Reminders and a four-step ladder chase late work. Meetings get an automatic agenda. A monthly status pack is drafted for the consultant. Reports reach the client only after a colleague approves and a person confirms the send.</li>
+</ol>
+<p><strong>The states an action moves through</strong></p>
+<div class="flow"><div class="step">Draft</div><div class="arr">&rarr;</div><div class="step">Assigned</div><div class="arr">&rarr;</div><div class="step">In progress</div><div class="arr">&rarr;</div><div class="step">Awaiting review</div><div class="arr">&rarr;</div><div class="step">Verified complete</div></div>
+
+<p>From Awaiting review the consultant can also choose <strong>Revision requested</strong>, which goes back to In progress. "Blocked" and "late" are rules shown on an action, not states. Any open action can be <strong>Closed</strong> with an outcome (partly done, risk accepted, not applicable, replaced by another action). The firm can reopen a verified or closed action with a reason.</p>
+<div class="box">
+<p><strong>The most important rule in Selah: four things are never mixed.</strong> A person saying the work is done (Awaiting review). The evidence they uploaded. A consultant verifying it (only this turns green; the database itself refuses "verified" without a consultant's accept). Real business impact, which Selah never claims: client numbers are always labelled "client-reported, not verified impact".</p>
+</div>
+<h2>04 Firm-side roles</h2>
+<p>Access is never decided by role alone. Selah checks five things every time: which organisation you belong to, your role, which projects you are on, what you are assigned, and how private the record is. So two consultants with the same role can see very different things. The check runs twice, once in the app and once in the database.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Can do</th>
+<th>Cannot do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Firm admin</strong> (<span class="ar" dir="rtl" lang="ar">مدير المكتب</span>)</td>
+<td>See every client and project. Add clients (only admins can). Name each client's lead and deputy. Record signed engagements. Win inquiries into clients and run the conflict check. Do the final close of a project and reopen it. Archive or restore a client, place a legal hold, make the export pack. Offer the client assistant. Set the second sign-off rule. Firm settings, audit log, team load, expertise. Hand over a leaving person's work. Review the work when nobody else on a firm-run client can.</td>
+<td>See client-private files. Get notifications for work they do not follow (they must co-consult or "watch"). Review work they submitted themselves.</td>
+</tr>
+<tr>
+<td><strong>Lead consultant</strong> (one per client)</td>
+<td>See all of that client's projects. Add or remove consultants on the client and staff them on projects. Approve or decline join requests. Start closing a project. Name client roles (sponsor, coordinator). Publish the client's structure. Decide a third date extension. Approve reports. Hand over deliverables.</td>
+<td>Do the final close (admin only). Remove the deputy. Change or remove the lead (admin only).</td>
+</tr>
+<tr>
+<td><strong>Deputy</strong> (optional, one per client)</td>
+<td>Everything the lead can do on that client, and a copy of the lead's alerts. A full backup when the lead is away.</td>
+<td>Become accountable: the lead stays the named person. Remove the lead.</td>
+</tr>
+<tr>
+<td><strong>Consultant</strong></td>
+<td>See only the projects they are staffed on, plus a list of client names (nothing else). Ask to join a client's team, with a reason. Write findings, recommendations and actions. Release actions. Review evidence. Decide date requests. Run meetings, request lists and upload links. Draft and share reports. Run assessments. Use the staff assistant. Start a pitch. Create internal projects.</td>
+<td>See a client or project they are not on. Review or close their own work. Give the second sign-off after the first. Add clients or do the final close of a client project.</td>
+</tr>
+<tr>
+<td><strong>Observer</strong></td>
+<td>Read everything on one project. Add notes on its actions.</td>
+<td>Change anything else. Own actions. Review. Edit indicators or reports.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>How clients get their consultants</strong></p>
+<ul>
+<li><strong>The admin decides who leads.</strong> When an inquiry is won, or from the client page, the admin names the lead. Selah suggests up to five consultants by matching the services asked for, the sector, the requester's language, whether they take new clients, and how many clients they already have. It only suggests. No performance scores go into it.</li>
+<li><strong>Expertise profiles.</strong> Under Team the admin records each consultant's service areas and sectors. Each consultant also keeps their own languages and whether they can take a new client. A consultant with no profile is never suggested.</li>
+<li><strong>The lead staffs the projects.</strong> Being on a client's team only makes a consultant eligible. The lead (or deputy, or admin) puts them on each project.</li>
+<li><strong>Consultants can ask to join.</strong> They see the client directory (names only) and send a request with a reason. The admin or the client's lead decides once.</li>
+<li><strong>The interviewer need not be the lead.</strong> The first conversation (discovery) is run by whoever owns the inquiry. When the inquiry is won, the admin names the lead separately. The discovery notes stay linked to the new client either way.</li>
+</ul>
+<p><strong>Switching the consultant on a client</strong></p>
+<ul>
+<li><strong>Change the lead:</strong> the firm admin, on the client page. A client with consultants must always have a lead, so the swap happens in one step. <strong>The client and the old lead are told, and a handover note travels with the change</strong> (new in this run).</li>
+<li><strong>Add or remove a consultant:</strong> the lead, deputy or admin. Nobody comes off a project while they still own open actions there.</li>
+<li><strong>Someone leaves the firm:</strong> the admin opens the person on Team. Selah lists everything they still hold (open actions, clients they lead, reviews only they can do, client roles) and hands it all to one colleague in one step. Switching the account off is refused until that is done.</li>
+<li><strong>The client wants a different consultant:</strong> there is no button. The client tells the firm (email, or "Ask your consultant" on the Help page) and the firm admin changes the lead.</li>
+</ul>
+<h2>05 Client-side roles</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Can do</th>
+<th>Cannot do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Client admin</strong> (<span class="ar" dir="rtl" lang="ar">مدير حساب العميل</span>)</td>
+<td>See all of their own company: people, departments, projects, files (including files private to the company). Invite and switch off their people, run access reviews, manage departments. Answer recommendations. Move actions and change owners. Upload files (shared with the firm, or private to the company). Sign a risk acceptance. Ask the firm to close a project. Agree to (or switch off) the client assistant. Choose how business numbers reach Selah. Place people in the company's structure. See the company's audit log. During a goodbye period, download the export pack.</td>
+<td>See anything of the firm (internal notes, scores, other clients). Verify or close actions. Write the plan.</td>
+</tr>
+<tr>
+<td><strong>Client manager</strong></td>
+<td>See company-wide work plus their own departments. Move actions, change owners, upload evidence, comment, ask for a new date, sign a risk acceptance. Book shared meetings. Enter business numbers. Use the client assistant if offered and the admin agreed.</td>
+<td>See other departments' work. Invite people. Answer recommendations (unless they are the sponsor).</td>
+</tr>
+<tr>
+<td><strong>Sponsor</strong> (a manager or admin named on a project)</td>
+<td>Answers recommendations for the client. Gets level-3 escalations. Names who keeps each handed-over action going at closing. Can ask the firm to close the project.</td>
+<td>One sponsor per project; naming a new one replaces the old.</td>
+</tr>
+<tr>
+<td><strong>Coordinator</strong></td>
+<td>The day-to-day contact for the project. Same powers as a manager.</td>
+<td>One per project.</td>
+</tr>
+<tr>
+<td><strong>Action owner</strong></td>
+<td>See only their own actions, files shared with them, and their department teammates' files. Start work, say they are stuck, upload evidence, send it for review, ask for a new date, comment, give an action to a colleague where allowed. Sign in with a link by email.</td>
+<td>See other people's actions or how many there are. Use the assistant.</td>
+</tr>
+<tr>
+<td><strong>Contact without an account</strong></td>
+<td>Recorded by the firm (for example the external auditor). Can be invited to meetings and named as an owner for firm-run clients.</td>
+<td>Sign in. Only the firm sees the contact list.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>How much a client takes part</strong></p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Who has accounts</th>
+<th>Who records progress</th>
+<th>Use it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Full</strong></td>
+<td>Any client role</td>
+<td>The client's own people</td>
+<td>The normal case.</td>
+</tr>
+<tr>
+<td><strong>Restricted</strong></td>
+<td>Up to two client admins</td>
+<td>The client admin (fixed in this run: before, the admin had no buttons)</td>
+<td>A client who wants few people inside. Their uploads stay private from the firm until an admin shares them.</td>
+</tr>
+<tr>
+<td><strong>Firm-run</strong> (consultant-managed)</td>
+<td>None</td>
+<td>The consultant, marked "recorded by a consultant" with how and when they heard (email, meeting, phone)</td>
+<td>Family offices and clients who will not log in. A second person must review.</td>
+</tr>
+</tbody>
+</table>
+<p>Departments are optional and off by default. When on, a manager or owner sees only their department's actions and files. A department-limited manager sees her own part of the numbers; a line on her pages now says why her figure differs from the whole project's. Client groups (holdings) add up the numbers of several companies without merging their data.</p>
+<h2>06 Every screen and what you do there</h2>
+<p>Names are as the in-app guides use them. Arabic names are in the sidebar. Admin-only items are marked.</p>
+<h3>Firm side</h3>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>What you do there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Home</strong> (<span class="ar" dir="rtl" lang="ar">الرئيسية</span>)</td>
+<td>What waits for you, each row with its next step: decisions (date requests, join requests, client comments, disputed recommendations, projects ready to close), reviews you may give, late work, follow-ups, meetings this week, and what changed since your last visit. One line of counts at the foot.</td>
+</tr>
+<tr>
+<td><strong>Actions</strong> (<span class="ar" dir="rtl" lang="ar">الإجراءات</span>)</td>
+<td>Lists across the top: All, Assigned to me, Awaiting review, Late, Blocked, No activity, Date moved twice or more, Sent back twice or more, No active owner. On a rule list, <strong>Remind the owner</strong> (once a day). The Projects table gives counts per project, never a health word.</td>
+</tr>
+<tr>
+<td><strong>Projects</strong> (<span class="ar" dir="rtl" lang="ar">المشاريع</span>)</td>
+<td>Client and internal projects. Inside a project five tabs: <strong>Plan</strong>, <strong>Requests and files</strong>, <strong>Meetings</strong>, <strong>Progress</strong>, <strong>People</strong>. A <strong>Closing</strong> tab appears while a project is closing.</td>
+</tr>
+<tr>
+<td><strong>Action page</strong></td>
+<td>The heart of the work: the next step, status, evidence list, review (accept, revision, sign-off), date requests, risk acceptance, give to a colleague, close and reopen, the discussion with mentions, firm-only notes, "Ask the assistant".</td>
+</tr>
+<tr>
+<td><strong>Clients</strong> (<span class="ar" dir="rtl" lang="ar">العملاء</span>)</td>
+<td>Each client's page with four tabs: <strong>Overview</strong>, <strong>People</strong>, <strong>Setup</strong>, <strong>Structure</strong>. Also client groups and "Start a pitch".</td>
+</tr>
+<tr>
+<td><strong>Inquiries</strong> (<span class="ar" dir="rtl" lang="ar">الطلبات الواردة</span>)</td>
+<td>New requests: four numbered steps (owner, discovery, proposal, make a client), the conflict check, the NDA, win into a client or close with a decline email.</td>
+</tr>
+<tr>
+<td><strong>Assessment templates</strong></td>
+<td>Build and version assessment templates (firm only).</td>
+</tr>
+<tr>
+<td><strong>Assistant</strong> (<span class="ar" dir="rtl" lang="ar">المساعد الذكي</span>)</td>
+<td>Floating card; ask about one project or all your clients.</td>
+</tr>
+<tr>
+<td><strong>Files</strong> (<span class="ar" dir="rtl" lang="ar">الملفات</span>)</td>
+<td>Floating card at the foot of the sidebar: every file you may open, grouped by client and project.</td>
+</tr>
+<tr>
+<td><strong>Team</strong> (<span class="ar" dir="rtl" lang="ar">الفريق</span>)</td>
+<td>People, invitations, access review, team load (reviews and work per consultant, never a ranking), Expertise. The admin hands over a leaver's work here.</td>
+</tr>
+<tr>
+<td><strong>Audit log</strong> (<span class="ar" dir="rtl" lang="ar">سجل التدقيق</span>) · admin</td>
+<td>Every step anyone took, with a tamper check and CSV export.</td>
+</tr>
+<tr>
+<td><strong>Settings</strong> · admin</td>
+<td>In the menu under your name: intake address, lead suggestions, stale and check-in days, access reviews, retention, Ramadan mail hours.</td>
+</tr>
+<tr>
+<td><strong>Help</strong></td>
+<td>The guide for your role, in Arabic or English, opens from the app.</td>
+</tr>
+</tbody>
+</table>
+<h3>Client side</h3>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Who</th>
+<th>What you do there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Home</strong></td>
+<td>Everyone</td>
+<td>What waits for you with its step: recommendations to answer, files sent back, late or stopped work, answers to your date requests, indicators waiting for a value, receipts to confirm, documents asked of you, meetings to reply to. Action owners see three groups: Waiting for you, With your consultant, Finished.</td>
+</tr>
+<tr>
+<td><strong>Projects</strong>, <strong>Actions</strong></td>
+<td>Admins, managers</td>
+<td>The project as the client sees it, without firm-only items. Answer recommendations (admin, sponsor), read sent reports, answer document requests.</td>
+</tr>
+<tr>
+<td><strong>Team</strong>, <strong>Departments</strong>, <strong>Our group</strong>, <strong>Audit log</strong></td>
+<td>Client admin</td>
+<td>Invite people, access review, who heads what, the group roll-up (if granted), the company's own trail.</td>
+</tr>
+<tr>
+<td><strong>Business indicators</strong></td>
+<td>Admins, managers</td>
+<td>The company's own figures.</td>
+</tr>
+<tr>
+<td><strong>Structure</strong></td>
+<td>Admin (names), managers (own branch)</td>
+<td>The published org chart; the admin places people.</td>
+</tr>
+<tr>
+<td><strong>Assistant</strong></td>
+<td>Admins, managers (if on)</td>
+<td>Ask about the company's own work.</td>
+</tr>
+<tr>
+<td><strong>Help</strong></td>
+<td>Client roles</td>
+<td>Your consultants, write to the firm's management, report a problem, common questions.</td>
+</tr>
+</tbody>
+</table>
+<h2>07 From first contact to goodbye</h2>
+<div class="flow"><div class="step">1 Inquiry</div><div class="arr">&rarr;</div><div class="step">2 Check</div><div class="arr">&rarr;</div><div class="step">3 Win or decline</div><div class="arr">&rarr;</div><div class="step">4 Contract</div><div class="arr">&rarr;</div><div class="step">5 Setup</div><div class="arr">&rarr;</div><div class="step">6 Kickoff</div><div class="arr">&rarr;</div><div class="step">7 Follow-through</div><div class="arr">&rarr;</div><div class="step">8 Closing</div><div class="arr">&rarr;</div><div class="step">9 Leaving</div></div>
+
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>What happens</th>
+<th>Who</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Inquiry</td>
+<td>A prospect fills the public form, or staff enter a referral or tender. Every admin is told; the prospect gets a reference number.</td>
+<td>Prospect, admin</td>
+</tr>
+<tr>
+<td>2 Check</td>
+<td>Four numbered steps: give it an owner, discovery session, proposal. The conflict check must be clear (or overridden). NDA recorded.</td>
+<td>Admin, owner</td>
+</tr>
+<tr>
+<td>3 Win or decline</td>
+<td>The admin wins it into a client and names the lead, or declines with an email.</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>4 Contract</td>
+<td>The admin records the signed engagement (dates, deliverables). Until then the project is a draft the client does not see.</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>5 Setup</td>
+<td>Lead, deputy, consultants. Client mode (full, restricted, firm-run). Second sign-off rule. The client assistant offer. The client admin is invited.</td>
+<td>Admin, lead</td>
+</tr>
+<tr>
+<td>6 Kickoff</td>
+<td>Document request lists, first meetings with calendar invites, the plan entered or imported.</td>
+<td>Lead, consultants</td>
+</tr>
+<tr>
+<td>7 Follow-through</td>
+<td>The core loop (section 03), monthly status packs and oversight. Deliverables handed over and confirmed received.</td>
+<td>Both sides</td>
+</tr>
+<tr>
+<td>8 Closing</td>
+<td>The client can ask to close. The lead or deputy starts closing; every open action gets a decision; lessons are written. The admin closes.</td>
+<td>Lead starts, admin closes</td>
+</tr>
+<tr>
+<td>9 Leaving</td>
+<td>When every project is closed, the admin archives the client: a read-only grace period, the export pack with checksum, legal holds, then purges.</td>
+<td>Admin, client</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The end of an engagement.</strong> Each engagement has an end date. Since this run the lead, the deputy and the firm admins get a notice in the bell when an open engagement ends within 30 days, and again when it has ended and is still open. The notice never goes to the client. Nothing else happens by itself: the firm decides whether to renew, close the projects or archive. To renew, record a new signed engagement and open a new project that continues the earlier one. To end early, the sponsor or client admin presses "ask to close" on the project and the firm closes it with the reason in the closing notes.</p>
+<h2>08 When things go wrong</h2>
+<table>
+<thead>
+<tr>
+<th>The problem</th>
+<th>What Selah offers</th>
+<th>Who acts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Work is stuck</td>
+<td>The owner marks the action <strong>Blocked</strong> with a reason. It shows on the next meeting's agenda and in "needs attention". <strong>"I am stuck" now notifies the project's lead and consultants</strong> (before, nobody at the firm was told).</td>
+<td>Owner; consultant follows up</td>
+</tr>
+<tr>
+<td>The deadline is unrealistic</td>
+<td>The owner asks for a new date; the firm approves or declines. Every move is kept. The third move needs the lead or admin.</td>
+<td>Client asks, firm decides</td>
+</tr>
+<tr>
+<td>Work is late</td>
+<td>A ladder: reminder before the due date, owner when overdue, plus managers and lead after 7 days, plus client admins, sponsor and watching firm admins after 14 days. One summary email a day at most.</td>
+<td>Automatic</td>
+</tr>
+<tr>
+<td>The client went quiet</td>
+<td>After 14 days with no activity the lead is told. A consultant can nudge an owner once a day from Actions.</td>
+<td>Automatic, lead</td>
+</tr>
+<tr>
+<td>Evidence is not good enough</td>
+<td><strong>Revision requested</strong> with a reason; the owner replies and sends again.</td>
+<td>Consultant</td>
+</tr>
+<tr>
+<td>The client disagrees with a recommendation</td>
+<td>"Disagree" or "partly agree" with a reason, kept on record, shown in the firm's lists.</td>
+<td>Client admin or sponsor</td>
+</tr>
+<tr>
+<td>The client decides not to do something</td>
+<td>A client admin or manager signs a risk acceptance, then the firm closes the action as "risk accepted".</td>
+<td>Client signs, firm closes</td>
+</tr>
+<tr>
+<td>The plan changed</td>
+<td>Close an action as "replaced by" another, or "not applicable". Withdraw a recommendation with a reason. Released items are never deleted.</td>
+<td>Firm</td>
+</tr>
+<tr>
+<td>Someone uploaded the wrong file</td>
+<td>The uploader withdraws it with a reason. Evidence itself is never deleted.</td>
+<td>Uploader</td>
+</tr>
+<tr>
+<td>A client person needs help</td>
+<td>The Help page: "ask your consultant" and a problem form that reaches the firm admins.</td>
+<td>Client</td>
+</tr>
+<tr>
+<td>Someone leaves</td>
+<td>Hand over everything they hold to one colleague (Team page). A client person cannot be removed from a project while they own open actions. When a client person leaves, the client admin moves their actions.</td>
+<td>Admin; client admin</td>
+</tr>
+<tr>
+<td>An owner cannot be given the work</td>
+<td>The server refuses an owner who is not allowed on that project (fixed in this run). <strong>Give to a colleague</strong> moves an action to someone else on the same side.</td>
+<td>Owner, lead</td>
+</tr>
+</tbody>
+</table>
+<h2>09 Files</h2>
+<p><strong>Who can see a file</strong></p>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Who sees it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Shared</strong></td>
+<td>Both sides, on that project (and inside the department, if departments are on).</td>
+</tr>
+<tr>
+<td><strong>Firm-only</strong></td>
+<td>Firm staff on the project. Never the client. Internal project files are always firm-only.</td>
+</tr>
+<tr>
+<td><strong>Client-private</strong></td>
+<td>Only the client company. Not even the firm admin. A restricted client's uploads start here; the client admin can share them (one way, never back).</td>
+</tr>
+<tr>
+<td><strong>Personal</strong></td>
+<td>Only the person who uploaded it.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Limiting who sees one file or meeting.</strong> The audience picker works on a file or a meeting: "everyone except…" or "only these people". It only takes people away. A person left out sees no row, no count, no notice, no mail and no assistant passage about it.</p>
+<p><strong>How files behave</strong></p>
+<ul>
+<li><strong>Safe uploads.</strong> Up to 20 MB. The type is checked three ways and the file is scanned for viruses (ClamAV) before anyone can open it. Files sit in private storage; each download is a one-minute link and is logged.</li>
+<li><strong>Versions.</strong> A new version replaces the old in lists and in the assistant. The history stays. A confidential request can no longer be bypassed by uploading a new version and switching the assistant on.</li>
+<li><strong>Evidence is permanent.</strong> Evidence is never deleted or renamed. A wrong upload is withdrawn by its uploader with a reason, and the name of a withdrawn private file no longer shows to the other side.</li>
+<li><strong>Reuse.</strong> A shared file already in Selah can be attached as evidence without uploading again.</li>
+<li><strong>Document requests</strong> (project, Requests and files): the firm lists what it needs, with an owner and due date. The client answers each item with files or "does not apply". For someone without an account the firm can send a no-login upload link for one item (valid 1 hour to 30 days, up to ten files, revocable). Items can be marked confidential, which keeps their files out of the assistant.</li>
+<li><strong>The Files card</strong> lists exactly the files you could open elsewhere.</li>
+<li><strong>Who controls "Let the assistant read it".</strong> Switching a file's assistant flag <strong>on</strong> needs the uploader of that version or the owning side's admin. Switching it <strong>off</strong> is open to anyone on the owning side, because it only protects privacy.</li>
+</ul>
+<h2>10 The assistant</h2>
+<p>An Arabic and English assistant that answers questions from the files and records you are allowed to see, and shows where every answer came from. It opens as a floating card from the sidebar, or with "Ask the assistant" on an action, meeting, recommendation or file.</p>
+<table>
+<thead>
+<tr>
+<th>For firm staff</th>
+<th>For the client</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Questions about one project or all your clients</td>
+<td>Only client admins and managers, never action owners</td>
+</tr>
+<tr>
+<td>Every answer cites the file, version and page, or the record</td>
+<td>Off by default: the firm admin offers it per client and role, with a daily question limit</td>
+</tr>
+<tr>
+<td>"What is overdue?" read from live actions</td>
+<td>The client admin must agree after reading a notice, and can switch it off</td>
+</tr>
+<tr>
+<td>Two versions that disagree are named, not silently picked</td>
+<td>Facts only. <strong>New:</strong> "Who is my consultant?" is answered; "my deadlines" shows only the asker's own dates; a legal question still gets no ruling, but shows what the client's own documents say</td>
+</tr>
+<tr>
+<td><strong>Facts-only progress draft</strong> that opens the report page (see section 12)</td>
+<td><strong>Facts-only progress-update draft</strong> that stays in the client's own chat; Selah never sends it</td>
+</tr>
+<tr>
+<td>Follow-up message drafts (never sent)</td>
+<td>Never reads firm-only files, scores, firm notes, lessons or audit data</td>
+</tr>
+<tr>
+<td>File summaries with page links, and answers in the other language</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>@ attach:</strong> type @ to attach up to three files you can already see; chips say if a file cannot be read (scanned, not yet indexed, switched off)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>How it stays inside your rights.</strong> The assistant searches with the same permission check as every other screen, built into the search itself. Text you could not open never reaches the model. Chats belong to one person; a consultant taken off a client loses those chats at once. Old chats are deleted on a schedule (90 days after a project closes, or 180 days idle).</p>
+<p><strong>Where the AI runs now</strong></p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Where it runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Search model (bge-m3)</td>
+<td>Always on our own machine. Files and their vectors never leave it.</td>
+</tr>
+<tr>
+<td>Answer model</td>
+<td><strong>A local model, qwen3.5:4b, is the default</strong> (the 3.4 GB download was approved). Everything stays on our server. A hosted model is possible for sample data only.</td>
+</tr>
+<tr>
+<td>Slow AI work</td>
+<td>Translations, file summaries and the org chart draft from pasted text run as <strong>background jobs</strong> in one shared queue, one model run at a time, so a page never hangs.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Three protections before any text reaches a model</strong></p>
+<ol>
+<li><strong>Name masking.</strong> Names of people, clients, departments, cities, emails and phone numbers that Selah knows are replaced with placeholders and put back in the answer. Masking fails closed: if Selah cannot be sure it is on, nothing is sent.</li>
+<li><strong>Personal-number scanner.</strong> A small rule-based scanner (no AI) replaces Saudi national IDs, Iqama numbers, IBANs, card numbers, phone numbers, email addresses, passport and commercial-registration numbers with tags, both when a file is indexed and when anything is sent to a model, local or hosted. The stored file never changes. When someone switches a file on for the assistant, Selah says which kinds of number it holds.</li>
+<li><strong>The database filters, never the model.</strong> Permission is part of the search query.</li>
+</ol>
+<p><strong>Arabic search.</strong> Word search ignores short vowels, tatweel and spelling variants of hamza, <span class="ar" dir="rtl" lang="ar">ى</span>/<span class="ar" dir="rtl" lang="ar">ي</span> and <span class="ar" dir="rtl" lang="ar">ة</span>/<span class="ar" dir="rtl" lang="ar">ه</span>, so «<span class="ar" dir="rtl" lang="ar">احمد»</span> finds «<span class="ar" dir="rtl" lang="ar">أحمد»</span>. Search was measured on a labelled test set of 164 sample files and 100 questions: the right passage was found for 81 of 89 scored questions. The misses were mostly cross-language, a scanned page, or long files crowding out others; none was a ranking problem, so a reranker was not built.</p>
+<p><strong>Honest limits.</strong> A name that appears only inside a file and not in Selah's records is not hidden by name masking, so real client files should go only to a local model. Scanned pages cannot be read yet (no text recognition). On the local model on the server's processor an answer can take about a minute (47 to 132 seconds in the scenario runs), with the stream kept open meanwhile. In the scenario tests the staff progress draft showed different numbers from the project page, and an attached file that could not be read was answered as if it were another file; both are on the fix list (Workflows, section 5). No answer showed anything to the wrong person.</p>
+<h2>11 Meetings and summaries</h2>
+<p>Where it is: open a project, <strong>Meetings</strong> tab, <strong>Book a meeting</strong>, or open a meeting to reach its own page. Selah records meetings and links to the call; it never hosts the call.</p>
+<p><strong>Before the meeting</strong></p>
+<ul>
+<li>Book it with title, type, date, place, a call link (Google Meet, Teams or Zoom only), shared or firm-only, and attendees. Firm staff book any meeting; client admins and managers can book shared ones.</li>
+<li><strong>Department meetings and whole-project meetings.</strong> A department meeting lists only that department's work. A whole-project meeting opens only for people who may see everything; a department-limited manager cannot be invited to it. The form says so, offers that department's meeting instead, and does not save until the name is taken off.</li>
+<li>Selah emails a calendar invite that works in Google, Outlook and Apple calendars without connecting any account. Moves and cancellations send updates.</li>
+<li>The agenda writes itself: overdue, awaiting-review and blocked actions, and what changed since the last meeting. <strong>Headings and status words follow the reader's language.</strong></li>
+</ul>
+<p><strong>After the meeting</strong></p>
+<ol>
+<li>Whoever runs it marks it held.</li>
+<li>They write the summary by hand. Saving it confirms it. It starts firm-only; it can be shared with the client.</li>
+<li>Each summary line can point to its source: a passage of the transcript (firm only) or a page of a project file.</li>
+<li>Decisions are recorded and never edited: a correction is a new decision, and the old one shows struck through.</li>
+<li>Follow-ups are tasks out of the meeting, each with an assignee and date. The assignee (client side too) can mark their own one done.</li>
+<li>A transcript can be pasted or imported only after attendees were told. It is firm-only and deleted 30 days after the summary is confirmed (90 days at most).</li>
+</ol>
+<p><strong>What the summary feeds.</strong> Follow-ups appear on each person's Home. The next agenda shows what changed. A shared summary is visible to the client and can be translated on demand. Decisions can become board-decision recommendations.</p>
+<div class="box later">
+<p><strong>Not built (proposals).</strong> An AI draft of the summary from a transcript. The assistant reading confirmed summaries and decisions. A list of all decisions across meetings. A calendar screen. Each must first be shown to be useful.</p>
+</div>
+<h2>12 Reports, templates and sending</h2>
+<p><strong>When:</strong> monthly, and before steering meetings. <strong>Who:</strong> staffed consultants write; a colleague approves; a person confirms the send.</p>
+<ol>
+<li>Project page, <strong>Progress</strong> tab: the numbers (what the consultant verified, how actions ended, what is late, how long reviews wait).</li>
+<li><strong>New report</strong> freezes the project's numbers as they were on the last day of the period. It stays with the firm.</li>
+<li><strong>Choose a template</strong> on the report page: <strong>monthly progress</strong>, <strong>steering summary</strong> or <strong>closing summary</strong>, in Arabic or English. A template gives headings and prompts; nothing is filled in as fact.</li>
+<li>The monthly status pack is drafted by the monthly job and seen only by the firm. Write a <strong>Note for the client</strong>, then <strong>Issue</strong> it.</li>
+<li><strong>Approve.</strong> A report reaches the client only after a colleague other than its writer approves it: the client's lead or deputy consultant, or the firm admin.</li>
+<li><strong>Send to the client.</strong> A confirmation dialog opens and nothing goes until you press <strong>Send</strong>. Sending cannot be undone. Selah never sends a report on its own, and the assistant never sends.</li>
+<li><strong>Progress draft from the assistant.</strong> In a chat on a client's project, ask "draft a progress update". The draft is facts only (done, in progress, waiting, late, with dates and sources), starts with "Draft: check before sending", and uses only work every client reader of the report may see. <strong>Use as draft</strong> opens the report page with the text as the note; edit there, and nothing is saved until you save. <strong>Send to the client</strong> under it opens the same confirmation, and only once the report is approved.</li>
+</ol>
+<p><strong>Rules to remember</strong></p>
+<ul>
+<li>The note on a report is read by every client reader of it, whatever their department. Do not name another department's work in it.</li>
+<li>Shared reports and PDFs count only shared work. Firm-only work and other departments' work never count for a limited reader.</li>
+<li><strong>Business indicators</strong> are the client's own figures with a baseline and a target. They always carry: "These figures are reported by the client and are not verified impact." Only the firm links an indicator to a recommendation. Words and colours never judge a figure (no "worse", no red): they show the figures and the direction. When a figure moves away from its baseline the lead, the deputy and the client admins get a notice with the figures only.</li>
+</ul>
+<div class="box later">
+<p><strong>Later, not built:</strong> user-made report templates, a richer formatted editor (research first, Arabic right-to-left), and a client page where the client keeps and edits their own report.</p>
+</div>
+<h2>13 The client's organisation structure</h2>
+<p>Client page, <strong>Structure</strong> tab: the published chart with the people in each position, vacancies, levels, versions, and <strong>Download PDF</strong> (A3 or A4).</p>
+<ul>
+<li><strong>The firm prepares the draft:</strong> edit it by hand, import from Excel or Word, or paste text from a slide and let the assistant draft rows (a background job; the user checks every row).</li>
+<li><strong>The lead, the deputy and the firm admin publish</strong> (Review and publish). Each publish makes a new version.</li>
+<li><strong>The client admin places people</strong> in positions and suggests changes; managers see names only in their own branch and above; action owners see only "your manager".</li>
+<li><strong>The chart never changes who sees any work.</strong> It describes positions only, and Selah never judges it.</li>
+<li>Known problem found in the scenarios: ids made at publish were not valid, so the next draft could not be edited. A fix was being finished when the run paused.</li>
+</ul>
+<h2>14 Internal projects</h2>
+<p>An internal project is the firm's own work, using the same tools as client work: recommendations, actions, evidence, review, meetings, files.</p>
+<ul>
+<li><strong>Who creates it:</strong> any firm member, from Projects, Internal. The creator becomes its lead.</li>
+<li><strong>Who works on it:</strong> the colleagues the lead staffs. Firm staff own and do the actions themselves.</li>
+<li><strong>Who reviews:</strong> another firm member. Nobody reviews their own action, here too.</li>
+<li><strong>Who closes it:</strong> its lead (unlike client projects, which only the admin closes).</li>
+<li><strong>Who sees it:</strong> only the staffed members and the firm admin. No client ever sees it; the page carries a grey "internal project, firm only" banner. Its files are always firm-only.</li>
+<li><strong>What it is for:</strong> improving methods and templates, preparing proposals, training, the firm's own governance work.</li>
+</ul>
+<h2>15 Help and guides inside the app</h2>
+<ul>
+<li><strong>A guide for each role.</strong> Clients get the client guide; firm staff get the firm guide. Both open from the app in Arabic or English. Each task is short: when you need it, the steps, what happens next, which screen.</li>
+<li><strong>Tooltips and first-visit lines.</strong> About 95 short tooltips, a first-visit line on main pages and plain empty states say what a page is for and what to do next.</li>
+<li><strong>Client Help page.</strong> Your consultants, write to the firm's management, report a problem (reaches the firm admins), and common questions.</li>
+<li><strong>The handbook.</strong> The handbook front page, the guides, "What Selah will not do" and "Later improvements" are in the repository in Arabic and English, and the in-app guide links to them.</li>
+<li><strong>Both languages for every message.</strong> Labels come from one Arabic and one English file that must always match.</li>
+</ul>
+<h2>16 The design rules</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>What it means in practice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build from shadcn/ui and Animate UI</td>
+<td>Official components first. A custom component only when nothing fits.</td>
+</tr>
+<tr>
+<td>Monochrome</td>
+<td>Black, white and greys. Colour only for status, and muted: grey for in progress, amber for waiting, red for a problem, green only for work a consultant verified. Every status also has a word.</td>
+</tr>
+<tr>
+<td>Grey card surfaces</td>
+<td>Cards on a grey page, light shadow, rounded corners.</td>
+</tr>
+<tr>
+<td>Arabic first, right to left</td>
+<td>Arabic is the default; English is one click away. Layouts use start/end so they mirror. Emails, codes and numbers stay left to right inside Arabic.</td>
+</tr>
+<tr>
+<td>Desktop and tablet only</td>
+<td>768 pixels wide and up. No phone layouts.</td>
+</tr>
+<tr>
+<td>Tools float</td>
+<td>Files and the assistant are floating cards that stay open as you move between pages.</td>
+</tr>
+<tr>
+<td>Calm motion</td>
+<td>A short fade between pages. Everything turns off for people who prefer reduced motion.</td>
+</tr>
+<tr>
+<td>Firm-only looks firm-only</td>
+<td>A lock icon or "Firm only" badge on anything a client cannot see.</td>
+</tr>
+<tr>
+<td>Real screens only</td>
+<td>Every screen is backed by a real API and workflow. No mock screens, no "demo" labels.</td>
+</tr>
+<tr>
+<td><strong>Fewer buttons</strong></td>
+<td><strong>One main action per page, plain labels, what to do next said in words.</strong> The five simplification batches applied this to every screen.</td>
+</tr>
+<tr>
+<td>No judging words for client numbers</td>
+<td>Figures and facts with their source, never "good", "bad" or a colour verdict.</td>
+</tr>
+<tr>
+<td>AI output is labelled</td>
+<td>Always marked as AI-written, always with sources, never in green.</td>
+</tr>
+<tr>
+<td>Accessible</td>
+<td>Text contrast to WCAG 2.2 AA; visible keyboard focus; icon-only buttons have labels. Open items from the scenarios: missing accessible names on the logo link, radios and checkboxes.</td>
+</tr>
+</tbody>
+</table>
+<h2>17 How to try it yourself</h2>
+<ol>
+<li>Install Docker Desktop and Node.js 22 or newer, and get the Selah repository.</li>
+<li>From the repository folder run the walkthrough command with the fresh option. The first run takes 10 to 20 minutes.</li>
+<li>Open the local address for Selah and the local address for the emails it sends (a test mailbox).</li>
+<li>Sign in with any of the 14 sample accounts. The password is in the walkthrough guide (local only).</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Try this account</th>
+<th>To see</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>admin@mizan.test</td>
+<td>The firm admin: every client, inquiries, team, audit log, closing a project.</td>
+</tr>
+<tr>
+<td>lead@mizan.test</td>
+<td>The lead of Al-Nukhba: Home, a second sign-off, a date request, the assistant.</td>
+</tr>
+<tr>
+<td>consultant@mizan.test</td>
+<td>A consultant who cannot see Rawdah ("Not found").</td>
+</tr>
+<tr>
+<td>observer@mizan.test</td>
+<td>Read-only: no buttons that change anything.</td>
+</tr>
+<tr>
+<td>admin@nukhba.test</td>
+<td>The client admin: answering recommendations, inviting people, assistant consent.</td>
+</tr>
+<tr>
+<td>manager@nukhba.test</td>
+<td>A manager using the client assistant; cannot see Finance's work.</td>
+</tr>
+<tr>
+<td>owner@nukhba.test</td>
+<td>An action owner: only his own actions, re-sending a revision.</td>
+</tr>
+<tr>
+<td>owner@rawdah.test</td>
+<td>The first sign-in: terms, privacy and AI notice.</td>
+</tr>
+</tbody>
+</table>
+<p>The sample cases: Al-Nukhba board governance (Arabic, one action in every state), Rawdah strategic plan (English, ready to close) and Al-Waha family office (firm-run, no client accounts). The scenario tests added a fourth, Sahm, built from an inquiry.</p>
+<p><strong>How we work.</strong> Research before building: a new feature must be shown to be needed (bug fixes can go ahead). The progress checklist is the source of truth. Every screen gets its backend and tests, in Arabic and English. Never put real client data into a local setup, and never paste keys into chats or commits. <strong>Any change to how parts connect updates the system map in the same pull request.</strong> An independent review is required for any privacy, permission, AI or database change.</p>
+<h2>18 Also in Selah</h2>
+<p>Built and merged, but only named in passing above.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>How it works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Invitations and email domains</strong></td>
+<td>Nobody can sign up; every account starts with an invitation. The firm sets its email domains before inviting. A client may set its own list. Changing an address is confirmed by a link to the new one.</td>
+</tr>
+<tr>
+<td><strong>Two-step sign-in</strong></td>
+<td>Required for firm admins, consultants and client admins (authenticator app or backup code). Optional for managers and owners. Passwords are 12 characters or more. At most 10 sign-in tries per account in 15 minutes; each lockout is audited.</td>
+</tr>
+<tr>
+<td><strong>Forgotten password, sign-in link</strong></td>
+<td>A reset link by email valid for one hour, at most three an hour. Managers and owners can ask for a one-time sign-in link.</td>
+</tr>
+<tr>
+<td><strong>Access reviews</strong></td>
+<td>Every 90 days each organisation's admins confirm who is still with them.</td>
+</tr>
+<tr>
+<td><strong>Erasing a person (PDPL)</strong></td>
+<td>On request the firm admin erases a person: the name becomes "Former user #n", sign-in data is deleted, history stays. It cannot be undone and is logged.</td>
+</tr>
+<tr>
+<td><strong>Legal profile</strong></td>
+<td>The client's legal identity (Arabic legal name, unified number, legal form, sector, size, regulators, fiscal year). Not kept for "minimal records" clients.</td>
+</tr>
+<tr>
+<td><strong>Inquiry acknowledgement</strong></td>
+<td>The prospect gets a reference number mail (at most one a day per address); a returning client is linked to its old record.</td>
+</tr>
+<tr>
+<td><strong>Evidence items</strong></td>
+<td>An action can name the pieces of proof it needs. The reviewer accepts, rejects or waives each; an action cannot become verified while any is open.</td>
+</tr>
+<tr>
+<td><strong>Slip history and aging</strong></td>
+<td>Every move of a due date is kept with who and why. Reports show days slipped and the age of open work.</td>
+</tr>
+<tr>
+<td><strong>Mail that respects the Saudi week</strong></td>
+<td>Work mail never goes on Friday, on Saturday only if asked, never in quiet hours, and in Ramadan only in the firm's hours. Each person chooses how updates and reminders arrive. Security and meeting mail goes at once. Work mail held for the weekend gives no notice that it is held (found in the scenarios).</td>
+</tr>
+<tr>
+<td><strong>Translation on demand</strong></td>
+<td>"Show in English" or "<span class="ar" dir="rtl" lang="ar">اعرض بالعربية</span>" on written text; labelled "Machine translated" with "Show original"; made once as a background job, then kept. The original is the official version.</td>
+</tr>
+<tr>
+<td><strong>Assessments</strong></td>
+<td>The firm builds and publishes a template; a consultant answers each question; finalised assessments are locked; two can be compared. Low answers are suggested as gaps and a consultant confirms each as a finding. Scores are firm-only and never say "compliant".</td>
+</tr>
+<tr>
+<td><strong>Exports</strong></td>
+<td>Plan as Excel (with a template and guide sheet), actions list, report PDFs, client report PDF, closure report PDF, structure PDF, audit log CSV, the export pack. Each holds only what you could already open, in your language, and is logged. Typed text can never turn into an Excel formula.</td>
+</tr>
+<tr>
+<td><strong>Firm settings</strong></td>
+<td>Intake address, lead suggestions, stale after 14 days, check-ins at 30, 60 and 90 days, access review every 90 days, indicator grace 10 days, restricted clients up to 2 accounts, transcripts kept 30 days, chat retention, Ramadan mail hours. Reminder and escalation days are set on each project.</td>
+</tr>
+<tr>
+<td><strong>Legal and security pages</strong></td>
+<td>Terms, privacy notice and AI notice (accepted and recorded at first sign-in, asked again when one changes), a data processing agreement template, the sub-processor list and a security pack that shows this site's real setup.</td>
+</tr>
+<tr>
+<td><strong>The audit log</strong></td>
+<td>Who did what and when, as ids and counts only: never file text or assistant questions or answers. Each row is chained to the last so the tamper check shows any change.</td>
+</tr>
+<tr>
+<td><strong>Server work</strong></td>
+<td>Backups, restore drill, readiness checks, monitoring, upgrades and the incident runbook are in the operations guide and in the Production path.</td>
+</tr>
+</tbody>
+</table>
+<h2>19 What changed in this run</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>What was built or fixed</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Help</td>
+<td>Role guides, tooltips, first-visit lines, handbook in Arabic and English</td>
+<td>#189, #190, #194</td>
+</tr>
+<tr>
+<td>Privacy</td>
+<td>Five proven leaks closed (firm-only titles in a leaving report, private file names in the audit log and activity, shared reports counting firm-only work, Progress history counting firm-only work), confidential-request bypass, file rename by another manager</td>
+<td>#193</td>
+</tr>
+<tr>
+<td>Privacy</td>
+<td>Assistant switch rule, department-limited managers refused whole-project invitations, "I am stuck" notifies the firm</td>
+<td>#200</td>
+</tr>
+<tr>
+<td>Restricted clients</td>
+<td>The client admin can record progress and evidence</td>
+<td>#197</td>
+</tr>
+<tr>
+<td>Client assistant</td>
+<td>Who is my consultant, own deadlines only, legal answers with the documents' facts, facts-only progress draft</td>
+<td>#198</td>
+</tr>
+<tr>
+<td>Lead change and end reminder</td>
+<td>Client and old lead told with a handover note; reminder before an engagement ends</td>
+<td>#199</td>
+</tr>
+<tr>
+<td>Reports</td>
+<td>Staff progress draft, Use as draft, approval by a second person, confirmed send, three templates</td>
+<td>#201, #204</td>
+</tr>
+<tr>
+<td>Assistant</td>
+<td>@ attach</td>
+<td>#206</td>
+</tr>
+<tr>
+<td>Owners</td>
+<td>Give an action to a colleague; the server refuses an owner who may not be on the project</td>
+<td>#202, #203</td>
+</tr>
+<tr>
+<td>Before go-live</td>
+<td>A script to clean old private file names from the audit log (written, not run)</td>
+<td>#205</td>
+</tr>
+<tr>
+<td>Local model and search</td>
+<td>qwen3.5:4b default, labelled test set, longer waits for slow answers, Arabic word search</td>
+<td>#191, #207, #208, #209</td>
+</tr>
+<tr>
+<td>AI jobs</td>
+<td>Translations, summaries and org chart drafts run as background jobs</td>
+<td>#211</td>
+</tr>
+<tr>
+<td>Number scanner</td>
+<td>Personal numbers replaced by tags before any model</td>
+<td>#213</td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>Full end-to-end run on a production-like stack: 67 passed, 1 failed, 3 not run, no app bug found</td>
+<td>#210</td>
+</tr>
+</tbody>
+</table>
+<p class="small">Source of truth: the system map in the repository (29 features, 6 sub-features, 64 links). Companion documents: Workflows, Production path.</p></body></html>

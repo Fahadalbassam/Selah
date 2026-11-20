@@ -1,0 +1,648 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Selah Production Path</title>
+<style>:root{--ink:#1a1a1a;--mute:#5b5b5b;--line:#d9d9d6;--soft:#f3f3f1;--accent:#1f3a5f;--ok:#2f6b3f;--warn:#9a6a00;--bad:#9b2c2c}
+*{box-sizing:border-box}
+html{font-size:10pt}
+body{font-family:"Segoe UI","IBM Plex Sans","Tahoma","Arial",sans-serif;color:var(--ink);line-height:1.45;margin:0;background:#fff}
+[lang=ar],.ar{font-family:"Segoe UI","IBM Plex Sans Arabic","Tahoma","Arial",sans-serif;unicode-bidi:isolate}
+.kicker{font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 4mm}
+h1{font-size:23pt;line-height:1.15;margin:0 0 3mm;color:var(--accent)}
+h2{font-size:15pt;margin:8mm 0 2.5mm;color:var(--accent);border-top:1.2pt solid var(--accent);padding-top:3mm;break-after:avoid}
+h3{font-size:11.5pt;margin:5mm 0 1.5mm;break-after:avoid}
+h4{font-size:10pt;margin:3mm 0 1mm;break-after:avoid}
+p{margin:0 0 2.2mm}
+ul,ol{margin:0 0 2.5mm;padding-left:5.5mm}
+li{margin-bottom:.8mm}
+.lead{font-size:11pt;color:#333}
+table{border-collapse:collapse;width:100%;margin:2mm 0 4mm;font-size:8.8pt}
+th{background:var(--accent);color:#fff;text-align:left;padding:1.6mm 2mm;font-weight:600}
+td{border-bottom:.5pt solid var(--line);padding:1.5mm 2mm;vertical-align:top}
+tr{break-inside:avoid}
+tbody tr:nth-child(even) td{background:#fafaf8}
+code{font-family:Consolas,monospace;font-size:8.5pt;background:var(--soft);padding:0 1mm;border-radius:1mm}
+pre{background:var(--soft);padding:2.5mm;font-size:8pt;white-space:pre-wrap;border-radius:1.5mm;break-inside:avoid}
+pre code{background:none;padding:0}
+.box{background:var(--soft);border-left:2pt solid var(--accent);padding:2.5mm 3.5mm;margin:2.5mm 0 4mm;break-inside:avoid}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.box.warn{border-left-color:var(--warn)}
+.box.ok{border-left-color:var(--ok)}
+.box.bad{border-left-color:var(--bad)}
+blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);color:#333;background:#fafaf8}
+.tag{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.04em;padding:.2mm 1.6mm;border-radius:1mm;border:.6pt solid;vertical-align:1pt;white-space:nowrap}
+.built,.solid{color:var(--ok);border-color:var(--ok)}
+.part,.partial{color:var(--warn);border-color:var(--warn)}
+.open,.missing{color:var(--bad);border-color:var(--bad)}
+.later{color:var(--mute);border-color:var(--mute)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:1.5mm;margin:2mm 0 4mm;break-inside:avoid}
+.flow .step{flex:1 1 22mm;min-width:22mm;max-width:40mm;border:.8pt solid var(--accent);background:#fff;border-radius:1.5mm;padding:1.6mm 2mm;font-size:8.3pt;text-align:center;display:flex;align-items:center;justify-content:center}
+.flow .step.who{background:var(--accent);color:#fff;border-color:var(--accent)}
+.flow .step.dash{border-style:dashed;color:var(--mute)}
+.flow .arr{align-self:center;color:var(--accent);font-weight:700;font-size:10pt}
+.stat{display:flex;gap:3mm;margin:3mm 0 4mm}
+.stat div{flex:1;border:.6pt solid var(--line);border-radius:1.5mm;padding:2mm 3mm;break-inside:avoid}
+.stat b{display:block;font-size:15pt;color:var(--accent)}
+.toc{columns:2;column-gap:8mm;font-size:9pt;margin:2mm 0 4mm}
+.toc div{break-inside:avoid;margin-bottom:.8mm}
+.small{font-size:8.3pt;color:var(--mute)}
+
+@page{size:A4 landscape;margin:15mm 15mm 17mm 15mm;
+ @bottom-left{content:"Selah production path";font:7.5pt 'Segoe UI',sans-serif;color:#777}
+ @bottom-right{content:counter(page) " / " counter(pages);font:7.5pt 'Segoe UI',sans-serif;color:#777}}
+</style></head><body><p class="kicker">For the Selah team · Production readiness · Part 3 of 3 · Main after PR #213, migrations to 0114 · 20 November 2026</p>
+
+<h1>Selah's path to production: what is solid, what is only built, what we still need</h1>
+<p>This is part 3 of the team documents. The Handbook explains the parts and the Workflows explain the flows. Here we answer in plain words: how solid is what we have, how does it run, what must be done <strong>before go-live</strong>, what is still left, and which features come later.</p>
+<div class="box">
+<p><strong>The short answer.</strong> The core of Selah is in good shape and a lot has been added since 6 November: help inside the app, five privacy leaks found and fixed, restricted clients working, reports with approval and a confirmed send, a local model with better Arabic search, a scanner for personal numbers, and background jobs for slow AI work. The scenario tests run so far found <strong>no privacy leak</strong>. What Selah still does not have is proof on a real server with real people: it has not been deployed, the tunnel has not been tested live, and the scenario testing is not finished (Gate C is still ahead). The work ahead is a short, ordered go-live list (section 5), the rest of the scenarios, and fixes for what they found. We do not need many new features.</p>
+</div>
+<div class="stat">
+<div><b>0 leaks</b>between clients: the permission review, the assistant runs, the leak fixes, and every scenario so far.</div>
+<div><b>67 / 1 / 3</b>passed / failed / not run in the full end-to-end run on a production-like stack; no app bug found.</div>
+<div><b>0114</b>last database migration. Three of the recent ones need care on a live server: 0109, 0112, 0114.</div>
+<div><b>164 + 100</b>sample files and questions in the labelled test set that the model and search choices were made on.</div>
+<div><b>15 of 21</b>scenarios done (16 with the reminder); Gate C ahead.</div>
+</div>
+
+<h2>1 How solid is what we have?</h2>
+<p>Each area gets one label: <span class="tag built">SOLID</span> built, enforced and tested. <span class="tag part">BUILT, NOT PROVEN</span> the code exists but has not run for real or been measured. <span class="tag open">MISSING</span> nobody has done it yet.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>What exists today</th>
+<th>What is still open</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keeping clients apart</td>
+<td>Every route, download, export, search and assistant lookup goes through one check, <code>authorize()</code>, and the database repeats it with row-level security. A denied request looks like a missing one. A privacy review plus the leak-fix batch closed five real leaks (firm-only titles, private file names, shared reports counting firm-only work, history counting firm-only work). Restricted clients, assistant switch owners and whole-project meeting invitations were tightened. The isolation sweep of scenario 19 is still to run on every copy.</td>
+<td>No outside penetration test. Tests use our own sample data.</td>
+<td><span class="tag built">SOLID</span></td>
+</tr>
+<tr>
+<td>Sign-in</td>
+<td>Invite only. Staff and client admins use a password plus an authenticator code; managers and owners can use an emailed link. 10 tries per 15 minutes; sessions last 8 hours. The app refuses to start in production with scanning or two-factor off.</td>
+<td>No single sign-on with the firm's Microsoft or Google accounts.</td>
+<td><span class="tag built">SOLID</span></td>
+</tr>
+<tr>
+<td>The workflow</td>
+<td>Action states enforced by the database. Nobody reaches Verified without a consultant's accept; nobody verifies their own work; the two-sign-off rule works (scenarios 2, 3). Reports need a second person's approval and a confirmed send.</td>
+<td>A few friction points from the scenarios (Workflows, Part B).</td>
+<td><span class="tag built">SOLID</span></td>
+</tr>
+<tr>
+<td>Files</td>
+<td>20 MB limit, three type checks, ClamAV scan (a virus test file was refused), signed one-minute links, versions, labels, an audience picker.</td>
+<td>Scanned pages cannot be read (no text recognition yet).</td>
+<td><span class="tag built">SOLID</span></td>
+</tr>
+<tr>
+<td>Audit log</td>
+<td>Hash-chained, sealed and checked nightly; kept 12 months at least.</td>
+<td>Old rows still hold some private file names until the <strong>pre-go-live clean-up</strong> (section 5).</td>
+<td><span class="tag part">SOLID after clean-up</span></td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Invitations, reminders, daily digest and escalations; work mail respects the Saudi week.</td>
+<td>A sending domain on the firm's side with SPF, DKIM and DMARC. Work mail held for the weekend gives no sign that it is held.</td>
+<td><span class="tag part">BUILT, NOT PROVEN</span></td>
+</tr>
+<tr>
+<td>Assistant</td>
+<td>Answers with citations, from what the asker may open; a local model (qwen3.5:4b) by default; name masking that fails closed; a personal-number scanner (0114); Arabic word search (0112); @-attach; client assistant gaps closed; background jobs (0113). Labelled test set: 81 of 89 scored questions found the right passage; access held on all 164 earlier questions; no leak in scenario 13.</td>
+<td>Answers take about a minute on the local model on a processor (47 to 132 s). The progress draft's numbers can disagree with the project page. Reading scanned pages and a name-spotting model are not built. Answer quality on the server's own hardware is not measured.</td>
+<td><span class="tag part">BUILT, NOT PROVEN</span></td>
+</tr>
+<tr>
+<td>Backups and restore</td>
+<td>Backup, off-site encrypted copy, restore and a monthly restore drill that checks row counts, the audit chain and file checksums; a breach runbook.</td>
+<td>The second disk, a key kept off the server, a schedule, and one drill done and written down.</td>
+<td><span class="tag part">BUILT, NOT PROVEN</span></td>
+</tr>
+<tr>
+<td>Monitoring</td>
+<td><code>/api/ready</code>, a two-minute alert job, <code>ops/readiness.sh</code>; upgrade and rollback scripts.</td>
+<td>Alerts to a real inbox, an outside uptime check, disk and log watching.</td>
+<td><span class="tag part">BUILT, NOT PROVEN</span></td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Docker Compose with two ways in (tunnel for sample data, direct for real data); the full end-to-end suite runs on a production-like stack.</td>
+<td><strong>The server is not running Selah. The tunnel was never tested live. No staging server.</strong></td>
+<td><span class="tag open">MISSING</span></td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>AI work goes in one queue, one at a time; searches measured (new Arabic search function 2.5 ms a passage).</td>
+<td>No agreed workload or page-speed targets measured on the server.</td>
+<td><span class="tag open">MISSING</span></td>
+</tr>
+<tr>
+<td>Ease of use</td>
+<td>One rulebook; every screen simplified (fewer buttons, plain labels); a role guide, tooltips and first-visit lines in the app; scenarios timed in clicks.</td>
+<td>No sessions with real consultants or clients yet. Manual accessibility review open.</td>
+<td><span class="tag part">BUILT, NOT PROVEN</span></td>
+</tr>
+<tr>
+<td>Legal</td>
+<td>Terms, privacy and AI notices, DPA template, sub-processor list; acceptance recorded.</td>
+<td>Not reviewed by a lawyer. Hosting location, retention and duties not confirmed.</td>
+<td><span class="tag open">MISSING</span></td>
+</tr>
+</tbody>
+</table>
+<h2>2 How it runs on our server</h2>
+<p>The target is one Linux machine with a GTX 1050 graphics card and 16 GB of memory, everything in Docker.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Where it runs</th>
+<th>Before go-live</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web app and API (Next.js)</td>
+<td>Our server</td>
+<td>Production build, the real settings, the production safety check passing.</td>
+</tr>
+<tr>
+<td>Database (PostgreSQL 16 with vector search)</td>
+<td>Our server</td>
+<td>Backups on the second disk and a key kept off the server. Migrations through 0114.</td>
+</tr>
+<tr>
+<td>File storage (S3-compatible)</td>
+<td>Our server</td>
+<td>Included in the backup. Storage size planned.</td>
+</tr>
+<tr>
+<td>Virus scanner (ClamAV)</td>
+<td>Our server, own container</td>
+<td>About 1 to 1.5 GB of memory; signatures update daily.</td>
+</tr>
+<tr>
+<td>PDF export (Gotenberg)</td>
+<td>Our server, no route to the internet</td>
+<td>Nothing extra.</td>
+</tr>
+<tr>
+<td>Search model (bge-m3)</td>
+<td>Our server</td>
+<td>Time how long it takes to index real documents.</td>
+</tr>
+<tr>
+<td><strong>Answer model (qwen3.5:4b, local)</strong></td>
+<td>Our server, on the processor</td>
+<td>Measure real answer times. One model run at a time. A hosted model is for sample data only.</td>
+</tr>
+<tr>
+<td>AI service and jobs</td>
+<td>Our server</td>
+<td>Slow work (translations, summaries, org chart draft, indexing) runs as jobs in one queue.</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>A relay</td>
+<td>A sending domain on the firm's side with SPF, DKIM, DMARC.</td>
+</tr>
+<tr>
+<td>The way in</td>
+<td>Cloudflare Tunnel (sample data) or Caddy direct</td>
+<td><strong>Switch to direct before any real client file</strong>, because the tunnel handles encryption outside Saudi Arabia.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Two risks.</strong> Memory: about nine services share 16 GB, so measure under load. One machine: if the server breaks, Selah stops; an off-server backup and a written restore time protect us.</p>
+<p><strong>Rule for real client files.</strong> Real client files go only to a <strong>local</strong> model. Name masking cannot hide a name that appears only inside a file, and a name-spotting model is deliberately not built. Write this into the deployment guide.</p>
+<h2>3 Extra features: keep, trim or hold?</h2>
+<p>Our rule is to cut nothing built and tested, and to reduce clutter by hiding. The recent screen simplification applied this to every screen.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Verdict</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Closing gate and closure report</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Without it projects never end cleanly.</td>
+</tr>
+<tr>
+<td>Second sign-off</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Small, rule-based; works in the tests. Off by default.</td>
+</tr>
+<tr>
+<td>Audit log with hash chain</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Cybersecurity controls expect 12 months of logs.</td>
+</tr>
+<tr>
+<td>Date requests and slip history</td>
+<td><span class="tag built">KEEP</span></td>
+<td>The honest number of how a deadline moved. Gap found: decline has no reason box.</td>
+</tr>
+<tr>
+<td>Recommendation responses; risk acceptance</td>
+<td><span class="tag built">KEEP</span> / <span class="tag part">TRIM</span></td>
+<td>Needed; risk acceptance is shown only to people who can sign.</td>
+</tr>
+<tr>
+<td>Offboarding, export pack, legal hold</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Records must be kept; clients will ask what happens to their data.</td>
+</tr>
+<tr>
+<td>Intake, conflict check, NDA</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Now four numbered steps instead of five competing cards.</td>
+</tr>
+<tr>
+<td>Lead suggestions by expertise</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Only suggests; no performance scores. Gap: a consultant cannot set their own profile.</td>
+</tr>
+<tr>
+<td>Business indicators</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Careful wording; neutral colours; a "moved away" notice with figures only.</td>
+</tr>
+<tr>
+<td>Departments, restricted and firm-run modes</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Restricted clients now work; the firm-run mode keeps Selah useful for clients who will not log in.</td>
+</tr>
+<tr>
+<td>Client groups (holdings)</td>
+<td><span class="tag later">HOLD</span></td>
+<td>Rare for a first firm; shown once a group exists.</td>
+</tr>
+<tr>
+<td>Assessments with templates</td>
+<td><span class="tag part">TRIM</span></td>
+<td>Only a starter template ships. Loading the firm's own template waits until the firm sends it.</td>
+</tr>
+<tr>
+<td>Assistant (staff and client), @-attach, progress draft</td>
+<td><span class="tag built">KEEP</span></td>
+<td>The strongest everyday use; the four locks held in every test.</td>
+</tr>
+<tr>
+<td>Monthly status pack, reports with templates</td>
+<td><span class="tag built">KEEP</span></td>
+<td>It replaces the report consultants write by hand.</td>
+</tr>
+<tr>
+<td>Org chart (structure)</td>
+<td><span class="tag built">KEEP</span></td>
+<td>Useful to the firm; one publish bug to fix first.</td>
+</tr>
+<tr>
+<td>Closing survey and case-study consent</td>
+<td><span class="tag later">HOLD</span></td>
+<td>Optional; do not put it in front of every client.</td>
+</tr>
+</tbody>
+</table>
+<h2>4 Everyday situations: what Selah does today</h2>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What Selah does today</th>
+<th>Gap</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Switching the consultant on a client</td>
+<td>The admin changes the lead; the <strong>client and the old lead are told with a handover note</strong>. Leavers' work is handed to named people.</td>
+<td>Reviews waiting on the old lead are not moved automatically.</td>
+<td><span class="tag built">COVERED</span></td>
+</tr>
+<tr>
+<td>The contract is about to end</td>
+<td><strong>A reminder to the lead, deputy and admins from 30 days before until 30 days after the end date.</strong></td>
+<td>Say in the notice what to do next (renew, close, archive). The daily job must be scheduled.</td>
+<td><span class="tag built">COVERED</span></td>
+</tr>
+<tr>
+<td>Renewal or a next phase</td>
+<td>A new engagement and a new project that continues the earlier one.</td>
+<td>No guided "renew" step that carries open actions.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+<tr>
+<td>The client cuts the contract early</td>
+<td>The sponsor asks to close; the firm closes; archiving gives the grace period and export pack.</td>
+<td>No record of why it ended.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+<tr>
+<td>Work is late or stuck</td>
+<td>Blocked, date requests, comments, rule lists, the ladder. <strong>"I am stuck" now notifies the firm.</strong></td>
+<td>Decline of a date request has no reason box.</td>
+<td><span class="tag built">COVERED</span></td>
+</tr>
+<tr>
+<td>The client disagrees with a recommendation</td>
+<td>Kept on record with the reason; the firm may answer once; the client may sign a risk acceptance.</td>
+<td>None for now.</td>
+<td><span class="tag built">COVERED</span></td>
+</tr>
+<tr>
+<td>Give work to a colleague</td>
+<td><strong>Give to a colleague</strong> (client and firm), with notices; the server refuses an owner who may not be on the project.</td>
+<td>An owner change tells only the new owner.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+<tr>
+<td>A client person leaves</td>
+<td>The client admin moves their actions.</td>
+<td>The lead is not told; the dialog mentions a temporary head with no control.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+<tr>
+<td>Meeting summary</td>
+<td>Typed by hand, firm-only first, shareable; decisions and follow-ups beside it.</td>
+<td>No AI draft; the assistant cannot read summaries.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+<tr>
+<td>Sending a report to the client</td>
+<td>Template, a second person's approval, a confirmed send.</td>
+<td>Sharing sends no client notice yet.</td>
+<td><span class="tag part">PARTIAL</span></td>
+</tr>
+</tbody>
+</table>
+<h2>5 The path to production, in order</h2>
+<h3>A. Before go-live (the checklist for the operator)</h3>
+<p>Do these once, on the live database, before the firm's real clients are let in. The operations guide has the exact commands.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>What to do and why</th>
+<th>Done?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Size the end reminders</strong> (migration 0109)</td>
+<td>The first daily run after 0109 tells the firm about every open engagement of an active client that ends within 30 days or ended in the last 30. Run the provided <strong>read-only count</strong> on the live database first (how many engagements and how many notices). Notices go into each person's summary mail, so at most one mail per person that day. Run it after the migration and before the next daily job. Also needed before any later upgrade that first brings 0109.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>The pre-go-live clean-up script</strong> (<code>pre-go-live:clean-private-names</code>)</td>
+<td>Before migration 0106, withdrawing a wrong upload stored the file's name in the audit log and activity record where the other side could read it. 0106 hides old rows when read, but the stored rows still hold the names. The script blanks those fields, sets the right label on old activity rows, re-hashes the audit chain, and writes one system entry. Steps: stop <code>web</code> and <code>jobs</code>; rebuild the tools image; take a backup; <strong>dry run</strong> (counts only); then <code>--apply</code> (it shows the dry run and asks you to type the database name; one transaction, rolls back on any error). A second run finds nothing. Never run it on a test copy by mistake (it refuses unless told). After it, copy the new chain head off the server. <strong>Backups taken before the run still hold the names</strong>: keep them under the usual period, and if one is ever restored, run the script again. Written and tested; <strong>not run yet</strong>.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Test the tunnel live</strong></td>
+<td>The tunnel image was updated without a live test. With the real tunnel token: start the tunnel, check the connections register with no error; from outside the firm's network open the public address (sign-in over HTTPS, a file download, a PDF export); ask the assistant a question and watch a slow answer finish (the stream must stay open past 100 seconds) and a translation or summary finish as a job. If anything fails, set the previous image back and note it in the incident register.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Plan the 0112 search rewrite</strong> (maintenance window)</td>
+<td>0112 drops and re-adds the assistant's search column and its index. It holds an exclusive lock on the assistant's passages: during that time the assistant cannot search or index (the rest of Selah works). Measured on the laptop: about <strong>4 minutes per 100,000 passages</strong>; allow two to three times that on a slower server. Count first. Plan a maintenance window like any upgrade. The embeddings are not touched.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Allow for the 0114 re-index</strong></td>
+<td>0114 sends every indexed file back to the indexing job to tag personal numbers. Until the job reaches a file it reads "pending" and its summary button says not indexed. Allow about <strong>3.5 hours per 10,000 files</strong> on the server's processor (count first). Summaries, answers and translations kept before the upgrade may still hold numbers as written; clear them if that matters.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Direct way in</strong></td>
+<td>Point the two names at the server, open ports 80 and 443, set the direct profile, delete the tunnel, check the sub-processor page. Do this before any real client file.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>The firm's own mail domain</strong></td>
+<td>SPF, DKIM, DMARC so mail does not land in spam.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Backups</strong></td>
+<td>Second disk, an off-server key, the schedule, one restore drill done and its time written down. Run <code>ops/readiness.sh</code> and see it green.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Real-client rule</strong></td>
+<td>Real client files go only to a local model. Write it into the deployment guide.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>Legal texts</strong></td>
+<td>Reviewed by the firm's counsel.</td>
+<td>Open</td>
+</tr>
+</tbody>
+</table>
+<h3>B. What is still left in the plan</h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Work</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Finish the org chart publish fix (ids), independent review, merge</td>
+<td>Running at the pause</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Rest of the scenarios:</strong> finish 14 (closing) and 16 (a second client), run 6 and 7; copy D in English (2, 7, 12, 15) and 18 at 768 px dark</td>
+<td>Paused; resume</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Scenario 19 isolation sweep</strong> on every copy by an independent reviewer</td>
+<td>Not started</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Scenario report</strong> and an independent re-run of every failed step</td>
+<td>Not started</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Gate C: stop for the owner's decision</strong></td>
+<td>Ahead</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>After-scenarios list</strong> (below)</td>
+<td>After Gate C</td>
+</tr>
+<tr>
+<td>7</td>
+<td>The interactive Selah map (radial map of features, files and risks; kept true by a path-check script)</td>
+<td>After these documents</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Clean-up of scenario copies, worktrees and test buckets</td>
+<td>Later</td>
+</tr>
+</tbody>
+</table>
+<p><strong>After-scenarios list:</strong> text recognition (OCR) for scanned pages; save an assistant answer as a note; staff "what changed since my last visit" and meeting drafts; concern flags (facts, no score); export language following the screen; leftovers from the screen batches (date-request words, two words for "inquiry", tab stops added by tooltips); assessment guidance written for the consultant shown to the client; findings from the labelled test set; an answer that only echoes the question shown as grounded; org chart draft from pasted text giving 0 units; owner change telling only the new owner; plan import before the people are added; plus the failures and confusions in Workflows, Part B.</p>
+<h2>6 Future features (nothing here is built, and there are no dates)</h2>
+<p>These ideas are written down so the team can split them. They follow the same rules as everything else.</p>
+<div class="box">
+<p><strong>Rules for every future feature</strong></p>
+<ul>
+<li><strong>Automation suggests, a person decides.</strong> A suggestion proposes a value, a score or a warning; it changes nothing by itself. A consultant or the client accepts, changes or ignores it, and the record says who decided.</li>
+<li><strong>Keep it light.</strong> One shared local model and one search index serve every AI feature. No new model, agent or service for a single feature. Prefer plain rules and database queries (thresholds, counts, dates) over AI wherever they do the job.</li>
+<li><strong>Keep it fast.</strong> AI jobs run in one shared queue, one at a time. Cache answers and embeddings that have not changed. Index a file once, and again only when it changes. Measure page and AI response times before and after each feature.</li>
+<li><strong>It must run well on our server</strong> (GTX 1050, 16 GB, local model). Nothing goes to a hosted model with client files. The same access rules apply: a suggestion is read as the person who will see it. No judging words, no scores of people.</li>
+<li><strong>Keep the data now.</strong> For each idea the one thing to do today is to keep its data structured and timestamped.</li>
+</ul>
+</div>
+<table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it does</th>
+<th>Needs a model?</th>
+<th>Data to keep now</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Stuck or overloaded lanes</strong></td>
+<td>From action history, shows a consultant with many reviews waiting long, a client person owning most late work, a project where nothing moved for weeks. Facts to the admin or lead, who decide.</td>
+<td>No (database queries)</td>
+<td>Each state change with who and when; when evidence was sent and reviewed; date requests and answers</td>
+<td>Small to medium</td>
+</tr>
+<tr>
+<td><strong>Indicator help</strong></td>
+<td>Reads values from a spreadsheet the client uploads and proposes rows; flags a value that moved away from its target; suggests a likely link to a recommendation. Never says a recommendation caused a change.</td>
+<td>Only for messy files and suggested links</td>
+<td>Baseline, target, direction; values by period with who entered them and how; every correction beside the original</td>
+<td>Small, then medium</td>
+</tr>
+<tr>
+<td><strong>Assessment help</strong></td>
+<td>Suggests a draft answer and score from the client's evidence against the reference library, with a citation for each. Marked draft until a consultant takes it on. Runs as an overnight job. Never "compliant".</td>
+<td>Yes, the shared one</td>
+<td>Each answer with who and when and the template version; evidence linked; keep earlier answers</td>
+<td>Medium to large</td>
+</tr>
+<tr>
+<td><strong>"What changed" and meeting brief</strong></td>
+<td>A cited list of changes since the last visit; a brief from a meeting's agenda, open decisions and open actions.</td>
+<td>Yes, the shared one</td>
+<td>Already kept</td>
+<td>Small to medium</td>
+</tr>
+<tr>
+<td><strong>Save an answer as a note</strong></td>
+<td>Save an assistant answer with citations as a firm-only note on the project.</td>
+<td>No</td>
+<td>None</td>
+<td>Small</td>
+</tr>
+<tr>
+<td><strong>Scanned pages (OCR)</strong></td>
+<td>Text recognition only on pages marked scanned, in the shared queue, indexed once.</td>
+<td>No (recognition on the processor)</td>
+<td>Pages marked <code>needs_ocr</code></td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>User-made report templates and a richer editor</strong></td>
+<td>The firm's own templates; headings, lists, small tables in the note. Research first (Arabic right-to-left, safe storage, PDF and translation). Still needs approval and a confirmed send.</td>
+<td>No</td>
+<td>The report text and edits</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>A client page for their own report</strong></td>
+<td>The client keeps and edits the progress draft as the company's own report; the firm sees it only if the client shares it; Selah never sends it.</td>
+<td>No</td>
+<td>Text, writer, edit times, who shared</td>
+<td>Small to medium</td>
+</tr>
+<tr>
+<td><strong>Workflow helpers</strong></td>
+<td>A guided renew step; a reason for why a contract ended; a pause state; the AI meeting summary draft; a decisions list; a calendar screen. Each must first be shown to be useful.</td>
+<td>Mostly no</td>
+<td>None</td>
+<td>Various</td>
+</tr>
+</tbody>
+</table>
+<h3>The reference library (plan, not built)</h3>
+<p>A small library of governance and strategy references that the assistant and the assessment help can cite, kept apart from client evidence.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IFC family business governance handbook</td>
+<td>Check the licence before loading</td>
+</tr>
+<tr>
+<td>OECD Principles of Corporate Governance</td>
+<td>Store the edition used</td>
+</tr>
+<tr>
+<td>Capital Market Authority corporate governance regulations</td>
+<td>Regulations change: store the date of the version</td>
+</tr>
+<tr>
+<td>The Balanced Scorecard</td>
+<td>Copyrighted: the library holds the firm's short notes, quotes only briefly with the page</td>
+</tr>
+<tr>
+<td>Good Strategy Bad Strategy</td>
+<td>Copyrighted: as above</td>
+</tr>
+<tr>
+<td>Ministry of Economy and Planning strategy framework</td>
+<td>Check the licence</td>
+</tr>
+</tbody>
+</table>
+<p>Every citation from the library is labelled "Reference" and names the source, its edition and the place in it, so nobody mistakes it for the client's own document. Arabic and English questions about each source are added to the labelled test set with the right passages marked.</p>
+<h3>Suggested order for splitting the work</h3>
+<ol>
+<li>Things that need no model first: stuck or overloaded lanes, the indicator flag and spreadsheet rows, save an answer as a note, the client's own report page.</li>
+<li>Things that need the shared model after the value test: "what changed" and the meeting brief, indicator suggestions.</li>
+<li>Text recognition and user-made templates: after research.</li>
+<li>The reference library, then assessment help: last. They depend on a licence check of each source and the labelled test set.</li>
+</ol>
+<p class="small">Sources: the system map, the operations guide (Before go-live), the assistant guide, the lead's log and the scenario reports. Companion documents: Handbook, Workflows.</p></body></html>
