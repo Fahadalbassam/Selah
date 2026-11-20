@@ -1,0 +1,996 @@
+# Selah system map
+
+> **Status (20 Nov 2026):** generated from `origin/main` up to #210. Not yet added: #211 (AI calls as background jobs: `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts`, `apps/web/src/app/api/ai-jobs/`, table `ai_jobs`, migration `0113_ai_jobs`) and #213 (number scanner: `apps/web/src/lib/sensitive-numbers.ts`, `documents.number_counts`, migration `0114_number_scanner`), plus #209 (`0112_arabic_search`). Rule: any PR that changes a connection updates this file in the same PR.
+
+Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a73997 (PRs up to #210). It describes the code as it is, from reading the files, the import graph of `apps/web/src/services`, the policy table and the migrations. It is the input for `CLAUDE.md`, the interactive Selah map and the handbook update. Every path below was checked against `git ls-files` by the generator that wrote this file (see 'Checks').
+
+## Format (for the checker script)
+
+- One `## F<nn> name` heading per feature and one `### F<nn>.<m> name` heading per sub-feature. Ids are stable.
+- Under each heading the same bullets, in the same order: `id`, `kind`, `parent`, `summary`, `roles`, `risk`, `pages`, `components`, `api`, `services`, `lib`, `jobs`, `db_tables`, `migrations`, `policy`, `tests`, `docs`, `extra_files`, then zero or more `link` bullets.
+- `pages`, `components`, `api`, `services`, `lib`, `jobs`, `migrations`, `tests`, `docs`, `extra_files`: a comma-separated list of repo-relative paths, each in backticks. A script takes every backticked token that contains a `/` in those bullets and checks it exists. `none` means empty.
+- `db_tables`: table or view names in backticks (not paths). `policy`: entries of `apps/web/src/authz/policy.ts` in backticks (not paths); `(...)` text in parentheses is a note.
+- `risk`: any of `privacy`, `permissions`, `ai`, `migration`, or none. Meaning: privacy = another person's data could show; permissions = a role or row-level rule is involved; ai = a model, index or masking is involved; migration = the database schema or its rules are defined or redefined here.
+- `link` bullets: `- link: <to id> | <kind> | <files> | <what flows>`. `kind` is one of `data`, `permission`, `AI call`, `job`, `scan`, `shared file`. The link is written under the feature that owns the file that makes it; read it both ways.
+- `api` lists route files (`route.ts`) under `apps/web/src/app/api`; `pages` lists `page.tsx` and its client files under `apps/web/src/app`. Pages directories use `(app)` for signed-in screens, `(auth)` for sign-in, `(public)` for signed-out pages.
+- Database objects are in `apps/web/drizzle/NNNN_name.sql`; the Drizzle table definitions are in `apps/web/src/db/schema/app.ts`, `auth.ts`, `org-chart.ts` and `org-chart-plans.ts`. The next free migration number is 0112. Migrations listed per feature were found by scanning for DDL statements on that feature's tables (create, alter, drop, policy, trigger, view, function), plus a hand-picked list of the ones that redefine its rules; a migration can appear under several features.
+
+### Roles used
+
+`firm_admin`, `consultant` (lead, deputy, staffed member, observer, working, staffed as defined in `apps/web/src/authz/types.ts`), `client_admin`, `client_manager` (project sponsor, coordinator, acceptor are client roles on a project, `apps/web/src/lib/client-roles.ts`), `action_owner`. A `consultant_managed` client has no client accounts.
+
+## Features
+
+## F01 Sign-in, accounts and access
+
+- id: F01
+- kind: feature
+- parent: none
+- summary: Invitation-only accounts, password and one-time sign-in link, two-factor, consent notices, people and access review, switching a person off with the hand-over dialog.
+- roles: all roles (sign-in); firm_admin and client_admin manage people; consultants only see the firm list they may
+- risk: permissions, privacy
+- pages: `apps/web/src/app/(auth)/auth-shell.tsx`, `apps/web/src/app/(auth)/confirm-email/[token]/confirm-button.tsx`, `apps/web/src/app/(auth)/confirm-email/[token]/page.tsx`, `apps/web/src/app/(auth)/consent/consent-form.tsx`, `apps/web/src/app/(auth)/consent/page.tsx`, `apps/web/src/app/(auth)/dead-link.tsx`, `apps/web/src/app/(auth)/forgot-password/forgot-form.tsx`, `apps/web/src/app/(auth)/forgot-password/page.tsx`, `apps/web/src/app/(auth)/invite/[token]/accept-form.tsx`, `apps/web/src/app/(auth)/invite/[token]/page.tsx`, `apps/web/src/app/(auth)/layout.tsx`, `apps/web/src/app/(auth)/password-fields.tsx`, `apps/web/src/app/(auth)/reset-password/[token]/page.tsx`, `apps/web/src/app/(auth)/reset-password/[token]/reset-form.tsx`, `apps/web/src/app/(auth)/security/page.tsx`, `apps/web/src/app/(auth)/security/security-panel.tsx`, `apps/web/src/app/(auth)/sign-in/link/[token]/page.tsx`, `apps/web/src/app/(auth)/sign-in/page.tsx`, `apps/web/src/app/(auth)/sign-in/sign-in-form.tsx`, `apps/web/src/app/(app)/team/page.tsx`, `apps/web/src/app/(app)/leaving/loading.tsx`, `apps/web/src/app/(app)/leaving/page.tsx`, `apps/web/src/app/(app)/clients/[id]/people/page.tsx`
+- components: `apps/web/src/components/nav-user.tsx`, `apps/web/src/components/people-tabs.tsx`, `apps/web/src/components/welcome.tsx`
+- api: `apps/web/src/app/api/auth/[...all]/route.ts`, `apps/web/src/app/api/invite/[token]/accept/route.ts`, `apps/web/src/app/api/invite/[token]/route.ts`, `apps/web/src/app/api/invitations/[id]/route.ts`, `apps/web/src/app/api/consent/route.ts`, `apps/web/src/app/api/people/[id]/email-change/route.ts`, `apps/web/src/app/api/people/[id]/erase/route.ts`, `apps/web/src/app/api/people/[id]/hand-over/route.ts`, `apps/web/src/app/api/people/[id]/holdings/route.ts`, `apps/web/src/app/api/people/[id]/name-alt/route.ts`, `apps/web/src/app/api/people/[id]/route.ts`, `apps/web/src/app/api/people/[id]/two-factor-reset/route.ts`, `apps/web/src/app/api/orgs/[id]/access-reviews/route.ts`, `apps/web/src/app/api/orgs/[id]/departments/route.ts`, `apps/web/src/app/api/orgs/[id]/email-domains/route.ts`, `apps/web/src/app/api/orgs/[id]/engagement/route.ts`, `apps/web/src/app/api/orgs/[id]/invitations/route.ts`, `apps/web/src/app/api/orgs/[id]/legal-form/route.ts`, `apps/web/src/app/api/orgs/[id]/people/route.ts`, `apps/web/src/app/api/orgs/[id]/profile/route.ts`, `apps/web/src/app/api/orgs/[id]/second-review/route.ts`, `apps/web/src/app/api/orgs/[id]/short-names/route.ts`, `apps/web/src/app/api/email-change/confirm/route.ts`
+- services: `apps/web/src/services/accounts.ts`, `apps/web/src/services/onboarding.ts`, `apps/web/src/services/consent.ts`, `apps/web/src/services/principal.ts`, `apps/web/src/services/handover.ts`
+- lib: `apps/web/src/lib/auth-client.ts`, `apps/web/src/lib/sign-in-links.ts`, `apps/web/src/lib/welcome.ts`, `apps/web/src/lib/people-tabs.ts`, `apps/web/src/auth/auth.ts`, `apps/web/src/auth/attempts.ts`, `apps/web/src/auth/reset-links.ts`, `apps/web/src/authz/two-factor.ts`, `apps/web/src/proxy.ts`
+- jobs: none
+- db_tables: `user`, `account`, `session`, `verification`, `two_factor`, `invitations`, `consent_records`, `email_changes`, `org_memberships`, `access_reviews`, `join_requests`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0003_mail_preferences.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0024_consent_records.sql`, `apps/web/drizzle/0027_people_leaving.sql`, `apps/web/drizzle/0056_sign_in_links.sql`, `apps/web/drizzle/0068_email_change_is_open.sql`, `apps/web/drizzle/0097_org_chart_editor.sql`, `apps/web/drizzle/0100_org_chart_plans_on_leaving.sql`, `apps/web/drizzle/0106_classification_leaks.sql`
+- policy: `org_user.read`, `org_user.manage`, `org_user.erase`, `join_request.create`, `join_request.decide`, `client_directory.read`
+- tests: `apps/web/tests/attempts.test.ts`, `apps/web/tests/sign-in-links.test.ts`, `apps/web/tests/route-guard.test.ts`, `apps/web/tests/db/accounts.test.ts`, `apps/web/tests/db/consent.test.ts`, `apps/web/tests/db/two-factor.test.ts`, `apps/web/tests/db/sign-in-links.test.ts`, `apps/web/tests/db/people-leaving.test.ts`, `apps/web/e2e/accounts.e2e.ts`, `apps/web/e2e/auth.setup.ts`
+- docs: `docs/accounts.md`, `docs/security.md`
+- extra_files: none
+- link: F02 | permission | `apps/web/src/services/principal.ts`, `apps/web/src/authz/types.ts` | the session becomes a Principal on the server; nothing the browser sends is trusted
+- link: F24 | data | `apps/web/src/services/accounts.ts`, `apps/web/src/services/audit.ts` | sign-ins, refusals, invitations and switch-offs are audited
+
+## F02 Authorization core (roles, policy, row-level security)
+
+- id: F02
+- kind: feature
+- parent: none
+- summary: One policy table says who may do what; authorize() adds the five questions and the audience guard; the database repeats it with row-level security so a service bug cannot leak.
+- roles: not a screen: every role is judged here (firm_admin, consultant, client_admin, client_manager, action_owner)
+- risk: permissions, privacy, migration
+- pages: none
+- components: none
+- api: `apps/web/src/app/api/health/route.ts`, `apps/web/src/app/api/ready/route.ts`
+- services: `apps/web/src/services/principal.ts`, `apps/web/src/services/queries.ts`, `apps/web/src/services/nav.ts`, `apps/web/src/services/readiness.ts`
+- lib: `apps/web/src/lib/nav.ts`, `apps/web/src/lib/observers.ts`, `apps/web/src/lib/client-roles.ts`, `apps/web/src/lib/status-words.ts`, `apps/web/src/authz/authorize.ts`, `apps/web/src/authz/policy.ts`, `apps/web/src/authz/types.ts`, `apps/web/src/authz/workflow.ts`, `apps/web/src/authz/retrieval.ts`, `apps/web/src/authz/index.ts`, `apps/web/src/server/http.ts`, `apps/web/src/server/errors.ts`, `apps/web/src/server/page.ts`, `apps/web/src/db/client.ts`
+- jobs: none
+- db_tables: `org_memberships`, `project_members`, `department_members`, `client_assignments`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0034_observers.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0082_whole_project_meetings.sql`, `apps/web/drizzle/0084_whole_project_readers.sql`, `apps/web/drizzle/0087_owner_definers.sql`, `apps/web/drizzle/0101_action_owner.sql`, `apps/web/drizzle/0106_classification_leaks.sql`, `apps/web/drizzle/0107_restricted_admin_work.sql`, `apps/web/drizzle/0108_privacy_batch.sql`, `apps/web/drizzle/0111_owner_not_full_client_admin.sql`
+- policy: `(all entries in apps/web/src/authz/policy.ts)`
+- tests: `apps/web/tests/authorize.test.ts`, `apps/web/tests/navigation.test.ts`, `apps/web/tests/not-found.test.ts`, `apps/web/tests/db/rls.test.ts`, `apps/web/tests/db/rule-parity.test.ts`, `apps/web/tests/db/observers.test.ts`, `apps/web/tests/db/restricted-work.test.ts`, `apps/web/tests/db/owner-actions.test.ts`, `apps/web/tests/db/classification-leaks.test.ts`, `apps/web/tests/db/privacy-leaks.test.ts`, `apps/web/tests/db/privacy-batch.test.ts`, `apps/web/tests/db/drafts-hidden.test.ts`
+- docs: `docs/authorization.md`, `docs/rules.md`, `docs/data-architecture.md`
+- extra_files: none
+
+## F03 Home (one page per role)
+
+- id: F03
+- kind: feature
+- parent: none
+- summary: What waits for each person with its next step: reviews, decisions, late work, meetings, join requests, indicator values, deliverables to confirm.
+- roles: every role (each sees only what it may open)
+- risk: privacy, permissions
+- pages: `apps/web/src/app/(app)/page.tsx`
+- components: `apps/web/src/components/home/client-home.tsx`, `apps/web/src/components/home/firm-home.tsx`, `apps/web/src/components/home/home-section.tsx`, `apps/web/src/components/home/my-work.tsx`, `apps/web/src/components/home/owner-home.tsx`, `apps/web/src/components/client-progress.tsx`, `apps/web/src/components/group-progress.tsx`, `apps/web/src/components/sliding-count.tsx`, `apps/web/src/components/stat-tile.tsx`
+- api: `apps/web/src/app/api/projects/[id]/since-last-visit/route.ts`
+- services: `apps/web/src/services/home.ts`, `apps/web/src/services/today.ts`, `apps/web/src/services/action-board.ts`, `apps/web/src/services/insight.ts`, `apps/web/src/services/team-load.ts`
+- lib: `apps/web/src/lib/home.ts`, `apps/web/src/lib/action-next.ts`, `apps/web/src/lib/action-filters.ts`, `apps/web/src/lib/row-actions.ts`, `apps/web/src/lib/status-words.ts`, `apps/web/src/lib/welcome.ts`
+- jobs: none
+- db_tables: `notifications`, `project_visits`, `follow_ups`, `v_deviations`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0002_firm_day_functions.sql`, `apps/web/drizzle/0006_private_recommendation_actions.sql`, `apps/web/drizzle/0045_recommendation_responses.sql`, `apps/web/drizzle/0047_action_due_changes.sql`, `apps/web/drizzle/0048_oversight.sql`, `apps/web/drizzle/0063_client_indicators.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0070_department_meetings.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0086_owner_follow_ups.sql`, `apps/web/drizzle/0095_audience_rules.sql`
+- policy: `activity.read`, `schedule.read`, `deviation.read`, `team_metrics.read`
+- tests: `apps/web/tests/home.test.ts`, `apps/web/tests/db/home.test.ts`, `apps/web/tests/db/today.test.ts`, `apps/web/tests/action-filters.test.ts`, `apps/web/tests/status-words.test.ts`, `apps/web/tests/row-actions.test.ts`, `apps/web/tests/db/oversight.test.ts`
+- docs: `docs/ui-guidelines.md`
+- extra_files: none
+- link: F10 | data | `apps/web/src/services/home.ts`, `apps/web/src/services/action-board.ts` | home rows and counters are built from the same action lists as the Actions page
+- link: F07 | data | `apps/web/src/services/home.ts`, `apps/web/src/services/deliverables.ts` | files waiting for confirmation of receipt show on the receiver's home
+
+## F04 Clients (client page, team, lead and deputy, engagement mode)
+
+- id: F04
+- kind: feature
+- parent: none
+- summary: The firm's record of a client: overview, people, setup (mode, legal profile, second sign-off rule, assistant offer, signed engagement), staffing, lead and deputy changes with handover note, contacts, watch.
+- roles: firm_admin (all clients); consultants on their clients; client side reads its own company
+- risk: permissions, privacy, migration
+- pages: `apps/web/src/app/(app)/clients/page.tsx`, `apps/web/src/app/(app)/clients/[id]/page.tsx`, `apps/web/src/app/(app)/clients/[id]/departments/loading.tsx`, `apps/web/src/app/(app)/clients/[id]/departments/page.tsx`, `apps/web/src/app/(app)/clients/[id]/people/page.tsx`
+- components: `apps/web/src/components/client-team-row.tsx`, `apps/web/src/components/departments-manager.tsx`, `apps/web/src/components/departments-switch.tsx`, `apps/web/src/components/engagement-form.tsx`, `apps/web/src/components/conflict-matches.tsx`
+- api: `apps/web/src/app/api/clients/[id]/consultants/[userId]/route.ts`, `apps/web/src/app/api/clients/[id]/consultants/route.ts`, `apps/web/src/app/api/clients/[id]/lead/route.ts`, `apps/web/src/app/api/clients/[id]/deputy/route.ts`, `apps/web/src/app/api/clients/[id]/contacts/route.ts`, `apps/web/src/app/api/clients/[id]/join-requests/route.ts`, `apps/web/src/app/api/clients/[id]/projects/route.ts`, `apps/web/src/app/api/clients/[id]/watch/route.ts`, `apps/web/src/app/api/clients/pitch/route.ts`, `apps/web/src/app/api/orgs/[id]/profile/route.ts`, `apps/web/src/app/api/orgs/[id]/legal-form/route.ts`, `apps/web/src/app/api/orgs/[id]/short-names/route.ts`, `apps/web/src/app/api/orgs/[id]/engagement/route.ts`, `apps/web/src/app/api/orgs/[id]/second-review/route.ts`, `apps/web/src/app/api/orgs/[id]/email-domains/route.ts`, `apps/web/src/app/api/join-requests/[id]/decision/route.ts`, `apps/web/src/app/api/join-requests/[id]/withdraw/route.ts`, `apps/web/src/app/api/contacts/[id]/route.ts`
+- services: `apps/web/src/services/staffing.ts`, `apps/web/src/services/client-overview.ts`, `apps/web/src/services/client-profile.ts`, `apps/web/src/services/engagement.ts`, `apps/web/src/services/client-roles.ts`, `apps/web/src/services/handover.ts`, `apps/web/src/services/second-review.ts`, `apps/web/src/services/prospects.ts`
+- lib: `apps/web/src/lib/client-profile.ts`, `apps/web/src/lib/clients-list.ts`, `apps/web/src/lib/client-tabs.ts`, `apps/web/src/lib/engagement.ts`, `apps/web/src/lib/second-review.ts`, `apps/web/src/lib/client-roles.ts`, `apps/web/src/lib/names.ts`
+- jobs: none
+- db_tables: `organizations`, `client_assignments`, `client_contacts`, `client_profiles`, `client_review_settings`, `client_lead_changes`, `review_signoffs`, `watches`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0004_client_people_and_phases.sql`, `apps/web/drizzle/0008_engagement_record.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0010_client_roles.sql`, `apps/web/drizzle/0011_legal_profile.sql`, `apps/web/drizzle/0020_project_closure.sql`, `apps/web/drizzle/0022_client_overview.sql`, `apps/web/drizzle/0027_people_leaving.sql`, `apps/web/drizzle/0034_observers.sql`, `apps/web/drizzle/0051_deputy.sql`, `apps/web/drizzle/0062_second_review.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`
+- policy: `organization.read`, `organization.create`, `organization.pitch`, `organization.update`, `organization.second_review`, `client_profile.write`, `client_contact.read`, `client_contact.write`, `client_assignment.read`, `client_assignment.manage`, `client_assignment.set_lead`, `client_assignment.set_deputy`, `client_role.manage`, `lead_suggestion.read`
+- tests: `apps/web/tests/client-page.test.ts`, `apps/web/tests/client-pages.test.ts`, `apps/web/tests/db/client-overview.test.ts`, `apps/web/tests/db/client-profile.test.ts`, `apps/web/tests/db/deputy.test.ts`, `apps/web/tests/db/handover.test.ts`, `apps/web/tests/db/lead-change-end-reminder.test.ts`, `apps/web/tests/db/client-roles.test.ts`, `apps/web/tests/db/second-review.test.ts`, `apps/web/tests/db/prospects.test.ts`, `apps/web/tests/db/engagement.test.ts`
+- docs: `docs/engagement.md`, `docs/placement.md`, `docs/firm-settings.md`
+- extra_files: none
+- link: F07 | data | `apps/web/src/services/engagements.ts`, `apps/web/src/services/staffing.ts` | a project is visible to the client only once a signed engagement covers it
+- link: F23 | data | `apps/web/src/services/handover.ts`, `apps/web/src/services/staffing.ts` | changing the lead tells the client's admins and the old lead and stores a handover note
+- link: F01 | permission | `apps/web/src/services/staffing.ts`, `apps/web/src/services/principal.ts` | client assignment, project membership and observer rows build the Principal sets that every check uses
+
+## F05 Departments
+
+- id: F05
+- kind: feature
+- parent: none
+- summary: A client's departments cut across projects; people belong to them; a department-limited person sees only that department's work; moving open work between departments.
+- roles: firm_admin, client_admin manage; managers read their own; action owners none
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/departments/[id]/loading.tsx`, `apps/web/src/app/(app)/departments/[id]/page.tsx`, `apps/web/src/app/(app)/departments/loading.tsx`, `apps/web/src/app/(app)/departments/page.tsx`, `apps/web/src/app/(app)/departments/structure/loading.tsx`, `apps/web/src/app/(app)/departments/structure/page.tsx`, `apps/web/src/app/(app)/clients/[id]/departments/loading.tsx`, `apps/web/src/app/(app)/clients/[id]/departments/page.tsx`
+- components: `apps/web/src/components/departments-manager.tsx`, `apps/web/src/components/departments-switch.tsx`, `apps/web/src/components/move-department-work.tsx`, `apps/web/src/components/people-tabs.tsx`
+- api: `apps/web/src/app/api/departments/[id]/members/[userId]/route.ts`, `apps/web/src/app/api/departments/[id]/move/route.ts`, `apps/web/src/app/api/departments/[id]/route.ts`, `apps/web/src/app/api/orgs/[id]/departments/route.ts`
+- services: `apps/web/src/services/client-overview.ts`, `apps/web/src/services/closure.ts`
+- lib: `apps/web/src/lib/people-tabs.ts`
+- jobs: none
+- db_tables: `departments`, `department_members`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0021_departments_across.sql`, `apps/web/drizzle/0031_department_page.sql`, `apps/web/drizzle/0032_department_move.sql`, `apps/web/drizzle/0052_client_groups.sql`, `apps/web/drizzle/0063_client_indicators.sql`, `apps/web/drizzle/0070_department_meetings.sql`, `apps/web/drizzle/0088_head_escalation.sql`, `apps/web/drizzle/0091_org_chart.sql`
+- policy: `department.read`, `department.manage`, `department.move_work`
+- tests: `apps/web/tests/db/department-move.test.ts`, `apps/web/tests/db/whole-project-meetings.test.ts`
+- docs: `docs/engagement.md`
+- extra_files: none
+
+## F06 Client groups (holding roll-up)
+
+- id: F06
+- kind: feature
+- parent: none
+- summary: A holding and its subsidiaries rolled up into one progress view; the firm decides which client people may see the group.
+- roles: firm_admin manages; consultants read their members; named client people read via 'our group'
+- risk: privacy, permissions
+- pages: `apps/web/src/app/(app)/clients/groups/[id]/page.tsx`
+- components: `apps/web/src/components/group-progress.tsx`
+- api: `apps/web/src/app/api/client-groups/[id]/companies/[departmentId]/route.ts`, `apps/web/src/app/api/client-groups/[id]/holding/route.ts`, `apps/web/src/app/api/client-groups/[id]/members/[clientId]/route.ts`, `apps/web/src/app/api/client-groups/[id]/members/route.ts`, `apps/web/src/app/api/client-groups/[id]/route.ts`, `apps/web/src/app/api/client-groups/[id]/viewers/[userId]/route.ts`, `apps/web/src/app/api/client-groups/[id]/viewers/route.ts`, `apps/web/src/app/api/client-groups/route.ts`
+- services: `apps/web/src/services/client-groups.ts`, `apps/web/src/services/client-overview.ts`
+- lib: none
+- jobs: none
+- db_tables: `client_groups`, `client_group_members`, `client_group_viewers`
+- migrations: `apps/web/drizzle/0052_client_groups.sql`, `apps/web/drizzle/0053_group_viewers.sql`
+- policy: `client_group.read`, `client_group.manage`, `client_group.view`
+- tests: `apps/web/tests/db/client-groups.test.ts`, `apps/web/tests/db/client-group-viewers.test.ts`
+- docs: `docs/engagement.md`
+- extra_files: none
+
+## F07 Engagements and deliverables
+
+- id: F07
+- kind: feature
+- parent: none
+- summary: The signed engagement, its end date and deliverables; the firm hands deliverable files over in rounds and the client confirms receipt or comments (receipt is never acceptance).
+- roles: firm_admin, lead, deputy and staffed consultants hand over; the client's acceptor (else admin, else sponsor) confirms
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/engagements/[id]/loading.tsx`, `apps/web/src/app/(app)/engagements/[id]/page.tsx`, `apps/web/src/app/(app)/deliverables/loading.tsx`, `apps/web/src/app/(app)/deliverables/page.tsx`
+- components: `apps/web/src/components/deliverables/deliverable-list.tsx`, `apps/web/src/components/deliverables/hand-over-dialog.tsx`, `apps/web/src/components/engagement-form.tsx`
+- api: `apps/web/src/app/api/engagements/[id]/deliverables/[deliverableId]/route.ts`, `apps/web/src/app/api/engagements/[id]/deliverables/route.ts`, `apps/web/src/app/api/engagements/[id]/projects/route.ts`, `apps/web/src/app/api/engagements/[id]/route.ts`, `apps/web/src/app/api/deliverables/[id]/comment/route.ts`, `apps/web/src/app/api/deliverables/[id]/hand-over/preview/route.ts`, `apps/web/src/app/api/deliverables/[id]/hand-over/route.ts`, `apps/web/src/app/api/deliverables/[id]/receipt/route.ts`, `apps/web/src/app/api/deliverables/[id]/route.ts`, `apps/web/src/app/api/clients/[id]/engagements/route.ts`
+- services: `apps/web/src/services/engagements.ts`, `apps/web/src/services/engagement.ts`, `apps/web/src/services/deliverables.ts`
+- lib: `apps/web/src/lib/engagements.ts`, `apps/web/src/lib/engagement.ts`, `apps/web/src/lib/deliverables.ts`
+- jobs: `apps/web/src/jobs/follow-ups.ts`
+- db_tables: `engagements`, `engagement_deliverables`, `deliverable_handovers`, `engagement_reminders`
+- migrations: `apps/web/drizzle/0008_engagement_record.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0092_deliverable_receipts.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`
+- policy: `engagement.read`, `engagement.write`, `deliverable.read`, `deliverable.hand_over`, `deliverable.receive`, `deliverable.comment`
+- tests: `apps/web/tests/deliverable-words.test.ts`, `apps/web/tests/db/engagements.test.ts`, `apps/web/tests/db/deliverable-receipts.test.ts`, `apps/web/tests/db/lead-change-end-reminder.test.ts`
+- docs: `docs/engagement.md`, `docs/authorization.md`
+- extra_files: none
+
+## F08 Inquiries and pitches (intake)
+
+- id: F08
+- kind: feature
+- parent: none
+- summary: Public inquiry form, firm inbox with numbered steps (owner, discovery, proposal, make a client), conflict check, qualification, NDA, converting to a client, pitches for prospects.
+- roles: public (form); firm_admin decides; consultants work the inquiries handed to them
+- risk: privacy, migration
+- pages: `apps/web/src/app/(public)/inquiry/inquiry-form.tsx`, `apps/web/src/app/(public)/inquiry/inquiry-intro.tsx`, `apps/web/src/app/(public)/inquiry/layout.tsx`, `apps/web/src/app/(public)/inquiry/page.tsx`, `apps/web/src/app/(app)/inquiries/[id]/inquiry-panels.tsx`, `apps/web/src/app/(app)/inquiries/[id]/page.tsx`, `apps/web/src/app/(app)/inquiries/enter-inquiry.tsx`, `apps/web/src/app/(app)/inquiries/page.tsx`
+- components: `apps/web/src/components/conflict-matches.tsx`
+- api: `apps/web/src/app/api/inquiries/route.ts`, `apps/web/src/app/api/intake/discovery/[id]/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/conflict-search/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/convert/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/decline-mail/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/discovery/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/marketing-consent/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/nda/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/notes/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/qualification/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/route.ts`, `apps/web/src/app/api/intake/inquiries/[id]/suggestions/route.ts`, `apps/web/src/app/api/intake/inquiries/route.ts`, `apps/web/src/app/api/intake/options/route.ts`, `apps/web/src/app/api/clients/[id]/conflict-search/route.ts`
+- services: `apps/web/src/services/inquiries.ts`, `apps/web/src/services/intake.ts`, `apps/web/src/services/conflicts.ts`, `apps/web/src/services/prospects.ts`
+- lib: `apps/web/src/lib/inquiry-entry.ts`, `apps/web/src/lib/inquiry-form.ts`, `apps/web/src/lib/inquiry-schema.ts`, `apps/web/src/lib/inquiry-steps.ts`, `apps/web/src/lib/intake.ts`, `apps/web/src/lib/qualification.ts`
+- jobs: none
+- db_tables: `inquiries`, `inquiry_events`, `inquiry_services`, `inquiry_qualifications`, `conflict_searches`, `discovery_sessions`, `sectors`, `service_areas`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0008_engagement_record.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0011_legal_profile.sql`, `apps/web/drizzle/0013_inquiry_sources.sql`, `apps/web/drizzle/0014_conflict_search.sql`, `apps/web/drizzle/0015_intake_form.sql`
+- policy: `inquiry.read`, `inquiry.work`, `inquiry.decide`, `inquiry.enter`, `lead_suggestion.read`
+- tests: `apps/web/tests/inquiry-form.test.ts`, `apps/web/tests/inquiry-steps.test.ts`, `apps/web/tests/intake-constants.test.ts`, `apps/web/tests/db/intake.test.ts`, `apps/web/tests/db/conflicts.test.ts`, `apps/web/tests/db/prospects.test.ts`, `apps/web/e2e/intake-staffing.e2e.ts`
+- docs: `docs/intake.md`
+- extra_files: none
+- link: F04 | data | `apps/web/src/services/inquiries.ts`, `apps/web/src/services/engagements.ts`, `apps/web/src/services/staffing.ts` | converting an inquiry creates the client, records the signed engagement, names the lead; suggested leads come from expertise
+- link: F27 | data | `apps/web/src/services/expertise.ts`, `apps/web/src/services/inquiries.ts` | consultants' declared sectors, services and languages rank the suggested leads
+
+## F09 Projects, plan and recommendations
+
+- id: F09
+- kind: feature
+- parent: none
+- summary: A client or internal project with findings, recommendations and actions; the client's answers to recommendations; plan import and export; changes with release to the client.
+- roles: firm staff on the project write; client reads what is shared; client admin and sponsor answer recommendations
+- risk: permissions, privacy, migration
+- pages: `apps/web/src/app/(app)/projects/[id]/case-study-section.tsx`, `apps/web/src/app/(app)/projects/[id]/client-roles-card.tsx`, `apps/web/src/app/(app)/projects/[id]/closure-tab.tsx`, `apps/web/src/app/(app)/projects/[id]/document-summary.tsx`, `apps/web/src/app/(app)/projects/[id]/handover-card.tsx`, `apps/web/src/app/(app)/projects/[id]/import/import-wizard.tsx`, `apps/web/src/app/(app)/projects/[id]/import/loading.tsx`, `apps/web/src/app/(app)/projects/[id]/import/page.tsx`, `apps/web/src/app/(app)/projects/[id]/info-requests-tab.tsx`, `apps/web/src/app/(app)/projects/[id]/insight.tsx`, `apps/web/src/app/(app)/projects/[id]/loading.tsx`, `apps/web/src/app/(app)/projects/[id]/page.tsx`, `apps/web/src/app/(app)/projects/[id]/plan-actions.tsx`, `apps/web/src/app/(app)/projects/[id]/plan-add.tsx`, `apps/web/src/app/(app)/projects/[id]/plan-dialogs.tsx`, `apps/web/src/app/(app)/projects/[id]/progress-tab.tsx`, `apps/web/src/app/(app)/projects/[id]/project-menu.tsx`, `apps/web/src/app/(app)/projects/[id]/project-people.tsx`, `apps/web/src/app/(app)/projects/[id]/pulse-section.tsx`, `apps/web/src/app/(app)/projects/[id]/reassign-actions.tsx`, `apps/web/src/app/(app)/projects/[id]/record-actions.tsx`, `apps/web/src/app/(app)/projects/loading.tsx`, `apps/web/src/app/(app)/projects/new-project.tsx`, `apps/web/src/app/(app)/projects/page.tsx`, `apps/web/src/app/(app)/projects/projects-table.tsx`, `apps/web/src/app/(app)/recommendations/[id]/loading.tsx`, `apps/web/src/app/(app)/recommendations/[id]/page.tsx`, `apps/web/src/app/(app)/recommendations/[id]/response-panel.tsx`
+- components: `apps/web/src/components/action-board-table.tsx`, `apps/web/src/components/late-against-original.tsx`, `apps/web/src/components/link-tabs.tsx`, `apps/web/src/components/stance-badge.tsx`, `apps/web/src/components/status-badge.tsx`
+- api: `apps/web/src/app/api/projects/[id]/assessments/route.ts`, `apps/web/src/app/api/projects/[id]/audience/route.ts`, `apps/web/src/app/api/projects/[id]/client-roles/[roleId]/route.ts`, `apps/web/src/app/api/projects/[id]/client-roles/route.ts`, `apps/web/src/app/api/projects/[id]/closure/case-study/route.ts`, `apps/web/src/app/api/projects/[id]/closure/items/[actionId]/route.ts`, `apps/web/src/app/api/projects/[id]/closure/lessons/route.ts`, `apps/web/src/app/api/projects/[id]/closure/pulse/route.ts`, `apps/web/src/app/api/projects/[id]/closure/report/route.ts`, `apps/web/src/app/api/projects/[id]/closure/request/[requestId]/route.ts`, `apps/web/src/app/api/projects/[id]/closure/request/route.ts`, `apps/web/src/app/api/projects/[id]/closure/route.ts`, `apps/web/src/app/api/projects/[id]/documents/route.ts`, `apps/web/src/app/api/projects/[id]/export/route.ts`, `apps/web/src/app/api/projects/[id]/findings/route.ts`, `apps/web/src/app/api/projects/[id]/handover/route.ts`, `apps/web/src/app/api/projects/[id]/import/confirm/route.ts`, `apps/web/src/app/api/projects/[id]/import/route.ts`, `apps/web/src/app/api/projects/[id]/import/template/route.ts`, `apps/web/src/app/api/projects/[id]/info-requests/route.ts`, `apps/web/src/app/api/projects/[id]/info-requests/templates/route.ts`, `apps/web/src/app/api/projects/[id]/meetings/route.ts`, `apps/web/src/app/api/projects/[id]/members/[userId]/route.ts`, `apps/web/src/app/api/projects/[id]/members/route.ts`, `apps/web/src/app/api/projects/[id]/metrics/route.ts`, `apps/web/src/app/api/projects/[id]/people/[userId]/route.ts`, `apps/web/src/app/api/projects/[id]/people/route.ts`, `apps/web/src/app/api/projects/[id]/progress/route.ts`, `apps/web/src/app/api/projects/[id]/recommendations/route.ts`, `apps/web/src/app/api/projects/[id]/reports/route.ts`, `apps/web/src/app/api/projects/[id]/route.ts`, `apps/web/src/app/api/projects/[id]/since-last-visit/route.ts`, `apps/web/src/app/api/projects/[id]/watch/route.ts`, `apps/web/src/app/api/projects/internal/route.ts`, `apps/web/src/app/api/recommendations/[id]/actions/route.ts`, `apps/web/src/app/api/recommendations/[id]/release/route.ts`, `apps/web/src/app/api/recommendations/[id]/responses/route.ts`, `apps/web/src/app/api/recommendations/[id]/route.ts`, `apps/web/src/app/api/recommendations/[id]/withdraw/route.ts`, `apps/web/src/app/api/findings/[id]/release/route.ts`, `apps/web/src/app/api/findings/[id]/route.ts`, `apps/web/src/app/api/findings/[id]/withdraw/route.ts`, `apps/web/src/app/api/recommendation-responses/[id]/confirm/route.ts`, `apps/web/src/app/api/recommendation-responses/[id]/reply/route.ts`, `apps/web/src/app/api/actions/export/route.ts`
+- services: `apps/web/src/services/plan.ts`, `apps/web/src/services/plan-changes.ts`, `apps/web/src/services/plan-import.ts`, `apps/web/src/services/project-page.ts`, `apps/web/src/services/responses.ts`, `apps/web/src/services/progress.ts`, `apps/web/src/services/closure.ts`, `apps/web/src/services/client-roles.ts`
+- lib: `apps/web/src/lib/plan-fields.ts`, `apps/web/src/lib/plan-import.ts`, `apps/web/src/lib/plan-rules.ts`, `apps/web/src/lib/project-tabs.ts`, `apps/web/src/lib/responses.ts`, `apps/web/src/lib/phases.ts`, `apps/web/src/lib/status-words.ts`, `apps/web/src/lib/progress-parts.ts`, `apps/web/src/lib/slips.ts`
+- jobs: none
+- db_tables: `projects`, `project_members`, `findings`, `recommendations`, `recommendation_responses`, `strategic_objectives`, `project_client_roles`, `project_health_weeks`, `reports`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0004_client_people_and_phases.sql`, `apps/web/drizzle/0006_private_recommendation_actions.sql`, `apps/web/drizzle/0008_engagement_record.sql`, `apps/web/drizzle/0010_client_roles.sql`, `apps/web/drizzle/0021_departments_across.sql`, `apps/web/drizzle/0034_observers.sql`, `apps/web/drizzle/0044_recommendation_changes.sql`, `apps/web/drizzle/0045_recommendation_responses.sql`, `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0063_client_indicators.sql`, `apps/web/drizzle/0064_project_starts.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0077_agenda_drafts.sql`, `apps/web/drizzle/0078_drafts_review.sql`
+- policy: `project.read`, `project.create`, `project.create_internal`, `project.update`, `project.manage_members`, `project.watch`, `finding.read`, `finding.write`, `recommendation.read`, `recommendation.write`, `recommendation.respond`, `recommendation_response.review`
+- tests: `apps/web/tests/plan-import.test.ts`, `apps/web/tests/project-page.test.ts`, `apps/web/tests/office.test.ts`, `apps/web/tests/db/projects.test.ts`, `apps/web/tests/db/plan-changes.test.ts`, `apps/web/tests/db/project-page.test.ts`, `apps/web/tests/db/recommendation-responses.test.ts`, `apps/web/tests/db/private-recommendations.test.ts`, `apps/web/e2e/plan.e2e.ts`, `apps/web/e2e/import-export.e2e.ts`, `apps/web/e2e/core-flow.e2e.ts`
+- docs: `docs/import-export.md`, `docs/engagement.md`
+- extra_files: none
+- link: F23 | data | `apps/web/src/services/plan.ts`, `apps/web/src/services/plan-changes.ts` | releasing a draft action tells the owner and the client admin; drafts are invisible to clients until then
+- link: F29 | data | `apps/web/src/services/plan-import.ts`, `apps/web/src/lib/plan-import.ts`, `apps/web/src/lib/office/xlsx-write.ts` | Excel template and import in, Excel export out
+- link: F12 | scan | `apps/web/src/services/plan-import.ts`, `apps/web/src/services/scan.ts`, `apps/web/src/lib/clamd.ts` | import files are scanned before they are read
+
+## F10 Actions (the working cycle)
+
+- id: F10
+- kind: feature
+- parent: none
+- summary: An action moves assigned, in progress, awaiting review, revision requested, verified, closed (blocked and late are rules, not states); owner, evidence, review, two sign-offs, date requests, risk acceptance, comments, reminders, mute.
+- roles: owners do and send; firm staff review and verify (never their own work); client admin and managers accept risk; action owners see only their own actions
+- risk: permissions, privacy, migration
+- pages: `apps/web/src/app/(app)/actions/[id]/action-panel.tsx`, `apps/web/src/app/(app)/actions/[id]/client-view.tsx`, `apps/web/src/app/(app)/actions/[id]/closure-panels.tsx`, `apps/web/src/app/(app)/actions/[id]/comment-thread.tsx`, `apps/web/src/app/(app)/actions/[id]/department-picker.tsx`, `apps/web/src/app/(app)/actions/[id]/download-button.tsx`, `apps/web/src/app/(app)/actions/[id]/follow-through-panels.tsx`, `apps/web/src/app/(app)/actions/[id]/loading.tsx`, `apps/web/src/app/(app)/actions/[id]/owner-change.tsx`, `apps/web/src/app/(app)/actions/[id]/page.tsx`, `apps/web/src/app/(app)/actions/[id]/reminder-ladder.tsx`, `apps/web/src/app/(app)/actions/[id]/second-review.tsx`, `apps/web/src/app/(app)/actions/[id]/send-file.tsx`, `apps/web/src/app/(app)/actions/[id]/what-to-send.tsx`, `apps/web/src/app/(app)/actions/loading.tsx`, `apps/web/src/app/(app)/actions/page.tsx`
+- components: `apps/web/src/components/actions-table.tsx`, `apps/web/src/components/action-facets.tsx`, `apps/web/src/components/action-filters.tsx`, `apps/web/src/components/ask-about.tsx`, `apps/web/src/components/request-row.tsx`, `apps/web/src/components/send-file-dialog.tsx`, `apps/web/src/components/verified-burst.tsx`
+- api: `apps/web/src/app/api/actions/[id]/comments/route.ts`, `apps/web/src/app/api/actions/[id]/deadline-requests/route.ts`, `apps/web/src/app/api/actions/[id]/evidence-requests/route.ts`, `apps/web/src/app/api/actions/[id]/evidence/existing/route.ts`, `apps/web/src/app/api/actions/[id]/evidence/route.ts`, `apps/web/src/app/api/actions/[id]/mute/route.ts`, `apps/web/src/app/api/actions/[id]/notes/route.ts`, `apps/web/src/app/api/actions/[id]/owner/route.ts`, `apps/web/src/app/api/actions/[id]/remind/route.ts`, `apps/web/src/app/api/actions/[id]/risk-acceptances/route.ts`, `apps/web/src/app/api/actions/[id]/route.ts`, `apps/web/src/app/api/actions/[id]/second-review/route.ts`, `apps/web/src/app/api/actions/[id]/sign-off/route.ts`, `apps/web/src/app/api/actions/[id]/transition/route.ts`, `apps/web/src/app/api/actions/[id]/updates/route.ts`, `apps/web/src/app/api/actions/export/route.ts`, `apps/web/src/app/api/action-comments/[id]/remove/route.ts`, `apps/web/src/app/api/deadline-requests/[id]/route.ts`, `apps/web/src/app/api/evidence-requests/[id]/route.ts`
+- services: `apps/web/src/services/actions.ts`, `apps/web/src/services/action-owner.ts`, `apps/web/src/services/action-board.ts`, `apps/web/src/services/evidence.ts`, `apps/web/src/services/comments.ts`, `apps/web/src/services/second-review.ts`, `apps/web/src/services/slips.ts`, `apps/web/src/services/follow-through.ts`
+- lib: `apps/web/src/lib/action-next.ts`, `apps/web/src/lib/action-plain.ts`, `apps/web/src/lib/action-filters.ts`, `apps/web/src/lib/row-actions.ts`, `apps/web/src/lib/second-review.ts`, `apps/web/src/lib/review-note.ts`, `apps/web/src/lib/slips.ts`, `apps/web/src/authz/workflow.ts`
+- jobs: `apps/web/src/jobs/follow-ups.ts`
+- db_tables: `actions`, `evidence_submissions`, `reviews`, `review_signoffs`, `evidence_requests`, `action_notes`, `action_comments`, `action_due_changes`, `deadline_change_requests`, `risk_acceptances`, `action_reminders`, `follow_up_log`, `progress_updates`, `activity_events`, `mail_mutes`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0006_private_recommendation_actions.sql`, `apps/web/drizzle/0019_mail_choices.sql`, `apps/web/drizzle/0046_action_comments.sql`, `apps/web/drizzle/0047_action_due_changes.sql`, `apps/web/drizzle/0048_oversight.sql`, `apps/web/drizzle/0062_second_review.sql`, `apps/web/drizzle/0071_activity_readers.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0078_drafts_review.sql`, `apps/web/drizzle/0080_ladder_firm_run.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0086_owner_follow_ups.sql`, `apps/web/drizzle/0087_owner_definers.sql`, `apps/web/drizzle/0088_head_escalation.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0101_action_owner.sql`, `apps/web/drizzle/0102_action_owner_history.sql`, `apps/web/drizzle/0103_action_owner_firm.sql`, `apps/web/drizzle/0104_action_owner_notices.sql`, `apps/web/drizzle/0106_classification_leaks.sql`, `apps/web/drizzle/0107_restricted_admin_work.sql`, `apps/web/drizzle/0111_owner_not_full_client_admin.sql`
+- policy: `action.read`, `action.write`, `action.assign_owner`, `action.release`, `action.work`, `action.review`, `action.second_review`, `action.close`, `action.reopen`, `risk.accept`, `action.remind`, `evidence_request.read`, `evidence_request.manage`, `evidence.read`, `evidence.submit`, `review.read`, `review.create`, `action_note.read`, `action_note.create`, `action_comment.read`, `action_comment.create`, `action_comment.remove`, `progress_update.read`, `progress_update.create`, `deadline_request.read`, `deadline_request.create`, `deadline_request.decide`
+- tests: `apps/web/tests/action-page.test.ts`, `apps/web/tests/action-filters.test.ts`, `apps/web/tests/db/action-owner.test.ts`, `apps/web/tests/db/action-comments.test.ts`, `apps/web/tests/db/action-board.test.ts`, `apps/web/tests/db/second-review.test.ts`, `apps/web/tests/db/slips.test.ts`, `apps/web/tests/db/follow-through.test.ts`, `apps/web/tests/db/owner-actions.test.ts`, `apps/web/tests/db/screen-ladder.test.ts`, `apps/web/e2e/core-flow.e2e.ts`
+- docs: `docs/rules.md`, `docs/authorization.md`
+- extra_files: none
+- link: F23 | data | `apps/web/src/lib/mail-templates.ts`, `apps/web/src/jobs/mail.ts`, `apps/web/drizzle/0087_owner_definers.sql`, `apps/web/drizzle/0000_baseline.sql` | action moves, assignments, send-backs, comments and mentions become notices (app_notify_project_team) and queued mail rows
+- link: F24 | data | `apps/web/src/services/actions.ts`, `apps/web/src/services/audit.ts` | every transition, sign-off, risk acceptance and owner change writes an audit row
+- link: F12 | scan | `apps/web/src/services/evidence.ts`, `apps/web/src/services/documents.ts`, `apps/web/src/services/scan.ts`, `apps/web/src/services/storage.ts` | evidence is a file: evidence.ts uses the scanner and the storage service; documents.ts imports evidence.ts so every file shares one upload path
+- link: F09 | data | `apps/web/src/services/plan.ts`, `apps/web/src/services/action-owner.ts`, `apps/web/src/services/queries.ts` | plan service creates and releases actions; queries reads them under each reader's rules
+- link: F28 | data | `apps/web/src/services/action-board.ts`, `apps/web/src/services/follow-through.ts`, `apps/web/src/lib/action-filters.ts` | rule lists and the Actions board are views over action state and history
+- link: F25 | job | `apps/web/src/jobs/follow-ups.ts`, `apps/web/src/services/follow-through.ts` | daily reminders and escalation ladder over open actions
+- link: F01 | data | `apps/web/src/services/accounts.ts`, `apps/web/src/services/action-owner.ts`, `apps/web/drizzle/0101_action_owner.sql` | switching a person off lists the open actions they own and the owner can be changed to a colleague; actions with no active owner raise a firm notice
+
+## F11 Requests for documents and upload links
+
+- id: F11
+- kind: feature
+- parent: none
+- summary: The firm asks the client for named documents; the client answers with a file or says it does not apply; a no-login upload link for one item.
+- roles: firm staff ask; client people answer; anyone with the link uploads one file
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(public)/upload/[token]/page.tsx`, `apps/web/src/app/(public)/upload/[token]/upload-form.tsx`, `apps/web/src/app/(public)/upload/layout.tsx`
+- components: `apps/web/src/components/request-row.tsx`, `apps/web/src/components/send-file-dialog.tsx`
+- api: `apps/web/src/app/api/info-requests/[id]/files/[documentId]/route.ts`, `apps/web/src/app/api/info-requests/[id]/files/existing/route.ts`, `apps/web/src/app/api/info-requests/[id]/files/route.ts`, `apps/web/src/app/api/info-requests/[id]/links/route.ts`, `apps/web/src/app/api/info-requests/[id]/route.ts`, `apps/web/src/app/api/info-requests/[id]/status/route.ts`, `apps/web/src/app/api/info-request-links/[id]/route.ts`, `apps/web/src/app/api/projects/[id]/info-requests/route.ts`, `apps/web/src/app/api/projects/[id]/info-requests/templates/route.ts`, `apps/web/src/app/api/upload/[token]/route.ts`
+- services: `apps/web/src/services/info-requests.ts`, `apps/web/src/services/upload-links.ts`
+- lib: `apps/web/src/lib/info-requests.ts`, `apps/web/src/lib/upload-links.ts`, `apps/web/src/lib/upload-rules.ts`
+- jobs: none
+- db_tables: `info_requests`, `info_request_files`, `info_request_links`, `info_request_reminders`
+- migrations: `apps/web/drizzle/0016_info_requests.sql`, `apps/web/drizzle/0017_info_request_reminders.sql`, `apps/web/drizzle/0057_upload_links.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0106_classification_leaks.sql`
+- policy: `info_request.read`, `info_request.manage`, `info_request.answer`
+- tests: `apps/web/tests/info-requests.test.ts`, `apps/web/tests/upload-links.test.ts`, `apps/web/tests/upload-rules.test.ts`, `apps/web/tests/db/info-requests.test.ts`, `apps/web/tests/db/upload-links.test.ts`
+- docs: `docs/import-export.md`
+- extra_files: none
+
+## F12 Files (documents, versions, labels, scanner)
+
+- id: F12
+- kind: feature
+- parent: none
+- summary: Every file with versions, who sees it (shared, firm-only, client-private), assistant switch, share, withdraw; stored in object storage; scanned by ClamAV before it is kept; files card and project file lists.
+- roles: firm staff; client admin and managers; action owners see their own and teammates' files; one-by-one shares
+- risk: privacy, permissions, migration
+- pages: none
+- components: `apps/web/src/components/file-explorer.tsx`, `apps/web/src/components/file-actions.tsx`, `apps/web/src/components/visibility-badge.tsx`, `apps/web/src/components/send-file-dialog.tsx`, `apps/web/src/components/floating-card.tsx`
+- api: `apps/web/src/app/api/documents/[id]/assistant/route.ts`, `apps/web/src/app/api/documents/[id]/audience/route.ts`, `apps/web/src/app/api/documents/[id]/download/route.ts`, `apps/web/src/app/api/documents/[id]/share/route.ts`, `apps/web/src/app/api/documents/[id]/summary/route.ts`, `apps/web/src/app/api/documents/[id]/versions/route.ts`, `apps/web/src/app/api/documents/[id]/withdraw/route.ts`, `apps/web/src/app/api/files/route.ts`, `apps/web/src/app/api/files/targets/route.ts`, `apps/web/src/app/api/projects/[id]/documents/route.ts`
+- services: `apps/web/src/services/documents.ts`, `apps/web/src/services/files.ts`, `apps/web/src/services/storage.ts`, `apps/web/src/services/scan.ts`, `apps/web/src/services/document-summaries.ts`, `apps/web/src/services/export-pack.ts`
+- lib: `apps/web/src/lib/clamd.ts`, `apps/web/src/lib/upload-rules.ts`, `apps/web/src/lib/office/docx-read.ts`, `apps/web/src/lib/office/pptx-read.ts`, `apps/web/src/lib/office/xlsx-read.ts`, `apps/web/src/lib/office/xlsx-write.ts`, `apps/web/src/lib/office/xml.ts`, `apps/web/src/lib/office/zip.ts`
+- jobs: `apps/web/src/jobs/extract-text.ts`, `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/clean-private-names.ts`, `apps/web/scripts/delete-objects.ts`
+- db_tables: `documents`, `document_shares`, `document_summaries`, `storage_deletions`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0005_file_controls.sql`, `apps/web/drizzle/0007_read_pdf_and_office.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0016_info_requests.sql`, `apps/web/drizzle/0018_withdraw_file.sql`, `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0106_classification_leaks.sql`, `apps/web/drizzle/0108_privacy_batch.sql`
+- policy: `document.read`, `document.download`, `document.upload`, `document.manage`, `document.assistant`, `document.share`, `document.summarize`
+- tests: `apps/web/tests/clamd.test.ts`, `apps/web/tests/extract-text.test.ts`, `apps/web/tests/scan/scan.test.ts`, `apps/web/tests/db/files.test.ts`, `apps/web/tests/db/file-controls.test.ts`, `apps/web/tests/db/classification-leaks.test.ts`, `apps/web/tests/db/clean-private-names.test.ts`, `apps/web/e2e/files.e2e.ts`
+- docs: `docs/security.md`, `docs/data-architecture.md`
+- extra_files: none
+- link: F10 | permission | `apps/web/src/authz/policy.ts`, `apps/web/src/authz/authorize.ts` | an action owner sees own files, teammates' files and shares; document.* entries enforce it
+- link: F21 | AI call | `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`, `apps/web/src/services/documents.ts` | a file switched on for the assistant is read into passages (ai_chunks) by the indexer; switching it off removes it from answers
+- link: F13 | permission | `apps/web/src/services/documents.ts`, `apps/web/src/services/audience.ts`, `apps/web/src/authz/authorize.ts` | the picker narrows who sees a file; documents and the files card read through it
+- link: F19 | data | `apps/web/src/services/export-pack.ts`, `apps/web/src/services/offboarding.ts` | the export pack zips shared files and records receipt
+- link: F07 | data | `apps/web/src/services/deliverables.ts`, `apps/web/src/services/documents.ts` | a hand-over picks file versions already shared with the client
+- link: F11 | data | `apps/web/src/services/info-requests.ts`, `apps/web/src/services/upload-links.ts` | a requested item is answered by a file; the upload link stores it through the same path
+- link: F21 | AI call | `apps/web/src/services/document-summaries.ts`, `apps/web/src/services/ai-client.ts`, `apps/web/src/services/translations.ts` | on-demand summaries and translations call the AI service through the masking step
+- link: F25 | job | `apps/web/src/jobs/index-documents.ts`, `apps/web/scripts/delete-objects.ts` | indexing new files and deleting stored bytes of removed ones run every few minutes
+
+### F13 Who sees an item (audience picker)
+
+- id: F13
+- kind: sub-feature
+- parent: F12
+- summary: 'Everyone except...' or 'only these people' on a file or a meeting; it only takes people away; left-out people see no row, count, notice, mail or assistant passage.
+- roles: firm staff on firm items; client admin on the client's own; managers and owners get no picker
+- risk: privacy, permissions, migration
+- pages: none
+- components: `apps/web/src/components/audience-picker.tsx`, `apps/web/src/components/audience-field.tsx`, `apps/web/src/components/audience-marker.tsx`, `apps/web/src/components/person-picker.tsx`, `apps/web/src/components/meeting-left-out.tsx`
+- api: `apps/web/src/app/api/documents/[id]/audience/route.ts`, `apps/web/src/app/api/meetings/[id]/audience/route.ts`, `apps/web/src/app/api/projects/[id]/audience/route.ts`
+- services: `apps/web/src/services/audience.ts`
+- lib: `apps/web/src/lib/audience.ts`
+- jobs: `apps/web/src/jobs/mail.ts`
+- db_tables: `item_audiences`, `item_audience_people`
+- migrations: `apps/web/drizzle/0094_audience.sql`, `apps/web/drizzle/0095_audience_rules.sql`
+- policy: `document.audience`, `meeting.audience`
+- tests: `apps/web/tests/audience-authorize.test.ts`, `apps/web/tests/audience-picker.test.ts`, `apps/web/tests/meeting-left-out.test.ts`, `apps/web/tests/db/audience.test.ts`
+- docs: `docs/authorization.md`, `docs/meetings.md`
+- extra_files: none
+- link: F14 | permission | `apps/web/src/services/meetings.ts`, `apps/web/src/services/audience.ts`, `apps/web/src/lib/agenda.ts` | a limited meeting: attendees, agenda, calendar file and mail follow the audience
+- link: F21 | permission | `apps/web/src/services/assistant.ts`, `apps/web/src/authz/retrieval.ts` | scopeFilter puts app_audience_ok inside the search, so a left-out person gets no passage and no citation
+- link: F23 | permission | `apps/web/src/jobs/mail.ts`, `apps/web/drizzle/0095_audience_rules.sql` | mail for someone left out is marked withdrawn and re-checked just before sending; no notice is stored
+
+## F14 Meetings
+
+- id: F14
+- kind: feature
+- parent: none
+- summary: Book, invite (calendar file), run: live agenda from real work, summary, decisions, follow-ups, transcript; department and whole-project meetings; the schedule.
+- roles: firm staff book and run; client admin and managers book shared ones; invited people attend; limited managers get Not found on whole-project meetings
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/meetings/[id]/page.tsx`, `apps/web/src/app/(app)/meetings/[id]/record-panels.tsx`, `apps/web/src/app/(app)/meetings/[id]/summary-sources.tsx`, `apps/web/src/app/(app)/meetings/[id]/transcript-panel.tsx`
+- components: `apps/web/src/components/meeting-form.tsx`, `apps/web/src/components/meeting-left-out.tsx`
+- api: `apps/web/src/app/api/meetings/[id]/attendees/[attendeeId]/route.ts`, `apps/web/src/app/api/meetings/[id]/attendees/route.ts`, `apps/web/src/app/api/meetings/[id]/audience/route.ts`, `apps/web/src/app/api/meetings/[id]/decisions/route.ts`, `apps/web/src/app/api/meetings/[id]/follow-ups/route.ts`, `apps/web/src/app/api/meetings/[id]/ics/route.ts`, `apps/web/src/app/api/meetings/[id]/invites/route.ts`, `apps/web/src/app/api/meetings/[id]/response/route.ts`, `apps/web/src/app/api/meetings/[id]/route.ts`, `apps/web/src/app/api/meetings/[id]/summary/route.ts`, `apps/web/src/app/api/meetings/[id]/summary/sources/route.ts`, `apps/web/src/app/api/meetings/[id]/transcript/route.ts`, `apps/web/src/app/api/follow-ups/[id]/route.ts`, `apps/web/src/app/api/meeting-summary-sources/[id]/route.ts`, `apps/web/src/app/api/projects/[id]/meetings/route.ts`, `apps/web/src/app/api/schedule/route.ts`
+- services: `apps/web/src/services/meetings.ts`, `apps/web/src/services/follow-through.ts`
+- lib: `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/agenda.ts`, `apps/web/src/lib/ics.ts`, `apps/web/src/lib/transcripts.ts`
+- jobs: `apps/web/src/jobs/mail.ts`, `apps/web/scripts/purge-transcripts.ts`
+- db_tables: `meetings`, `meeting_attendees`, `meeting_decisions`, `meeting_notes`, `meeting_summaries`, `meeting_summary_sources`, `meeting_transcripts`, `follow_ups`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0006_private_recommendation_actions.sql`, `apps/web/drizzle/0021_departments_across.sql`, `apps/web/drizzle/0070_department_meetings.sql`, `apps/web/drizzle/0072_agenda_readers.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0082_whole_project_meetings.sql`, `apps/web/drizzle/0084_whole_project_readers.sql`, `apps/web/drizzle/0085_live_agenda.sql`, `apps/web/drizzle/0086_owner_follow_ups.sql`, `apps/web/drizzle/0093_meeting_attendee_names.sql`, `apps/web/drizzle/0094_audience.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0108_privacy_batch.sql`
+- policy: `meeting.read`, `meeting.book`, `meeting.run`, `meeting.audience`, `meeting_note.read`, `meeting_note.write`, `follow_up.read`, `follow_up.write`, `schedule.read`
+- tests: `apps/web/tests/agenda.test.ts`, `apps/web/tests/ics.test.ts`, `apps/web/tests/meeting-form.test.ts`, `apps/web/tests/meeting-left-out.test.ts`, `apps/web/tests/transcripts.test.ts`, `apps/web/tests/db/meetings.test.ts`, `apps/web/tests/db/whole-project-meetings.test.ts`, `apps/web/tests/db/meeting-screens.test.ts`, `apps/web/tests/db/transcripts.test.ts`, `apps/web/tests/db/meeting-attendee-names.test.ts`, `apps/web/e2e/meetings.e2e.ts`
+- docs: `docs/meetings.md`
+- extra_files: none
+- link: F10 | data | `apps/web/src/lib/agenda.ts`, `apps/web/src/services/meetings.ts` | the agenda is built live from late, awaiting, blocked and changed actions the reader may see
+- link: F23 | data | `apps/web/src/lib/ics.ts`, `apps/web/src/jobs/mail.ts`, `apps/web/src/lib/mail-templates.ts` | invitations carry a calendar file; cancellations name only the person taken off
+- link: F05 | permission | `apps/web/src/services/meetings.ts`, `apps/web/drizzle/0082_whole_project_meetings.sql`, `apps/web/drizzle/0070_department_meetings.sql` | department meetings follow the department; whole-project meetings open only for people who may see everything
+- link: F03 | data | `apps/web/src/services/home.ts`, `apps/web/src/services/today.ts` | meetings this week, replies waiting and follow-ups show on home
+
+## F15 Reports (progress reports, status packs, templates, approval, send)
+
+- id: F15
+- kind: feature
+- parent: none
+- summary: A frozen progress report with a note and a starter outline; a monthly status pack; a second firm person approves, a person confirms the send; the client reads only then; PDFs.
+- roles: firm staff write; firm admin, lead, deputy (or internal lead) approve; client admin and managers read once sent
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/reports/[id]/page.tsx`, `apps/web/src/app/(app)/reports/[id]/status-pack.tsx`
+- components: `apps/web/src/components/reports/report-send-dialog.tsx`
+- api: `apps/web/src/app/api/reports/[id]/approve/route.ts`, `apps/web/src/app/api/reports/[id]/issue/route.ts`, `apps/web/src/app/api/reports/[id]/pdf/route.ts`, `apps/web/src/app/api/reports/[id]/route.ts`, `apps/web/src/app/api/reports/[id]/share/route.ts`, `apps/web/src/app/api/projects/[id]/reports/route.ts`, `apps/web/src/app/api/assistant/messages/[id]/report/route.ts`, `apps/web/src/app/api/clients/[id]/report/route.ts`
+- services: `apps/web/src/services/report-send.ts`, `apps/web/src/services/status-pack.ts`, `apps/web/src/services/exports.ts`, `apps/web/src/services/pdf.ts`, `apps/web/src/services/progress.ts`
+- lib: `apps/web/src/lib/report-html.ts`, `apps/web/src/lib/report-templates.ts`, `apps/web/src/lib/client-report-html.ts`, `apps/web/src/lib/progress-parts.ts`
+- jobs: `apps/web/src/jobs/status-packs.ts`, `apps/web/src/jobs/metrics.ts`
+- db_tables: `reports`, `metric_snapshots`, `project_health_weeks`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0050_status_packs.sql`, `apps/web/drizzle/0074_status_pack_readers.sql`, `apps/web/drizzle/0106_classification_leaks.sql`, `apps/web/drizzle/0110_report_approval.sql`
+- policy: `report.read`, `report.write`, `report.share`, `report.approve`, `metrics.read`
+- tests: `apps/web/tests/report-html.test.ts`, `apps/web/tests/report-send-ui.test.ts`, `apps/web/tests/report-templates.test.ts`, `apps/web/tests/client-report-html.test.ts`, `apps/web/tests/db/report-send.test.ts`, `apps/web/tests/db/status-pack.test.ts`, `apps/web/tests/db/metrics.test.ts`, `apps/web/e2e/reports.e2e.ts`
+- docs: `docs/metrics.md`
+- extra_files: none
+- link: F21 | AI call | `apps/web/src/services/report-send.ts`, `apps/web/src/app/api/assistant/messages/[id]/report/route.ts` | the assistant's progress draft becomes a firm report ('Use as draft'); sending needs approval and a person's confirmation
+- link: F23 | data | `apps/web/src/services/status-pack.ts`, `apps/web/src/jobs/status-packs.ts` | the monthly job drafts packs and tells the client's lead
+- link: F16 | data | `apps/web/src/services/status-pack.ts`, `apps/web/src/services/indicators.ts` | indicators are frozen into an issued status pack
+- link: F29 | data | `apps/web/src/services/exports.ts`, `apps/web/src/services/pdf.ts`, `apps/web/src/lib/report-html.ts` | report PDFs are server-rendered HTML sent to Gotenberg, in the reader's language
+
+## F16 Business indicators
+
+- id: F16
+- kind: feature
+- parent: none
+- summary: The client's own measures typed or imported month by month, linked to recommendations by the firm, with the 'moved away' notice; always labelled client-reported, not verified impact.
+- roles: client admin and managers enter; firm admin and working consultants enter, link, check; observers read
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/indicators/[id]/loading.tsx`, `apps/web/src/app/(app)/indicators/[id]/page.tsx`, `apps/web/src/app/(app)/indicators/data/feeds-card.tsx`, `apps/web/src/app/(app)/indicators/data/page.tsx`, `apps/web/src/app/(app)/indicators/data/sources-table.tsx`, `apps/web/src/app/(app)/indicators/import/import-wizard.tsx`, `apps/web/src/app/(app)/indicators/import/page.tsx`
+- components: `apps/web/src/components/indicators/data-mode-picker.tsx`, `apps/web/src/components/indicators/indicator-dialogs.tsx`, `apps/web/src/components/indicators/indicator-trend.tsx`, `apps/web/src/components/indicators/indicators-card.tsx`, `apps/web/src/components/indicators/linked-indicators-card.tsx`, `apps/web/src/components/indicators/sparkline.tsx`, `apps/web/src/components/indicators/value-row-actions.tsx`, `apps/web/src/components/metric-history.tsx`
+- api: `apps/web/src/app/api/indicators/[id]/links/[recommendationId]/route.ts`, `apps/web/src/app/api/indicators/[id]/links/route.ts`, `apps/web/src/app/api/indicators/[id]/mute/route.ts`, `apps/web/src/app/api/indicators/[id]/route.ts`, `apps/web/src/app/api/indicators/[id]/source/route.ts`, `apps/web/src/app/api/indicators/[id]/values/route.ts`, `apps/web/src/app/api/indicator-values/[id]/check/route.ts`, `apps/web/src/app/api/indicator-feeds/[id]/read/route.ts`, `apps/web/src/app/api/indicator-feeds/[id]/route.ts`, `apps/web/src/app/api/indicator-feed/route.ts`, `apps/web/src/app/api/clients/[id]/indicators/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/feeds/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/import/confirm/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/import/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/preview/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/propose/route.ts`, `apps/web/src/app/api/clients/[id]/indicator-data/route.ts`
+- services: `apps/web/src/services/indicators.ts`, `apps/web/src/services/indicator-data.ts`
+- lib: `apps/web/src/lib/indicators.ts`, `apps/web/src/lib/indicator-import.ts`, `apps/web/src/lib/indicator-schemas.ts`, `apps/web/src/lib/indicator-templates.ts`, `apps/web/src/lib/indicator-notice.ts`, `apps/web/src/lib/indicator-html.ts`
+- jobs: `apps/web/src/jobs/indicator-feeds.ts`
+- db_tables: `client_kpis`, `client_kpi_values`, `client_kpi_links`, `client_indicator_settings`, `indicator_feeds`, `indicator_imports`, `kpi_moved_away_log`, `mail_kpi_mutes`
+- migrations: `apps/web/drizzle/0063_client_indicators.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0067_indicator_data.sql`, `apps/web/drizzle/0073_observer_indicators.sql`, `apps/web/drizzle/0075_closed_project_indicators.sql`, `apps/web/drizzle/0083_indicator_links_firm.sql`, `apps/web/drizzle/0090_indicator_moved_away.sql`
+- policy: `indicator.read`, `indicator.report`, `indicator.manage`, `indicator.link`, `indicator.check`, `indicator.data`
+- tests: `apps/web/tests/indicator-import.test.ts`, `apps/web/tests/indicator-notice.test.ts`, `apps/web/tests/db/indicators.test.ts`, `apps/web/tests/db/indicator-data.test.ts`, `apps/web/tests/db/indicator-moved-away.test.ts`, `apps/web/tests/db/observer-indicators.test.ts`
+- docs: `docs/metrics.md`, `docs/indicator-data.md`
+- extra_files: none
+- link: F23 | data | `apps/web/src/lib/indicator-notice.ts`, `apps/web/src/jobs/mail.ts` | indicator.moved_away and indicator.due notices; one mute per indicator
+- link: F25 | job | `apps/web/src/jobs/indicator-feeds.ts`, `apps/web/src/services/indicator-data.ts` | the daily job reads connected sheets and saves figures as the person who connected them
+- link: F09 | data | `apps/web/src/services/indicators.ts`, `apps/web/src/components/indicators/linked-indicators-card.tsx` | a recommendation shows the indicators linked to it; only firm staff link
+
+## F17 Assessments and templates
+
+- id: F17
+- kind: feature
+- parent: none
+- summary: Governance assessment engine: templates with versions and authors, answers with evidence, findings, retake and compare; scores are firm-only; only a starter template ships.
+- roles: firm staff conduct; template authors edit; clients read only what the firm shares
+- risk: privacy, permissions
+- pages: `apps/web/src/app/(app)/assessments/[id]/assessment-panels.tsx`, `apps/web/src/app/(app)/assessments/[id]/page.tsx`, `apps/web/src/app/(app)/assessments/compare/page.tsx`, `apps/web/src/app/(app)/templates/[id]/page.tsx`, `apps/web/src/app/(app)/templates/[id]/question-dialog.tsx`, `apps/web/src/app/(app)/templates/page.tsx`
+- components: none
+- api: `apps/web/src/app/api/assessments/[id]/finalise/route.ts`, `apps/web/src/app/api/assessments/[id]/follow-up/route.ts`, `apps/web/src/app/api/assessments/[id]/report/route.ts`, `apps/web/src/app/api/assessments/[id]/retake/route.ts`, `apps/web/src/app/api/assessments/[id]/route.ts`, `apps/web/src/app/api/assessments/[id]/share/route.ts`, `apps/web/src/app/api/assessments/compare/route.ts`, `apps/web/src/app/api/assessment-answers/[id]/evidence/[documentId]/route.ts`, `apps/web/src/app/api/assessment-answers/[id]/finding/route.ts`, `apps/web/src/app/api/assessment-answers/[id]/note/route.ts`, `apps/web/src/app/api/assessment-answers/[id]/route.ts`, `apps/web/src/app/api/assessment-templates/[id]/draft/route.ts`, `apps/web/src/app/api/assessment-templates/[id]/duplicate/route.ts`, `apps/web/src/app/api/assessment-templates/[id]/route.ts`, `apps/web/src/app/api/assessment-templates/route.ts`, `apps/web/src/app/api/assessment-templates/starter/route.ts`, `apps/web/src/app/api/template-versions/[id]/publish/route.ts`, `apps/web/src/app/api/template-versions/[id]/questions/route.ts`, `apps/web/src/app/api/template-versions/[id]/route.ts`, `apps/web/src/app/api/template-versions/[id]/sections/route.ts`, `apps/web/src/app/api/template-sections/[id]/route.ts`, `apps/web/src/app/api/template-questions/[id]/route.ts`, `apps/web/src/app/api/template-authors/[userId]/route.ts`, `apps/web/src/app/api/template-authors/route.ts`, `apps/web/src/app/api/projects/[id]/assessments/route.ts`
+- services: `apps/web/src/services/assessments.ts`, `apps/web/src/services/assessment-starter.ts`
+- lib: `apps/web/src/lib/assessments.ts`, `apps/web/src/lib/assessment-schemas.ts`
+- jobs: none
+- db_tables: `assessment_templates`, `template_versions`, `template_sections`, `template_questions`, `template_authors`, `assessments`, `assessment_answers`, `assessment_evidence`, `assessment_notes`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0095_audience_rules.sql`
+- policy: `assessment_template.read`, `assessment_template.manage`, `template_author.manage`, `assessment.read`, `assessment.conduct`
+- tests: `apps/web/tests/db/assessments.test.ts`, `apps/web/e2e/assessments.e2e.ts`
+- docs: `docs/assessments.md`
+- extra_files: none
+- link: F09 | data | `apps/web/src/services/assessments.ts`, `apps/web/src/services/plan.ts` | assessment gaps become findings; recommendations answer findings; scores never reach the client
+
+## F18 Project closing
+
+- id: F18
+- kind: feature
+- parent: none
+- summary: Closing gate: client asks, lead starts, every open action settled (handed over, deferred, withdrawn, waived), lessons, pulse, case-study consent; admin closes; read-only; reopen with a reason; closure report PDF.
+- roles: client admin or sponsor ask; lead starts; firm admin closes and reopens
+- risk: permissions, privacy, migration
+- pages: none
+- components: none
+- api: `apps/web/src/app/api/projects/[id]/closure/case-study/route.ts`, `apps/web/src/app/api/projects/[id]/closure/items/[actionId]/route.ts`, `apps/web/src/app/api/projects/[id]/closure/lessons/route.ts`, `apps/web/src/app/api/projects/[id]/closure/pulse/route.ts`, `apps/web/src/app/api/projects/[id]/closure/report/route.ts`, `apps/web/src/app/api/projects/[id]/closure/request/[requestId]/route.ts`, `apps/web/src/app/api/projects/[id]/closure/request/route.ts`, `apps/web/src/app/api/projects/[id]/closure/route.ts`, `apps/web/src/app/api/projects/[id]/handover/route.ts`
+- services: `apps/web/src/services/closure.ts`, `apps/web/src/services/pulse.ts`, `apps/web/src/services/case-study.ts`, `apps/web/src/services/handover.ts`
+- lib: `apps/web/src/lib/closure.ts`, `apps/web/src/lib/closure-html.ts`, `apps/web/src/lib/pulse.ts`, `apps/web/src/lib/case-study.ts`
+- jobs: none
+- db_tables: `project_closures`, `project_closure_items`, `project_closure_lessons`, `project_closure_requests`, `pulse_answers`, `case_study_consents`
+- migrations: `apps/web/drizzle/0020_project_closure.sql`, `apps/web/drizzle/0054_pulse.sql`, `apps/web/drizzle/0055_case_study.sql`, `apps/web/drizzle/0058_lead_starts_closing.sql`, `apps/web/drizzle/0059_closure_settles_actions.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`
+- policy: `project.start_closing`, `project.close`, `project.reopen`, `closure.dispose`, `closure.lessons`, `closure.sustainer`, `closure.request`, `pulse.answer`, `pulse.read`, `case_study.read`, `case_study.consent`, `case_study.revoke`
+- tests: `apps/web/tests/db/closure.test.ts`, `apps/web/tests/db/pulse.test.ts`, `apps/web/tests/db/case-study.test.ts`
+- docs: `docs/engagement.md`
+- extra_files: none
+- link: F10 | data | `apps/web/src/services/closure.ts`, `apps/web/drizzle/0059_closure_settles_actions.sql` | closing settles each open action; withdrawn and waived stop counting as open
+- link: F07 | data | `apps/web/src/services/closure.ts`, `apps/web/src/services/deliverables.ts` | closing warns about waiting hand-over rounds; an unanswered round reads 'no answer before the project closed'
+- link: F19 | data | `apps/web/src/services/offboarding.ts`, `apps/web/src/services/export-pack.ts` | archiving a client needs its last project closed; the pack lists what was settled and handed over
+
+## F19 Archiving a client (offboarding)
+
+- id: F19
+- kind: feature
+- parent: none
+- summary: Archive a client with a grace period, an export pack with checksum and receipt, legal holds, retention purges; archived clients read only.
+- roles: firm_admin; client people read (and download) during the grace period
+- risk: privacy, permissions, migration
+- pages: none
+- components: `apps/web/src/components/export-packs.tsx`, `apps/web/src/components/pack-buttons.tsx`
+- api: `apps/web/src/app/api/clients/[id]/offboarding/holds/[holdId]/route.ts`, `apps/web/src/app/api/clients/[id]/offboarding/holds/route.ts`, `apps/web/src/app/api/clients/[id]/offboarding/packs/[packId]/receipt/route.ts`, `apps/web/src/app/api/clients/[id]/offboarding/packs/[packId]/route.ts`, `apps/web/src/app/api/clients/[id]/offboarding/packs/route.ts`, `apps/web/src/app/api/clients/[id]/offboarding/route.ts`
+- services: `apps/web/src/services/offboarding.ts`, `apps/web/src/services/export-pack.ts`
+- lib: `apps/web/src/lib/offboarding.ts`
+- jobs: `apps/web/scripts/purge-clients.ts`, `apps/web/scripts/purge-minimal.ts`
+- db_tables: `client_offboardings`, `client_export_packs`, `legal_holds`, `client_deletions`
+- migrations: `apps/web/drizzle/0025_client_offboarding.sql`, `apps/web/drizzle/0033_export_pack.sql`
+- policy: `organization.archive`, `organization.hold`, `organization.export`
+- tests: `apps/web/tests/export-pack.test.ts`, `apps/web/tests/db/offboarding.test.ts`, `apps/web/tests/db/export-pack.test.ts`
+- docs: `docs/operations.md`, `docs/data-architecture.md`
+- extra_files: none
+- link: F01 | permission | `apps/web/src/authz/types.ts`, `apps/web/src/services/principal.ts` | an archived client's people are read-only for the grace period (Principal.readOnly)
+
+## F20 Organisation structure (org chart)
+
+- id: F20
+- kind: feature
+- parent: none
+- summary: The client's structure as units, positions and holders with versions; the chart never changes who sees any work. Firm drafts and publishes; client admin places people; PDF; suggestions; assistant-drafted rows.
+- roles: firm admin, lead, deputy, staffed consultants (observers read); client admin (names); managers (own branch names); action owners get 'your manager' only
+- risk: privacy, permissions, ai, migration
+- pages: `apps/web/src/app/(app)/clients/[id]/structure/import/import-wizard.tsx`, `apps/web/src/app/(app)/clients/[id]/structure/import/page.tsx`, `apps/web/src/app/(app)/clients/[id]/structure/loading.tsx`, `apps/web/src/app/(app)/clients/[id]/structure/page.tsx`, `apps/web/src/app/(app)/clients/[id]/structure/publish/page.tsx`, `apps/web/src/app/(app)/clients/[id]/structure/publish/publish-form.tsx`, `apps/web/src/app/(app)/departments/structure/loading.tsx`, `apps/web/src/app/(app)/departments/structure/page.tsx`
+- components: `apps/web/src/components/org-chart/head-suggestions.tsx`, `apps/web/src/components/org-chart/holders-panel.tsx`, `apps/web/src/components/org-chart/org-tree-view.tsx`, `apps/web/src/components/org-chart/outline-editor.tsx`, `apps/web/src/components/org-chart/people-view.tsx`, `apps/web/src/components/org-chart/show-names-switch.tsx`, `apps/web/src/components/org-chart/structure-body.tsx`, `apps/web/src/components/org-chart/structure-pdf.tsx`, `apps/web/src/components/org-chart/structure-requests.tsx`
+- api: `apps/web/src/app/api/org-chart/positions/[positionId]/holders/[holderId]/route.ts`, `apps/web/src/app/api/org-chart/positions/[positionId]/holders/route.ts`, `apps/web/src/app/api/org-chart/positions/[positionId]/move/route.ts`, `apps/web/src/app/api/org-chart/positions/[positionId]/route.ts`, `apps/web/src/app/api/org-chart/requests/[requestId]/route.ts`, `apps/web/src/app/api/org-chart/units/[unitId]/move/route.ts`, `apps/web/src/app/api/org-chart/units/[unitId]/positions/route.ts`, `apps/web/src/app/api/org-chart/units/[unitId]/route.ts`, `apps/web/src/app/api/org-chart/versions/[versionId]/show-names/route.ts`, `apps/web/src/app/api/clients/[id]/structure/draft/reset/route.ts`, `apps/web/src/app/api/clients/[id]/structure/head-suggestions/route.ts`, `apps/web/src/app/api/clients/[id]/structure/import/confirm/route.ts`, `apps/web/src/app/api/clients/[id]/structure/import/draft/route.ts`, `apps/web/src/app/api/clients/[id]/structure/import/route.ts`, `apps/web/src/app/api/clients/[id]/structure/import/template/route.ts`, `apps/web/src/app/api/clients/[id]/structure/pdf/route.ts`, `apps/web/src/app/api/clients/[id]/structure/people/[userId]/route.ts`, `apps/web/src/app/api/clients/[id]/structure/plans/[positionId]/route.ts`, `apps/web/src/app/api/clients/[id]/structure/publish/route.ts`, `apps/web/src/app/api/clients/[id]/structure/requests/route.ts`, `apps/web/src/app/api/clients/[id]/structure/units/route.ts`, `apps/web/src/app/api/clients/[id]/structure/workbook/route.ts`
+- services: `apps/web/src/services/org-chart.ts`, `apps/web/src/services/org-chart-import.ts`
+- lib: `apps/web/src/lib/org-chart-changes.ts`, `apps/web/src/lib/org-chart-html.ts`, `apps/web/src/lib/org-chart-import.ts`, `apps/web/src/lib/org-chart-outline.ts`, `apps/web/src/lib/org-chart-reading.ts`, `apps/web/src/lib/org-chart-tree.ts`, `apps/web/src/lib/org-chart.ts`
+- jobs: none
+- db_tables: `org_charts`, `org_chart_versions`, `org_units`, `positions`, `position_holders`, `org_chart_planned_holders`, `org_chart_change_requests`
+- migrations: `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0097_org_chart_editor.sql`, `apps/web/drizzle/0098_org_chart_planned_holders.sql`, `apps/web/drizzle/0099_org_chart_plans_follow_draft.sql`, `apps/web/drizzle/0100_org_chart_plans_on_leaving.sql`, `apps/web/drizzle/0105_org_chart_publish.sql`
+- policy: `org_chart.read`, `org_chart.edit`, `org_chart.publish`, `org_chart.holders`, `org_chart.show_names`, `org_chart_request.read`, `org_chart_request.create`, `org_chart_request.close`
+- tests: `apps/web/tests/org-chart-import.test.ts`, `apps/web/tests/db/org-chart.test.ts`, `apps/web/tests/db/org-chart-editor.test.ts`, `apps/web/tests/db/org-chart-import.test.ts`, `apps/web/tests/db/org-chart-publish.test.ts`, `apps/web/tests/db/org-chart-tree.test.ts`
+- docs: `docs/authorization.md`
+- extra_files: none
+- link: F01 | data | `apps/web/src/services/accounts.ts`, `apps/web/src/services/org-chart.ts`, `apps/web/src/services/org-chart-import.ts` | the leaving flow ends holdings and offers vacant or a replacement; the invite form can name a vacant position
+- link: F21 | AI call | `apps/web/src/services/org-chart-import.ts`, `apps/web/src/services/ai-client.ts`, `services/ai/app/main.py` | 'draft rows from pasted text' posts to /v1/org-chart/draft on the local model only; no names are handled
+- link: F05 | data | `apps/web/src/services/org-chart.ts`, `apps/web/src/components/org-chart/head-suggestions.tsx` | a unit may link to a department as a label; a head mismatch becomes a suggestion a person confirms; access never changes
+- link: F12 | data | `apps/web/src/services/org-chart.ts`, `apps/web/src/services/files.ts` | the optional board-resolution file on a published version
+- link: F29 | data | `apps/web/src/lib/org-chart-html.ts`, `apps/web/src/services/exports.ts`, `apps/web/src/services/pdf.ts`, `apps/web/src/app/api/clients/[id]/structure/pdf/route.ts` | one HTML tree for screen and PDF; with or without names
+- link: F03 | data | `apps/web/src/services/today.ts`, `apps/web/src/services/home.ts` | today.ts imports openRequestsToDecide from org-chart.ts, and home.ts imports today.ts: suggested changes appear on the lead's and deputy's home
+
+## F21 Assistant
+
+- id: F21
+- kind: feature
+- parent: none
+- summary: Answers only from what the asker may see, with citations that open; staff and client sides; drafts for people to send; never approves, closes or changes anything.
+- roles: firm staff; client admin and managers only when the firm offers it and the client admin consents; never action owners
+- risk: privacy, permissions, ai, migration
+- pages: `apps/web/src/app/(app)/assistant/client-consent.tsx`, `apps/web/src/app/(app)/assistant/consent/loading.tsx`, `apps/web/src/app/(app)/assistant/consent/page.tsx`, `apps/web/src/app/(app)/assistant/draft/[messageId]/page.tsx`, `apps/web/src/app/(app)/assistant/loading.tsx`, `apps/web/src/app/(app)/assistant/open-assistant.tsx`, `apps/web/src/app/(app)/assistant/page.tsx`
+- components: `apps/web/src/components/assistant/assistant-card.tsx`, `apps/web/src/components/assistant/assistant-chat.tsx`, `apps/web/src/components/assistant/attach.tsx`, `apps/web/src/components/assistant/store.ts`, `apps/web/src/components/ask-about.tsx`, `apps/web/src/components/floating-card.tsx`
+- api: `apps/web/src/app/api/assistant/consent/route.ts`, `apps/web/src/app/api/assistant/context/route.ts`, `apps/web/src/app/api/assistant/conversations/[id]/route.ts`, `apps/web/src/app/api/assistant/conversations/route.ts`, `apps/web/src/app/api/assistant/files/route.ts`, `apps/web/src/app/api/assistant/messages/[id]/report/route.ts`, `apps/web/src/app/api/assistant/query/route.ts`, `apps/web/src/app/api/clients/[id]/assistant/route.ts`, `apps/web/src/app/api/documents/[id]/assistant/route.ts`
+- services: `apps/web/src/services/assistant.ts`, `apps/web/src/services/assistant-in-flight.ts`, `apps/web/src/services/ai-client.ts`, `apps/web/src/services/client-ai.ts`, `apps/web/src/services/masking.ts`, `apps/web/src/services/translations.ts`, `apps/web/src/services/document-summaries.ts`
+- lib: `apps/web/src/lib/assistant-search.ts`, `apps/web/src/lib/assistant-attach.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/client-ai.ts`, `apps/web/src/lib/masking.ts`, `apps/web/src/lib/translations.ts`
+- jobs: `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`
+- db_tables: `ai_chunks`, `ai_conversations`, `ai_messages`, `ai_drafts`, `ai_usage`, `client_ai_settings`, `client_ai_consents`, `content_translations`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0066_assistant_all_clients.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0108_privacy_batch.sql`, `apps/web/drizzle/0110_report_approval.sql`
+- policy: `assistant.query`, `client_ai.manage`, `client_ai.consent`, `ai_conversation.read`, `document.summarize`, `document.assistant`
+- tests: `apps/web/tests/assistant-attach.test.ts`, `apps/web/tests/assistant-search.test.ts`, `apps/web/tests/assistant-in-flight.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/ai-patient-fetch.test.ts`, `apps/web/tests/masking-on.test.ts`, `apps/web/tests/client-assistant-gaps.test.ts`, `apps/web/tests/draft-messages.test.ts`, `apps/web/tests/legal-rulings.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `apps/web/tests/db/assistant-chats.test.ts`, `apps/web/tests/db/assistant-attach.test.ts`, `apps/web/tests/db/client-assistant.test.ts`, `apps/web/tests/db/client-assistant-gaps.test.ts`, `apps/web/e2e/assistant.e2e.ts`
+- docs: `docs/assistant.md`, `docs/assistant-eval-results.md`, `docs/value-test.md`, `docs/review/section-7-model-retrieval-redaction.md`
+- extra_files: none
+- link: F12 | permission | `apps/web/src/authz/retrieval.ts`, `apps/web/src/services/assistant.ts`, `apps/web/src/services/files.ts` | the assistant reads only files the asker may open and that are switched on
+- link: F02 | permission | `apps/web/src/services/assistant.ts`, `apps/web/src/authz/authorize.ts`, `apps/web/src/services/queries.ts` | records the assistant adds (actions, meetings, indicators) are read with the asker's rights
+- link: F04 | permission | `apps/web/src/services/client-ai.ts`, `apps/web/src/lib/client-ai.ts` | the client assistant exists only when the firm offers it and the client admin consents; clients carry a daily limit
+- link: F10 | data | `apps/web/src/services/assistant.ts`, `apps/web/src/components/ask-about.tsx` | 'ask the assistant' on an action opens a chat on that case; the assistant never changes an action
+- link: F22 | data | `apps/web/src/services/help.ts`, `apps/web/src/services/assistant.ts` | who is my consultant reads the client's team (help service)
+- link: F16 | data | `apps/web/src/services/assistant.ts`, `apps/web/src/services/indicators.ts` | indicators are a record kind the assistant can cite
+- link: F24 | data | `apps/web/src/services/assistant.ts`, `apps/web/src/services/audit.ts` | assistant use and consent are audited
+
+### F21.1 Staff assistant
+
+- id: F21.1
+- kind: sub-feature
+- parent: F21
+- summary: Firm staff ask across all their clients or one project; progress draft; follow-up draft; chats with retention.
+- roles: firm_admin, consultants (only on what they are staffed on)
+- risk: privacy, ai
+- pages: `apps/web/src/app/(app)/assistant/page.tsx`, `apps/web/src/app/(app)/assistant/draft/[messageId]/page.tsx`
+- components: `apps/web/src/components/assistant/assistant-card.tsx`, `apps/web/src/components/assistant/assistant-chat.tsx`, `apps/web/src/components/assistant/store.ts`
+- api: `apps/web/src/app/api/assistant/query/route.ts`, `apps/web/src/app/api/assistant/conversations/route.ts`, `apps/web/src/app/api/assistant/context/route.ts`
+- services: `apps/web/src/services/assistant.ts`
+- lib: `apps/web/src/lib/assistant-search.ts`
+- jobs: `apps/web/scripts/purge-chats.ts`
+- db_tables: `ai_conversations`, `ai_messages`, `ai_drafts`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0066_assistant_all_clients.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0110_report_approval.sql`
+- policy: `assistant.query`, `ai_conversation.read`
+- tests: `apps/web/tests/assistant-search.test.ts`, `apps/web/tests/draft-messages.test.ts`, `apps/web/tests/db/assistant-chats.test.ts`
+- docs: `docs/assistant.md`
+- extra_files: none
+
+### F21.2 Client assistant
+
+- id: F21.2
+- kind: sub-feature
+- parent: F21
+- summary: Client admins and managers when offered and consented: facts only, no legal rulings, own deadlines, who is my consultant, facts-only progress draft; daily limit.
+- roles: client_admin, client_manager (when offered and consented); never action owners
+- risk: privacy, permissions, ai, migration
+- pages: `apps/web/src/app/(app)/assistant/consent/loading.tsx`, `apps/web/src/app/(app)/assistant/consent/page.tsx`
+- components: `apps/web/src/components/assistant/assistant-card.tsx`
+- api: `apps/web/src/app/api/assistant/consent/route.ts`, `apps/web/src/app/api/clients/[id]/assistant/route.ts`
+- services: `apps/web/src/services/client-ai.ts`, `apps/web/src/services/assistant.ts`
+- lib: `apps/web/src/lib/client-ai.ts`, `apps/web/src/lib/assistant-search.ts`, `apps/web/src/lib/arabic-fold.ts`
+- jobs: none
+- db_tables: `client_ai_settings`, `client_ai_consents`, `ai_usage`
+- migrations: `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0066_assistant_all_clients.sql`
+- policy: `client_ai.manage`, `client_ai.consent`, `assistant.query`
+- tests: `apps/web/tests/client-assistant-gaps.test.ts`, `apps/web/tests/legal-rulings.test.ts`, `apps/web/tests/db/client-assistant.test.ts`, `apps/web/tests/db/client-assistant-gaps.test.ts`
+- docs: `docs/assistant.md`
+- extra_files: none
+
+### F21.3 @-attach a file
+
+- id: F21.3
+- kind: sub-feature
+- parent: F21
+- summary: Type @ in a question to attach up to three files the asker can already see; statuses explain files that cannot be read (scanned, not indexed, switched off).
+- roles: whoever may use the assistant
+- risk: privacy, permissions, ai
+- pages: none
+- components: `apps/web/src/components/assistant/attach.tsx`
+- api: `apps/web/src/app/api/assistant/files/route.ts`
+- services: `apps/web/src/services/assistant.ts`, `apps/web/src/services/files.ts`
+- lib: `apps/web/src/lib/assistant-attach.ts`
+- jobs: none
+- db_tables: `ai_chunks`, `documents`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0005_file_controls.sql`, `apps/web/drizzle/0007_read_pdf_and_office.sql`, `apps/web/drizzle/0009_prospects.sql`, `apps/web/drizzle/0016_info_requests.sql`, `apps/web/drizzle/0018_withdraw_file.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0106_classification_leaks.sql`, `apps/web/drizzle/0108_privacy_batch.sql`
+- policy: `assistant.query`, `document.read`
+- tests: `apps/web/tests/assistant-attach.test.ts`, `apps/web/tests/db/assistant-attach.test.ts`
+- docs: `docs/assistant.md`
+- extra_files: none
+
+### F21.4 Progress draft and Use as draft
+
+- id: F21.4
+- kind: sub-feature
+- parent: F21
+- summary: Facts-only progress draft; for firm staff, 'Use as draft' opens the firm's report page pre-filled and the report goes through approval; the assistant never sends.
+- roles: firm staff (to the report); client people get the draft in the chat only
+- risk: privacy, permissions, ai
+- pages: `apps/web/src/app/(app)/assistant/draft/[messageId]/page.tsx`
+- components: `apps/web/src/components/reports/report-send-dialog.tsx`
+- api: `apps/web/src/app/api/assistant/messages/[id]/report/route.ts`, `apps/web/src/app/api/projects/[id]/reports/route.ts`
+- services: `apps/web/src/services/assistant.ts`, `apps/web/src/services/report-send.ts`
+- lib: `apps/web/src/lib/report-templates.ts`, `apps/web/src/lib/assistant-search.ts`
+- jobs: none
+- db_tables: `ai_drafts`, `reports`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0110_report_approval.sql`
+- policy: `report.write`, `report.approve`, `report.share`
+- tests: `apps/web/tests/draft-messages.test.ts`, `apps/web/tests/report-send-ui.test.ts`, `apps/web/tests/db/report-send.test.ts`
+- docs: `docs/assistant.md`, `docs/metrics.md`
+- extra_files: none
+
+### F21.5 Search index, masking and the AI service
+
+- id: F21.5
+- kind: sub-feature
+- parent: F21
+- summary: Files are read into passages, embedded (bge-m3) and searched with permission filters; names are replaced by placeholders before text leaves for a hosted model; one local chat model (qwen3.5:4b) answers.
+- roles: not a screen
+- risk: privacy, ai, migration
+- pages: none
+- components: none
+- api: none
+- services: `apps/web/src/services/ai-client.ts`, `apps/web/src/services/masking.ts`, `apps/web/src/services/assistant.ts`
+- lib: `apps/web/src/lib/masking.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/assistant-search.ts`, `apps/web/src/authz/retrieval.ts`, `services/ai/app/__init__.py`, `services/ai/app/config.py`, `services/ai/app/llm.py`, `services/ai/app/main.py`, `services/ai/app/prompt.py`, `services/ai/Dockerfile`, `services/ai/requirements.txt`
+- jobs: `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`
+- db_tables: `ai_chunks`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`
+- policy: `document.assistant`
+- tests: `apps/web/tests/masking-on.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/extract-text.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `services/ai/tests/__init__.py`, `services/ai/tests/conftest.py`, `services/ai/tests/test_service.py`, `services/ai/tests/test_stream_hangup.py`
+- docs: `docs/assistant.md`, `docs/review/section-7-model-retrieval-redaction.md`, `docs/assistant-eval-results.md`
+- extra_files: none
+
+## F22 Help, handbook and in-app tips
+
+- id: F22
+- kind: feature
+- parent: none
+- summary: Client Help page (your consultants, write to the firm's management, common questions); per-role guide; handbook in Arabic and English; tooltips and first-visit lines; messages in both languages.
+- roles: client roles (Help page); everyone (guide, tips)
+- risk: privacy
+- pages: `apps/web/src/app/(app)/help/guide/page.tsx`, `apps/web/src/app/(app)/help/loading.tsx`, `apps/web/src/app/(app)/help/page.tsx`, `apps/web/src/app/(app)/help/problem-form.tsx`, `apps/web/src/app/(public)/legal/[doc]/page.tsx`, `apps/web/src/app/(public)/legal/layout.tsx`
+- components: `apps/web/src/components/guide-view.tsx`, `apps/web/src/components/hint.tsx`, `apps/web/src/components/role-tip.tsx`, `apps/web/src/components/empty-state.tsx`, `apps/web/src/components/welcome.tsx`
+- api: `apps/web/src/app/api/help/problems/route.ts`, `apps/web/src/app/api/support-requests/[id]/handle/route.ts`
+- services: `apps/web/src/services/help.ts`
+- lib: `apps/web/src/lib/help.ts`, `apps/web/src/lib/handbook.ts`, `apps/web/src/lib/handbook-content.ts`, `apps/web/src/lib/legal.ts`, `apps/web/src/lib/welcome.ts`, `apps/web/scripts/handbook-copy.ts`
+- jobs: none
+- db_tables: `support_requests`
+- migrations: `apps/web/drizzle/0060_help.sql`, `apps/web/drizzle/0096_home_problem_link.sql`, `apps/web/drizzle/0108_privacy_batch.sql`
+- policy: `help.read`, `support_request.create`, `support_request.read`, `support_request.handle`
+- tests: `apps/web/tests/help-in-app.test.ts`, `apps/web/tests/help-page.test.ts`, `apps/web/tests/tips.test.ts`, `apps/web/tests/screen-text.test.ts`, `apps/web/tests/legal.test.ts`, `docs/handbook/ar.md`, `docs/handbook/client/ar.md`, `docs/handbook/client/en.md`, `docs/handbook/en.md`, `docs/handbook/firm/ar.md`, `docs/handbook/firm/en.md`, `docs/handbook/later/ar.md`, `docs/handbook/later/en.md`, `docs/handbook/limits/ar.md`, `docs/handbook/limits/en.md`, `docs/handbook/technical/ar.md`, `docs/handbook/technical/en.md`
+- docs: `docs/tooltips.md`, `docs/translations.md`, `docs/ui-guidelines.md`
+- extra_files: none
+- link: F10 | data | `apps/web/src/services/help.ts`, `apps/web/src/app/api/help/problems/route.ts` | 'I am stuck' and 'write to the firm' create support requests the firm admin reads
+
+## F23 Notifications and mail
+
+- id: F23
+- kind: feature
+- parent: none
+- summary: In-app bell and mail queue: every notice is a line and a link, never content; per-person mail choices and mutes; the mail sender claims rows and checks the recipient again before sending.
+- roles: everyone (own notices only)
+- risk: privacy, migration
+- pages: `apps/web/src/app/(app)/notifications/mail/loading.tsx`, `apps/web/src/app/(app)/notifications/mail/page.tsx`, `apps/web/src/app/(app)/notifications/page.tsx`
+- components: `apps/web/src/components/notifications.tsx`, `apps/web/src/components/mail-choices.tsx`
+- api: `apps/web/src/app/api/notifications/mail/route.ts`, `apps/web/src/app/api/notifications/read/route.ts`, `apps/web/src/app/api/notifications/route.ts`
+- services: `apps/web/src/services/notifications.ts`
+- lib: `apps/web/src/lib/mail-templates.ts`, `apps/web/src/lib/email.ts`, `apps/web/src/lib/smtp.ts`, `apps/web/src/lib/mail-choices.ts`, `apps/web/src/lib/indicator-notice.ts`
+- jobs: `apps/web/src/jobs/mail.ts`, `apps/web/scripts/send-mail.ts`, `apps/web/scripts/mail-check.ts`
+- db_tables: `notifications`, `outbound_emails`, `mail_preferences`, `mail_mutes`, `mail_kpi_mutes`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0003_mail_preferences.sql`, `apps/web/drizzle/0012_requester_mail.sql`, `apps/web/drizzle/0019_mail_choices.sql`, `apps/web/drizzle/0025_client_offboarding.sql`, `apps/web/drizzle/0046_action_comments.sql`, `apps/web/drizzle/0054_pulse.sql`, `apps/web/drizzle/0056_sign_in_links.sql`, `apps/web/drizzle/0057_upload_links.sql`, `apps/web/drizzle/0060_help.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0090_indicator_moved_away.sql`, `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0092_deliverable_receipts.sql`, `apps/web/drizzle/0094_audience.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`
+- policy: `(none: notifications are rows per person; see apps/web/src/authz/policy.ts for the actions that create them)`
+- tests: `apps/web/tests/db/mail.test.ts`, `apps/web/tests/db/mail-choices.test.ts`, `apps/web/tests/ops.test.ts`, `apps/web/tests/audit-labels.test.ts`
+- docs: `docs/operations.md`
+- extra_files: none
+
+## F24 Audit log
+
+- id: F24
+- kind: feature
+- parent: none
+- summary: Append-only, hash-chained record of every step with plain sentences; chain check and sealing jobs; CSV export; client admins read their own company's.
+- roles: firm_admin (all); client_admin (own company)
+- risk: privacy, migration
+- pages: `apps/web/src/app/(app)/audit/entry-details.tsx`, `apps/web/src/app/(app)/audit/filters.tsx`, `apps/web/src/app/(app)/audit/loading.tsx`, `apps/web/src/app/(app)/audit/page.tsx`
+- components: none
+- api: `apps/web/src/app/api/audit/export/route.ts`
+- services: `apps/web/src/services/audit.ts`, `apps/web/src/services/audit-log.ts`
+- lib: `apps/web/src/lib/audit.ts`
+- jobs: `apps/web/scripts/audit-check.ts`, `apps/web/scripts/audit-seal.ts`
+- db_tables: `audit_log`, `audit_chain`, `audit_chain_checks`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0023_audit_trail.sql`
+- policy: `audit_log.read`
+- tests: `apps/web/tests/audit-labels.test.ts`, `apps/web/tests/audit-sentences.test.ts`, `apps/web/tests/db/audit-log.test.ts`, `apps/web/tests/db/audit-reset.ts`
+- docs: `docs/security.md`, `docs/data-architecture.md`
+- extra_files: none
+
+## F25 Scheduled jobs
+
+- id: F25
+- kind: feature
+- parent: none
+- summary: One loop: index files, delete stored objects, seal and check the audit chain, ops alerts; daily health, indicator feeds, reminders, purges; monthly metrics and status packs.
+- roles: not a screen (the schema owner connection)
+- risk: privacy, migration
+- pages: none
+- components: none
+- api: `apps/web/src/app/api/schedule/route.ts`
+- services: none
+- lib: none
+- jobs: `apps/web/src/jobs/clean-private-names.ts`, `apps/web/src/jobs/extract-text.ts`, `apps/web/src/jobs/follow-ups.ts`, `apps/web/src/jobs/health.ts`, `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/indicator-feeds.ts`, `apps/web/src/jobs/mail.ts`, `apps/web/src/jobs/metrics.ts`, `apps/web/src/jobs/ops-check.ts`, `apps/web/src/jobs/status-packs.ts`, `apps/web/scripts/jobs.sh`, `apps/web/scripts/follow-ups.ts`, `apps/web/scripts/health.ts`, `apps/web/scripts/index-documents.ts`, `apps/web/scripts/indicator-feeds.ts`, `apps/web/scripts/metrics-snapshot.ts`, `apps/web/scripts/ops-check.ts`, `apps/web/scripts/status-packs.ts`, `apps/web/scripts/delete-objects.ts`, `apps/web/scripts/purge-chats.ts`, `apps/web/scripts/purge-clients.ts`, `apps/web/scripts/purge-inquiries.ts`, `apps/web/scripts/purge-minimal.ts`, `apps/web/scripts/purge-transcripts.ts`
+- db_tables: `follow_up_log`, `action_reminders`, `metric_snapshots`, `project_health_weeks`, `storage_deletions`, `audit_chain_checks`
+- migrations: `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`
+- policy: `(none: jobs run as the schema owner)`
+- tests: `apps/web/tests/ops.test.ts`, `apps/web/tests/db/ops-check.test.ts`, `apps/web/tests/db/follow-through.test.ts`, `apps/web/tests/db/metrics.test.ts`
+- docs: `docs/operations.md`, `docs/handoff.md`
+- extra_files: none
+- link: F23 | job | `apps/web/src/jobs/mail.ts`, `apps/web/src/jobs/follow-ups.ts` | the daily run queues summary mail; the sender claims due rows
+- link: F24 | job | `apps/web/src/jobs/ops-check.ts`, `apps/web/scripts/audit-seal.ts`, `apps/web/scripts/audit-check.ts` | sealing and the nightly chain check feed the ops alert
+- link: F07 | job | `apps/web/src/jobs/follow-ups.ts`, `apps/web/drizzle/0109_lead_change_end_reminder.sql` | the engagement end reminder is made by the daily follow-up run, not by the walkthrough's mail sender
+
+## F26 Pre-go-live script
+
+- id: F26
+- kind: feature
+- parent: none
+- summary: One-time clean-up of old audit and activity rows that hold private file names (not run yet); written, tested, to be run by the owner before go-live.
+- roles: operator with the schema owner connection
+- risk: privacy, migration
+- pages: none
+- components: none
+- api: none
+- services: none
+- lib: none
+- jobs: `apps/web/scripts/pre-go-live/clean-private-names.ts`, `apps/web/src/jobs/clean-private-names.ts`
+- db_tables: `audit_log`, `activity_events`
+- migrations: `apps/web/drizzle/0106_classification_leaks.sql`
+- policy: `(none)`
+- tests: `apps/web/tests/db/clean-private-names.test.ts`
+- docs: `docs/operations.md`
+- extra_files: none
+
+## F27 Firm settings, team and expertise
+
+- id: F27
+- kind: feature
+- parent: none
+- summary: Reminder cadence, stale days, retention, indicator grace; the firm's people with expertise profiles used to suggest leads; consultants' review and workload table.
+- roles: firm_admin (settings, team load); every consultant edits their own expertise
+- risk: permissions
+- pages: `apps/web/src/app/(app)/settings/page.tsx`, `apps/web/src/app/(app)/settings/settings-form.tsx`, `apps/web/src/app/(app)/team/access-section.tsx`, `apps/web/src/app/(app)/team/departure-dialog.tsx`, `apps/web/src/app/(app)/team/expertise/expertise-table.tsx`, `apps/web/src/app/(app)/team/expertise/loading.tsx`, `apps/web/src/app/(app)/team/expertise/page.tsx`, `apps/web/src/app/(app)/team/loading.tsx`, `apps/web/src/app/(app)/team/page.tsx`, `apps/web/src/app/(app)/team/people-admin.tsx`, `apps/web/src/app/(app)/team/people-panels.tsx`
+- components: `apps/web/src/components/nav-user.tsx`
+- api: `apps/web/src/app/api/firm/settings/route.ts`, `apps/web/src/app/api/consultants/[id]/profile/route.ts`, `apps/web/src/app/api/consultants/route.ts`, `apps/web/src/app/api/team/metrics/route.ts`, `apps/web/src/app/api/template-authors/[userId]/route.ts`, `apps/web/src/app/api/template-authors/route.ts`
+- services: `apps/web/src/services/firm-settings.ts`, `apps/web/src/services/expertise.ts`, `apps/web/src/services/team-load.ts`
+- lib: `apps/web/src/lib/firm-settings.ts`
+- jobs: none
+- db_tables: `firm_settings`, `consultant_profiles`, `consultant_sectors`, `consultant_service_areas`, `sectors`, `service_areas`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0011_legal_profile.sql`, `apps/web/drizzle/0019_mail_choices.sql`, `apps/web/drizzle/0023_audit_trail.sql`, `apps/web/drizzle/0056_sign_in_links.sql`, `apps/web/drizzle/0063_client_indicators.sql`
+- policy: `firm_settings.manage`, `consultant_profile.read`, `consultant_profile.manage`, `consultant_profile.update_own`, `team_metrics.read`
+- tests: `apps/web/tests/db/firm-settings.test.ts`, `apps/web/tests/db/expertise.test.ts`, `apps/web/tests/db/team-load.test.ts`, `apps/web/tests/db/screen-team.test.ts`
+- docs: `docs/firm-settings.md`
+- extra_files: none
+- link: F10 | data | `apps/web/src/services/firm-settings.ts`, `apps/web/src/services/follow-through.ts` | stale days, reminder cadence and escalation days come from firm settings
+
+## F28 Oversight (rule lists, health, Actions board)
+
+- id: F28
+- kind: feature
+- parent: none
+- summary: The firm's lists across projects (late, blocked, stale, moved twice, sent back twice, no owner), the projects table of counts, remind the owner, weekly health history; counts never a health word.
+- roles: firm_admin and consultants on their clients (reminder: staff on the project, not observers)
+- risk: privacy, permissions, migration
+- pages: `apps/web/src/app/(app)/actions/page.tsx`, `apps/web/src/app/(app)/projects/page.tsx`
+- components: `apps/web/src/components/action-facets.tsx`, `apps/web/src/components/action-filters.tsx`, `apps/web/src/components/actions-table.tsx`, `apps/web/src/components/list-pager.tsx`
+- api: `apps/web/src/app/api/actions/[id]/remind/route.ts`, `apps/web/src/app/api/team/metrics/route.ts`
+- services: `apps/web/src/services/action-board.ts`, `apps/web/src/services/insight.ts`, `apps/web/src/services/slips.ts`, `apps/web/src/services/follow-through.ts`
+- lib: `apps/web/src/lib/action-filters.ts`, `apps/web/src/lib/slips.ts`, `apps/web/src/lib/plan-rules.ts`, `apps/web/src/lib/status-words.ts`
+- jobs: `apps/web/src/jobs/health.ts`
+- db_tables: `project_health_weeks`, `v_deviations`, `action_reminders`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0002_firm_day_functions.sql`, `apps/web/drizzle/0045_recommendation_responses.sql`, `apps/web/drizzle/0047_action_due_changes.sql`, `apps/web/drizzle/0048_oversight.sql`, `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0063_client_indicators.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0071_activity_readers.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`
+- policy: `deviation.read`, `action.remind`, `activity.read`
+- tests: `apps/web/tests/action-filters.test.ts`, `apps/web/tests/db/oversight.test.ts`, `apps/web/tests/db/insight.test.ts`, `apps/web/tests/db/slips.test.ts`
+- docs: `docs/metrics.md`
+- extra_files: none
+
+## F29 Exports and PDFs
+
+- id: F29
+- kind: feature
+- parent: none
+- summary: Excel and PDF files: plan to Excel, client report, closure report, structure (A3/A4), audit CSV; PDFs are made by Gotenberg from server-rendered HTML in the reader's language.
+- roles: whoever may read the thing exported
+- risk: privacy
+- pages: none
+- components: `apps/web/src/components/export-button.tsx`, `apps/web/src/components/export-packs.tsx`
+- api: `apps/web/src/app/api/projects/[id]/export/route.ts`, `apps/web/src/app/api/actions/export/route.ts`, `apps/web/src/app/api/clients/[id]/report/route.ts`, `apps/web/src/app/api/reports/[id]/pdf/route.ts`, `apps/web/src/app/api/clients/[id]/structure/pdf/route.ts`, `apps/web/src/app/api/audit/export/route.ts`, `apps/web/src/app/api/projects/[id]/closure/report/route.ts`
+- services: `apps/web/src/services/exports.ts`, `apps/web/src/services/pdf.ts`, `apps/web/src/services/export-pack.ts`
+- lib: `apps/web/src/lib/report-html.ts`, `apps/web/src/lib/client-report-html.ts`, `apps/web/src/lib/closure-html.ts`, `apps/web/src/lib/indicator-html.ts`, `apps/web/src/lib/org-chart-html.ts`, `apps/web/src/lib/office/xlsx-write.ts`
+- jobs: none
+- db_tables: none
+- migrations: none
+- policy: `organization.export`, `report.read`, `project.read`
+- tests: `apps/web/tests/report-html.test.ts`, `apps/web/tests/client-report-html.test.ts`, `apps/web/tests/export-pack.test.ts`, `apps/web/tests/office.test.ts`, `apps/web/e2e/import-export.e2e.ts`
+- docs: `docs/import-export.md`
+- extra_files: none
+
+## F30 Platform, deployment and test harness
+
+- id: F30
+- kind: feature
+- parent: none
+- summary: Docker services (database, object storage, scanner, PDF, local model, AI, web, mail, jobs, edge), backup and restore scripts, CI, the local launcher and the walkthrough seed, end-to-end specs.
+- roles: operators and developers
+- risk: migration
+- pages: none
+- components: none
+- api: `apps/web/src/app/api/health/route.ts`, `apps/web/src/app/api/ready/route.ts`
+- services: none
+- lib: none
+- jobs: none
+- db_tables: none
+- migrations: none
+- policy: `(none)`
+- tests: `apps/web/e2e/README.md`, `apps/web/playwright.config.ts`, `apps/web/vitest.config.ts`, `apps/web/vitest.db.config.ts`, `apps/web/vitest.scan.config.ts`, `apps/web/e2e/crawl.e2e.ts`, `apps/web/e2e/api-probes.e2e.ts`
+- docs: `docs/operations.md`, `docs/handoff.md`, `docs/data-architecture.md`, `docs/walkthrough.md`, `docs/security.md`
+- extra_files: `docker-compose.yml`, `docker-compose.test.yml`, `docker-compose.instance.yml`, `.github/workflows/ci.yml`, `.github/dependabot.yml`, `scripts/local.mjs`, `ops/backup.sh`, `ops/restore.sh`, `ops/upgrade.sh`, `ops/readiness.sh`, `ops/restore-drill.sh`, `ops/lib.sh`, `ops/edge/Caddyfile`, `apps/web/scripts/walkthrough/seed.ts`, `apps/web/scripts/walkthrough/files.ts`, `apps/web/scripts/seed.ts`, `apps/web/scripts/migrate.ts`, `apps/web/Dockerfile`, `services/ai/Dockerfile`
+
+## Shared files (used by three or more features)
+
+Computed from the import graph (services, routes, pages, components, jobs; sub-features count as their parent). A file is listed when files of at least three different features import it, or when twelve or more files do. Touching one of these means checking every feature in its row. The feature column is the features that own an importer, so it is approximate (a route or page folder shared by two features can over- or under-count): grep the importers before a large change. F02 (the authorization core) is left out of the counts.
+
+### Services, authorization and server
+
+| file | features that import it | importer count |
+|---|---|---|
+| `apps/web/src/server/http.ts` | F01, F03, F04, F05, F06, F07, F08, F09, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F27, F28, F29 | 262 |
+| `apps/web/src/services/audit.ts` | F01, F04, F05, F06, F07, F08, F09, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F24, F27, F28, F29 | 51 |
+| `apps/web/src/services/queries.ts` | F01, F03, F04, F05, F06, F08, F09, F10, F15, F17, F18, F20, F21, F22, F27, F28, F29 | 22 |
+| `apps/web/src/services/staffing.ts` | F01, F03, F04, F05, F08, F09, F10, F11, F13, F14, F15, F17, F18, F21, F28 | 38 |
+| `apps/web/src/services/follow-through.ts` | F01, F09, F10, F14, F15, F17, F21, F27, F28, F29 | 23 |
+| `apps/web/src/services/audience.ts` | F03, F09, F11, F12, F13, F14, F19, F21, F29 | 16 |
+| `apps/web/src/services/actions.ts` | F03, F04, F09, F10, F12, F14, F15, F21, F28 | 13 |
+| `apps/web/src/services/deliverables.ts` | F03, F05, F07, F09, F12, F15, F18, F19, F29 | 12 |
+| `apps/web/src/services/org-chart.ts` | F01, F03, F04, F05, F15, F20, F27, F29 | 33 |
+| `apps/web/src/services/indicators.ts` | F03, F04, F05, F09, F15, F16, F21, F29 | 16 |
+| `apps/web/src/services/evidence.ts` | F09, F10, F11, F12, F16, F20, F21 | 14 |
+| `apps/web/src/services/exports.ts` | F09, F10, F15, F18, F20, F24, F29 | 11 |
+| `apps/web/src/services/engagement.ts` | F01, F04, F05, F07, F10, F20 | 11 |
+| `apps/web/src/services/client-overview.ts` | F03, F04, F05, F06, F15, F29 | 7 |
+| `apps/web/src/services/storage.ts` | F10, F11, F12, F19, F21, F29 | 7 |
+| `apps/web/src/services/scan.ts` | F07, F10, F12, F19, F21, F29 | 5 |
+| `apps/web/src/services/assessments.ts` | F01, F04, F09, F17, F27 | 31 |
+| `apps/web/src/services/documents.ts` | F07, F11, F12, F13, F21 | 10 |
+| `apps/web/src/services/files.ts` | F09, F10, F12, F20, F21 | 9 |
+| `apps/web/src/services/closure.ts` | F05, F09, F15, F18, F29 | 8 |
+| `apps/web/src/services/export-pack.ts` | F01, F04, F12, F19, F29 | 7 |
+| `apps/web/src/services/help.ts` | F03, F09, F10, F21, F22 | 7 |
+| `apps/web/src/services/client-roles.ts` | F01, F04, F05, F09, F18 | 6 |
+| `apps/web/src/services/progress.ts` | F09, F10, F12, F15, F21 | 4 |
+| `apps/web/src/services/accounts.ts` | F01, F04, F05, F27 | 19 |
+| `apps/web/src/services/meetings.ts` | F09, F13, F14, F25 | 18 |
+| `apps/web/src/services/notifications.ts` | F03, F10, F16, F23 | 10 |
+| `apps/web/src/services/offboarding.ts` | F01, F03, F04, F19 | 8 |
+| `apps/web/src/services/action-board.ts` | F03, F09, F10, F28 | 7 |
+| `apps/web/src/services/ai-client.ts` | F12, F20, F21, F22 | 6 |
+| `apps/web/src/services/handover.ts` | F01, F04, F09, F18 | 2 |
+| `apps/web/src/services/indicator-data.ts` | F03, F16, F25 | 15 |
+| `apps/web/src/services/inquiries.ts` | F03, F04, F08 | 15 |
+| `apps/web/src/services/client-groups.ts` | F03, F04, F06 | 14 |
+| `apps/web/src/services/client-ai.ts` | F03, F04, F21 | 8 |
+| `apps/web/src/services/engagements.ts` | F04, F07, F08 | 8 |
+| `apps/web/src/services/masking.ts` | F12, F20, F21 | 8 |
+| `apps/web/src/services/report-send.ts` | F09, F15, F21 | 6 |
+| `apps/web/src/services/second-review.ts` | F01, F04, F10 | 6 |
+| `apps/web/src/authz/types.ts` | F01, F10, F21 | 6 |
+| `apps/web/src/services/principal.ts` | F01, F16, F25 | 3 |
+| `apps/web/src/services/insight.ts` | F03, F09, F28 | 2 |
+| `apps/web/src/services/slips.ts` | F10, F14, F28 | 2 |
+| `apps/web/src/services/team-load.ts` | F01, F03, F27 | 1 |
+
+### Libraries
+
+| file | features that import it | importer count |
+|---|---|---|
+| `apps/web/src/lib/dates.ts` | F01, F03, F04, F05, F06, F07, F08, F09, F10, F11, F12, F14, F15, F16, F19, F20, F21, F23, F24, F27, F28, F29 | 35 |
+| `apps/web/src/lib/names.ts` | F03, F04, F05, F06, F07, F08, F09, F10, F12, F15, F16, F17, F19, F20, F22, F27, F29 | 32 |
+| `apps/web/src/lib/utils.ts` | F01, F03, F04, F08, F09, F10, F11, F12, F13, F16, F20, F21, F22, F23, F27, F28 | 103 |
+| `apps/web/src/lib/ids.ts` | F01, F04, F05, F06, F07, F08, F09, F10, F14, F15, F16, F17, F20, F21 | 23 |
+| `apps/web/src/lib/engagement.ts` | F01, F04, F05, F07, F08, F09, F10, F12, F15, F21 | 24 |
+| `apps/web/src/lib/status-words.ts` | F03, F04, F07, F08, F09, F10, F14, F28 | 12 |
+| `apps/web/src/lib/org-chart.ts` | F01, F03, F05, F20, F27, F29 | 18 |
+| `apps/web/src/lib/client-tabs.ts` | F01, F03, F04, F05, F23, F27 | 9 |
+| `apps/web/src/lib/deliverables.ts` | F04, F07, F12, F15, F19, F29 | 9 |
+| `apps/web/src/lib/row-actions.ts` | F03, F04, F05, F09, F10, F16 | 5 |
+| `apps/web/src/lib/indicators.ts` | F15, F16, F21, F23, F29 | 14 |
+| `apps/web/src/lib/upload-rules.ts` | F09, F10, F11, F12, F20 | 10 |
+| `apps/web/src/lib/mail-choices.ts` | F10, F14, F23, F27, F28 | 8 |
+| `apps/web/src/lib/office/zip.ts` | F09, F12, F16, F20, F29 | 8 |
+| `apps/web/src/lib/plan-import.ts` | F09, F15, F16, F20, F29 | 6 |
+| `apps/web/src/lib/report-html.ts` | F15, F16, F18, F20, F29 | 6 |
+| `apps/web/src/lib/action-filters.ts` | F03, F09, F10, F28 | 10 |
+| `apps/web/src/lib/offboarding.ts` | F04, F12, F19, F29 | 7 |
+| `apps/web/src/lib/masking.ts` | F01, F04, F07, F21 | 6 |
+| `apps/web/src/lib/audit.ts` | F12, F19, F24, F29 | 5 |
+| `apps/web/src/lib/people-tabs.ts` | F01, F05, F20, F27 | 4 |
+| `apps/web/src/lib/slips.ts` | F09, F10, F14, F28 | 4 |
+| `apps/web/src/lib/indicator-html.ts` | F15, F16, F18, F29 | 3 |
+| `apps/web/src/lib/office/xlsx-read.ts` | F09, F12, F16, F20 | 3 |
+| `apps/web/src/lib/office/xlsx-write.ts` | F12, F15, F20, F29 | 2 |
+| `apps/web/src/lib/plan-rules.ts` | F03, F09, F10, F28 | 2 |
+| `apps/web/src/lib/assessments.ts` | F01, F04, F17 | 10 |
+| `apps/web/src/lib/closure.ts` | F05, F09, F18 | 9 |
+| `apps/web/src/lib/engagements.ts` | F04, F07, F08 | 9 |
+| `apps/web/src/lib/info-requests.ts` | F03, F09, F11 | 9 |
+| `apps/web/src/lib/org-chart-tree.ts` | F15, F20, F29 | 9 |
+| `apps/web/src/lib/meetings.ts` | F08, F09, F14 | 8 |
+| `apps/web/src/lib/client-ai.ts` | F04, F15, F21 | 5 |
+| `apps/web/src/lib/legal.ts` | F01, F08, F22 | 5 |
+| `apps/web/src/lib/second-review.ts` | F01, F04, F10 | 5 |
+| `apps/web/src/lib/nav.ts` | F01, F03, F27 | 4 |
+| `apps/web/src/lib/person-match.ts` | F12, F13, F21 | 3 |
+| `apps/web/src/lib/health.ts` | F03, F10, F28 | 2 |
+| `apps/web/src/lib/office/docx-read.ts` | F09, F12, F20 | 2 |
+| `apps/web/src/lib/org-chart-html.ts` | F15, F20, F29 | 2 |
+| `apps/web/src/lib/closure-html.ts` | F15, F18, F29 | 1 |
+| `apps/web/src/lib/welcome.ts` | F01, F03, F22 | 1 |
+
+### Shared screens and components (UI kit)
+
+| file | features that import it | importer count |
+|---|---|---|
+| `apps/web/src/components/form-dialog.tsx` | F01, F03, F04, F05, F06, F07, F08, F09, F10, F12, F13, F14, F15, F16, F17, F19, F20, F21, F23, F27, F29 | 84 |
+| `apps/web/src/components/brand.tsx` | F01, F04, F05, F07, F08, F09, F10, F11, F12, F13, F14, F15, F16, F17, F19, F20, F21, F22, F23, F27 | 71 |
+| `apps/web/src/components/page-header.tsx` | F01, F03, F04, F05, F06, F07, F08, F09, F10, F14, F15, F16, F17, F20, F21, F22, F23, F24, F27, F28 | 42 |
+| `apps/web/src/components/tone-badge.tsx` | F03, F04, F05, F06, F07, F08, F09, F10, F11, F16, F19, F20, F21, F22, F24, F27, F28, F29 | 43 |
+| `apps/web/src/components/hint.tsx` | F01, F05, F09, F10, F11, F12, F14, F16, F17, F20, F21, F22, F23, F27 | 33 |
+| `apps/web/src/components/page-skeletons.tsx` | F01, F03, F04, F05, F07, F09, F10, F16, F20, F21, F22, F23, F24, F27 | 25 |
+| `apps/web/src/components/empty-state.tsx` | F01, F04, F05, F07, F08, F09, F10, F12, F20, F22, F23, F24, F27, F28 | 20 |
+| `apps/web/src/components/confirm-dialog.tsx` | F04, F05, F09, F10, F12, F14, F16, F17, F20, F21 | 24 |
+| `apps/web/src/components/stat-tile.tsx` | F01, F03, F06, F09, F15, F16, F20, F24, F27 | 11 |
+| `apps/web/src/components/status-badge.tsx` | F03, F04, F07, F08, F09, F10, F14, F28 | 17 |
+| `apps/web/src/components/export-button.tsx` | F03, F09, F10, F15, F20, F24, F28, F29 | 9 |
+| `apps/web/src/components/section-header.tsx` | F01, F03, F04, F05, F09, F20, F27 | 16 |
+| `apps/web/src/components/person-picker.tsx` | F09, F10, F13, F14, F20, F27, F28 | 10 |
+| `apps/web/src/components/morph.tsx` | F03, F04, F06, F09, F10, F28 | 14 |
+| `apps/web/src/components/row-menu.tsx` | F04, F05, F09, F10, F16, F20 | 11 |
+| `apps/web/src/components/link-tabs.tsx` | F01, F04, F05, F09, F28 | 4 |
+| `apps/web/src/components/role-tip.tsx` | F01, F04, F09, F22, F27 | 4 |
+| `apps/web/src/components/send-file-dialog.tsx` | F09, F10, F11, F12 | 6 |
+| `apps/web/src/components/audience-field.tsx` | F09, F12, F13, F14 | 5 |
+| `apps/web/src/components/indicators/indicators-card.tsx` | F03, F04, F05, F16 | 5 |
+| `apps/web/src/components/ask-about.tsx` | F09, F10, F14, F21 | 4 |
+| `apps/web/src/components/people-tabs.tsx` | F01, F05, F20, F27 | 4 |
+| `apps/web/src/components/visibility-badge.tsx` | F09, F10, F12, F14 | 4 |
+| `apps/web/src/components/export-packs.tsx` | F01, F04, F19, F29 | 2 |
+| `apps/web/src/components/translatable.tsx` | F09, F10, F14 | 4 |
+| `apps/web/src/components/audience-marker.tsx` | F09, F13, F14 | 3 |
+| `apps/web/src/components/client-progress.tsx` | F03, F04, F05 | 3 |
+| `apps/web/src/components/copy-button.tsx` | F01, F08, F16 | 3 |
+| `apps/web/src/components/engagement-form.tsx` | F04, F07, F08 | 3 |
+| `apps/web/src/components/file-explorer.tsx` | F09, F10, F12 | 3 |
+| `apps/web/src/components/topography.tsx` | F01, F08, F11 | 3 |
+| `apps/web/src/components/list-pager.tsx` | F10, F24, F28 | 2 |
+| `apps/web/src/components/request-row.tsx` | F09, F10, F11 | 2 |
+| `apps/web/src/components/sliding-count.tsx` | F03, F09, F23 | 2 |
+| `apps/web/src/components/action-board-table.tsx` | F09, F10, F28 | 1 |
+| `apps/web/src/components/actions-table.tsx` | F05, F10, F28 | 1 |
+| `apps/web/src/components/welcome.tsx` | F01, F03, F22 | 1 |
+
+Used by every feature and not listed above: `apps/web/messages/ar.json` and `apps/web/messages/en.json` (about 5,000 keys each, the same keys in both); `apps/web/src/db/schema/app.ts` (every table); `apps/web/src/authz/policy.ts` and `apps/web/src/authz/authorize.ts` (every permission check, see F02).
+
+## If you change X, also check Y
+
+| change | also check |
+|---|---|
+| `apps/web/src/authz/policy.ts` | the matching database rule (RLS policy or definer function) in a new migration; apps/web/tests/db/rule-parity.test.ts; docs/authorization.md; the page that offers the button (hide it, never rely on hiding) |
+| `a new migration in apps/web/drizzle` | apps/web/drizzle/meta journal, apps/web/src/db/schema/*.ts, the Dockerfile migrate step, tests/db/walkthrough-seed.test.ts, the next free number (0112) |
+| `apps/web/src/services/documents.ts` | audience.ts (left-out people), scan.ts, storage.ts, the assistant index (jobs/index-documents.ts), export-pack.ts, files.ts, deliverables.ts |
+| `apps/web/src/services/audience.ts or the audience policy` | meetings.ts, documents.ts, assistant.ts scopeFilter, jobs/mail.ts, notifications trigger, tests/db/audience.test.ts, docs/authorization.md 'Who sees an item' |
+| `apps/web/src/services/assistant.ts` | authz/retrieval.ts, lib/assistant-search.ts, services/masking.ts, services/client-ai.ts, services/ai/app/prompt.py (CLIENT_RULES), docs/assistant.md, tests/db/client-assistant*.test.ts, scripts/assistant-eval |
+| `services/ai/app/prompt.py` | docs/assistant.md, the assistant eval test set (apps/web/scripts/assistant-eval), tests/legal-rulings.test.ts, tests/db/client-assistant-gaps.test.ts |
+| `apps/web/src/services/masking.ts or app_mask_terms` | services/translations.ts, services/document-summaries.ts, services/org-chart-import.ts, services/assistant.ts; migration 0089 function; tests/masking-on.test.ts |
+| `apps/web/src/authz/workflow.ts (action states)` | lib/status-words.ts (six words), lib/action-next.ts, services/actions.ts, drizzle triggers on actions, docs/rules.md, messages action.* and statusWords.* |
+| `apps/web/src/lib/status-words.ts` | components/status-badge.tsx, services/home.ts, services/project-page.ts, lib/report-html.ts, lib/client-report-html.ts, messages statusWords.* |
+| `apps/web/src/lib/mail-templates.ts` | jobs/mail.ts, the SQL that inserts outbound_emails (drizzle), tests/db/mail.test.ts, messages for the matching in-app notice (notifications.kinds.*) |
+| `apps/web/src/services/principal.ts` | authz/types.ts Principal sets, authorize.ts, every service that builds a resource, the matching SQL helper (app_*), tests/authorize.test.ts |
+| `apps/web/src/services/staffing.ts` | client-roles.ts, closure.ts, case-study.ts, audience.ts, meetings.ts, assessments.ts, status-pack.ts, handover.ts (many importers) |
+| `apps/web/src/services/org-chart.ts` | accounts.ts (leaving and invite hooks), org-chart-import.ts, lib/org-chart-html.ts (PDF), exports.ts, home.ts, today.ts, app_org_chart_* functions (0091, 0097, 0105) |
+| `apps/web/src/services/closure.ts` | deliverables.ts (waiting rounds), offboarding.ts, export-pack.ts, lib/closure-html.ts, migrations 0020 and 0059 |
+| `apps/web/src/services/exports.ts or pdf.ts` | lib/*-html.ts renderers, the Gotenberg service (docker-compose.yml pdf), exportLocale in server/locale.ts, tests/*-html.test.ts |
+| `apps/web/messages/ar.json or en.json` | the other file (same keys), the handbook screens and docs/walkthrough.md labels, tests/screen-text.test.ts, scenarios in docs/review/work/scenarios-plan.md |
+| `apps/web/src/jobs/follow-ups.ts` | scripts/jobs.sh, scripts/follow-ups.ts, firm-settings, the SQL app_follow_ups_due / app_queue_digests / app_remind_engagements, docs/operations.md; the walkthrough launcher does not run it |
+| `apps/web/scripts/walkthrough/seed.ts` | docs/walkthrough.md (accounts, cases, section 6 table), tests/db/walkthrough-seed.test.ts, docs/review/work/scenarios-plan.md |
+| `apps/web/src/components/audience-picker.tsx` | audience-field.tsx, meeting-form.tsx, file-actions.tsx, the audience API routes, messages audience.* |
+| `apps/web/src/lib/office/xlsx-read.ts or xlsx-write.ts` | plan-import, indicator-import, org-chart-import, exports.ts, tests/office.test.ts and tests/fixtures/office |
+| `docker-compose.yml` | docker-compose.test.yml, docker-compose.instance.yml, scripts/local.mjs, ops/*.sh, docs/operations.md, .github/workflows/ci.yml, docs/walkthrough.md ports |
+
+## Checks
+
+- Features: 29; sub-features: 6; links: 64.
+- Every path in the bullets `pages`, `components`, `api`, `services`, `lib`, `jobs`, `migrations`, `tests`, `docs`, `extra_files` and in `link` bullets was matched to `git ls-files` at the commit above when this file was generated. Paths with `[id]` are literal directory names.

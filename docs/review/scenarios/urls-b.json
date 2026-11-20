@@ -1,0 +1,88 @@
+{
+ "note": "partial, copy B, instance scenb http://localhost:3050 (offset 50)",
+ "urls": {
+  "lead@mizan.test": [
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/assistant/draft/4cd5d9f7-8dae-485a-acf5-2dade1d40279",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress&draft=4cd5d9f7-8dae-485a-acf5-2dade1d40279",
+   "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
+   "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
+   "/actions/fa23e5dd-1554-457e-8a22-e8f8f9b5c6ec",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/meetings/f195adb9-d498-4945-bc26-53f2f084f56b",
+   "/reports/565532e0-d6e7-4663-b37e-d194e501166f",
+   "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
+   "/reports/171c9274-48e4-4edc-be81-1858ee5547e2",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+  ],
+  "owner@nukhba.test": [
+   "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress"
+  ],
+  "deputy@mizan.test": [
+   "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
+   "/actions/fa23e5dd-1554-457e-8a22-e8f8f9b5c6ec",
+   "/actions/46a49bbb-d900-404c-8f34-1318b5d16d8a",
+   "/reports/abc5fb57-944a-41df-a400-72db9786f14d"
+  ],
+  "sponsor@nukhba.test": [
+   "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
+   "/meetings/f195adb9-d498-4945-bc26-53f2f084f56b",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
+   "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+  ],
+  "admin@nukhba.test": [
+   "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress"
+  ],
+  "manager@nukhba.test": [
+   "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
+   "/meetings/f195adb9-d498-4945-bc26-53f2f084f56b",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+  ],
+  "finance@nukhba.test": [
+   "/actions/fa23e5dd-1554-457e-8a22-e8f8f9b5c6ec",
+   "/actions/46a49bbb-d900-404c-8f34-1318b5d16d8a",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress"
+  ],
+  "consultant@mizan.test": [
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+  ],
+  "_created": [
+   "/meetings/f195adb9-d498-4945-bc26-53f2f084f56b",
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92",
+   "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
+   "/api/documents/815d3e4c-183f-42a1-9d85-ddd5635d6a8e/audience"
+  ]
+ }
+}

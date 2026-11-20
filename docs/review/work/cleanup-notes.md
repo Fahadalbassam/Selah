@@ -1,1 +1,2 @@
 - guide-fixes worktree: apps/web/node_modules is a LINK to small-bugs' packages; remove with 'cmd /c rmdir' only, never recursively.
+- number-scanner worktree (C:\Projects\selah-fresh\.claude\worktrees\number-scanner): apps/web/node_modules is a JUNCTION to arabic-search's apps/web/node_modules; remove with 'cmd /c rmdir' only, never recursively. Remove it before removing the arabic-search worktree.
