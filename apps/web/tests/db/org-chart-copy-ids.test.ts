@@ -196,15 +196,18 @@ BEGIN
   UPDATE positions n SET reports_to_id = md5(dst::text || p.reports_to_id::text)::uuid
     FROM positions p WHERE p.version_id = src AND p.reports_to_id IS NOT NULL AND n.id = md5(dst::text || p.id::text)::uuid;
 END $$`;
-// The copy as migration 0115 writes it, read from the migration itself.
-const newCopy = () =>
-  readFileSync(fileURLToPath(new URL("../../drizzle/0115_org_chart_copy_ids.sql", import.meta.url)), "utf8")
-  .split("--> statement-breakpoint")
-  .find((s) => s.includes("CREATE OR REPLACE FUNCTION app_org_chart_copy("))!
-  .replace(/^[\s\S]*?(?=CREATE OR REPLACE FUNCTION app_org_chart_copy\()/, "");
+// A function of migration 0115, read from the migration itself (the repair is dropped once it has run).
+const fromMigration = (name: string) => {
+  const chunk = readFileSync(fileURLToPath(new URL("../../drizzle/0115_org_chart_copy_ids.sql", import.meta.url)), "utf8")
+    .split("--> statement-breakpoint")
+    .find((s) => s.includes(name))!;
+  return chunk.slice(chunk.indexOf(name));
+};
+const newCopy = () => fromMigration("CREATE OR REPLACE FUNCTION app_org_chart_copy(");
+const repairFunction = () => fromMigration("CREATE FUNCTION app_org_chart_repair_copied_ids(");
 
 /** The structure as codes only (what the repair must keep), per version number (null: the draft). */
-const shape = async (c: PoolClient) =>
+const shape = async (c: PoolClient, org = ACME) =>
   (
     await c.query(
       `SELECT v.number, 'unit' AS kind, u.code, pu.code AS parent, NULL AS unit, NULL AS reports
@@ -214,63 +217,142 @@ const shape = async (c: PoolClient) =>
          FROM positions p JOIN org_chart_versions v ON v.id = p.version_id JOIN org_units pu ON pu.id = p.unit_id
          LEFT JOIN positions rp ON rp.id = p.reports_to_id WHERE p.org_id = $1
        ORDER BY 1 NULLS LAST, 2, 3`,
-      [ACME],
+      [org],
     )
   ).rows;
 
+const BETA = id(4); // a second client, with a structure of its own
+const BETA_ADMIN = id(24);
+
 describe("the repair of ids made the old way (migration 0115)", () => {
-  it("gives every copied row a valid id, keeps every reference, the plans, the snapshots and the pairing, and a second run changes nothing", async () => {
+  beforeAll(async () => {
+    await q(`INSERT INTO organizations (id, kind, name, engagement_mode, departments_enabled) VALUES ($1,'client','Beta Holding','full',false)`, [BETA]);
+    await q(`INSERT INTO "user" (id, name, email) VALUES ($1,'Person beta','beta@example.test')`, [BETA_ADMIN]);
+    await q(`INSERT INTO org_memberships (user_id, org_id, role) VALUES ($1,$2,'client_admin')`, [BETA_ADMIN, BETA]);
+    await q(`INSERT INTO client_assignments (client_org_id, user_id, is_lead, is_deputy) VALUES ($1,$2,true,false)`, [BETA, U.lead]);
+    await svc(U.lead, (tx, p) => OC.startChart(tx, p, BETA), true);
+    const top = (await svc(U.lead, (tx, p) => OC.addUnit(tx, p, BETA, { kind: "board", code: "1", nameEn: "Board" }), true)).id;
+    const head = (await svc(U.lead, (tx, p) => OC.addPosition(tx, p, top, { code: "1.1", titleEn: "Chair", isHead: true }), true)).id;
+    await svc(U.lead, (tx, p) => OC.addPosition(tx, p, top, { code: "1.2", titleEn: "Secretary", reportsToId: head }), true);
+  });
+
+  it("is dropped once it has run; the copy's id function stays", async () => {
+    const { rows } = await q(`SELECT proname FROM pg_proc WHERE proname IN ('app_org_chart_repair_copied_ids', 'app_org_chart_copied_id') ORDER BY 1`);
+    expect(rows.map((r) => r.proname)).toEqual(["app_org_chart_copied_id"]);
+  });
+
+  it("gives every copied row a valid id at every client, keeps references, plans, holdings, invitations, snapshots and the pairing, and audits old and new ids", async () => {
     const c = await owner.connect();
     try {
       await c.query("BEGIN");
       await c.query("SELECT set_config('selah.user_id', $1, true)", [U.lead]);
-      // Two versions published with the old copy, so the draft holds copies of copies, and a plan on the draft.
+      await c.query(repairFunction());
+      // Versions published with the old copy at both clients (copies of copies at Acme), and Acme's draft started again.
       await c.query(OLD_COPY);
-      const chart = (await c.query(`SELECT id FROM org_charts WHERE org_id = $1`, [ACME])).rows[0].id as string;
-      const draftNow = async () => (await c.query(`SELECT id FROM org_chart_versions WHERE chart_id = $1 AND state = 'draft'`, [chart])).rows[0].id as string;
-      for (let i = 0; i < 2; i++) await c.query(`SELECT app_publish_org_chart($1, $2, $3::date, NULL)`, [chart, await draftNow(), firmToday()]);
-      const d = await draftNow();
-      const clerk = (await c.query(`SELECT id FROM positions WHERE version_id = $1 AND code = '2.2'`, [d])).rows[0].id as string;
-      await c.query(`INSERT INTO org_chart_planned_holders (org_id, position_id, name, sort_order, created_by) VALUES ($1,$2,'Typed Planned',0,$3)`, [ACME, clerk, U.lead]);
-      const ids = async () =>
-        (await c.query(`SELECT id::text FROM org_units WHERE org_id = $1 UNION ALL SELECT id::text FROM positions WHERE org_id = $1`, [ACME])).rows.map(
-          (r) => r.id as string,
-        );
-      expect((await ids()).filter((x) => !isRouteId(x)).length).toBeGreaterThan(0);
-      const before = await shape(c);
-      const lineages = (await c.query(`SELECT code, lineage_id FROM positions WHERE org_id = $1 ORDER BY 1, 2`, [ACME])).rows;
+      const chartOf = async (org: string) => (await c.query(`SELECT id FROM org_charts WHERE org_id = $1`, [org])).rows[0].id as string;
+      const draftNow = async (org: string) =>
+        (await c.query(`SELECT id FROM org_chart_versions WHERE chart_id = $1 AND state = 'draft'`, [await chartOf(org)])).rows[0].id as string;
+      const publishOld = async (org: string) => c.query(`SELECT app_publish_org_chart($1, $2, $3::date, NULL)`, [await chartOf(org), await draftNow(org), firmToday()]);
+      for (let i = 0; i < 2; i++) await publishOld(ACME);
+      await publishOld(BETA);
+      await c.query(`SELECT app_reset_org_chart_draft($1, $2)`, [await chartOf(ACME), await draftNow(ACME)]);
+      const d = await draftNow(ACME);
+      const draftClerk = (await c.query(`SELECT id FROM positions WHERE version_id = $1 AND code = '2.2'`, [d])).rows[0].id as string;
+      await c.query(`INSERT INTO org_chart_planned_holders (org_id, position_id, name, sort_order, created_by) VALUES ($1,$2,'Typed Planned',0,$3)`, [ACME, draftClerk, U.lead]);
+      // A holding on a position of the current version, which is a copy (holdings follow the lineage).
+      const liveClerk = (
+        await c.query(
+          `SELECT p.id, p.lineage_id FROM positions p JOIN org_chart_versions v ON v.id = p.version_id WHERE v.org_id = $1 AND v.state = 'published' AND p.code = '2.2'`,
+          [ACME],
+        )
+      ).rows[0] as { id: string; lineage_id: string };
+      expect(isRouteId(liveClerk.id)).toBe(false);
+      await c.query(`INSERT INTO position_holders (chart_id, org_id, position_lineage_id, name, from_date, created_by) VALUES ($1,$2,$3,'Typed Clerk',$4::date,$5)`, [
+        await chartOf(ACME),
+        ACME,
+        liveClerk.lineage_id,
+        firmToday(),
+        U.lead,
+      ]);
+      // The CFO's invitation, made on version 2 (a copy) above.
+      const invitations = (await c.query(`SELECT id, position_lineage_id FROM invitations WHERE org_id = $1 AND position_lineage_id IS NOT NULL ORDER BY id`, [ACME])).rows;
+      expect(invitations).toHaveLength(1);
+      const ids = async (org: string) =>
+        (await c.query(`SELECT id::text FROM org_units WHERE org_id = $1 UNION ALL SELECT id::text FROM positions WHERE org_id = $1`, [org])).rows.map((r) => r.id as string);
+      for (const org of [ACME, BETA]) expect((await ids(org)).filter((x) => !isRouteId(x)).length, org).toBeGreaterThan(0);
+      const before = { acme: await shape(c, ACME), beta: await shape(c, BETA) };
+      const lineages = (await c.query(`SELECT org_id, code, lineage_id FROM positions ORDER BY 1, 2, 3`)).rows;
+      const holdings = (await c.query(`SELECT * FROM position_holders ORDER BY id`)).rows;
+      const oldIds = new Set([...(await ids(ACME)), ...(await ids(BETA))]);
+      const timeout = (await c.query(`SELECT current_setting('lock_timeout') AS t`)).rows[0].t;
 
       const changed = Number((await c.query(`SELECT app_org_chart_repair_copied_ids() AS n`)).rows[0].n);
       expect(changed).toBeGreaterThan(0);
-      expect((await ids()).filter((x) => !isRouteId(x))).toEqual([]);
-      expect(await shape(c)).toEqual(before);
-      expect((await c.query(`SELECT code, lineage_id FROM positions WHERE org_id = $1 ORDER BY 1, 2`, [ACME])).rows).toEqual(lineages);
+      expect((await c.query(`SELECT current_setting('lock_timeout') AS t`)).rows[0].t).toBe(timeout);
+      for (const org of [ACME, BETA]) expect((await ids(org)).filter((x) => !isRouteId(x)), org).toEqual([]);
+      expect({ acme: await shape(c, ACME), beta: await shape(c, BETA) }).toEqual(before);
+      expect((await c.query(`SELECT org_id, code, lineage_id FROM positions ORDER BY 1, 2, 3`)).rows).toEqual(lineages);
+      // Holdings and invitations point at lineages, which never change.
+      expect((await c.query(`SELECT * FROM position_holders ORDER BY id`)).rows).toEqual(holdings);
+      expect((await c.query(`SELECT id, position_lineage_id FROM invitations WHERE org_id = $1 AND position_lineage_id IS NOT NULL ORDER BY id`, [ACME])).rows).toEqual(
+        invitations,
+      );
       // The plan moved with its position.
       const plans = (await c.query(`SELECT p.code, p.version_id FROM org_chart_planned_holders h JOIN positions p ON p.id = h.position_id WHERE h.org_id = $1`, [ACME])).rows;
       expect(plans).toEqual([{ code: "2.2", version_id: d }]);
       // Each published version's snapshot names exactly its own rows.
-      const versions = (await c.query(`SELECT id, published_snapshot AS s FROM org_chart_versions WHERE chart_id = $1 AND state <> 'draft'`, [chart])).rows;
-      expect(versions).toHaveLength(4);
+      const versions = (await c.query(`SELECT id, published_snapshot AS s FROM org_chart_versions WHERE org_id = ANY($1) AND state <> 'draft'`, [[ACME, BETA]])).rows;
+      expect(versions).toHaveLength(5);
       for (const v of versions) {
         const units = (await c.query(`SELECT id::text FROM org_units WHERE version_id = $1 ORDER BY 1`, [v.id])).rows.map((r) => r.id);
         const positions = (await c.query(`SELECT id::text, unit_id::text FROM positions WHERE version_id = $1 ORDER BY 1`, [v.id])).rows;
         expect((v.s.units as { id: string }[]).map((u) => u.id).sort()).toEqual(units);
-        expect((v.s.positions as { id: string; unitId: string }[]).map((p) => ({ id: p.id, unit_id: p.unitId })).sort((a, b) => a.id.localeCompare(b.id))).toEqual(positions);
+        expect(
+          (v.s.positions as { id: string; unitId: string }[]).map((p) => ({ id: p.id, unit_id: p.unitId })).sort((a, b) => a.id.localeCompare(b.id)),
+        ).toEqual(positions);
       }
       // publishPreview() still finds each draft unit's source in the current version.
-      const cur = (await c.query(`SELECT id FROM org_chart_versions WHERE chart_id = $1 AND state = 'published'`, [chart])).rows[0].id as string;
+      const cur = (await c.query(`SELECT id FROM org_chart_versions WHERE org_id = $1 AND state = 'published'`, [ACME])).rows[0].id as string;
       const pairs = (
-        await c.query(`SELECT s.id::text AS src, n.id::text AS copy FROM org_units s JOIN org_units n ON n.code = s.code AND n.version_id = $2 WHERE s.version_id = $1`, [cur, d])
+        await c.query(`SELECT s.id::text AS src, n.id::text AS copy FROM org_units s JOIN org_units n ON n.code = s.code AND n.version_id = $2 WHERE s.version_id = $1`, [
+          cur,
+          d,
+        ])
       ).rows;
       expect(pairs.length).toBeGreaterThan(0);
       for (const p of pairs) expect(p.copy).toBe(OC.copiedId(d, p.src));
-      // Safe to run again.
+      // One system row per client: no actor, the counts, and every old -> new id, each new one a row of that client today.
+      const audit = (await c.query(`SELECT org_id, actor_id, resource_id, meta FROM audit_log WHERE action = 'org_chart.id_repair' ORDER BY org_id`)).rows as {
+        org_id: string;
+        actor_id: string | null;
+        resource_id: string;
+        meta: { units: number; positions: number; ids: { kind: "unit" | "position"; old: string; new: string; version: string }[] };
+      }[];
+      expect(audit.map((r) => [r.org_id, r.actor_id, r.resource_id])).toEqual([
+        [ACME, null, await chartOf(ACME)],
+        [BETA, null, await chartOf(BETA)],
+      ]);
+      let total = 0;
+      for (const r of audit) {
+        expect(r.meta.ids.filter((m) => m.kind === "unit")).toHaveLength(r.meta.units);
+        expect(r.meta.ids.filter((m) => m.kind === "position")).toHaveLength(r.meta.positions);
+        total += r.meta.ids.length;
+        for (const m of r.meta.ids) {
+          expect(oldIds.has(m.old), m.old).toBe(true);
+          const now = (await c.query(`SELECT org_id, version_id FROM ${m.kind === "unit" ? "org_units" : "positions"} WHERE id = $1`, [m.new])).rows;
+          expect(now).toEqual([{ org_id: r.org_id, version_id: m.version }]);
+        }
+      }
+      expect(total).toBe(changed);
+      // A second run changes nothing and audits nothing more.
       expect(Number((await c.query(`SELECT app_org_chart_repair_copied_ids() AS n`)).rows[0].n)).toBe(0);
+      expect(Number((await c.query(`SELECT count(*) AS n FROM audit_log WHERE action = 'org_chart.id_repair'`)).rows[0].n)).toBe(2);
       // The rules are back on: a published version still never changes.
       await c.query("SAVEPOINT rules");
       await expect(c.query(`UPDATE org_units SET name_en = 'X' WHERE version_id = $1`, [cur])).rejects.toThrow(/a published structure never changes/);
       await c.query("ROLLBACK TO SAVEPOINT rules");
       await c.query(newCopy());
+      await c.query(`DROP FUNCTION app_org_chart_repair_copied_ids()`);
       await c.query("COMMIT");
     } catch (e) {
       await c.query("ROLLBACK");
@@ -281,12 +363,22 @@ describe("the repair of ids made the old way (migration 0115)", () => {
     // The rules (triggers) are on again: the published version refuses an edit through the service.
     const cur = await live();
     await expect(svc(U.lead, (tx, p) => OC.updateUnit(tx, p, cur.units[0]!.id, { nameEn: "Changed" }))).rejects.toThrow(/published/);
-    // And the repaired structure works through the services.
+    // The repaired structure works through the services: the draft, the people panel (the clerk's holding), a vacancy invitation, the pairing.
     const d = await draft();
     await svc(U.lead, (tx, p) => OC.updateUnit(tx, p, d.units.find((u) => u.code === "2")!.id, { nameEn: "Office" }), true);
-    for (const p of cur.positions) await svc(U.cadmin, (tx, pr) => OC.listHoldings(tx, pr, p.id));
+    for (const p of cur.positions) {
+      const listed = await svc(U.cadmin, (tx, pr) => OC.listHoldings(tx, pr, p.id));
+      expect(
+        listed.holdings.map((h) => h.name),
+        p.code,
+      ).toEqual(p.code === "2.2" ? ["Typed Clerk"] : []);
+    }
+    const chair = cur.positions.find((x) => x.code === "1.1")!;
+    await svc(U.cadmin, (tx, p) => invite(tx, p, { orgId: ACME, email: "chair@example.test", name: "New Chair", role: "client_manager", positionId: chair.id }));
     const preview = await svc(U.lead, (tx, p) => OC.publishPreview(tx, p, ACME));
     expect(preview.changes.units.added).toEqual([]);
     expect(preview.changes.units.removed).toEqual([]);
+    const beta = await svc(U.lead, (tx, p) => OC.getDraft(tx, p, BETA));
+    await svc(U.lead, (tx, p) => OC.updateUnit(tx, p, beta.units[0]!.id, { nameEn: "Board of Beta" }));
   });
 });

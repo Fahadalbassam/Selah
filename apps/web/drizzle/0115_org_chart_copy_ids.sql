@@ -55,23 +55,31 @@ END $$;
 --    moves with it in the same transaction: a unit's parent, a position's
 --    unit and reporting line, the plans of the draft's positions, and the ids
 --    inside each published version's frozen snapshot. The audit log is
---    append-only and keeps the ids as they were.
+--    append-only and keeps the ids as they were; so the repair writes one
+--    system row per client it changed (org_chart.id_repair, no actor) with
+--    how many units and positions it re-ided and every old -> new id, which
+--    connects an earlier audit row to today's unit or position.
 --
 --    The four foreign keys between these rows are dropped and added again
 --    (re-checked) around the change, and the tables' own rules (triggers)
 --    are off meanwhile: they forbid changing a published version, which is
 --    exactly what the repair must do. So the repair holds ACCESS EXCLUSIVE
---    locks on org_units, positions, org_chart_planned_holders and
---    org_chart_versions until the transaction ends: the org chart is
---    unavailable for that moment (the tables are small: one structure per
---    client). Safe to run again: a second run changes nothing. Returns how
---    many ids changed. The schema owner only (not granted to the app).
+--    locks on org_units, positions and org_chart_planned_holders, and a
+--    SHARE ROW EXCLUSIVE lock on org_chart_versions, until the transaction
+--    ends: the org chart is unavailable for that moment (the tables are
+--    small: one structure per client). It waits at most 10 seconds for each
+--    lock (lock_timeout), so a busy app makes the migration fail fast rather
+--    than queue every org chart request behind it: run it with the app
+--    stopped (docs/operations.md, Upgrading). A second run would change
+--    nothing, but it never runs again: the function is dropped below once it
+--    has run. Returns how many ids changed. The schema owner only.
 CREATE FUNCTION app_org_chart_repair_copied_ids() RETURNS integer
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   ver record;
   m record;
   changed integer;
+  prev_timeout text := current_setting('lock_timeout');
   valid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 BEGIN
   -- A working table, dropped before the end (the schema owner may not create temporary tables).
@@ -115,6 +123,7 @@ BEGIN
     RETURN 0;
   END IF;
 
+  PERFORM set_config('lock_timeout', '10s', true);
   ALTER TABLE org_units DISABLE TRIGGER USER;
   ALTER TABLE positions DISABLE TRIGGER USER;
   ALTER TABLE org_chart_planned_holders DISABLE TRIGGER USER;
@@ -148,6 +157,15 @@ BEGIN
   ALTER TABLE positions ENABLE TRIGGER USER;
   ALTER TABLE org_chart_planned_holders ENABLE TRIGGER USER;
   ALTER TABLE org_chart_versions ENABLE TRIGGER USER;
+  PERFORM set_config('lock_timeout', prev_timeout, true);
+  -- One system row per client: the counts and the old -> new ids (a structure is small: one client's units and positions).
+  INSERT INTO audit_log (actor_id, org_id, action, resource_type, resource_id, outcome, meta)
+    SELECT NULL, c.org_id, 'org_chart.id_repair', 'org_chart', c.id, 'allow',
+      jsonb_build_object('client', c.org_id, 'migration', '0115',
+        'units', count(*) FILTER (WHERE f.kind = 'unit'), 'positions', count(*) FILTER (WHERE f.kind = 'position'),
+        'ids', jsonb_agg(jsonb_build_object('kind', f.kind, 'old', f.old_id, 'new', f.new_id, 'version', f.version_id) ORDER BY f.kind, f.old_id))
+    FROM org_chart_id_fix f JOIN org_chart_versions v ON v.id = f.version_id JOIN org_charts c ON c.id = v.chart_id
+    GROUP BY c.org_id, c.id;
   DROP TABLE org_chart_id_fix;
   RETURN changed;
 END $$;
@@ -155,3 +173,6 @@ END $$;
 REVOKE ALL ON FUNCTION app_org_chart_copied_id(uuid, uuid), app_org_chart_repair_copied_ids() FROM PUBLIC;
 --> statement-breakpoint
 SELECT app_org_chart_repair_copied_ids();
+--> statement-breakpoint
+-- Once only: never run again on later data.
+DROP FUNCTION app_org_chart_repair_copied_ids();
