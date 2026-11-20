@@ -1,6 +1,6 @@
 # Selah system map
 
-> **Status (20 Nov 2026):** generated from `origin/main` up to #210. Not yet added: #211 (AI calls as background jobs: `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts`, `apps/web/src/app/api/ai-jobs/`, table `ai_jobs`, migration `0113_ai_jobs`) and #213 (number scanner: `apps/web/src/lib/sensitive-numbers.ts`, `documents.number_counts`, migration `0114_number_scanner`), plus #209 (`0112_arabic_search`). Rule: any PR that changes a connection updates this file in the same PR.
+> **Status (20 Nov 2026):** current with `origin/main` up to #213 (#209 Arabic search `0112_arabic_search`, #211 AI jobs `0113_ai_jobs` as F21.6, #213 number scanner `0114_number_scanner` as F21.7). Rule: any PR that changes a connection updates this file in the same PR and re-runs `node scripts/selah-map/build.mjs`.
 
 Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a73997 (PRs up to #210). It describes the code as it is, from reading the files, the import graph of `apps/web/src/services`, the policy table and the migrations. It is the input for `CLAUDE.md`, the interactive Selah map and the handbook update. Every path below was checked against `git ls-files` by the generator that wrote this file (see 'Checks').
 
@@ -13,7 +13,7 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - `risk`: any of `privacy`, `permissions`, `ai`, `migration`, or none. Meaning: privacy = another person's data could show; permissions = a role or row-level rule is involved; ai = a model, index or masking is involved; migration = the database schema or its rules are defined or redefined here.
 - `link` bullets: `- link: <to id> | <kind> | <files> | <what flows>`. `kind` is one of `data`, `permission`, `AI call`, `job`, `scan`, `shared file`. The link is written under the feature that owns the file that makes it; read it both ways.
 - `api` lists route files (`route.ts`) under `apps/web/src/app/api`; `pages` lists `page.tsx` and its client files under `apps/web/src/app`. Pages directories use `(app)` for signed-in screens, `(auth)` for sign-in, `(public)` for signed-out pages.
-- Database objects are in `apps/web/drizzle/NNNN_name.sql`; the Drizzle table definitions are in `apps/web/src/db/schema/app.ts`, `auth.ts`, `org-chart.ts` and `org-chart-plans.ts`. The next free migration number is 0112. Migrations listed per feature were found by scanning for DDL statements on that feature's tables (create, alter, drop, policy, trigger, view, function), plus a hand-picked list of the ones that redefine its rules; a migration can appear under several features.
+- Database objects are in `apps/web/drizzle/NNNN_name.sql`; the Drizzle table definitions are in `apps/web/src/db/schema/app.ts`, `auth.ts`, `org-chart.ts` and `org-chart-plans.ts`. The next free migration number is 0115. Migrations listed per feature were found by scanning for DDL statements on that feature's tables (create, alter, drop, policy, trigger, view, function), plus a hand-picked list of the ones that redefine its rules; a migration can appear under several features.
 
 ### Roles used
 
@@ -503,14 +503,14 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - risk: privacy, permissions, ai, migration
 - pages: `apps/web/src/app/(app)/assistant/client-consent.tsx`, `apps/web/src/app/(app)/assistant/consent/loading.tsx`, `apps/web/src/app/(app)/assistant/consent/page.tsx`, `apps/web/src/app/(app)/assistant/draft/[messageId]/page.tsx`, `apps/web/src/app/(app)/assistant/loading.tsx`, `apps/web/src/app/(app)/assistant/open-assistant.tsx`, `apps/web/src/app/(app)/assistant/page.tsx`
 - components: `apps/web/src/components/assistant/assistant-card.tsx`, `apps/web/src/components/assistant/assistant-chat.tsx`, `apps/web/src/components/assistant/attach.tsx`, `apps/web/src/components/assistant/store.ts`, `apps/web/src/components/ask-about.tsx`, `apps/web/src/components/floating-card.tsx`
-- api: `apps/web/src/app/api/assistant/consent/route.ts`, `apps/web/src/app/api/assistant/context/route.ts`, `apps/web/src/app/api/assistant/conversations/[id]/route.ts`, `apps/web/src/app/api/assistant/conversations/route.ts`, `apps/web/src/app/api/assistant/files/route.ts`, `apps/web/src/app/api/assistant/messages/[id]/report/route.ts`, `apps/web/src/app/api/assistant/query/route.ts`, `apps/web/src/app/api/clients/[id]/assistant/route.ts`, `apps/web/src/app/api/documents/[id]/assistant/route.ts`
-- services: `apps/web/src/services/assistant.ts`, `apps/web/src/services/assistant-in-flight.ts`, `apps/web/src/services/ai-client.ts`, `apps/web/src/services/client-ai.ts`, `apps/web/src/services/masking.ts`, `apps/web/src/services/translations.ts`, `apps/web/src/services/document-summaries.ts`
-- lib: `apps/web/src/lib/assistant-search.ts`, `apps/web/src/lib/assistant-attach.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/client-ai.ts`, `apps/web/src/lib/masking.ts`, `apps/web/src/lib/translations.ts`
-- jobs: `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`
-- db_tables: `ai_chunks`, `ai_conversations`, `ai_messages`, `ai_drafts`, `ai_usage`, `client_ai_settings`, `client_ai_consents`, `content_translations`
-- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0066_assistant_all_clients.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0108_privacy_batch.sql`, `apps/web/drizzle/0110_report_approval.sql`
+- api: `apps/web/src/app/api/assistant/consent/route.ts`, `apps/web/src/app/api/assistant/context/route.ts`, `apps/web/src/app/api/assistant/conversations/[id]/route.ts`, `apps/web/src/app/api/assistant/conversations/route.ts`, `apps/web/src/app/api/assistant/files/route.ts`, `apps/web/src/app/api/assistant/messages/[id]/report/route.ts`, `apps/web/src/app/api/assistant/query/route.ts`, `apps/web/src/app/api/clients/[id]/assistant/route.ts`, `apps/web/src/app/api/documents/[id]/assistant/route.ts`, `apps/web/src/app/api/ai-jobs/[id]/route.ts`
+- services: `apps/web/src/services/assistant.ts`, `apps/web/src/services/assistant-in-flight.ts`, `apps/web/src/services/ai-client.ts`, `apps/web/src/services/client-ai.ts`, `apps/web/src/services/masking.ts`, `apps/web/src/services/translations.ts`, `apps/web/src/services/document-summaries.ts`, `apps/web/src/services/ai-jobs.ts`
+- lib: `apps/web/src/lib/assistant-search.ts`, `apps/web/src/lib/assistant-attach.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/client-ai.ts`, `apps/web/src/lib/masking.ts`, `apps/web/src/lib/translations.ts`, `apps/web/src/lib/ai-jobs.ts`, `apps/web/src/lib/sensitive-numbers.ts`
+- jobs: `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`, `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts`
+- db_tables: `ai_chunks`, `ai_conversations`, `ai_messages`, `ai_drafts`, `ai_usage`, `client_ai_settings`, `client_ai_consents`, `content_translations`, `ai_jobs`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0066_assistant_all_clients.sql`, `apps/web/drizzle/0076_drafts_hidden.sql`, `apps/web/drizzle/0081_owner_actions.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0108_privacy_batch.sql`, `apps/web/drizzle/0110_report_approval.sql`, `apps/web/drizzle/0112_arabic_search.sql`, `apps/web/drizzle/0113_ai_jobs.sql`, `apps/web/drizzle/0114_number_scanner.sql`
 - policy: `assistant.query`, `client_ai.manage`, `client_ai.consent`, `ai_conversation.read`, `document.summarize`, `document.assistant`
-- tests: `apps/web/tests/assistant-attach.test.ts`, `apps/web/tests/assistant-search.test.ts`, `apps/web/tests/assistant-in-flight.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/ai-patient-fetch.test.ts`, `apps/web/tests/masking-on.test.ts`, `apps/web/tests/client-assistant-gaps.test.ts`, `apps/web/tests/draft-messages.test.ts`, `apps/web/tests/legal-rulings.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `apps/web/tests/db/assistant-chats.test.ts`, `apps/web/tests/db/assistant-attach.test.ts`, `apps/web/tests/db/client-assistant.test.ts`, `apps/web/tests/db/client-assistant-gaps.test.ts`, `apps/web/e2e/assistant.e2e.ts`
+- tests: `apps/web/tests/assistant-attach.test.ts`, `apps/web/tests/assistant-search.test.ts`, `apps/web/tests/assistant-in-flight.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/ai-patient-fetch.test.ts`, `apps/web/tests/masking-on.test.ts`, `apps/web/tests/client-assistant-gaps.test.ts`, `apps/web/tests/draft-messages.test.ts`, `apps/web/tests/legal-rulings.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `apps/web/tests/db/assistant-chats.test.ts`, `apps/web/tests/db/assistant-attach.test.ts`, `apps/web/tests/db/client-assistant.test.ts`, `apps/web/tests/db/client-assistant-gaps.test.ts`, `apps/web/e2e/assistant.e2e.ts`, `apps/web/tests/ai-jobs.test.ts`, `apps/web/tests/db/ai-jobs.test.ts`, `apps/web/tests/db/arabic-search.test.ts`, `apps/web/tests/sensitive-numbers.test.ts`, `apps/web/tests/db/number-scanner.test.ts`
 - docs: `docs/assistant.md`, `docs/assistant-eval-results.md`, `docs/value-test.md`, `docs/review/section-7-model-retrieval-redaction.md`
 - extra_files: none
 - link: F12 | permission | `apps/web/src/authz/retrieval.ts`, `apps/web/src/services/assistant.ts`, `apps/web/src/services/files.ts` | the assistant reads only files the asker may open and that are switched on
@@ -617,14 +617,62 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - components: none
 - api: none
 - services: `apps/web/src/services/ai-client.ts`, `apps/web/src/services/masking.ts`, `apps/web/src/services/assistant.ts`
-- lib: `apps/web/src/lib/masking.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/assistant-search.ts`, `apps/web/src/authz/retrieval.ts`, `services/ai/app/__init__.py`, `services/ai/app/config.py`, `services/ai/app/llm.py`, `services/ai/app/main.py`, `services/ai/app/prompt.py`, `services/ai/Dockerfile`, `services/ai/requirements.txt`
+- lib: `apps/web/src/lib/masking.ts`, `apps/web/src/lib/arabic-fold.ts`, `apps/web/src/lib/assistant-search.ts`, `apps/web/src/authz/retrieval.ts`, `services/ai/app/__init__.py`, `services/ai/app/config.py`, `services/ai/app/llm.py`, `services/ai/app/main.py`, `services/ai/app/prompt.py`, `services/ai/Dockerfile`, `services/ai/requirements.txt`, `apps/web/src/lib/sensitive-numbers.ts`
 - jobs: `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/extract-text.ts`
 - db_tables: `ai_chunks`
-- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`
+- migrations: `apps/web/drizzle/0000_baseline.sql`, `apps/web/drizzle/0061_client_assistant.sql`, `apps/web/drizzle/0089_mask_terms_in_text.sql`, `apps/web/drizzle/0095_audience_rules.sql`, `apps/web/drizzle/0112_arabic_search.sql`, `apps/web/drizzle/0114_number_scanner.sql`
 - policy: `document.assistant`
-- tests: `apps/web/tests/masking-on.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/extract-text.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `services/ai/tests/__init__.py`, `services/ai/tests/conftest.py`, `services/ai/tests/test_service.py`, `services/ai/tests/test_stream_hangup.py`
+- tests: `apps/web/tests/masking-on.test.ts`, `apps/web/tests/index-documents.test.ts`, `apps/web/tests/extract-text.test.ts`, `apps/web/tests/ai-stream.test.ts`, `apps/web/tests/assistant-eval-set.test.ts`, `apps/web/tests/db/ai-sources.test.ts`, `services/ai/tests/__init__.py`, `services/ai/tests/conftest.py`, `services/ai/tests/test_service.py`, `services/ai/tests/test_stream_hangup.py`, `apps/web/tests/db/arabic-search.test.ts`
 - docs: `docs/assistant.md`, `docs/review/section-7-model-retrieval-redaction.md`, `docs/assistant-eval-results.md`
 - extra_files: none
+
+### F21.6 Slow AI work as background jobs
+
+- id: F21.6
+- kind: sub-feature
+- parent: F21
+- summary: Translations, file summaries and the org chart draft are queued as jobs, run one at a time by the job runner, and the screen polls for the result instead of waiting.
+- roles: whoever started the job (it is read back with their rights)
+- risk: privacy, ai, migration
+- pages: `apps/web/src/app/(app)/clients/[id]/structure/import/import-wizard.tsx`, `apps/web/src/app/(app)/projects/[id]/document-summary.tsx`
+- components: `apps/web/src/components/ai-job.tsx`, `apps/web/src/components/translatable.tsx`
+- api: `apps/web/src/app/api/ai-jobs/[id]/route.ts`, `apps/web/src/app/api/translations/route.ts`, `apps/web/src/app/api/documents/[id]/summary/route.ts`, `apps/web/src/app/api/clients/[id]/structure/import/draft/route.ts`
+- services: `apps/web/src/services/ai-jobs.ts`, `apps/web/src/services/ai-client.ts`, `apps/web/src/services/translations.ts`, `apps/web/src/services/document-summaries.ts`, `apps/web/src/services/org-chart-import.ts`
+- lib: `apps/web/src/lib/ai-jobs.ts`
+- jobs: `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts`
+- db_tables: `ai_jobs`
+- migrations: `apps/web/drizzle/0113_ai_jobs.sql`
+- policy: `document.summarize`
+- tests: `apps/web/tests/ai-jobs.test.ts`, `apps/web/tests/db/ai-jobs.test.ts`
+- docs: `docs/assistant.md`
+- extra_files: `apps/web/src/db/schema/ai-jobs.ts`
+- link: F20 | AI call | `apps/web/src/services/org-chart-import.ts`, `apps/web/src/services/ai-jobs.ts` | the org chart draft from pasted text is made by a job
+- link: F09 | AI call | `apps/web/src/app/(app)/projects/[id]/document-summary.tsx`, `apps/web/src/services/document-summaries.ts` | the file summary on the project page is made by a job
+- link: F25 | job | `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts` | the runner claims queued rows, one model run at a time
+
+### F21.7 Number scanner (personal numbers in what the assistant reads)
+
+- id: F21.7
+- kind: sub-feature
+- parent: F21
+- summary: Before a passage is stored for the assistant, national IDs, Iqama numbers, IBANs, cards, phones, e-mails, passport and CR numbers are tagged next to their word; counts per file are kept. The stored file never changes.
+- roles: not a screen (counts show on the file for firm staff)
+- risk: privacy, ai, migration
+- pages: none
+- components: `apps/web/src/components/file-actions.tsx`
+- api: none
+- services: `apps/web/src/services/ai-client.ts`, `apps/web/src/services/assistant.ts`, `apps/web/src/services/files.ts`, `apps/web/src/services/masking.ts`
+- lib: `apps/web/src/lib/sensitive-numbers.ts`, `apps/web/src/lib/masking.ts`
+- jobs: `apps/web/src/jobs/index-documents.ts`
+- db_tables: `documents`, `ai_chunks`
+- migrations: `apps/web/drizzle/0114_number_scanner.sql`
+- policy: `document.assistant`
+- tests: `apps/web/tests/sensitive-numbers.test.ts`, `apps/web/tests/db/number-scanner.test.ts`
+- docs: `docs/assistant.md`
+- extra_files: none
+- link: F12 | scan | `apps/web/src/services/files.ts`, `apps/web/src/components/file-actions.tsx` | per-file counts of personal numbers (documents.number_counts) shown next to the file
+- link: F25 | job | `apps/web/src/jobs/index-documents.ts`, `apps/web/src/lib/sensitive-numbers.ts` | the indexing job tags numbers before a passage is stored
+
 
 ## F22 Help, handbook and in-app tips
 
@@ -703,9 +751,9 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - api: `apps/web/src/app/api/schedule/route.ts`
 - services: none
 - lib: none
-- jobs: `apps/web/src/jobs/clean-private-names.ts`, `apps/web/src/jobs/extract-text.ts`, `apps/web/src/jobs/follow-ups.ts`, `apps/web/src/jobs/health.ts`, `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/indicator-feeds.ts`, `apps/web/src/jobs/mail.ts`, `apps/web/src/jobs/metrics.ts`, `apps/web/src/jobs/ops-check.ts`, `apps/web/src/jobs/status-packs.ts`, `apps/web/scripts/jobs.sh`, `apps/web/scripts/follow-ups.ts`, `apps/web/scripts/health.ts`, `apps/web/scripts/index-documents.ts`, `apps/web/scripts/indicator-feeds.ts`, `apps/web/scripts/metrics-snapshot.ts`, `apps/web/scripts/ops-check.ts`, `apps/web/scripts/status-packs.ts`, `apps/web/scripts/delete-objects.ts`, `apps/web/scripts/purge-chats.ts`, `apps/web/scripts/purge-clients.ts`, `apps/web/scripts/purge-inquiries.ts`, `apps/web/scripts/purge-minimal.ts`, `apps/web/scripts/purge-transcripts.ts`
-- db_tables: `follow_up_log`, `action_reminders`, `metric_snapshots`, `project_health_weeks`, `storage_deletions`, `audit_chain_checks`
-- migrations: `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`
+- jobs: `apps/web/src/jobs/clean-private-names.ts`, `apps/web/src/jobs/extract-text.ts`, `apps/web/src/jobs/follow-ups.ts`, `apps/web/src/jobs/health.ts`, `apps/web/src/jobs/index-documents.ts`, `apps/web/src/jobs/indicator-feeds.ts`, `apps/web/src/jobs/mail.ts`, `apps/web/src/jobs/metrics.ts`, `apps/web/src/jobs/ops-check.ts`, `apps/web/src/jobs/status-packs.ts`, `apps/web/scripts/jobs.sh`, `apps/web/scripts/follow-ups.ts`, `apps/web/scripts/health.ts`, `apps/web/scripts/index-documents.ts`, `apps/web/scripts/indicator-feeds.ts`, `apps/web/scripts/metrics-snapshot.ts`, `apps/web/scripts/ops-check.ts`, `apps/web/scripts/status-packs.ts`, `apps/web/scripts/delete-objects.ts`, `apps/web/scripts/purge-chats.ts`, `apps/web/scripts/purge-clients.ts`, `apps/web/scripts/purge-inquiries.ts`, `apps/web/scripts/purge-minimal.ts`, `apps/web/scripts/purge-transcripts.ts`, `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts`
+- db_tables: `follow_up_log`, `action_reminders`, `metric_snapshots`, `project_health_weeks`, `storage_deletions`, `audit_chain_checks`, `ai_jobs`
+- migrations: `apps/web/drizzle/0049_health_history.sql`, `apps/web/drizzle/0065_faster_deviations.sql`, `apps/web/drizzle/0109_lead_change_end_reminder.sql`, `apps/web/drizzle/0113_ai_jobs.sql`
 - policy: `(none: jobs run as the schema owner)`
 - tests: `apps/web/tests/ops.test.ts`, `apps/web/tests/db/ops-check.test.ts`, `apps/web/tests/db/follow-through.test.ts`, `apps/web/tests/db/metrics.test.ts`
 - docs: `docs/operations.md`, `docs/handoff.md`
@@ -713,6 +761,7 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - link: F23 | job | `apps/web/src/jobs/mail.ts`, `apps/web/src/jobs/follow-ups.ts` | the daily run queues summary mail; the sender claims due rows
 - link: F24 | job | `apps/web/src/jobs/ops-check.ts`, `apps/web/scripts/audit-seal.ts`, `apps/web/scripts/audit-check.ts` | sealing and the nightly chain check feed the ops alert
 - link: F07 | job | `apps/web/src/jobs/follow-ups.ts`, `apps/web/drizzle/0109_lead_change_end_reminder.sql` | the engagement end reminder is made by the daily follow-up run, not by the walkthrough's mail sender
+- link: F21.6 | job | `apps/web/src/jobs/ai-jobs.ts`, `apps/web/scripts/ai-jobs.ts` | the job runner picks up queued AI work, one model run at a time
 
 ## F26 Pre-go-live script
 
@@ -969,7 +1018,7 @@ Used by every feature and not listed above: `apps/web/messages/ar.json` and `app
 | change | also check |
 |---|---|
 | `apps/web/src/authz/policy.ts` | the matching database rule (RLS policy or definer function) in a new migration; apps/web/tests/db/rule-parity.test.ts; docs/authorization.md; the page that offers the button (hide it, never rely on hiding) |
-| `a new migration in apps/web/drizzle` | apps/web/drizzle/meta journal, apps/web/src/db/schema/*.ts, the Dockerfile migrate step, tests/db/walkthrough-seed.test.ts, the next free number (0112) |
+| `a new migration in apps/web/drizzle` | apps/web/drizzle/meta journal, apps/web/src/db/schema/*.ts, the Dockerfile migrate step, tests/db/walkthrough-seed.test.ts, the next free number (0115) |
 | `apps/web/src/services/documents.ts` | audience.ts (left-out people), scan.ts, storage.ts, the assistant index (jobs/index-documents.ts), export-pack.ts, files.ts, deliverables.ts |
 | `apps/web/src/services/audience.ts or the audience policy` | meetings.ts, documents.ts, assistant.ts scopeFilter, jobs/mail.ts, notifications trigger, tests/db/audience.test.ts, docs/authorization.md 'Who sees an item' |
 | `apps/web/src/services/assistant.ts` | authz/retrieval.ts, lib/assistant-search.ts, services/masking.ts, services/client-ai.ts, services/ai/app/prompt.py (CLIENT_RULES), docs/assistant.md, tests/db/client-assistant*.test.ts, scripts/assistant-eval |
@@ -992,5 +1041,5 @@ Used by every feature and not listed above: `apps/web/messages/ar.json` and `app
 
 ## Checks
 
-- Features: 29; sub-features: 6; links: 64.
+- Features: 29; sub-features: 8; links: 70. `node scripts/selah-map/build.mjs` parses this file, fails on any path that does not exist, and writes `docs/selah-map.html`.
 - Every path in the bullets `pages`, `components`, `api`, `services`, `lib`, `jobs`, `migrations`, `tests`, `docs`, `extra_files` and in `link` bullets was matched to `git ls-files` at the commit above when this file was generated. Paths with `[id]` are literal directory names.
