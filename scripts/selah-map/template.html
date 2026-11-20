@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah map</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b2430; --muted:#5c6773; --line:#d9dee5; --soft:#eef1f5;
+  --node:#3b4a63; --node-sub:#7b8aa3; --root:#1b2430; --root-ink:#fff; --halo:#f5b301; --accent:#2457d6;
+  --dim:.14; --shadow:0 6px 24px rgba(20,30,50,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151c; --panel:#171e28; --ink:#e6ebf2; --muted:#9aa6b5; --line:#2b3544; --soft:#1e2733;
+    --node:#9db2d4; --node-sub:#6f84a6; --root:#e6ebf2; --root-ink:#10151c; --halo:#ffd23f; --accent:#7aa2ff;
+    --shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151c; --panel:#171e28; --ink:#e6ebf2; --muted:#9aa6b5; --line:#2b3544; --soft:#1e2733;
+  --node:#9db2d4; --node-sub:#6f84a6; --root:#e6ebf2; --root-ink:#10151c; --halo:#ffd23f; --accent:#7aa2ff;
+  --shadow:0 6px 24px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",Tahoma,system-ui,-apple-system,"Noto Sans Arabic",Arial,sans-serif;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0 0 0 6px;white-space:nowrap}
+[dir=rtl] header h1{margin:0 6px 0 0}
+.search{position:relative;flex:1 1 260px;max-width:420px}
+.search input{width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+#results{position:absolute;inset-inline:0;top:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);z-index:20;max-height:340px;overflow:auto;display:none}
+#results button{display:block;width:100%;text-align:start;border:0;border-radius:0;border-bottom:1px solid var(--line);padding:6px 10px}
+#results small{display:block;color:var(--muted);direction:ltr;text-align:start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spacer{flex:1}
+main{flex:1;min-height:0;display:grid;grid-template-columns:230px 1fr 380px}
+aside{background:var(--panel);overflow:auto;padding:12px 14px}
+#layers{border-inline-end:1px solid var(--line)}
+#panel{border-inline-start:1px solid var(--line)}
+aside h2{font-size:12px;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px;text-transform:uppercase}
+aside h2:first-child{margin-top:0}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;user-select:none}
+.row input{margin:0}
+.sw{width:12px;height:12px;border-radius:50%;flex:none}
+.sw.line{height:4px;border-radius:2px;width:18px}
+.row .n{margin-inline-start:auto;color:var(--muted);font-size:12px}
+.note{color:var(--muted);font-size:12px;margin:8px 0}
+#stage{position:relative;overflow:hidden;background:var(--bg);touch-action:none;direction:ltr}
+#svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
+#svg.drag{cursor:grabbing}
+#zoomctl{position:absolute;inset-inline-start:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;direction:ltr}
+#zoomctl button{width:34px;height:34px;padding:0;font-size:18px}
+#tip{position:fixed;z-index:30;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 10px;border-radius:8px;max-width:340px;font-size:12.5px;display:none;box-shadow:var(--shadow)}
+#tip b{display:block;margin-bottom:2px}
+.lbl{font-size:12.5px;fill:var(--ink);unicode-bidi:plaintext;paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+.lbl.sub{font-size:11.5px;fill:var(--muted)}
+.edge{fill:none;stroke-linecap:round}
+.hit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer}
+.nd{cursor:pointer}
+.chip text{font-size:7.5px;fill:#fff;text-anchor:middle;pointer-events:none;font-weight:700}
+.chip{cursor:pointer}
+.dim{opacity:var(--dim)}
+.pn{padding:0}
+#panel .empty{color:var(--muted)}
+#panel h3{font-size:18px;margin:0 0 2px}
+#panel .idline{color:var(--muted);font-size:12px;direction:ltr;text-align:start}
+#panel p{margin:8px 0}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.badge{border-radius:999px;padding:1px 9px;font-size:12px;border:1px solid var(--line);background:var(--soft)}
+.badge.risk{background:#fde8e6;border-color:#f0b4ae;color:#8a1c12}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .badge.risk{background:#3b1d1a;border-color:#7a3a33;color:#ffb4aa}}
+.careful{border:1px solid #f0b4ae;background:#fff4f2;color:#7a1a10;border-radius:10px;padding:8px 10px;margin:10px 0;font-weight:600}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .careful{background:#2c1815;border-color:#7a3a33;color:#ffb4aa}}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+section.s{border-inline-start:4px solid var(--line);padding-inline-start:10px;margin:12px 0}
+section.s>h4{margin:0 0 4px;font-size:13px}
+details>summary{cursor:pointer;font-weight:600;font-size:13px}
+details.s2{margin:8px 0;border-inline-start:4px solid var(--line);padding-inline-start:10px}
+ul.paths{list-style:none;margin:6px 0;padding:0}
+ul.paths li{margin:2px 0}
+code.p{direction:ltr;unicode-bidi:isolate;display:inline-block;font:12px/1.4 ui-monospace,Consolas,monospace;background:var(--soft);border-radius:5px;padding:0 5px;cursor:copy;word-break:break-all;text-align:left}
+.tag{font-size:11px;border-radius:999px;background:#8d6e0b22;color:var(--muted);padding:0 6px;margin-inline-start:4px;white-space:nowrap}
+.conn{display:block;width:100%;text-align:start;margin:4px 0;padding:6px 8px}
+.conn .k{display:inline-block;border-radius:999px;color:#fff;font-size:11px;padding:0 8px;margin-inline-end:6px}
+.conn small{display:block;color:var(--muted)}
+a{color:var(--accent)}
+.rules a{display:block;margin:2px 0}
+.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+table.t td,table.t th{border-bottom:1px solid var(--line);padding:3px 4px;text-align:start}
+footer{padding:4px 14px;font-size:11.5px;color:var(--muted);background:var(--panel);border-top:1px solid var(--line)}
+@media (max-width:980px){
+  body{display:block;height:auto}
+  main{display:flex;flex-direction:column}
+  #stage{height:62vh;order:1}
+  #panel{order:2}
+  #layers{order:3}
+  aside{border:0!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ttl"></h1>
+  <div class="search"><input id="q" type="search" autocomplete="off"><div id="results"></div></div>
+  <button id="bFit"></button>
+  <button id="bCollapse"></button>
+  <button id="bExpand"></button>
+  <button id="bClear"></button>
+  <span class="spacer"></span>
+  <button id="bTheme" title="light / dark">◐</button>
+  <button id="bLang"></button>
+</header>
+<main>
+  <aside id="layers"></aside>
+  <div id="stage">
+    <svg id="svg" role="img"><g id="world"></g></svg>
+    <div id="zoomctl"><button id="zin" aria-label="+">+</button><button id="zout" aria-label="-">−</button></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+<footer id="foot"></footer>
+<div id="tip"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+</script>
+<script>
+(function(){
+'use strict';
+const D = DATA;
+const $ = (s)=>document.querySelector(s);
+const esc = (s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- vocabulary ---------- */
+const T = {
+  ar:{
+    title:'خريطة سِلاه', search:'ابحث عن ميزة أو ملف أو جدول أو دور…', fit:'عرض الكل', collapse:'طيّ الفروع', expand:'فتح الفروع', clear:'مسح التحديد',
+    layers:'الطبقات', layersNote:'تبدأ الخريطة نظيفة: ميزات وميزات فرعية فقط. شغّل طبقة لترى ما فيها حول كل ميزة.', connections:'أنواع الروابط', min:'أقل عدد ملفات مشتركة بين ميزتين', root:'Selah',
+    pick:'اضغط على ميزة لترى ملفاتها وروابطها ومخاطرها. اضغط على خط لترى الملفات التي تربط الميزتين.',
+    summary:'الوصف', roles:'الأدوار', risk:'المخاطر', careful:'انتبه', connects:'يرتبط بـ', none:'لا شيء', files:'ملف',
+    rules:'القواعد التي يجب اتباعها', hlConn:'أبرز كل ما يرتبط به', conflicts:'اعرض التعارضات لهذه الميزة', off:'إيقاف العرض الخاص',
+    children:'فروع', collapseN:'اطوِ الفروع', expandN:'افتح الفروع', parent:'جزء من', via:'عبر', flows:'ما ينتقل',
+    sharedTitle:'ملفات مشتركة مع ميزات أخرى', sharedNone:'لا ملفات مشتركة', partners:'ميزات تلمس الملفات نفسها', everyone:'ملفات يستخدمها معظم الميزات (غير مدرجة كتعارض)', n:'عدد',
+    copied:'نُسخ', shared:'مشترك', openA:'افتح', edgeFiles:'الملفات التي تربط الميزتين', edgeShared:'ملفات تستوردها الميزتان معاً', conflictsFor:'التعارضات المحتملة: ملفات مشتركة وكل ميزة تلمسها',
+    generated:'مولّدة من docs/system-map.md', techEn:'المسارات والتفاصيل التقنية بالإنجليزية.', legend:'مفتاح', all:'الكل',
+    cat:{pages:'الصفحات',components:'المكوّنات',api:'مسارات API',services:'الخدمات',lib:'المكتبات',jobs:'المهام',migrations:'ترحيلات قاعدة البيانات',tests:'الاختبارات',docs:'الوثائق',extra_files:'ملفات أخرى',tables:'جداول قاعدة البيانات',policy:'مدخلات السياسة'},
+    layer:{fe:'الواجهة الأمامية',be:'الخلفية',db:'قاعدة البيانات',perm:'الصلاحيات',ai:'الذكاء الاصطناعي',job:'المهام والبريد',test:'الاختبارات',risk:'علامات المخاطر',shared:'الملفات المشتركة'},
+    kind:{data:'بيانات',permission:'صلاحية',ai:'استدعاء ذكاء اصطناعي',job:'مهمة',scan:'فحص',shared:'ملف مشترك',tree:'جزء من'},
+    risks:{privacy:'خصوصية',permissions:'صلاحيات',ai:'ذكاء اصطناعي',migration:'ترحيل قاعدة البيانات'},
+    roleNames:{firm_admin:'مدير الشركة',consultant:'مستشار',client_admin:'مدير العميل',client_manager:'مدير لدى العميل',action_owner:'مسؤول إجراء'},
+    ruleLabels:{'CLAUDE.md':'CLAUDE.md: قواعد التغيير والمراجعات والترحيلات','docs/rules.md':'قواعد المنتج (docs/rules.md)','docs/ui-guidelines.md':'إرشادات الواجهة','docs/authorization.md':'من يرى ماذا (الصلاحيات)','docs/assistant.md':'المساعد والإخفاء وفاحص الأرقام','docs/security.md':'الأمان','docs/data-architecture.md':'بنية البيانات','docs/handoff.md':'كيف بُني','docs/operations.md':'التشغيل','docs/system-map.md':'خريطة النظام (المصدر)'}
+  },
+  en:{
+    title:'Selah map', search:'Search a feature, file, table or role…', fit:'Fit all', collapse:'Collapse branches', expand:'Expand branches', clear:'Clear selection',
+    layers:'Layers', layersNote:'The map starts clean: features and sub-features only. Switch a layer on to see what sits around each feature.', connections:'Connection types', min:'Min. shared files between two features', root:'Selah',
+    pick:'Click a feature to see its files, connections and risks. Click a line to see the files that link the two features.',
+    summary:'What it is', roles:'Roles', risk:'Risk', careful:'careful', connects:'Connects to', none:'none', files:'files',
+    rules:'Rules to follow', hlConn:'Highlight everything connected', conflicts:'Show conflicts for this node', off:'Turn off special view',
+    children:'sub-features', collapseN:'Collapse branch', expandN:'Expand branch', parent:'Part of', via:'via', flows:'What flows',
+    sharedTitle:'Files shared with other features', sharedNone:'No shared files', partners:'Features touching the same files', everyone:'Files almost every feature uses (not counted as conflicts)', n:'count',
+    copied:'copied', shared:'shared', openA:'Open', edgeFiles:'Files linking the two features', edgeShared:'Files both features import', conflictsFor:'Possible conflicts: shared files and every feature touching them',
+    generated:'Generated from docs/system-map.md', techEn:'', legend:'Legend', all:'All',
+    cat:{pages:'Pages',components:'Components',api:'API routes',services:'Services',lib:'Libraries',jobs:'Jobs',migrations:'Migrations',tests:'Tests',docs:'Docs',extra_files:'Other files',tables:'Database tables',policy:'Policy entries'},
+    layer:{fe:'Frontend',be:'Backend',db:'Database',perm:'Permissions',ai:'AI',job:'Jobs and mail',test:'Tests',risk:'Risk flags',shared:'Shared files'},
+    kind:{data:'data',permission:'permission',ai:'AI call',job:'job',scan:'scan',shared:'shared file',tree:'part of'},
+    risks:{privacy:'privacy',permissions:'permissions',ai:'AI',migration:'migration'},
+    roleNames:{firm_admin:'firm_admin',consultant:'consultant',client_admin:'client_admin',client_manager:'client_manager',action_owner:'action_owner'},
+    ruleLabels:{'CLAUDE.md':'CLAUDE.md: change rules, reviews, migrations','docs/rules.md':'Product rules (docs/rules.md)','docs/ui-guidelines.md':'UI guidelines','docs/authorization.md':'Who sees what (authorization)','docs/assistant.md':'Assistant, masking, number scanner','docs/security.md':'Security','docs/data-architecture.md':'Data architecture','docs/handoff.md':'How it is built','docs/operations.md':'Operations','docs/system-map.md':'System map (the source of this page)'}
+  }
+};
+const LAYERS = [
+  {id:'fe',color:'#0d9ad6'},{id:'be',color:'#5a5fd6'},{id:'db',color:'#d98a00'},{id:'perm',color:'#9b45c9'},
+  {id:'ai',color:'#17a673'},{id:'job',color:'#e0642a'},{id:'test',color:'#64748b'},{id:'risk',color:'#d92d20'},{id:'shared',color:'#8a6d3b'}
+];
+const KINDS = [
+  {id:'data',color:'#2f7de1',dash:''},{id:'permission',color:'#9b45c9',dash:'6 3'},{id:'ai',color:'#17a673',dash:'2 3'},
+  {id:'job',color:'#e0642a',dash:'9 3 2 3'},{id:'scan',color:'#d6336c',dash:'1 4'},{id:'shared',color:'#8a6d3b',dash:'4 4'}
+];
+const KIND_OF = {'data':'data','permission':'permission','AI call':'ai','job':'job','scan':'scan','shared file':'shared'};
+const LC = Object.fromEntries(LAYERS.map(l=>[l.id,l.color]));
+const KC = Object.fromEntries(KINDS.map(k=>[k.id,k]));
+const RULES_BASE = ['CLAUDE.md','docs/rules.md','docs/ui-guidelines.md'];
+const RULES_BY_RISK = {privacy:['docs/security.md'],permissions:['docs/authorization.md'],ai:['docs/assistant.md'],migration:['docs/data-architecture.md','docs/handoff.md']};
+const UNIVERSAL = 10; // a shared file used by this many features or more is "almost everyone's"
+
+/* ---------- data prep ---------- */
+const nodes = D.nodes; const byId = new Map(nodes.map(n=>[n.id,n]));
+const rootOf = (id)=>{const n=byId.get(id);return n.parent?n.parent:n.id;};
+const kids = {}; nodes.forEach(n=>{if(n.parent)(kids[n.parent]=kids[n.parent]||[]).push(n.id);});
+const sharedByFile = new Map(D.shared.map(r=>[r.file,r]));
+const sharedByFeature = {}; D.shared.forEach(r=>r.features.forEach(f=>(sharedByFeature[f]=sharedByFeature[f]||[]).push(r)));
+// declared links, one edge per bullet
+const links = []; nodes.forEach(n=>n.links.forEach(l=>links.push({id:'L'+links.length,from:n.id,to:l.to,kind:KIND_OF[l.kind],files:l.files,flow:l.flow})));
+// pair counts through shared files used by fewer than UNIVERSAL features
+const pairs = {};
+D.shared.forEach(r=>{ if(r.features.length>=UNIVERSAL||r.features.length<2) return;
+  for(let i=0;i<r.features.length;i++)for(let j=i+1;j<r.features.length;j++){const a=r.features[i],b=r.features[j];const k=a<b?a+'|'+b:b+'|'+a;(pairs[k]=pairs[k]||[]).push(r.file);} });
+const AI_RE=/(assistant|\/ai[-\/]|ai-|masking|sensitive-numbers|arabic-fold|retrieval|translations|document-summar|client-ai|embed|services\/ai\/)/i;
+const JOB_RE=/(\/jobs\/|mail|notification|outbound|reminder|digest|schedule|scripts\/jobs)/i;
+const PERM_RE=/(authz\/|rls|privacy|leak|audience|observer|restricted|hidden|reader|definer)/i;
+function layerItems(n){
+  const L=n.lists, all=[].concat(L.api,L.services,L.lib,L.jobs,L.extra_files);
+  return {
+    fe:[].concat(L.pages,L.components),
+    be:[].concat(L.api,L.services,L.lib,L.extra_files),
+    db:[].concat(n.tables.map(t=>'table '+t),L.migrations),
+    perm:[].concat(n.policy.map(p=>'policy '+p),all.filter(p=>/authz\//.test(p)),L.migrations.filter(p=>PERM_RE.test(p))),
+    ai:[].concat(all.concat(L.tests).filter(p=>AI_RE.test(p)),n.tables.filter(t=>/^ai_|client_ai|content_translations/.test(t)).map(t=>'table '+t)),
+    job:[].concat(L.jobs,all.filter(p=>JOB_RE.test(p)&&!L.jobs.includes(p))),
+    test:[].concat(L.tests),
+    risk:n.risk.slice(),
+    shared:(sharedByFeature[rootOf(n.id)]||[]).map(r=>r.file)
+  };
+}
+const LI = new Map(nodes.map(n=>[n.id,layerItems(n)]));
+
+/* ---------- state ---------- */
+const S = {lang:'ar', layers:new Set(), kinds:new Set(KINDS.map(k=>k.id)), sel:null, view:null, collapsed:new Set(), q:'', min:5, theme:null};
+function readHash(){
+  const p=new URLSearchParams(location.hash.replace(/^#/,''));
+  const g=(k)=>p.get(k);
+  if(g('lang')==='en'||g('lang')==='ar') S.lang=g('lang');
+  if(p.has('l')) S.layers=new Set(g('l').split(',').filter(x=>LC[x]));
+  if(p.has('e')) S.kinds=new Set(g('e').split(',').filter(x=>KC[x]));
+  S.sel=null;
+  if(g('n')&&byId.has(g('n'))) S.sel={t:'n',id:g('n')};
+  else if(g('x')) S.sel={t:'e',id:g('x')};
+  S.view=(g('v')==='conn'||g('v')==='conf')?g('v'):null;
+  if(p.has('c')) S.collapsed=new Set(g('c').split(',').filter(x=>kids[x]));
+  S.q=g('q')||'';
+  if(g('m')) S.min=Math.max(2,Math.min(9,parseInt(g('m'))||5));
+}
+function writeHash(){
+  const p=new URLSearchParams();
+  if(S.sel) p.set(S.sel.t==='n'?'n':'x',S.sel.id);
+  if(S.layers.size) p.set('l',[...S.layers].join(','));
+  p.set('e',[...S.kinds].join(','));
+  if(S.view) p.set('v',S.view);
+  if(S.collapsed.size) p.set('c',[...S.collapsed].join(','));
+  if(S.q) p.set('q',S.q);
+  if(S.min!==5) p.set('m',S.min);
+  p.set('lang',S.lang);
+  const h='#'+p.toString();
+  if(h!==location.hash) history.replaceState(null,'',h);
+}
+
+/* ---------- layout ---------- */
+const R1=300,R2=500,SUBSTEP=0.115;
+const pos=new Map();
+(function layout(){
+  const tops=nodes.filter(n=>!n.parent);
+  tops.forEach((n,i)=>{const a=-Math.PI/2+i*2*Math.PI/tops.length;pos.set(n.id,{a,r:R1,x:Math.cos(a)*R1,y:Math.sin(a)*R1});});
+  Object.keys(kids).forEach(pid=>{
+    const pa=pos.get(pid).a, ks=kids[pid];
+    ks.forEach((k,i)=>{const a=pa+(i-(ks.length-1)/2)*SUBSTEP;pos.set(k,{a,r:R2,x:Math.cos(a)*R2,y:Math.sin(a)*R2});});
+  });
+})();
+const visible=(id)=>{const n=byId.get(id);return !(n.parent&&S.collapsed.has(n.parent));};
+const vis=(id)=>visible(id)?id:byId.get(id).parent; // where an edge ends when the node is folded away
+
+/* ---------- derived highlight sets ---------- */
+function neighbours(id){
+  const set=new Set([id]);
+  links.forEach(l=>{if(l.from===id)set.add(l.to);if(l.to===id)set.add(l.from);});
+  const r=rootOf(id); Object.keys(pairs).forEach(k=>{const [a,b]=k.split('|');if(a===r)set.add(b);if(b===r)set.add(a);});
+  return set;
+}
+function conflictsOf(id){
+  const r=rootOf(id);
+  const rows=(sharedByFeature[r]||[]).slice();
+  const normal=rows.filter(x=>x.features.length<UNIVERSAL), every=rows.filter(x=>x.features.length>=UNIVERSAL);
+  const partners={}; normal.forEach(x=>x.features.forEach(f=>{if(f!==r)(partners[f]=partners[f]||[]).push(x.file);}));
+  return {normal,every,partners};
+}
+function focusSets(){
+  const nodesF=new Set(), edgesF=new Set(); let active=false;
+  const q=S.q.trim().toLowerCase();
+  if(q){active=true; matches(q).forEach(m=>nodesF.add(m.id));}
+  if(S.sel&&S.sel.t==='n'){
+    const id=S.sel.id;
+    if(S.view==='conn'){active=true; neighbours(id).forEach(x=>nodesF.add(x)); links.forEach(l=>{if(l.from===id||l.to===id)edgesF.add(l.id);}); const r=rootOf(id);Object.keys(pairs).forEach(k=>{const[a,b]=k.split('|');if(a===r||b===r)edgesF.add('S:'+k);});}
+    else if(S.view==='conf'){active=true; nodesF.add(id); const c=conflictsOf(id); Object.keys(c.partners).forEach(f=>nodesF.add(f)); const r=rootOf(id); Object.keys(c.partners).forEach(f=>edgesF.add('S:'+(r<f?r+'|'+f:f+'|'+r)));}
+    else {nodesF.add(id); links.forEach(l=>{if(l.from===id||l.to===id)edgesF.add(l.id);});}
+  } else if(S.sel&&S.sel.t==='e'){
+    const e=edgeById(S.sel.id); if(e){edgesF.add(e.id);nodesF.add(e.from);nodesF.add(e.to);}
+  }
+  return {nodesF,edgesF,active:active};
+}
+
+/* ---------- edges ---------- */
+function edgeById(id){
+  if(id.startsWith('S:')){const [a,b]=id.slice(2).split('|');const f=pairs[id.slice(2)];if(!f)return null;return {id,from:a,to:b,kind:'shared',files:f,flow:null,pair:true};}
+  return links.find(l=>l.id===id)||null;
+}
+function currentEdges(){
+  const out=[];
+  links.forEach(l=>{ if(S.kinds.has(l.kind)||(S.sel&&S.sel.t==='e'&&S.sel.id===l.id)) out.push(l); });
+  const forced = S.view? true:false;
+  Object.keys(pairs).forEach(k=>{const [a,b]=k.split('|'); const n=pairs[k].length;
+    const show = (S.layers.has('shared')&&n>=S.min) || (S.sel&&S.sel.t==='e'&&S.sel.id==='S:'+k) ||
+      (forced&&S.sel&&S.sel.t==='n'&&(rootOf(S.sel.id)===a||rootOf(S.sel.id)===b)&&(S.view==='conf'||n>=S.min));
+    if(show) out.push({id:'S:'+k,from:a,to:b,kind:'shared',files:pairs[k],flow:null,pair:true});});
+  return out;
+}
+
+/* ---------- search ---------- */
+function nodeText(n){return [n.id,n.name.en,n.name.ar,n.summary.en,n.summary.ar,n.roles,n.tables.join(' '),n.policy.join(' ')].join(' ').toLowerCase();}
+function matches(q){
+  const res=[]; const ql=q.toLowerCase();
+  nodes.forEach(n=>{
+    let why=null;
+    if([n.id,n.name.en,n.name.ar].join(' ').toLowerCase().includes(ql)) why='';
+    else if(nodeText(n).includes(ql)) why=(n.tables.concat(n.policy).find(x=>x.toLowerCase().includes(ql))||n.roles.toLowerCase().includes(ql)&&'roles')||'';
+    else { for(const k of Object.keys(n.lists)){const p=n.lists[k].find(x=>x.toLowerCase().includes(ql)); if(p){why=p;break;}} }
+    if(why!==null) res.push({id:n.id,why});
+  });
+  return res;
+}
+
+/* ---------- drawing ---------- */
+const svg=$('#svg'), world=$('#world');
+const view={k:.8,x:0,y:0};
+function applyView(){world.setAttribute('transform','translate('+view.x+','+view.y+') scale('+view.k+')');}
+function nm(n){return n.name[S.lang];}
+function short(s,max){s=s.replace(/\s*\(.*$/,'');return s.length>max?s.slice(0,max-1)+'…':s;}
+function lblXform(p,off){
+  let deg=p.a*180/Math.PI; deg=((deg%360)+540)%360-180; const flip=Math.abs(deg)>90;
+  return {tf:'translate('+p.x.toFixed(1)+','+p.y.toFixed(1)+') rotate('+(flip?deg+180:deg).toFixed(1)+')', x:flip?-off:off, anchor:flip?'end':'start'};
+}
+function edgePath(a,b,idx){
+  const pa=pos.get(vis(a)),pb=pos.get(vis(b));
+  if(!pa||!pb) return null;
+  const mx=(pa.x+pb.x)/2,my=(pa.y+pb.y)/2;
+  // pull towards the centre; children of one parent stay short
+  const near=(vis(a)===vis(b));
+  if(near) return null;
+  let k=.22;
+  let cx=mx*k,cy=my*k;
+  const dx=pb.x-pa.x,dy=pb.y-pa.y,len=Math.hypot(dx,dy)||1;
+  cx+=-dy/len*idx*16; cy+=dx/len*idx*16;
+  return {d:'M'+pa.x.toFixed(1)+','+pa.y.toFixed(1)+' Q'+cx.toFixed(1)+','+cy.toFixed(1)+' '+pb.x.toFixed(1)+','+pb.y.toFixed(1), mid:{x:.25*pa.x+.5*cx+.25*pb.x,y:.25*pa.y+.5*cy+.25*pb.y}};
+}
+function render(){
+  const F=focusSets();
+  const sel=S.sel; const selNode=sel&&sel.t==='n'?sel.id:null;
+  let h='';
+  // tree edges
+  nodes.forEach(n=>{ if(!visible(n.id)) return; const p=pos.get(n.id); const pp=n.parent?pos.get(n.parent):{x:0,y:0};
+    h+='<line class="edge" x1="'+pp.x.toFixed(1)+'" y1="'+pp.y.toFixed(1)+'" x2="'+p.x.toFixed(1)+'" y2="'+p.y.toFixed(1)+'" stroke="var(--line)" stroke-width="'+(n.parent?1.2:1.4)+'"'+(F.active&&!F.nodesF.has(n.id)?' opacity=".15"':'')+'/>'; });
+  // connection edges
+  const edges=currentEdges(); const seen={};
+  edges.forEach(e=>{
+    const key=[vis(e.from),vis(e.to)].sort().join('~'); const idx=(seen[key]=(seen[key]||0)+1)-1;
+    const ep=edgePath(e.from,e.to,idx%2?Math.ceil(idx/2):-Math.ceil(idx/2)); if(!ep) return;
+    const kd=KC[e.kind]; const on=F.edgesF.has(e.id); const isSel=sel&&sel.t==='e'&&sel.id===e.id;
+    const fade=F.active&&!on;
+    const w=e.pair?Math.min(1+e.files.length*.35,5):(on||isSel?3:1.7);
+    h+='<g data-edge="'+esc(e.id)+'" class="'+(fade?'dim':'')+'"><path class="edge" d="'+ep.d+'" stroke="'+kd.color+'" stroke-width="'+(isSel?w+1.5:w)+'" stroke-dasharray="'+kd.dash+'" opacity="'+(on||isSel||!F.active&&!selNode?(e.pair?.55:.7):.28)+'"/><path class="hit" d="'+ep.d+'"/>';
+    if((on&&!e.pair&&F.edgesF.size<=8)||isSel){const t=e.pair?e.files.length+' '+T[S.lang].files:(e.flow||'');h+='<text class="lbl" x="'+ep.mid.x.toFixed(1)+'" y="'+ep.mid.y.toFixed(1)+'" text-anchor="middle" style="font-size:11px;fill:'+kd.color+'">'+esc(t.length>70?t.slice(0,69)+'…':t)+'</text>';}
+    h+='</g>';
+  });
+  // nodes
+  const anyLayer=S.layers.size>0;
+  const cf = S.view==='conf'&&selNode? conflictsOf(selNode):null;
+  h+='<g data-node="ROOT" class="nd"><circle r="40" fill="var(--root)"/><text y="6" text-anchor="middle" fill="var(--root-ink)" style="font-size:19px;font-weight:700">Selah</text></g>';
+  nodes.forEach(n=>{
+    if(!visible(n.id)) return;
+    const p=pos.get(n.id); const isSub=!!n.parent; const r=isSub?8:11;
+    const dim=F.active&&!F.nodesF.has(n.id); const isSel=selNode===n.id;
+    const hasKids=!!kids[n.id]; const folded=S.collapsed.has(n.id);
+    const L=LI.get(n.id);
+    h+='<g data-node="'+esc(n.id)+'" class="nd'+(dim?' dim':'')+'">';
+    if(isSel) h+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(r+7)+'" fill="none" stroke="var(--halo)" stroke-width="3.5"/>';
+    if(cf&&cf.partners[n.id]) h+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(r+6)+'" fill="none" stroke="#e0642a" stroke-width="3" stroke-dasharray="3 2"/>';
+    if(S.layers.has('risk')&&n.risk.length) h+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(r+3)+'" fill="none" stroke="'+LC.risk+'" stroke-width="2.4"/>';
+    if(hasKids&&folded) h+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(r+5)+'" fill="none" stroke="var(--node)" stroke-dasharray="2 2"/>';
+    h+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+r+'" fill="'+(isSub?'var(--node-sub)':'var(--node)')+'"/>';
+    if(hasKids) h+='<text x="'+p.x.toFixed(1)+'" y="'+(p.y+3.6).toFixed(1)+'" text-anchor="middle" fill="var(--bg)" style="font-size:12px;font-weight:700;pointer-events:none">'+(folded?'+':'−')+'</text>';
+    // chips
+    let chips=[]; LAYERS.forEach(l=>{ if(S.layers.has(l.id)){const c=L[l.id].length; if(c) chips.push({id:l.id,c:c});}});
+    const base=p.a+Math.PI, step=.66; const orbit=r+17;
+    chips.forEach((c,i)=>{const ang=base+(i-(chips.length-1)/2)*step; const cx=p.x+Math.cos(ang)*orbit, cy=p.y+Math.sin(ang)*orbit;
+      h+='<g class="chip" data-chip="'+c.id+'" data-of="'+esc(n.id)+'"><circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="7" fill="'+LC[c.id]+'" stroke="var(--bg)" stroke-width="1.2"/><text x="'+cx.toFixed(1)+'" y="'+(cy+2.7).toFixed(1)+'">'+(c.c>99?'99+':c.c)+'</text></g>';});
+    const off=(anyLayer&&chips.length?r+34:r+8);
+    const lx=lblXform(p,off);
+    h+='<g transform="'+lx.tf+'"><text class="lbl'+(isSub?' sub':'')+'" x="'+lx.x+'" y="4" text-anchor="'+lx.anchor+'">'+esc(short(nm(n),26))+'</text></g>';
+    h+='</g>';
+  });
+  world.innerHTML=h;
+  applyView();
+}
+
+/* ---------- panel ---------- */
+const kindBadge=(k)=>'<span class="k" style="background:'+KC[k].color+'">'+esc(T[S.lang].kind[k])+'</span>';
+function pathList(arr,extra){
+  if(!arr.length) return '';
+  return '<ul class="paths">'+arr.map(p=>{const r=sharedByFile.get(p);return '<li><code class="p" data-copy="'+esc(p)+'" title="click to copy">'+esc(p)+'</code>'+(r?'<span class="tag" title="'+esc(r.features.join(', '))+'">'+T[S.lang].shared+' ×'+r.features.length+'</span>':'')+(extra?extra(p):'')+'</li>';}).join('')+'</ul>';
+}
+function detailsBlock(title,arr,color,open){
+  if(!arr.length) return '';
+  return '<details class="s2" style="border-color:'+color+'"'+(open?' open':'')+'><summary>'+esc(title)+' <span class="tag">'+arr.length+'</span></summary>'+pathList(arr)+'</details>';
+}
+function href(p){return p.startsWith('docs/')?p.slice(5):'../'+p;}
+function rolesHtml(n){
+  const found=Object.keys(T.en.roleNames).filter(r=>n.roles.includes(r));
+  const chips=found.map(r=>'<span class="badge">'+esc(T[S.lang].roleNames[r])+'</span>').join('');
+  return '<div class="badges">'+chips+'</div><div class="note ltr">'+esc(n.roles)+'</div>';
+}
+function connectionsOf(id){
+  const out=[];
+  links.forEach(l=>{ if(l.from===id) out.push({other:l.to,l:l}); else if(l.to===id) out.push({other:l.from,l:l}); });
+  return out;
+}
+function panelNode(id){
+  const n=byId.get(id); const t=T[S.lang]; const L=LI.get(id); let h='';
+  h+='<h3>'+esc(nm(n))+'</h3><div class="idline">'+esc(n.id)+' · '+esc(n.kind)+(n.parent?' · '+t.parent+' '+esc(n.parent):'')+'</div>';
+  h+='<p>'+esc(n.summary[S.lang])+'</p>';
+  if(n.risk.length){
+    h+='<div class="careful">'+esc(t.careful)+': '+n.risk.map(r=>esc(t.risks[r])).join(' / ')+'</div>';
+  }
+  h+='<div class="btns"><button id="bConn" class="'+(S.view==='conn'?'on':'')+'">'+t.hlConn+'</button><button id="bConf" class="'+(S.view==='conf'?'on':'')+'">'+t.conflicts+'</button>'+(kids[id]?'<button id="bFold">'+(S.collapsed.has(id)?t.expandN:t.collapseN)+' ('+kids[id].length+')</button>':'')+'</div>';
+  if(S.view==='conf') h+=conflictHtml(id);
+  h+='<section class="s"><h4>'+t.roles+'</h4>'+rolesHtml(n)+'</section>';
+  // connections
+  const cs=connectionsOf(id);
+  h+='<section class="s"><h4>'+t.connects+' <span class="tag">'+cs.length+'</span></h4>';
+  if(!cs.length) h+='<div class="note">'+t.none+'</div>';
+  cs.forEach(c=>{const o=byId.get(c.other); h+='<button class="conn" data-edge-open="'+c.l.id+'">'+kindBadge(c.l.kind)+'<b>'+esc(nm(o))+'</b> <span class="ltr note">'+esc(o.id)+'</span><small class="ltr">'+esc(c.l.flow)+'</small></button>';});
+  h+='</section>';
+  // paths
+  const o=(k)=>S.layers.has(k);
+  h+=detailsBlock(t.cat.pages,n.lists.pages,LC.fe,o('fe'));
+  h+=detailsBlock(t.cat.components,n.lists.components,LC.fe,o('fe'));
+  h+=detailsBlock(t.cat.api,n.lists.api,LC.be,o('be'));
+  h+=detailsBlock(t.cat.services,n.lists.services,LC.be,o('be'));
+  h+=detailsBlock(t.cat.lib,n.lists.lib,LC.be,o('be'));
+  h+=detailsBlock(t.cat.jobs,n.lists.jobs,LC.job,o('job'));
+  h+=detailsBlock(t.cat.tables,n.tables,LC.db,o('db'));
+  h+=detailsBlock(t.cat.migrations,n.lists.migrations,LC.db,o('db'));
+  h+=detailsBlock(t.cat.policy,n.policy,LC.perm,o('perm'));
+  h+=detailsBlock(t.cat.tests,n.lists.tests,LC.test,o('test'));
+  h+=detailsBlock(t.cat.docs,n.lists.docs,'var(--line)',false);
+  h+=detailsBlock(t.cat.extra_files,n.lists.extra_files,LC.be,false);
+  if(o('ai')) h+=detailsBlock(t.layer.ai,L.ai,LC.ai,true);
+  if(o('shared')) h+=detailsBlock(t.sharedTitle,L.shared,LC.shared,true);
+  // rules
+  const rules=new Set(RULES_BASE); n.risk.forEach(r=>(RULES_BY_RISK[r]||[]).forEach(x=>rules.add(x)));
+  h+='<section class="s rules"><h4>'+t.rules+'</h4>'+[...rules].map(p=>'<a href="'+esc(href(p))+'" target="_blank" rel="noopener">'+esc(t.ruleLabels[p]||p)+'</a>').join('')+'<a href="'+esc(href('docs/system-map.md'))+'" target="_blank" rel="noopener">'+esc(t.ruleLabels['docs/system-map.md'])+'</a></section>';
+  return h;
+}
+function conflictHtml(id){
+  const t=T[S.lang]; const c=conflictsOf(id); const r=rootOf(id);
+  let h='<section class="s" style="border-color:#e0642a"><h4>'+t.conflictsFor+'</h4>';
+  const ps=Object.keys(c.partners).sort((a,b)=>c.partners[b].length-c.partners[a].length);
+  if(!ps.length) h+='<div class="note">'+t.sharedNone+'</div>';
+  else{
+    h+='<div class="note">'+t.partners+'</div><table class="t">'+ps.map(f=>'<tr><td><a href="#" data-go="'+f+'">'+esc(nm(byId.get(f)))+'</a> <span class="ltr note">'+f+'</span></td><td>'+c.partners[f].length+' '+t.files+'</td></tr>').join('')+'</table>';
+    h+='<ul class="paths">'+c.normal.slice().sort((a,b)=>a.features.length-b.features.length).map(x=>'<li><code class="p" data-copy="'+esc(x.file)+'">'+esc(x.file)+'</code><span class="tag">'+x.features.filter(f=>f!==r).join(', ')+'</span></li>').join('')+'</ul>';
+  }
+  if(c.every.length) h+='<details><summary>'+t.everyone+' <span class="tag">'+c.every.length+'</span></summary>'+pathList(c.every.map(x=>x.file))+'</details>';
+  return h+'</section>';
+}
+function panelEdge(id){
+  const e=edgeById(id); const t=T[S.lang]; if(!e) return '<div class="empty">?</div>';
+  const A=byId.get(e.from),B=byId.get(e.to);
+  let h='<h3>'+esc(nm(A))+' ↔ '+esc(nm(B))+'</h3><div class="idline">'+esc(A.id)+' ↔ '+esc(B.id)+'</div><p>'+kindBadge(e.kind)+'</p>';
+  if(e.flow) h+='<p><b>'+t.flows+':</b> <span class="ltr">'+esc(e.flow)+'</span></p>';
+  h+='<section class="s" style="border-color:'+KC[e.kind].color+'"><h4>'+(e.pair?t.edgeShared:t.edgeFiles)+' <span class="tag">'+e.files.length+'</span></h4>'+pathList(e.files)+'</section>';
+  h+='<div class="btns"><button data-go="'+A.id+'">'+t.openA+' '+esc(nm(A))+'</button><button data-go="'+B.id+'">'+t.openA+' '+esc(nm(B))+'</button></div>';
+  return h;
+}
+function renderPanel(){
+  const el=$('#panel'); const t=T[S.lang];
+  if(!S.sel){ el.innerHTML='<div class="empty">'+t.pick+'</div><div class="note">'+esc(D.status||'')+'</div>'; return; }
+  if(S.sel.t==='n'){
+    if(S.sel.id==='ROOT'){ el.innerHTML='<h3>Selah</h3><p>'+esc(t.pick)+'</p>'; return; }
+    el.innerHTML=panelNode(S.sel.id);
+  } else el.innerHTML=panelEdge(S.sel.id);
+}
+function renderLayers(){
+  const t=T[S.lang]; let h='<h2>'+t.layers+'</h2>';
+  LAYERS.forEach(l=>{ let total=0; nodes.forEach(n=>{total+=LI.get(n.id)[l.id].length>0?1:0;});
+    h+='<label class="row"><input type="checkbox" data-layer="'+l.id+'"'+(S.layers.has(l.id)?' checked':'')+'><span class="sw" style="background:'+l.color+'"></span><span>'+esc(t.layer[l.id])+'</span><span class="n">'+total+'</span></label>';});
+  h+='<div class="note">'+t.layersNote+'</div>';
+  h+='<h2>'+t.connections+'</h2>';
+  KINDS.forEach(k=>{ const c=links.filter(l=>l.kind===k.id).length;
+    h+='<label class="row"><input type="checkbox" data-kind="'+k.id+'"'+(S.kinds.has(k.id)?' checked':'')+'><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="'+k.color+'" stroke-width="3" stroke-dasharray="'+k.dash+'"/></svg><span>'+esc(t.kind[k.id])+'</span><span class="n">'+c+'</span></label>';});
+  h+='<h2>'+t.min+'</h2><select id="selMin">'+[2,3,4,5,6,8].map(v=>'<option value="'+v+'"'+(S.min===v?' selected':'')+'>'+v+'</option>').join('')+'</select>';
+  h+='<div class="note">'+esc(t.techEn)+'</div>';
+  $('#layers').innerHTML=h;
+}
+function renderChrome(){
+  const t=T[S.lang];
+  document.documentElement.lang=S.lang; document.documentElement.dir=S.lang==='ar'?'rtl':'ltr';
+  $('#ttl').textContent=t.title; $('#q').placeholder=t.search; $('#q').value=S.q;
+  $('#bFit').textContent=t.fit; $('#bCollapse').textContent=t.collapse; $('#bExpand').textContent=t.expand; $('#bClear').textContent=t.clear;
+  $('#bLang').textContent=S.lang==='ar'?'English':'العربية';
+  $('#foot').textContent=t.generated+' · '+D.commit+' · '+nodes.filter(n=>!n.parent).length+'+'+nodes.filter(n=>n.parent).length+' / '+links.length;
+}
+function all(){ renderChrome(); renderLayers(); renderPanel(); render(); writeHash(); }
+
+/* ---------- navigation ---------- */
+let anim=null;
+function focusOn(id,zoom){
+  const p=id==='ROOT'?{x:0,y:0}:pos.get(vis(id)); if(!p) return;
+  const r=svg.getBoundingClientRect(); const k=Math.max(view.k,zoom||1.1);
+  const tx=r.width/2-p.x*k, ty=r.height/2-p.y*k; animateTo(k,tx,ty);
+}
+function animateTo(k,x,y){
+  const s={k:view.k,x:view.x,y:view.y}, t0=performance.now(); if(anim)cancelAnimationFrame(anim);
+  const step=(now)=>{const u=Math.min(1,(now-t0)/320), e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+    view.k=s.k+(k-s.k)*e;view.x=s.x+(x-s.x)*e;view.y=s.y+(y-s.y)*e;applyView(); if(u<1)anim=requestAnimationFrame(step);};
+  anim=requestAnimationFrame(step);
+}
+function fit(){
+  const r=svg.getBoundingClientRect(); let minx=0,maxx=0,miny=0,maxy=0;
+  nodes.forEach(n=>{if(!visible(n.id))return;const p=pos.get(n.id);const ext=(n.parent?R2:R1)>0?150:0;const ex=Math.cos(p.a)*ext,ey=Math.sin(p.a)*ext;
+    [[p.x,p.y],[p.x+ex,p.y+ey]].forEach(q=>{minx=Math.min(minx,q[0]);maxx=Math.max(maxx,q[0]);miny=Math.min(miny,q[1]);maxy=Math.max(maxy,q[1]);});});
+  const w=maxx-minx+60,h=maxy-miny+60; const k=Math.min(r.width/w,r.height/h);
+  animateTo(k,r.width/2-((minx+maxx)/2)*k,r.height/2-((miny+maxy)/2)*k);
+}
+function select(sel,opts){
+  S.sel=sel; if(!sel||sel.t!=='n') { if(!sel) S.view=null; }
+  all(); if(sel&&sel.t==='n'&&!(opts&&opts.noFocus)) focusOn(sel.id,1.15);
+}
+
+/* ---------- interaction ---------- */
+const tip=$('#tip');
+function showTip(html,ev){tip.innerHTML=html;tip.style.display='block';const w=tip.offsetWidth,hh=tip.offsetHeight;let x=ev.clientX+14,y=ev.clientY+14;if(x+w>innerWidth-8)x=ev.clientX-w-14;if(y+hh>innerHeight-8)y=ev.clientY-hh-14;tip.style.left=x+'px';tip.style.top=y+'px';tip.dir=S.lang==='ar'?'rtl':'ltr';}
+function hideTip(){tip.style.display='none';}
+svg.addEventListener('mousemove',ev=>{
+  const t=ev.target.closest('[data-chip],[data-edge],[data-node]'); if(!t){hideTip();return;}
+  const T_=T[S.lang];
+  if(t.dataset.chip){const n=byId.get(t.dataset.of);showTip('<b>'+esc(T_.layer[t.dataset.chip])+'</b>'+esc(nm(n))+': '+LI.get(n.id)[t.dataset.chip].length,ev);}
+  else if(t.dataset.edge){const e=edgeById(t.dataset.edge); if(!e){hideTip();return;} const A=byId.get(e.from),B=byId.get(e.to);
+    showTip('<b>'+esc(nm(A))+' ↔ '+esc(nm(B))+'</b>'+esc(T_.kind[e.kind])+' · '+(e.pair?e.files.length+' '+T_.files:esc(e.flow)),ev);}
+  else if(t.dataset.node==='ROOT') showTip('<b>Selah</b>',ev);
+  else {const n=byId.get(t.dataset.node);showTip('<b>'+esc(nm(n))+'</b>'+esc(n.summary[S.lang].length>170?n.summary[S.lang].slice(0,168)+'…':n.summary[S.lang]),ev);}
+});
+svg.addEventListener('mouseleave',hideTip);
+// pan / zoom / click
+const ptrs=new Map(); let drag=null, pinch=null;
+svg.addEventListener('pointerdown',ev=>{ptrs.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  if(ptrs.size===1) drag={x:ev.clientX,y:ev.clientY,vx:view.x,vy:view.y,moved:false,target:ev.target};
+  else if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),k:view.k};drag=null;}
+});
+svg.addEventListener('pointermove',ev=>{
+  if(!ptrs.has(ev.pointerId)) return; ptrs.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  if(pinch&&ptrs.size===2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=svg.getBoundingClientRect();zoomAt((a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top,pinch.k*d/pinch.d);return;}
+  if(drag){const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y; if(!drag.moved&&Math.hypot(dx,dy)>4){drag.moved=true;svg.classList.add('drag');hideTip();}
+    if(drag.moved){view.x=drag.vx+dx;view.y=drag.vy+dy;applyView();}}
+});
+function endPtr(ev){ptrs.delete(ev.pointerId); if(ptrs.size<2)pinch=null;
+  if(drag&&!drag.moved&&ptrs.size===0&&ev.type==='pointerup') clickTarget(drag.target,ev);
+  if(ptrs.size===0){drag=null;svg.classList.remove('drag');}}
+svg.addEventListener('pointerup',endPtr); svg.addEventListener('pointercancel',endPtr);
+function zoomAt(px,py,k){k=Math.max(.15,Math.min(5,k));const f=k/view.k;view.x=px-(px-view.x)*f;view.y=py-(py-view.y)*f;view.k=k;applyView();}
+svg.addEventListener('wheel',ev=>{ev.preventDefault();const r=svg.getBoundingClientRect();zoomAt(ev.clientX-r.left,ev.clientY-r.top,view.k*Math.exp(-ev.deltaY*.0015));},{passive:false});
+$('#zin').onclick=()=>{const r=svg.getBoundingClientRect();zoomAt(r.width/2,r.height/2,view.k*1.3);};
+$('#zout').onclick=()=>{const r=svg.getBoundingClientRect();zoomAt(r.width/2,r.height/2,view.k/1.3);};
+function clickTarget(target,ev){
+  const t=target.closest&&target.closest('[data-chip],[data-edge],[data-node]');
+  if(!t){ if(S.sel) select(null); return; }
+  if(t.dataset.chip){ S.sel={t:'n',id:t.dataset.of}; all(); return; }
+  if(t.dataset.edge){ select({t:'e',id:t.dataset.edge},{noFocus:true}); return; }
+  if(t.dataset.node==='ROOT'){ select(null); fit(); return; }
+  if(ev.detail>=2&&kids[t.dataset.node]){ toggleFold(t.dataset.node); return; }
+  select({t:'n',id:t.dataset.node});
+}
+svg.addEventListener('dblclick',ev=>{const t=ev.target.closest('[data-node]');if(t&&kids[t.dataset.node])toggleFold(t.dataset.node);});
+function toggleFold(id){ if(S.collapsed.has(id))S.collapsed.delete(id);else S.collapsed.add(id); all(); }
+
+// panel + sidebar delegation
+document.addEventListener('click',ev=>{
+  const c=ev.target.closest('[data-copy]'); if(c){ try{navigator.clipboard.writeText(c.dataset.copy);}catch(e){} const old=c.title; c.title=T[S.lang].copied; setTimeout(()=>{c.title=old;},900); return; }
+  const g=ev.target.closest('[data-go]'); if(g){ ev.preventDefault(); S.view=null; select({t:'n',id:g.dataset.go}); return; }
+  const eo=ev.target.closest('[data-edge-open]'); if(eo){ select({t:'e',id:eo.dataset.edgeOpen},{noFocus:true}); return; }
+  if(ev.target.closest('#bConn')){ S.view=S.view==='conn'?null:'conn'; all(); return; }
+  if(ev.target.closest('#bConf')){ S.view=S.view==='conf'?null:'conf'; all(); return; }
+  if(ev.target.closest('#bFold')){ toggleFold(S.sel.id); return; }
+  if(!ev.target.closest('.search')) $('#results').style.display='none';
+});
+document.addEventListener('change',ev=>{
+  const l=ev.target.dataset&&ev.target.dataset.layer; if(l){ ev.target.checked?S.layers.add(l):S.layers.delete(l); all(); return; }
+  const k=ev.target.dataset&&ev.target.dataset.kind; if(k){ ev.target.checked?S.kinds.add(k):S.kinds.delete(k); all(); return; }
+  if(ev.target.id==='selMin'){ S.min=parseInt(ev.target.value); all(); }
+});
+$('#bFit').onclick=fit;
+$('#bCollapse').onclick=()=>{Object.keys(kids).forEach(k=>S.collapsed.add(k));all();};
+$('#bExpand').onclick=()=>{S.collapsed.clear();all();};
+$('#bClear').onclick=()=>{S.sel=null;S.view=null;S.q='';all();};
+$('#bLang').onclick=()=>{S.lang=S.lang==='ar'?'en':'ar';all();};
+$('#bTheme').onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=cur==='dark'?'light':'dark';};
+const qi=$('#q'), res=$('#results');
+qi.addEventListener('input',()=>{
+  S.q=qi.value; const q=S.q.trim();
+  if(!q){res.style.display='none';all();return;}
+  const m=matches(q).slice(0,14);
+  res.innerHTML=m.map(x=>{const n=byId.get(x.id);return '<button data-pick="'+esc(x.id)+'">'+esc(nm(n))+' <span class="ltr note">'+esc(n.id)+'</span>'+(x.why?'<small>'+esc(x.why)+'</small>':'')+'</button>';}).join('')||'<div class="note" style="padding:8px">'+T[S.lang].none+'</div>';
+  res.style.display='block'; all(); qi.focus();
+});
+res.addEventListener('click',ev=>{const b=ev.target.closest('[data-pick]');if(!b)return;res.style.display='none';select({t:'n',id:b.dataset.pick});});
+qi.addEventListener('keydown',ev=>{if(ev.key==='Enter'){const m=matches(qi.value.trim());if(m.length){res.style.display='none';select({t:'n',id:m[0].id});}} if(ev.key==='Escape'){res.style.display='none';}});
+document.addEventListener('keydown',ev=>{ if(ev.key==='/'&&document.activeElement!==qi&&!/input|select/i.test(document.activeElement.tagName)){ev.preventDefault();qi.focus();} if(ev.key==='Escape'&&document.activeElement!==qi){S.sel=null;S.view=null;all();} });
+window.addEventListener('hashchange',()=>{readHash();all();if(S.sel&&S.sel.t==='n')focusOn(S.sel.id,1.15);});
+window.addEventListener('resize',()=>{});
+
+/* ---------- start ---------- */
+readHash();
+if(!location.hash){ try{ if(!/^ar/i.test(navigator.language||'ar')&&false) S.lang='en'; }catch(e){} }
+all();
+(function init(){
+  const r=svg.getBoundingClientRect(); view.k=.5; view.x=r.width/2; view.y=r.height/2; applyView();
+  fit();
+  if(S.sel&&S.sel.t==='n'&&S.sel.id!=='ROOT') setTimeout(()=>focusOn(S.sel.id,1.15),380);
+})();
+// small hook for tests
+window.__selahMap={S:S,select:select,all:all,nodes:nodes,links:links};
+})();
+</script>
+</body>
+</html>

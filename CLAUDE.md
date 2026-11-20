@@ -3,7 +3,7 @@
 Selah follows consulting recommendations through to implementation, for a consulting firm and its clients. Arabic first, then English. Next.js app in `apps/web`, Postgres with row-level security, a Python AI service in `services/ai`, one local Ollama model.
 
 ## Read first
-- `docs/system-map.md`: every feature, its files, tables, roles, risks and connections, and "if you change X, also check Y". **Any PR that changes a connection (a new import across features, a table, a policy entry, an AI call, a job) updates `docs/system-map.md` in the same PR** (and re-generates the interactive map once it exists).
+- `docs/system-map.md`: every feature, its files, tables, roles, risks and connections, and "if you change X, also check Y". **Any PR that changes a connection (a new import across features, a table, a policy entry, an AI call, a job) updates `docs/system-map.md` in the same PR** and re-generates the interactive map (`node scripts/selah-map/build.mjs`, or `npm run map` at the root; it fails if a path in the file does not exist; open `docs/selah-map.html` in a browser, offline).
 - `docs/handoff.md` (how it is built), `docs/rules.md` (every product rule, one row each), `docs/authorization.md` (who sees what), `docs/assistant.md` (the assistant, masking, the number scanner, jobs), `docs/operations.md` (running it, upgrades, **Before go-live**).
 
 ## How it fits together
