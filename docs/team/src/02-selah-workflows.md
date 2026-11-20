@@ -1,8 +1,8 @@
-<p class="kicker">Team guide · Part 2 of 3 · Checked on main after PR #213 · 20 November 2026</p>
+<p class="kicker">Team guide · Part 2 of 3 · Checked on main after PR #215 · 20 November 2026</p>
 
 # How work moves through Selah
 
-The everyday flows, step by step, exactly as the finished app does them today. Part A has the flows. Part B reports what the scenario tests found so far: no privacy finding, and the failures and confusions listed so we can fix them.
+The everyday flows, step by step, exactly as the finished app does them today. Part A has the flows. Part B reports what the scenario tests found: no privacy finding on any of the four copies, and the failures and confusions listed so we can fix them.
 
 Everything in Part A is built and merged. The few ideas that are not built are marked <span class="tag later">NOT BUILT</span> and collected at the end.
 
@@ -203,54 +203,67 @@ Any firm member creates one (Projects, Internal) and becomes its lead. They staf
 **Not built (proposals, kept off until shown to be useful):** an AI draft of the meeting summary from a transcript; the assistant reading confirmed summaries; a list of all decisions; a calendar screen; a guided "renew" step that carries open actions into the next project; a reason for why a contract ended; a pause state for a project; re-checking results at 6 and 12 months.
 </div>
 
-# Part B. What the scenarios found so far
+# Part B. What the scenarios found
 
-The scenario plan has 21 scenarios, run on separate full copies of the app with sample data (Arabic, desktop; English and a 768 px dark run come later). Each step is clicked as the real person would, and scored PASS, PASS with friction, or FAIL.
+The scenario plan has 21 scenarios, run on four separate full copies of the app with sample data: A, B and C in Arabic on desktop, and D in English (scenarios 2, 7, 12 and 15) plus scenario 18 in English at 768 px, dark mode. Each step is clicked as the real person would, and scored PASS, PASS with friction, or FAIL. All four copies are finished. **Scenario 19, the isolation sweep, is not finished: it was interrupted and has to be run again.**
 
 <div class="stat">
-<div><b>No privacy finding</b>on any copy so far. Nobody saw another client, a firm-only item, or a count of something left out.</div>
-<div><b>70 pass, 4 fail</b>on copy A (scenarios 1, 2, 8, 9, 12, 15 reminder, 20).</div>
-<div><b>15 of 21</b>scenarios done, one more in part (15), two started (14, 16), three not run (6, 7, 19).</div>
+<div><b>No privacy finding</b>on any of the four copies (A, B, C, D). Nobody saw another client, a firm-only item, or a count of something left out.</div>
+<div><b>20 of 21</b>scenarios done on the four copies. Scenario 19 (isolation sweep) is not finished.</div>
+<div><b>Copy A: 70 pass, 4 fail</b>(scenarios 1, 2, 8, 9, 12, 15 reminder, 20). The later copies passed, mostly with friction; the fails are listed below.</div>
 </div>
 
 ## Where we are
 
-| Scenario | Copy | State | Result |
-|---|---|---|---|
-| 1 New client to a working plan | A | Done | Passed with friction (24 pass, 1 fail) |
-| 2 The everyday cycle | A | Done | Passed with friction |
-| 3 Evidence sent back twice | B | Done | Passed with friction |
-| 4 Blocked and an accepted risk | B | Done | Passed with friction |
-| 5 Asking for more time | B | Done | **One FAIL** |
-| 8 A firm-run client | A | Done | Passed with friction |
-| 9 Someone leaves the client | A | Done | Passed with friction; one expectation not met |
-| 10 A steering meeting | B | Done | Passed with friction |
-| 11 The monthly report | B | Done | Passed with friction |
-| 12 Business indicators | A | Done | Passed with friction |
-| 13 The assistant, both sides | B | Done (local model) | Passed; progress draft numbers FAIL |
-| 15 End reminder (reminder part) | A | Done | **Pass** |
-| 17 A busy Monday morning | B | Done | Pass |
-| 18 Layout, keyboard, language | C | Done | Passed with friction |
-| 20 Structure to a printed chart | A | Done | **FAILED at steps 10 to 12** (one real bug) |
-| 21 A file and a meeting kept from one person | B | Done | Pass: nobody left out saw anything, not even a count |
-| 14 Closing a project | C | Started | Not finished |
-| 16 A second client from an inquiry | B | Started | Not finished |
-| 6, 7, 19 isolation sweep, copy D (English) | n/a | Not run | Waiting |
+| Scenario | Copy | Result |
+|---|---|---|
+| 1 New client to a working plan | A | Passed with friction (24 pass, 1 fail) |
+| 2 The everyday cycle | A, D (English) | A: passed with friction. D: **Pass** |
+| 3 Evidence sent back twice | B | Passed with friction |
+| 4 Blocked and an accepted risk | B | Passed with friction |
+| 5 Asking for more time | B | **One FAIL** (decline with no reason) |
+| 6 The lead leaves | B | **Pass** (new lead with a handover note; a suspended person is locked out at once) |
+| 7 An unhappy client | B, D (English) | B: **Pass**. D: **Pass**. In both the client is not told when the consultant changes (Help shows it) |
+| 8 A firm-run client | A | Passed with friction |
+| 9 Someone leaves the client | A | Passed with friction; one expectation not met (only the new owner is told) |
+| 10 A steering meeting | B | Passed with friction |
+| 11 The monthly report | B | Passed with friction |
+| 12 Business indicators | A, D (English) | A: passed with friction. D: passed with friction |
+| 13 The assistant, both sides | B | Passed (local model); progress draft numbers **FAIL** |
+| 14 Closing a project | C | Passed with friction |
+| 15 End of engagement (reminder, offboarding) | A (reminder), C, D (English) | Reminder: **Pass**. C: passed with friction. D: passed with friction and **one small fail** (reply buttons offered on an archived client; the refusal gives the wrong reason) |
+| 16 A second client from an inquiry (holding group) | B | **Pass** (group roll-up 22% equals the sum of the parts; every cross-client page reads "not found"; the assistant is closed for both new clients' admins) |
+| 17 A busy Monday morning | B | Pass |
+| 18 Layout, keyboard, language | C (Arabic), D (English, 768 px, dark) | C: passed with friction. D: passed with friction (layout holds at 768 px; dark-mode contrast and the date picker are the friction) |
+| 19 Isolation sweep | A, B, C, D | **Not finished** (interrupted) |
+| 20 Structure to a printed chart | A | **FAILED at steps 10 to 12** (one real bug, now fixed, see below) |
+| 21 A file and a meeting kept from one person | B | Pass: nobody left out saw anything, not even a count |
 
 ## The failures
 
 1. **Declining a date request gives no reason (scenario 5).** **Decline** acts at once. There is no reason box and no place to offer a meeting, and the decline cannot be taken back. The consultant has to write in the discussion thread.
-2. **The org chart cannot be edited after publishing (scenario 20).** Ids created at publish are not valid, so saving the next draft returned an error and an invitation into a vacancy failed. A workaround (import one Excel row) worked. A fix was in progress.
+2. **The org chart could not be edited after publishing (scenario 20).** Ids created at publish were not valid, so saving the next draft returned an error and an invitation into a vacancy failed. **Fixed** in #215 (migration 0115): copied units and positions now get valid ids, and stored ones are repaired once.
 3. **The progress draft disagrees with the project page (scenario 13).** The draft said 0 verified and 1 late; the project page said 1 of 8 verified and 3 late. A consultant who pastes it without checking sends wrong numbers.
 4. **A consultant cannot set their own expertise (scenario 1).** The page says they can; only the admin has the control.
 5. **Owner change tells only the new owner (scenario 9).** The lead and the project's consultants are not told, and the history shows no "owner changed" line.
+6. **The client is not told when the consultant changes (scenarios 6 and 7, Arabic and English).** Only the Help page shows it.
+7. **The closure PDF total is off by one (scenario 14):** it shows 3 where the project has 4.
+8. **An archived client still sees reply and "I will attend" buttons (scenario 15, copies C and D),** and the refusal gives the wrong reason. The archived sign-in message ("your account is not linked to an active organisation") does not say what to do.
+9. **The "release now" switch is on by default** once an owner and a date are set (scenario 18, copies C and D). It is hard to see in dark mode, and one mis-click saved drafts.
 
 ## Confusions and friction
 
 - "Start work" on Home only opens the action; a second click starts it (scenario 2). The best fix: make the Home button start it, or label it "Open".
 - Accepting an evidence item and signing off are two steps, and the first attempt gets an instruction instead of a combined step (scenarios 3 and 4). The risk-acceptance **Sign** button is disabled with no message saying why.
-- Work mail is held until Sunday, 07:00, and nothing on the screen says a mail is held (scenarios 1, 2, 3). Easy to miss on a Friday test.
+- Work mail is held until Sunday, 07:00, and nothing on the screen says a mail is held (scenarios 1, 2, 3).
+- **Start closing** exists only in the ⋯ menu on an active project, and the lead has no close button until everything is settled (scenario 14). A reopened project sends no notice to the client admin.
+- The client sees a "make pack" button on an archived client (scenario 15).
+- "Verified" is used three ways in English: Verify, Accepting, Verified Complete.
+- Saving shows only a generic "Saved" toast, not what was saved.
+- Mail for English readers is written Arabic first, and the invitation mail names neither the firm nor the inviter.
+- Dark mode: check boxes and switches are barely visible. The first Tab stop (the logo) has no name; the date picker is hard to use by keyboard.
 - Plan import before the client's people are on the project flags every owner unknown (scenario 1).
+- The org chart draft from pasted text gives 0 units, after 135 seconds on the processor (scenario 20).
 - "Make lead" is hidden under a row menu (scenario 1). The conflict dialog defaults to "conflict".
 - Draft actions are not marked on the plan list.
 - A scanned page or a switched-off attachment is answered as if it were another file (scenario 13). The answer should say that the attachment was skipped.
@@ -259,21 +272,21 @@ The scenario plan has 21 scenarios, run on separate full copies of the app with 
 - Sharing a report sends no client notice; the report PDF can show the day before.
 - The numbers import button is hidden until a data mode is chosen (scenario 12).
 - Dialogs ignore clicks made before they finish loading.
-- The org chart draft from pasted text gave 0 units after 135 seconds on the processor (scenario 20).
 - The firm-run reviewer text should say "ask a colleague to review" when nobody else is on the team (scenario 8).
 - The "Not found" page is served with HTTP code 200, so a script cannot tell found from not found.
-- Accessible names are missing on the logo link, radios and checkboxes; one Arabic phrase has a grammar slip ("5 إجراءً ما زالت قائمة").
-- "Release now" in the add-action dialog may save a draft (not confirmed).
+- Accessible names are missing on the logo link, radios and checkboxes; one Arabic phrase has a grammar slip.
 
 ## What worked
 
 - The two sign-off rule, the date-request flow, risk acceptance and the evidence-by-item flow all worked and were understood.
 - The same progress number agrees in four places on one project.
 - A virus test file was refused with a clear message.
-- The end-of-engagement notice reached the lead and the admin, nobody on the client side.
+- The end-of-engagement notice reached the lead and the admin, nobody on the client side; the export pack checksum matched and held nothing firm-only.
 - A busy Monday: each of three people found what needs them on the first screen without a click.
 - The assistant refused rulings and offered drafts only. In 15 of 15 answers checked for a client asker, no citation named another client or a firm-only file.
+- Leaving and suspension take effect at once: a suspended person gets 401, a removed person gets "not found".
+- The English run and the 768 px dark run found the same behaviour as the Arabic desktop runs.
 
 ## What is still to do
 
-Finish scenarios 14 and 16, run 6 and 7, run copy D in English and at 768 px dark, run the scenario 19 isolation sweep on every copy by an independent reviewer, re-run every failed step independently, write the scenario report, and then stop at Gate C for the owner's decision. The Production path lists the after-scenarios list.
+Run the scenario 19 isolation sweep again on every copy by an independent reviewer (it was interrupted), write the scenario report with an independent re-run of every failed step, and then stop at Gate C for the owner's decision. After Gate C comes the after-scenarios list in the Production path.

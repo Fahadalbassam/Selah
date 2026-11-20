@@ -1,4 +1,4 @@
-<p class="kicker">For the Selah team · Production readiness · Part 3 of 3 · Main after PR #213, migrations to 0114 · 20 November 2026</p>
+<p class="kicker">For the Selah team · Production readiness · Part 3 of 3 · Main after PR #215, migrations to 0115 · 20 November 2026</p>
 
 # Selah's path to production: what is solid, what is only built, what we still need
 
@@ -11,9 +11,9 @@ This is part 3 of the team documents. The Handbook explains the parts and the Wo
 <div class="stat">
 <div><b>0 leaks</b>between clients: the permission review, the assistant runs, the leak fixes, and every scenario so far.</div>
 <div><b>67 / 1 / 3</b>passed / failed / not run in the full end-to-end run on a production-like stack; no app bug found.</div>
-<div><b>0114</b>last database migration. Three of the recent ones need care on a live server: 0109, 0112, 0114.</div>
+<div><b>0115</b>last database migration. Four of the recent ones need care on a live server: 0109, 0112, 0114, 0115.</div>
 <div><b>164 + 100</b>sample files and questions in the labelled test set that the model and search choices were made on.</div>
-<div><b>15 of 21</b>scenarios done (16 with the reminder); Gate C ahead.</div>
+<div><b>20 of 21</b>scenarios done on four copies, no privacy finding on any; the isolation sweep (19) is not finished; Gate C ahead.</div>
 </div>
 
 ## 1 How solid is what we have?
@@ -43,7 +43,7 @@ The target is one Linux machine with a GTX 1050 graphics card and 16 GB of memor
 | Part | Where it runs | Before go-live |
 |---|---|---|
 | Web app and API (Next.js) | Our server | Production build, the real settings, the production safety check passing. |
-| Database (PostgreSQL 16 with vector search) | Our server | Backups on the second disk and a key kept off the server. Migrations through 0114. |
+| Database (PostgreSQL 16 with vector search) | Our server | Backups on the second disk and a key kept off the server. Migrations through 0115. |
 | File storage (S3-compatible) | Our server | Included in the backup. Storage size planned. |
 | Virus scanner (ClamAV) | Our server, own container | About 1 to 1.5 GB of memory; signatures update daily. |
 | PDF export (Gotenberg) | Our server, no route to the internet | Nothing extra. |
@@ -77,7 +77,7 @@ Our rule is to cut nothing built and tested, and to reduce clutter by hiding. Th
 | Assessments with templates | <span class="tag part">TRIM</span> | Only a starter template ships. Loading the firm's own template waits until the firm sends it. |
 | Assistant (staff and client), @-attach, progress draft | <span class="tag built">KEEP</span> | The strongest everyday use; the four locks held in every test. |
 | Monthly status pack, reports with templates | <span class="tag built">KEEP</span> | It replaces the report consultants write by hand. |
-| Org chart (structure) | <span class="tag built">KEEP</span> | Useful to the firm; one publish bug to fix first. |
+| Org chart (structure) | <span class="tag built">KEEP</span> | Useful to the firm; the publish id bug is fixed (#215, 0115). |
 | Closing survey and case-study consent | <span class="tag later">HOLD</span> | Optional; do not put it in front of every client. |
 
 ## 4 Everyday situations: what Selah does today
@@ -113,18 +113,19 @@ Do these once, on the live database, before the firm's real clients are let in. 
 | 8 | **Backups** | Second disk, an off-server key, the schedule, one restore drill done and its time written down. Run `ops/readiness.sh` and see it green. | Open |
 | 9 | **Real-client rule** | Real client files go only to a local model. Write it into the deployment guide. | Open |
 | 10 | **Legal texts** | Reviewed by the firm's counsel. | Open |
+| 11 | **Allow for the 0115 org chart repair** (migration 0115) | 0115 gives valid ids to the copied units and positions of every published org chart version and repairs the ids already stored, once, with one audit row per client. Run the upgrade **with the app stopped** and a **10 second lock timeout**; if it cannot get its locks in 10 seconds it fails cleanly and can be run again. Take a backup first. Nothing in it changes who can see any work. Needed on any live database that already has published org charts. | Open |
 
 ### B. What is still left in the plan
 
 | Step | Work | State |
 |---|---|---|
-| 1 | Finish the org chart publish fix (ids), independent review, merge | Running at the pause |
-| 2 | **Rest of the scenarios:** finish 14 (closing) and 16 (a second client), run 6 and 7; copy D in English (2, 7, 12, 15) and 18 at 768 px dark | Paused; resume |
-| 3 | **Scenario 19 isolation sweep** on every copy by an independent reviewer | Not started |
+| 1 | Org chart publish fix (ids): independent review, merged as #215 (migration 0115) | **Done** |
+| 2 | Scenarios on all four copies (A, B, C, D in English, 768 px dark): 6, 7, 14, 16 finished; **no privacy finding** on any copy | **Done** |
+| 3 | **Scenario 19 isolation sweep** on every copy by an independent reviewer | **Interrupted, not finished: run again** |
 | 4 | **Scenario report** and an independent re-run of every failed step | Not started |
 | 5 | **Gate C: stop for the owner's decision** | Ahead |
 | 6 | **After-scenarios list** (below) | After Gate C |
-| 7 | The interactive Selah map (radial map of features, files and risks; kept true by a path-check script) | After these documents |
+| 7 | The interactive Selah map (radial map of features, files and risks; kept true by a path-check script) | Done (`docs/selah-map.html`) |
 | 8 | Clean-up of scenario copies, worktrees and test buckets | Later |
 
 **After-scenarios list:** text recognition (OCR) for scanned pages; save an assistant answer as a note; staff "what changed since my last visit" and meeting drafts; concern flags (facts, no score); export language following the screen; leftovers from the screen batches (date-request words, two words for "inquiry", tab stops added by tooltips); assessment guidance written for the consultant shown to the client; findings from the labelled test set; an answer that only echoes the question shown as grounded; org chart draft from pasted text giving 0 units; owner change telling only the new owner; plan import before the people are added; plus the failures and confusions in Workflows, Part B.

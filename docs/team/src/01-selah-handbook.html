@@ -47,11 +47,11 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 @page{size:A4 portrait;margin:15mm 15mm 17mm 15mm;
  @bottom-left{content:"Selah team handbook";font:7.5pt 'Segoe UI',sans-serif;color:#777}
  @bottom-right{content:counter(page) " / " counter(pages);font:7.5pt 'Segoe UI',sans-serif;color:#777}}
-</style></head><body><p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #213 · 20 November 2026</p>
+</style></head><body><p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #215, migrations to 0115 · 20 November 2026</p>
 
 <h1>Selah, explained for the team</h1>
-<p>This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #213, database migrations up to 0114).</p>
-<p>Two companion documents go with it: <strong>Workflows</strong> (the everyday flows step by step, and what the scenario tests found so far) and <strong>Production path</strong> (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.</p>
+<p>This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #215, database migrations up to 0115).</p>
+<p>Two companion documents go with it: <strong>Workflows</strong> (the everyday flows step by step, and what the scenario tests found) and <strong>Production path</strong> (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.</p>
 <div class="box">
 <p><strong>What is new since the 6 November edition.</strong> Help and a role guide inside the app. A privacy clean-up (five leaks found and fixed). Restricted clients can finally work. The client assistant answers "who is my consultant" and "my deadlines". Staff get a facts-only progress draft that opens the report page. Reports have templates, a second person's approval and a confirmed send. Files can be attached in a question with @. The client is told when the lead consultant changes, and the firm is reminded before an engagement ends. The client's organisation structure (org chart). A local model (qwen3.5:4b), better Arabic search, a scanner for personal numbers, and slow AI work as background jobs. The full list is in section 19.</p>
 </div>
@@ -734,7 +734,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <li><strong>The lead, the deputy and the firm admin publish</strong> (Review and publish). Each publish makes a new version.</li>
 <li><strong>The client admin places people</strong> in positions and suggests changes; managers see names only in their own branch and above; action owners see only "your manager".</li>
 <li><strong>The chart never changes who sees any work.</strong> It describes positions only, and Selah never judges it.</li>
-<li>Known problem found in the scenarios: ids made at publish were not valid, so the next draft could not be edited. A fix was being finished when the run paused.</li>
+<li>Found in the scenarios and now fixed (#215, migration 0115): ids made when a version is published were not valid, so the next draft could not be edited. Copied units and positions now get valid ids, and the ids already stored were repaired once, with one audit row per client.</li>
 </ul>
 <h2>14 Internal projects</h2>
 <p>An internal project is the firm's own work, using the same tools as client work: recommendations, actions, evidence, review, meetings, files.</p>
@@ -1024,10 +1024,20 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <td>#213</td>
 </tr>
 <tr>
+<td>Org chart</td>
+<td>Valid ids for copied units and positions (migration 0115); a one-time repair of stored ids with an audit row per client. Run it with the app stopped; it waits at most 10 seconds for a lock.</td>
+<td>#215</td>
+</tr>
+<tr>
+<td>Scenarios</td>
+<td>All four copies (A, B, C, D in English, 768 px dark) are done: no privacy finding on any copy. Scenario 19 (isolation sweep) was interrupted and is not finished. The failures and friction are in Workflows, Part B.</td>
+<td>n/a</td>
+</tr>
+<tr>
 <td>Tests</td>
 <td>Full end-to-end run on a production-like stack: 67 passed, 1 failed, 3 not run, no app bug found</td>
 <td>#210</td>
 </tr>
 </tbody>
 </table>
-<p class="small">Source of truth: the system map in the repository (29 features, 6 sub-features, 64 links). Companion documents: Workflows, Production path.</p></body></html>
+<p class="small">Source of truth: the system map in the repository (29 features, 8 sub-features, 70 links). Companion documents: Workflows, Production path.</p></body></html>
