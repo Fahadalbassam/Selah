@@ -1,5 +1,5 @@
 {
- "note": "partial, copy B, instance scenb http://localhost:3050 (offset 50)",
+ "note": "copy B (scenb, :3050), scenarios 17,13,3,4,5,10,11,21,16,6,7; no scenario 19 run",
  "urls": {
   "lead@mizan.test": [
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
@@ -16,7 +16,8 @@
    "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
    "/reports/171c9274-48e4-4edc-be81-1858ee5547e2",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
-   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92",
+   "/api/projects/a4045eaa-f9be-4763-add5-0c73655404bc"
   ],
   "owner@nukhba.test": [
    "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
@@ -30,7 +31,8 @@
    "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
    "/actions/fa23e5dd-1554-457e-8a22-e8f8f9b5c6ec",
    "/actions/46a49bbb-d900-404c-8f34-1318b5d16d8a",
-   "/reports/abc5fb57-944a-41df-a400-72db9786f14d"
+   "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
+   "/clients/groups/86b4212d-4b66-4024-be33-858aebae8887"
   ],
   "sponsor@nukhba.test": [
    "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
@@ -49,7 +51,9 @@
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=files",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
-   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress"
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
+   "/clients/b1aa8375-a377-462e-9554-e87e84a7f429",
+   "/clients/247016bb-75ad-461e-aa70-3b7395d017dd"
   ],
   "manager@nukhba.test": [
    "/actions/8b0f1f04-d7b0-464a-a8ae-b947dc865ff6",
@@ -59,7 +63,8 @@
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
-   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92",
+   "/actions/6f4bfae8-7ac2-4ac6-b9b3-dd89f9339643"
   ],
   "finance@nukhba.test": [
    "/actions/fa23e5dd-1554-457e-8a22-e8f8f9b5c6ec",
@@ -76,13 +81,42 @@
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=meetings",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=plan",
    "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=progress",
-   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92"
+   "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92",
+   "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc"
+  ],
+  "admin@mizan.test": [
+   "/inquiries/df9f26ab-bc74-4aa5-b165-bba9a19232c4",
+   "/clients/247016bb-75ad-461e-aa70-3b7395d017dd",
+   "/clients/247016bb-75ad-461e-aa70-3b7395d017dd?tab=people",
+   "/clients/groups/86b4212d-4b66-4024-be33-858aebae8887",
+   "/clients/c2c8b465-9937-4e2f-a021-d2484eb5809f",
+   "/clients/d893714b-de65-4884-b7c6-34894fc9a99f",
+   "/clients/c2c8b465-9937-4e2f-a021-d2484eb5809f?tab=people",
+   "/projects/a4045eaa-f9be-4763-add5-0c73655404bc?tab=people"
+  ],
+  "admin@rawdah.test": [
+   "/clients/groups/86b4212d-4b66-4024-be33-858aebae8887",
+   "/clients/c2c8b465-9937-4e2f-a021-d2484eb5809f",
+   "/clients/d893714b-de65-4884-b7c6-34894fc9a99f"
+  ],
+  "admin@sahm.test": [
+   "/clients/groups/86b4212d-4b66-4024-be33-858aebae8887",
+   "/clients/c2c8b465-9937-4e2f-a021-d2484eb5809f",
+   "/clients/d893714b-de65-4884-b7c6-34894fc9a99f"
+  ],
+  "reema@mizan.test": [
+   "/actions/7875847f-96ad-4b2b-841a-8622983f9dcc",
+   "/actions/6f4bfae8-7ac2-4ac6-b9b3-dd89f9339643"
   ],
   "_created": [
    "/meetings/f195adb9-d498-4945-bc26-53f2f084f56b",
    "/meetings/3727e355-7c16-485d-a8ac-2b843a476c92",
    "/reports/abc5fb57-944a-41df-a400-72db9786f14d",
-   "/api/documents/815d3e4c-183f-42a1-9d85-ddd5635d6a8e/audience"
+   "/inquiries/df9f26ab-bc74-4aa5-b165-bba9a19232c4",
+   "/clients/247016bb-75ad-461e-aa70-3b7395d017dd",
+   "/clients/groups/86b4212d-4b66-4024-be33-858aebae8887",
+   "/api/documents/815d3e4c-183f-42a1-9d85-ddd5635d6a8e/audience",
+   "/api/documents/64d6f656-2e09-47a1-a12a-8d4224445ee7/audience"
   ]
  }
 }
