@@ -113,6 +113,8 @@ describe("the editor's refusals, in the reader's language", () => {
       ["this holding has already ended", "alreadyEnded"],
       ["nothing is published yet to start again from", "nothingPublished"],
       ["a unit cannot sit under itself or under one of its own units", "cycle"],
+      // A route refused an id in the address (http.ts), not something the person typed (scenario 20).
+      ["invalid id", "badId"],
     ] as const) {
       expect(orgChartError(db)).toBe(key);
       expect(errors(ar)[key]).toBeTruthy();

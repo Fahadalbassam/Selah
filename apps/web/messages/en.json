@@ -1104,7 +1104,8 @@
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "That was already done, or someone changed it first. Reload to see the latest.",
-      "invalid": "Please check what you entered."
+      "invalid": "Please check what you entered.",
+      "badId": "We couldn't recognise this item; it may have changed since you opened the page. Reload the page and try again."
     },
     "validity": {
       "required": "Fill in this field.",
@@ -4650,6 +4651,7 @@
       "deliverable_comment": "Comment on a deliverable handed over",
       "org_chart_holder_remove": "Removed a holding entered by mistake from a position of the organisation structure",
       "org_chart_draft_reset": "Started the organisation structure's draft again from the current version",
+      "org_chart_id_repair": "Repaired the ids of copied units and positions in the organisation structure during an upgrade",
       "org_chart_holder_cancel": "Cancelled appointments in the organisation structure that had not started, when someone left",
       "org_chart_head_confirm": "Confirmed a department's head as the organisation structure has it",
       "action_owner_change": "Action given to a colleague",
@@ -4880,6 +4882,7 @@
       "deliverable_comment": "commented on a handed-over deliverable",
       "org_chart_holder_remove": "removed a position holder entered by mistake",
       "org_chart_draft_reset": "restarted the organisation structure draft from the current version",
+      "org_chart_id_repair": "repaired the ids of copied units and positions in the organisation structure during an upgrade",
       "org_chart_holder_cancel": "cancelled appointments not yet started after someone left",
       "action_owner_change": "gave an action to a colleague",
       "org_chart_head_confirm": "confirmed a department's head as the organisation structure shows it",
@@ -6257,6 +6260,7 @@
   "orgChart": {
     "errors": {
       "draftChanged": "This draft is no longer the current one. Reload the page.",
+      "badId": "We couldn't recognise this item; it may have changed since you opened the page. Reload the page and try again.",
       "name": "Write the name in at least one language.",
       "name_length": "The name is longer than 200 characters.",
       "code": "A code uses digits, Latin letters, dots and dashes only, such as 2.4.",

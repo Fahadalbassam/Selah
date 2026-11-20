@@ -82,7 +82,7 @@ export function route<
       userId = session.user.id;
       const uid = userId;
 
-      const params = parse(options.params, await segment.params);
+      const params = parse(options.params, await segment.params, "invalid id");
       const query = parse(options.query, Object.fromEntries(req.nextUrl.searchParams));
       const files = new Map<string, File>();
       let raw: unknown;
@@ -168,7 +168,7 @@ export function publicRoute<P extends z.ZodType = z.ZodUndefined, B extends z.Zo
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     try {
       if (!SAFE_METHODS.has(req.method) && !sameOrigin(req)) return json({ error: "forbidden" }, 403);
-      const params = parse(options.params, segment ? await segment.params : {}) as z.infer<P>;
+      const params = parse(options.params, segment ? await segment.params : {}, "invalid id") as z.infer<P>;
       let body: z.infer<B> = undefined as z.infer<B>;
       let prepared = undefined as R;
       if (options.form) {
@@ -243,10 +243,30 @@ export function keyRoute<B extends z.ZodType, K extends { runAs: string }>(
   };
 }
 
-function parse<T extends z.ZodType>(schema: T | undefined, value: unknown): z.infer<T> | undefined {
+/**
+ * Refused input, with the names of the fields that were refused (never their
+ * values). An id that is not a valid UUID (in the address, or the only thing
+ * wrong with a body) says "invalid id", so the screen can say the item was
+ * not recognised rather than asking the person to check what they typed.
+ */
+class InvalidInputError extends BadRequestError {
+  readonly fields: string[];
+  constructor(message: "invalid id" | "invalid input", fields: string[]) {
+    super(message);
+    this.fields = fields;
+  }
+}
+
+function parse<T extends z.ZodType>(schema: T | undefined, value: unknown, message: "invalid id" | "invalid input" = "invalid input"): z.infer<T> | undefined {
   if (!schema) return undefined;
   const result = schema.safeParse(value);
-  if (!result.success) throw new BadRequestError("invalid input");
+  if (!result.success) {
+    const issues = result.error.issues;
+    // A body refused only for its ids (a position, a parent unit) is the same case as an id in the address.
+    const onlyIds = issues.every((i) => i.code === "invalid_format" && i.format === "uuid");
+    const fields = [...new Set(issues.map((i) => i.path.join(".")).filter(Boolean))].slice(0, 20);
+    throw new InvalidInputError(onlyIds ? "invalid id" : message, fields);
+  }
   return result.data;
 }
 
@@ -296,6 +316,7 @@ async function toErrorResponse(err: unknown, userId: string | null, ip: string |
   if (err instanceof NoMembershipError) return json({ error: "forbidden" }, 403);
   if (err instanceof TwoFactorSetupError) return json({ error: "two_factor_required" }, 403);
   if (err instanceof ConsentRequiredError) return json({ error: "consent_required" }, 403);
+  if (err instanceof InvalidInputError) return json({ error: "bad_request", message: err.message, fields: err.fields }, 400);
   if (err instanceof BadRequestError) return json({ error: "bad_request", message: err.message }, 400);
   if (err instanceof ConflictError) return json({ error: "conflict", message: err.message }, 409);
   if (err instanceof UnavailableError) return json({ error: "unavailable", message: err.message }, 503);
