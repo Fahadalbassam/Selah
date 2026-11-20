@@ -1,0 +1,450 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Selah Workflows</title>
+<style>:root{--ink:#1a1a1a;--mute:#5b5b5b;--line:#d9d9d6;--soft:#f3f3f1;--accent:#1f3a5f;--ok:#2f6b3f;--warn:#9a6a00;--bad:#9b2c2c}
+*{box-sizing:border-box}
+html{font-size:10pt}
+body{font-family:"Segoe UI","IBM Plex Sans","Tahoma","Arial",sans-serif;color:var(--ink);line-height:1.45;margin:0;background:#fff}
+[lang=ar],.ar{font-family:"Segoe UI","IBM Plex Sans Arabic","Tahoma","Arial",sans-serif;unicode-bidi:isolate}
+.kicker{font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 4mm}
+h1{font-size:23pt;line-height:1.15;margin:0 0 3mm;color:var(--accent)}
+h2{font-size:15pt;margin:8mm 0 2.5mm;color:var(--accent);border-top:1.2pt solid var(--accent);padding-top:3mm;break-after:avoid}
+h3{font-size:11.5pt;margin:5mm 0 1.5mm;break-after:avoid}
+h4{font-size:10pt;margin:3mm 0 1mm;break-after:avoid}
+p{margin:0 0 2.2mm}
+ul,ol{margin:0 0 2.5mm;padding-left:5.5mm}
+li{margin-bottom:.8mm}
+.lead{font-size:11pt;color:#333}
+table{border-collapse:collapse;width:100%;margin:2mm 0 4mm;font-size:8.8pt}
+th{background:var(--accent);color:#fff;text-align:left;padding:1.6mm 2mm;font-weight:600}
+td{border-bottom:.5pt solid var(--line);padding:1.5mm 2mm;vertical-align:top}
+tr{break-inside:avoid}
+tbody tr:nth-child(even) td{background:#fafaf8}
+code{font-family:Consolas,monospace;font-size:8.5pt;background:var(--soft);padding:0 1mm;border-radius:1mm}
+pre{background:var(--soft);padding:2.5mm;font-size:8pt;white-space:pre-wrap;border-radius:1.5mm;break-inside:avoid}
+pre code{background:none;padding:0}
+.box{background:var(--soft);border-left:2pt solid var(--accent);padding:2.5mm 3.5mm;margin:2.5mm 0 4mm;break-inside:avoid}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.box.warn{border-left-color:var(--warn)}
+.box.ok{border-left-color:var(--ok)}
+.box.bad{border-left-color:var(--bad)}
+blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);color:#333;background:#fafaf8}
+.tag{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.04em;padding:.2mm 1.6mm;border-radius:1mm;border:.6pt solid;vertical-align:1pt;white-space:nowrap}
+.built,.solid{color:var(--ok);border-color:var(--ok)}
+.part,.partial{color:var(--warn);border-color:var(--warn)}
+.open,.missing{color:var(--bad);border-color:var(--bad)}
+.later{color:var(--mute);border-color:var(--mute)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:1.5mm;margin:2mm 0 4mm;break-inside:avoid}
+.flow .step{flex:1 1 22mm;min-width:22mm;max-width:40mm;border:.8pt solid var(--accent);background:#fff;border-radius:1.5mm;padding:1.6mm 2mm;font-size:8.3pt;text-align:center;display:flex;align-items:center;justify-content:center}
+.flow .step.who{background:var(--accent);color:#fff;border-color:var(--accent)}
+.flow .step.dash{border-style:dashed;color:var(--mute)}
+.flow .arr{align-self:center;color:var(--accent);font-weight:700;font-size:10pt}
+.stat{display:flex;gap:3mm;margin:3mm 0 4mm}
+.stat div{flex:1;border:.6pt solid var(--line);border-radius:1.5mm;padding:2mm 3mm;break-inside:avoid}
+.stat b{display:block;font-size:15pt;color:var(--accent)}
+.toc{columns:2;column-gap:8mm;font-size:9pt;margin:2mm 0 4mm}
+.toc div{break-inside:avoid;margin-bottom:.8mm}
+.small{font-size:8.3pt;color:var(--mute)}
+
+@page{size:A4 portrait;margin:15mm 15mm 17mm 15mm;
+ @bottom-left{content:"Selah workflows";font:7.5pt 'Segoe UI',sans-serif;color:#777}
+ @bottom-right{content:counter(page) " / " counter(pages);font:7.5pt 'Segoe UI',sans-serif;color:#777}}
+</style></head><body><p class="kicker">Team guide · Part 2 of 3 · Checked on main after PR #213 · 20 November 2026</p>
+
+<h1>How work moves through Selah</h1>
+<p>The everyday flows, step by step, exactly as the finished app does them today. Part A has the flows. Part B reports what the scenario tests found so far: no privacy finding, and the failures and confusions listed so we can fix them.</p>
+<p>Everything in Part A is built and merged. The few ideas that are not built are marked <span class="tag later">NOT BUILT</span> and collected at the end.</p>
+<div class="toc">
+<div><b>Part A. The flows</b></div><div></div>
+<div>1 The whole journey</div><div>2 Add a client and staff it</div><div>3 The plan and the client's answer</div><div>4 The action back and forth</div><div>5 Bumps in the road</div><div>6 Document requests and upload links</div><div>7 A meeting from booking to follow-ups</div><div>8 The monthly report and sending it</div><div>9 Business indicators</div><div>10 Handing over a deliverable</div><div>11 The assistant at work</div><div>12 Closing a project</div><div>13 The end of an engagement, renewal, archiving</div><div>14 Who gets which client, and changing the lead</div><div>15 The client's structure</div><div>16 Internal projects</div><div><b>Part B. What the scenarios found</b></div><div></div>
+</div>
+
+<p><strong>The people in these flows.</strong> Firm side: the firm admin (adds clients, picks the lead, does the final close, archives clients), the client's lead consultant and an optional deputy (run the client's team), consultants (see only the projects they are staffed on), observers (read only). Client side: the client admin (sees all of their own company), client managers (one can be the project sponsor) and action owners (see only their own actions). The full role list is in the Handbook.</p>
+<h1>Part A. The flows</h1>
+<h2>1 The whole journey</h2>
+<p>A client reaches the firm in one of three ways: the public form, a referral or tender entered by staff, or a pitch the firm starts. The firm qualifies the inquiry, signs, sets up the client, writes the plan, and then the two sides work through the actions until the project closes.</p>
+<div class="flow"><div class="step who">Prospect</div><div class="arr">&rarr;</div><div class="step">Inquiry form, referral or pitch</div><div class="arr">&rarr;</div><div class="step who">Firm admin</div><div class="arr">&rarr;</div><div class="step">Four steps + conflict check</div><div class="arr">&rarr;</div><div class="step">Win into a client</div><div class="arr">&rarr;</div><div class="step">Record signed engagement</div><div class="arr">&rarr;</div><div class="step">Name lead and deputy</div></div>
+<div class="flow"><div class="step">Staff the project</div><div class="arr">&rarr;</div><div class="step">Invite the client admin</div><div class="arr">&rarr;</div><div class="step who">Consultant</div><div class="arr">&rarr;</div><div class="step">Write or import the plan</div><div class="arr">&rarr;</div><div class="step who">Client</div><div class="arr">&rarr;</div><div class="step">Answer, do, send evidence</div><div class="arr">&rarr;</div><div class="step who">Consultant</div><div class="arr">&rarr;</div><div class="step">Review</div><div class="arr">&rarr;</div><div class="step">Reports and follow-up</div><div class="arr">&rarr;</div><div class="step">Close</div><div class="arr">&rarr;</div><div class="step">Archive</div></div>
+
+<h2>2 Add a client and staff it</h2>
+<p><strong>Who:</strong> the firm admin adds; the lead and deputy staff.</p>
+<ol>
+<li><strong>From an inquiry:</strong> Inquiries, open it. Four numbered steps: read it and give it an owner, hold the discovery session, send the proposal, make it a client. The current step has the only solid button. The conflict check is on the side and must be clear (or overridden) before <strong>Make it a client</strong>. That creates the client, records the signed engagement, names the lead and can start the first project. <em>Directly:</em> Clients, <strong>Add client</strong>, the name in English and Arabic, <strong>Create</strong>.</li>
+<li>On the client page, <strong>People</strong>: <strong>Add consultant</strong>, then in the row menu <strong>Make lead</strong> (and <strong>Make deputy</strong> if wanted). Consultants whose expertise matches come first, marked <strong>Suggested</strong>; the choice is the admin's.</li>
+<li><strong>Setup</strong>: how the client takes part (full, restricted or firm-run), the second sign-off rule, the client assistant card, and <strong>Record an engagement</strong>.</li>
+<li><strong>Overview</strong>, <strong>New project</strong>: one project per phase or scope. A project that no signed engagement covers stays a draft the client does not see.</li>
+<li><strong>People</strong>, <strong>Invite someone</strong>: the client admin gets an email with a link valid for 7 days.</li>
+<li>Project page, <strong>People</strong>: <strong>Staff on project</strong> (pick from the client's team; choose Observer for read only), then <strong>Client people on this project</strong> to add the client's people. Only people on the project can own its actions. Finally <strong>Client roles</strong>: Sponsor, Coordinator, Acceptor.</li>
+</ol>
+<div class="box">
+<p><strong>Do it in this order.</strong> The plan import flags every owner as "unknown" if the client's people are not yet on the project, and nothing on the screen says so. Invite and add the client's people first, then import the plan (found in scenario 1).</p>
+</div>
+<h2>3 The plan and the client's answer</h2>
+<p><strong>Who:</strong> staffed consultants write (not observers). The client reads and answers.</p>
+<div class="flow"><div class="step">Add a recommendation</div><div class="arr">&rarr;</div><div class="step">Add an action: step, owner, due date, evidence list</div><div class="arr">&rarr;</div><div class="step">Keep as draft  or  Release to owner now</div><div class="arr">&rarr;</div><div class="step">Owner is told</div><div class="arr">&rarr;</div><div class="step who">Client admin or sponsor answers: agree, partly agree, disagree + reason</div><div class="arr">&rarr;</div><div class="step">Firm may answer once</div></div>
+
+<ol>
+<li>Project page, <strong>Plan</strong>. Start from <strong>Sources</strong> if an assessment was run. <strong>Add a recommendation</strong> is the main button (text, priority, due date, the finding it answers; more fields under <strong>More fields</strong>). The menu beside it has <strong>Add a finding</strong>, <strong>Import</strong> from Excel or Word, and <strong>Download as Excel</strong>.</li>
+<li>Beside each recommendation, <strong>Add an action</strong>: the step, owner, due date, department and an <strong>Evidence list</strong> (what the client should send).</li>
+<li>A draft action is seen by nobody at the client, not even its owner, and is not in the client's numbers until <strong>Release to owner</strong>. Draft actions are not marked on the plan list, so check before a meeting.</li>
+<li>The chips under the plan filter it: Late, Blocked, No activity for a while, Date moved twice or more, Sent back twice or more, No active owner, Waiting for review over 7 days, Disputed. The client sees Late and Blocked only.</li>
+<li>The client admin or sponsor presses <strong>Respond</strong> on the recommendation and chooses Agree (with what will be done and by when), Partly agree (with the reason) or Disagree (with the reason). Every response stays on record. A disagreement shows under <strong>Waiting on your decision</strong> for the firm.</li>
+<li><strong>For a firm-run client</strong> the consultant records the client's answer (<strong>Record the client's response</strong>) with how and when it was given, and a colleague confirms it before it counts.</li>
+</ol>
+<h2>4 The action back and forth</h2>
+<p><strong>Owner side</strong></p>
+<div class="flow"><div class="step who">Owner gets notice</div><div class="arr">&rarr;</div><div class="step">Open the action</div><div class="arr">&rarr;</div><div class="step">Start work</div><div class="arr">&rarr;</div><div class="step">Progress notes</div><div class="arr">&rarr;</div><div class="step">Send for review (evidence)</div><div class="arr">&rarr;</div><div class="step">Waiting for the firm</div></div>
+
+<ol>
+<li>The owner sees the <strong>Next step</strong> card with the due date and when a reminder goes out. On the home page "Start work" only opens the action; press <strong>Start work</strong> on the action itself (found in scenario 2).</li>
+<li>After starting, the one solid button is <strong>Send for review</strong>. Beside it: <strong>I am stuck</strong>, <strong>I need more time</strong>.</li>
+<li><strong>Send for review</strong> opens a window: pick which evidence item the file answers (you must choose, even with one item), upload a file or choose one already in Selah (PDF, Word, Excel, PowerPoint, images or text, up to 20 MB, virus-scanned), add a note, and choose <strong>Send for review now</strong> or <strong>Save without sending</strong>.</li>
+<li>To send a file you only saved: press <strong>Send for review</strong> again, leave the file empty, and confirm.</li>
+</ol>
+<p><strong>Reviewer side</strong></p>
+<div class="flow"><div class="step who">Consultant sees it in Home or Actions, Awaiting review</div><div class="arr">&rarr;</div><div class="step">Next step card: files with Download</div><div class="arr">&rarr;</div><div class="step">Accept each evidence item</div><div class="arr">&rarr;</div><div class="step">Verify  or  Request revision with reason</div><div class="arr">&rarr;</div><div class="step">Owner is told</div></div>
+
+<ol>
+<li>Any consultant staffed on the project (not an observer, and never for their own work) opens <strong>Actions</strong>, <strong>Awaiting review</strong>, or a <strong>Review</strong> row on Home.</li>
+<li>In the <strong>Evidence list</strong>, each item: <strong>Accept</strong>, <strong>Not accepted</strong> (say what is missing; the client sees it) or <strong>Not needed</strong> (say why). Items must be accepted or waived before verifying, or the server answers with an instruction (found in scenarios 3 and 4: accepting and signing are two steps).</li>
+<li><strong>Verify</strong> makes the action Verified. <strong>Request revision</strong> sends it back with the reason; the owner opens the action, reads the reason, and presses <strong>Send the revised file for review</strong>, in one step.</li>
+<li><strong>Two sign-offs.</strong> Where the client's rule asks for it (for example on high-priority work), or one action asks for it: the first consultant presses <strong>Sign off (first of two)</strong>; a different consultant then presses <strong>Second sign-off and verify</strong>. The first signer is not offered the second step.</li>
+<li>A consultant can reopen verified work later, with a reason, from the menu beside the title.</li>
+</ol>
+<div class="box ok">
+<p><strong>The rule that never bends:</strong> nothing becomes Verified without a consultant's accept, and nobody verifies their own work. The database itself refuses it. Selah asks for the second human; it never signs for one.</p>
+</div>
+<h2>5 Bumps in the road</h2>
+<table>
+<thead>
+<tr>
+<th>What goes wrong</th>
+<th>Steps</th>
+<th>Who</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Owner is stuck</strong></td>
+<td>Owner presses <strong>I am stuck</strong> and gives a reason. The action shows as Blocked, appears on the next meeting agenda and in "needs attention", and <strong>the project's lead and consultants are notified</strong>.</td>
+<td>Owner; consultant follows up</td>
+</tr>
+<tr>
+<td><strong>Owner needs more time</strong></td>
+<td>Owner presses <strong>I need more time</strong>, proposes a date and a reason. The consultant sees <strong>Approve</strong> and <strong>Decline</strong> on the Next step card. The third move needs the lead or admin. Every move is kept.</td>
+<td>Owner asks; firm decides</td>
+</tr>
+<tr>
+<td><strong>Evidence not good enough</strong></td>
+<td>Consultant: <strong>Request revision</strong> with a reason. Owner: reads it, sends a corrected file. Nothing is lost; old versions stay.</td>
+<td>Consultant, owner</td>
+</tr>
+<tr>
+<td><strong>Client disagrees with a recommendation</strong></td>
+<td>Disagree or partly agree with a reason on the recommendation. The firm may answer once, and may edit or withdraw the recommendation.</td>
+<td>Client admin or sponsor</td>
+</tr>
+<tr>
+<td><strong>Client chooses not to act</strong></td>
+<td>Client admin or manager: menu on the action, <strong>accept the risk of not completing it</strong>; type the statement, tick the box, <strong>Sign</strong>. Then the firm closes the action as "risk accepted". Action owners are not offered it.</td>
+<td>Client signs; firm closes</td>
+</tr>
+<tr>
+<td><strong>Client goes quiet</strong></td>
+<td>The ladder: reminder before the due date; owner when overdue; managers and lead after 7 days; client admins, sponsor and watching firm admins after 14 days. One summary mail a day at most. After 14 days with no activity the lead is told. A consultant can nudge an owner once a day (<strong>Remind the owner</strong>).</td>
+<td>Automatic</td>
+</tr>
+<tr>
+<td><strong>Wrong file uploaded</strong></td>
+<td>The uploader withdraws it with a reason. The other side no longer sees a private name. Evidence itself is not withdrawn: the reviewer returns it.</td>
+<td>Uploader</td>
+</tr>
+<tr>
+<td><strong>Plan no longer fits</strong></td>
+<td>Close the action as "replaced by" another action, or "not applicable". Withdraw a recommendation with a reason.</td>
+<td>Firm</td>
+</tr>
+<tr>
+<td><strong>Give work to a colleague</strong></td>
+<td>On the action page, beside the owner, <strong>Give to a colleague</strong>. The status stays; the old and new owners, the lead, the deputy and the project's consultants are told. The server refuses a new owner who may not be on the project.</td>
+<td>Owner, sponsor, coordinator, lead</td>
+</tr>
+<tr>
+<td><strong>A client person leaves</strong></td>
+<td>The client admin switches them off and moves their actions in the dialog. The lead and project consultants are not told that owners changed, and the departure dialog mentions a temporary head with no control (both found in scenario 9).</td>
+<td>Client admin</td>
+</tr>
+<tr>
+<td><strong>A firm person leaves</strong></td>
+<td>Team, open the person: Selah lists everything they hold and hands it to one colleague in one step. Switching the account off is refused until then.</td>
+<td>Firm admin</td>
+</tr>
+</tbody>
+</table>
+<h2>6 Document requests and upload links</h2>
+<ol>
+<li>Project page, <strong>Requests and files</strong>: the consultant lists the documents needed, each with an owner and due date. Mark an item <strong>confidential</strong> to keep its files out of the assistant.</li>
+<li>The client sees <strong>Documents asked of you</strong> on Home and presses <strong>Send a file</strong> beside the item. The window names the item. They upload or choose a file, then send. The item reads <strong>Waiting for the firm</strong>.</li>
+<li>The consultant accepts it or returns it with a reason.</li>
+<li><strong>No account?</strong> The consultant sends a no-login upload link for one item, valid from 1 hour to 30 days, up to ten files, revocable.</li>
+</ol>
+<h2>7 A meeting from booking to follow-ups</h2>
+<div class="flow"><div class="step">Book a meeting</div><div class="arr">&rarr;</div><div class="step">Send invites (calendar file)</div><div class="arr">&rarr;</div><div class="step">Automatic agenda</div><div class="arr">&rarr;</div><div class="step who">Held: mark as held</div><div class="arr">&rarr;</div><div class="step">Write summary (saving confirms it)</div><div class="arr">&rarr;</div><div class="step">Record decisions</div><div class="arr">&rarr;</div><div class="step">Add follow-ups</div><div class="arr">&rarr;</div><div class="step">Share with the client</div></div>
+
+<ol>
+<li>Project page, <strong>Meetings</strong>, <strong>Book a meeting</strong>: title, kind, date and time, length, place or call link (Meet, Teams or Zoom only), shared or firm-only, attendees. Pick a department if it is one department's meeting.</li>
+<li>If you tick someone who cannot open a whole-project meeting, the form warns, offers a department meeting or the board-secretary meeting, and does not save until the name is removed.</li>
+<li><strong>Send invites</strong>: every attendee gets a calendar invitation. Send again after changes.</li>
+<li>The agenda is built from the work: late, waiting for review, blocked, and what changed since the last meeting. Headings follow the reader's language.</li>
+<li>Afterwards: <strong>Mark as held</strong>, <strong>Edit summary</strong>, <strong>Record a decision</strong> (a correction is a new decision), <strong>Add a follow-up</strong> for each task with an assignee and date.</li>
+<li>Follow-ups appear on the assignee's Home. A shared summary is visible to the client and can be translated.</li>
+<li>A transcript can be pasted or imported only after attendees were told; firm-only; deleted 30 days after the summary is confirmed.</li>
+</ol>
+<h2>8 The monthly report and sending it</h2>
+<div class="flow"><div class="step">Progress tab</div><div class="arr">&rarr;</div><div class="step">New report: freezes the numbers</div><div class="arr">&rarr;</div><div class="step">Pick a template</div><div class="arr">&rarr;</div><div class="step">Write the note</div><div class="arr">&rarr;</div><div class="step who">Colleague approves</div><div class="arr">&rarr;</div><div class="step who">Person confirms Send</div><div class="arr">&rarr;</div><div class="step">Client reads it</div></div>
+
+<ol>
+<li>Project page, <strong>Progress</strong>, <strong>New report</strong>. Choose <strong>monthly progress</strong>, <strong>steering summary</strong> or <strong>closing summary</strong> (Arabic or English). The numbers freeze as of the last day of the period.</li>
+<li>Write the <strong>Note for the client</strong>. The note is read by every client reader, so do not name another department's work.</li>
+<li>A colleague other than the writer <strong>approves</strong>: the lead, the deputy or the firm admin.</li>
+<li><strong>Send to the client</strong> opens a confirmation dialog. Nothing goes until <strong>Send</strong> is pressed. It cannot be undone. Selah never sends on its own.</li>
+<li><strong>From the assistant:</strong> ask "draft a progress update" in a project chat, then <strong>Use as draft</strong>. The report page opens with the text as the note; nothing is saved until you save. Check the numbers against the project page before sending (see Part B).</li>
+<li>The monthly status pack is drafted by the monthly job, seen only by the firm; add a note, <strong>Issue</strong> it, then approve and send the same way.</li>
+<li>Sharing a report sends the client no notice yet, and the PDF header date can show the previous day (both found in scenario 11).</li>
+</ol>
+<h2>9 Business indicators</h2>
+<ol>
+<li>The client admin chooses how numbers reach Selah (typed, uploaded from Excel or CSV, or connected). The import button is hidden until that choice is made (found in scenario 12).</li>
+<li>A client admin or manager types a value for the month (about 3 clicks), or imports a file. Imports never overwrite; corrections keep the original.</li>
+<li>A missing value shows as missing 10 days after its period ends.</li>
+<li>Only the firm links an indicator to a recommendation. If a value moves away from its baseline, the lead, deputy and client admins get a notice with the figures only.</li>
+<li>Every view says "reported by the client, not verified impact". No judging words or colours.</li>
+</ol>
+<h2>10 Handing over a deliverable</h2>
+<ol>
+<li>Share the file with the client first (file menu on Requests and files). Handing over never shares by itself.</li>
+<li>Open the engagement, <strong>Deliverables</strong>, <strong>Hand over</strong> beside the deliverable; pick the files.</li>
+<li>The project's acceptor (else the client admin, else the sponsor) sees <strong>Files waiting for your confirmation of receipt</strong> on Home and confirms or comments.</li>
+<li>States: Not handed over, Handed over (waiting), Received, Commented. Received never means accepted. For a new version, <strong>Hand over a new version</strong>.</li>
+</ol>
+<h2>11 The assistant at work</h2>
+<ol>
+<li>Open <strong>Assistant</strong> (floating card). Under <strong>Ask about</strong> choose All my clients or one project, or press <strong>Ask the assistant</strong> on an action, meeting, recommendation or file.</li>
+<li>Ask in Arabic or English. Press a source chip to open it.</li>
+<li>Type <strong>@</strong> to attach up to three files you can already see. The chips warn before you send if a file is switched off for the assistant or its text cannot be read.</li>
+<li>Ask for drafts (follow-up message, progress update). Drafts are marked, never sent.</li>
+<li>A file is read only after its owner presses <strong>Let the assistant read it</strong> and it is scanned. Anyone on the owning side can switch it off.</li>
+<li><strong>Client side:</strong> off until the firm admin offers it (client page, Setup, Client assistant) and the client admin agrees after reading the notice. Then managers and the admin can ask. Facts only; "who is my consultant"; "my deadlines" for the asker only; a legal question gets no ruling but shows what the documents say; a progress-update draft stays in the chat.</li>
+<li>A slow answer on the local model can take about a minute. Translations and summaries run as background jobs and appear when ready.</li>
+</ol>
+<h2>12 Closing a project</h2>
+<div class="flow"><div class="step who">Client sponsor or admin: Ask the firm to close</div><div class="arr">&rarr;</div><div class="step who">Lead or deputy: Start closing</div><div class="arr">&rarr;</div><div class="step">Decide each open action</div><div class="arr">&rarr;</div><div class="step">Write lessons</div><div class="arr">&rarr;</div><div class="step who">Firm admin: Close for good</div><div class="arr">&rarr;</div><div class="step">Closure report PDF</div></div>
+
+<ol>
+<li>The client side can press <strong>Ask the firm to close</strong> in the project menu. The firm admin cannot close by request alone.</li>
+<li>The lead or deputy presses <strong>Start closing</strong> in the project menu. A <strong>Closing</strong> tab appears. Work goes on; <strong>Stop closing</strong> is always available.</li>
+<li>For each open action: <strong>Decide</strong>: hand it to a named person at the client who carries it on, or another decision with its reason. The client admin or sponsor can name who carries it on.</li>
+<li><strong>Write lessons</strong> (firm only). Case-study consent is optional.</li>
+<li>Deliverables handed over and not answered do not hold the close; they later read "No answer before the project closed".</li>
+<li>The firm admin's Home shows <strong>Close for good</strong>; pressing <strong>Close project</strong> makes the project read-only and prepares the Closure report PDF. The admin can <strong>Reopen</strong> with a reason.</li>
+</ol>
+<h2>13 The end of an engagement, renewal, archiving</h2>
+<ol>
+<li><strong>Reminder.</strong> Each daily run tells the lead, deputy and firm admins in the bell when an open engagement ends within 30 days, and again when it has ended and is still open. The client is never told. The notice names the engagement and gives its date. The daily job must be scheduled on the server.</li>
+<li><strong>Renew or next phase:</strong> record a new signed engagement and open a new project on the same client that continues the earlier one.</li>
+<li><strong>Cut early or not renewed:</strong> the client presses "ask to close"; the firm closes each project (flow 12). Selah has no separate "termination" record: the reason goes in the closing notes.</li>
+<li><strong>Archive the client</strong> when every project is closed: a read-only grace period in which the client can still read and download, the export pack with checksum and receipt, legal holds, then retention purges.</li>
+</ol>
+<h2>14 Who gets which client, and changing the lead</h2>
+<ol>
+<li>Inquiry won: the admin sees up to five <strong>suggested</strong> consultants (services, sector, language, availability, load; no performance scores). The admin chooses the lead; the lead staffs the projects.</li>
+<li>A consultant who is not on a client sees its name and can <strong>Ask to join</strong> with a reason; the admin or lead decides once.</li>
+<li><strong>Change the lead:</strong> the firm admin, on the client page (People). <strong>The client and the old lead are told, with a handover note.</strong> The deputy and the staffed consultants stay.</li>
+<li><strong>A consultant sets their own expertise:</strong> they cannot today; the admin does it for them (found in scenario 1).</li>
+<li><strong>The client wants another consultant:</strong> they tell the firm (Help, "Ask your consultant"); the admin changes the lead.</li>
+</ol>
+<h2>15 The client's structure</h2>
+<ol>
+<li>Client page, <strong>Structure</strong>. The firm opens the draft: edit by hand, import from Excel or Word, or paste text from a slide and let the assistant propose rows (a background job; the user checks every row).</li>
+<li>The lead, deputy or admin presses <strong>Review and publish</strong>. A new version appears with a list of new units.</li>
+<li>The client admin places people in positions and can invite a new hire into a vacancy. Managers see names in their own branch and above. Action owners see only "your manager".</li>
+<li><strong>Download PDF</strong> (A3 or A4) for printing. The chart never changes anyone's access.</li>
+<li>Known bug: the ids made at publish were invalid, so the next draft could not be edited and an invitation into a vacancy failed. A fix was being finished at the pause.</li>
+</ol>
+<h2>16 Internal projects</h2>
+<p>Any firm member creates one (Projects, Internal) and becomes its lead. They staff colleagues. Another firm member reviews. The lead closes it. Only staffed members and the firm admin see it; clients never do.</p>
+<div class="box later">
+<p><strong>Not built (proposals, kept off until shown to be useful):</strong> an AI draft of the meeting summary from a transcript; the assistant reading confirmed summaries; a list of all decisions; a calendar screen; a guided "renew" step that carries open actions into the next project; a reason for why a contract ended; a pause state for a project; re-checking results at 6 and 12 months.</p>
+</div>
+<h1>Part B. What the scenarios found so far</h1>
+<p>The scenario plan has 21 scenarios, run on separate full copies of the app with sample data (Arabic, desktop; English and a 768 px dark run come later). Each step is clicked as the real person would, and scored PASS, PASS with friction, or FAIL.</p>
+<div class="stat">
+<div><b>No privacy finding</b>on any copy so far. Nobody saw another client, a firm-only item, or a count of something left out.</div>
+<div><b>70 pass, 4 fail</b>on copy A (scenarios 1, 2, 8, 9, 12, 15 reminder, 20).</div>
+<div><b>15 of 21</b>scenarios done, one more in part (15), two started (14, 16), three not run (6, 7, 19).</div>
+</div>
+
+<h2>Where we are</h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Copy</th>
+<th>State</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 New client to a working plan</td>
+<td>A</td>
+<td>Done</td>
+<td>Passed with friction (24 pass, 1 fail)</td>
+</tr>
+<tr>
+<td>2 The everyday cycle</td>
+<td>A</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>3 Evidence sent back twice</td>
+<td>B</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>4 Blocked and an accepted risk</td>
+<td>B</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>5 Asking for more time</td>
+<td>B</td>
+<td>Done</td>
+<td><strong>One FAIL</strong></td>
+</tr>
+<tr>
+<td>8 A firm-run client</td>
+<td>A</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>9 Someone leaves the client</td>
+<td>A</td>
+<td>Done</td>
+<td>Passed with friction; one expectation not met</td>
+</tr>
+<tr>
+<td>10 A steering meeting</td>
+<td>B</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>11 The monthly report</td>
+<td>B</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>12 Business indicators</td>
+<td>A</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>13 The assistant, both sides</td>
+<td>B</td>
+<td>Done (local model)</td>
+<td>Passed; progress draft numbers FAIL</td>
+</tr>
+<tr>
+<td>15 End reminder (reminder part)</td>
+<td>A</td>
+<td>Done</td>
+<td><strong>Pass</strong></td>
+</tr>
+<tr>
+<td>17 A busy Monday morning</td>
+<td>B</td>
+<td>Done</td>
+<td>Pass</td>
+</tr>
+<tr>
+<td>18 Layout, keyboard, language</td>
+<td>C</td>
+<td>Done</td>
+<td>Passed with friction</td>
+</tr>
+<tr>
+<td>20 Structure to a printed chart</td>
+<td>A</td>
+<td>Done</td>
+<td><strong>FAILED at steps 10 to 12</strong> (one real bug)</td>
+</tr>
+<tr>
+<td>21 A file and a meeting kept from one person</td>
+<td>B</td>
+<td>Done</td>
+<td>Pass: nobody left out saw anything, not even a count</td>
+</tr>
+<tr>
+<td>14 Closing a project</td>
+<td>C</td>
+<td>Started</td>
+<td>Not finished</td>
+</tr>
+<tr>
+<td>16 A second client from an inquiry</td>
+<td>B</td>
+<td>Started</td>
+<td>Not finished</td>
+</tr>
+<tr>
+<td>6, 7, 19 isolation sweep, copy D (English)</td>
+<td>n/a</td>
+<td>Not run</td>
+<td>Waiting</td>
+</tr>
+</tbody>
+</table>
+<h2>The failures</h2>
+<ol>
+<li><strong>Declining a date request gives no reason (scenario 5).</strong> <strong>Decline</strong> acts at once. There is no reason box and no place to offer a meeting, and the decline cannot be taken back. The consultant has to write in the discussion thread.</li>
+<li><strong>The org chart cannot be edited after publishing (scenario 20).</strong> Ids created at publish are not valid, so saving the next draft returned an error and an invitation into a vacancy failed. A workaround (import one Excel row) worked. A fix was in progress.</li>
+<li><strong>The progress draft disagrees with the project page (scenario 13).</strong> The draft said 0 verified and 1 late; the project page said 1 of 8 verified and 3 late. A consultant who pastes it without checking sends wrong numbers.</li>
+<li><strong>A consultant cannot set their own expertise (scenario 1).</strong> The page says they can; only the admin has the control.</li>
+<li><strong>Owner change tells only the new owner (scenario 9).</strong> The lead and the project's consultants are not told, and the history shows no "owner changed" line.</li>
+</ol>
+<h2>Confusions and friction</h2>
+<ul>
+<li>"Start work" on Home only opens the action; a second click starts it (scenario 2). The best fix: make the Home button start it, or label it "Open".</li>
+<li>Accepting an evidence item and signing off are two steps, and the first attempt gets an instruction instead of a combined step (scenarios 3 and 4). The risk-acceptance <strong>Sign</strong> button is disabled with no message saying why.</li>
+<li>Work mail is held until Sunday, 07:00, and nothing on the screen says a mail is held (scenarios 1, 2, 3). Easy to miss on a Friday test.</li>
+<li>Plan import before the client's people are on the project flags every owner unknown (scenario 1).</li>
+<li>"Make lead" is hidden under a row menu (scenario 1). The conflict dialog defaults to "conflict".</li>
+<li>Draft actions are not marked on the plan list.</li>
+<li>A scanned page or a switched-off attachment is answered as if it were another file (scenario 13). The answer should say that the attachment was skipped.</li>
+<li>A legal question is refused without a pointer to what the documents say.</li>
+<li>A summary switch labelled "firm only" means "shared" when on.</li>
+<li>Sharing a report sends no client notice; the report PDF can show the day before.</li>
+<li>The numbers import button is hidden until a data mode is chosen (scenario 12).</li>
+<li>Dialogs ignore clicks made before they finish loading.</li>
+<li>The org chart draft from pasted text gave 0 units after 135 seconds on the processor (scenario 20).</li>
+<li>The firm-run reviewer text should say "ask a colleague to review" when nobody else is on the team (scenario 8).</li>
+<li>The "Not found" page is served with HTTP code 200, so a script cannot tell found from not found.</li>
+<li>Accessible names are missing on the logo link, radios and checkboxes; one Arabic phrase has a grammar slip ("5 <span class="ar" dir="rtl" lang="ar">إجراءً ما زالت قائمة</span>").</li>
+<li>"Release now" in the add-action dialog may save a draft (not confirmed).</li>
+</ul>
+<h2>What worked</h2>
+<ul>
+<li>The two sign-off rule, the date-request flow, risk acceptance and the evidence-by-item flow all worked and were understood.</li>
+<li>The same progress number agrees in four places on one project.</li>
+<li>A virus test file was refused with a clear message.</li>
+<li>The end-of-engagement notice reached the lead and the admin, nobody on the client side.</li>
+<li>A busy Monday: each of three people found what needs them on the first screen without a click.</li>
+<li>The assistant refused rulings and offered drafts only. In 15 of 15 answers checked for a client asker, no citation named another client or a firm-only file.</li>
+</ul>
+<h2>What is still to do</h2>
+<p>Finish scenarios 14 and 16, run 6 and 7, run copy D in English and at 768 px dark, run the scenario 19 isolation sweep on every copy by an independent reviewer, re-run every failed step independently, write the scenario report, and then stop at Gate C for the owner's decision. The Production path lists the after-scenarios list.</p></body></html>
