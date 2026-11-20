@@ -1,8 +1,57 @@
 {
   "copy": "C",
-  "note": "Partial: scenarios 18 (done), 14 (started). 15 not run. Rawdah only; Al-Nukhba and Sahm exist in this copy from the seed but were not visited.",
-  "lead2@mizan.test": ["/projects/f44b4a7c-733c-43d8-aa34-451b2d343769", "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6", "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3", "/clients/1633e1ec-6313-4aed-a95c-ca1460d1e0c4?tab=people#join-requests", "/meetings/941dc841-6009-46fe-97c7-a948d4ae2b68", "/projects/e7f8b165-1b56-4ed6-b8f2-668d884d0643"],
-  "owner@rawdah.test": ["/", "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3", "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6", "/actions/d9b51713-8d6f-41ba-9f30-e92b68465c28", "/meetings/941dc841-6009-46fe-97c7-a948d4ae2b68", "/projects", "/help", "/consent"],
-  "manager@rawdah.test": ["/", "/projects", "/projects/f44b4a7c-733c-43d8-aa34-451b2d343769", "/help"],
-  "admin@rawdah.test": ["/projects/f44b4a7c-733c-43d8-aa34-451b2d343769", "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6", "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3", "/actions/5cf25f26-790b-4ffa-8a6d-3873408136db", "/actions/608d2f5b-e73a-4285-b4b6-6d0e44d852c7", "/actions/d9b51713-8d6f-41ba-9f30-e92b68465c28", "/recommendations/ceca8bb5-967b-45fe-98cc-78b8f2c47fc1", "/recommendations/e8f2aa3c-9360-4490-8c06-525a29449cf7", "/recommendations/9c5c4141-8005-4506-9473-f85647a6cfc4", "/engagements/43d844e1-2f58-4238-9a55-4f74d8ffc2c8"]
+  "note": "Scenarios 18, 14, 15 run (Rawdah only; Al-Nukhba and Sahm not visited as a role; Sahm does not exist on this copy). Rawdah restored after 15.",
+  "lead2@mizan.test": [
+    "/projects/f44b4a7c-733c-43d8-aa34-451b2d343769",
+    "/projects/53b9c22f-3b68-4498-89f8-2ec04105c285",
+    "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6",
+    "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3",
+    "/actions/01a0b247-d57d-4460-90da-09915c076111",
+    "/actions/96a306cc-d8f5-4e7d-9c68-7d14e2fc7848",
+    "/actions/330ad749-0c43-44f3-a3f9-4516252a23a6",
+    "/actions/03f81279-f384-4878-8bb3-65f4c0c7a851",
+    "/clients/1633e1ec-6313-4aed-a95c-ca1460d1e0c4?tab=people",
+    "/meetings/941dc841-6009-46fe-97c7-a948d4ae2b68",
+    "/projects/e7f8b165-1b56-4ed6-b8f2-668d884d0643"
+  ],
+  "admin@mizan.test": [
+    "/clients/1633e1ec-6313-4aed-a95c-ca1460d1e0c4",
+    "/projects/f44b4a7c-733c-43d8-aa34-451b2d343769",
+    "/projects/53b9c22f-3b68-4498-89f8-2ec04105c285",
+    "/audit",
+    "/clients/fb66fc62-4d42-4e93-a823-eb652b582743",
+    "/clients/ee4367df-9ed0-4af1-bf2a-c6b07a1800bb",
+    "/clients/b77fc739-be74-4014-9604-90c5b3833a0f"
+  ],
+  "owner@rawdah.test": [
+    "/",
+    "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3",
+    "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6",
+    "/actions/d9b51713-8d6f-41ba-9f30-e92b68465c28",
+    "/actions/01a0b247-d57d-4460-90da-09915c076111",
+    "/actions/96a306cc-d8f5-4e7d-9c68-7d14e2fc7848",
+    "/meetings/941dc841-6009-46fe-97c7-a948d4ae2b68",
+    "/projects",
+    "/help"
+  ],
+  "manager@rawdah.test": [
+    "/",
+    "/projects",
+    "/projects/f44b4a7c-733c-43d8-aa34-451b2d343769",
+    "/help"
+  ],
+  "admin@rawdah.test": [
+    "/projects/f44b4a7c-733c-43d8-aa34-451b2d343769",
+    "/projects/53b9c22f-3b68-4498-89f8-2ec04105c285",
+    "/actions/17f56fb9-113a-4593-bf84-b3375d9a78f6",
+    "/actions/24ad611d-ba13-471a-ad32-a767aa1724b3",
+    "/actions/5cf25f26-790b-4ffa-8a6d-3873408136db",
+    "/actions/608d2f5b-e73a-4285-b4b6-6d0e44d852c7",
+    "/actions/d9b51713-8d6f-41ba-9f30-e92b68465c28",
+    "/recommendations/ceca8bb5-967b-45fe-98cc-78b8f2c47fc1",
+    "/recommendations/e8f2aa3c-9360-4490-8c06-525a29449cf7",
+    "/recommendations/9c5c4141-8005-4506-9473-f85647a6cfc4",
+    "/engagements/43d844e1-2f58-4238-9a55-4f74d8ffc2c8",
+    "/leaving"
+  ]
 }
