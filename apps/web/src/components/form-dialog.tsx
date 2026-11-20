@@ -153,7 +153,8 @@ export function FormDialog(props: {
     setSaid(null);
     const r = await callApi(endpoint, props.method ?? "POST", body);
     setBusy(false);
-    if (!r.ok) return (setSaid(props.explain?.(r.message) ?? null), setError(r.error));
+    // An id in the address the server refused (http.ts): not something the person typed.
+    if (!r.ok) return (setSaid(props.explain?.(r.message) ?? (r.message === "invalid id" ? t("errors.badId") : null)), setError(r.error));
     setOpen(false);
     toast.success(t("saved"));
     const newId = (r.data as { id?: string } | null)?.id;

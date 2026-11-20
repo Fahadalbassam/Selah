@@ -106,6 +106,8 @@ export function orgChartError(message: string | undefined): string | null {
   // The services' own refusals (BadRequestError) carry a key.
   if ((ORG_CHART_ERROR_KEYS as readonly string[]).includes(message)) return message;
   const rules: [RegExp, string][] = [
+    // A route refused an id in the address (not a valid UUID: http.ts).
+    [/^invalid id$/, "badId"],
     [/this draft is no longer the current one/, "draftChanged"],
     [/the draft changed since you checked it/, "draftEdited"],
     [/takes effect (today or later, and )?on or after the day the current one did/, "effective_before"],

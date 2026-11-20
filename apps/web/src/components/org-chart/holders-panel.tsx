@@ -53,13 +53,13 @@ export function HoldersPanel(props: {
   primary?: boolean;
 }) {
   const t = useTranslations("orgChart.holders");
-  const tc = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
   const say = useOrgChartError();
   const [confirm, confirmDialog] = useConfirm();
   const [list, setList] = useState<{ today: string; holdings: Holding[] } | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  // Why the list did not load: the server's own words ("" when it gave none), shown as a sentence.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [mode, setMode] = useState<"account" | "typed">(props.candidates.length ? "account" : "typed");
   const [userId, setUserId] = useState("");
   const [name, setName] = useState("");
@@ -70,7 +70,7 @@ export function HoldersPanel(props: {
   const base = `/api/org-chart/positions/${props.positionId}/holders`;
 
   const apply = useCallback((r: Awaited<ReturnType<typeof callApi>>) => {
-    if (!r.ok) return setLoadError(true);
+    if (!r.ok) return setLoadError(r.message ?? "");
     const d = r.data as { today: string; holdings: Holding[] };
     setList({ today: d.today, holdings: d.holdings });
     setFrom((f) => f ?? d.today);
@@ -152,15 +152,15 @@ export function HoldersPanel(props: {
         </h3>
         <p className="text-xs text-muted-foreground">{props.side === "client" ? t("hintClient") : t("hintFirm")}</p>
       </div>
-      {list === null && !loadError ? (
+      {list === null && loadError === null ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <BrandLoader className="size-4" />
           {t("loading")}
         </p>
       ) : null}
-      {loadError ? (
+      {loadError !== null ? (
         <p role="alert" className="text-sm text-destructive">
-          {tc("errors.generic")}
+          {say({ error: "generic", message: loadError || undefined })}
         </p>
       ) : null}
       {list ? (

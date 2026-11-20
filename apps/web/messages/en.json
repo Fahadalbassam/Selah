@@ -1104,7 +1104,8 @@
     "errors": {
       "generic": "That didn't work. Reload the page and try again.",
       "conflict": "That was already done, or someone changed it first. Reload to see the latest.",
-      "invalid": "Please check what you entered."
+      "invalid": "Please check what you entered.",
+      "badId": "We couldn't recognise this item; it may have changed since you opened the page. Reload the page and try again."
     },
     "validity": {
       "required": "Fill in this field.",
@@ -6257,6 +6258,7 @@
   "orgChart": {
     "errors": {
       "draftChanged": "This draft is no longer the current one. Reload the page.",
+      "badId": "We couldn't recognise this item; it may have changed since you opened the page. Reload the page and try again.",
       "name": "Write the name in at least one language.",
       "name_length": "The name is longer than 200 characters.",
       "code": "A code uses digits, Latin letters, dots and dashes only, such as 2.4.",

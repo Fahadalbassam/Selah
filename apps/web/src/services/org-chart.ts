@@ -1051,10 +1051,16 @@ export function earliestEffective(currentEffectiveOn: string | null, today: stri
   return currentEffectiveOn && currentEffectiveOn > today ? currentEffectiveOn : today;
 }
 
-/** A version's unit id as the draft copied from it holds it (app_org_chart_copy: md5 of the draft's id and the unit's). */
-function copiedId(draftId: string, unitId: string): string {
+/**
+ * A version's unit id as the draft copied from it holds it
+ * (app_org_chart_copied_id, migration 0115): the md5 of the draft's id and the
+ * unit's, with the version (3, name-based) and variant bits set, so it is a
+ * valid UUID that the routes' z.uuid() accepts.
+ */
+export function copiedId(draftId: string, unitId: string): string {
   const h = createHash("md5").update(`${draftId}${unitId}`).digest("hex");
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  const variant = "89ab"[parseInt(h[16]!, 16) % 4];
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-3${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20)}`;
 }
 
 /**
