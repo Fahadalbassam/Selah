@@ -1,6 +1,6 @@
 # Selah system map
 
-> **Status (20 Nov 2026):** current with `origin/main` up to #213 (#209 Arabic search `0112_arabic_search`, #211 AI jobs `0113_ai_jobs` as F21.6, #213 number scanner `0114_number_scanner` as F21.7). Rule: any PR that changes a connection updates this file in the same PR and re-runs `node scripts/selah-map/build.mjs`.
+> **Status (20 Nov 2026):** current with `origin/main` up to #215 (migrations end at 0115; #209 Arabic search `0112_arabic_search`, #211 AI jobs `0113_ai_jobs` as F21.6, #213 number scanner `0114_number_scanner` as F21.7; #215 `0115_org_chart_copy_ids` on F20). Rule: any PR that changes a connection updates this file in the same PR and re-runs `node scripts/selah-map/build.mjs`.
 
 Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a73997 (PRs up to #210). It describes the code as it is, from reading the files, the import graph of `apps/web/src/services`, the policy table and the migrations. It is the input for `CLAUDE.md`, the interactive Selah map and the handbook update. Every path below was checked against `git ls-files` by the generator that wrote this file (see 'Checks').
 
@@ -13,7 +13,7 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - `risk`: any of `privacy`, `permissions`, `ai`, `migration`, or none. Meaning: privacy = another person's data could show; permissions = a role or row-level rule is involved; ai = a model, index or masking is involved; migration = the database schema or its rules are defined or redefined here.
 - `link` bullets: `- link: <to id> | <kind> | <files> | <what flows>`. `kind` is one of `data`, `permission`, `AI call`, `job`, `scan`, `shared file`. The link is written under the feature that owns the file that makes it; read it both ways.
 - `api` lists route files (`route.ts`) under `apps/web/src/app/api`; `pages` lists `page.tsx` and its client files under `apps/web/src/app`. Pages directories use `(app)` for signed-in screens, `(auth)` for sign-in, `(public)` for signed-out pages.
-- Database objects are in `apps/web/drizzle/NNNN_name.sql`; the Drizzle table definitions are in `apps/web/src/db/schema/app.ts`, `auth.ts`, `org-chart.ts` and `org-chart-plans.ts`. The next free migration number is 0115. Migrations listed per feature were found by scanning for DDL statements on that feature's tables (create, alter, drop, policy, trigger, view, function), plus a hand-picked list of the ones that redefine its rules; a migration can appear under several features.
+- Database objects are in `apps/web/drizzle/NNNN_name.sql`; the Drizzle table definitions are in `apps/web/src/db/schema/app.ts`, `auth.ts`, `org-chart.ts` and `org-chart-plans.ts`. The next free migration number is 0116. Migrations listed per feature were found by scanning for DDL statements on that feature's tables (create, alter, drop, policy, trigger, view, function), plus a hand-picked list of the ones that redefine its rules; a migration can appear under several features.
 
 ### Roles used
 
@@ -481,9 +481,9 @@ Draft of `docs/system-map.md`, built on 19 Nov 2026 from `origin/main` at 5a7399
 - lib: `apps/web/src/lib/org-chart-changes.ts`, `apps/web/src/lib/org-chart-html.ts`, `apps/web/src/lib/org-chart-import.ts`, `apps/web/src/lib/org-chart-outline.ts`, `apps/web/src/lib/org-chart-reading.ts`, `apps/web/src/lib/org-chart-tree.ts`, `apps/web/src/lib/org-chart.ts`
 - jobs: none
 - db_tables: `org_charts`, `org_chart_versions`, `org_units`, `positions`, `position_holders`, `org_chart_planned_holders`, `org_chart_change_requests`
-- migrations: `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0097_org_chart_editor.sql`, `apps/web/drizzle/0098_org_chart_planned_holders.sql`, `apps/web/drizzle/0099_org_chart_plans_follow_draft.sql`, `apps/web/drizzle/0100_org_chart_plans_on_leaving.sql`, `apps/web/drizzle/0105_org_chart_publish.sql`
+- migrations: `apps/web/drizzle/0091_org_chart.sql`, `apps/web/drizzle/0097_org_chart_editor.sql`, `apps/web/drizzle/0098_org_chart_planned_holders.sql`, `apps/web/drizzle/0099_org_chart_plans_follow_draft.sql`, `apps/web/drizzle/0100_org_chart_plans_on_leaving.sql`, `apps/web/drizzle/0105_org_chart_publish.sql`, `apps/web/drizzle/0115_org_chart_copy_ids.sql`
 - policy: `org_chart.read`, `org_chart.edit`, `org_chart.publish`, `org_chart.holders`, `org_chart.show_names`, `org_chart_request.read`, `org_chart_request.create`, `org_chart_request.close`
-- tests: `apps/web/tests/org-chart-import.test.ts`, `apps/web/tests/db/org-chart.test.ts`, `apps/web/tests/db/org-chart-editor.test.ts`, `apps/web/tests/db/org-chart-import.test.ts`, `apps/web/tests/db/org-chart-publish.test.ts`, `apps/web/tests/db/org-chart-tree.test.ts`
+- tests: `apps/web/tests/org-chart-import.test.ts`, `apps/web/tests/db/org-chart.test.ts`, `apps/web/tests/db/org-chart-editor.test.ts`, `apps/web/tests/db/org-chart-import.test.ts`, `apps/web/tests/db/org-chart-publish.test.ts`, `apps/web/tests/db/org-chart-tree.test.ts`, `apps/web/tests/db/org-chart-copy-ids.test.ts`, `apps/web/tests/http-invalid-id.test.ts`
 - docs: `docs/authorization.md`
 - extra_files: none
 - link: F01 | data | `apps/web/src/services/accounts.ts`, `apps/web/src/services/org-chart.ts`, `apps/web/src/services/org-chart-import.ts` | the leaving flow ends holdings and offers vacant or a replacement; the invite form can name a vacant position
@@ -1018,7 +1018,7 @@ Used by every feature and not listed above: `apps/web/messages/ar.json` and `app
 | change | also check |
 |---|---|
 | `apps/web/src/authz/policy.ts` | the matching database rule (RLS policy or definer function) in a new migration; apps/web/tests/db/rule-parity.test.ts; docs/authorization.md; the page that offers the button (hide it, never rely on hiding) |
-| `a new migration in apps/web/drizzle` | apps/web/drizzle/meta journal, apps/web/src/db/schema/*.ts, the Dockerfile migrate step, tests/db/walkthrough-seed.test.ts, the next free number (0115) |
+| `a new migration in apps/web/drizzle` | apps/web/drizzle/meta journal, apps/web/src/db/schema/*.ts, the Dockerfile migrate step, tests/db/walkthrough-seed.test.ts, the next free number (0116) |
 | `apps/web/src/services/documents.ts` | audience.ts (left-out people), scan.ts, storage.ts, the assistant index (jobs/index-documents.ts), export-pack.ts, files.ts, deliverables.ts |
 | `apps/web/src/services/audience.ts or the audience policy` | meetings.ts, documents.ts, assistant.ts scopeFilter, jobs/mail.ts, notifications trigger, tests/db/audience.test.ts, docs/authorization.md 'Who sees an item' |
 | `apps/web/src/services/assistant.ts` | authz/retrieval.ts, lib/assistant-search.ts, services/masking.ts, services/client-ai.ts, services/ai/app/prompt.py (CLIENT_RULES), docs/assistant.md, tests/db/client-assistant*.test.ts, scripts/assistant-eval |

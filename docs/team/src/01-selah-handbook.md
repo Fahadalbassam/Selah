@@ -1,10 +1,10 @@
-<p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #213 · 20 November 2026</p>
+<p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #215, migrations to 0115 · 20 November 2026</p>
 
 # Selah, explained for the team
 
-This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #213, database migrations up to 0114).
+This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #215, database migrations up to 0115).
 
-Two companion documents go with it: **Workflows** (the everyday flows step by step, and what the scenario tests found so far) and **Production path** (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.
+Two companion documents go with it: **Workflows** (the everyday flows step by step, and what the scenario tests found) and **Production path** (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.
 
 <div class="box" markdown="1">
 **What is new since the 6 November edition.** Help and a role guide inside the app. A privacy clean-up (five leaks found and fixed). Restricted clients can finally work. The client assistant answers "who is my consultant" and "my deadlines". Staff get a facts-only progress draft that opens the report page. Reports have templates, a second person's approval and a confirmed send. Files can be attached in a question with @. The client is told when the lead consultant changes, and the firm is reminded before an engagement ends. The client's organisation structure (org chart). A local model (qwen3.5:4b), better Arabic search, a scanner for personal numbers, and slow AI work as background jobs. The full list is in section 19.
@@ -319,7 +319,7 @@ Client page, **Structure** tab: the published chart with the people in each posi
 - **The lead, the deputy and the firm admin publish** (Review and publish). Each publish makes a new version.
 - **The client admin places people** in positions and suggests changes; managers see names only in their own branch and above; action owners see only "your manager".
 - **The chart never changes who sees any work.** It describes positions only, and Selah never judges it.
-- Known problem found in the scenarios: ids made at publish were not valid, so the next draft could not be edited. A fix was being finished when the run paused.
+- Found in the scenarios and now fixed (#215, migration 0115): ids made when a version is published were not valid, so the next draft could not be edited. Copied units and positions now get valid ids, and the ids already stored were repaired once, with one audit row per client.
 
 ## 14 Internal projects
 
@@ -421,6 +421,8 @@ Built and merged, but only named in passing above.
 | Local model and search | qwen3.5:4b default, labelled test set, longer waits for slow answers, Arabic word search | #191, #207, #208, #209 |
 | AI jobs | Translations, summaries and org chart drafts run as background jobs | #211 |
 | Number scanner | Personal numbers replaced by tags before any model | #213 |
+| Org chart | Valid ids for copied units and positions (migration 0115); a one-time repair of stored ids with an audit row per client. Run it with the app stopped; it waits at most 10 seconds for a lock. | #215 |
+| Scenarios | All four copies (A, B, C, D in English, 768 px dark) are done: no privacy finding on any copy. Scenario 19 (isolation sweep) was interrupted and is not finished. The failures and friction are in Workflows, Part B. | n/a |
 | Tests | Full end-to-end run on a production-like stack: 67 passed, 1 failed, 3 not run, no app bug found | #210 |
 
-<p class="small">Source of truth: the system map in the repository (29 features, 6 sub-features, 64 links). Companion documents: Workflows, Production path.</p>
+<p class="small">Source of truth: the system map in the repository (29 features, 8 sub-features, 70 links). Companion documents: Workflows, Production path.</p>
