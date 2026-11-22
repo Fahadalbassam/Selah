@@ -12,6 +12,7 @@ For the firm's IT person: what runs, how a request is checked, how to deploy, ba
 | [docs/authorization.md](../../authorization.md) | Who sees and does what, and how a request flows |
 | [docs/rules.md](../../rules.md) | Every business rule: its database object, the TypeScript that checks it first, and its test |
 | [docs/security.md](../../security.md) | OWASP ASVS 5.0 and OWASP Top 10 for LLM applications mapping, database roles, audit log |
+| [docs/team/testing-guide.md](../../team/testing-guide.md) | Every test suite: what it protects, how to run it, counts by area, denial tests, and the requirements map |
 | [README.md](../../../README.md) | Running it locally and by hand |
 
 <a id="architecture"></a>
