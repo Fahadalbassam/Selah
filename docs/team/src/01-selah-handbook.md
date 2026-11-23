@@ -6,6 +6,8 @@ This handbook tells the whole team what Selah is for, who uses it, what each per
 
 Two companion documents go with it: **Workflows** (the everyday flows step by step, and what the scenario tests found) and **Production path** (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.
 
+Known gaps, what each scenario tested, and the order to fix them: [gaps-and-priorities](../gaps-and-priorities.md) (13 new scenarios, 70 gaps).
+
 <div class="box" markdown="1">
 **What is new since the 6 November edition.** Help and a role guide inside the app. A privacy clean-up (five leaks found and fixed). Restricted clients can finally work. The client assistant answers "who is my consultant" and "my deadlines". Staff get a facts-only progress draft that opens the report page. Reports have templates, a second person's approval and a confirmed send. Files can be attached in a question with @. The client is told when the lead consultant changes, and the firm is reminded before an engagement ends. The client's organisation structure (org chart). A local model (qwen3.5:4b), better Arabic search, a scanner for personal numbers, and slow AI work as background jobs. The full list is in section 19.
 </div>

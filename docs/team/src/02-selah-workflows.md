@@ -39,6 +39,8 @@ Staff the project > Invite the client admin > @Consultant > Write or import the 
 **Do it in this order.** The plan import flags every owner as "unknown" if the client's people are not yet on the project, and nothing on the screen says so. Invite and add the client's people first, then import the plan (found in scenario 1).
 </div>
 
+**Known gaps.** The conflict dialog defaults to "conflict", the owner dialog does not start on a suggested consultant, and "Make lead" sits in a row menu (G48, G50; [gaps-and-priorities](../gaps-and-priorities.md)).
+
 ## 3 The plan and the client's answer
 
 **Who:** staffed consultants write (not observers). The client reads and answers.
@@ -53,6 +55,8 @@ Add a recommendation > Add an action: step, owner, due date, evidence list > Kee
 4. The chips under the plan filter it: Late, Blocked, No activity for a while, Date moved twice or more, Sent back twice or more, No active owner, Waiting for review over 7 days, Disputed. The client sees Late and Blocked only.
 5. The client admin or sponsor presses **Respond** on the recommendation and chooses Agree (with what will be done and by when), Partly agree (with the reason) or Disagree (with the reason). Every response stays on record. A disagreement shows under **Waiting on your decision** for the firm.
 6. **For a firm-run client** the consultant records the client's answer (**Record the client's response**) with how and when it was given, and a colleague confirms it before it counts.
+
+**Known gaps.** "Release now" is on by default and has saved drafts by mistake (G40); draft actions are not marked on the plan list (G53); the plan import now says why an owner is "unknown" but does not warn first. See [gaps-and-priorities](../gaps-and-priorities.md).
 
 ## 4 The action back and forth
 
@@ -83,6 +87,8 @@ Add a recommendation > Add an action: step, owner, due date, evidence list > Kee
 **The rule that never bends:** nothing becomes Verified without a consultant's accept, and nobody verifies their own work. The database itself refuses it. Selah asks for the second human; it never signs for one.
 </div>
 
+**Known gaps.** Accepting an evidence item and signing off are two steps, with an English sentence and no item named when the first try is too early (G44); "Start work" on Home only opens the action (G45). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 5 Bumps in the road
 
 | What goes wrong | Steps | Who |
@@ -99,12 +105,16 @@ Add a recommendation > Add an action: step, owner, due date, evidence list > Kee
 | **A client person leaves** | The client admin switches them off and moves their actions in the dialog. The lead and project consultants are not told that owners changed, and the departure dialog mentions a temporary head with no control (both found in scenario 9). | Client admin |
 | **A firm person leaves** | Team, open the person: Selah lists everything they hold and hands it to one colleague in one step. Switching the account off is refused until then. | Firm admin |
 
+**Known gaps.** Declining a date request has no reason box (G17); an owner change tells only the new owner (G16); the client is not told when the consultant changes (G15); the risk Sign button is disabled with no reason (G46). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 6 Document requests and upload links
 
 1. Project page, **Requests and files**: the consultant lists the documents needed, each with an owner and due date. Mark an item **confidential** to keep its files out of the assistant.
 2. The client sees **Documents asked of you** on Home and presses **Send a file** beside the item. The window names the item. They upload or choose a file, then send. The item reads **Waiting for the firm**.
 3. The consultant accepts it or returns it with a reason.
 4. **No account?** The consultant sends a no-login upload link for one item, valid from 1 hour to 30 days, up to ten files, revocable.
+
+**Known gaps.** The no-login upload link was tested (scenario 34): the screen offers 1 to 30 days, not "1 hour" as written above; a client answering a request item with a file was not tested. See [gaps-and-priorities](../gaps-and-priorities.md).
 
 ## 7 A meeting from booking to follow-ups
 
@@ -120,6 +130,8 @@ Book a meeting > Send invites (calendar file) > Automatic agenda > @Held: mark a
 6. Follow-ups appear on the assignee's Home. A shared summary is visible to the client and can be translated.
 7. A transcript can be pasted or imported only after attendees were told; firm-only; deleted 30 days after the summary is confirmed.
 
+**Known gaps.** Meeting decisions and follow-ups start shared with the client (G01); a department-limited manager's Meetings tab can read "none for you yet" (G26). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 8 The monthly report and sending it
 
 ```flow
@@ -134,6 +146,8 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 6. The monthly status pack is drafted by the monthly job, seen only by the firm; add a note, **Issue** it, then approve and send the same way.
 7. Sharing a report sends the client no notice yet, and the PDF header date can show the previous day (both found in scenario 11).
 
+**Known gaps.** Sending a report gives the client no notice (G20); the PDF date can show the previous day (G33); the assistant's progress draft disagrees with the project page (G31). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 9 Business indicators
 
 1. The client admin chooses how numbers reach Selah (typed, uploaded from Excel or CSV, or connected). The import button is hidden until that choice is made (found in scenario 12).
@@ -142,12 +156,16 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 4. Only the firm links an indicator to a recommendation. If a value moves away from its baseline, the lead, deputy and client admins get a notice with the figures only.
 5. Every view says "reported by the client, not verified impact". No judging words or colours.
 
+**Known gaps.** The numbers-import button is hidden until a data mode is chosen (G54). The "moved away" notice goes to the bell only, with no mail, so its mute-mail switch has nothing to silence (G56). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 10 Handing over a deliverable
 
 1. Share the file with the client first (file menu on Requests and files). Handing over never shares by itself.
 2. Open the engagement, **Deliverables**, **Hand over** beside the deliverable; pick the files.
 3. The project's acceptor (else the client admin, else the sponsor) sees **Files waiting for your confirmation of receipt** on Home and confirms or comments.
 4. States: Not handed over, Handed over (waiting), Received, Commented. Received never means accepted. For a new version, **Hand over a new version**.
+
+**Known gaps.** The firm is not told when the client confirms receipt (it is told of a comment) (G21). Handing over a new file version works (scenario 32). See [gaps-and-priorities](../gaps-and-priorities.md).
 
 ## 11 The assistant at work
 
@@ -158,6 +176,8 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 5. A file is read only after its owner presses **Let the assistant read it** and it is scanned. Anyone on the owning side can switch it off.
 6. **Client side:** off until the firm admin offers it (client page, Setup, Client assistant) and the client admin agrees after reading the notice. Then managers and the admin can ask. Facts only; "who is my consultant"; "my deadlines" for the asker only; a legal question gets no ruling but shows what the documents say; a progress-update draft stays in the chat.
 7. A slow answer on the local model can take about a minute. Translations and summaries run as background jobs and appear when ready.
+
+**Known gaps.** An unreadable attachment is answered as if it were another file (G34); a new file version keeps the assistant switch on (G05); the public AI notice still says clients have no assistant (G02). No assistant answer could be produced on the last test copy. See [gaps-and-priorities](../gaps-and-priorities.md).
 
 ## 12 Closing a project
 
@@ -172,12 +192,16 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 5. Deliverables handed over and not answered do not hold the close; they later read "No answer before the project closed".
 6. The firm admin's Home shows **Close for good**; pressing **Close project** makes the project read-only and prepares the Closure report PDF. The admin can **Reopen** with a reason.
 
+**Known gaps.** "Start closing" is only in the menu (G47); the closure PDF total was off by one (G32); a reopened project sends the client admin no notice (G23). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 13 The end of an engagement, renewal, archiving
 
 1. **Reminder.** Each daily run tells the lead, deputy and firm admins in the bell when an open engagement ends within 30 days, and again when it has ended and is still open. The client is never told. The notice names the engagement and gives its date. The daily job must be scheduled on the server.
 2. **Renew or next phase:** record a new signed engagement and open a new project on the same client that continues the earlier one.
 3. **Cut early or not renewed:** the client presses "ask to close"; the firm closes each project (flow 12). Selah has no separate "termination" record: the reason goes in the closing notes.
 4. **Archive the client** when every project is closed: a read-only grace period in which the client can still read and download, the export pack with checksum and receipt, legal holds, then retention purges.
+
+**Known gaps.** An archived client is offered reply buttons and a wrong refusal reason, and its sign-in message does not say what to do (G25). See [gaps-and-priorities](../gaps-and-priorities.md).
 
 ## 14 Who gets which client, and changing the lead
 
@@ -187,6 +211,8 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 4. **A consultant sets their own expertise:** they cannot today; the admin does it for them (found in scenario 1).
 5. **The client wants another consultant:** they tell the firm (Help, "Ask your consultant"); the admin changes the lead.
 
+**Known gaps.** The client is not told on screen when the consultant changes (G15). A consultant now sets his own languages and availability (scenario 31); services stay with the admin. See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 15 The client's structure
 
 1. Client page, **Structure**. The firm opens the draft: edit by hand, import from Excel or Word, or paste text from a slide and let the assistant propose rows (a background job; the user checks every row).
@@ -195,6 +221,8 @@ Progress tab > New report: freezes the numbers > Pick a template > Write the not
 4. **Download PDF** (A3 or A4) for printing. The chart never changes anyone's access.
 5. Known bug: the ids made at publish were invalid, so the next draft could not be edited and an invitation into a vacancy failed. A fix was being finished at the pause.
 
+**Known gaps.** The pasted-text draft gave 0 units in a test (G37); the publish-id fix (#215) has not been re-run through scenario 20 (G38). See [gaps-and-priorities](../gaps-and-priorities.md).
+
 ## 16 Internal projects
 
 Any firm member creates one (Projects, Internal) and becomes its lead. They staff colleagues. Another firm member reviews. The lead closes it. Only staffed members and the firm admin see it; clients never do.
@@ -202,6 +230,8 @@ Any firm member creates one (Projects, Internal) and becomes its lead. They staf
 <div class="box later" markdown="1">
 **Not built (proposals, kept off until shown to be useful):** an AI draft of the meeting summary from a transcript; the assistant reading confirmed summaries; a list of all decisions; a calendar screen; a guided "renew" step that carries open actions into the next project; a reason for why a contract ended; a pause state for a project; re-checking results at 6 and 12 months.
 </div>
+
+**Known gaps.** Scenarios 22 to 34 (assessments, inquiries and pitches, Excel, deliverable receipt, the moved-away notice, assistant switches, sign-in and two-step, the audit log, retention and erasure, team load and the second reviewer, file versions and scanning, mail hours, and edge cases) found no privacy leak. Their results, all 70 gaps and the order to fix them are in [gaps-and-priorities](../gaps-and-priorities.md).
 
 # Part B. What the scenarios found
 

@@ -11,6 +11,35 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { AR } from './arabic.mjs';
 
+// Known gaps found by the scenario runs, by feature id (ids G01..G69 are in docs/team/gaps-and-priorities.md).
+// Short on purpose: the full list, the type, the seriousness and the fix are in that file.
+const GAPS_DOC = 'docs/team/gaps-and-priorities.md';
+const GAPS = {
+  F01: { ids: 'G04, G13, G24, G29, G62', en: 'the erasure reason is shown to the client admin; a refused e-mail domain gets the wrong reason; the access review refuses in English; the invitation mail names neither firm nor inviter.', ar: 'سبب المحو يظهر لمسؤول العميل؛ نطاق البريد المرفوض يُعلَّل خطأً؛ مراجعة الصلاحيات ترفض بالإنجليزية؛ بريد الدعوة لا يذكر المكتب ولا الداعي.' },
+  F02: { ids: 'G06, G07', en: 'the isolation sweep (scenario 19) is not finished; "Not found" pages answer HTTP 200 (no leak: a forbidden record and a made-up id look the same; it only blocks scripted sweeps).', ar: 'فحص العزل (السيناريو 19) لم يكتمل؛ صفحات «غير موجود» تردّ بالرمز 200 (دون تسريب: السجل الممنوع والرقم المختلق متطابقان؛ يعيق الفحص الآلي فقط).' },
+  F04: { ids: 'G15, G18, G50', en: 'the client is not told on screen when the consultant changes; join requests are approved or declined with no confirm and no reason; "Make lead" is hidden in a menu.', ar: 'لا يُبلَّغ العميل على الشاشة بتغيير المستشار؛ طلبات الانضمام تُقبل أو تُرفض دون تأكيد أو سبب؛ «اجعله القائد» مخفي في قائمة.' },
+  F07: { ids: 'G21', en: 'the firm is not told when the client confirms receipt of a deliverable.', ar: 'لا يُبلَّغ المكتب حين يؤكد العميل استلام مخرَج.' },
+  F08: { ids: 'G28, G48, G49, G57', en: 'the conflict dialog defaults to "conflict"; the owner dialog skips the suggestions; dates cannot be typed; nothing says the decline mail went.', ar: 'حوار التعارض يبدأ بـ«يوجد تعارض»؛ حوار المسؤول يتجاهل المقترحين؛ لا يمكن كتابة التواريخ؛ لا شيء يؤكد إرسال رسالة الاعتذار.' },
+  F09: { ids: 'G30, G40, G53', en: '"Release now" is on by default; draft actions are not marked on the plan list; the import does not say what it created.', ar: 'خيار «أسند الآن» مفعّل افتراضيًا؛ الإجراءات المسودة غير موسومة في الخطة؛ الاستيراد لا يذكر ما أنشأه.' },
+  F10: { ids: 'G16, G17, G44, G45, G46, G52, G58', en: 'an owner change tells only the new owner; declining a date request has no reason; accepting an item and signing off are two steps with an English message.', ar: 'تغيير المسؤول يُبلَّغ به الجديد فقط؛ رفض طلب الموعد بلا سبب؛ قبول البند والاعتماد خطوتان برسالة بالإنجليزية.' },
+  F12: { ids: 'G05, G55', en: 'PRIVACY: a new file version keeps the "let the assistant read it" flag (a real bypass: the uploader-or-admin rule fires only on UPDATE, so a staffed consultant or client manager can put new content into the assistant without consent); it also takes the new file name.', ar: 'خصوصية: النسخة الجديدة من الملف تُبقي تفعيل قراءة المساعد (التفاف فعلي: قاعدة «صاحب الرفع أو المدير» تعمل عند التعديل فقط، فيستطيع مستشار أو مدير عميل إدخال محتوى جديد للمساعد دون موافقة)؛ وتأخذ اسم الملف الجديد.' },
+  F14: { ids: 'G01, G26', en: 'meeting decisions and follow-ups start shared with the client (the summary starts firm-only); a department-limited manager sees "none for you yet" for meetings she is invited to.', ar: 'القرارات والمتابعات تبدأ مشاركة مع العميل (الملخص يبدأ للمكتب فقط)؛ مدير مقيّد بإدارة يرى «لا شيء لك» رغم دعوته.' },
+  F15: { ids: 'G20, G33', en: 'sending a report gives the client no notice; the PDF date can show the previous day.', ar: 'إرسال التقرير لا يُشعر العميل؛ تاريخ ملف PDF قد يظهر باليوم السابق.' },
+  F16: { ids: 'G54, G56', en: 'the numbers-import button is hidden until a data mode is chosen; the mute-mail switch has no mail to silence (the notice is bell only).', ar: 'زر استيراد الأرقام مخفي حتى يُختار نمط البيانات؛ مفتاح كتم البريد بلا بريد (الإشعار داخل التطبيق فقط).' },
+  F17: { ids: 'G12, G19, G41', en: 'sharing an assessment sends no notice and asks no confirm; finalising gives no list of open questions; consultant guidance reaches the client.', ar: 'مشاركة التقييم بلا إشعار أو تأكيد؛ الاعتماد لا يعدّد الأسئلة المفتوحة؛ إرشادات المستشار تصل للعميل.' },
+  F18: { ids: 'G23, G32, G47', en: 'a reopened project sends the client admin no notice; the closure PDF total was off by one; "Start closing" is only in a menu.', ar: 'إعادة فتح المشروع لا تُشعر مدير العميل؛ مجموع تقرير الإغلاق ناقص بواحد؛ «بدء الإغلاق» في قائمة فقط.' },
+  F19: { ids: 'G25', en: 'an archived client is offered reply buttons and a wrong refusal reason, and its sign-in message does not say what to do.', ar: 'العميل المؤرشف تُعرض له أزرار الرد ويُرفض بسبب خاطئ، ورسالة دخوله لا تقول ما العمل.' },
+  F20: { ids: 'G37, G38', en: 'the draft from pasted text gave 0 units; the publish-id fix (#215) has not been re-run through scenario 20.', ar: 'المسودة من النص الملصوق أعطت صفر وحدات؛ لم يُعد اختبار إصلاح #215 في السيناريو 20.' },
+  F21: { ids: 'G09, G27, G31, G34, G35, G36, G51, G65, G69', en: 'the progress draft disagrees with the project page; an unreadable attachment is answered as another file; a scanned page produced an invented answer; no answer could be produced on the last test copy.', ar: 'مسودة التقدم تخالف صفحة المشروع؛ المرفق غير المقروء يُجاب عنه كأنه ملف آخر؛ صفحة ممسوحة أنتجت إجابة مختلقة؛ تعذّر أي جواب في آخر نسخة اختبار.' },
+  F22: { ids: 'G02, G03, G10, G66', en: 'the AI notice says clients have no assistant; the security page lists protections that are not set up; the legal texts are not lawyer-reviewed.', ar: 'إشعار الذكاء الاصطناعي يقول إن العملاء بلا مساعد؛ صفحة الأمان تذكر حمايات غير مُعدّة؛ لم تراجع النصوص القانونية محامٍ.' },
+  F23: { ids: 'G22, G62', en: 'a held work mail shows no sign on the notice; mails for English readers are Arabic first.', ar: 'البريد المؤجل لا علامة عليه في الإشعار؛ رسائل القرّاء الإنجليز تبدأ بالعربية.' },
+  F24: { ids: 'G08, G14, G68', en: 'a broken audit chain tells nobody; old rows keep some private file names until the clean-up script runs; the CSV time is UTC.', ar: 'انكسار سلسلة التدقيق لا يُبلغ أحدًا؛ صفوف قديمة تحمل أسماء ملفات خاصة حتى يعمل سكربت التنظيف؛ وقت ملف CSV بالتوقيت العالمي.' },
+  F26: { ids: 'G08', en: 'written and tested but not run: run it once before go-live.', ar: 'مكتوب ومُختبَر لكنه لم يُشغَّل: يُشغَّل مرة قبل الإطلاق.' },
+  F27: { ids: 'G43, G61', en: 'a refused retention setting says "refused by a data rule" in English and names no field.', ar: 'إعداد الاحتفاظ المرفوض يقول «refused by a data rule» بالإنجليزية دون تسمية الحقل.' },
+  F29: { ids: 'G32, G39', en: 'an export asked for in English from an Arabic screen keeps Arabic headers.', ar: 'تصدير مطلوب بالإنجليزية من شاشة عربية يبقي العناوين بالعربية.' },
+  F30: { ids: 'G11, G59, G67', en: 'go-live items are open (sending domain, second backup disk, restore drill, outside test); dialogs ignore early clicks.', ar: 'بنود الإطلاق مفتوحة (نطاق الإرسال، قرص النسخ الثاني، تمرين الاستعادة، اختبار خارجي)؛ الحوارات تتجاهل النقرات المبكرة.' },
+};
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: here, encoding: 'utf8' }).trim();
 const args = process.argv.slice(2);
@@ -104,9 +133,15 @@ for (const n of nodes) {
     name: { en: n.name, ar: ar ? ar[0] : n.name },
     summary: { en: f.summary, ar: ar ? ar[1] : f.summary },
     roles: f.roles, risk, lists, tables, policy,
+    gaps: GAPS[n.id] || null,
     links: n.links.map((l) => ({ to: l.to, kind: l.kind, files: l.files, flow: l.flow })),
   });
 }
+
+// known-gaps notes: the file they point to must exist, and so must every feature they name
+// (a document of this branch, so it is checked in the working tree like the rule docs, even with --ref)
+if (!fs.existsSync(path.join(root, GAPS_DOC))) checkPath(GAPS_DOC + ' (working tree)', 'known-gaps notes on the map');
+for (const id of Object.keys(GAPS)) if (!byId.has(id)) note(`GAPS names unknown feature ${id}`);
 
 // ---- tables after the features ----
 const shared = [];

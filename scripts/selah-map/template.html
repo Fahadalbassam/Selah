@@ -77,6 +77,10 @@ aside h2:first-child{margin-top:0}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .badge.risk{background:#3b1d1a;border-color:#7a3a33;color:#ffb4aa}}
 .careful{border:1px solid #f0b4ae;background:#fff4f2;color:#7a1a10;border-radius:10px;padding:8px 10px;margin:10px 0;font-weight:600}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .careful{background:#2c1815;border-color:#7a3a33;color:#ffb4aa}}
+.gaps{border:1px solid #e6cf8e;background:#fff9e8;color:#5c4a12;border-radius:10px;padding:8px 10px;margin:10px 0;font-size:13px;line-height:1.5}
+.gaps b{font-weight:700}
+.gaps a{color:inherit;text-decoration:underline}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .gaps{background:#2a2410;border-color:#6b5a22;color:#f1dc9a}}
 .btns{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 section.s{border-inline-start:4px solid var(--line);padding-inline-start:10px;margin:12px 0}
 section.s>h4{margin:0 0 4px;font-size:13px}
@@ -144,6 +148,7 @@ const T = {
     title:'خريطة سِلاه', search:'ابحث عن ميزة أو ملف أو جدول أو دور…', fit:'عرض الكل', collapse:'طيّ الفروع', expand:'فتح الفروع', clear:'مسح التحديد',
     layers:'الطبقات', layersNote:'تبدأ الخريطة نظيفة: ميزات وميزات فرعية فقط. شغّل طبقة لترى ما فيها حول كل ميزة.', connections:'أنواع الروابط', min:'أقل عدد ملفات مشتركة بين ميزتين', root:'Selah',
     pick:'اضغط على ميزة لترى ملفاتها وروابطها ومخاطرها. اضغط على خط لترى الملفات التي تربط الميزتين.',
+    gaps:'ثغرات معروفة', gapsDoc:'القائمة الكاملة والأولويات',
     summary:'الوصف', roles:'الأدوار', risk:'المخاطر', careful:'انتبه', connects:'يرتبط بـ', none:'لا شيء', files:'ملف',
     rules:'القواعد التي يجب اتباعها', hlConn:'أبرز كل ما يرتبط به', conflicts:'اعرض التعارضات لهذه الميزة', off:'إيقاف العرض الخاص',
     children:'فروع', collapseN:'اطوِ الفروع', expandN:'افتح الفروع', parent:'جزء من', via:'عبر', flows:'ما ينتقل',
@@ -161,6 +166,7 @@ const T = {
     title:'Selah map', search:'Search a feature, file, table or role…', fit:'Fit all', collapse:'Collapse branches', expand:'Expand branches', clear:'Clear selection',
     layers:'Layers', layersNote:'The map starts clean: features and sub-features only. Switch a layer on to see what sits around each feature.', connections:'Connection types', min:'Min. shared files between two features', root:'Selah',
     pick:'Click a feature to see its files, connections and risks. Click a line to see the files that link the two features.',
+    gaps:'Known gaps', gapsDoc:'Full list and priorities',
     summary:'What it is', roles:'Roles', risk:'Risk', careful:'careful', connects:'Connects to', none:'none', files:'files',
     rules:'Rules to follow', hlConn:'Highlight everything connected', conflicts:'Show conflicts for this node', off:'Turn off special view',
     children:'sub-features', collapseN:'Collapse branch', expandN:'Expand branch', parent:'Part of', via:'via', flows:'What flows',
@@ -425,6 +431,7 @@ function panelNode(id){
   if(n.risk.length){
     h+='<div class="careful">'+esc(t.careful)+': '+n.risk.map(r=>esc(t.risks[r])).join(' / ')+'</div>';
   }
+  if(n.gaps) h+='<div class="gaps"><b>'+esc(t.gaps)+'</b> <span class="ltr">('+esc(n.gaps.ids)+')</span>: '+esc(n.gaps[S.lang])+' <a href="team/gaps-and-priorities.md" target="_blank" rel="noopener">'+esc(t.gapsDoc)+'</a></div>';
   h+='<div class="btns"><button id="bConn" class="'+(S.view==='conn'?'on':'')+'">'+t.hlConn+'</button><button id="bConf" class="'+(S.view==='conf'?'on':'')+'">'+t.conflicts+'</button>'+(kids[id]?'<button id="bFold">'+(S.collapsed.has(id)?t.expandN:t.collapseN)+' ('+kids[id].length+')</button>':'')+'</div>';
   if(S.view==='conf') h+=conflictHtml(id);
   h+='<section class="s"><h4>'+t.roles+'</h4>'+rolesHtml(n)+'</section>';
