@@ -168,8 +168,8 @@ Not checked, because no document renderer is installed on this machine: page bre
 3. **Has the firm seen the prototype?** No source says. The report says only that no consultant or client has used the system.
 4. **"Goals" in Chapter 1** and the proposal's future tense were left as written.
 5. **The target document on main** (after #243 and #244) is the source of Tables 4.4 to 4.6; it now carries the W7, S10, I8 and R5 corrections. Its row S6 still gives "a consultant cannot set their own expertise" as a refine reason, although scenario 31 shows that fault fixed.
+6. **Table numbers in Chapter 3.** The requirement tables are 3.5 and 3.6 (the lead's earlier 3.15 and 3.16), because the draft's captions stop at 3.4.
+7. **Screenshots** were taken on a development server (a small "N" badge shows in a corner) and the two English ones show a first-visit card mid-animation.
 8. **The limitation "Built and checked largely by AI tools"** in 6.3 follows from the sources and from section 4.1; the team should confirm that it wants it stated there.
 9. **Scenario step counts** follow the gap list, except scenario 32, where the failed privacy step is counted as failed (8 failed in all, not 7).
 10. **Who re-ran the 32 denial checks.** The report says "a second AI reviewer", from the lead's message; the repository's only sentence is "an independent reviewer re-ran 32 of them and agreed".
-6. **Table numbers in Chapter 3.** The requirement tables are 3.5 and 3.6 (the lead's earlier 3.15 and 3.16), because the draft's captions stop at 3.4.
-7. **Screenshots** were taken on a development server (a small "N" badge shows in a corner) and the two English ones show a first-visit card mid-animation.
