@@ -47,19 +47,20 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 @page{size:A4 landscape;margin:15mm 15mm 17mm 15mm;
  @bottom-left{content:"Selah production path";font:7.5pt 'Segoe UI',sans-serif;color:#777}
  @bottom-right{content:counter(page) " / " counter(pages);font:7.5pt 'Segoe UI',sans-serif;color:#777}}
-</style></head><body><p class="kicker">For the Selah team · Production readiness · Part 3 of 3 · Main after PR #215, migrations to 0115 · 20 November 2026</p>
+</style></head><body><p class="kicker">For the Selah team · Production readiness · Part 3 of 3 · Main after PR #251 (last app change #215), migrations to 0115 · 24 November 2026</p>
 
 <h1>Selah's path to production: what is solid, what is only built, what we still need</h1>
-<p>This is part 3 of the team documents. The Handbook explains the parts and the Workflows explain the flows. Here we answer in plain words: how solid is what we have, how does it run, what must be done <strong>before go-live</strong>, what is still left, and which features come later.</p>
+<p>This is part 3 of the team documents. The Handbook explains the parts and the Workflows explain the flows. Here we answer in plain words: how solid is what we have, how does it run, what must be done <strong>before go-live</strong>, what is still left, and which features come later. Section 7 is the one list of everything still open before go-live, with the planned infrastructure work.</p>
+<p>Companion files for the team: <a href="../gaps-and-priorities.md">gaps-and-priorities</a> (70 gaps and the order to fix them), <a href="../testing-guide.md">testing-guide</a> (the test suites and how to run them) and <a href="../../future/selah-target.md">selah-target</a> (Selah after every planned upgrade, with 34 open questions).</p>
 <div class="box">
-<p><strong>The short answer.</strong> The core of Selah is in good shape and a lot has been added since 6 November: help inside the app, five privacy leaks found and fixed, restricted clients working, reports with approval and a confirmed send, a local model with better Arabic search, a scanner for personal numbers, and background jobs for slow AI work. The scenario tests run so far found <strong>no privacy leak</strong>. What Selah still does not have is proof on a real server with real people: it has not been deployed, the tunnel has not been tested live, and the scenario testing is not finished (Gate C is still ahead). The work ahead is a short, ordered go-live list (section 5), the rest of the scenarios, and fixes for what they found. We do not need many new features.</p>
+<p><strong>The short answer.</strong> The core of Selah is in good shape and a lot has been added since 6 November: help inside the app, five privacy leaks found and fixed, restricted clients working, reports with approval and a confirmed send, a local model with better Arabic search, a scanner for personal numbers, and background jobs for slow AI work. In scenarios 1 to 34 nobody saw another client's data. One privacy gap is open inside a single client: <strong>G05</strong>, a new file version keeps the assistant switch. What Selah still does not have is proof on a real server with real people: it has not been deployed, the tunnel has not been tested live, and the scenario testing is not finished (the isolation sweep is open and Gate C is still ahead). The work ahead is the G05 fix, a short, ordered go-live list (sections 5 and 7), the isolation sweep, and fixes for what the scenarios found (70 gaps, in priority order in the gap list). We do not need many new features.</p>
 </div>
 <div class="stat">
-<div><b>0 leaks</b>between clients: the permission review, the assistant runs, the leak fixes, and every scenario so far.</div>
+<div><b>0 leaks</b>between clients: the permission review, the assistant runs, the leak fixes, and scenarios 1 to 34. One open privacy gap inside a client: G05.</div>
 <div><b>67 / 1 / 3</b>passed / failed / not run in the full end-to-end run on a production-like stack; no app bug found.</div>
 <div><b>0115</b>last database migration. Four of the recent ones need care on a live server: 0109, 0112, 0114, 0115.</div>
 <div><b>164 + 100</b>sample files and questions in the labelled test set that the model and search choices were made on.</div>
-<div><b>20 of 21</b>scenarios done on four copies, no privacy finding on any; the isolation sweep (19) is not finished; Gate C ahead.</div>
+<div><b>33 of 34</b>scenarios done; 70 gaps listed (14 high); the isolation sweep (19) is not finished; Gate C ahead.</div>
 </div>
 
 <h2>1 How solid is what we have?</h2>
@@ -76,8 +77,8 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tbody>
 <tr>
 <td>Keeping clients apart</td>
-<td>Every route, download, export, search and assistant lookup goes through one check, <code>authorize()</code>, and the database repeats it with row-level security. A denied request looks like a missing one. A privacy review plus the leak-fix batch closed five real leaks (firm-only titles, private file names, shared reports counting firm-only work, history counting firm-only work). Restricted clients, assistant switch owners and whole-project meeting invitations were tightened. The isolation sweep of scenario 19 is still to run on every copy.</td>
-<td>No outside penetration test. Tests use our own sample data.</td>
+<td>Every route, download, export, search and assistant lookup goes through one check, <code>authorize()</code>, and the database repeats it with row-level security. A denied request looks like a missing one. A privacy review plus the leak-fix batch closed five real leaks (firm-only titles, private file names, shared reports counting firm-only work, history counting firm-only work). Restricted clients, assistant switch owners and whole-project meeting invitations were tightened. Every "should be denied" check in scenarios 22 to 34 was refused. The isolation sweep of scenario 19 is still to run on every copy.</td>
+<td>No outside penetration test. Tests use our own sample data. "Not found" pages answer HTTP 200, so the sweep cannot yet tell them apart by code (G07).</td>
 <td><span class="tag built">SOLID</span></td>
 </tr>
 <tr>
@@ -95,13 +96,13 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tr>
 <td>Files</td>
 <td>20 MB limit, three type checks, ClamAV scan (a virus test file was refused), signed one-minute links, versions, labels, an audience picker.</td>
-<td>Scanned pages cannot be read (no text recognition yet).</td>
-<td><span class="tag built">SOLID</span></td>
+<td>Scanned pages cannot be read (no text recognition yet). <strong>A new version keeps the assistant switch of the old one (G05): fix before go-live.</strong></td>
+<td><span class="tag part">SOLID after the G05 fix</span></td>
 </tr>
 <tr>
 <td>Audit log</td>
 <td>Hash-chained, sealed and checked nightly; kept 12 months at least.</td>
-<td>Old rows still hold some private file names until the <strong>pre-go-live clean-up</strong> (section 5).</td>
+<td>Old rows still hold some private file names until the <strong>pre-go-live clean-up</strong> (section 5). A broken chain is found by the nightly check but tells nobody (G14).</td>
 <td><span class="tag part">SOLID after clean-up</span></td>
 </tr>
 <tr>
@@ -113,7 +114,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tr>
 <td>Assistant</td>
 <td>Answers with citations, from what the asker may open; a local model (qwen3.5:4b) by default; name masking that fails closed; a personal-number scanner (0114); Arabic word search (0112); @-attach; client assistant gaps closed; background jobs (0113). Labelled test set: 81 of 89 scored questions found the right passage; access held on all 164 earlier questions; no leak in scenario 13.</td>
-<td>Answers take about a minute on the local model on a processor (47 to 132 s). The progress draft's numbers can disagree with the project page. Reading scanned pages and a name-spotting model are not built. Answer quality on the server's own hardware is not measured.</td>
+<td>Answers take about a minute on the local model on a processor (47 to 132 s). The progress draft's numbers can disagree with the project page. On the 23 November test copy the model service returned an error for every question, so no answer was tested there. Reading scanned pages and a name-spotting model are not built. Answer quality on the server's own hardware is not measured.</td>
 <td><span class="tag part">BUILT, NOT PROVEN</span></td>
 </tr>
 <tr>
@@ -149,7 +150,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tr>
 <td>Legal</td>
 <td>Terms, privacy and AI notices, DPA template, sub-processor list; acceptance recorded.</td>
-<td>Not reviewed by a lawyer. Hosting location, retention and duties not confirmed.</td>
+<td>Not reviewed by a lawyer. Hosting location, retention and duties not confirmed. The AI notice says client people have no assistant (G02), and the security page lists a second-site backup that is not set up (G03).</td>
 <td><span class="tag open">MISSING</span></td>
 </tr>
 </tbody>
@@ -268,7 +269,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tr>
 <td>Lead suggestions by expertise</td>
 <td><span class="tag built">KEEP</span></td>
-<td>Only suggests; no performance scores. Gap: a consultant cannot set their own profile.</td>
+<td>Only suggests; no performance scores. A consultant sets their own languages and availability; services and sectors stay with the admin (re-checked in scenario 31).</td>
 </tr>
 <tr>
 <td>Business indicators</td>
@@ -303,7 +304,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <tr>
 <td>Org chart (structure)</td>
 <td><span class="tag built">KEEP</span></td>
-<td>Useful to the firm; the publish id bug is fixed (#215, 0115).</td>
+<td>Useful to the firm; the publish id bug is fixed (#215, 0115). Scenario 20 has not been run again since.</td>
 </tr>
 <tr>
 <td>Closing survey and case-study consent</td>
@@ -487,8 +488,18 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <td><strong>Done</strong></td>
 </tr>
 <tr>
+<td>2a</td>
+<td>Scenarios 22 to 34 on the lead's copy (23 November), the gap list (70 gaps), the testing guide and the target product document</td>
+<td><strong>Done</strong> (#242, #243, #245)</td>
+</tr>
+<tr>
+<td>2b</td>
+<td><strong>Fix G05</strong>, then the rest of the first batch of fixes (Workflows, Part C)</td>
+<td>Not started</td>
+</tr>
+<tr>
 <td>3</td>
-<td><strong>Scenario 19 isolation sweep</strong> on every copy by an independent reviewer</td>
+<td><strong>Scenario 19 isolation sweep</strong> on every copy by an independent reviewer, after "Not found" pages return a real 404 (G07)</td>
 <td><strong>Interrupted, not finished: run again</strong></td>
 </tr>
 <tr>
@@ -599,8 +610,15 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <td>Small to medium</td>
 </tr>
 <tr>
+<td><strong>Concern flags</strong></td>
+<td>Facts about a project that may need a look, for firm staff. No score. Not designed yet: which facts count and who sees them are open.</td>
+<td>No</td>
+<td>Not decided</td>
+<td>Not sized</td>
+</tr>
+<tr>
 <td><strong>Workflow helpers</strong></td>
-<td>A guided renew step; a reason for why a contract ended; a pause state; the AI meeting summary draft; a decisions list; a calendar screen. Each must first be shown to be useful.</td>
+<td>A guided renew step; a reason for why a contract ended; a pause state; a re-check of results at 6 and 12 months; the AI meeting summary draft; a decisions list; a calendar screen. Each must first be shown to be useful.</td>
 <td>Mostly no</td>
 <td>None</td>
 <td>Various</td>
@@ -643,7 +661,7 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 </tr>
 </tbody>
 </table>
-<p>Every citation from the library is labelled "Reference" and names the source, its edition and the place in it, so nobody mistakes it for the client's own document. Arabic and English questions about each source are added to the labelled test set with the right passages marked.</p>
+<p>Every citation from the library is labelled "Reference" and names the source, its edition and the place in it, so nobody mistakes it for the client's own document. Arabic and English questions about each source are added to the labelled test set with the right passages marked (18 reference-library questions are already in the set).</p>
 <h3>Suggested order for splitting the work</h3>
 <ol>
 <li>Things that need no model first: stuck or overloaded lanes, the indicator flag and spreadsheet rows, save an answer as a note, the client's own report page.</li>
@@ -651,4 +669,163 @@ blockquote{margin:2mm 0 3mm;padding:2mm 3.5mm;border-left:2pt solid var(--line);
 <li>Text recognition and user-made templates: after research.</li>
 <li>The reference library, then assessment help: last. They depend on a licence check of each source and the labelled test set.</li>
 </ol>
-<p class="small">Sources: the system map, the operations guide (Before go-live), the assistant guide, the lead's log and the scenario reports. Companion documents: Handbook, Workflows.</p></body></html>
+<h2>7 Still open before go-live, and the planned infrastructure work</h2>
+<div class="box later">
+<p><strong>Every row in this section is open or planned. None is done.</strong> Section 5A stays the operator's step-by-step checklist. This section is the one list of everything that must be true before a real client file enters Selah, in order, with what counts as proof. The firm's decisions it waits on are the open questions of the target product document (numbers in brackets).</p>
+</div>
+<h3>A. The go-live list still open</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>What is needed, and the proof</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>G05 fix</strong></td>
+<td>When a file version is added, the database switches the assistant flag off unless the uploader may switch it on. Proof: a test that fails before the fix and passes after, and an independent review. First of the fixes in Workflows, Part C.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Isolation sweep</strong> (scenario 19)</td>
+<td>First make "Not found" pages return a real 404 (G07). Then open every record's address as every account that must be refused, on every copy, by someone other than the builders. Also check search, the bell, mail, exports and PDFs per account. Proof: a sweep report in the repository.</td>
+<td>Open (interrupted twice)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>A staging server, and the end-to-end run on it</strong></td>
+<td>The suite has run only on a production-like stack on a laptop: 67 passed, 1 failed, 3 not run. The failure and the 3 not run are assistant tests written for a hosted model; adapt them to the local model first. Proof: the run record from staging.</td>
+<td>Open (no staging server exists)</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Timings on the real server</strong></td>
+<td>Page response times on a production build, assistant answer times, indexing time, and memory under load with all services running. Today's figures are a laptop's: median 117 seconds per answer on its processor, and page times from a development server. Proof: measured figures, taken to the firm (question 18).</td>
+<td>Open (not measured)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Live tunnel test</strong></td>
+<td>Section 5A, step 3. The tunnel image was only started, never run with a real token.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Sending domain</strong></td>
+<td>SPF, DKIM and DMARC on the firm's side (5A, step 7). The firm names the domain (question 30).</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Second backup disk and a key kept off the server</strong></td>
+<td>The off-site encrypted copy needs the disk, the key holder and a schedule (5A, step 8; question 28). Until then the security page must not list it (G03).</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Restore drill</strong></td>
+<td>One drill done and its time written down; <code>ops/readiness.sh</code> green. The firm says what restore time is acceptable (question 28).</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Outside penetration test</strong></td>
+<td>None has been done. All tests so far are our own, on sample data. The firm decides whether it is required before real data (question 28).</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>Legal review</strong></td>
+<td>Terms, privacy notice, AI notice and the data processing agreement reviewed by the firm's counsel (5A, step 10; question 29). Hosting location and retention periods confirmed (questions 20 and 22). Correct the AI notice first (G02). The agreement's "[24] hours" to tell a client of a breach is a placeholder.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>The clean-up script and the migration steps</strong></td>
+<td>5A, steps 1, 2, 4, 5 and 11: size the end reminders, run the clean-up of old private file names (written and tested, not run), plan the 0112 window, allow for the 0114 re-index, run 0115 with the app stopped.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>Direct way in, and the real-client rule</strong></td>
+<td>5A, steps 6 and 9. Switch from the tunnel to the direct way in before any real client file. Real client files go only to the local model, so the AI stays fully local.</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>Scenario re-runs and Gate C</strong></td>
+<td>Run scenario 20 again after the #215 fix. Re-run every failed step independently. Write the scenario report. Then the owner decides at Gate C (question 34).</td>
+<td>Open</td>
+</tr>
+</tbody>
+</table>
+<p>The order matters: rows 1 and 2 are privacy and come first. Rows 3 and 4 need the server. Rows 5 to 12 are the operator's work on that server. Row 13 closes the testing.</p>
+<h3>B. Planned infrastructure work</h3>
+<p>Not built. Each item follows the rules of section 6: light, fast, on our own server, with no client file going to a hosted model.</p>
+<table>
+<thead>
+<tr>
+<th>Work</th>
+<th>Why it is needed</th>
+<th>Mark</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A staging server</td>
+<td>There is none. Upgrades, the end-to-end suite and the migration windows have nowhere to be tried before the live server.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Alerts to a real inbox, an outside uptime check, disk and log watching</td>
+<td>The readiness check and the two-minute alert job exist, but their alerts reach nobody outside the server yet.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>A notice when the audit chain check fails (G14)</td>
+<td>The nightly check finds a broken chain and tells nobody. Bell and mail to every firm admin.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Scheduled jobs on the server</td>
+<td>The daily and monthly jobs (reminders, the end-of-engagement notice, purges, status packs) were run by hand in the scenarios. No purge job has been run in any test.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Test repairs</td>
+<td>One unit test reads a setting of the machine and fails on the lead's copy (it passes in CI). The database suite needs a longer time limit when the machine is busy. The denial tests are counted only by estimate.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Image and library updates</td>
+<td>Three image updates (storage, tunnel, web server) were open on 22 November. CI does not run the Docker images, so each needs the full-stack check first.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Text recognition in the shared queue</td>
+<td>Recognition only on pages marked scanned, on the processor, indexed once. It shares the one queue with the answer model, so measure the memory first.</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>The reference library as a separate source in the same index</td>
+<td>No second index and no new model. A licence check of each source comes first (question 27).</td>
+<td><span class="tag later">PLANNED</span></td>
+</tr>
+<tr>
+<td>Hardware for the answer model</td>
+<td>Answers run on the processor. If about a minute per answer is not acceptable, the firm decides on other hardware (question 18).</td>
+<td>Open question</td>
+</tr>
+<tr>
+<td>Sign-in with the firm's Microsoft or Google accounts</td>
+<td>Not built and not planned. Listed only because the firm may ask for it (question 31).</td>
+<td>Open question</td>
+</tr>
+</tbody>
+</table>
+<p class="small">Sources: the system map, the operations guide (Before go-live), the assistant guide, the final status of the review run, the gap list, the target product document, the lead's log and the scenario reports. Companion documents: Handbook, Workflows.</p></body></html>
