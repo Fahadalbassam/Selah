@@ -1,19 +1,19 @@
-<p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #215, migrations to 0115 · 20 November 2026</p>
+<p class="kicker">Team handbook · Part 1 of 3 · Checked on main after PR #251 (last app change #215), migrations to 0115 · 24 November 2026</p>
 
 # Selah, explained for the team
 
-This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last merged change: #215, database migrations up to 0115).
+This handbook tells the whole team what Selah is for, who uses it, what each person can and cannot do, and how the main parts work: files, the assistant, meetings, reports, the client's structure and internal projects. It describes the finished app as it is on main today (last app change: #215, database migrations up to 0115; the pull requests after it, up to #251, changed documents and library versions only). Section 20 lists what the team plans to build later; nothing in it is built.
 
 Two companion documents go with it: **Workflows** (the everyday flows step by step, and what the scenario tests found) and **Production path** (how Selah runs, what must happen before go-live, what is left, and the future features). The source of truth for all three is the system map in the repository, which lists every feature, its files, its roles and its connections.
 
-Known gaps, what each scenario tested, and the order to fix them: [gaps-and-priorities](../gaps-and-priorities.md) (13 new scenarios, 70 gaps).
+Known gaps, what each scenario tested, and the order to fix them: [gaps-and-priorities](../gaps-and-priorities.md) (13 new scenarios, 70 gaps). What the tests protect and how to run them: [testing-guide](../testing-guide.md). Selah after every planned upgrade, with the open questions: [selah-target](../../future/selah-target.md) (85 features, 34 open questions).
 
 <div class="box" markdown="1">
 **What is new since the 6 November edition.** Help and a role guide inside the app. A privacy clean-up (five leaks found and fixed). Restricted clients can finally work. The client assistant answers "who is my consultant" and "my deadlines". Staff get a facts-only progress draft that opens the report page. Reports have templates, a second person's approval and a confirmed send. Files can be attached in a question with @. The client is told when the lead consultant changes, and the firm is reminded before an engagement ends. The client's organisation structure (org chart). A local model (qwen3.5:4b), better Arabic search, a scanner for personal numbers, and slow AI work as background jobs. The full list is in section 19.
 </div>
 
 <div class="toc">
-<div>01 What Selah is</div><div>02 Words we use</div><div>03 The core loop</div><div>04 Firm-side roles</div><div>05 Client-side roles</div><div>06 Every screen and what you do there</div><div>07 From first contact to goodbye</div><div>08 When things go wrong</div><div>09 Files</div><div>10 The assistant</div><div>11 Meetings and summaries</div><div>12 Reports, templates and sending</div><div>13 The client's organisation structure</div><div>14 Internal projects</div><div>15 Help and guides inside the app</div><div>16 The design rules</div><div>17 How to try it yourself</div><div>18 Also in Selah</div><div>19 What changed in this run</div>
+<div>01 What Selah is</div><div>02 Words we use</div><div>03 The core loop</div><div>04 Firm-side roles</div><div>05 Client-side roles</div><div>06 Every screen and what you do there</div><div>07 From first contact to goodbye</div><div>08 When things go wrong</div><div>09 Files</div><div>10 The assistant</div><div>11 Meetings and summaries</div><div>12 Reports, templates and sending</div><div>13 The client's organisation structure</div><div>14 Internal projects</div><div>15 Help and guides inside the app</div><div>16 The design rules</div><div>17 How to try it yourself</div><div>18 Also in Selah</div><div>19 What changed in this run</div><div>20 What the team plans to build later</div>
 </div>
 
 ## 01 What Selah is
@@ -37,7 +37,7 @@ Selah (سلة, "connection") connects the consultant and the client around that 
 - **One install, one firm.** Each firm gets its own installation with all its clients inside.
 - **Arabic first.** Arabic right-to-left is the default; every screen, email and export also exists in English.
 - **Presented as a production app.** No "demo" or "prototype" labels. It still runs on sample data only, because hosting and data handling are not approved for real client data yet (see the Production path).
-- **No client ever sees another client.** If you are not allowed to see something, Selah answers "Not found", as if it did not exist. Two independent checks guard this, one in the app and one in the database. Every scenario test so far found no privacy leak.
+- **No client ever sees another client.** If you are not allowed to see something, Selah answers "Not found", as if it did not exist. Two independent checks guard this, one in the app and one in the database. In scenarios 1 to 34 nobody saw another client's data. One privacy gap is open, inside a single client: G05, a new file version keeps the assistant switch (section 09). The isolation sweep (scenario 19) is not finished.
 - **Automation suggests, a person decides.** This is the rule for the assistant today and for every future feature.
 
 ## 02 Words we use
@@ -226,9 +226,10 @@ Names are as the in-app guides use them. Arabic names are in the sidebar. Admin-
 - **Versions.** A new version replaces the old in lists and in the assistant. The history stays. A confidential request can no longer be bypassed by uploading a new version and switching the assistant on.
 - **Evidence is permanent.** Evidence is never deleted or renamed. A wrong upload is withdrawn by its uploader with a reason, and the name of a withdrawn private file no longer shows to the other side.
 - **Reuse.** A shared file already in Selah can be attached as evidence without uploading again.
-- **Document requests** (project, Requests and files): the firm lists what it needs, with an owner and due date. The client answers each item with files or "does not apply". For someone without an account the firm can send a no-login upload link for one item (valid 1 hour to 30 days, up to ten files, revocable). Items can be marked confidential, which keeps their files out of the assistant.
+- **Document requests** (project, Requests and files): the firm lists what it needs, with an owner and due date. The client answers each item with files or "does not apply". For someone without an account the firm can send a no-login upload link for one item (valid 1 to 30 days, up to ten files, revocable). Items can be marked confidential, which keeps their files out of the assistant.
 - **The Files card** lists exactly the files you could open elsewhere.
 - **Who controls "Let the assistant read it".** Switching a file's assistant flag **on** needs the uploader of that version or the owning side's admin. Switching it **off** is open to anyone on the owning side, because it only protects privacy.
+- **Open privacy gap (G05).** A new version of a file keeps the old version's assistant switch. So a staffed firm consultant or a client manager who uploads a new version can put new content into the assistant without the uploader-or-admin step, and the personal-number notice is skipped. Found in scenario 32. It is the first fix on the list (Workflows, Part C). Until it is fixed, check the switch after every new version.
 
 ## 10 The assistant
 
@@ -263,7 +264,7 @@ An Arabic and English assistant that answers questions from the files and record
 
 **Arabic search.** Word search ignores short vowels, tatweel and spelling variants of hamza, ى/ي and ة/ه, so «احمد» finds «أحمد». Search was measured on a labelled test set of 164 sample files and 100 questions: the right passage was found for 81 of 89 scored questions. The misses were mostly cross-language, a scanned page, or long files crowding out others; none was a ranking problem, so a reranker was not built.
 
-**Honest limits.** A name that appears only inside a file and not in Selah's records is not hidden by name masking, so real client files should go only to a local model. Scanned pages cannot be read yet (no text recognition). On the local model on the server's processor an answer can take about a minute (47 to 132 seconds in the scenario runs), with the stream kept open meanwhile. In the scenario tests the staff progress draft showed different numbers from the project page, and an attached file that could not be read was answered as if it were another file; both are on the fix list (Workflows, section 5). No answer showed anything to the wrong person.
+**Honest limits.** A name that appears only inside a file and not in Selah's records is not hidden by name masking, so real client files should go only to a local model. Scanned pages cannot be read yet (no text recognition). On the local model on the server's processor an answer can take about a minute (47 to 132 seconds in the scenario runs), with the stream kept open meanwhile. In the scenario tests the staff progress draft showed different numbers from the project page, and an attached file that could not be read was answered as if it were another file; both are on the fix list (Workflows, Part C). A new file version keeps the assistant switch (G05, section 09). The public AI notice still says client people have no assistant (G02). On the 23 November test copy the model service returned an error for every question, so assistant quality and translation on demand were not tested there. No answer showed anything to the wrong person.
 
 ## 11 Meetings and summaries
 
@@ -281,7 +282,7 @@ Where it is: open a project, **Meetings** tab, **Book a meeting**, or open a mee
 1. Whoever runs it marks it held.
 2. They write the summary by hand. Saving it confirms it. It starts firm-only; it can be shared with the client.
 3. Each summary line can point to its source: a passage of the transcript (firm only) or a page of a project file.
-4. Decisions are recorded and never edited: a correction is a new decision, and the old one shows struck through.
+4. Decisions are recorded and never edited: a correction is a new decision, and the old one shows struck through. Decisions and follow-ups start shared with the client today, unlike the summary (G01, on the fix list).
 5. Follow-ups are tasks out of the meeting, each with an assignee and date. The assignee (client side too) can mark their own one done.
 6. A transcript can be pasted or imported only after attendees were told. It is firm-only and deleted 30 days after the summary is confirmed (90 days at most).
 
@@ -402,7 +403,7 @@ Built and merged, but only named in passing above.
 | **Assessments** | The firm builds and publishes a template; a consultant answers each question; finalised assessments are locked; two can be compared. Low answers are suggested as gaps and a consultant confirms each as a finding. Scores are firm-only and never say "compliant". |
 | **Exports** | Plan as Excel (with a template and guide sheet), actions list, report PDFs, client report PDF, closure report PDF, structure PDF, audit log CSV, the export pack. Each holds only what you could already open, in your language, and is logged. Typed text can never turn into an Excel formula. |
 | **Firm settings** | Intake address, lead suggestions, stale after 14 days, check-ins at 30, 60 and 90 days, access review every 90 days, indicator grace 10 days, restricted clients up to 2 accounts, transcripts kept 30 days, chat retention, Ramadan mail hours. Reminder and escalation days are set on each project. |
-| **Legal and security pages** | Terms, privacy notice and AI notice (accepted and recorded at first sign-in, asked again when one changes), a data processing agreement template, the sub-processor list and a security pack that shows this site's real setup. |
+| **Legal and security pages** | Terms, privacy notice and AI notice (accepted and recorded at first sign-in, asked again when one changes), a data processing agreement template, the sub-processor list and a security pack that shows this site's real setup. Two texts are wrong today and are on the fix list: the AI notice says client people have no assistant (G02), and the security page lists a second-site backup that is not set up yet (G03). No lawyer has reviewed the texts. |
 | **The audit log** | Who did what and when, as ids and counts only: never file text or assistant questions or answers. Each row is chained to the last so the tamper check shows any change. |
 | **Server work** | Backups, restore drill, readiness checks, monitoring, upgrades and the incident runbook are in the operations guide and in the Production path. |
 
@@ -424,7 +425,110 @@ Built and merged, but only named in passing above.
 | AI jobs | Translations, summaries and org chart drafts run as background jobs | #211 |
 | Number scanner | Personal numbers replaced by tags before any model | #213 |
 | Org chart | Valid ids for copied units and positions (migration 0115); a one-time repair of stored ids with an audit row per client. Run it with the app stopped; it waits at most 10 seconds for a lock. | #215 |
-| Scenarios | All four copies (A, B, C, D in English, 768 px dark) are done: no privacy finding on any copy. Scenario 19 (isolation sweep) was interrupted and is not finished. The failures and friction are in Workflows, Part B. | n/a |
+| Scenarios 1 to 21 | All four copies (A, B, C, D in English, 768 px dark) are done: no privacy finding on any copy. Scenario 19 (isolation sweep) was interrupted and is not finished. The failures and friction are in Workflows, Part B. | #214, #220 to #222 |
+| Scenarios 22 to 34 | 13 new scenarios run on 23 November on the lead's copy: assessments, inquiries and pitches, Excel, deliverable receipt, the moved-away notice, assistant switches, sign-in and two-step, the audit log, retention and erasing, team load, file versions and scanning, mail hours, upload links and access reviews. Every "should be denied" check was refused. One privacy gap found: G05. The gap list now has 70 items: 14 high, 29 medium, 27 low. | #245 |
 | Tests | Full end-to-end run on a production-like stack: 67 passed, 1 failed, 3 not run, no app bug found | #210 |
+| Tests | Full run on 22 November: unit 1,185 of 1,188 passed (1 failed because it reads a setting of the machine, 2 skipped); database 1,492 passed; upload scanning 6 passed; AI service 181 passed. The end-to-end suite was not part of that run. | #241 |
+| Team documents | The testing guide, the gap list with priorities, and the target product document (85 features: 32 built, 36 to refine, 17 planned; 34 open questions) | #242, #243, #245 |
 
-<p class="small">Source of truth: the system map in the repository (29 features, 8 sub-features, 70 links). Companion documents: Workflows, Production path.</p>
+## 20 What the team plans to build later
+
+<div class="box later" markdown="1">
+**Nothing in this section is built.** It is the team's plan, with no dates. The full list is in [selah-target](../../future/selah-target.md): 85 features in 9 areas, of which 32 are built and stay as they are, 36 are built but must change, and 17 are planned. <span class="tag later">PLANNED</span> means not built. <span class="tag part">REFINE</span> means built, and due to change. Every planned feature keeps the rules of today: automation suggests and a person decides, one shared local model, fully local AI for real client files, no scores of people, and the same access checks.
+</div>
+
+The codes in brackets (U6, I13 and so on) are the feature ids of the target document. The fixes that come first are in Workflows, Part C. The go-live list is in the Production path, section 7.
+
+### Firm admin
+
+| Item | Mark | Why it is needed |
+|---|---|---|
+| Stuck or overloaded lanes (U6) | <span class="tag later">PLANNED</span> | Today the admin must read team load and the rule lists and add them up by hand. Lanes show the facts in one place: a consultant with many reviews waiting long, one client person owning most late work, a project where nothing moved for weeks. Database queries only. No score or ranking of a person. |
+| Concern flags (U7) | <span class="tag later">PLANNED</span> | Facts about a project that may need a look, with no score. Not designed yet: which facts count and who sees them are open. |
+| Guided renew step (C5) | <span class="tag later">PLANNED</span> | At renewal, open actions do not carry into the next project by themselves. A proposal only. |
+| Reason a contract ended (C6) | <span class="tag later">PLANNED</span> | When a client ends early, the reason sits only in the closing notes. A proposal only. |
+| Pause state for a project (C7) | <span class="tag later">PLANNED</span> | There is no pause. During a real pause, late notices and escalations keep going to the client. A proposal only. |
+| Re-check at 6 and 12 months (C8) | <span class="tag later">PLANNED</span> | Check-ins stop 90 days after hand-over, so the firm cannot see whether the results lasted. A proposal only. |
+| End-of-engagement notice says what to do next (S9) | <span class="tag part">REFINE</span> | The notice names the engagement and its date, but not the choices: renew, close or archive. |
+| A notice when the audit chain breaks (A7) | <span class="tag part">REFINE</span> | The tamper check finds a broken chain, but tells nobody (G14). |
+| The go-live list (H5 to H7) | <span class="tag part">REFINE</span> | Backups, monitoring, deployment and the clean-up script are built but not proven on a real server. See the Production path. |
+
+### Lead consultant and deputy
+
+| Item | Mark | Why it is needed |
+|---|---|---|
+| Stuck or overloaded lanes (U6) | <span class="tag later">PLANNED</span> | The lead sees the same facts as the admin for their own client and decides what to do. |
+| "What changed" and the meeting brief (I11) | <span class="tag later">PLANNED</span> | A cited list of changes since the last visit, and a draft brief from a meeting's agenda, open decisions and open actions. Built only if the value test shows it saves time. |
+| The firm's own report templates and a richer editor (R6) | <span class="tag later">PLANNED</span> | Only three fixed templates exist, and the note is plain text. Research first: Arabic right-to-left editing, safe storage, PDF and translation. Approval and a confirmed send still apply. |
+| Decisions list and calendar screen (U8) | <span class="tag later">PLANNED</span> | Decisions are spread over single meetings; nobody can read them in one list. A proposal only. |
+| A date request is declined with a reason (W4) | <span class="tag part">REFINE</span> | Decline acts at once today, with no reason and no way back (G17). |
+| The progress draft matches the project page (I4) | <span class="tag part">REFINE</span> | The draft once said 0 verified and 1 late where the page said 1 of 8 and 3 late (G31). |
+| The client gets a notice when a report is sent (R1) | <span class="tag part">REFINE</span> | Sending a report tells the client nothing today (G20). |
+
+### Consultant
+
+| Item | Mark | Why it is needed |
+|---|---|---|
+| Reference library of governance and strategy sources (I13) | <span class="tag later">PLANNED</span> | Six sources (the Production path lists them) that the assistant and the assessment help can cite. Today an answer can cite only the client's files and Selah's records. Each citation is labelled "Reference" with the source, edition and place, and is kept apart from client evidence. A licence check of each source comes first. |
+| Assessment help (P9) | <span class="tag later">PLANNED</span> | Today a consultant answers every assessment question by hand from the evidence. The help suggests a draft answer and score with a citation for each. It stays a draft until a consultant takes it on, and it never says "compliant". Built last, after the reference library. |
+| Indicator help (R5) | <span class="tag later">PLANNED</span> | The built import needs clear columns. The help proposes rows from a messy spreadsheet and suggests a likely link to a recommendation. The client accepts each value; only the firm confirms a link. It never says a recommendation caused a change. |
+| Text recognition for scanned pages (I9) | <span class="tag later">PLANNED</span> | A scanned board minute is invisible to the assistant today, and one scanned page produced an invented answer in the test set. Recognition runs only on pages marked scanned, on our own server. |
+| Save an answer as a note (I10) | <span class="tag later">PLANNED</span> | A useful answer is lost when the chat is deleted (90 days after a project closes, or 180 days idle). Saving keeps it with its citations as a firm-only note on the project. No model needed. |
+| Meeting summary draft; the assistant reads summaries (I12) | <span class="tag later">PLANNED</span> | The summary is typed by hand and the assistant cannot answer from confirmed summaries or decisions. A proposal only. |
+| Accepting an evidence item and verifying in one clear step (W2) | <span class="tag part">REFINE</span> | Two steps today, and the first try gets an English sentence that names no item (G44). |
+| "Release now" stops saving drafts by mistake (P6) | <span class="tag part">REFINE</span> | The switch is on by default and hard to see in dark mode (G40). |
+| A skipped attachment is named (I3) | <span class="tag part">REFINE</span> | An attached file that cannot be read is answered as if it were another file (G34). |
+
+### Observer
+
+An observer gets no planned feature of their own. Through the staff assistant they would read "what changed", the meeting brief and the reference library, and scanned pages once text recognition is built.
+
+### Client admin
+
+| Item | Mark | Why it is needed |
+|---|---|---|
+| The company's own report page (R7) | <span class="tag later">PLANNED</span> | The assistant's progress-update draft stays in one person's chat and is deleted with it. The page lets the client keep and edit it as the company's own report. The firm sees it only if the client shares it, and Selah never sends it. |
+| Indicator help (R5) | <span class="tag later">PLANNED</span> | The client admin or a manager accepts each proposed value before it counts. |
+| A notice when a report is sent and when the consultant changes (R1, S8) | <span class="tag part">REFINE</span> | Today the client must look for a new report, and only the Help page shows a new consultant (G20, G15). |
+| Clear screens for an archived client (C3) | <span class="tag part">REFINE</span> | An archived client is offered reply buttons that are refused with the wrong reason, and the sign-in message does not say what to do (G25). |
+| A correct AI notice (A8) | <span class="tag part">REFINE</span> | The notice the client admin reads says client people have no assistant (G02). |
+
+### Client manager, sponsor and coordinator
+
+| Item | Mark | Why it is needed |
+|---|---|---|
+| Indicator help and the company's own report page (R5, R7) | <span class="tag later">PLANNED</span> | As for the client admin, for what the manager may open. |
+| A declined date request carries a reason (W4) | <span class="tag part">REFINE</span> | The manager's people get a "no" with no explanation today. |
+| The Meetings tab shows the meetings a department-limited manager is invited to (U4) | <span class="tag part">REFINE</span> | The tab can read "none for you yet" although she is invited (G26). |
+
+### Action owner
+
+No planned feature. The client assistant stays closed to action owners. Two refinements reach them: "Start work" on Home starts the work or is labelled "Open" (W1, G45), and a declined date request carries a reason (W4).
+
+### Firm-run clients (no accounts)
+
+No planned feature. One refinement: the reviewer text says "ask a colleague to review" when nobody else is on the team (G58). How a risk acceptance is recorded for a client with no accounts is open question 32.
+
+### Questions the firm must answer first
+
+The target document lists 34 open questions. These are the ones that block a planned item. The numbers are the question numbers in that document.
+
+| Planned item | Question | What the firm must decide |
+|---|---|---|
+| Reference library | 27 | Is each of the six sources licensed for this use? Which editions are stored? May the client assistant cite the library, or only the staff assistant? |
+| Assessment help | 24 | When does the firm send its own assessment template, and which reference is each question measured against? |
+| Indicator help | 23 | Which sources will a client allow Selah to read, and who at the client accepts each value? |
+| Stuck or overloaded lanes | 25, 5 | What counts as "stuck" or "overloaded", and who sees the list besides the admin and the lead? |
+| Concern flags | 26 | Which facts count as a concern, and who sees them? |
+| Re-check at 6 and 12 months | 33 | Does the firm want it beside the 30, 60 and 90 day check-ins, and what is checked? |
+| Guided renew step | 8 | Which open actions carry into the next project, and who decides? |
+| Reason a contract ended | 1 | Who records the reason, and who may read it? |
+| Pause state | 2 | Who may pause, what stops (reminders, the ladder, client access), and for how long? |
+| Assistant features on the firm's server | 18, 17 | Is about a minute per answer acceptable on the firm's server, or does the firm want other hardware? How is a wrong answer reported? |
+| Go-live | 22, 28, 29, 30, 34 | Where real data is hosted, who operates the server and holds the backup key, who reviews the legal texts, which mail domain sends, and the Gate C decision. |
+
+Text recognition and saved answers wait on no question: they need only the build. "What changed" and the meeting brief wait on the value test (six tasks, each done with and without the assistant; prepared, not run). The other questions are about today's flows (scope cuts, a disputed review, conflicting evidence, retention periods and more) and are in the target document, section 6.
+
+**The order.** First the fixes in Workflows, Part C, privacy first. Then the items that need no model: lanes, save an answer as a note, the company's own report page. Then the items that use the shared local model, after the value test: "what changed", the meeting brief, indicator help. Then text recognition and the firm's own templates, after research. Last the reference library and then assessment help.
+
+<p class="small">Source of truth: the system map in the repository (29 features, 8 sub-features, 70 links). Companion documents: Workflows, Production path. Also for the team: the testing guide, the gap list (gaps-and-priorities) and the target product document (selah-target).</p>
