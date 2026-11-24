@@ -1,6 +1,6 @@
 # Changes to the CS 511 final report draft
 
-File: `report/CS511-final-report-draft.docx`. Every changed or new paragraph carries one Word comment by "Team review" (131 comments). The report has 11 tables and 19 figures, and both lists match the captions.
+File: `report/CS511-final-report-draft.docx`. The Word file has no comments; every change is listed here. The report has 11 tables and 19 figures, and both lists match the captions.
 
 **The report is a plan.** This semester the team planned and designed Selah. Developing and evaluating it is next semester's work (Chapter 5). Chapters 1 to 4 therefore describe the design as proposed: what Selah will do, what is decided and what is still open. The interface figures are interface designs on sample data.
 
@@ -26,10 +26,13 @@ Kept exactly as the team wrote it. No changes.
 
 ## Chapter 3: SPMP & Requirement Specification
 
-Sections 3.1 and 3.2 are kept exactly as the team wrote them. The only change is that the empty section 3.3 was filled in.
+Kept as the team wrote it, with these additions and corrections.
 
 | Where | Old | New | Why |
 |---|---|---|---|
+| Staffing table, implementation row | using AI tools | integrating the AI/RAG component | The skill meant is building the assistant part of Selah. |
+| 3.2.1 Product Perspective | ... share all internal information. | + In every mode the plan itself is written and changed by the firm; client users answer it, update their actions and send evidence. | States who keeps the plan. |
+| 3.2.2 Product Functions | (nine bullets) | Seven more bullets: action states and status words, client answers, requests for more time and risk acceptance, client-reported indicators and the organization structure, inquiry to archiving, file controls and the audit log, help in Arabic and English | Functions in the design that the list was missing. |
 | 3.3 Specific requirements, 3.3.1 to 3.3.4 | Four empty headings numbered "2.3.1" to "2.3.4" | Headings numbered 3.3.1 to 3.3.4, with text, Table 3.5 (screens), Table 3.6 (functions FR-01 to FR-22) and NFR-01 to NFR-07 | The template asks for these sections and they were empty. |
 | 3.3.3, "Assessment and AI" paragraph | (new text) | AI-assisted progress monitoring supports the consultant: the assistant summarizes progress, and highlighting possible deviations or concerns for the consultant to review is planned for a later phase | Matches objective 5 in Chapter 1. |
 | Captions of Table 3.1, Table 3.2, Figure 3.3, Table 3.4 | Plain text numbers | Same words; the number is a Word field | So the lists of tables and figures include them. No wording changed. |
@@ -149,6 +152,7 @@ The template gives only 4.1 Proposed Methodology, 4.2 System Design and 4.3 Inte
 | 4.3.1 Design principles; 4.3.2 Arabic screens; 4.3.3 English, dark mode and tablet width; 4.3.4 Help and accessibility | Under 4.3 |
 | Figures 4.1 to 4.18 and Tables 4.1 to 4.6 | Chapter 4 |
 | Text, Table 3.5 and Table 3.6 under 3.3.1 to 3.3.4 | Chapter 3 (the headings are the template's, renumbered) |
+| Seven bullets in 3.2.2; one sentence in 3.2.1 | Chapter 3 |
 | Entries in the List of Tables and List of Figures | Front matter |
 
 ## Front matter: lists of tables and figures, table of contents
@@ -187,12 +191,11 @@ The firm's two briefing decks were read to understand how the firm works. They a
 - The .docx unzips and every XML part is well formed.
 - The validator of the document tool passes (schema checks against the previous version).
 - Chapters 5 and 6: the text from "Chapter 5: Implementation and Testing" to "References" is identical, byte for byte, to the team's original draft.
-- 131 comments, all by "Team review", each with one anchor in the document; comments of removed paragraphs are removed.
 - 32 captions (13 tables, 19 figures) and 32 list entries, with the same titles; numbering is continuous.
 - All 18 pictures are embedded and are the same files as in `report/figures/`.
 - New text uses Times New Roman and the draft's own heading and caption styles.
 - The document was opened in Word and printed to PDF as a check (96 pages): the tables of 4.2.8 fit the page width, and every figure sits above its caption.
-- Word search over Chapters 1 to 4, the front matter and the comments. Remaining hits and why they are legitimate: "agent" and "multi-agent" (9) are in the literature review, describing a published framework; "implemented" (10) and "tested" (10) are in the literature review and its summary table, describing the reviewed studies; "merged" (2) and "repository" (1) are in the literature table; "code" (3) is "code editor/IDE" in the team's resource table and "authenticator code" for sign-in; "2026" (6) is the year of cited papers. Every other searched word has no hit. The word "model" remains where it describes the product's local model.
+- Word search over Chapters 1 to 4 and the front matter. Remaining hits and why they are legitimate: "agent" and "multi-agent" (9) are in the literature review, describing a published framework; "implemented" (10) and "tested" (10) are in the literature review and its summary table, describing the reviewed studies; "merged" (2) and "repository" (1) are in the literature table; "code" (3) is "code editor/IDE" in the team's resource table and "authenticator code" for sign-in; "2026" (6) is the year of cited papers. Every other searched word has no hit. The word "model" remains where it describes the product's local model.
 
 ## Uncertain, for the team to decide
 
