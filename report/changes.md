@@ -1,451 +1,93 @@
-# Changes to the CS 511 final report draft
+# Changes to the CS 511 final report (Nov24 version)
 
-File: `report/CS511-final-report-draft.docx`. The Word file has no comments; every change is listed here. The report has 14 tables and 19 figures. The table of contents, the list of tables and the list of figures are live Word fields with page numbers; after editing, right-click one and choose Update Field.
+**Compared with:** the team's file "CS 511 Project Final Report Template (draft) Nov24(2).docx". The original is kept beside it as "... Nov24(2) - before Chapter 4.docx".
 
-**The report is a plan.** This semester the team planned and designed Selah. Developing and evaluating it is next semester's work (Chapter 5). Chapters 1 to 4 therefore describe the design as proposed: what Selah will do, what is decided and what is still open. The interface figures are interface designs on sample data.
+**The updated file** is the same file name in Downloads. It has no Word comments. The table of contents, the list of tables and the list of figures were updated in Word, with page numbers and links. The report is 96 pages.
 
-**Chapters 5 and 6 keep the team's text.** They are next semester's work. Only their headings were formatted like the rest of the report (see Formatting).
+## Summary
 
-How to read the tables below: "where" is the section and paragraph; old and new text are shortened; "why" is the reason.
-
-Rules kept: nothing that was already fine was rewritten; the literature, the "fully local AI" statements, the six-person authorship and the timeline are as the team wrote them.
+| Chapter | What changed |
+|---|---|
+| 1 | "Eish" corrected to "Selah" (1.5). Scope (1.7.1) and Project Organization (1.9) updated to match the finished Chapter 4. |
+| 2 | Nothing. |
+| 3 | The screens table (3.15) and the functions table (3.16) were replaced with the fuller versions. The opening paragraph of 3.3.3 was replaced, and the 3.3 headings now number themselves. |
+| 4 | Written in full: methodology, system design and interface design, keeping the team's Agile text. The two feature-by-role tables are not included. |
+| 5, 6 | Text unchanged. The two chapter titles now use the same automatic numbering as Chapters 1 to 4, and they look the same. |
 
 ## Chapter 1: Introduction
 
-Kept as the team wrote it, with these corrections.
-
 | Where | Old | New | Why |
 |---|---|---|---|
-| 1.5 Justification | Eish provides | Selah provides | Wrong product name. |
-| 1.7.1 Project Scope, paragraph 4 | Authorized users will also be able to maintain goal statements and plans, arrange meetings and checkups, and record the follow-up ... | Authorized consultants will maintain the goals and plans, while client users will respond to them, update their assigned actions and submit evidence. Authorized users will also be able to arrange meetings and checkups and record the follow-up ... | In Selah the firm keeps the plan; clients answer it and do the work. |
+| 1.5 Justification | Eish provides a shared workspace | Selah provides a shared workspace | Wrong product name. |
+| 1.7.1, paragraph 4 | Authorized users will also be able to maintain goal statements and plans, arrange meetings and checkups, ... | Assigned consultants will maintain the plan (findings, recommendations and actions), while client users will respond to it, update their assigned actions and submit evidence. Authorized users will also be able to arrange meetings and checkups ... | Chapters 3 and 4 have the firm keep the plan and the client answer it. |
+| 1.7.1, paragraph 5, last sentence | The exact AI method and the criteria used to identify deviations will be defined during design and evaluation. | Chapter 4 sets out the design: rules on recorded dates and states find late, stuck and inactive work; the assistant summarizes the records the user is allowed to see; and AI highlighting of possible deviations or concerns is planned for a later phase, where it will be evaluated. | The design now answers this. Objective 5 is unchanged. |
+| 1.7.1, new paragraph | (none) | The steps around the workflow that the design covers: inquiries with a conflict check and engagement setup, the optional governance assessment, deliverable hand-over and receipt, client-reported indicators, the organization structure, reports approved by a second person, clients that do not use the platform, closing and archiving, and the document assistant. | Chapters 3 and 4 plan these, and the scope did not mention them. |
+| 1.7.1, new paragraph | (none) | Arabic-first with English, desktop and tablet screens from 768 pixels, real client files processed only by a locally hosted model; the prototype covers the core design and later-phase features are in 4.2.8. | Platform decisions made in Chapter 4. |
+| 1.7.1, new paragraph | (none) | Out of scope: pricing and invoicing; connections to client HR, finance, ERP or calendar systems; a mobile phone layout; a policy platform for all staff or enforcement of an authority matrix; automatic calculation of business indicators; certification of compliance. | A scope should say what is excluded; each item is excluded by the design. |
 | 1.9 Project Organization | Chapter 3 explains the development methodology and the system, and interface design. | Chapter 3 presents the software project management plan and the requirements specification. Chapter 4 explains the methodology and the system and interface design. | The sentence gave Chapter 4's content to Chapter 3 and skipped Chapter 4. |
-| 1.10 Chapter Summary | The platform is built as a prototype | The platform is planned as a prototype | Chapters 1 to 4 are submitted as the plan; the prototype is presented next semester. |
 
 ## Chapter 2: Background and Review of Literature
 
-Text kept exactly as the team wrote it, including 2.4.
-
-| Where | Old | New | Why |
-|---|---|---|---|
-| Literature summary table | No caption | Caption "Table 2.1 Summary of the reviewed literature" above it | So the table is numbered and appears in the list of tables. |
-| "Chapter summary" | Unnumbered | 2.5 Chapter Summary | Same numbering as 1.10 Chapter Summary. |
+No changes.
 
 ## Chapter 3: SPMP & Requirement Specification
 
-Kept as the team wrote it, with these additions and corrections.
-
 | Where | Old | New | Why |
 |---|---|---|---|
-| Staffing table, implementation row | using AI tools | integrating the AI/RAG component | The skill meant is building the assistant part of Selah. |
-| 3.2.1 Product Perspective | ... share all internal information. | + In every mode the plan itself is written and changed by the firm; client users answer it, update their actions and send evidence. | States who keeps the plan. |
-| 3.2.2 Product Functions | (nine bullets) | Seven more bullets: action states and status words, client answers, requests for more time and risk acceptance, client-reported indicators and the organization structure, inquiry to archiving, file controls and the audit log, help in Arabic and English | Functions in the design that the list was missing. |
-| 3.3 Specific Requirements, 3.3.1 to 3.3.4 | Four empty headings numbered "2.3.1" to "2.3.4" | Text, a table of screens, a table of functions (FR-01 to FR-22) and NFR-01 to NFR-07 | The template asks for these sections and they were empty. |
-| 3.3.3, "Assessment and AI" paragraph | (new text) | AI-assisted progress monitoring supports the consultant: the assistant summarizes progress, and highlighting possible deviations or concerns for the consultant to review is planned for a later phase | Matches objective 5 in Chapter 1. |
-| Training table | No caption; the text called it "Table X" | Caption "Table 3.2 Training plan"; the text says "Table 3.2" | "Table X" was a placeholder. |
-| Resource allocation table | No caption | Caption "Table 3.5 Resource allocation by major work activity" | So the table is numbered and listed. It continues on the next page as a second table without a caption. |
-| Table and figure numbers | Tables and the Gantt figure shared one count (Table 3.1, 3.2, Figure 3.3, Table 3.4) | Tables and figures are counted separately, as in Chapter 4: Tables 3.1 to 3.7 and Figure 3.1. References in the text follow: Work Breakdown Structure is now Table 3.3, the Gantt chart Figure 3.1, screens Table 3.6, functions Table 3.7 | One numbering rule for the whole report, and Word renumbers by itself. |
-| Table captions | Below the tables | Above the tables | Same place as in Chapter 4: table captions above, figure captions below. |
+| Table 3.15 | "User interface": 8 screens (Login, Maayish dashboard, User management, Client workspace, Recommendation page, Documents and assistant, Meetings and reminders, Progress reports) | "User interface screens": 19 screens. Adds the firm and client homes, People, the Plan and action page, Clients and inquiries, Projects, the Actions list, Files, Indicators, Governance assessment, Organization structure, Deliverables, Notifications, Help and the Audit log | The design has more screens than the old table listed, and Chapter 4 refers to them. |
+| Table 3.16 | "Main system functions": 13 rows with no numbers. Status words "Awaiting consultant review, Changes requested, Approved". Client managers could edit goals and plans | 22 numbered functions, FR-01 to FR-22. The status words match Chapter 4 (Not started, In progress, Waiting, Needs attention, Verified, Closed), and the firm writes the plan | Chapter 4 points to the FR numbers. The old table contradicted the design in Chapter 4 (who edits the plan, the status words). |
+| 3.3.3, first paragraph | "Assigned consultants and client managers can create recommendations, assign actions, change deadlines, and edit goals or plans ... Client managers must discuss changes with the consultant first." | "In the design, assigned consultants will create findings, recommendations and actions, name owners, set and change deadlines, and release actions within their projects. Client users will not edit the plan ..." and it points to Table 3.16 | The old sentence let client managers edit the plan. Everywhere else, the firm writes the plan and the client answers it. |
+| 3.3 and 3.3.1 to 3.3.4 headings | Typed numbers ("3.3.1 External interface requirements") with Word numbering switched off | The same headings with Word's automatic numbering, like the rest of Chapter 3; "non-functional" now has a capital N | One numbering system for every heading, so the numbers stay right if a section is added. |
 
-## Formatting (all chapters)
-
-| What | Before | After |
-|---|---|---|
-| Heading styles | Mixed: some headings were Word headings, some bold body text; "Overall description" was a chapter-level heading; 3.3 was a bullet | Chapter titles Heading 1; sections (1.1, 2.4, 3.2) Heading 2; subsections (1.7.1, 4.2.3) Heading 3; Chapter 3 parts (Estimates, Work Breakdown Structure, Resource Allocation, Budget Allocation) Heading 4; all Times New Roman, black |
-| Heading numbers | "2.1.", "3.1.2.  Work Plan", "6.2Findings", "2.4. Knowledge Gap." | "2.1", "3.1.2 Work Plan", "6.2 Findings", "2.4 Knowledge Gap" |
-| Heading capitals | Mixed ("Social, Professional, legal, and ethical Implications", "Non-functional requirements", "Users and roles") | Title case everywhere |
-| "Overall description" | Unnumbered | 3.2 Overall Description |
-| "D. Budget Allocation" | Letter "D." with no A to C | Budget Allocation |
-| Empty heading lines | 19 empty paragraphs styled as headings | Plain empty paragraphs, so the contents has no blank entries |
-| Chapter 5 | Started mid-page after Chapter 4 | Starts on a new page like the other chapters |
-| Table of contents, list of tables, list of figures | The list of tables was typed text; the lists were out of date | All three are Word fields, updated in Word, with page numbers and links |
-| Caption numbers | Fixed numbers inside the fields | Fields that restart at each chapter, so Word renumbers when a table or figure is added |
-
-## Proposed changes for Chapters 1 and 2 (not made; for the team to decide)
-
-1. **2.4 Knowledge Gap, last paragraph: "The software comparison shows that ..."** The chapter has no separate comparison of software, so a reader will look for one. Rethink: say that the comparison is of the systems and tools described in the reviewed papers, where each covers part of the work (tracking, evidence, documents or AI help) and leaves gaps; and add that Selah also has limits, because it supports the consultant and the client but cannot take the consultant's place. For example: "Comparing the systems described in the reviewed papers shows that action tracking, evidence review, document management, and AI assistance already exist in separate tools, each covering only part of the work."
-2. **1.1 and objective 4: "goals" and "goal statements".** The design has no separate goal record: the plan is findings, recommendations and actions. Rethink whether "goals" means the recommendations, or a goal record the design should add.
-3. **Future tense in Chapter 1.** Chapter 1 uses "will" throughout, which fits a plan. Keep it this semester; when the prototype is submitted next semester, the tense will need to describe what was built.
-4. **The report title** ("AI-Assisted Governance and Consulting Implementation Platform") leads with AI. Rethink whether it should lead with the follow-through between consultants and clients, which is the main purpose, with AI as support.
+The rest of Chapter 3 is unchanged, including 3.3.1, 3.3.2, 3.3.4 and the "Assessment and AI monitoring" paragraph. The notes below list three sentences there that no longer match Chapter 4.
 
 ## Chapter 4: Methodology & Design
 
-The chapter held only the template's instructions in the draft. It is written to the template's three headings and describes the plan.
+The chapter in the Nov24 file had the template's instruction text, the team's Agile method (4.1 with five activities), and empty 4.2 and 4.3. It now holds the full chapter:
 
-### 4.1 Proposed Methodology
-
-Section 4.1 shows how the team arrived at the features Selah needs. It has no dates. The sub-sections are a sequence:
-
-| Sub-section | Content |
+| Section | Content |
 |---|---|
-| 4.1 opening, Figure 4.1 | The method in one paragraph and one figure: eight steps, each producing a written result for the next |
-| 4.1.1 Understanding the firm's work | What the team learned from the firm's two briefing sessions (in the team's own words) |
-| 4.1.2 Finding the problem | Recommendations are handed over and then not followed; the one chain the design is centred on |
-| 4.1.3 Walking through an engagement from both sides | The consultant's side, the client's side, and what goes wrong in real work |
-| 4.1.4 From role needs to features | Each role's needs turned into features, grouped in nine areas |
-| 4.1.5 Checking each feature against the problem and confidentiality | The two questions asked of every feature, and the design rules that came out of them |
-| 4.1.6 Decision points and planned scenario walkthroughs | Table 4.1 (eight decision points, no dates) and the scenario walkthroughs planned to check the design |
+| 4.1 Proposed Methodology | Opens with the team's Agile text (why Agile was chosen). Then how the team arrived at the features: 4.1.1 Understanding the Firm's Work, 4.1.2 Finding the Problem, 4.1.3 Walking Through an Engagement from Both Sides, 4.1.4 From Role Needs to Features, 4.1.5 Checking Each Feature Against the Problem and Confidentiality, 4.1.6 Decision Points and Planned Scenario Walkthroughs (Table 4.1). New 4.1.7 Development Process holds the team's five Agile activities as 4.1.7.1 to 4.1.7.5, with the team's wording. Figure 4.1. |
+| 4.2 System Design | 4.2.1 Architecture (Figure 4.2), 4.2.2 Users and Roles (Table 4.2), 4.2.3 Permission Model and Tenant Isolation (Figure 4.3), 4.2.4 Data Model (Figure 4.4), 4.2.5 Core Workflow and Action States (Table 4.3, Figures 4.5 and 4.6), 4.2.6 Use Cases (Figures 4.7 and 4.8), 4.2.7 Assistant Design (Figure 4.9, including the rules the assistant follows and the planned reference library), 4.2.8 Design Status (Figure 4.10, Table 4.4 Planned features), 4.2.9 Deployment Design. |
+| 4.3 Interface Design | 4.3.1 Design Principles, 4.3.2 Arabic Screens (Figures 4.11 to 4.16), 4.3.3 English, Dark Mode and Tablet Width (Figures 4.17 and 4.18), 4.3.4 Help and Accessibility. |
 
-Removed from 4.1: all dates; the former sub-section on human decisions and review; and every detail about how changes were produced and checked. The principle "the system suggests and a person decides" is kept only where it describes the product (4.2.7).
+What differs from the earlier Chapter 4 draft:
 
-### 4.2 System Design
-
-| Where | Change | Why |
-|---|---|---|
-| 4.2.1 Architecture | "is designed as", "the design uses", "are planned to run" | Design wording. |
-| 4.2.2 Users and roles | "The design has five account roles"; in Table 4.2 the client manager signs a risk acceptance "as sponsor" | Design wording; matches the role check below. |
-| 4.2.3 Permission model | Counts and internal names removed; the last paragraph now says how isolation will be checked next semester | Describes the design, not a result. Figure 4.3 redrawn with plain words. |
-| 4.2.4 Data model | Three sentences explain Figure 4.4, which is redrawn (see below) | The old figure was hard to read. |
-| 4.2.5, Table 4.3 | The Arabic column is removed (three columns remain) | Asked by the team. |
-| 4.2.6 Use cases | "Solid ovals belong to the core design; dashed ovals are planned for a later phase" | New legend in Figures 4.7 and 4.8. |
-| 4.2.7 Assistant | Opens by saying the assistant supports the core workflow and is not the centre of Selah; a new paragraph says it follows the rules and instructions of the consulting work and lists the planned reference library (CMA governance guide, IFC handbook, OECD principles, Balanced Scorecard, Good Strategy/Bad Strategy, MEP strategic-plan guide). | Asked by the team. |
-| 4.2.7 Assistant (earlier) | Text follows the seven numbered steps of the redrawn Figure 4.9; "the system suggests and a person decides" stated here | Clearer flow. |
-| 4.2.8 | Renamed "Design status: what is set and what is still to work out"; three marks (Set, To refine, To plan) in the text, Figure 4.10 and Tables 4.4 to 4.6 | See below. |
-| 4.2.9 Deployment | "is designed to be deployed"; the deployment design lists backups, restore drill, upgrade and rollback steps | Design wording. |
-
-### 4.2.8 in detail
-
-- **Marks.** Set: decided and designed. To refine: thought through, with details still open. To plan: still to write and think through.
-- **Shorter.** The section went from about 4,000 words to about 1,750, tables included. The text is three short paragraphs; the tables carry the detail.
-- **How the tables were shortened.** Closely related features share a row (47 rows; 13 Set, 25 To refine, 9 To plan). The Lead and Deputy columns are one column, because the deputy stands in for the lead (as in Table 4.2). Parts that serve every role in the same way (the permission check, search and masking, background jobs, backups, deployment) are described in 4.2.3, 4.2.7 and 4.2.9 and are not rows. Cell words are short: full, own, view, via firm, and a dash for no access.
-- **Table 4.6** is "Planned features and why each is needed": the nine features marked To plan, what each will do and why it is needed.
-
-### Feature-by-role tables: cells changed by the logical check
-
-Every cell of Tables 4.4 and 4.5 was checked by asking: is this what the role should be able to see and do in a consulting engagement? Inputs were the role descriptions in 4.2.2, the team's permission rules and the team's target design notes. Where they disagreed, the choice that makes sense for the role was taken.
-
-| Feature | Role | Was | Now | Reasoning |
-|---|---|---|---|---|
-| People and access reviews | Observer (firm) | none | view | An observer is a member of the firm and needs to know who is on the project they follow. |
-| Client record | Lead / deputy | view | full (profile of own clients) | The lead knows the client best and keeps its profile up to date; the firm admin creates the record. The permission rules agree. |
-| Client record | Client admin | view | own (own company's details) | A company keeps its own name and contact details correct. The permission rules agree. |
-| Change of lead with handover note | Lead / deputy | view (told) | own (writes or receives the note) | The outgoing lead is the one who can write the handover note; the new lead receives it. |
-| Change of lead | Consultant | none | view (told) | People who work under a lead must know when the lead changes. |
-| Change of lead | Sponsor, coordinator | none | view (told) | A consulting relationship is personal: the client's senior person and the day-to-day contact must know. The permission rules tell only the client's administrators; logic was chosen. FR-14 in Table 3.6 says the same now. |
-| Engagement record | Client admin | none | view (the record only) | The client signed the engagement and should be able to read what was agreed. It does not get the firm's end reminder. The permission rules agree. |
-| Requests for more time | Deputy | full | full (third move), with the lead | The deputy stands in for the lead. |
-| Risk acceptance | Coordinator | full (signs) | view | Deciding not to carry out a step is a decision for someone with authority: the client admin or the sponsor. The permission rules allow any manager; logic was chosen. Table 4.2 says the same now. |
-| Risk acceptance | Firm-run client | none | via firm | A client with no accounts can still decide to accept a risk; the consultant records the signed decision. |
-| Progress reports | Firm-run client | none | via firm | A client with no accounts still needs the report; the consultant sends the PDF. |
-| Business indicators | Firm roles | full (enters, links, checks) | full (links, checks) | The figures are "reported by the client", so the client enters them; the firm links them to recommendations and checks them, and enters them only for a firm-run client. The permission rules also let a consultant enter values; logic was chosen. |
-| Closing survey | Deputy | none | view, with the lead | The deputy stands in for the lead. |
-| Closing survey and case-study consent | Coordinator | full (answers; consent) | own (survey only) | Consent to a case study is given by the sponsor or the client admin, not by the day-to-day contact. |
-| Re-check at 6 and 12 months (To plan) | Lead / deputy | none | full (does the re-check) | The consultant who knows the client is the one to look again. |
-| Handing over a leaver's work | Client admin | (firm only) | full (own people) | The row now covers leavers on both sides; a client admin hands on the work of its own leaver. |
-| Workload and concern facts (To plan) | Consultant | view (concern flags) | none | Facts about colleagues' workloads belong with the people who manage the team: the firm admin and the lead. |
-| Assistant extensions (To plan) | Observer | mixed | view | One row now; an observer reads and changes nothing. |
-
-### 4.3 Interface Design
-
-| Where | Change | Why |
-|---|---|---|
-| 4.3.1 | "The figures below show the interface design, on sample data of a fictional firm and fictional clients." | The figures are interface designs. |
-| Captions of Figures 4.11 to 4.18 | Each starts with "Interface design:" and names the screen | Asked by the team. |
-| Figure 4.18 | Shows the home page of a new action owner with the complete first-visit card | The earlier picture caught the card half drawn. |
-| 4.3.4 Help and accessibility | States the accessibility aims of the design and that they will be checked next semester | Results removed. |
-
-### Redrawn figures
-
-All ten diagrams were redrawn and each picture was looked at before it was accepted: text sits inside its box, and no text crosses a line.
-
-| Figure | What changed |
+| Change | Why |
 |---|---|
-| 4.1 | New: the eight steps from the firm's briefing to the planned walkthroughs; no dates |
-| 4.2 | Plain names; counts removed |
-| 4.3 | Plain names for the two layers; the "refused" paths no longer cross text |
-| 4.4 | New simplified entity-relationship diagram: 13 main entities in four groups (organizations and people; engagement, project and plan; meetings and files; action and evidence); every line labelled, with "1" and "many" at its ends; no crossing lines |
-| 4.5 | Labels moved so that none overlaps an arrow |
-| 4.6 | Plain participant names; numbered messages that fit their arrows |
-| 4.7, 4.8 | Same diagrams; legend is now "core design" and "planned for a later phase" |
-| 4.9 | New numbered flow of seven steps, readable at page width |
-| 4.10 | Counts of Set, To refine and To plan by area, taken from Tables 4.4 and 4.5 |
-| 4.11 to 4.18 | Interface designs; a small tool mark in the corner of each picture was removed |
+| The two feature-by-role tables (old Tables 4.4 and 4.5) are removed. The paragraph that introduced them is replaced by one sentence with the three rules that run through the design. | Asked by the team: they were long and distracting. Table 4.2 and the use-case diagrams still show each role. |
+| "Planned features and why each is needed" is now Table 4.4, and the text and Table 4.1 point to it. | Numbering after the removal. |
+| The template's instruction paragraphs ("Suggested content is ...", "[The students should add ...]") are removed. | They are template notes, not report text. |
+| Headings use Word's automatic numbering; captions use the same "Table 4.x" and "Figure 4.x" fields as Chapters 2 and 3; tables have the same dark header row as the team's tables. | One look and one numbering system across the report. |
+| References to the Chapter 3 tables now say Table 3.15 and Table 3.16. | Chapter 3 numbering in this file. |
 
-### Three reviews of this chapter
+## Chapters 5 and 6
 
-**Grader.** The chapter follows the template's three headings and reads as a plan: method, design, interface design; what is open is marked. **Partner firm.** The role check above was made from the firm's point of view (who signs, who is told, who enters figures). The roles and rules remain the team's reading of the firm's need until the firm answers the open questions. **Proofreader.** No dates in 4.1; no statement that the system exists or was run; all figure text inside its boxes.
+Text unchanged. The titles "Chapter 5: Implementation and Testing" and "Chapter 6: Conclusion" now come from the automatic chapter numbering, as in Chapters 1 to 4, and look the same on the page.
 
-## Added beyond the template and the draft
+## Front matter
 
-The template gives only 4.1 Proposed Methodology, 4.2 System Design and 4.3 Interface Design for Chapter 4. The items below are additions; sub-headings can be removed and their text kept under the heading above.
+The table of contents now lists every Chapter 4 heading. The list of tables has 21 entries (2.1, 3.1 to 3.16, 4.1 to 4.4) and the list of figures 19 (3.1, 4.1 to 4.18). Word filled in both lists, with page numbers.
 
-| Added | Where |
-|---|---|
-| 4.1.1 to 4.1.6 (listed above) | Under 4.1 |
-| 4.2.1 Architecture; 4.2.2 Users and roles; 4.2.3 Permission model and tenant isolation; 4.2.4 Data model; 4.2.5 Core workflow and action states; 4.2.6 Use cases from the consultant's and the client's side; 4.2.7 Assistant design; 4.2.8 Design status; 4.2.9 Deployment design | Under 4.2 |
-| 4.3.1 Design principles; 4.3.2 Arabic screens; 4.3.3 English, dark mode and tablet width; 4.3.4 Help and accessibility | Under 4.3 |
-| Figures 4.1 to 4.18 and Tables 4.1 to 4.6 | Chapter 4 |
-| Text, Table 3.6 and Table 3.7 under 3.3.1 to 3.3.4 | Chapter 3 (the headings are the template's, renumbered) |
-| Seven bullets in 3.2.2; one sentence in 3.2.1 | Chapter 3 |
-| Entries in the List of Tables and List of Figures | Front matter |
+## Notes from the run-through (not changed; for the team to decide)
 
-## Front matter: lists of tables and figures, table of contents
+Ordered by importance.
 
-The table of contents and both lists are Word fields that Word filled in, with page numbers and links to each heading, table and figure: 14 tables (2.1; 3.1 to 3.7; 4.1 to 4.6) and 19 figures (3.1; 4.1 to 4.18).
+1. **3.3.1, 3.3.2 and 3.3.4 still say some things are "to be agreed" that Chapter 4 and Table 3.16 now decide.** 3.3.2 says "the full interface language or languages still need to be agreed", while Chapter 4 makes Arabic the default with English available. 3.3.1 says "the AI model will be chosen during design" and that file limits "still need to be agreed", while Chapter 4 names a local model and FR-08 sets 20 MB. Either reword these as decided in the design (pointing to Chapter 4), or keep them open and soften Chapter 4. As it stands, a reader sees two answers.
+2. **Figure 4.10 counts 47 features (13 Set, 25 To refine, 9 To plan)**, but with the feature-by-role tables removed, the report no longer lists those 47 features. Either keep the figure as a summary and say so in one sentence, or remove it. Table 4.4 still lists the planned features.
+3. **The "Assessment and AI monitoring" paragraph after Table 3.16** says AI monitoring "flags possible delays or reported obstacles". Chapter 4 says late, stuck and blocked work is found by rules and that AI highlighting of concerns is for a later phase. Align the two, for example "AI monitoring summarizes permitted updates; possible delays and obstacles are flagged from the records, and AI highlighting is planned for a later phase."
+4. **4.1 now has two parts that should be linked in one sentence.** The Agile text describes how the system will be developed; the next paragraph describes how the features were worked out. Suggested link at the start of the second paragraph: "Before development, the team used a requirements-first design method ..."
+5. **2.3.4 has an informal tone in places** ("the whole mess", "Turns out"). Reword in the same style as the rest of Chapter 2.
+6. **2.4 refers to "the software comparison"**, but the chapter has no separate comparison. See the earlier proposal: say the comparison is of the systems described in the reviewed papers, each covering part of the work.
+7. **Title page date** says October 2026. Update it to the submission month.
+8. **A blank page before Chapter 6.** It was already in the Nov24 file. Remove it before submitting.
+9. **The non-functional requirements in 3.3.4 have no numbers.** Number them (for example NFR-01 Security and privacy to NFR-07 Maintenance) so Chapter 5 can trace tests to them, as the functions are traced through FR-01 to FR-22.
+10. **Chapters 5 and 6** are still the template's instruction text, as planned for next semester.
+11. **Small wording in 1.7.1** (not changed): "multiple client Organization" should be "organizations", and "Access restrictions will separate from different organizations" should read "will separate different organizations". 1.7.2 could say "department-limited roles" instead of the HR example.
 
-## Where the slides and the product differ
+## What Chapter 5 should cover next semester
 
-The firm's two briefing decks were read to understand how the firm works. They are not requirements, and their wording is not copied. Where they differ from the design, the design follows the team's decisions.
-
-| The slides ask or suggest | What the design of Selah does |
-|---|---|
-| Choose one of five example tools (maturity assessment, recommendations board, board-decision system, strategy and KPI platform, structures and policies tool) | One product around one chain: finding, recommendation, owner and due date, action, evidence, consultant review, follow-up. Assessments, indicators, decisions and the structure serve it |
-| Follow each recommendation with an owner and a deadline, so the consultant knows the status without calling the client | This is the core and it matches. It depends on the client signing in and sending evidence, or on the consultant recording the work for a firm-run client |
-| Status "at one glance" with traffic-light colors | Counts and the share verified by a consultant; no health word or color verdict |
-| KPIs calculated automatically from company data, with alerts on deviation | Figures entered by the client, labeled "reported by the client, not verified impact"; one rule-based notice that states figures only; no AI watches for deviations |
-| A live compliance percentage and automatic governance reports | Selah never says "compliant". A report needs a second person's approval and a confirmed send |
-| A maturity tool that produces diagnostic reports automatically | A consultant answers each assessment question and confirms each gap; scores stay with the firm |
-| An interactive organization chart tied to an authority matrix | A descriptive structure of positions in published versions. It never grants or limits access. No authority matrix |
-| A policy platform every employee searches; procedures as enforced workflows | Not in the design. Only people on a project have accounts; action owners have no assistant |
-| Board decisions with automatic alerts | Decisions are recorded inside meetings and never edited; a decision can become a recommendation with actions and reminders |
-| A mobile app is one of the options | Desktop and tablet only (768 pixels and wider) |
-| The firm's phased work (strategy, operating plan, organization building) | One project per phase or agreed scope; Selah does not write the deliverables. Hand-over with a confirmed receipt, then the action cycle |
-| Impact that lasts: the decks show the decay at three months and one year | Steps verified, with check-ins at 30, 60 and 90 days; a re-check at 6 and 12 months is marked To plan |
-| A reading list of governance and strategy sources | The reference library, marked To plan, after a license check of each source |
-| Real data is limited by client confidentiality | Sample data only; production readiness is not claimed |
-
-## Verification of the file
-
-- The .docx unzips and every XML part is well formed.
-- The validator of the document tool passes (schema checks against the previous version).
-- Chapters 5 and 6: the text from "Chapter 5: Implementation and Testing" to "References" is identical, byte for byte, to the team's original draft.
-- 33 captions (14 tables, 19 figures) and 33 list entries, with the same titles; numbering restarts in each chapter. Word updated the contents and both lists; no blank pages were added.
-- All 18 pictures are embedded and are the same files as in `report/figures/`.
-- New text uses Times New Roman and the draft's own heading and caption styles.
-- The document was opened in Word and printed to PDF as a check (96 pages): the tables of 4.2.8 fit the page width, and every figure sits above its caption.
-- Word search over Chapters 1 to 4 and the front matter. Remaining hits and why they are legitimate: "agent" and "multi-agent" (9) are in the literature review, describing a published framework; "implemented" (10) and "tested" (10) are in the literature review and its summary table, describing the reviewed studies; "merged" (2) and "repository" (1) are in the literature table; "code" (3) is "code editor/IDE" in the team's resource table and "authenticator code" for sign-in; "2026" (6) is the year of cited papers. Every other searched word has no hit. The word "model" remains where it describes the product's local model.
-
-## Uncertain, for the team to decide
-
-1. **Present tense for the design.** Sections 3.3 and Chapter 4 describe the design in the present tense ("the assistant keeps only ..."), with a sentence at the start of each saying that this states what Selah will do. If the supervisor prefers "will" throughout, the sentences need a further pass.
-2. **Rows of Tables 4.4 and 4.5.** To bring 4.2.8 under half its length, related features share rows and the deputy shares the lead's column. If the team wants one row per feature again, the section grows back.
-3. **Role decisions that need the firm.** Who is told when the lead changes, who may sign a risk acceptance, and whether a consultant may ever enter a client's figures (see the table of changed cells). Also: a client admin works on actions only at a restricted client; in a small family company the administrator may also own actions, so the firm should confirm this.
-4. **Interface figures.** They show sample data with fictional names and e-mail addresses. The pictures of Figures 4.13 and 4.14 show dates of the sample data.
-5. **"Goals" in Chapter 1** and the proposal's future tense were left as written.
-6. **Table numbers in Chapter 3.** The requirement tables are 3.5 and 3.6, because the draft's captions stop at 3.4.
-
-# Part 2: Recommendations for each chapter and for Chapter 5
-
-These are proposals for the team to decide on. Nothing in this part has been changed in the report.
-
-For the CS 511 team. Written after reading the full report draft (96 pages), the course template, the change list, the firm's two briefing sessions and the project's test and review material.
-
-**How to read this.** Every item is a proposal. The team decides. Chapters 1 and 2 keep their narrative: the items there only correct what is wrong or fill a hole the template asks for. Chapters 1 to 4 stay a plan this semester, so nothing here asks the team to say that something is built or tested.
-
-**Priority words.**
-
-| Word | Meaning |
-|---|---|
-| Must | Needed for this semester's submission. A grader will notice if it is missing. |
-| Should | Clearly improves the report. Do it this semester if time allows, otherwise early next semester. |
-| Later | Next semester, with Chapter 5 and Chapter 6. |
-
-**The five things that matter most this semester.**
-
-1. The reference list is still the template's two examples, and section 2.2 uses different citation numbers from the rest of Chapter 2.
-2. Template text is still in the report: the front pages, the paragraph under the Chapter 1 title, the first paragraph of 3.1, and the whole Budget Allocation section.
-3. Chapter 3 promises risk management and has none. The work breakdown has six tasks and lacks the columns the template lists.
-4. Chapter 4 explains how the features were found, but does not name and justify the development method, and does not say how the design will be evaluated.
-5. Chapter 2 promises a software comparison in three places. The team decided not to add one, so the three sentences must change.
-
----
-
-### 1. Recommendations by chapter
-
-#### Across the whole report
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| A1 | References | Replace the template text and its two example references with the real list. Chapter 2 cites sources up to [31]. Build the list with a reference manager so the numbers are generated, in one style. | The template asks for automatic citations in a set style. A report with 30 citations and no list fails a basic check. | Must |
-| A2 | Title page, declaration, acknowledgement, abstract | Fill in the title, program, six names and IDs, supervisor, group number and date. Write the abstract as a plan: motivation, scope, method, and the expected outcome. Half a page to one page, in italics, with no citations and no abbreviations. | The template sets these rules. The pages are still placeholders. | Must |
-| A3 | Appendix | Collect the bi-weekly status reports now (the template asks for at least four), the plagiarism report, the presentation slides, and the table of responses to evaluator comments. | The template lists them. Status reports cannot be written afterwards with honest dates. | Must |
-| A4 | Whole report | One proofreading pass for small errors. Examples found: "client Organization", "Access restrictions will separate from different organizations" (1.7.1), "the actions await their attention" (1.8.1), "five-principal framework" and "Favors" (2.3.2), "Consultant and client's usability" (2.4), the punctuation around the Arabic name in 1.1. | These are errors, not style. They are cheap to fix. | Should |
-
-Example abstract outline (A2): one sentence on the problem (recommendations are handed over and then not followed); one on what Selah is; two on the method (requirements from the firm's briefings, a design around one chain from finding to verified action, access control checked twice); one on the supporting assistant; one on how it will be evaluated next semester.
-
-#### Chapter 1: Introduction
-
-The narrative stays. The four proposals already on the change list (the wording of "goals", the future tense, the title, and the 2.4 sentence) still stand and are not repeated here.
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| 1.1 | Under the chapter title, before 1.1 | Delete the paragraph that starts "This chapter comprises the background of the project ...". It is the template's instruction to students. | It is not the team's text and it sits on the first page a grader reads. | Must |
-| 1.2 | 1.2 Problem Statement | Keep the paragraph. Add one sentence of evidence, and fix "Consulting Companies" and the last clause. | The template asks for a problem stated "with brevity and high level of clarity". A number makes it concrete. The evidence is already in Chapter 2. | Should |
-| 1.3 | 1.6 Aims & Objectives | Do not change the five objectives. Add one sentence after the list that says how each will be judged, pointing to the evaluation plan (see 4.2 below). | The aim says "design, develop, and evaluate". Nothing in the report says what counts as success. Chapter 6 will need this to report findings. | Should |
-| 1.4 | 1.7.2 Limitations | Add one short paragraph of exclusions that are already decided in Chapters 3 and 4 but missing here. | The template asks to "state what shall be excluded". A grader reads scope in Chapter 1, not in 3.3.1. | Should |
-| 1.5 | 1.8.3 Legal and Confidentiality Considerations | Name the law. Add one sentence on the Saudi Personal Data Protection Law. | A grader in Saudi Arabia will look for it under "legal". The design already masks national ID, Iqama and IBAN numbers, so the report has a real answer. | Should |
-| 1.6 | 1.3 Background and 1.4 Motivation | Both describe only a dashboard for the consultant. Section 1.5 then says Selah is not "only a reporting dashboard". Add a half sentence in 1.4 for the client's side. | The three sections should not disagree. The firm's stated problem has two halves: the consultant does not know, and the client forgets. | Should |
-
-Example sentences:
-
-- 1.2: "In one hospital study, the status of 22% of 254 issued recommendations could not be determined at follow-up, and no action had been taken on a further 33% [18]." This is the figure already quoted in 2.3.2. If the firm agrees in writing, its own survey of Saudi companies could be cited as well; do not use it without that agreement.
-- 1.3: "Each objective will be evaluated next semester against the measures set out in section 4.1; the results will be reported in Chapter 5."
-- 1.4: "The first version is a web application for desktop and tablet screens, with no phone layout. It has no connection to a client's HR, finance or ERP systems and no pricing or invoicing. It will be developed and evaluated with sample data only, and it is not offered as ready for operational use: an outside security test and a legal review are outside this project."
-- 1.5: "Because Selah will store names, e-mail addresses and work records of client staff, its operation will fall under the Saudi Personal Data Protection Law and its implementing regulations; the retention periods and the hosting location will be agreed with the firm before any real data is used." Cite the official text.
-- 1.6: "... and to give the client's staff one place to see what is asked of them and to show what was done."
-
-#### Chapter 2: Background and Review of Literature
-
-The narrative stays. No comparison table is proposed.
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| 2.1 | 2.2 Background (all four parts) | The citation numbers in 2.2 do not match the rest of the chapter. In 2.2.1, [1] is the consulting lifecycle study, which is [14] in 2.3.1 and 2.4. In 2.2.2, Hanisch is [4]; in 2.3.3 it is [6]. In 2.2.3, [6] is Lewis et al., but [6] is Hanisch elsewhere. Sources such as Ames and Lewis et al. may not be in the list at all. Renumber 2.2 from the one reference list (A1). | A wrong citation is the most serious kind of error in a literature chapter. It will be found by anyone who checks one reference. | Must |
-| 2.2 | 2.1 (fourth sentence), 2.4 (last paragraph), 2.5 (first and fourth sentences) | Three places promise or report a comparison of existing software: "A comparison of existing software and services complements the academic review", "The software comparison shows ...", "reviewed the background, literature, and existing software" and "Existing applications offer substantial ... capabilities". The chapter has none. Reword all three to speak of the systems described in the reviewed papers. | The change list already proposes this for 2.4. The same promise is in 2.1 and 2.5. The template asks for feature tables in development projects, so a grader will look for what the text announces. | Must |
-| 2.3 | 2.3.4 AI in Consulting, AI Governance, and Human Oversight | The five paragraphs are written in a spoken style: "the whole mess that is AI governance research", "Turns out", "AI creeping into their work", "did okay", "a solid margin". Each also starts with a bare author line. Keep every fact and rewrite only the wording to match the rest of the chapter. | The register is wrong for a report, and it differs sharply from 2.3.1 to 2.3.3. It reads as unfinished notes. | Must |
-| 2.4 | 2.3.2, last paragraph (AlQurashi, the Shamel platform) | The paragraph stops after "81 representatives of audited entities". Add what the survey found, why it matters for Selah, and its limit, as the other paragraphs do. Also remove the stray title "Lessons in the Aftermath of Incident Investigations" at the start of the Wrigstad paragraph. | Shamel is the closest system to Selah in the whole review and it is Saudi. It is the one paragraph a local grader will read closely. | Must |
-| 2.5 | Table 2.1 | It has no mention in the text, and it sits after the chapter summary. Refer to it once ("Table 2.1 summarizes the reviewed studies") and place it before 2.4, or move it to an appendix. Check each row against the text: Das et al. is 2026 in 2.3.5 and 2025 in the table; "evident graph" in 2.3.5 is "eventic graph" in the table. | Every table should be cited in the text. A summary section should be the last thing in a chapter. | Should |
-| 2.6 | 2.3.3 and 2.3.4, end of each | Add one closing sentence that says what the group of studies means for Selah. Sections 2.3.2, 2.3.7 and 2.3.8 already do this; these two do not. | A grader looks for synthesis, not a list of summaries. One sentence each is enough. | Should |
-| 2.7 | 2.2.4 Controlled Access to Organizational Knowledge | Add two or three sentences, with two or three sources, on access control for the platform itself: role-based access control and keeping tenants apart in one database. Today the chapter covers access control only for the assistant. | The template asks for "the techniques that are widely used for solving such problems". The permission model is the largest technical part of Chapter 4, and it has no literature behind it. | Should |
-| 2.8 | Reference numbers | [17] is never cited in the chapter. Check that every listed source is cited and every citation is listed. | Follows from A1. | Should |
-
-Example sentences:
-
-- 2.2, for 2.1: "Because the project develops an application, the review also notes the systems and tools described in the reviewed papers."
-- 2.2, for 2.5: "This chapter reviewed the background and the literature relevant to ..." and "The systems described in the reviewed studies cover tracking, evidence or document assistance separately ...".
-- 2.3, one paragraph as a model: "Sele and Chugunova (2024) [25] tested the common assumption that human oversight improves algorithmic decisions. Almost 300 participants either delegated a decision fully to an algorithm or could adjust its recommendation. The ability to adjust increased trust in and use of the algorithm, but reduced the accuracy of the final decisions."
-- 2.6, for 2.3.4: "Taken together, these studies support a design in which the assistant drafts and a consultant decides, and they show that the presence of a human reviewer is not by itself evidence of reliability."
-- 2.7: start from the standard role-based access control model (Sandhu et al., 1996) and one source on row-level isolation in multi-tenant databases. Read each source before citing it.
-
-#### Chapter 3: SPMP & Requirement Specification
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| 3.1 | 3.1.2, Budget Allocation | The section holds only the template's bullets. Replace them with a budget table: one block per work activity, one line per resource type (personnel, travel, meetings, computing, software tools, testing facilities, administrative support), with the amount in SAR. | The template asks for exactly this, and the section is empty. Zero is a valid amount if it is stated and explained. | Must |
-| 3.2 | 3.1, first paragraph | The paragraph is the template's own text. It promises plans for "risk management, project work, project tracking and project close-out". Replace it with the team's sentence, and add a risk table plus two short paragraphs on tracking and close-out. | The report promises three plans it does not contain. A risk plan is the part of an SPMP graders check first. | Must |
-| 3.3 | Table 3.3 Work Breakdown Structure | Add two columns the template lists: acceptance criteria, and predecessor and successor. Split Task 5 (ten weeks, one line) into work packages. Update the Status column on the day of submission (Task 4 still reads "Not Complete"). | The template says to decompose "to a level that exposes all project risk factors". One ten-week line hides all of next semester. | Must |
-| 3.4 | 3.3.4, NFR-05 and the other non-functional requirements | NFR-05 says "Page response targets will be set and measured next semester". Set the targets now; measure next semester. Give every NFR a measure and a way to check it. | A requirement without a target cannot be tested. Setting a target is planning, not a result. | Must |
-| 3.5 | Figure 3.1 and Critical Path Analysis | After 3.3 is done, redraw the GP2 half of the Gantt chart with the work packages, show which run in parallel, and restate the critical path. | The template asks the schedule to show "opportunities for concurrent work activities". Today every task follows the one before it, so the critical path is the whole list. | Should |
-| 3.6 | Table 3.7 Main system functions | Add two columns: the objective each function serves (1 to 5) and its phase (core design or later phase). Add a short requirements-to-objectives table after it. | It shows that every objective has requirements and every requirement has a reason. It becomes the first column of the test tables in Chapter 5. | Should |
-| 3.7 | Table 3.1 Staffing and Table 3.5 Resource allocation | Table 3.1 shows "All 6 team members" in every phase. Add the roles within the team for next semester and how many members hold each. Then make Table 3.5 agree with Chapter 4: it lists "React, TypeScript", "candidate database tools" and "Cloudflare and Resend if selected", while 4.2.1 names Next.js, PostgreSQL 16 and the other chosen parts. | The template asks for "numbers of personnel by skill level" in each phase. Two chapters should not name different tools. | Should |
-| 3.8 | 3.3.1, "AI connection" | The requirement names the model files ("qwen3.5:4b", "bge-m3"). State the requirement ("a language model that runs on the firm's own server") and leave the product names to 4.2.1. | A requirement says what is needed; the design says with what. The model may change after next semester's comparison, and the requirement should survive that. | Should |
-
-Outlines and examples:
-
-**3.1 Budget table (the team fills in real amounts).**
-
-| Work activity | Resource | Amount (SAR) | Note |
-|---|---|---|---|
-| 5. Prototype and testing | Personnel | 0 | Student effort is not costed |
-| | Computing: server for the local model | (real figure) | Existing machine or its cost |
-| | Software tools | (real figure) | Free and open-source tools: 0; a domain name if bought |
-| | Testing facilities | 0 | Sample data on the team's machines |
-| | Administrative support | 0 | Supervisor and firm feedback |
-| 6. Final report | Printing and binding | (real figure) | |
-| Total | | (sum) | Confidence: medium |
-
-**3.2 Risk table (examples drawn from the project; the team sets likelihood and impact).**
-
-| Risk | Likelihood | Impact | Response | Owner |
-|---|---|---|---|---|
-| The firm answers the open questions late | | | Design with a stated assumption for each; list them; revisit at each milestone | |
-| The local model is too slow on a server without a suitable graphics processor | | | Keep the core workflow independent of the assistant; measure early; agree an acceptable time with the firm | |
-| A defect lets one client see another's data | | | Rules checked twice (application and database); a test as the wrong user for every rule; a full isolation sweep before any demonstration | |
-| The scope grows beyond one semester (47 features) | | | Build the features marked core first; freeze scope at a set week | |
-| A team member is unavailable during exams | | | Two people know each part; reserve weeks in the schedule | |
-| No real client data is available | | | Evaluate on sample data and say so; plan a pilot as future work | |
-
-Tracking: weekly team meeting, bi-weekly status report to the supervisor, re-estimation at each milestone. Close-out: final report, source code, presentation, hand-over notes to the firm.
-
-**3.3 Task 5 split (durations are the team's to set; they must add up to the ten weeks).**
-
-| # | Work package | Deliverable | Acceptance criterion | Predecessor |
-|---|---|---|---|---|
-| 5.1 | Accounts, roles, permission check, isolation | Sign-in and access rules | Every rule passes as the right user and is refused as the wrong user | 4 |
-| 5.2 | The action cycle with evidence and review | Core workflow | The core scenarios pass in Arabic and English | 5.1 |
-| 5.3 | Meetings, reports, notices | Follow-up features | Their scenarios pass | 5.2 |
-| 5.4 | The assistant | Cited answers under the permission filter | No passage from a file the asker cannot open; retrieval measured on the labelled set | 5.1 (parallel with 5.2 and 5.3) |
-| 5.5 | Testing and measurement | Test report | Every planned measure in the evaluation plan has a result | 5.2 to 5.4 |
-| 5.6 | Fixes and freeze | Frozen version | No open high-severity defect | 5.5 |
-
-**3.4 NFR targets (format; the values are examples only and the team sets them).**
-
-| NFR | Measure | Target | How it will be checked |
-|---|---|---|---|
-| NFR-01 Security | Requests by a wrong user that return data | 0 | Isolation sweep and denial tests |
-| NFR-05 Performance | Time to open a home page or a list, production build, on the server | for example "within 2 s for 9 of 10 requests" | Timed runs for each role |
-| NFR-05 Assistant | Time to a full answer on the server | a figure agreed with the firm | Timed runs on the labelled questions |
-| NFR-06 AI review | Share of labelled questions where the right passage is sent to the model | a figure the team sets before measuring | Labelled test set |
-| NFR-03 Ease of use | Share of scenario steps completed without help | a figure the team sets | Scenario walkthroughs |
-
-#### Chapter 4: Methodology & Design
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| 4.1 | 4.1 Proposed Methodology (new short part after 4.1.6) | Name the development method for next semester and justify it against alternatives. Section 4.1 explains well how the features were found, but the development method is one sentence ("developed in small increments"). | The template says to "discuss the proposed project methodology". Graders expect a named process model and a reason for choosing it. | Must |
-| 4.2 | 4.1.6, after the scenario paragraph | Add an evaluation plan as one table: objective, what will be measured, how, and the target. Include a short usability check with a few people in each role, if the firm agrees. | The aim includes "evaluate". The report says "will be checked next semester" in several places (4.2.3, 4.3.4, 3.3.4) and never says against what. This table is the contract for Chapter 5. | Must |
-| 4.3 | 4.2.7 Assistant Design, one short paragraph (or 3.3.3) | Say plainly how objective 5 is met in the design. Today objective 5 says "identifying potential deviations or concerns"; 3.3.3 says highlighting deviations "is planned for a later phase"; Table 4.1 says a consultant "reviews what it highlights". A reader cannot tell what will exist. | An examiner will hold the team to each objective. The answer exists in the design (rules find late, stuck and inactive work; the assistant summarizes); it only needs to be said in one place. This keeps the assistant in its supporting role. | Must |
-| 4.4 | 4.2.1 Architecture | Add a small table of the main design choices with the alternative considered and the reason. Keep it to design decisions; the full tool comparison belongs to 5.1. | The architecture names eight products and gives no reason for any. The template's Chapter 5 asks for trade-offs later, but a design chapter should show the choices were choices. | Should |
-| 4.5 | 4.2.6 Use Cases | Add written descriptions for three core use cases: send evidence, review evidence, ask the assistant. Each with actor, precondition, main steps, alternative steps and result. | Use-case diagrams alone show names. Graders usually expect at least a few specified use cases, and they become test cases in Chapter 5. | Should |
-| 4.6 | 4.2.3 or 4.2.5 | Add one more sequence diagram: a request for another client's record, refused by the permission check or by the database, answered "Not found" and written to the audit log. | Isolation is the central promise of the design and has a structure figure but no behaviour figure. The template lists sequence diagrams by name; the report has one. | Should |
-| 4.7 | 4.2.4 Data Model | Add a table for the 13 entities of Figure 4.4: the main attributes, the key, and which organization each row belongs to. | A simplified diagram with no attributes is thin for a data model. The "belongs to" column also explains how isolation works on the data. | Should |
-| 4.8 | 4.2.8 Design Status | Two additions. First, a column or a sentence that says which features next semester's prototype will include. Second, a short table of the main open questions for the firm, who decides, and the assumption the design makes until then. The text mentions the open questions and lists only three examples. | "25 of 47 features To refine" can read as an unfinished design. Showing the prototype's scope and the assumptions turns it into a managed plan. The firm will also read this part to see its own decisions. | Should |
-
-Outlines and examples:
-
-**4.1 Method table.**
-
-| Criterion | Waterfall | Iterative and incremental (proposed) | Full Scrum |
-|---|---|---|---|
-| Requirements still depend on the firm's answers | Poor fit | Good fit: each increment can absorb an answer | Good fit |
-| Six students working part-time | Fits | Fits | Daily meetings and fixed roles are hard to keep |
-| Early check of the riskiest part (isolation) | Late | First increment | Possible |
-| Fixed academic deadlines | Fits | Fits with a scope freeze | Fits |
-
-Then four or five sentences: the length of an increment, what "done" means for one (its scenarios pass, each permission rule has a test as the wrong user, a second team member has reviewed the change), and how the firm's feedback enters.
-
-**4.2 Evaluation plan.**
-
-| Objective | What will be measured | How | Target |
-|---|---|---|---|
-| 1 Firm workspace | The firm-side scenarios completed | Scenario walkthroughs, Arabic and English | Set by the team |
-| 2 Client workspaces with controlled access | Requests by a wrong user that return data | Isolation sweep; denial tests | 0 |
-| 3 Recommendation and action workflow | The core cycle from recommendation to verified action | Scenarios; automated end-to-end run | All steps pass |
-| 4 Follow-up | Reminders, meetings and notices reach the right person only | Scenarios; tests | Set by the team |
-| 5 AI-assisted progress monitoring | Whether the right source is found; whether answers are supported by their sources; whether a progress summary matches the records | Labelled question set; review of answers by two people | Set by the team before measuring |
-| All | Ease of use | Short task session and a standard questionnaire with a few users per side | Set by the team |
-| All | Page response time on the server | Timed runs | The NFR-05 target |
-
-**4.3 Example paragraph.** "Objective 5 is addressed in two parts. Progress is monitored by rules, not by a model: late, stuck and inactive actions, a date moved twice and work sent back twice are found from the records and listed for the consultant (FR-10, FR-11). The assistant supports this by summarizing the records the consultant may see and by drafting a facts-only progress update (FR-12, FR-15). Whether a model can also point out concerns that the rules miss will be investigated next semester and reported in Chapter 5; until then it is marked as a later phase."
-
-**4.4 Design choices.**
-
-| Choice | Alternative considered | Reason |
-|---|---|---|
-| Access rules checked in the application and again in the database | Application checks only; one database per client | One missed check must not leak data; one database keeps operation simple for a small firm |
-| A language model on the firm's server | A hosted model | Client documents must not leave the firm |
-| Search by meaning and by keyword together | Either one alone | Arabic spelling variants and exact terms; to be compared next semester |
-| Web application for desktop and tablet | Phone application | The work is document-heavy; one code base |
-| The firm writes the plan; the client answers it | Shared editing | Matches how an engagement runs; keeps one accountable author |
-
-**4.8 Open questions table (examples from the design work).**
-
-| Question | Who decides | Assumption in the design until then |
-|---|---|---|
-| Must declining a request for more time carry a reason? | Firm | Optional |
-| What happens after the last reminder step? | Firm and client | The action stays open and is listed for the lead |
-| Who may sign a risk acceptance? | Firm and client | Client admin or sponsor |
-| Where is real client data hosted, and who operates the server? | Firm | Sample data only; no hosting chosen |
-| Is about a minute per assistant answer acceptable? | Firm | The interface keeps the request open and shows progress |
-
-#### Chapter 6: Conclusion (next semester)
-
-The chapter holds the template's text today. That is correct for this semester. All items below are for next semester, except 6.5.
-
-| # | Where | What to add or change | Why | Priority |
-|---|---|---|---|---|
-| 6.1 | 6.2 Findings and Contributions | Answer the five objectives one by one in a table: objective, what was delivered, the evidence in Chapter 5 (table or figure number), and "met", "partly met" or "not met". | The template asks for findings "clearly stated". A table against the objectives is the clearest form and stops the chapter from drifting into description. | Later |
-| 6.2 | 6.2 | State three or four contributions, in this order: the shared workflow from finding to verified action; the access model checked twice; the evaluation method (scenarios, isolation sweep, labelled questions); the assistant that reads only what the asker may open. Then one paragraph that returns to the gap in 2.4. | The template says the contribution "should be made very clear". The order keeps the follow-through first and the assistant in support. | Later |
-| 6.3 | 6.3 Limitations | Write it, although it is optional. Sample data only; who the testers were; one server and its speed; the size of the answer sample; no outside security test; legal texts not reviewed; the features left for a later phase. | An honest limitations section protects every number in Chapter 5. Examiners trust results more when the limits are stated by the authors. | Later |
-| 6.4 | 6.4 Lessons & Skills Learned | The template requires a table of new skills, including technical ones. Columns: skill, kind (technical, managerial, domain), where it was used, how it was learned. | It is a named requirement of the template. | Later |
-| 6.5 | 6.4, preparation | Start a one-page lessons log now. Each member adds a line when something is learned: a tool, a mistake, a decision that changed. | A skills table written in the last week is generic. A log makes it specific and true. It costs five minutes a week. | Should (start now) |
-| 6.6 | 6.5 Recommendations for Future Works | Three groups: the nine features of Table 4.6; the steps before real use (hosting, an outside security test, legal review, a pilot on one real engagement); and research questions (does verified work stay in place after 6 and 12 months; does the assistant save a consultant time). | The material exists already. Grouping it shows the team knows the difference between a prototype and a product. | Later |
-| 6.7 | 6.1 and the closing paragraph | End with the benefit to the firm and its clients in plain terms, using only numbers measured in Chapter 5. Then update the tense of Chapters 1 to 4 and rewrite the abstract to include results. | The template says the conclusion "should recommend to the readers the benefits of pursuing the project". | Later |
-
----
-
-### 2. What Chapter 5 should cover next semester
-
-#### 2.1 Where the material stands today
+### Where the material stands today
 
 The project already holds test suites, a labelled question set, 34 written scenarios and first measurements. They are a rehearsal, not yet results for the report. Three rules for using them:
 
@@ -468,7 +110,7 @@ The project already holds test suites, a labelled question set, 34 written scena
 | Value test | Time with and without the assistant | Not run | Run it, with more than one tester |
 | Gap list (70 items) | Defects found and fixed | 14 high, 29 medium, 27 low | Fix the privacy items first, G05 before all |
 
-#### 2.2 Section 5.1: methods, algorithms, tools and techniques
+### Section 5.1: methods, algorithms, tools and techniques
 
 **What to include.**
 
@@ -504,7 +146,7 @@ The project already holds test suites, a labelled question set, 34 written scena
 
 **Still to do before writing.** Run the model and search-model comparisons on the same labelled questions. Run the three search methods (keyword, meaning, both) on the full set. Record every tool's version at the frozen commit.
 
-#### 2.3 Section 5.2: results achieved and benchmarking
+### Section 5.2: results achieved and benchmarking
 
 | Area | What to measure | How | Baseline or comparison | Feeds from |
 |---|---|---|---|---|
@@ -520,17 +162,17 @@ The project already holds test suites, a labelled question set, 34 written scena
 | Value of the assistant | Time and correctness for six tasks with and without the assistant | The value test, with several testers who did not build the assistant | The same task without the assistant | `docs/value-test.md`, `docs/value-test-score-sheet.csv` |
 | Ease of use | Task completion and a standard usability questionnaire | A short session per role, with consultants of the firm if it agrees | The questionnaire's published average | Scenario files as task scripts |
 | Accessibility | Automatic accessibility checks per role, language and theme | The end-to-end crawl | Target: no violation at the chosen level | `apps/web/e2e/` (crawl), `docs/review/final-status.md` section 4.9 |
-| Reliability | Core workflow with the assistant switched off; time to restore from a backup | One drill each, written down | NFR-04 | `docs/operations.md` |
+| Reliability | Core workflow with the assistant switched off; time to restore from a backup | One drill each, written down | Reliable operation (3.3.4) | `docs/operations.md` |
 
 **On benchmarking.** No published system does the same job on the same data, so most comparisons are internal: one method against another on the same questions, and measured values against the targets set in Chapter 3. Figures from Chapter 2 (for example Arabic retrieval recall in other studies) can be quoted for context only, with a sentence that says the data differs.
 
-#### 2.4 Section 5.3: test plan
+### Section 5.3: test plan
 
 Follow the IEEE test documentation structure, as the template suggests.
 
 | Part | Content |
 |---|---|
-| Scope | What is tested (FR-01 to FR-22, NFR-01 to NFR-07) and what is not (features marked for a later phase; an outside security test) |
+| Scope | What is tested (FR-01 to FR-22 and each non-functional requirement in 3.3.4) and what is not (features marked for a later phase; an outside security test) |
 | Levels | Unit; database rules; upload scanning; AI service; end-to-end; scenarios (system test); acceptance session with the firm; non-functional (speed, accessibility, isolation) |
 | Approach per level | What each level protects and why it exists |
 | Environment | Server and laptop specifications, versions, the frozen commit, sample data and its fictional firm and clients, test accounts by role |
@@ -546,7 +188,7 @@ Test case table columns: ID, requirement, role, precondition, steps, expected re
 
 **Still to do.** The requirements map in the testing guide uses labels from the old draft (PF1 to PF9, PP1 to PP8). Redo it against FR-01 to FR-22 and the NFRs.
 
-#### 2.5 Test report
+### Test report
 
 | Part | Content | Feeds from |
 |---|---|---|
@@ -559,7 +201,7 @@ Test case table columns: ID, requirement, role, precondition, steps, expected re
 
 A defect written up in full is strong evidence that testing worked. G05 is a good candidate once it is fixed: a new version of a file kept permission for the assistant to read it without a new consent.
 
-#### 2.6 Before Chapter 5 can be written
+### Before Chapter 5 can be written
 
 In this order:
 
@@ -578,7 +220,7 @@ In this order:
 13. Do one backup restore drill and write down the time.
 14. Freeze the version. Record the commit, the machines and the dates. Keep the raw result files and screenshots with the project, so every number in the chapter can be traced.
 
-#### 2.7 Suggested outline for Chapter 5
+### Suggested outline for Chapter 5
 
 ```
 5.1 Methods, Algorithms, Tools and Techniques Applied
@@ -641,10 +283,10 @@ The template names three subsections and places the test report inside the third
 | 5.6 | Defects found and fixed over the weeks |
 | 5.7 to 5.10 | Screens of the working system for the core cycle, one from each side |
 
-#### 2.8 Chapter 5 checklist
+### Chapter 5 checklist
 
 - [ ] Every number has a date, a machine, a commit and a named run behind it.
-- [ ] Every requirement FR-01 to FR-22 and NFR-01 to NFR-07 appears in the traceability table.
+- [ ] Every requirement FR-01 to FR-22 and each non-functional requirement in 3.3.4 appears in the traceability table.
 - [ ] Every target set in Chapters 3 and 4 has a measured result, or the words "not measured" and a reason.
 - [ ] The selection-criteria table is present and its cells hold values, not ticks.
 - [ ] Each comparison names its baseline.
@@ -657,40 +299,3 @@ The template names three subsections and places the test report inside the third
 - [ ] The assistant takes its share of the chapter and no more: the workflow and isolation results come first.
 
 ---
-
-### 3. Order of work
-
-**This semester, before submission.**
-
-| Order | Task | Items |
-|---|---|---|
-| 1 | Build the real reference list and renumber section 2.2 from it | A1, 2.1, 2.8 |
-| 2 | Remove all template text: front pages, the paragraph under the Chapter 1 title, the first paragraph of 3.1, Budget Allocation | A2, 1.1, 3.1, 3.2 |
-| 3 | Chapter 3 plan: risk table, tracking and close-out, work breakdown columns and the split of Task 5, NFR targets | 3.2, 3.3, 3.4 |
-| 4 | Chapter 4: name and justify the development method; add the evaluation plan; state how objective 5 is met | 4.1, 4.2, 4.3 |
-| 5 | Chapter 2 corrections: the three "software comparison" sentences, the tone of 2.3.4, the unfinished Shamel paragraph | 2.2, 2.3, 2.4 |
-| 6 | Collect the appendix: status reports, plagiarism report, slides, responses to comments | A3 |
-| 7 | Decide the four proposals already on the change list (goals, tense, title, the 2.4 sentence) | Change list |
-| 8 | Proofread; update the contents and both lists; set the work breakdown status on the day | A4, 3.3 |
-
-**If time allows this semester, otherwise first weeks of next semester.**
-
-| Order | Task | Items |
-|---|---|---|
-| 9 | Chapter 1 additions: evidence sentence, exclusions, the data protection law, pointer to the evaluation plan | 1.2 to 1.6 |
-| 10 | Chapter 3: requirement-to-objective columns, team roles, tools aligned with Chapter 4, redrawn Gantt chart | 3.5 to 3.8 |
-| 11 | Chapter 4: design choices table, three written use cases, the refusal sequence diagram, entity table, prototype scope and open questions | 4.4 to 4.8 |
-| 12 | Chapter 2: move and cite Table 2.1, closing sentences, access-control literature | 2.5 to 2.7 |
-| 13 | Start the lessons log | 6.5 |
-| 14 | Ask the firm for a design review session and for answers to the open questions | 4.2, 4.8 |
-
-**Next semester.**
-
-| Order | Task |
-|---|---|
-| 15 | Privacy fixes first (G05), then finish the isolation sweep |
-| 16 | Set up the server; run the end-to-end suite and all timings there |
-| 17 | Re-run the labelled set, the comparisons and the value test |
-| 18 | Team members re-run all scenarios by hand on the production build; usability session |
-| 19 | Freeze the version; write Chapter 5 from the frozen results |
-| 20 | Write Chapter 6, update the tense of Chapters 1 to 4, rewrite the abstract with results |
