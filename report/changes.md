@@ -8,7 +8,7 @@
 
 | Chapter | What changed |
 |---|---|
-| 1 | "Eish" corrected to "Selah" (1.5). Scope (1.7.1) and Project Organization (1.9) updated to match the finished Chapter 4. |
+| 1 | "Eish" corrected to "Selah" (1.5). Scope (1.7.1, 1.7.2) and Project Organization (1.9) updated to match the finished Chapter 4. |
 | 2 | Nothing. |
 | 3 | The screens table (3.15) and the functions table (3.16) were replaced with the fuller versions. The opening paragraph of 3.3.3 was replaced, and the 3.3 headings now number themselves. |
 | 4 | Written in full: methodology, system design and interface design, keeping the team's Agile text. The two feature-by-role tables are not included. |
@@ -25,6 +25,8 @@
 | 1.7.1, new paragraph | (none) | Arabic-first with English, desktop and tablet screens from 768 pixels, real client files processed only by a locally hosted model; the prototype covers the core design and later-phase features are in 4.2.8. | Platform decisions made in Chapter 4. |
 | 1.7.1, new paragraph | (none) | Out of scope: pricing and invoicing; connections to client HR, finance, ERP or calendar systems; a mobile phone layout; a policy platform for all staff or enforcement of an authority matrix; automatic calculation of business indicators; certification of compliance. | A scope should say what is excluded; each item is excluded by the design. |
 | 1.9 Project Organization | Chapter 3 explains the development methodology and the system, and interface design. | Chapter 3 presents the software project management plan and the requirements specification. Chapter 4 explains the methodology and the system and interface design. | The sentence gave Chapter 4's content to Chapter 3 and skipped Chapter 4. |
+| 1.7.1, paragraphs 1 and 3 | "multiple client Organization"; "Access restrictions will separate from different organizations" | "multiple client organizations"; "Access restrictions will separate different organizations" | Grammar. |
+| 1.7.2, paragraph 1 | Departmental roles, such as human resources, ... | Department-limited roles, such as a manager limited to human resources, ... | Matches the role design in Chapter 4. |
 
 ## Chapter 2: Background and Review of Literature
 
@@ -38,8 +40,15 @@ No changes.
 | Table 3.16 | "Main system functions": 13 rows with no numbers. Status words "Awaiting consultant review, Changes requested, Approved". Client managers could edit goals and plans | 22 numbered functions, FR-01 to FR-22. The status words match Chapter 4 (Not started, In progress, Waiting, Needs attention, Verified, Closed), and the firm writes the plan | Chapter 4 points to the FR numbers. The old table contradicted the design in Chapter 4 (who edits the plan, the status words). |
 | 3.3.3, first paragraph | "Assigned consultants and client managers can create recommendations, assign actions, change deadlines, and edit goals or plans ... Client managers must discuss changes with the consultant first." | "In the design, assigned consultants will create findings, recommendations and actions, name owners, set and change deadlines, and release actions within their projects. Client users will not edit the plan ..." and it points to Table 3.16 | The old sentence let client managers edit the plan. Everywhere else, the firm writes the plan and the client answers it. |
 | 3.3 and 3.3.1 to 3.3.4 headings | Typed numbers ("3.3.1 External interface requirements") with Word numbering switched off | The same headings with Word's automatic numbering, like the rest of Chapter 3; "non-functional" now has a capital N | One numbering system for every heading, so the numbers stay right if a section is added. |
+| 3.3.1 Access and devices | a standard device with a screen, keyboard or touch input | a desktop or tablet (screens 768 pixels wide or more), with a keyboard or touch input | Chapter 4 sets the screen widths. |
+| 3.3.1 Software and files | File limits and support for scanned documents still need to be agreed. | Files are limited to 20 MB (FR-08). Scanned pages are stored as files; reading their text is planned for a later phase. | Decided in Table 3.16 and Chapter 4. |
+| 3.3.1 AI connection | The AI model will be chosen during design and evaluation. | Chapter 4 selects a locally hosted model for this (Section 4.2.7). | Decided in Chapter 4. |
+| 3.3.1 Communication | Reminders will appear within Selah; email may be added if selected | Reminders will appear within Selah and by email | FR-10 includes email notices. |
+| 3.3.2, first paragraph | The full interface language or languages still need to be agreed | The interface will be Arabic-first, with English available from the same screens (Section 4.3). | Decided in Chapter 4. |
+| 3.3.3, "Assessment and AI monitoring" | AI monitoring summarizes permitted updates and flags possible delays or reported obstacles with supporting links. | AI monitoring summarizes permitted updates with supporting links. Possible delays and reported obstacles are flagged from the recorded deadlines and states, and AI highlighting of possible deviations or concerns is planned for a later phase (Section 4.2.8). | Matches Chapter 4 and objective 5. |
+| 3.3.4 Compatibility and performance | data and file sizes ... still need to be agreed | data sizes ... still need to be agreed; the file size limit is 20 MB (FR-08) | The file limit is decided; the other targets stay open. |
 
-The rest of Chapter 3 is unchanged, including 3.3.1, 3.3.2, 3.3.4 and the "Assessment and AI monitoring" paragraph. The notes below list three sentences there that no longer match Chapter 4.
+The rest of Chapter 3 is unchanged. In 3.3.4, the backup and response-time targets are still open, as before.
 
 ## Chapter 4: Methodology & Design
 
@@ -60,6 +69,7 @@ What differs from the earlier Chapter 4 draft:
 | The template's instruction paragraphs ("Suggested content is ...", "[The students should add ...]") are removed. | They are template notes, not report text. |
 | Headings use Word's automatic numbering; captions use the same "Table 4.x" and "Figure 4.x" fields as Chapters 2 and 3; tables have the same dark header row as the team's tables. | One look and one numbering system across the report. |
 | References to the Chapter 3 tables now say Table 3.15 and Table 3.16. | Chapter 3 numbering in this file. |
+| 4.1, second paragraph | The team followed a requirements-first, iterative design method. | Before development, the team used a requirements-first, iterative design method to work out what Selah needs. | Links the team's Agile text (how Selah will be developed) with the steps that worked out the features. |
 
 ## Chapters 5 and 6
 
@@ -73,17 +83,13 @@ The table of contents now lists every Chapter 4 heading. The list of tables has 
 
 Ordered by importance.
 
-1. **3.3.1, 3.3.2 and 3.3.4 still say some things are "to be agreed" that Chapter 4 and Table 3.16 now decide.** 3.3.2 says "the full interface language or languages still need to be agreed", while Chapter 4 makes Arabic the default with English available. 3.3.1 says "the AI model will be chosen during design" and that file limits "still need to be agreed", while Chapter 4 names a local model and FR-08 sets 20 MB. Either reword these as decided in the design (pointing to Chapter 4), or keep them open and soften Chapter 4. As it stands, a reader sees two answers.
-2. **Figure 4.10 counts 47 features (13 Set, 25 To refine, 9 To plan)**, but with the feature-by-role tables removed, the report no longer lists those 47 features. Either keep the figure as a summary and say so in one sentence, or remove it. Table 4.4 still lists the planned features.
-3. **The "Assessment and AI monitoring" paragraph after Table 3.16** says AI monitoring "flags possible delays or reported obstacles". Chapter 4 says late, stuck and blocked work is found by rules and that AI highlighting of concerns is for a later phase. Align the two, for example "AI monitoring summarizes permitted updates; possible delays and obstacles are flagged from the records, and AI highlighting is planned for a later phase."
-4. **4.1 now has two parts that should be linked in one sentence.** The Agile text describes how the system will be developed; the next paragraph describes how the features were worked out. Suggested link at the start of the second paragraph: "Before development, the team used a requirements-first design method ..."
-5. **2.3.4 has an informal tone in places** ("the whole mess", "Turns out"). Reword in the same style as the rest of Chapter 2.
-6. **2.4 refers to "the software comparison"**, but the chapter has no separate comparison. See the earlier proposal: say the comparison is of the systems described in the reviewed papers, each covering part of the work.
-7. **Title page date** says October 2026. Update it to the submission month.
-8. **A blank page before Chapter 6.** It was already in the Nov24 file. Remove it before submitting.
-9. **The non-functional requirements in 3.3.4 have no numbers.** Number them (for example NFR-01 Security and privacy to NFR-07 Maintenance) so Chapter 5 can trace tests to them, as the functions are traced through FR-01 to FR-22.
-10. **Chapters 5 and 6** are still the template's instruction text, as planned for next semester.
-11. **Small wording in 1.7.1** (not changed): "multiple client Organization" should be "organizations", and "Access restrictions will separate from different organizations" should read "will separate different organizations". 1.7.2 could say "department-limited roles" instead of the HR example.
+1. **Figure 4.10 counts 47 features (13 Set, 25 To refine, 9 To plan)**, but with the feature-by-role tables removed, the report no longer lists those 47 features. Either keep the figure as a summary and say so in one sentence, or remove it. Table 4.4 still lists the planned features.
+2. **2.3.4 has an informal tone in places** ("the whole mess", "Turns out"). Reword in the same style as the rest of Chapter 2.
+3. **2.4 refers to "the software comparison"**, but the chapter has no separate comparison. See the earlier proposal: say the comparison is of the systems described in the reviewed papers, each covering part of the work.
+4. **Title page date** says October 2026. Update it to the submission month.
+5. **A blank page before Chapter 6.** It was already in the Nov24 file. Remove it before submitting.
+6. **The non-functional requirements in 3.3.4 have no numbers.** Number them (for example NFR-01 Security and privacy to NFR-07 Maintenance) so Chapter 5 can trace tests to them, as the functions are traced through FR-01 to FR-22.
+7. **Chapters 5 and 6** are still the template's instruction text, as planned for next semester.
 
 ## What Chapter 5 should cover next semester
 
