@@ -1,6 +1,6 @@
 # Changes to the CS 511 final report draft
 
-File: `report/CS511-final-report-draft.docx`. Every changed or new paragraph carries one Word comment by "Team review" (150 comments). The report has 13 tables and 19 figures, and both lists match the captions.
+File: `report/CS511-final-report-draft.docx`. The Word file has no comments; every change is listed here. The report has 11 tables and 19 figures, and both lists match the captions.
 
 **The report is a plan.** This semester the team planned and designed Selah. Developing and evaluating it is next semester's work (Chapter 5). Chapters 1 to 4 therefore describe the design as proposed: what Selah will do, what is decided and what is still open. The interface figures are interface designs on sample data.
 
@@ -12,52 +12,37 @@ Rules kept: nothing that was already fine was rewritten; the literature, the "fu
 
 ## Chapter 1: Introduction
 
-| Where | Old text (short) | New text (short) | Why |
+Kept exactly as the team wrote it, with one correction.
+
+| Where | Old | New | Why |
 |---|---|---|---|
-| 1.1 Introduction, paragraph 4 | The project will also investigate AI-assisted progress monitoring ... identify potential deviations | The project also includes an AI assistant that works under the same access rules ... | The design has no AI that monitors progress. The assistant answers with sources and drafts summaries; late and stuck work is found by fixed rules. |
 | 1.5 Justification | Eish provides | Selah provides | Wrong product name. |
-| 1.5 Justification | AI ... to summarize information and highlight important updates | AI ... answers questions from permitted documents with their sources and drafts summaries | The assistant does not pick out important updates on its own. |
-| 1.6 Aims & Objectives, objective 5 | Investigate AI-assisted progress monitoring ... | Provide an AI assistant that ... answers questions from authorized documents ... | The objective now states what the assistant in the design does. |
-| 1.7.1 Project Scope, paragraph 4 | Authorized users will also be able to maintain goal statements and plans ... | Authorized consultants will maintain the plans ...; client users read the plan and answer each recommendation | In the design the firm writes the plan and the client answers it. |
-| 1.7.1 Project Scope, paragraph 5 | The project will investigate whether AI assistance can support this process ... | These items are identified by fixed rules on recorded dates and states ... | Attention items come from rules, not from AI. |
-| 1.7.2 Limitations, paragraph 3 | ... summaries, and identified concerns will remain subject to human review | ... summaries, and drafts will remain subject to human review | The assistant does not identify concerns. |
-| 1.7.2 Limitations, paragraph 4 (added earlier, now reworded) | (a paragraph on limits of a finished product) | The design also has limits of its own. This semester the team planned and designed the system ... | States the limits of the plan: desktop and tablet only, scanned pages not read in the first version, sample data, no real users yet. |
-| 1.8.4 Ethical Use of AI, paragraph 2 | AI-generated summaries and alerts | AI-generated answers, summaries and drafts | Alerts and reminders are rule-based. |
-| 1.9 Project Organization | Chapter 3 explains the development methodology and the system, and interface design. Chapter 5 ... | Chapter 3 presents the software project management plan and the requirements specification. Chapter 4 explains ... | The sentence gave Chapter 4's content to Chapter 3. |
-| 1.10 Chapter summary | The platform is ... as a prototype | The platform is planned as a prototype | The system is developed next semester. |
 
-### Three reviews of this chapter
-
-**Grader.** The chapter reads as a proposal and matches the template. **Partner firm.** Sections 1.2 to 1.4 still describe a dashboard for consultants only (the team's text, left as written). **Proofreader.** No statement that work was done by anyone but the team; no claim that the system exists.
-
-**Left for the team.** The template's instruction paragraph still under the Chapter 1 heading; the words "goals" and "goal statements" (the design's plan is findings, recommendations and actions); "checkups" (the design says check-ins).
+Other changes to Chapter 1 are proposed to the team, not made (see "Proposed changes for Chapters 1 and 2" below).
 
 ## Chapter 2: Background and Review of Literature
 
-| Where | Old text (short) | New text (short) | Why |
-|---|---|---|---|
-| 2.4 Knowledge Gap, last paragraph | The software comparison shows that | The software comparison in Table 2.1 shows that | The draft named a comparison but had no table. |
-| 2.4, new paragraph, Table 2.1 and closing paragraph | (none) | Table 2.1: 22 feature rows; existing practice and software in six columns, and the proposed design of Selah | The template asks for tables of features in existing applications and which are missing. Selah's column is headed "proposed design" and shows what the design provides. The last four rows show where the design is the weaker one. |
-| Table 2.1 caption and its paragraphs | (wording that described a finished product) | "... compared with the proposed design of Selah"; "designed to provide"; "marked To refine in Table 4.4" | The comparison is with a design. |
-| Literature summary table | (no caption) | Caption "Table 2.2 Summary of the reviewed literature" | So the table appears in the list of tables. Text of the table unchanged. |
-
-**Left for the team.** The commercial columns of Table 2.1 are general judgments about kinds of product, not sourced comparisons of named products: name two or three products per column with a source, or keep the categories (the text says so). The citation numbers clash inside the chapter, and the reference list is still the template's sample entries.
+Kept exactly as the team wrote it. No changes.
 
 ## Chapter 3: SPMP & Requirement Specification
 
-| Where | Old text (short) | New text (short) | Why |
-|---|---|---|---|
-| Staffing table, implementation row | (a skill named loosely) | ... integrating the AI/RAG component ... | The skill meant is the work on the product's assistant. |
-| 3.2.1 Product Perspective | ... share all internal information. | + In every mode the plan itself is written and changed by the firm ... | The firm writes the plan. |
-| 3.2.2 Product Functions | (nine bullets) | Seven more bullets (action states and status words, client answers, requests for more time and risk acceptance, indicators and structure, inquiry to archiving, file handling and audit log, help) | Functions of the design that were missing from the list. |
-| 3.3 Specific requirements, 3.3.1 to 3.3.4 | Four empty headings numbered "2.3.1" to "2.3.4" | Headings renumbered 3.3.1 to 3.3.4; text for each; Table 3.5 (19 screens); Table 3.6 (functions FR-01 to FR-22); non-functional requirements NFR-01 to NFR-07 | The section was empty. It now states the requirements of the planned system. |
-| 3.3 opening, 3.3.3 opening, 3.3.4 opening | (wording that described a finished product and its results) | "This section states what the planned system must provide ..."; "In the design, assigned consultants will create ..."; "The system is designed to meet the following requirements. They will be checked next semester ..." | Requirements are stated as planned. Results and measurements are removed; checking is next semester. |
-| NFR-01, 03, 04, 05, 06, 07; 3.3.1 | (statements of results) | "The test plan checks each rule ..."; "The planned scenario walkthroughs cover ..."; backups "are part of the deployment design"; "Page response targets will be set and measured next semester"; a labeled set of sample questions "is planned" | Same reason. |
-| Table 3.6, FR-14 | the client's administrators and the former lead are told | ... the client's administrators, the project's sponsor and coordinator, and the former lead are told | Matches the feature-by-role check (see Chapter 4): the people who work with the lead should know of a change. |
-| Table 3.6, FR-15 | a notice to the client ... is still missing | the client ... is told by a notice | Stated as a requirement. |
-| Captions of Table 3.1, Table 3.2, Figure 3.3, Table 3.4 | Plain text numbers | Same words; the number is a Word field | So the lists can include them. |
+Kept as the team wrote it, with these additions and corrections.
 
-**Left for the team.** "Table X" for the training table and the missing captions of the training and resource tables; the Budget Allocation section (still the template's bullets); the timeline and the Work Breakdown Structure (kept exactly as written); no measurable targets yet for the non-functional requirements.
+| Where | Old | New | Why |
+|---|---|---|---|
+| Staffing table, implementation row | using AI tools | integrating the AI/RAG component | The skill meant is building the assistant part of Selah. |
+| 3.2.1 Product Perspective | ... share all internal information. | + In every mode the plan itself is written and changed by the firm; client users answer it, update their actions and send evidence. | States who keeps the plan. |
+| 3.2.2 Product Functions | (nine bullets) | Seven more bullets: action states and status words, client answers, requests for more time and risk acceptance, client-reported indicators and the organization structure, inquiry to archiving, file controls and the audit log, help in Arabic and English | Functions in the design that the list was missing. |
+| 3.3 Specific requirements, 3.3.1 to 3.3.4 | Four empty headings numbered "2.3.1" to "2.3.4" | Headings numbered 3.3.1 to 3.3.4, with text, Table 3.5 (screens), Table 3.6 (functions FR-01 to FR-22) and NFR-01 to NFR-07 | The template asks for these sections and they were empty. |
+| 3.3.3, "Assessment and AI" paragraph | (new text) | AI-assisted progress monitoring supports the consultant: the assistant summarizes progress, and highlighting possible deviations or concerns for the consultant to review is planned for a later phase | Matches objective 5 in Chapter 1. |
+| Captions of Table 3.1, Table 3.2, Figure 3.3, Table 3.4 | Plain text numbers | Same words; the number is a Word field | So the lists of tables and figures include them. No wording changed. |
+
+## Proposed changes for Chapters 1 and 2 (not made; for the team to decide)
+
+1. **1.9 Project Organization.** It says Chapter 3 explains the development methodology and the system and interface design. That is Chapter 4's content; Chapter 3 is the project plan and the requirements. Proposed: "Chapter 3 presents the project management plan and the requirements specification. Chapter 4 explains the methodology and the system and interface design."
+2. **1.7.1 Project Scope, paragraph 4.** It says authorized users will maintain goal statements and plans. In the design, the firm's consultants write and change the plan; client users answer it, update their actions and send evidence. Proposed: say who maintains the plan.
+3. **1.10.** It describes the platform as a prototype; the team may want "is planned as a prototype" since development is next semester.
+4. **Chapter 2, 2.4 Knowledge Gap.** The last paragraph refers to "the software comparison", but the chapter has no comparison table. Either remove the words "software comparison" or point to where the comparison is made in the literature.
 
 ## Chapter 4: Methodology & Design
 
@@ -89,7 +74,8 @@ Removed from 4.1: all dates; the former sub-section on human decisions and revie
 | 4.2.4 Data model | Three sentences explain Figure 4.4, which is redrawn (see below) | The old figure was hard to read. |
 | 4.2.5, Table 4.3 | The Arabic column is removed (three columns remain) | Asked by the team. |
 | 4.2.6 Use cases | "Solid ovals belong to the core design; dashed ovals are planned for a later phase" | New legend in Figures 4.7 and 4.8. |
-| 4.2.7 Assistant | Text follows the seven numbered steps of the redrawn Figure 4.9; "the system suggests and a person decides" stated here | Clearer flow. |
+| 4.2.7 Assistant | Opens by saying the assistant supports the core workflow and is not the centre of Selah; a new paragraph says it follows the rules and instructions of the consulting work and lists the planned reference library (CMA governance guide, IFC handbook, OECD principles, Balanced Scorecard, Good Strategy/Bad Strategy, MEP strategic-plan guide). | Asked by the team. |
+| 4.2.7 Assistant (earlier) | Text follows the seven numbered steps of the redrawn Figure 4.9; "the system suggests and a person decides" stated here | Clearer flow. |
 | 4.2.8 | Renamed "Design status: what is set and what is still to work out"; three marks (Set, To refine, To plan) in the text, Figure 4.10 and Tables 4.4 to 4.6 | See below. |
 | 4.2.9 Deployment | "is designed to be deployed"; the deployment design lists backups, restore drill, upgrade and rollback steps | Design wording. |
 
@@ -165,16 +151,15 @@ The template gives only 4.1 Proposed Methodology, 4.2 System Design and 4.3 Inte
 | 4.2.1 Architecture; 4.2.2 Users and roles; 4.2.3 Permission model and tenant isolation; 4.2.4 Data model; 4.2.5 Core workflow and action states; 4.2.6 Use cases from the consultant's and the client's side; 4.2.7 Assistant design; 4.2.8 Design status; 4.2.9 Deployment design | Under 4.2 |
 | 4.3.1 Design principles; 4.3.2 Arabic screens; 4.3.3 English, dark mode and tablet width; 4.3.4 Help and accessibility | Under 4.3 |
 | Figures 4.1 to 4.18 and Tables 4.1 to 4.6 | Chapter 4 |
-| Table 2.1 and the caption "Table 2.2" | Chapter 2, 2.4 |
 | Text, Table 3.5 and Table 3.6 under 3.3.1 to 3.3.4 | Chapter 3 (the headings are the template's, renumbered) |
-| Seven bullets in 3.2.2; one sentence in 3.2.1; one paragraph in 1.7.2 | Chapters 1 and 3 |
+| Seven bullets in 3.2.2; one sentence in 3.2.1 | Chapter 3 |
 | Entries in the List of Tables and List of Figures | Front matter |
 
 ## Front matter: lists of tables and figures, table of contents
 
 The lists hold 13 tables and 19 figures as Word fields linked to the captions. Captions use Word SEQ fields. Page numbers are filled when Word updates the fields (accept the prompt on opening, or select all and press F9).
 
-Tables: Table 2.1 Features of existing software compared with the proposed design of Selah; Table 2.2 Summary of the reviewed literature; Table 3.1 Staffing plan by project phase; Table 3.2 Work Breakdown Structure; Table 3.4 Schedule Constraints and Milestones; Table 3.5 User interface screens; Table 3.6 Main system functions; Table 4.1 Decision points and what the team agreed; Table 4.2 Roles on both sides; Table 4.3 The eight stored action states and the six status words; Table 4.4 Feature by role, the firm's side; Table 4.5 Feature by role, the client's side; Table 4.6 Planned features and why each is needed.
+Tables: Table 3.1 Staffing plan by project phase; Table 3.2 Work Breakdown Structure; Table 3.4 Schedule Constraints and Milestones; Table 3.5 User interface screens; Table 3.6 Main system functions; Table 4.1 Decision points and what the team agreed; Table 4.2 Roles on both sides; Table 4.3 The eight stored action states and the six status words; Table 4.4 Feature by role, the firm's side; Table 4.5 Feature by role, the client's side; Table 4.6 Planned features and why each is needed.
 
 Figures: Figure 3.3 Project Gantt Chart; Figure 4.1 How the team arrived at the features of Selah; Figure 4.2 Selah system architecture; Figure 4.3 Permission model: a permission check in the application and row-level security in the database; Figure 4.4 Simplified entity-relationship diagram of the main entities; Figure 4.5 Action state diagram; Figure 4.6 Sequence diagram: sending evidence and reviewing it; Figure 4.7 Use-case diagram: the consultant's (firm) side; Figure 4.8 Use-case diagram: the client's side; Figure 4.9 The assistant's retrieval flow in seven steps; Figure 4.10 Design status by area: Set, To refine and To plan; Figures 4.11 to 4.18 Interface design (lead consultant's home; client administrator's home; an action as the reviewing consultant sees it; the same action as its owner sees it; project page, Progress tab; the assistant card with a cited answer; an action page for its owner in English, dark mode, tablet width; home page of a new action owner in English, dark mode, tablet width).
 
@@ -206,19 +191,17 @@ The firm's two briefing decks were read to understand how the firm works. They a
 - The .docx unzips and every XML part is well formed.
 - The validator of the document tool passes (schema checks against the previous version).
 - Chapters 5 and 6: the text from "Chapter 5: Implementation and Testing" to "References" is identical, byte for byte, to the team's original draft.
-- 150 comments, all by "Team review", each with one anchor in the document; comments of removed paragraphs are removed.
 - 32 captions (13 tables, 19 figures) and 32 list entries, with the same titles; numbering is continuous.
 - All 18 pictures are embedded and are the same files as in `report/figures/`.
 - New text uses Times New Roman and the draft's own heading and caption styles.
 - The document was opened in Word and printed to PDF as a check (96 pages): the tables of 4.2.8 fit the page width, and every figure sits above its caption.
-- Word search over Chapters 1 to 4, the front matter and the comments. Remaining hits and why they are legitimate: "agent" and "multi-agent" (9) are in the literature review, describing a published framework; "implemented" (10) and "tested" (10) are in the literature review and its summary table, describing the reviewed studies; "merged" (2) and "repository" (1) are in the literature table; "code" (3) is "code editor/IDE" in the team's resource table and "authenticator code" for sign-in; "2026" (6) is the year of cited papers. Every other searched word has no hit. The word "model" remains where it describes the product's local model.
+- Word search over Chapters 1 to 4 and the front matter. Remaining hits and why they are legitimate: "agent" and "multi-agent" (9) are in the literature review, describing a published framework; "implemented" (10) and "tested" (10) are in the literature review and its summary table, describing the reviewed studies; "merged" (2) and "repository" (1) are in the literature table; "code" (3) is "code editor/IDE" in the team's resource table and "authenticator code" for sign-in; "2026" (6) is the year of cited papers. Every other searched word has no hit. The word "model" remains where it describes the product's local model.
 
 ## Uncertain, for the team to decide
 
 1. **Present tense for the design.** Sections 3.3 and Chapter 4 describe the design in the present tense ("the assistant keeps only ..."), with a sentence at the start of each saying that this states what Selah will do. If the supervisor prefers "will" throughout, the sentences need a further pass.
 2. **Rows of Tables 4.4 and 4.5.** To bring 4.2.8 under half its length, related features share rows and the deputy shares the lead's column. If the team wants one row per feature again, the section grows back.
 3. **Role decisions that need the firm.** Who is told when the lead changes, who may sign a risk acceptance, and whether a consultant may ever enter a client's figures (see the table of changed cells). Also: a client admin works on actions only at a restricted client; in a small family company the administrator may also own actions, so the firm should confirm this.
-4. **Table 2.1.** The commercial columns are general judgments, not sourced comparisons of named products.
-5. **Interface figures.** They show sample data with fictional names and e-mail addresses. The pictures of Figures 4.13 and 4.14 show dates of the sample data.
-6. **"Goals" in Chapter 1** and the proposal's future tense were left as written.
-7. **Table numbers in Chapter 3.** The requirement tables are 3.5 and 3.6, because the draft's captions stop at 3.4.
+4. **Interface figures.** They show sample data with fictional names and e-mail addresses. The pictures of Figures 4.13 and 4.14 show dates of the sample data.
+5. **"Goals" in Chapter 1** and the proposal's future tense were left as written.
+6. **Table numbers in Chapter 3.** The requirement tables are 3.5 and 3.6, because the draft's captions stop at 3.4.
