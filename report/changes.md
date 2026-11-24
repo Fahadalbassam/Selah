@@ -8,7 +8,7 @@
 
 | Chapter | What changed |
 |---|---|
-| 1 | One word: "Eish provides" corrected to "Selah provides" (1.5). Nothing else. |
+| 1 | "Eish" corrected to "Selah" (1.5). Scope (1.7.1) and Project Organization (1.9) updated to match the finished Chapter 4. |
 | 2 | Nothing. |
 | 3 | The screens table (3.15) and the functions table (3.16) were replaced with the fuller versions. The opening paragraph of 3.3.3 was replaced, and the 3.3 headings now number themselves. |
 | 4 | Written in full: methodology, system design and interface design, keeping the team's Agile text. The two feature-by-role tables are not included. |
@@ -19,6 +19,12 @@
 | Where | Old | New | Why |
 |---|---|---|---|
 | 1.5 Justification | Eish provides a shared workspace | Selah provides a shared workspace | Wrong product name. |
+| 1.7.1, paragraph 4 | Authorized users will also be able to maintain goal statements and plans, arrange meetings and checkups, ... | Assigned consultants will maintain the plan (findings, recommendations and actions), while client users will respond to it, update their assigned actions and submit evidence. Authorized users will also be able to arrange meetings and checkups ... | Chapters 3 and 4 have the firm keep the plan and the client answer it. |
+| 1.7.1, paragraph 5, last sentence | The exact AI method and the criteria used to identify deviations will be defined during design and evaluation. | Chapter 4 sets out the design: rules on recorded dates and states find late, stuck and inactive work; the assistant summarizes the records the user is allowed to see; and AI highlighting of possible deviations or concerns is planned for a later phase, where it will be evaluated. | The design now answers this. Objective 5 is unchanged. |
+| 1.7.1, new paragraph | (none) | The steps around the workflow that the design covers: inquiries with a conflict check and engagement setup, the optional governance assessment, deliverable hand-over and receipt, client-reported indicators, the organization structure, reports approved by a second person, clients that do not use the platform, closing and archiving, and the document assistant. | Chapters 3 and 4 plan these, and the scope did not mention them. |
+| 1.7.1, new paragraph | (none) | Arabic-first with English, desktop and tablet screens from 768 pixels, real client files processed only by a locally hosted model; the prototype covers the core design and later-phase features are in 4.2.8. | Platform decisions made in Chapter 4. |
+| 1.7.1, new paragraph | (none) | Out of scope: pricing and invoicing; connections to client HR, finance, ERP or calendar systems; a mobile phone layout; a policy platform for all staff or enforcement of an authority matrix; automatic calculation of business indicators; certification of compliance. | A scope should say what is excluded; each item is excluded by the design. |
+| 1.9 Project Organization | Chapter 3 explains the development methodology and the system, and interface design. | Chapter 3 presents the software project management plan and the requirements specification. Chapter 4 explains the methodology and the system and interface design. | The sentence gave Chapter 4's content to Chapter 3 and skipped Chapter 4. |
 
 ## Chapter 2: Background and Review of Literature
 
@@ -68,16 +74,16 @@ The table of contents now lists every Chapter 4 heading. The list of tables has 
 Ordered by importance.
 
 1. **3.3.1, 3.3.2 and 3.3.4 still say some things are "to be agreed" that Chapter 4 and Table 3.16 now decide.** 3.3.2 says "the full interface language or languages still need to be agreed", while Chapter 4 makes Arabic the default with English available. 3.3.1 says "the AI model will be chosen during design" and that file limits "still need to be agreed", while Chapter 4 names a local model and FR-08 sets 20 MB. Either reword these as decided in the design (pointing to Chapter 4), or keep them open and soften Chapter 4. As it stands, a reader sees two answers.
-2. **1.9 Project Organization still says "Chapter 3 explains the development methodology and the system, and interface design"** and skips Chapter 4. Chapter 3 is the project plan and the requirements; Chapter 4 is the methodology and design.
-3. **Figure 4.10 counts 47 features (13 Set, 25 To refine, 9 To plan)**, but with the feature-by-role tables removed, the report no longer lists those 47 features. Either keep the figure as a summary and say so in one sentence, or remove it. Table 4.4 still lists the planned features.
-4. **The "Assessment and AI monitoring" paragraph after Table 3.16** says AI monitoring "flags possible delays or reported obstacles". Chapter 4 says late, stuck and blocked work is found by rules and that AI highlighting of concerns is for a later phase. Align the two, for example "AI monitoring summarizes permitted updates; possible delays and obstacles are flagged from the records, and AI highlighting is planned for a later phase."
-5. **4.1 now has two parts that should be linked in one sentence.** The Agile text describes how the system will be developed; the next paragraph describes how the features were worked out. Suggested link at the start of the second paragraph: "Before development, the team used a requirements-first design method ..."
-6. **2.3.4 has an informal tone in places** ("the whole mess", "Turns out"). Reword in the same style as the rest of Chapter 2.
-7. **2.4 refers to "the software comparison"**, but the chapter has no separate comparison. See the earlier proposal: say the comparison is of the systems described in the reviewed papers, each covering part of the work.
-8. **Title page date** says October 2026. Update it to the submission month.
-9. **A blank page before Chapter 6.** It was already in the Nov24 file. Remove it before submitting.
-10. **The non-functional requirements in 3.3.4 have no numbers.** Number them (for example NFR-01 Security and privacy to NFR-07 Maintenance) so Chapter 5 can trace tests to them, as the functions are traced through FR-01 to FR-22.
-11. **Chapters 5 and 6** are still the template's instruction text, as planned for next semester.
+2. **Figure 4.10 counts 47 features (13 Set, 25 To refine, 9 To plan)**, but with the feature-by-role tables removed, the report no longer lists those 47 features. Either keep the figure as a summary and say so in one sentence, or remove it. Table 4.4 still lists the planned features.
+3. **The "Assessment and AI monitoring" paragraph after Table 3.16** says AI monitoring "flags possible delays or reported obstacles". Chapter 4 says late, stuck and blocked work is found by rules and that AI highlighting of concerns is for a later phase. Align the two, for example "AI monitoring summarizes permitted updates; possible delays and obstacles are flagged from the records, and AI highlighting is planned for a later phase."
+4. **4.1 now has two parts that should be linked in one sentence.** The Agile text describes how the system will be developed; the next paragraph describes how the features were worked out. Suggested link at the start of the second paragraph: "Before development, the team used a requirements-first design method ..."
+5. **2.3.4 has an informal tone in places** ("the whole mess", "Turns out"). Reword in the same style as the rest of Chapter 2.
+6. **2.4 refers to "the software comparison"**, but the chapter has no separate comparison. See the earlier proposal: say the comparison is of the systems described in the reviewed papers, each covering part of the work.
+7. **Title page date** says October 2026. Update it to the submission month.
+8. **A blank page before Chapter 6.** It was already in the Nov24 file. Remove it before submitting.
+9. **The non-functional requirements in 3.3.4 have no numbers.** Number them (for example NFR-01 Security and privacy to NFR-07 Maintenance) so Chapter 5 can trace tests to them, as the functions are traced through FR-01 to FR-22.
+10. **Chapters 5 and 6** are still the template's instruction text, as planned for next semester.
+11. **Small wording in 1.7.1** (not changed): "multiple client Organization" should be "organizations", and "Access restrictions will separate from different organizations" should read "will separate different organizations". 1.7.2 could say "department-limited roles" instead of the HR example.
 
 ## What Chapter 5 should cover next semester
 
