@@ -84,7 +84,7 @@ services:
       start_period: 30s
 
   ollama:
-    image: ollama/ollama:0.40.6
+    image: ollama/ollama:0.40.18
     volumes: [ollama-models:/root/.ollama]
     ports: ["127.0.0.1:11434:11434"]
     # One model run at a time: on a processor two answers side by side each
@@ -98,7 +98,7 @@ services:
   # Pulls the models once into the ollama volume. The chat model only when it
   # runs here: with a hosted LLM_PROVIDER, LLM_MODEL names the API's model.
   ollama-pull:
-    image: ollama/ollama:0.40.6
+    image: ollama/ollama:0.40.18
     environment: { OLLAMA_HOST: "ollama:11434" }
     entrypoint:
       - sh
